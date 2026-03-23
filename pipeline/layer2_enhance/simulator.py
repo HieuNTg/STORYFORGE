@@ -5,33 +5,17 @@ MiroFish tạo các agent tự trị trên mạng xã hội giả lập.
 "không gian ảo" để phát hiện xung đột và tình huống kịch tính.
 """
 
-import json
 import logging
-from typing import Optional
 
 from models.schemas import (
-    Character, Relationship, SimulationEvent, AgentPost,
+    Character, Relationship, RelationType, SimulationEvent, AgentPost,
     SimulationResult,
 )
 from services.llm_client import LLMClient
 from services import prompts
+from pipeline.layer2_enhance._agent import CharacterAgent, TENSION_DELTAS
 
 logger = logging.getLogger(__name__)
-
-
-class CharacterAgent:
-    """Agent đại diện cho một nhân vật trong mô phỏng."""
-
-    def __init__(self, character: Character):
-        self.character = character
-        self.memory: list[str] = []
-        self.posts: list[AgentPost] = []
-
-    def add_memory(self, event: str):
-        self.memory.append(event)
-        # Giới hạn bộ nhớ
-        if len(self.memory) > 20:
-            self.memory = self.memory[-20:]
 
 
 class DramaSimulator:
@@ -244,7 +228,9 @@ class DramaSimulator:
                (rel.character_a == b and rel.character_b == a):
                 try:
                     rel.relation_type = RelationType(new_type)
-                    rel.tension = min(1.0, rel.tension + 0.1)
+                    # Lấy delta tension theo loại quan hệ mới
+                    delta = TENSION_DELTAS.get(new_type, 0.1)
+                    rel.tension = max(0.0, min(1.0, rel.tension + delta))
                 except ValueError:
                     pass
                 return

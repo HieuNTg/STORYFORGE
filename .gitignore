@@ -75,6 +75,9 @@ novel_auto.log
 .venv/
 venv/
 
+# OpenClaw state (credentials - sensitive)
+vendor/openclaw-zero-token/.openclaw-zero-state/
+
 # CK meta commands
 prompt.md
 ck.md

@@ -14,6 +14,11 @@ class LLMConfig:
     model: str = "gpt-4o-mini"
     temperature: float = 0.8
     max_tokens: int = 4096
+    # Cấu hình backend switching
+    backend_type: str = "api"  # "api" hoặc "openclaw"
+    openclaw_port: int = 3002
+    openclaw_model: str = "deepseek-web/deepseek-chat"
+    auto_fallback: bool = True  # Tự động chuyển sang API khi OpenClaw fail
 
 
 @dataclass
@@ -82,6 +87,11 @@ class ConfigManager:
                 "model": self.llm.model,
                 "temperature": self.llm.temperature,
                 "max_tokens": self.llm.max_tokens,
+                # Backend switching
+                "backend_type": self.llm.backend_type,
+                "openclaw_port": self.llm.openclaw_port,
+                "openclaw_model": self.llm.openclaw_model,
+                "auto_fallback": self.llm.auto_fallback,
             },
             "pipeline": {
                 "num_chapters": self.pipeline.num_chapters,

@@ -22,10 +22,14 @@ class StoryAnalyzer:
         )
         synopsis = draft.synopsis
         if not synopsis and draft.chapters:
-            synopsis = "\n".join(
-                f"Chương {ch.chapter_number}: {ch.content[:200]}..."
-                for ch in draft.chapters[:5]
-            )
+            # Fallback: kết hợp 300 ký tự đầu từ mỗi chương làm tóm tắt
+            parts = []
+            for ch in draft.chapters:
+                # Ưu tiên summary nếu có, không thì lấy nội dung đầu
+                text = ch.summary if ch.summary else ch.content[:300]
+                if text:
+                    parts.append(f"Chương {ch.chapter_number} ({ch.title}): {text.strip()}")
+            synopsis = "\n".join(parts) or "Không có tóm tắt."
 
         result = self.llm.generate_json(
             system_prompt="Bạn là nhà phân tích truyện chuyên sâu. Trả về JSON.",

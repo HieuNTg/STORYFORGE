@@ -25,15 +25,29 @@ class LLMClient:
             return
         self._initialized = True
         self._client = None
+        self._last_key = ""
+        self._current_model = ""
 
     def _get_client(self) -> OpenAI:
         config = ConfigManager()
-        if self._client is None or self._last_key != config.llm.api_key:
-            self._client = OpenAI(
-                api_key=config.llm.api_key,
-                base_url=config.llm.base_url,
-            )
-            self._last_key = config.llm.api_key
+
+        # Xác định base_url và api_key theo backend
+        if config.llm.backend_type == "openclaw":
+            base_url = f"http://localhost:{config.llm.openclaw_port}/v1"
+            api_key = "openclaw-token"  # OpenClaw không cần real key
+            model = config.llm.openclaw_model
+        else:
+            base_url = config.llm.base_url
+            api_key = config.llm.api_key
+            model = config.llm.model
+
+        # Cache key để biết khi nào cần tạo client mới
+        cache_key = f"{base_url}:{api_key}"
+        if self._client is None or self._last_key != cache_key:
+            self._client = OpenAI(api_key=api_key, base_url=base_url)
+            self._last_key = cache_key
+            self._current_model = model
+
         return self._client
 
     def generate(
@@ -49,7 +63,7 @@ class LLMClient:
         client = self._get_client()
 
         kwargs = {
-            "model": config.llm.model,
+            "model": self._current_model or config.llm.model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -65,6 +79,22 @@ class LLMClient:
             response = client.chat.completions.create(**kwargs)
             return response.choices[0].message.content or ""
         except Exception as e:
+            config = ConfigManager()
+            # Auto-fallback: nếu đang dùng OpenClaw và có API key, thử lại với API
+            if config.llm.backend_type == "openclaw" and config.llm.auto_fallback and config.llm.api_key:
+                logger.warning(f"OpenClaw lỗi, fallback sang API: {e}")
+                # Tạm thời switch sang API
+                fallback_client = OpenAI(
+                    api_key=config.llm.api_key,
+                    base_url=config.llm.base_url,
+                )
+                kwargs["model"] = config.llm.model
+                try:
+                    response = fallback_client.chat.completions.create(**kwargs)
+                    return response.choices[0].message.content or ""
+                except Exception as e2:
+                    logger.error(f"Fallback API cũng lỗi: {e2}")
+                    raise
             logger.error(f"Lỗi gọi LLM: {e}")
             raise
 
@@ -101,17 +131,53 @@ class LLMClient:
         config = ConfigManager()
         client = self._get_client()
 
-        response = client.chat.completions.create(
-            model=config.llm.model,
-            messages=[
+        kwargs = {
+            "model": self._current_model or config.llm.model,
+            "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            temperature=temperature or config.llm.temperature,
-            max_tokens=max_tokens or config.llm.max_tokens,
-            stream=True,
-        )
+            "temperature": temperature or config.llm.temperature,
+            "max_tokens": max_tokens or config.llm.max_tokens,
+            "stream": True,
+        }
 
-        for chunk in response:
-            if chunk.choices and chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+        try:
+            response = client.chat.completions.create(**kwargs)
+            for chunk in response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        except Exception as e:
+            # Auto-fallback: nếu đang dùng OpenClaw và có API key, thử lại với API
+            if config.llm.backend_type == "openclaw" and config.llm.auto_fallback and config.llm.api_key:
+                logger.warning(f"OpenClaw lỗi, fallback sang API: {e}")
+                fallback_client = OpenAI(
+                    api_key=config.llm.api_key,
+                    base_url=config.llm.base_url,
+                )
+                kwargs["model"] = config.llm.model
+                try:
+                    response = fallback_client.chat.completions.create(**kwargs)
+                    for chunk in response:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            yield chunk.choices[0].delta.content
+                    return
+                except Exception as e2:
+                    logger.error(f"Fallback API cũng lỗi: {e2}")
+                    raise
+            logger.error(f"Lỗi stream LLM: {e}")
+            raise
+
+    def check_connection(self) -> tuple[bool, str]:
+        """Kiểm tra kết nối backend. Returns (ok, message)."""
+        try:
+            client = self._get_client()
+            # Gửi request nhỏ để test
+            response = client.chat.completions.create(
+                model=self._current_model or ConfigManager().llm.model,
+                messages=[{"role": "user", "content": "test"}],
+                max_tokens=5,
+            )
+            return True, "Kết nối thành công"
+        except Exception as e:
+            return False, f"Lỗi kết nối: {str(e)}"

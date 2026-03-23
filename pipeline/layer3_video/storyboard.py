@@ -7,6 +7,7 @@ from models.schemas import (
 )
 from services.llm_client import LLMClient
 from services import prompts
+from pipeline.layer3_video._locations import generate_location_prompts
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +170,15 @@ class StoryboardGenerator:
 
         script.panels = all_panels
 
+        # Tạo image prompt cho địa điểm
+        _log("🗺️ Đang tạo mô tả hình ảnh địa điểm...")
+        script.location_descriptions = generate_location_prompts(
+            self.llm,
+            all_panels,
+            world_locations=[],  # EnhancedStory không có world; panels là nguồn chính
+            genre=story.genre,
+        )
+
         # Tạo kịch bản lồng tiếng
         _log("🎙️ Đang tạo kịch bản lồng tiếng...")
         voice_lines, voice_descs = self.generate_voice_script(all_panels, characters)
@@ -180,6 +190,7 @@ class StoryboardGenerator:
         _log(
             f"✅ Layer 3 hoàn tất! {len(all_panels)} panels, "
             f"{len(voice_lines)} dòng thoại, "
+            f"{len(script.location_descriptions)} địa điểm, "
             f"~{script.total_duration_seconds/60:.1f} phút"
         )
         return script

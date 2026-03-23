@@ -120,8 +120,14 @@ def create_ui():
                             label="Số shot mỗi chương",
                         )
 
+                        gr.Markdown("### Agent Review")
+                        enable_agents_cb = gr.Checkbox(
+                            value=True,
+                            label="Bat phong ban danh gia (Agent Review)",
+                        )
+
                         run_btn = gr.Button(
-                            "🚀 Chạy Pipeline", variant="primary", size="lg",
+                            "Chay Pipeline", variant="primary", size="lg",
                         )
 
                     with gr.Column(scale=2):
@@ -148,8 +154,13 @@ def create_ui():
                                     label="Storyboard & Script", lines=20,
                                     interactive=False,
                                 )
+                            with gr.TabItem("Danh Gia (Agents)"):
+                                agent_output = gr.Textbox(
+                                    label="Ket qua danh gia", lines=20,
+                                    interactive=False,
+                                )
 
-                        export_btn = gr.Button("💾 Xuất file")
+                        export_btn = gr.Button("Xuat file")
                         export_status = gr.Textbox(
                             label="Trạng thái xuất", interactive=False,
                         )
@@ -159,12 +170,12 @@ def create_ui():
 
                 def run_pipeline(
                     title, genre, style, idea, n_chapters, n_chars,
-                    w_count, n_sim, drama, n_shots,
+                    w_count, n_sim, drama, n_shots, agents_enabled,
                 ):
                     if not idea:
                         yield (
-                            "❌ Vui lòng nhập ý tưởng truyện!",
-                            "", "", "", "", None,
+                            "Vui long nhap y tuong truyen!",
+                            "", "", "", "", "", None,
                         )
                         return
 
@@ -189,6 +200,7 @@ def create_ui():
                             num_sim_rounds=int(n_sim),
                             shots_per_chapter=int(n_shots),
                             progress_callback=on_progress,
+                            enable_agents=agents_enabled,
                         )
 
                     thread = threading.Thread(target=_run)
@@ -202,7 +214,7 @@ def create_ui():
                             last_len = len(logs)
                             yield (
                                 "\n".join(logs),
-                                "", "", "", "", None,
+                                "", "", "", "", "", None,
                             )
 
                     thread.join()
@@ -264,12 +276,26 @@ def create_ui():
                                 video_text += f"- **Image prompt:** {p.image_prompt}\n"
                             video_text += "\n"
 
+                    agent_text = ""
+                    if output and output.reviews:
+                        agent_text = "## Ket qua Danh gia Agent\n\n"
+                        for r in output.reviews:
+                            status = "PASS" if r.approved else "FAIL"
+                            agent_text += f"### {r.agent_name} (Layer {r.layer}, Vong {r.iteration})\n"
+                            agent_text += f"- Diem: {r.score:.1f}/1.0 [{status}]\n"
+                            if r.issues:
+                                agent_text += f"- Van de: {'; '.join(r.issues[:3])}\n"
+                            if r.suggestions:
+                                agent_text += f"- Goi y: {'; '.join(r.suggestions[:3])}\n"
+                            agent_text += "\n"
+
                     yield (
                         "\n".join(output.logs if output else logs),
                         draft_text,
                         sim_text,
                         enhanced_text,
                         video_text,
+                        agent_text,
                         orch,
                     )
 
@@ -278,22 +304,23 @@ def create_ui():
                     inputs=[
                         title_input, genre_input, style_input, idea_input,
                         num_chapters, num_characters, word_count,
-                        sim_rounds, drama_level, shots_per_ch,
+                        sim_rounds, drama_level, shots_per_ch, enable_agents_cb,
                     ],
                     outputs=[
                         progress_log, draft_output, sim_output,
-                        enhanced_output, video_output, orchestrator_state,
+                        enhanced_output, video_output, agent_output,
+                        orchestrator_state,
                     ],
                 )
 
                 def export_files(orch):
                     if orch is None:
-                        return "❌ Chưa có dữ liệu để xuất. Hãy chạy pipeline trước."
+                        return "Chua co du lieu de xuat. Hay chay pipeline truoc."
                     try:
                         path = orch.export_output()
-                        return f"✅ Đã xuất file vào thư mục: {path}"
+                        return f"Da xuat file vao thu muc: {path}"
                     except Exception as e:
-                        return f"❌ Lỗi xuất file: {e}"
+                        return f"Loi xuat file: {e}"
 
                 export_btn.click(
                     fn=export_files,
@@ -328,25 +355,79 @@ def create_ui():
                     label="Max Tokens",
                 )
 
-                save_btn = gr.Button("💾 Lưu cài đặt", variant="primary")
+                gr.Markdown("### Backend AI")
+                backend_type = gr.Radio(
+                    choices=["api", "openclaw"],
+                    value=config.llm.backend_type,
+                    label="Loai backend",
+                )
+                openclaw_port = gr.Number(
+                    value=config.llm.openclaw_port,
+                    label="OpenClaw Port",
+                    visible=True,
+                )
+                openclaw_model = gr.Textbox(
+                    value=config.llm.openclaw_model,
+                    label="OpenClaw Model",
+                )
+                auto_fallback = gr.Checkbox(
+                    value=config.llm.auto_fallback,
+                    label="Tu dong chuyen sang API khi OpenClaw loi",
+                )
+
+                openclaw_status = gr.Textbox(
+                    label="Trang thai OpenClaw", interactive=False,
+                )
+                test_connection_btn = gr.Button("Kiem tra ket noi")
+
+                def test_connection(backend, key, url, model, oc_port, oc_model):
+                    cfg = ConfigManager()
+                    cfg.llm.backend_type = backend
+                    if backend == "openclaw":
+                        cfg.llm.openclaw_port = int(oc_port)
+                        cfg.llm.openclaw_model = oc_model
+                    else:
+                        cfg.llm.api_key = key
+                        cfg.llm.base_url = url
+                        cfg.llm.model = model
+                    from services.llm_client import LLMClient
+                    LLMClient._instance = None
+                    client = LLMClient()
+                    ok, msg = client.check_connection()
+                    return f"{'OK' if ok else 'LOI'}: {msg}"
+
+                test_connection_btn.click(
+                    fn=test_connection,
+                    inputs=[backend_type, api_key, base_url, model_name,
+                            openclaw_port, openclaw_model],
+                    outputs=[openclaw_status],
+                )
+
+                save_btn = gr.Button("Luu cai dat", variant="primary")
                 save_status = gr.Textbox(label="Trạng thái", interactive=False)
 
-                def save_settings(key, url, model, temp, tokens):
+                def save_settings(key, url, model, temp, tokens,
+                                  backend, oc_port, oc_model, fallback):
                     cfg = ConfigManager()
                     cfg.llm.api_key = key
                     cfg.llm.base_url = url
                     cfg.llm.model = model
                     cfg.llm.temperature = temp
                     cfg.llm.max_tokens = int(tokens)
+                    cfg.llm.backend_type = backend
+                    cfg.llm.openclaw_port = int(oc_port)
+                    cfg.llm.openclaw_model = oc_model
+                    cfg.llm.auto_fallback = fallback
                     cfg.save()
                     # Reset LLM client singleton
                     from services.llm_client import LLMClient
                     LLMClient._instance = None
-                    return "✅ Đã lưu cài đặt!"
+                    return "Da luu cai dat!"
 
                 save_btn.click(
                     fn=save_settings,
-                    inputs=[api_key, base_url, model_name, temperature, max_tokens],
+                    inputs=[api_key, base_url, model_name, temperature, max_tokens,
+                            backend_type, openclaw_port, openclaw_model, auto_fallback],
                     outputs=[save_status],
                 )
 
@@ -387,7 +468,7 @@ def create_ui():
                 2. Vào **Pipeline Đầy Đủ** → nhập ý tưởng truyện
                 3. Điều chỉnh các thông số nếu cần
                 4. Nhấn **Chạy Pipeline** và đợi
-                5. Xem kết quả ở các tab: Truyện Gốc, Mô Phỏng, Truyện Kịch Tính, Kịch Bản Video
+                5. Xem kết quả ở các tab: Truyện Gốc, Mô Phỏng, Truyện Kịch Tính, Kịch Bản Video, Danh Gia (Agents)
                 6. Nhấn **Xuất file** để lưu kết quả
 
                 ### API tương thích

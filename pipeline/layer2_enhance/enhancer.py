@@ -21,8 +21,13 @@ class StoryEnhancer:
         chapter: Chapter,
         sim_result: SimulationResult,
         word_count: int = 2000,
+        total_chapters: int = 1,
     ) -> Chapter:
-        """Tăng cường kịch tính cho một chương."""
+        """Tăng cường kịch tính cho một chương.
+
+        Args:
+            total_chapters: Tổng số chương trong truyện (để phân bổ sự kiện đều).
+        """
 
         # Lọc sự kiện liên quan đến chương này
         relevant_events = [
@@ -31,8 +36,8 @@ class StoryEnhancer:
             or not e.suggested_insertion
         ]
         if not relevant_events:
-            # Phân bổ đều sự kiện vào các chương
-            events_per_chapter = max(1, len(sim_result.events) // max(1, chapter.chapter_number))
+            # Phân bổ đều sự kiện theo tổng số chương
+            events_per_chapter = max(1, len(sim_result.events) // max(1, total_chapters))
             start = (chapter.chapter_number - 1) * events_per_chapter
             relevant_events = sim_result.events[start:start + events_per_chapter]
 
@@ -95,12 +100,15 @@ class StoryEnhancer:
             enhancement_notes=[],
         )
 
+        total_chapters = len(draft.chapters)
         for chapter in draft.chapters:
             _log(
                 f"✨ Đang tăng cường kịch tính chương {chapter.chapter_number}: "
                 f"{chapter.title}..."
             )
-            enhanced_chapter = self.enhance_chapter(chapter, sim_result, word_count)
+            enhanced_chapter = self.enhance_chapter(
+                chapter, sim_result, word_count, total_chapters=total_chapters,
+            )
             enhanced.chapters.append(enhanced_chapter)
 
         # Tính điểm kịch tính tổng thể

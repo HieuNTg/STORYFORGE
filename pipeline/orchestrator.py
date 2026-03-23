@@ -41,6 +41,7 @@ class PipelineOrchestrator:
         num_sim_rounds: int = 5,
         shots_per_chapter: int = 8,
         progress_callback=None,
+        enable_agents: bool = True,
     ) -> PipelineOutput:
         """Chạy toàn bộ pipeline 3 lớp."""
 
@@ -51,14 +52,23 @@ class PipelineOrchestrator:
                 progress_callback(msg)
 
         self.output = PipelineOutput(status="running", current_layer=1)
+        draft = None
+        enhanced = None
 
+        # Khởi tạo agents một lần duy nhất
+        if enable_agents:
+            try:
+                from pipeline.agents import register_all_agents
+                from pipeline.agents.agent_registry import AgentRegistry
+                register_all_agents()
+                _log("[AGENTS] Da khoi tao phong ban danh gia.")
+            except Exception as e:
+                logger.warning(f"Khong the khoi tao agents: {e}")
+                enable_agents = False
+
+        _log("══════ LAYER 1: TẠO TRUYỆN ══════")
+        self.output.current_layer = 1
         try:
-            # ═══════════════════════════════════════
-            # LAYER 1: TẠO TRUYỆN (create-story)
-            # ═══════════════════════════════════════
-            _log("══════ LAYER 1: TẠO TRUYỆN ══════")
-            self.output.current_layer = 1
-
             draft = self.story_gen.generate_full_story(
                 title=title,
                 genre=genre,
@@ -72,12 +82,25 @@ class PipelineOrchestrator:
             self.output.story_draft = draft
             self.output.progress = 0.33
 
-            # ═══════════════════════════════════════
-            # LAYER 2: MÔ PHỎNG KỊCH TÍNH (MiroFish)
-            # ═══════════════════════════════════════
-            _log("══════ LAYER 2: MÔ PHỎNG TĂNG KỊCH TÍNH ══════")
-            self.output.current_layer = 2
+            if enable_agents:
+                _log("[AGENTS] Phong ban dang danh gia Layer 1...")
+                try:
+                    reviews = AgentRegistry().run_review_cycle(
+                        self.output, layer=1, max_iterations=3,
+                        progress_callback=lambda m: _log(m),
+                    )
+                    self.output.reviews.extend(reviews)
+                except Exception as e:
+                    logger.warning(f"Agent review Layer 1 loi: {e}")
+        except Exception as e:
+            self.output.status = "error"
+            _log(f"❌ Layer 1 thất bại: {str(e)}")
+            logger.exception("Layer 1 error")
+            return self.output
 
+        _log("══════ LAYER 2: MÔ PHỎNG TĂNG KỊCH TÍNH ══════")
+        self.output.current_layer = 2
+        try:
             # Phân tích truyện
             _log("[L2] 🔍 Đang phân tích cấu trúc truyện...")
             analysis = self.analyzer.analyze(draft)
@@ -104,12 +127,34 @@ class PipelineOrchestrator:
             self.output.enhanced_story = enhanced
             self.output.progress = 0.66
 
-            # ═══════════════════════════════════════
-            # LAYER 3: VIDEO / STORYBOARD (waoowaoo)
-            # ═══════════════════════════════════════
-            _log("══════ LAYER 3: TẠO KỊCH BẢN VIDEO ══════")
-            self.output.current_layer = 3
+            if enable_agents:
+                _log("[AGENTS] Phong ban dang danh gia Layer 2...")
+                try:
+                    reviews = AgentRegistry().run_review_cycle(
+                        self.output, layer=2, max_iterations=3,
+                        progress_callback=lambda m: _log(m),
+                    )
+                    self.output.reviews.extend(reviews)
+                except Exception as e:
+                    logger.warning(f"Agent review Layer 2 loi: {e}")
+        except Exception as e:
+            # Layer 2 thất bại: dùng story_draft làm fallback EnhancedStory
+            logger.warning(f"Layer 2 thất bại, dùng bản thảo gốc: {e}")
+            _log(f"⚠️ Layer 2 lỗi ({str(e)}), tiếp tục với bản thảo gốc.")
+            enhanced = EnhancedStory(
+                title=draft.title,
+                genre=draft.genre,
+                chapters=list(draft.chapters),
+                enhancement_notes=["Layer 2 skipped due to error"],
+                drama_score=0.0,
+            )
+            self.output.enhanced_story = enhanced
+            self.output.progress = 0.66
+            self.output.status = "partial"
 
+        _log("══════ LAYER 3: TẠO KỊCH BẢN VIDEO ══════")
+        self.output.current_layer = 3
+        try:
             video_script = self.storyboard_gen.generate_full_video_script(
                 story=enhanced,
                 characters=draft.characters,
@@ -118,17 +163,29 @@ class PipelineOrchestrator:
             )
             self.output.video_script = video_script
             self.output.progress = 1.0
-            self.output.status = "completed"
+            if self.output.status != "partial":
+                self.output.status = "completed"
+
+            if enable_agents:
+                _log("[AGENTS] Phong ban dang danh gia Layer 3...")
+                try:
+                    reviews = AgentRegistry().run_review_cycle(
+                        self.output, layer=3, max_iterations=3,
+                        progress_callback=lambda m: _log(m),
+                    )
+                    self.output.reviews.extend(reviews)
+                except Exception as e:
+                    logger.warning(f"Agent review Layer 3 loi: {e}")
 
             _log("🎉 PIPELINE HOÀN TẤT!")
             _log(f"📊 Tổng kết: {len(enhanced.chapters)} chương, "
                  f"{len(video_script.panels)} panels video, "
                  f"~{video_script.total_duration_seconds/60:.1f} phút")
-
         except Exception as e:
-            self.output.status = "error"
-            _log(f"❌ Lỗi ở Layer {self.output.current_layer}: {str(e)}")
-            logger.exception("Pipeline error")
+            # Layer 3 thất bại: vẫn có enhanced_story
+            logger.warning(f"Layer 3 thất bại: {e}")
+            _log(f"⚠️ Layer 3 lỗi ({str(e)}), pipeline dừng sau Layer 2.")
+            self.output.status = "partial"
 
         return self.output
 

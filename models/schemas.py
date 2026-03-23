@@ -166,6 +166,21 @@ class VideoScript(BaseModel):
     location_descriptions: dict[str, str] = Field(default_factory=dict)
 
 
+# === Agent Review ===
+
+class AgentReview(BaseModel):
+    """Kết quả đánh giá từ một agent."""
+    agent_role: str
+    agent_name: str
+    score: float = Field(ge=0, le=1, description="Điểm chất lượng 0-1")
+    issues: list[str] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)
+    approved: bool = True
+    refined_content: Optional[str] = None
+    layer: int = 0
+    iteration: int = 0
+
+
 # === Pipeline Output ===
 
 class PipelineOutput(BaseModel):
@@ -178,3 +193,4 @@ class PipelineOutput(BaseModel):
     current_layer: int = 0
     progress: float = 0.0
     logs: list[str] = Field(default_factory=list)
+    reviews: list[AgentReview] = Field(default_factory=list)
