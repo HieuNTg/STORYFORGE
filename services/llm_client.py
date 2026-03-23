@@ -118,6 +118,12 @@ class LLMClient:
         config = ConfigManager()
         effective_temp = temperature if temperature is not None else config.llm.temperature
 
+        # Localize prompts for non-Vietnamese languages
+        from services.prompts import localize_prompt
+        lang = config.pipeline.language
+        system_prompt = localize_prompt(system_prompt, lang)
+        user_prompt = localize_prompt(user_prompt, lang)
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -278,6 +284,12 @@ class LLMClient:
         """Gọi LLM với streaming. Hỗ trợ API và web backend."""
         config = ConfigManager()
         effective_temp = temperature if temperature is not None else config.llm.temperature
+
+        # Localize prompts for non-Vietnamese languages
+        from services.prompts import localize_prompt
+        lang = config.pipeline.language
+        system_prompt = localize_prompt(system_prompt, lang)
+        user_prompt = localize_prompt(user_prompt, lang)
 
         messages = [
             {"role": "system", "content": system_prompt},

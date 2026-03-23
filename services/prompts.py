@@ -1,4 +1,27 @@
-"""Tất cả prompt templates cho pipeline - Tiếng Việt."""
+"""Tất cả prompt templates cho pipeline - Tiếng Việt.
+
+Prompts are in Vietnamese (canonical). For other languages, use
+`localize_prompt()` to prepend a language instruction so the LLM
+responds in the target language while still understanding the VN prompt.
+"""
+
+
+def localize_prompt(prompt: str, language: str = "vi") -> str:
+    """Wrap prompt with language instruction for non-Vietnamese output.
+
+    The LLM understands Vietnamese prompts fine — we just tell it to
+    respond in the target language. This avoids maintaining parallel
+    prompt translations.
+    """
+    if language == "vi":
+        return prompt
+    lang_names = {"en": "English", "vi": "Vietnamese"}
+    lang_name = lang_names.get(language, language)
+    return (
+        f"IMPORTANT: Respond entirely in {lang_name}. "
+        f"Translate all content, names, and descriptions to {lang_name}.\n\n"
+        f"{prompt}"
+    )
 
 # ============================================================
 # LAYER 1: TẠO TRUYỆN
