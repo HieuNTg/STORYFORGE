@@ -286,6 +286,13 @@ def create_ui():
                                     label="Storyboard & Script", lines=20,
                                     interactive=False,
                                 )
+                                gr.Markdown("#### Xuat Video Assets")
+                                video_export_btn = gr.Button(
+                                    "Xuat Video Assets (ZIP)", variant="secondary",
+                                )
+                                video_export_file = gr.File(
+                                    label="Video assets download",
+                                )
                             with gr.TabItem("Danh Gia"):
                                 agent_output = gr.Textbox(
                                     label="Ket qua danh gia agent", lines=12,
@@ -635,6 +642,25 @@ def create_ui():
                     fn=export_zip_handler,
                     inputs=[orchestrator_state, export_formats],
                     outputs=[export_files_output],
+                )
+
+                def export_video_assets(orch):
+                    if orch is None:
+                        gr.Info("Hay chay pipeline truoc khi xuat video assets.")
+                        return None
+                    try:
+                        zip_path = orch.export_video_assets()
+                        if not zip_path:
+                            gr.Info("Khong co video script. Hay chay pipeline voi Layer 3.")
+                        return zip_path if zip_path else None
+                    except Exception as e:
+                        logger.error(f"Video asset export failed: {e}")
+                        return None
+
+                video_export_btn.click(
+                    fn=export_video_assets,
+                    inputs=[orchestrator_state],
+                    outputs=[video_export_file],
                 )
 
                 def refresh_checkpoints():
