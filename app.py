@@ -10,6 +10,7 @@ import logging
 import threading
 import queue
 import os
+import time
 import gradio as gr
 
 from config import ConfigManager
@@ -133,8 +134,12 @@ def create_ui():
                         )
 
                     with gr.Column(scale=2):
+                        live_preview = gr.Textbox(
+                            label="Live Preview (dang viet...)",
+                            lines=10, interactive=False,
+                        )
                         progress_log = gr.Textbox(
-                            label="Tiến trình", lines=15, interactive=False,
+                            label="Tiến trình", lines=10, interactive=False,
                         )
                         with gr.Tabs():
                             with gr.TabItem("Truyện Gốc (Layer 1)"):
@@ -184,7 +189,7 @@ def create_ui():
                 orchestrator_state = gr.State(None)
 
                 def _format_output(output, logs, orch):
-                    """Format PipelineOutput for UI display. Returns 7-tuple."""
+                    """Format PipelineOutput for UI display. Returns 8-tuple."""
                     draft_text = ""
                     if output and output.story_draft:
                         d = output.story_draft
@@ -254,6 +259,7 @@ def create_ui():
                             agent_text += "\n"
 
                     return (
+                        "",  # clear live preview
                         "\n".join(output.logs if output else logs),
                         draft_text, sim_text, enhanced_text, video_text, agent_text, orch,
                     )
@@ -268,16 +274,27 @@ def create_ui():
                     if n_chapters < 1 or n_chapters > 50:
                         errors.append("So chuong phai tu 1-50")
                     if errors:
-                        yield ("\n".join(errors), "", "", "", "", "", None)
+                        yield ("", "\n".join(errors), "", "", "", "", "", None)
                         return
 
                     orch = PipelineOrchestrator()
                     logs = []
                     progress_queue = queue.Queue()
+                    stream_text = [""]  # mutable for closure
 
                     def on_progress(msg):
                         logs.append(msg)
-                        progress_queue.put(msg)
+                        progress_queue.put(("log", msg))
+
+                    # Throttled stream callback (200ms batches)
+                    last_stream_time = [0.0]
+
+                    def on_stream(partial_text):
+                        stream_text[0] = partial_text
+                        now = time.time()
+                        if now - last_stream_time[0] > 0.2:
+                            progress_queue.put(("stream", partial_text))
+                            last_stream_time[0] = now
 
                     # Chạy pipeline trong thread
                     result = [None]
@@ -294,29 +311,39 @@ def create_ui():
                             num_sim_rounds=int(n_sim),
                             shots_per_chapter=int(n_shots),
                             progress_callback=on_progress,
+                            stream_callback=on_stream,
                             enable_agents=agents_enabled,
                         )
 
                     thread = threading.Thread(target=_run)
                     thread.start()
 
-                    # Queue-based progress updates
+                    # Queue-based progress + stream updates
+                    current_preview = ""
                     while thread.is_alive():
                         try:
-                            progress_queue.get(timeout=0.1)
+                            msg_type, msg_data = progress_queue.get(timeout=0.1)
                             # Drain remaining
                             while not progress_queue.empty():
                                 try:
-                                    progress_queue.get_nowait()
+                                    t, d = progress_queue.get_nowait()
+                                    if t == "stream":
+                                        msg_type, msg_data = t, d
                                 except queue.Empty:
                                     break
-                            yield ("\n".join(logs), "", "", "", "", "", None)
+                            if msg_type == "stream":
+                                current_preview = msg_data
+                            yield (current_preview, "\n".join(logs), "", "", "", "", "", None)
                         except queue.Empty:
                             continue
 
                     thread.join()
-                    output = result[0]
 
+                    # Flush final stream content before clearing preview
+                    if stream_text[0]:
+                        yield (stream_text[0], "\n".join(logs), "", "", "", "", "", None)
+
+                    output = result[0]
                     yield _format_output(output, logs, orch)
 
                 run_btn.click(
@@ -327,7 +354,7 @@ def create_ui():
                         sim_rounds, drama_level, shots_per_ch, enable_agents_cb,
                     ],
                     outputs=[
-                        progress_log, draft_output, sim_output,
+                        live_preview, progress_log, draft_output, sim_output,
                         enhanced_output, video_output, agent_output,
                         orchestrator_state,
                     ],
@@ -357,7 +384,7 @@ def create_ui():
 
                 def resume_pipeline(ckpt_choice, n_sim, n_shots, w_count, agents_enabled):
                     if not ckpt_choice:
-                        yield ("Chon checkpoint truoc!", "", "", "", "", "", None)
+                        yield ("", "Chon checkpoint truoc!", "", "", "", "", "", None)
                         return
 
                     filename = ckpt_choice.split(" (")[0]
@@ -394,7 +421,7 @@ def create_ui():
                                     progress_q.get_nowait()
                                 except queue.Empty:
                                     break
-                            yield ("\n".join(logs), "", "", "", "", "", None)
+                            yield ("", "\n".join(logs), "", "", "", "", "", None)
                         except queue.Empty:
                             continue
 
@@ -405,7 +432,7 @@ def create_ui():
                 resume_btn.click(
                     fn=resume_pipeline,
                     inputs=[checkpoint_dropdown, sim_rounds, shots_per_ch, word_count, enable_agents_cb],
-                    outputs=[progress_log, draft_output, sim_output, enhanced_output, video_output, agent_output, orchestrator_state],
+                    outputs=[live_preview, progress_log, draft_output, sim_output, enhanced_output, video_output, agent_output, orchestrator_state],
                 )
 
             # ═══════════════════════════════════════

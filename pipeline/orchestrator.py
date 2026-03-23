@@ -45,6 +45,7 @@ class PipelineOrchestrator:
         num_sim_rounds: int = 5,
         shots_per_chapter: int = 8,
         progress_callback=None,
+        stream_callback=None,
         enable_agents: bool = True,
     ) -> PipelineOutput:
         """Chạy toàn bộ pipeline 3 lớp."""
@@ -92,6 +93,7 @@ class PipelineOrchestrator:
                 num_characters=num_characters,
                 word_count=word_count,
                 progress_callback=lambda m: _log(f"[L1] {m}"),
+                stream_callback=stream_callback,
             )
             self.output.story_draft = draft
             self.output.progress = 0.33

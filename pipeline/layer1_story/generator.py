@@ -111,6 +111,35 @@ class StoryGenerator:
 
         return "\n\n".join(parts)
 
+    def _build_chapter_prompt(
+        self, title, genre, style, characters, world, outline,
+        word_count, context=None, previous_summary="",
+    ) -> tuple[str, str]:
+        """Build system/user prompts for chapter writing. Returns (system_prompt, user_prompt)."""
+        chars_text = "\n".join(
+            f"- {c.name} ({c.role}): {c.personality}\n  Tiểu sử: {c.background}"
+            for c in characters
+        )
+        outline_text = (
+            f"Tóm tắt: {outline.summary}\n"
+            f"Sự kiện chính: {', '.join(outline.key_events)}\n"
+            f"Cảm xúc: {outline.emotional_arc}"
+        )
+        context_text = self._format_context(context) if context else (previous_summary or "Đây là chương đầu tiên.")
+
+        sys_prompt = f"Bạn là tiểu thuyết gia tài năng viết truyện {genre} bằng tiếng Việt."
+        user_prompt = prompts.WRITE_CHAPTER.format(
+            genre=genre, style=style, title=title,
+            world=f"{world.name}: {world.description}",
+            characters=chars_text,
+            chapter_number=outline.chapter_number,
+            chapter_title=outline.title,
+            outline=outline_text,
+            previous_summary=context_text,
+            word_count=word_count,
+        )
+        return sys_prompt, user_prompt
+
     def write_chapter(
         self,
         title: str,
@@ -124,38 +153,62 @@ class StoryGenerator:
         context: Optional[StoryContext] = None,
     ) -> Chapter:
         """Viết một chương truyện."""
-        chars_text = "\n".join(
-            f"- {c.name} ({c.role}): {c.personality}\n  Tiểu sử: {c.background}"
-            for c in characters
+        sys_prompt, user_prompt = self._build_chapter_prompt(
+            title, genre, style, characters, world, outline,
+            word_count, context, previous_summary,
         )
-        outline_text = (
-            f"Tóm tắt: {outline.summary}\n"
-            f"Sự kiện chính: {', '.join(outline.key_events)}\n"
-            f"Cảm xúc: {outline.emotional_arc}"
-        )
-        # Use StoryContext if provided, else fall back to previous_summary
-        context_text = self._format_context(context) if context else (previous_summary or "Đây là chương đầu tiên.")
-
         content = self.llm.generate(
-            system_prompt=f"Bạn là tiểu thuyết gia tài năng viết truyện {genre} bằng tiếng Việt.",
-            user_prompt=prompts.WRITE_CHAPTER.format(
-                genre=genre, style=style, title=title,
-                world=f"{world.name}: {world.description}",
-                characters=chars_text,
-                chapter_number=outline.chapter_number,
-                chapter_title=outline.title,
-                outline=outline_text,
-                previous_summary=context_text,
-                word_count=word_count,
-            ),
+            system_prompt=sys_prompt,
+            user_prompt=user_prompt,
             max_tokens=8192,
         )
-
         return Chapter(
             chapter_number=outline.chapter_number,
             title=outline.title,
             content=content,
             word_count=len(content.split()),
+        )
+
+    def write_chapter_stream(
+        self,
+        title: str,
+        genre: str,
+        style: str,
+        characters: list[Character],
+        world: WorldSetting,
+        outline: ChapterOutline,
+        word_count: int = 2000,
+        context: Optional[StoryContext] = None,
+        stream_callback=None,
+    ) -> Chapter:
+        """Viết chương với streaming. Gọi stream_callback(partial_text) mỗi chunk."""
+        sys_prompt, user_prompt = self._build_chapter_prompt(
+            title, genre, style, characters, world, outline, word_count, context,
+        )
+
+        full_content = ""
+        try:
+            for token in self.llm.generate_stream(
+                system_prompt=sys_prompt,
+                user_prompt=user_prompt,
+                max_tokens=8192,
+            ):
+                full_content += token
+                if stream_callback:
+                    stream_callback(full_content)
+        except Exception as e:
+            # Fallback: discard partial, use non-streaming
+            logger.warning(f"Stream failed, falling back to generate: {e}")
+            return self.write_chapter(
+                title, genre, style, characters, world,
+                outline, word_count=word_count, context=context,
+            )
+
+        return Chapter(
+            chapter_number=outline.chapter_number,
+            title=outline.title,
+            content=full_content,
+            word_count=len(full_content.split()),
         )
 
     @staticmethod
@@ -232,6 +285,7 @@ class StoryGenerator:
         num_characters: int = 5,
         word_count: int = 2000,
         progress_callback=None,
+        stream_callback=None,
     ) -> StoryDraft:
         """Tạo toàn bộ truyện từ đầu đến cuối."""
         context_window = self.config.pipeline.context_window_chapters
@@ -269,10 +323,17 @@ class StoryGenerator:
                 story_context.current_chapter = outline.chapter_number
 
                 _log(f"📖 Đang viết chương {outline.chapter_number}: {outline.title}...")
-                chapter = self.write_chapter(
-                    title, genre, style, characters, world,
-                    outline, word_count=word_count, context=story_context,
-                )
+                if stream_callback:
+                    chapter = self.write_chapter_stream(
+                        title, genre, style, characters, world,
+                        outline, word_count=word_count, context=story_context,
+                        stream_callback=stream_callback,
+                    )
+                else:
+                    chapter = self.write_chapter(
+                        title, genre, style, characters, world,
+                        outline, word_count=word_count, context=story_context,
+                    )
                 draft.chapters.append(chapter)
 
                 # Parallel extraction: summary + character states + plot events

@@ -275,27 +275,41 @@ class LLMClient:
             "stream": True,
         }
 
-        try:
-            response = client.chat.completions.create(**kwargs)
-            for chunk in response:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
-        except Exception as e:
-            if config.llm.backend_type == "openclaw" and config.llm.auto_fallback and config.llm.api_key:
-                logger.warning(f"OpenClaw lỗi, fallback sang API: {e}")
-                fallback_client = OpenAI(api_key=config.llm.api_key, base_url=config.llm.base_url)
-                kwargs["model"] = config.llm.model
-                try:
-                    response = fallback_client.chat.completions.create(**kwargs)
-                    for chunk in response:
-                        if chunk.choices and chunk.choices[0].delta.content:
-                            yield chunk.choices[0].delta.content
-                    return
-                except Exception as e2:
-                    logger.error(f"Fallback API cũng lỗi: {e2}")
-                    raise
-            logger.error(f"Lỗi stream LLM: {e}")
-            raise
+        # Retry loop for transient errors (mirrors generate())
+        last_exc = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = client.chat.completions.create(**kwargs)
+                for chunk in response:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        yield chunk.choices[0].delta.content
+                return  # success
+            except Exception as e:
+                last_exc = e
+                if attempt < MAX_RETRIES - 1 and _is_transient(e):
+                    delay = BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
+                    logger.warning(f"Stream attempt {attempt+1} failed: {e}. Retry in {delay:.1f}s")
+                    time.sleep(delay)
+                    continue
+                break
+
+        # OpenClaw fallback
+        if config.llm.backend_type == "openclaw" and config.llm.auto_fallback and config.llm.api_key:
+            logger.warning(f"OpenClaw lỗi, fallback sang API: {last_exc}")
+            fallback_client = OpenAI(api_key=config.llm.api_key, base_url=config.llm.base_url)
+            kwargs["model"] = config.llm.model
+            try:
+                response = fallback_client.chat.completions.create(**kwargs)
+                for chunk in response:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        yield chunk.choices[0].delta.content
+                return
+            except Exception as e2:
+                logger.error(f"Fallback API cũng lỗi: {e2}")
+                raise
+
+        logger.error(f"Lỗi stream LLM sau {MAX_RETRIES} lần: {last_exc}")
+        raise last_exc
 
     def check_connection(self) -> tuple[bool, str]:
         """Kiểm tra kết nối backend."""
