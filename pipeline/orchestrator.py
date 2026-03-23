@@ -5,6 +5,7 @@ import json
 import os
 import re
 import time
+import zipfile
 from datetime import datetime
 from typing import Optional
 
@@ -244,15 +245,15 @@ class PipelineOrchestrator:
             word_count=word_count, progress_callback=progress_callback,
         )
 
-    def export_output(self, output_dir: str = "output", formats: list = None):
-        """Xuất kết quả ra file."""
+    def export_output(self, output_dir: str = "output", formats: list[str] | None = None) -> list[str]:
+        """Xuất kết quả ra file. Returns list of generated file paths."""
         if formats is None:
             formats = ["TXT", "Markdown", "JSON"]
         os.makedirs(output_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        files = []
 
         if "TXT" in formats:
-            # Xuất truyện gốc
             if self.output.story_draft:
                 path = os.path.join(output_dir, f"{timestamp}_draft.txt")
                 with open(path, "w", encoding="utf-8") as f:
@@ -260,8 +261,8 @@ class PipelineOrchestrator:
                     for ch in self.output.story_draft.chapters:
                         f.write(f"\n## Chương {ch.chapter_number}: {ch.title}\n\n")
                         f.write(ch.content + "\n")
+                files.append(path)
 
-            # Xuất truyện tăng cường
             if self.output.enhanced_story:
                 path = os.path.join(output_dir, f"{timestamp}_enhanced.txt")
                 with open(path, "w", encoding="utf-8") as f:
@@ -269,9 +270,9 @@ class PipelineOrchestrator:
                     for ch in self.output.enhanced_story.chapters:
                         f.write(f"\n## Chương {ch.chapter_number}: {ch.title}\n\n")
                         f.write(ch.content + "\n")
+                files.append(path)
 
         if "JSON" in formats:
-            # Xuất kịch bản video
             if self.output.video_script:
                 path = os.path.join(output_dir, f"{timestamp}_video_script.json")
                 with open(path, "w", encoding="utf-8") as f:
@@ -279,8 +280,8 @@ class PipelineOrchestrator:
                         self.output.video_script.model_dump(),
                         f, ensure_ascii=False, indent=2,
                     )
+                files.append(path)
 
-            # Xuất log mô phỏng
             if self.output.simulation_result:
                 path = os.path.join(output_dir, f"{timestamp}_simulation.json")
                 with open(path, "w", encoding="utf-8") as f:
@@ -288,17 +289,32 @@ class PipelineOrchestrator:
                         self.output.simulation_result.model_dump(),
                         f, ensure_ascii=False, indent=2,
                     )
+                files.append(path)
 
         if "Markdown" in formats:
-            self._export_markdown(output_dir, timestamp)
+            md_path = self._export_markdown(output_dir, timestamp)
+            if md_path:
+                files.append(md_path)
 
-        return output_dir
+        return files
 
-    def _export_markdown(self, output_dir: str, timestamp: str):
-        """Export story as formatted Markdown."""
+    def export_zip(self, output_dir: str = "output", formats: list[str] | None = None) -> str:
+        """Export all files and bundle into a single ZIP. Returns ZIP path or empty string."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        files = self.export_output(output_dir, formats)
+        if not files:
+            return ""
+        zip_path = os.path.join(output_dir, f"{timestamp}_novel_auto.zip")
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for f in files:
+                zf.write(f, os.path.basename(f))
+        return zip_path
+
+    def _export_markdown(self, output_dir: str, timestamp: str) -> Optional[str]:
+        """Export story as formatted Markdown. Returns file path or None."""
         story = self.output.enhanced_story or self.output.story_draft
         if not story:
-            return
+            return None
         path = os.path.join(output_dir, f"{timestamp}_story.md")
         with open(path, "w", encoding="utf-8") as f:
             f.write(f"# {story.title}\n\n")
@@ -310,6 +326,7 @@ class PipelineOrchestrator:
             for ch in story.chapters:
                 f.write(f"## Chương {ch.chapter_number}: {ch.title}\n\n")
                 f.write(ch.content + "\n\n")
+        return path
 
     def _save_checkpoint(self, layer: int):
         """Save pipeline state after layer completion."""

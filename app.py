@@ -172,9 +172,11 @@ def create_ui():
                             value=["TXT", "Markdown", "JSON"],
                             label="Dinh dang xuat",
                         )
-                        export_btn = gr.Button("Xuat file")
-                        export_status = gr.Textbox(
-                            label="Trạng thái xuất", interactive=False,
+                        with gr.Row():
+                            export_btn = gr.Button("Xuat file")
+                            zip_btn = gr.Button("Download All (ZIP)")
+                        export_files_output = gr.File(
+                            label="File xuat", file_count="multiple",
                         )
 
                         gr.Markdown("### Checkpoint / Resume")
@@ -362,17 +364,33 @@ def create_ui():
 
                 def export_files(orch, formats):
                     if orch is None:
-                        return "Chua co du lieu de xuat. Hay chay pipeline truoc."
+                        return None
                     try:
-                        path = orch.export_output(formats=formats)
-                        return f"Da xuat file vao thu muc: {path}"
+                        paths = orch.export_output(formats=formats)
+                        return paths if paths else None
                     except Exception as e:
-                        return f"Loi xuat file: {e}"
+                        logger.error(f"Export failed: {e}")
+                        return None
+
+                def export_zip_handler(orch, formats):
+                    if orch is None:
+                        return None
+                    try:
+                        zip_path = orch.export_zip(formats=formats)
+                        return [zip_path] if zip_path else None
+                    except Exception as e:
+                        logger.error(f"ZIP export failed: {e}")
+                        return None
 
                 export_btn.click(
                     fn=export_files,
                     inputs=[orchestrator_state, export_formats],
-                    outputs=[export_status],
+                    outputs=[export_files_output],
+                )
+                zip_btn.click(
+                    fn=export_zip_handler,
+                    inputs=[orchestrator_state, export_formats],
+                    outputs=[export_files_output],
                 )
 
                 def refresh_checkpoints():
