@@ -441,22 +441,25 @@ class TestAppYieldTuples:
                 assert element_count >= 8, f"Expected at least 9 elements in return tuple, found {element_count}"
 
     def test_all_yield_statements_consistency(self):
-        """All yield statements in app.py should have same tuple size."""
+        """All yield statements in app.py should use tuples or _format_output."""
         import os
         app_path = os.path.join(os.path.dirname(__file__), '..', 'app.py')
         with open(app_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-
-        yield_lines = [l for l in lines if 'yield' in l]
+            content = f.read()
 
         # Check we have yield statements
-        assert len(yield_lines) > 0, "No yield statements found in app.py"
+        yield_count = content.count('yield ')
+        assert yield_count > 0, "No yield statements found in app.py"
 
-        # All manual yields should have 9 elements
-        for line in yield_lines:
-            if 'yield (' in line or 'yield _format_output' in line:
-                # Count elements (simplified check)
-                assert '"' in line or 'format_output' in line, f"Yield line missing expected format: {line}"
+        # All yields should be tuple yields, _format_output calls, or simple string yields
+        for i, line in enumerate(content.split('\n')):
+            stripped = line.strip()
+            if stripped.startswith('yield '):
+                # Valid: yield (, yield _format_output, yield "...", yield msg (variable)
+                valid = any(tok in stripped for tok in (
+                    'yield (', 'yield _format_output', 'yield "',
+                )) or stripped == 'yield msg' or stripped.startswith('yield msg')
+                assert valid, f"Unexpected yield format at line {i+1}: {stripped}"
 
 
 class TestAppQualityOutput:

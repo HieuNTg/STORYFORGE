@@ -6,12 +6,14 @@ Pipeline 3 lớp:
   Layer 3 (waoowaoo-inspired): Tạo storyboard và kịch bản video
 """
 
+import html as _html
 import json
 import logging
 import threading
 import queue
 import os
 import time
+import unicodedata
 import gradio as gr
 
 from config import ConfigManager
@@ -65,6 +67,42 @@ def _load_templates() -> dict:
     return {}
 
 
+def _progress_html(layer: int = 0, step: str = "") -> str:
+    """Generate progress bar HTML. layer: 0=idle, 1/2/3=active layer."""
+    segments = []
+    labels = ["Layer 1: Tao truyen", "Layer 2: Mo phong", "Layer 3: Video"]
+    for i in range(3):
+        lnum = i + 1
+        if layer > lnum:
+            cls = "progress-segment done"
+        elif layer == lnum:
+            cls = "progress-segment active"
+        else:
+            cls = "progress-segment"
+        segments.append(f'<div class="{cls}">{labels[i]}</div>')
+    bar = f'<div class="progress-bar-container">{"".join(segments)}</div>'
+    step_div = f'<div class="progress-step-text">{_html.escape(step)}</div>' if step else ""
+    return bar + step_div
+
+
+def _strip_diacritics(text: str) -> str:
+    """Remove Vietnamese diacritics for robust matching."""
+    nfkd = unicodedata.normalize("NFD", text)
+    return "".join(c for c in nfkd if unicodedata.category(c) != "Mn")
+
+
+def _detect_layer(msg: str) -> int:
+    """Detect current layer from progress log message."""
+    normalized = _strip_diacritics(msg).upper()
+    if "LAYER 3" in normalized or "STORYBOARD" in normalized or "VIDEO" in normalized:
+        return 3
+    if "LAYER 2" in normalized or "MO PHONG" in normalized or "ENHANCE" in normalized:
+        return 2
+    if "LAYER 1" in normalized or "TAO TRUYEN" in normalized or "CHUONG" in normalized:
+        return 1
+    return 0
+
+
 def create_ui():
     """Tạo giao diện Gradio."""
 
@@ -76,6 +114,47 @@ def create_ui():
         css="""
         .pipeline-header { text-align: center; margin-bottom: 20px; }
         .layer-box { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 10px 0; }
+
+        /* Progress bar */
+        .progress-bar-container {
+            display: flex; gap: 4px; margin: 10px 0; height: 32px;
+            background: #f0f0f0; border-radius: 8px; overflow: hidden;
+        }
+        .progress-segment {
+            flex: 1; display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 600; color: #666;
+            transition: all 0.5s ease; background: #e8e8e8;
+        }
+        .progress-segment.active {
+            background: #3b82f6; color: white;
+            animation: pulse-bg 2s infinite;
+        }
+        .progress-segment.done { background: #22c55e; color: white; }
+        @keyframes pulse-bg {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .progress-step-text {
+            text-align: center; font-size: 13px; color: #555;
+            margin: 4px 0 8px 0; min-height: 20px;
+        }
+
+        /* Status badge */
+        .status-badge {
+            display: inline-block; padding: 4px 12px; border-radius: 12px;
+            font-size: 12px; font-weight: 600;
+        }
+        .status-idle { background: #e5e7eb; color: #6b7280; }
+        .status-running { background: #dbeafe; color: #2563eb; animation: pulse-bg 2s infinite; }
+        .status-done { background: #dcfce7; color: #16a34a; }
+        .status-error { background: #fee2e2; color: #dc2626; }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .gr-row { flex-direction: column !important; }
+            .gr-column { min-width: 100% !important; }
+            .progress-segment { font-size: 10px; }
+        }
         """,
     ) as app:
         gr.Markdown(
@@ -167,39 +246,51 @@ def create_ui():
                         )
 
                     with gr.Column(scale=2):
+                        # Status + Progress bar
+                        status_html = gr.HTML(
+                            value='<span class="status-badge status-idle">San sang</span>',
+                        )
+                        progress_bar = gr.HTML(value=_progress_html(0))
+
+                        # Live preview
                         live_preview = gr.Textbox(
                             label="Live Preview (dang viet...)",
-                            lines=10, interactive=False,
+                            lines=8, interactive=False,
                         )
-                        progress_log = gr.Textbox(
-                            label="Tiến trình", lines=10, interactive=False,
-                        )
+
+                        # Collapsed detail log
+                        with gr.Accordion("Chi tiet tien trinh", open=False):
+                            progress_log = gr.Textbox(
+                                label="Log", lines=8, interactive=False,
+                            )
+
+                        # Output tabs (6 → 4)
                         with gr.Tabs():
-                            with gr.TabItem("Truyện Gốc (Layer 1)"):
+                            with gr.TabItem("Truyen"):
+                                gr.Markdown("#### Ban thao (Layer 1)")
                                 draft_output = gr.Textbox(
-                                    label="Bản thảo", lines=20, interactive=False,
+                                    label="Truyen goc", lines=15, interactive=False,
                                 )
-                            with gr.TabItem("Mô Phỏng (Layer 2)"):
-                                sim_output = gr.Textbox(
-                                    label="Kết quả mô phỏng", lines=20,
-                                    interactive=False,
-                                )
-                            with gr.TabItem("Truyện Kịch Tính (Layer 2)"):
+                                gr.Markdown("#### Phien ban kich tinh (Layer 2)")
                                 enhanced_output = gr.Textbox(
-                                    label="Truyện tăng cường", lines=20,
+                                    label="Truyen tang cuong", lines=15,
                                     interactive=False,
                                 )
-                            with gr.TabItem("Kịch Bản Video (Layer 3)"):
+                            with gr.TabItem("Mo Phong"):
+                                sim_output = gr.Textbox(
+                                    label="Ket qua mo phong", lines=20,
+                                    interactive=False,
+                                )
+                            with gr.TabItem("Video"):
                                 video_output = gr.Textbox(
                                     label="Storyboard & Script", lines=20,
                                     interactive=False,
                                 )
-                            with gr.TabItem("Danh Gia (Agents)"):
+                            with gr.TabItem("Danh Gia"):
                                 agent_output = gr.Textbox(
-                                    label="Ket qua danh gia", lines=20,
+                                    label="Ket qua danh gia agent", lines=12,
                                     interactive=False,
                                 )
-                            with gr.TabItem("Chat Luong"):
                                 quality_output = gr.Markdown(
                                     value="*Chua co diem. Chay pipeline voi 'Cham diem tu dong' bat.*",
                                 )
@@ -228,7 +319,7 @@ def create_ui():
                 orchestrator_state = gr.State(None)
 
                 def _format_output(output, logs, orch):
-                    """Format PipelineOutput for UI display. Returns 9-tuple."""
+                    """Format PipelineOutput for UI display. Returns 11-tuple."""
                     draft_text = ""
                     if output and output.story_draft:
                         d = output.story_draft
@@ -329,7 +420,11 @@ def create_ui():
                             sign = "+" if diff > 0 else ""
                             quality_text += f"**Cai thien Layer 1 → 2:** {sign}{diff:.1f} diem\n"
 
+                    status = "done" if output else "error"
+                    status_label = "Hoan thanh!" if output else "Loi"
                     return (
+                        f'<span class="status-badge status-{status}">{status_label}</span>',
+                        _progress_html(4 if output else 0, "Hoan thanh" if output else ""),
                         "",  # clear live preview
                         "\n".join(output.logs if output else logs),
                         draft_text, sim_text, enhanced_text, video_text, agent_text,
@@ -347,7 +442,11 @@ def create_ui():
                     if n_chapters < 1 or n_chapters > 50:
                         errors.append("So chuong phai tu 1-50")
                     if errors:
-                        yield ("", "\n".join(errors), "", "", "", "", "", "", None)
+                        yield (
+                            '<span class="status-badge status-error">Loi</span>',
+                            _progress_html(0),
+                            "", "\n".join(errors), "", "", "", "", "", "", None,
+                        )
                         return
 
                     orch = PipelineOrchestrator()
@@ -407,7 +506,13 @@ def create_ui():
                                     break
                             if msg_type == "stream":
                                 current_preview = msg_data
-                            yield (current_preview, "\n".join(logs), "", "", "", "", "", "", None)
+                            layer = _detect_layer(logs[-1]) if logs else 0
+                            yield (
+                                '<span class="status-badge status-running">Dang chay...</span>',
+                                _progress_html(layer, logs[-1] if logs else ""),
+                                current_preview, "\n".join(logs),
+                                "", "", "", "", "", "", None,
+                            )
                         except queue.Empty:
                             continue
 
@@ -415,7 +520,13 @@ def create_ui():
 
                     # Flush final stream content before clearing preview
                     if stream_text[0]:
-                        yield (stream_text[0], "\n".join(logs), "", "", "", "", "", "", None)
+                        layer = _detect_layer(logs[-1]) if logs else 0
+                        yield (
+                            '<span class="status-badge status-running">Dang chay...</span>',
+                            _progress_html(layer, logs[-1] if logs else ""),
+                            stream_text[0], "\n".join(logs),
+                            "", "", "", "", "", "", None,
+                        )
 
                     output = result[0]
                     yield _format_output(output, logs, orch)
@@ -429,9 +540,9 @@ def create_ui():
                         enable_scoring_cb,
                     ],
                     outputs=[
-                        live_preview, progress_log, draft_output, sim_output,
-                        enhanced_output, video_output, agent_output,
-                        quality_output, orchestrator_state,
+                        status_html, progress_bar, live_preview, progress_log,
+                        draft_output, sim_output, enhanced_output, video_output,
+                        agent_output, quality_output, orchestrator_state,
                     ],
                 )
 
@@ -482,9 +593,9 @@ def create_ui():
                         enable_scoring_cb,
                     ],
                     outputs=[
-                        live_preview, progress_log, draft_output, sim_output,
-                        enhanced_output, video_output, agent_output,
-                        quality_output, orchestrator_state,
+                        status_html, progress_bar, live_preview, progress_log,
+                        draft_output, sim_output, enhanced_output, video_output,
+                        agent_output, quality_output, orchestrator_state,
                     ],
                 )
 
@@ -535,7 +646,11 @@ def create_ui():
 
                 def resume_pipeline(ckpt_choice, n_sim, n_shots, w_count, agents_enabled):
                     if not ckpt_choice:
-                        yield ("", "Chon checkpoint truoc!", "", "", "", "", "", "", None)
+                        yield (
+                            '<span class="status-badge status-error">Loi</span>',
+                            _progress_html(0),
+                            "", "Chon checkpoint truoc!", "", "", "", "", "", "", None,
+                        )
                         return
 
                     filename = ckpt_choice.split(" (")[0]
@@ -544,10 +659,20 @@ def create_ui():
                     orch = PipelineOrchestrator()
                     logs = []
                     progress_q = queue.Queue()
+                    stream_text = [""]
 
                     def on_progress(msg):
                         logs.append(msg)
-                        progress_q.put(msg)
+                        progress_q.put(("log", msg))
+
+                    last_stream_time = [0.0]
+
+                    def on_stream(partial_text):
+                        stream_text[0] = partial_text
+                        now = time.time()
+                        if now - last_stream_time[0] > 0.2:
+                            progress_q.put(("stream", partial_text))
+                            last_stream_time[0] = now
 
                     result = [None]
 
@@ -555,6 +680,7 @@ def create_ui():
                         result[0] = orch.resume_from_checkpoint(
                             ckpt_path,
                             progress_callback=on_progress,
+                            stream_callback=on_stream,
                             enable_agents=agents_enabled,
                             num_sim_rounds=int(n_sim),
                             shots_per_chapter=int(n_shots),
@@ -564,26 +690,51 @@ def create_ui():
                     thread = threading.Thread(target=_run)
                     thread.start()
 
+                    current_preview = ""
                     while thread.is_alive():
                         try:
-                            progress_q.get(timeout=0.1)
+                            msg_type, msg_data = progress_q.get(timeout=0.1)
                             while not progress_q.empty():
                                 try:
-                                    progress_q.get_nowait()
+                                    t, d = progress_q.get_nowait()
+                                    if t == "stream":
+                                        msg_type, msg_data = t, d
                                 except queue.Empty:
                                     break
-                            yield ("", "\n".join(logs), "", "", "", "", "", "", None)
+                            if msg_type == "stream":
+                                current_preview = msg_data
+                            layer = _detect_layer(logs[-1]) if logs else 0
+                            yield (
+                                '<span class="status-badge status-running">Dang chay...</span>',
+                                _progress_html(layer, logs[-1] if logs else ""),
+                                current_preview, "\n".join(logs),
+                                "", "", "", "", "", "", None,
+                            )
                         except queue.Empty:
                             continue
 
                     thread.join()
+
+                    if stream_text[0]:
+                        layer = _detect_layer(logs[-1]) if logs else 0
+                        yield (
+                            '<span class="status-badge status-running">Dang chay...</span>',
+                            _progress_html(layer, logs[-1] if logs else ""),
+                            stream_text[0], "\n".join(logs),
+                            "", "", "", "", "", "", None,
+                        )
+
                     output = result[0]
                     yield _format_output(output, logs, orch)
 
                 resume_btn.click(
                     fn=resume_pipeline,
                     inputs=[checkpoint_dropdown, sim_rounds, shots_per_ch, word_count, enable_agents_cb],
-                    outputs=[live_preview, progress_log, draft_output, sim_output, enhanced_output, video_output, agent_output, quality_output, orchestrator_state],
+                    outputs=[
+                        status_html, progress_bar, live_preview, progress_log,
+                        draft_output, sim_output, enhanced_output, video_output,
+                        agent_output, quality_output, orchestrator_state,
+                    ],
                 )
 
             # ═══════════════════════════════════════

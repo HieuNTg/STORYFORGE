@@ -64,6 +64,86 @@ Input: Genre + Story Idea + Config
 Final Output: Complete novel + enhanced narrative + quality scores + video specs
 ```
 
+## Phase 2: UI Polish & Progress UX Architecture
+
+### Progress Bar & Status Tracking
+
+**Real-time progress bar** (app.py `_progress_html()`):
+```
+Layer 1: Tao truyen | Layer 2: Mo phong | Layer 3: Video
+├─ Idle: Gray (#e8e8e8)
+├─ Active: Blue (#3b82f6) with pulse animation
+└─ Done: Green (#22c55e)
+```
+
+**Layer detection** (app.py `_detect_layer()`):
+- Parses pipeline log messages for layer keywords
+- Vietnamese diacritics support via NFD normalization (`_strip_diacritics()`)
+- Updates progress bar in real-time via progress_callback
+
+**Status badge states**:
+- `status-idle`: San sang (Ready)
+- `status-running`: Running with pulse animation
+- `status-done`: Hoan thanh (Completed)
+- `status-error`: Error state (red)
+
+### Output Tabs Consolidation (6 → 4)
+
+**Before Phase 2**:
+1. Story Draft (Layer 1)
+2. Enhanced Narrative (Layer 2)
+3. Simulation Results
+4. Video Storyboard
+5. Agent Reviews
+6. Quality Metrics
+
+**After Phase 2**:
+1. **Truyen**: Layer 1 draft + Layer 2 enhanced (split sections)
+2. **Mo Phong**: Simulation results
+3. **Video**: Storyboard & script
+4. **Danh Gia**: Agent reviews + quality scores
+
+**Benefits**: Reduced clutter, faster navigation, grouped logical outputs
+
+### Progressive Disclosure: Collapsed Accordion
+
+**Detail progress log** (app.py):
+- "Chi tiet tien trinh" accordion (collapsed by default)
+- Contains full stream of log messages
+- Users expand only when needed
+- Saves screen space, keeps UI focus on live preview
+
+### Mobile Responsive Design
+
+**Breakpoint**: `@media (max-width: 768px)`
+- Progress bar font: 12px → 10px
+- Flexbox adjustments for narrow screens
+- Touch-friendly badge/button sizing
+
+### XSS-Safe HTML Rendering
+
+**HTML escaping**:
+- All user input escaped via `html.escape()`
+- Progress step text sanitized
+- Status badge text sanitized
+- Prevents script injection via log messages
+
+### Resume Pipeline Streaming
+
+**Signature alignment**:
+```python
+# run_pipeline()
+def run_pipeline(self, ..., progress_callback=None, ...) -> PipelineOutput
+
+# resume_from_checkpoint() — NOW MATCHES
+def resume_from_checkpoint(self, ..., progress_callback=None, ...) -> PipelineOutput
+```
+
+**Benefits**:
+- Both methods support live progress updates
+- DRY principle: consistent callback mechanism
+- Enables streaming UI updates across resume flow
+
 ## Layer 1: Story Generation Architecture
 
 ### StoryGenerator Class Flow
@@ -173,21 +253,20 @@ Chapter Content
 
 ## LLM Client Architecture
 
-### Singleton Pattern with Fallback
+### Dual-Backend Routing (API vs Web)
 
 ```
 LLMClient (singleton)
-├─ _get_client() → OpenAI instance
-│  ├─ Check backend_type (LLMConfig)
-│  │  ├─ "openclaw" → localhost:3002 + health check
-│  │  └─ "api" → OpenAI base_url + API key
-│  └─ Cache client for reuse (thread-safe)
+├─ _is_web_backend() → bool
+│  └─ Check backend_type == "web"
 │
 ├─ generate(system_prompt, user_prompt, ...) → str
-│  ├─ Check LLMCache for hit
+│  ├─ Check LLMCache for hit → return cached
+│  ├─ Branch on backend_type:
+│  │  ├─ "api": Use OpenAI-compatible client (http/https)
+│  │  └─ "web": Use DeepSeekWebClient (browser auth + PoW)
 │  ├─ Retry with exponential backoff (MAX_RETRIES=3)
-│  ├─ On transient error → fallback to API if configured
-│  └─ Return generated text
+│  └─ Cache result + return
 │
 └─ generate_json(system_prompt, user_prompt, max_tokens) → dict
    ├─ Call generate() with json_mode=true
@@ -196,24 +275,41 @@ LLMClient (singleton)
    └─ Return parsed dict
 ```
 
-### Retry & Fallback Logic
+### Web Backend (DeepSeek Browser Auth)
+
+```
+DeepSeekWebClient
+├─ __init__() → Load cached credentials from data/auth_profiles.json
+├─ create_chat(messages, model, stream=False) → str or Iterator[str]
+│  ├─ Construct request headers (Authorization + cookies)
+│  ├─ Detect PoW challenge in response
+│  ├─ _solve_pow(challenge, salt, difficulty) → solve hash
+│  ├─ Retry with solution nonce
+│  └─ Stream or return response
+└─ get_models() → list of available models
+
+BrowserAuth
+├─ launch_chrome() → start Chrome on port 9222 (CDP)
+├─ capture_credentials() → Playwright intercepts login flow
+│  ├─ Monitor Network.responseReceived events
+│  ├─ Extract Authorization header + cookies
+│  └─ Store in data/auth_profiles.json
+└─ clear_credentials() → remove cached auth
+```
+
+### Retry Logic
 
 ```
 Call LLM
   ↓
-[Attempt 1]
-  ├─ Cache hit? Return cached result
-  ├─ Call OpenClaw (if backend_type="openclaw")
+[Attempt 1-3]
+  ├─ Cache hit? → Return cached result
+  ├─ Call backend (API or Web)
   │  ├─ Success → Cache + return
-  │  └─ Transient error + auto_fallback=true?
-  │     └─ [Fall through to API]
-  └─ Call OpenAI API
-     ├─ Success → Cache + return
-     └─ Transient error? → Retry with backoff
-
-[Attempt 2, 3, ...] → Same as attempt 1
-
-Non-transient error → Fail immediately
+  │  └─ Transient error (429, 5xx, timeout)?
+  │     └─ Exponential backoff + retry
+  │
+  └─ Non-transient error (4xx, auth) → Fail immediately
 ```
 
 ## Configuration Management
@@ -224,17 +320,25 @@ Non-transient error → Fail immediately
 ConfigManager (singleton)
 ├─ Load from data/config.json on init
 ├─ LLMConfig:
-│  ├─ API credentials (api_key, base_url, model)
+│  ├─ API credentials (api_key, base_url, model) — for "api" backend
+│  ├─ Web auth (backend_type, web_auth_provider) — for "web" backend
 │  ├─ Temperature & max_tokens defaults
-│  ├─ Backend switching (backend_type, openclaw_port)
 │  ├─ Cache settings (cache_enabled, cache_ttl_days)
-│  └─ Fallback behavior (auto_fallback)
+│  └─ Model routing (cheap_model, cheap_base_url for cost control)
 │
 └─ PipelineConfig:
    ├─ Layer 1: num_chapters, words_per_chapter, genre, style
    ├─ Phase 1: context_window_chapters (default: 2)
    ├─ Layer 2: num_simulation_rounds, num_agents, drama_intensity
-   └─ Layer 3: shots_per_chapter, video_style
+   ├─ Layer 3: shots_per_chapter, video_style
+   └─ Language: "vi" (Vietnamese)
+
+Templates (data/templates/story_templates.json)
+├─ Organized by genre (Tiên Hiệp, Huyền Huyễn, Ngôn Tình, etc.)
+├─ 13 pre-configured templates with:
+│  ├─ Title, story idea, recommended chapters/characters
+│  └─ Pre-tuned word count and writing style
+└─ Loaded on app startup for zero-config quick start
 ```
 
 ## Agent Architecture (Layer 2)
@@ -428,9 +532,78 @@ export_files_output = gr.File(               # gr.File widget
 - Cap plot_events to 50 (prevents unbounded growth)
 - Character states replaced per chapter (no accumulation)
 
+## StoryForge Phase 1: Browser Web Auth Architecture
+
+### Entry Point: Gradio Web UI (app.py)
+
+```
+┌─────────────────────────────────────────┐
+│ Gradio Web Interface                     │
+├─────────────────────────────────────────┤
+│ Web Auth Tab:                            │
+│ ├─ "Tao Chrome CDP" → launch_chrome()   │
+│ ├─ "Bat dau dang nhap" → capture_creds()│
+│ └─ Status: shows auth provider + state  │
+│                                          │
+│ Pipeline Tab:                            │
+│ ├─ Genre dropdown ────────┐             │
+│ │                         ↓             │
+│ ├─ Template dropdown ← update_templates()│
+│ ├─ "Tao ngay" button ───→ apply_template
+│ │                         + generate     │
+│ └─ Full form (optional customization)   │
+│                                          │
+│ Output Tabs:                             │
+│ ├─ Story output                         │
+│ ├─ Quality metrics                      │
+│ └─ Export (TXT, MD, JSON, ZIP)          │
+└─────────────────────────────────────────┘
+          ↓
+    Config → backend_type
+          ↓
+    ┌─────────────────────────────────────┐
+    │ LLMClient (Singleton)               │
+    │ ├─ branch: backend_type == "web"   │
+    │ │  ├─ Load creds from auth_profiles│
+    │ │  └─ DeepSeekWebClient (HTTP)     │
+    │ └─ branch: backend_type == "api"   │
+    │    └─ OpenAI-compatible (HTTPS)    │
+    └─────────────────────────────────────┘
+          ↓
+    StoryGenerator.generate_full_story()
+```
+
+### Browser Auth Flow
+
+```
+User clicks "Tao Chrome CDP"
+  ↓
+BrowserAuth.launch_chrome()
+├─ Find Chrome executable (Windows/Mac/Linux)
+├─ Launch with --remote-debugging-port=9222 (CDP)
+└─ Connect via Playwright
+  ↓
+User logs into DeepSeek
+  ↓
+Playwright intercepts Network.responseReceived
+├─ Monitor for Authorization header
+├─ Extract: "Bearer {token}"
+└─ Extract: Cookies (session, __Secure-*)
+  ↓
+BrowserAuth.capture_credentials()
+├─ Store in data/auth_profiles.json
+├─ Format: {"provider": "deepseek-web", "token": "...", "cookies": {...}}
+└─ Return to UI: "Authenticated: DeepSeek"
+  ↓
+LLMClient reloads credentials on next generate() call
+├─ Check data/auth_profiles.json for "deepseek-web"
+├─ Pass to DeepSeekWebClient
+└─ All subsequent requests use captured credentials
+```
+
 ---
 
-**Architectural Principle**: Modular layers with clear handoffs. Each layer can be run independently or as part of full pipeline.
+**Architectural Principle**: Modular layers with clear handoffs. Web auth is transparent to pipeline—same generation code works with API or web backend.
 
-**Last Updated**: 2026-03-23 (Phase 5: Quality Metrics)
-**Version**: 1.2
+**Last Updated**: 2026-03-23 (StoryForge Phase 1: Web Auth + Templates)
+**Version**: 1.3

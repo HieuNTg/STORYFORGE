@@ -14,15 +14,17 @@
 
 ```
 novel-auto/
-├── app.py                          # Flask API entry point
+├── app.py                          # Gradio web UI with web auth, template selector, quick start
 ├── config.py                       # ConfigManager (singleton), LLMConfig, PipelineConfig
 ├── models/
 │   └── schemas.py                  # Pydantic models for all layers
 ├── services/
-│   ├── llm_client.py               # OpenAI-compatible LLM wrapper with retry/cache/fallback
+│   ├── llm_client.py               # LLM wrapper: routes "api" (OpenAI) or "web" (DeepSeek browser)
 │   ├── llm_cache.py                # SQLite-based prompt result caching
 │   ├── prompts.py                  # Centralized prompt templates
-│   ├── openclaw_manager.py         # OpenClaw backend switching
+│   ├── browser_auth.py             # Chrome CDP + Playwright credential capture
+│   ├── deepseek_web_client.py      # DeepSeek web API client with PoW challenge solver
+│   ├── quality_scorer.py           # LLM-as-judge quality metrics (Phase 5)
 │   └── __init__.py
 ├── pipeline/
 │   ├── orchestrator.py             # Main workflow coordinator
@@ -44,9 +46,13 @@ novel-auto/
 │   │   ├── editor_in_chief.py      # Final editorial review
 │   │   └── agent_registry.py       # Agent discovery & management
 │   └── __init__.py
-├── scripts/
-│   └── setup-openclaw.sh           # OpenClaw deployment script
-└── locales/                        # i18n resources
+├── data/
+│   ├── config.json                 # LLM & pipeline configuration
+│   ├── templates/
+│   │   └── story_templates.json    # 13 story templates (zero-config onboarding)
+│   ├── auth_profiles.json          # Cached browser auth credentials
+│   └── cache.db                    # SQLite cache for LLM results
+└── output/                         # Generated stories (TXT, Markdown, JSON)
 ```
 
 ## Core Models (schemas.py)
@@ -137,14 +143,17 @@ Chapter summary ─────────────────────�
 ## Services Overview
 
 ### llm_client.py
-- **LLMClient**: Singleton OpenAI-compatible client
+- **LLMClient**: Singleton with dual-backend routing
+- **Backend routing**:
+  - `backend_type = "api"` → OpenAI-compatible API (requires api_key)
+  - `backend_type = "web"` → DeepSeek web browser auth (free, no API key)
 - Retry logic: MAX_RETRIES=3 with exponential backoff
 - Cache: SQLite with TTL (configurable cache_ttl_days)
-- Fallback: Auto-switch from OpenClaw → API if configured
 - Methods:
   - `generate(system_prompt, user_prompt, temperature, max_tokens, json_mode)`
   - `generate_json(...)` — wraps generate() with JSON parsing & validation
-  - `_get_client()` — lazy init, backend selection logic
+  - `_is_web_backend()` — checks backend_type
+  - `_get_web_client()` — lazy init DeepSeekWebClient
 
 ### prompts.py
 - Centralized template library
@@ -160,9 +169,24 @@ Chapter summary ─────────────────────�
 - Cache key: hash(prompt + config)
 - Methods: `get()`, `set()`, `evict_expired()`
 
-### openclaw_manager.py
-- Switches between OpenClaw (local) and OpenAI API backends
-- Health checks & auto-fallback on failure
+### browser_auth.py
+- Chrome CDP launcher with Playwright interception
+- Captures HTTP headers (cookies, bearer tokens) during login
+- Stores credentials in `data/auth_profiles.json` (encrypted recommended for production)
+- Key functions:
+  - `_find_chrome_path()` — cross-platform Chrome detection
+  - `launch_chrome()` — start Chrome with CDP on port 9222
+  - `capture_credentials()` — intercept DeepSeek login flow
+  - `get_session()` — retrieve cached credentials
+
+### deepseek_web_client.py
+- Makes HTTP requests to DeepSeek's internal web API
+- Implements proof-of-work (PoW) challenge solver
+- Handles SSE streaming responses
+- Key functions:
+  - `_solve_pow(challenge, salt, difficulty)` — SHA3/SHA256 hash solving
+  - `create_chat(messages, model, stream=False)` — sends chat request
+  - `get_models()` — lists available models (deepseek-chat, deepseek-reasoner)
 
 ## Configuration (config.py)
 
@@ -170,8 +194,11 @@ Chapter summary ─────────────────────�
 - `api_key`, `base_url`, `model` (default: gpt-4o-mini)
 - `temperature` (0.8 for generation, 0.3 for extraction)
 - `max_tokens` (4096 default)
-- `backend_type` ("api" or "openclaw")
-- `auto_fallback`, `cache_enabled`, `cache_ttl_days`
+- **Backend selection**:
+  - `backend_type` ("api" or "web")
+  - `web_auth_provider` ("deepseek-web" for free web auth)
+- `cache_enabled`, `cache_ttl_days`, `max_parallel_workers`
+- `cheap_model`, `cheap_base_url` (optional, for cost control)
 
 ### PipelineConfig
 - `num_chapters`, `words_per_chapter`
@@ -181,22 +208,39 @@ Chapter summary ─────────────────────�
 - Layer 3: `shots_per_chapter`, `video_style`
 - `language` ("vi" for Vietnamese)
 
-## API Endpoints (app.py - Flask)
+## UI & Entry Points (app.py - Gradio)
 
-Main endpoints:
-- `POST /api/generate-story` — Trigger full pipeline or Layer 1 only
-- `POST /api/layer2/enhance` — Drama simulation
-- `POST /api/layer3/storyboard` — Video metadata generation
-- `GET /api/status/<task_id>` — Progress tracking
-- `GET /api/config` — Current configuration
+**Web Auth Tab**:
+- "Tao Chrome CDP" button — launch Chrome with credential interception
+- "Bat dau dang nhap" button — capture DeepSeek login flow
+- "Xoa thong tin" button — clear cached credentials
+- Status display — shows current auth provider + credentials state
+
+**Pipeline Tab**:
+- Genre dropdown → auto-populates templates for selected genre
+- Template selector dropdown — 13 pre-configured story templates
+- "Tao ngay" button — quick start with selected template
+- Full form: custom title, idea, chapters, characters, words per chapter
+- Layer selection: Layer 1 only, or full pipeline (1+2+3)
+- Quality scoring toggle: "Cham diem tu dong"
+
+**Output Tabs**:
+- Pipeline output (story, enhanced narrative, storyboards)
+- Quality metrics ("Chat Luong") with layer scores
+- Export options: TXT, Markdown, JSON + ZIP download
 
 ## Execution Flow
 
-1. **App startup**: Load config → Initialize LLMClient (singleton) → Cache init
-2. **Generate story**: Orchestrator calls Layer 1 StoryGenerator.generate_full_story()
-3. **Character tracking** (Phase 1): Each chapter → extract states/events → update rolling context
-4. **Layer 2** (optional): Feed StoryDraft to drama simulator with character states
-5. **Layer 3** (optional): Generate storyboards from enhanced story
+**Phase 1: StoryForge (Web Auth + Zero-Config Onboarding)**
+1. **App startup**: Load config → Check for cached web auth credentials
+2. **Web Auth** (optional): User launches Chrome, logs into DeepSeek, credentials auto-captured
+3. **Template selection**: User picks genre → dropdown populates 13 story templates
+4. **Quick start**: "Tao ngay" button → pre-fill form from template + generate
+5. **Generate story**: Orchestrator calls Layer 1 StoryGenerator.generate_full_story()
+6. **LLM routing**: LLMClient checks backend_type → routes to API or DeepSeek web
+7. **Character tracking** (Phase 1): Each chapter → extract states/events → update rolling context
+8. **Quality scoring** (Phase 5): Score chapters (Layer 1 + Layer 2)
+9. **Output**: Display story, quality metrics, export options
 
 ## Phase 5: Story Quality Metrics (NEW)
 
@@ -247,6 +291,74 @@ Evaluate chapter on 4 criteria (1-5 scale):
 
 ---
 
+## Phase 2: UI Polish & Progress UX
+
+### Goal
+Enhance user experience with visual progress tracking, status indicators, layer detection, and responsive UI consolidation.
+
+### Implementation
+
+**Progress Bar** (`_progress_html()` in app.py):
+- 3-segment HTML progress bar showing Layer 1 → Layer 2 → Layer 3
+- States: idle (gray), active (blue with pulse), done (green)
+- Real-time layer detection from log messages
+- Animated status transitions
+
+**Status Badges**:
+- `status-idle`: San sang (Ready)
+- `status-running`: Running with pulse animation
+- `status-done`: Completed
+- `status-error`: Error state
+- HTML-based, CSS-driven styling
+
+**Layer Detection** (`_detect_layer()` in app.py):
+- Parses progress log messages to detect current layer
+- Vietnamese diacritics support via `_strip_diacritics()` (NFD normalization)
+- Recognizes keywords: Layer 1/TAO TRUYEN/CHUONG, Layer 2/MO PHONG/ENHANCE, Layer 3/STORYBOARD/VIDEO
+- Used for progress bar updates
+
+**Output Tabs Consolidation** (6 → 4 tabs):
+- Tab 1: "Truyen" — Layer 1 draft + Layer 2 enhanced narrative (split sections)
+- Tab 2: "Mo Phong" — Simulation results
+- Tab 3: "Video" — Storyboard & script
+- Tab 4: "Danh Gia" — Agent reviews + quality scores
+- Removed separate tabs for draft/enhanced to reduce clutter
+
+**Log Accordion**:
+- "Chi tiet tien trinh" accordion (collapsed by default)
+- Full progress log accessible without clutter
+
+**Mobile Responsive CSS**:
+- Progress segment font reduction (@media max-width: 768px)
+- Flexbox adjustments for mobile layout
+- Touch-friendly badge sizing
+
+**XSS-Safe HTML Rendering**:
+- `_html.escape()` used for progress step text
+- All user input HTML-escaped before display
+
+**Resume Pipeline Stream Support**:
+- `resume_from_checkpoint()` now accepts `progress_callback` parameter
+- Mirrors `run_pipeline()` stream signature
+- DRY principle: both methods support live progress updates
+
+### New Functions/Methods
+- `_progress_html(layer: int, step: str) -> str` — Generate progress bar HTML
+- `_detect_layer(msg: str) -> int` — Extract layer number from log message
+- `_strip_diacritics(text: str) -> str` — Remove Vietnamese diacritics for matching
+- `resume_from_checkpoint(..., progress_callback=None, ...)` — Added callback support
+
+### Testing
+- **tests/test_phase2_ui.py**: 60+ tests covering:
+  - Progress HTML generation (all layer states)
+  - Layer detection from Vietnamese log messages
+  - _format_output() tuple structure (11-element)
+  - CSS classes and responsive behavior
+  - Status badge states
+  - Output tab consolidation
+
+---
+
 ## Development Status
 
 **Phase 1 (COMPLETE)**: Character state tracking with rolling context
@@ -254,14 +366,24 @@ Evaluate chapter on 4 criteria (1-5 scale):
 - Parallel extraction in generate_full_story()
 - Context window configuration
 
+**Phase 2 (COMPLETE)**: UI Polish & Progress UX
+- Progress bar (3-segment HTML)
+- Status badges (4 states)
+- Layer detection with Vietnamese diacritics
+- Output tabs consolidation (6 → 4)
+- Mobile responsive CSS
+- XSS-safe rendering
+- Resume pipeline streaming
+- 60+ comprehensive tests
+
 **Phase 5 (COMPLETE)**: Story quality metrics
 - ChapterScore, StoryScore models
 - QualityScorer service with parallel processing
 - Integration at Layer 1 & Layer 2
 - UI tab + toggle
 
-**Phase 2-3-4**: In progress/planned
+**Phase 3-4**: In progress/planned
 
 ---
 
-**Last Updated**: 2026-03-23 | **Doc Version**: 1.1
+**Last Updated**: 2026-03-23 | **Doc Version**: 1.2

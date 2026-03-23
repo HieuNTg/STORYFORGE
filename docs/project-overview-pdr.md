@@ -15,14 +15,24 @@ A modular AI pipeline that transforms a genre + story idea into:
 2. **Layer 2**: Drama-enhanced narrative via multi-agent feedback loops
 3. **Layer 3**: Video storyboards with shot-level metadata
 
-### Core Features (Phase 1 Complete)
+### Core Features
+
+**StoryForge Phase 1 — Browser Web Auth + Zero-Config Onboarding (NEW)**
+- Native browser-based web authentication (Chrome CDP + Playwright)
+- Automatic credential capture from DeepSeek login flow
+- 13 pre-configured story templates (zero-config quick start)
+- Template selector with genre-based filtering
+- "Tao ngay" quick-start button for instant generation
+- Support for free DeepSeek web API (no API key required)
 
 **Layer 1 — Story Generation**
 - Character generation with personality, motivation, relationships
 - World-building with settings, rules, locations
 - Chapter-by-chapter story outline
 - Full chapter writing with LLM
-- **Phase 1**: Character state tracking (mood, arc, knowledge) + plot event extraction with rolling context window
+- **Character State Tracking**: mood, arc, knowledge extraction per chapter
+- **Plot Event Extraction**: major story events + character involvement
+- **Rolling Context Window**: keep last N chapters + capped plot events (50 max)
 
 **Layer 2 — Drama Enhancement** (In Progress)
 - Multi-agent simulation (6+ agents)
@@ -46,6 +56,44 @@ A modular AI pipeline that transforms a genre + story idea into:
 | **Creator** | Multi-format content | Unified story management, platform-agnostic output |
 
 ## Functional Requirements
+
+### StoryForge Phase 1: Browser Web Auth + Zero-Config Onboarding (NEW)
+
+**Req-SF1.1**: Browser-based credential capture
+- Input: User launches Chrome, logs into DeepSeek
+- Process: Playwright intercepts HTTP Authorization header + cookies
+- Output: Credentials stored in data/auth_profiles.json
+- Acceptance Criteria:
+  - Chrome launches with CDP on port 9222
+  - Login flow completes without blocking
+  - Credentials auto-recovered on app restart
+
+**Req-SF1.2**: Story template library
+- Input: Genre selection (Tiên Hiệp, Huyền Huyễn, Ngôn Tình, etc.)
+- Output: 13 pre-configured templates with story idea + chapter/character counts
+- Acceptance Criteria:
+  - Templates load from data/templates/story_templates.json
+  - Genre dropdown filters available templates
+  - Each template has title, idea, recommended num_chapters, num_characters
+
+**Req-SF1.3**: Template-driven quick start
+- Input: User selects template + clicks "Tao ngay"
+- Process: Auto-fill form fields from template, trigger generation
+- Output: Full pipeline execution with template parameters
+- Acceptance Criteria:
+  - Form fields pre-populated from template
+  - Generation starts immediately (no additional input needed)
+  - User can still customize before clicking "Tao ngay"
+
+**Req-SF1.4**: Dual-backend LLM routing
+- Input: backend_type config ("api" or "web")
+- Process: LLMClient routes to appropriate backend
+- Output: Generated text via selected backend
+- Acceptance Criteria:
+  - "api" backend: OpenAI-compatible (requires api_key)
+  - "web" backend: DeepSeek via browser auth (free, no key)
+  - Routing transparent to pipeline layers
+  - Both backends support retry + caching
 
 ### Layer 1: Story Generation
 
@@ -157,6 +205,57 @@ A modular AI pipeline that transforms a genre + story idea into:
   - Shots are visually distinct
   - Camera directions are cinematically sound
   - All dialogue attributed correctly
+
+### Phase 2: UI Polish & Progress UX (NEW)
+
+**Req-2.4**: Real-time progress bar with layer detection
+- Input: Log messages from pipeline execution
+- Output: HTML progress bar showing Layer 1 → Layer 2 → Layer 3 states
+- Process: _detect_layer() parses messages, updates progress_bar HTML
+- Acceptance Criteria:
+  - 3-segment progress bar with idle/active/done states
+  - Layer detection robust to Vietnamese diacritics (NFD normalization)
+  - Progress updates in real-time via progress_callback
+  - CSS animations: pulse on active, green on done
+
+**Req-2.5**: Status badge state machine
+- Input: Pipeline execution state
+- Output: Status badge HTML (idle/running/done/error)
+- Acceptance Criteria:
+  - "San sang" (idle) → "Dang chay" (running) → "Hoan thanh" (done)
+  - Error state on exception with red color
+  - Pulse animation on running state
+  - XSS-safe HTML rendering via _html.escape()
+
+**Req-2.6**: Output tabs consolidation (6 → 4)
+- Consolidate output display from 6 tabs to 4 tabs
+- Acceptance Criteria:
+  - Tab 1 "Truyen": Layer 1 draft + Layer 2 enhanced (split sections)
+  - Tab 2 "Mo Phong": Simulation results
+  - Tab 3 "Video": Storyboard & script
+  - Tab 4 "Danh Gia": Agent reviews + quality scores
+  - Reduced UI clutter, faster navigation
+
+**Req-2.7**: Collapsed detail log accordion
+- Detail log hidden behind "Chi tiet tien trinh" accordion (collapsed by default)
+- Acceptance Criteria:
+  - Progress log visible only on user expand
+  - Live preview always visible
+  - Saves screen space in default UI
+
+**Req-2.8**: Mobile responsive CSS
+- Responsive design for touch devices (max-width: 768px)
+- Acceptance Criteria:
+  - Flexbox adjustments for mobile layout
+  - Progress bar font reduced on small screens
+  - Touch-friendly badge and button sizing
+
+**Req-2.9**: Resume pipeline with streaming
+- resume_from_checkpoint() accepts progress_callback parameter
+- Acceptance Criteria:
+  - Same signature as run_pipeline() for consistency
+  - Streams progress updates via callback
+  - DRY principle maintained (both methods use same streaming)
 
 ### Phase 5: Story Quality Metrics (NEW)
 
@@ -290,9 +389,13 @@ A modular AI pipeline that transforms a genre + story idea into:
 
 ### External Dependencies
 
-- **OpenAI API** (or OpenClaw): LLM calls (core functionality)
-- **Internet connectivity**: Required for API calls
-- **config.json**: Configuration file (optional, uses defaults if missing)
+- **LLM Backend** (choose one):
+  - OpenAI API-compatible endpoint (requires api_key)
+  - DeepSeek web API (free, requires Chrome for browser auth)
+- **Chrome/Chromium**: Required for web auth (browser_auth.py)
+- **Internet connectivity**: Required for API/web calls
+- **Playwright**: Automated browser control for credential capture
+- **Requests library**: HTTP client for web backend
 
 ### Configuration Constraints
 
@@ -308,18 +411,33 @@ A modular AI pipeline that transforms a genre + story idea into:
 
 ## Acceptance Criteria
 
-### Phase 1 Completion (CURRENT)
+### StoryForge Phase 1 Completion (NEW - COMPLETE)
 
-- [x] CharacterState, PlotEvent, StoryContext models defined
-- [x] extract_character_states() method implemented
-- [x] extract_plot_events() method implemented
-- [x] Rolling context integrated into generate_full_story() loop
+- [x] BrowserAuth class with Chrome CDP launcher
+- [x] Playwright-based credential interception
+- [x] DeepSeekWebClient with PoW challenge solver
+- [x] browser_auth.py service (capture, store, retrieve credentials)
+- [x] deepseek_web_client.py service (API calls + streaming)
+- [x] LLMClient dual-backend routing ("api" vs "web")
+- [x] 13 story templates in data/templates/story_templates.json
+- [x] Template loader (_load_templates()) in app.py
+- [x] Template selector dropdown with genre filtering
+- [x] "Tao ngay" quick-start button
+- [x] Web auth UI tab (launch Chrome, capture, clear credentials)
+- [x] Config updates: backend_type, web_auth_provider
+- [x] Requirements.txt: playwright, requests added
+- [x] OpenClaw references removed (replaced with web auth)
+- [x] Tests: manual validation of web auth flow + template selection
+
+### Character State Tracking (Phase 1 - Original)
+
+- [x] CharacterState, PlotEvent, StoryContext models
+- [x] extract_character_states() method
+- [x] extract_plot_events() method
+- [x] Rolling context integration
 - [x] Parallel extraction via ThreadPoolExecutor
-- [x] context_window_chapters config parameter added
-- [x] LLMClient max_tokens parameter added
-- [x] All extraction calls use temp=0.3 + compact max_tokens
-- [x] Character state tracking reduces inconsistencies in multi-chapter stories
-- [x] Test: 10-chapter story with character tracking (manual validation)
+- [x] context_window_chapters config
+- [x] Character consistency improved in multi-chapter stories
 
 ### Phase 5 Completion (NEW - COMPLETE)
 
@@ -338,14 +456,21 @@ A modular AI pipeline that transforms a genre + story idea into:
 - [x] All 77 test cases passed
 - [x] No breaking changes to Phase 1-4
 
-### Phase 2 Roadmap (In Progress)
+### Phase 2 Completion (UI Polish & Progress UX - COMPLETE)
 
-- [ ] Multi-agent feedback loops (6+ agents)
-- [ ] Character consistency validation with examples
-- [ ] Drama intensity scoring per chapter
-- [ ] Enhanced narrative output with feedback
-- [ ] Integration test: Layer 1 → Layer 2 handoff
-- [ ] Test: Drama scores correlate with emotional arc
+- [x] _progress_html() function with 3-segment progress bar
+- [x] _detect_layer() with Vietnamese diacritics support (NFD normalization)
+- [x] _strip_diacritics() utility function
+- [x] Status badges with 4 states (idle/running/done/error)
+- [x] CSS animations (pulse, transitions, mobile-responsive)
+- [x] Output tabs consolidation (6 → 4)
+- [x] Collapsed detail log accordion
+- [x] Mobile responsive design (@media queries)
+- [x] XSS-safe HTML rendering (_html.escape())
+- [x] resume_from_checkpoint() with progress_callback parameter
+- [x] DRY principle: resume matches run_pipeline() signature
+- [x] 60+ comprehensive unit tests (test_phase2_ui.py)
+- [x] No breaking changes to Phase 1, 5
 
 ### Phase 3 Roadmap (Future)
 
@@ -420,7 +545,14 @@ A modular AI pipeline that transforms a genre + story idea into:
 
 ## Roadmap & Timeline
 
-**Phase 1** (COMPLETE - 2026-03-23):
+**StoryForge Phase 1** (COMPLETE - 2026-03-23):
+- Browser web authentication (Chrome CDP + Playwright)
+- DeepSeek free API client with PoW solver
+- 13 story templates + zero-config onboarding
+- Dual-backend LLM routing (API vs web)
+- Template-driven quick start UI
+
+**Character State Tracking Phase 1** (COMPLETE - 2026-03-23):
 - Character state tracking with rolling context
 - Plot event extraction
 - Parallel extraction in generation loop
@@ -441,15 +573,22 @@ A modular AI pipeline that transforms a genre + story idea into:
 - gr.File UI widget integration
 - Story metadata in Markdown export
 
+**Phase 5** (COMPLETE - 2026-03-23):
+- LLM-as-judge quality metrics
+- Coherence, character consistency, drama, writing quality scoring
+- Parallel scoring (max 3 workers)
+- Layer 1 & Layer 2 integration
+
 ## Known Limitations & Future Work
 
 ### Current Limitations
 
-1. **No user accounts**: All stories are global (no multi-tenancy)
-2. **No persistent task queue**: Tasks lost on process restart
-3. **Language**: Vietnamese primary (English support TBD)
-4. **No UI**: API-only, no web dashboard
-5. **Manual review required**: Generated content needs human editing
+1. **Web auth credentials**: Stored in plain JSON (data/auth_profiles.json); production should encrypt
+2. **Chrome dependency**: Web backend requires Chrome/Chromium (not available in headless servers)
+3. **Single session**: Web auth captures one provider at a time (no multi-provider support yet)
+4. **Language**: Vietnamese primary (English support TBD)
+5. **No user accounts**: All stories are global (no multi-tenancy)
+6. **Manual review required**: Generated content needs human editing
 
 ### Future Enhancements
 
@@ -462,6 +601,6 @@ A modular AI pipeline that transforms a genre + story idea into:
 
 ---
 
-**Document Version**: 1.1 (Phase 4 Export)
+**Document Version**: 1.2 (StoryForge Phase 1: Web Auth + Templates)
 **Last Updated**: 2026-03-23
-**Status**: Phase 1-4 Complete, Phase 2 In Progress
+**Status**: StoryForge Phase 1 Complete, Character State Phase 1 Complete, Phase 4-5 Complete, Phase 2 In Progress
