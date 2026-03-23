@@ -1,4 +1,4 @@
-"""Novel Auto Pipeline - Tạo truyện kịch tính và kịch bản video tự động.
+"""StoryForge - Tạo truyện kịch tính và kịch bản video tự động.
 
 Pipeline 3 lớp:
   Layer 1 (create-story): Tạo truyện từ ý tưởng
@@ -22,7 +22,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("novel_auto.log", encoding="utf-8"),
+        logging.FileHandler("storyforge.log", encoding="utf-8"),
     ],
 )
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ def create_ui():
     config = ConfigManager()
 
     with gr.Blocks(
-        title="Novel Auto Pipeline",
+        title="StoryForge",
         theme=gr.themes.Soft(),
         css="""
         .pipeline-header { text-align: center; margin-bottom: 20px; }
@@ -62,7 +62,7 @@ def create_ui():
     ) as app:
         gr.Markdown(
             """
-            # Novel Auto Pipeline
+            # StoryForge
             ### Tạo truyện kịch tính & kịch bản video tự động
 
             **Pipeline 3 lớp:**
@@ -646,7 +646,7 @@ def create_ui():
             # ═══════════════════════════════════════
             with gr.TabItem("Hướng Dẫn"):
                 gr.Markdown("""
-                ## Hướng dẫn sử dụng Novel Auto Pipeline
+                ## Hướng dẫn sử dụng StoryForge
 
                 ### Pipeline hoạt động như thế nào?
 

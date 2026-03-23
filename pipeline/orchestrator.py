@@ -333,7 +333,7 @@ class PipelineOrchestrator:
         files = self.export_output(output_dir, formats)
         if not files:
             return ""
-        zip_path = os.path.join(output_dir, f"{timestamp}_novel_auto.zip")
+        zip_path = os.path.join(output_dir, f"{timestamp}_storyforge.zip")
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
             for f in files:
                 zf.write(f, os.path.basename(f))

@@ -1,4 +1,4 @@
-# Novel Auto Pipeline
+# StoryForge
 
 **Tự động tạo truyện kịch tính và kịch bản video bằng AI.**
 
@@ -90,14 +90,14 @@ Vào tab **Cài Đặt** trong giao diện web:
 | Temperature | Độ sáng tạo | `0.8` |
 | Backend | `api` hoặc `openclaw` | `api` |
 
-Cấu hình lưu tại `novel_auto_config.json`.
+Cấu hình lưu tại `data/config.json`.
 
 ---
 
 ## Cấu trúc dự án
 
 ```
-novel-auto/
+storyforge/
 ├── app.py                          # Gradio UI
 ├── config.py                       # Quản lý cấu hình
 ├── models/

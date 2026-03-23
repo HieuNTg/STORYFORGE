@@ -1,4 +1,4 @@
-"""Quản lý cấu hình cho Novel Auto Pipeline."""
+"""Quản lý cấu hình cho StoryForge."""
 
 import os
 import json
