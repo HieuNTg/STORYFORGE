@@ -1,0 +1,412 @@
+"""Novel Auto Pipeline - Tạo truyện kịch tính và kịch bản video tự động.
+
+Pipeline 3 lớp:
+  Layer 1 (create-story): Tạo truyện từ ý tưởng
+  Layer 2 (MiroFish-inspired): Mô phỏng nhân vật tăng kịch tính
+  Layer 3 (waoowaoo-inspired): Tạo storyboard và kịch bản video
+"""
+
+import logging
+import threading
+import gradio as gr
+
+from config import ConfigManager
+from pipeline.orchestrator import PipelineOrchestrator
+
+# Logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("novel_auto.log", encoding="utf-8"),
+    ],
+)
+logger = logging.getLogger(__name__)
+
+# Genres tiếng Việt
+GENRES = [
+    "Tiên Hiệp", "Huyền Huyễn", "Kiếm Hiệp", "Đô Thị",
+    "Ngôn Tình", "Xuyên Không", "Trọng Sinh", "Hệ Thống",
+    "Khoa Huyễn", "Đồng Nhân", "Lịch Sử", "Quân Sự",
+    "Linh Dị", "Trinh Thám", "Hài Hước", "Võng Du",
+    "Dị Giới", "Mạt Thế", "Điền Văn", "Cung Đấu",
+]
+
+STYLES = [
+    "Miêu tả chi tiết",
+    "Đối thoại sắc bén",
+    "Hành động mãnh liệt",
+    "Trữ tình lãng mạn",
+    "U ám kịch tính",
+]
+
+DRAMA_LEVELS = ["thấp", "trung bình", "cao"]
+
+
+def create_ui():
+    """Tạo giao diện Gradio."""
+
+    config = ConfigManager()
+
+    with gr.Blocks(
+        title="Novel Auto Pipeline",
+        theme=gr.themes.Soft(),
+        css="""
+        .pipeline-header { text-align: center; margin-bottom: 20px; }
+        .layer-box { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 10px 0; }
+        """,
+    ) as app:
+        gr.Markdown(
+            """
+            # Novel Auto Pipeline
+            ### Tạo truyện kịch tính & kịch bản video tự động
+
+            **Pipeline 3 lớp:**
+            Layer 1 → Tạo truyện | Layer 2 → Mô phỏng tăng kịch tính | Layer 3 → Kịch bản video
+            """,
+            elem_classes="pipeline-header",
+        )
+
+        with gr.Tabs():
+            # ═══════════════════════════════════════
+            # TAB 1: PIPELINE ĐẦY ĐỦ
+            # ═══════════════════════════════════════
+            with gr.TabItem("Pipeline Đầy Đủ"):
+                with gr.Row():
+                    with gr.Column(scale=1):
+                        gr.Markdown("### Thông tin truyện")
+                        title_input = gr.Textbox(
+                            label="Tiêu đề", placeholder="Để trống để AI đề xuất",
+                        )
+                        genre_input = gr.Dropdown(
+                            choices=GENRES, value="Tiên Hiệp", label="Thể loại",
+                        )
+                        style_input = gr.Dropdown(
+                            choices=STYLES, value="Miêu tả chi tiết",
+                            label="Phong cách viết",
+                        )
+                        idea_input = gr.Textbox(
+                            label="Ý tưởng / Mô tả truyện",
+                            placeholder="Mô tả ý tưởng câu truyện của bạn...",
+                            lines=4,
+                        )
+
+                        gr.Markdown("### Cấu hình")
+                        num_chapters = gr.Slider(
+                            1, 50, value=5, step=1, label="Số chương",
+                        )
+                        num_characters = gr.Slider(
+                            2, 15, value=5, step=1, label="Số nhân vật",
+                        )
+                        word_count = gr.Slider(
+                            500, 5000, value=2000, step=100,
+                            label="Số từ mỗi chương",
+                        )
+
+                        gr.Markdown("### Layer 2 - Mô phỏng")
+                        sim_rounds = gr.Slider(
+                            1, 10, value=3, step=1,
+                            label="Số vòng mô phỏng",
+                        )
+                        drama_level = gr.Dropdown(
+                            choices=DRAMA_LEVELS, value="cao",
+                            label="Mức kịch tích",
+                        )
+
+                        gr.Markdown("### Layer 3 - Video")
+                        shots_per_ch = gr.Slider(
+                            4, 20, value=8, step=1,
+                            label="Số shot mỗi chương",
+                        )
+
+                        run_btn = gr.Button(
+                            "🚀 Chạy Pipeline", variant="primary", size="lg",
+                        )
+
+                    with gr.Column(scale=2):
+                        progress_log = gr.Textbox(
+                            label="Tiến trình", lines=15, interactive=False,
+                        )
+                        with gr.Tabs():
+                            with gr.TabItem("Truyện Gốc (Layer 1)"):
+                                draft_output = gr.Textbox(
+                                    label="Bản thảo", lines=20, interactive=False,
+                                )
+                            with gr.TabItem("Mô Phỏng (Layer 2)"):
+                                sim_output = gr.Textbox(
+                                    label="Kết quả mô phỏng", lines=20,
+                                    interactive=False,
+                                )
+                            with gr.TabItem("Truyện Kịch Tính (Layer 2)"):
+                                enhanced_output = gr.Textbox(
+                                    label="Truyện tăng cường", lines=20,
+                                    interactive=False,
+                                )
+                            with gr.TabItem("Kịch Bản Video (Layer 3)"):
+                                video_output = gr.Textbox(
+                                    label="Storyboard & Script", lines=20,
+                                    interactive=False,
+                                )
+
+                        export_btn = gr.Button("💾 Xuất file")
+                        export_status = gr.Textbox(
+                            label="Trạng thái xuất", interactive=False,
+                        )
+
+                # State
+                orchestrator_state = gr.State(None)
+
+                def run_pipeline(
+                    title, genre, style, idea, n_chapters, n_chars,
+                    w_count, n_sim, drama, n_shots,
+                ):
+                    if not idea:
+                        yield (
+                            "❌ Vui lòng nhập ý tưởng truyện!",
+                            "", "", "", "", None,
+                        )
+                        return
+
+                    orch = PipelineOrchestrator()
+                    logs = []
+
+                    def on_progress(msg):
+                        logs.append(msg)
+
+                    # Chạy pipeline trong thread
+                    result = [None]
+
+                    def _run():
+                        result[0] = orch.run_full_pipeline(
+                            title=title or f"Truyện {genre}",
+                            genre=genre,
+                            idea=idea,
+                            style=style,
+                            num_chapters=int(n_chapters),
+                            num_characters=int(n_chars),
+                            word_count=int(w_count),
+                            num_sim_rounds=int(n_sim),
+                            shots_per_chapter=int(n_shots),
+                            progress_callback=on_progress,
+                        )
+
+                    thread = threading.Thread(target=_run)
+                    thread.start()
+
+                    # Cập nhật UI khi có log mới
+                    last_len = 0
+                    while thread.is_alive():
+                        thread.join(timeout=2)
+                        if len(logs) > last_len:
+                            last_len = len(logs)
+                            yield (
+                                "\n".join(logs),
+                                "", "", "", "", None,
+                            )
+
+                    thread.join()
+                    output = result[0]
+
+                    # Format kết quả
+                    draft_text = ""
+                    if output and output.story_draft:
+                        d = output.story_draft
+                        draft_text = f"# {d.title}\n\n"
+                        draft_text += f"**Thể loại:** {d.genre}\n"
+                        draft_text += f"**Tóm tắt:** {d.synopsis}\n\n"
+                        draft_text += f"**Nhân vật:** {', '.join(c.name for c in d.characters)}\n\n"
+                        for ch in d.chapters:
+                            draft_text += f"\n---\n## Chương {ch.chapter_number}: {ch.title}\n\n"
+                            draft_text += ch.content[:2000] + "...\n"
+
+                    sim_text = ""
+                    if output and output.simulation_result:
+                        s = output.simulation_result
+                        sim_text = "## Kết quả Mô phỏng\n\n"
+                        sim_text += f"**Số sự kiện kịch tính:** {len(s.events)}\n"
+                        sim_text += f"**Số bài viết agent:** {len(s.agent_posts)}\n\n"
+                        sim_text += "### Sự kiện nổi bật:\n"
+                        for e in s.events[:10]:
+                            sim_text += (
+                                f"- [{e.event_type}] {e.description} "
+                                f"(kịch tính: {e.drama_score:.1f})\n"
+                            )
+                        sim_text += "\n### Gợi ý tăng kịch tính:\n"
+                        for sug in s.drama_suggestions[:5]:
+                            sim_text += f"- {sug}\n"
+
+                    enhanced_text = ""
+                    if output and output.enhanced_story:
+                        es = output.enhanced_story
+                        enhanced_text = f"# {es.title} (Phiên bản kịch tính)\n"
+                        enhanced_text += f"**Điểm kịch tính:** {es.drama_score:.2f}/1.0\n\n"
+                        for ch in es.chapters:
+                            enhanced_text += f"\n---\n## Chương {ch.chapter_number}: {ch.title}\n\n"
+                            enhanced_text += ch.content[:2000] + "...\n"
+
+                    video_text = ""
+                    if output and output.video_script:
+                        vs = output.video_script
+                        video_text = f"# Kịch bản Video: {vs.title}\n"
+                        video_text += f"**Tổng thời lượng:** ~{vs.total_duration_seconds/60:.1f} phút\n"
+                        video_text += f"**Tổng panels:** {len(vs.panels)}\n"
+                        video_text += f"**Dòng thoại:** {len(vs.voice_lines)}\n\n"
+                        for p in vs.panels[:20]:
+                            video_text += (
+                                f"### Panel {p.panel_number} (Ch.{p.chapter_number})\n"
+                                f"- **Shot:** {p.shot_type.value} | **Camera:** {p.camera_movement}\n"
+                                f"- **Mô tả:** {p.description}\n"
+                            )
+                            if p.dialogue:
+                                video_text += f"- **Thoại:** {p.dialogue}\n"
+                            if p.image_prompt:
+                                video_text += f"- **Image prompt:** {p.image_prompt}\n"
+                            video_text += "\n"
+
+                    yield (
+                        "\n".join(output.logs if output else logs),
+                        draft_text,
+                        sim_text,
+                        enhanced_text,
+                        video_text,
+                        orch,
+                    )
+
+                run_btn.click(
+                    fn=run_pipeline,
+                    inputs=[
+                        title_input, genre_input, style_input, idea_input,
+                        num_chapters, num_characters, word_count,
+                        sim_rounds, drama_level, shots_per_ch,
+                    ],
+                    outputs=[
+                        progress_log, draft_output, sim_output,
+                        enhanced_output, video_output, orchestrator_state,
+                    ],
+                )
+
+                def export_files(orch):
+                    if orch is None:
+                        return "❌ Chưa có dữ liệu để xuất. Hãy chạy pipeline trước."
+                    try:
+                        path = orch.export_output()
+                        return f"✅ Đã xuất file vào thư mục: {path}"
+                    except Exception as e:
+                        return f"❌ Lỗi xuất file: {e}"
+
+                export_btn.click(
+                    fn=export_files,
+                    inputs=[orchestrator_state],
+                    outputs=[export_status],
+                )
+
+            # ═══════════════════════════════════════
+            # TAB 2: CÀI ĐẶT
+            # ═══════════════════════════════════════
+            with gr.TabItem("Cài Đặt"):
+                gr.Markdown("### Cấu hình API")
+                api_key = gr.Textbox(
+                    label="API Key",
+                    value=config.llm.api_key,
+                    type="password",
+                )
+                base_url = gr.Textbox(
+                    label="Base URL",
+                    value=config.llm.base_url,
+                )
+                model_name = gr.Textbox(
+                    label="Model",
+                    value=config.llm.model,
+                )
+                temperature = gr.Slider(
+                    0, 2, value=config.llm.temperature, step=0.1,
+                    label="Temperature",
+                )
+                max_tokens = gr.Slider(
+                    1024, 16384, value=config.llm.max_tokens, step=512,
+                    label="Max Tokens",
+                )
+
+                save_btn = gr.Button("💾 Lưu cài đặt", variant="primary")
+                save_status = gr.Textbox(label="Trạng thái", interactive=False)
+
+                def save_settings(key, url, model, temp, tokens):
+                    cfg = ConfigManager()
+                    cfg.llm.api_key = key
+                    cfg.llm.base_url = url
+                    cfg.llm.model = model
+                    cfg.llm.temperature = temp
+                    cfg.llm.max_tokens = int(tokens)
+                    cfg.save()
+                    # Reset LLM client singleton
+                    from services.llm_client import LLMClient
+                    LLMClient._instance = None
+                    return "✅ Đã lưu cài đặt!"
+
+                save_btn.click(
+                    fn=save_settings,
+                    inputs=[api_key, base_url, model_name, temperature, max_tokens],
+                    outputs=[save_status],
+                )
+
+            # ═══════════════════════════════════════
+            # TAB 3: HƯỚNG DẪN
+            # ═══════════════════════════════════════
+            with gr.TabItem("Hướng Dẫn"):
+                gr.Markdown("""
+                ## Hướng dẫn sử dụng Novel Auto Pipeline
+
+                ### Pipeline hoạt động như thế nào?
+
+                ```
+                Ý tưởng → [Layer 1: Tạo Truyện] → [Layer 2: Mô Phỏng Kịch Tính] → [Layer 3: Kịch Bản Video] → Output
+                ```
+
+                #### Layer 1: Tạo Truyện (create-story)
+                - Tạo nhân vật với tính cách, tiểu sử, động lực
+                - Xây dựng bối cảnh thế giới
+                - Tạo dàn ý chi tiết
+                - Viết từng chương tự động
+
+                #### Layer 2: Mô Phỏng Tăng Kịch Tính (MiroFish-inspired)
+                - **Phân tích:** Trích xuất mối quan hệ và xung đột giữa nhân vật
+                - **Mô phỏng:** Mỗi nhân vật trở thành AI agent tự trị
+                - Agents tương tác tự do: đăng suy nghĩ, phản hồi, đối đầu, phản bội
+                - Hệ thống đánh giá và trích xuất tình huống kịch tính
+                - **Tăng cường:** Viết lại truyện với các yếu tố kịch tích từ mô phỏng
+
+                #### Layer 3: Kịch Bản Video (waoowaoo-inspired)
+                - Tạo storyboard: shot, camera, mood cho từng cảnh
+                - Tạo image prompt cho AI image generation
+                - Tạo kịch bản lồng tiếng với cảm xúc
+                - Mô tả hình ảnh nhân vật và bối cảnh
+
+                ### Cách sử dụng
+                1. Vào **Cài Đặt** → nhập API Key và chọn model
+                2. Vào **Pipeline Đầy Đủ** → nhập ý tưởng truyện
+                3. Điều chỉnh các thông số nếu cần
+                4. Nhấn **Chạy Pipeline** và đợi
+                5. Xem kết quả ở các tab: Truyện Gốc, Mô Phỏng, Truyện Kịch Tính, Kịch Bản Video
+                6. Nhấn **Xuất file** để lưu kết quả
+
+                ### API tương thích
+                Hỗ trợ mọi API tương thích OpenAI: OpenAI, Anthropic (qua proxy),
+                Google Gemini, DeepSeek, Groq, Together AI, OpenRouter, Ollama, v.v.
+                """)
+
+    return app
+
+
+def main():
+    app = create_ui()
+    app.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+        share=False,
+        show_error=True,
+    )
+
+
+if __name__ == "__main__":
+    main()
