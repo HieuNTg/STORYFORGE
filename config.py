@@ -19,6 +19,9 @@ class LLMConfig:
     openclaw_port: int = 3002
     openclaw_model: str = "deepseek-web/deepseek-chat"
     auto_fallback: bool = True  # Tự động chuyển sang API khi OpenClaw fail
+    cache_enabled: bool = True
+    cache_ttl_days: int = 7
+    max_parallel_workers: int = 3
 
 
 @dataclass
@@ -75,8 +78,9 @@ class ConfigManager:
                 for k, v in data.get("pipeline", {}).items():
                     if hasattr(self.pipeline, k):
                         setattr(self.pipeline, k, v)
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f"Config load error: {e}")
 
     def save(self):
         os.makedirs(os.path.dirname(self.CONFIG_FILE), exist_ok=True)
@@ -92,6 +96,9 @@ class ConfigManager:
                 "openclaw_port": self.llm.openclaw_port,
                 "openclaw_model": self.llm.openclaw_model,
                 "auto_fallback": self.llm.auto_fallback,
+                "cache_enabled": self.llm.cache_enabled,
+                "cache_ttl_days": self.llm.cache_ttl_days,
+                "max_parallel_workers": self.llm.max_parallel_workers,
             },
             "pipeline": {
                 "num_chapters": self.pipeline.num_chapters,

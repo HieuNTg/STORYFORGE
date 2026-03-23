@@ -1,11 +1,13 @@
 """Tăng cường kịch tính cho truyện dựa trên kết quả mô phỏng."""
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from models.schemas import (
     StoryDraft, SimulationResult, EnhancedStory, Chapter,
 )
 from services.llm_client import LLMClient
 from services import prompts
+from config import ConfigManager
 
 logger = logging.getLogger(__name__)
 
@@ -101,15 +103,30 @@ class StoryEnhancer:
         )
 
         total_chapters = len(draft.chapters)
-        for chapter in draft.chapters:
-            _log(
-                f"✨ Đang tăng cường kịch tính chương {chapter.chapter_number}: "
-                f"{chapter.title}..."
-            )
-            enhanced_chapter = self.enhance_chapter(
-                chapter, sim_result, word_count, total_chapters=total_chapters,
-            )
-            enhanced.chapters.append(enhanced_chapter)
+        max_workers = ConfigManager().llm.max_parallel_workers
+
+        _log(f"✨ Đang tăng cường kịch tính {total_chapters} chương (parallel, {max_workers} workers)...")
+        results = {}
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    self.enhance_chapter, chapter, sim_result, word_count, total_chapters
+                ): chapter.chapter_number
+                for chapter in draft.chapters
+            }
+            for future in as_completed(futures):
+                ch_num = futures[future]
+                try:
+                    results[ch_num] = future.result()
+                    _log(f"✨ Chương {ch_num} đã tăng cường xong")
+                except Exception as e:
+                    logger.warning(f"Lỗi enhance chương {ch_num}: {e}")
+                    # Fallback: keep original
+                    orig = next(c for c in draft.chapters if c.chapter_number == ch_num)
+                    results[ch_num] = orig
+
+        # Maintain order
+        enhanced.chapters = [results[ch.chapter_number] for ch in draft.chapters]
 
         # Tính điểm kịch tính tổng thể
         if sim_result.events:

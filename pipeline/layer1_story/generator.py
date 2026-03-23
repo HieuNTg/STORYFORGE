@@ -2,6 +2,7 @@
 
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Generator
 
 from models.schemas import (
@@ -176,16 +177,29 @@ class StoryGenerator:
             outlines=outlines,
         )
 
-        # Viết từng chương
+        # Viết từng chương - pipelined summary
         previous_summary = ""
-        for outline in outlines:
-            _log(f"📖 Đang viết chương {outline.chapter_number}: {outline.title}...")
-            chapter = self.write_chapter(
-                title, genre, style, characters, world,
-                outline, previous_summary, word_count,
-            )
-            draft.chapters.append(chapter)
-            previous_summary = self.summarize_chapter(chapter.content)
+        summary_future = None
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            for outline in outlines:
+                # Wait for previous summary if exists
+                if summary_future is not None:
+                    try:
+                        previous_summary = summary_future.result()
+                    except Exception as e:
+                        logger.warning(f"Summary failed, using empty: {e}")
+                        previous_summary = ""
+
+                _log(f"📖 Đang viết chương {outline.chapter_number}: {outline.title}...")
+                chapter = self.write_chapter(
+                    title, genre, style, characters, world,
+                    outline, previous_summary, word_count,
+                )
+                draft.chapters.append(chapter)
+
+                # Start summary generation in background
+                summary_future = executor.submit(self.summarize_chapter, chapter.content)
 
         _log("✅ Layer 1 hoàn tất - Bản thảo truyện đã sẵn sàng!")
         return draft

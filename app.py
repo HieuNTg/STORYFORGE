@@ -8,6 +8,8 @@ Pipeline 3 lớp:
 
 import logging
 import threading
+import queue
+import os
 import gradio as gr
 
 from config import ConfigManager
@@ -160,67 +162,29 @@ def create_ui():
                                     interactive=False,
                                 )
 
+                        export_formats = gr.CheckboxGroup(
+                            choices=["TXT", "Markdown", "JSON"],
+                            value=["TXT", "Markdown", "JSON"],
+                            label="Dinh dang xuat",
+                        )
                         export_btn = gr.Button("Xuat file")
                         export_status = gr.Textbox(
                             label="Trạng thái xuất", interactive=False,
                         )
 
+                        gr.Markdown("### Checkpoint / Resume")
+                        with gr.Row():
+                            checkpoint_dropdown = gr.Dropdown(
+                                label="Resume tu checkpoint", choices=[], interactive=True,
+                            )
+                            refresh_ckpt_btn = gr.Button("Refresh", scale=0)
+                        resume_btn = gr.Button("Resume Pipeline", variant="secondary")
+
                 # State
                 orchestrator_state = gr.State(None)
 
-                def run_pipeline(
-                    title, genre, style, idea, n_chapters, n_chars,
-                    w_count, n_sim, drama, n_shots, agents_enabled,
-                ):
-                    if not idea:
-                        yield (
-                            "Vui long nhap y tuong truyen!",
-                            "", "", "", "", "", None,
-                        )
-                        return
-
-                    orch = PipelineOrchestrator()
-                    logs = []
-
-                    def on_progress(msg):
-                        logs.append(msg)
-
-                    # Chạy pipeline trong thread
-                    result = [None]
-
-                    def _run():
-                        result[0] = orch.run_full_pipeline(
-                            title=title or f"Truyện {genre}",
-                            genre=genre,
-                            idea=idea,
-                            style=style,
-                            num_chapters=int(n_chapters),
-                            num_characters=int(n_chars),
-                            word_count=int(w_count),
-                            num_sim_rounds=int(n_sim),
-                            shots_per_chapter=int(n_shots),
-                            progress_callback=on_progress,
-                            enable_agents=agents_enabled,
-                        )
-
-                    thread = threading.Thread(target=_run)
-                    thread.start()
-
-                    # Cập nhật UI khi có log mới
-                    last_len = 0
-                    while thread.is_alive():
-                        thread.join(timeout=2)
-                        if len(logs) > last_len:
-                            last_len = len(logs)
-                            yield (
-                                "\n".join(logs),
-                                "", "", "", "", "", None,
-                            )
-
-                    thread.join()
-                    output = result[0]
-
-                    # Format kết quả
+                def _format_output(output, logs, orch):
+                    """Format PipelineOutput for UI display. Returns 7-tuple."""
                     draft_text = ""
                     if output and output.story_draft:
                         d = output.story_draft
@@ -289,15 +253,71 @@ def create_ui():
                                 agent_text += f"- Goi y: {'; '.join(r.suggestions[:3])}\n"
                             agent_text += "\n"
 
-                    yield (
+                    return (
                         "\n".join(output.logs if output else logs),
-                        draft_text,
-                        sim_text,
-                        enhanced_text,
-                        video_text,
-                        agent_text,
-                        orch,
+                        draft_text, sim_text, enhanced_text, video_text, agent_text, orch,
                     )
+
+                def run_pipeline(
+                    title, genre, style, idea, n_chapters, n_chars,
+                    w_count, n_sim, _drama, n_shots, agents_enabled,
+                ):
+                    errors = []
+                    if not idea or len(idea.strip()) < 10:
+                        errors.append("Y tuong can it nhat 10 ky tu")
+                    if n_chapters < 1 or n_chapters > 50:
+                        errors.append("So chuong phai tu 1-50")
+                    if errors:
+                        yield ("\n".join(errors), "", "", "", "", "", None)
+                        return
+
+                    orch = PipelineOrchestrator()
+                    logs = []
+                    progress_queue = queue.Queue()
+
+                    def on_progress(msg):
+                        logs.append(msg)
+                        progress_queue.put(msg)
+
+                    # Chạy pipeline trong thread
+                    result = [None]
+
+                    def _run():
+                        result[0] = orch.run_full_pipeline(
+                            title=title or f"Truyện {genre}",
+                            genre=genre,
+                            idea=idea,
+                            style=style,
+                            num_chapters=int(n_chapters),
+                            num_characters=int(n_chars),
+                            word_count=int(w_count),
+                            num_sim_rounds=int(n_sim),
+                            shots_per_chapter=int(n_shots),
+                            progress_callback=on_progress,
+                            enable_agents=agents_enabled,
+                        )
+
+                    thread = threading.Thread(target=_run)
+                    thread.start()
+
+                    # Queue-based progress updates
+                    while thread.is_alive():
+                        try:
+                            progress_queue.get(timeout=0.1)
+                            # Drain remaining
+                            while not progress_queue.empty():
+                                try:
+                                    progress_queue.get_nowait()
+                                except queue.Empty:
+                                    break
+                            yield ("\n".join(logs), "", "", "", "", "", None)
+                        except queue.Empty:
+                            continue
+
+                    thread.join()
+                    output = result[0]
+
+                    yield _format_output(output, logs, orch)
 
                 run_btn.click(
                     fn=run_pipeline,
@@ -313,19 +333,79 @@ def create_ui():
                     ],
                 )
 
-                def export_files(orch):
+                def export_files(orch, formats):
                     if orch is None:
                         return "Chua co du lieu de xuat. Hay chay pipeline truoc."
                     try:
-                        path = orch.export_output()
+                        path = orch.export_output(formats=formats)
                         return f"Da xuat file vao thu muc: {path}"
                     except Exception as e:
                         return f"Loi xuat file: {e}"
 
                 export_btn.click(
                     fn=export_files,
-                    inputs=[orchestrator_state],
+                    inputs=[orchestrator_state, export_formats],
                     outputs=[export_status],
+                )
+
+                def refresh_checkpoints():
+                    ckpts = PipelineOrchestrator.list_checkpoints()
+                    choices = [f"{c['file']} ({c['modified']}, {c['size_kb']}KB)" for c in ckpts]
+                    return gr.update(choices=choices, value=choices[0] if choices else None)
+
+                refresh_ckpt_btn.click(fn=refresh_checkpoints, outputs=[checkpoint_dropdown])
+
+                def resume_pipeline(ckpt_choice, n_sim, n_shots, w_count, agents_enabled):
+                    if not ckpt_choice:
+                        yield ("Chon checkpoint truoc!", "", "", "", "", "", None)
+                        return
+
+                    filename = ckpt_choice.split(" (")[0]
+                    ckpt_path = os.path.join(PipelineOrchestrator.CHECKPOINT_DIR, filename)
+
+                    orch = PipelineOrchestrator()
+                    logs = []
+                    progress_q = queue.Queue()
+
+                    def on_progress(msg):
+                        logs.append(msg)
+                        progress_q.put(msg)
+
+                    result = [None]
+
+                    def _run():
+                        result[0] = orch.resume_from_checkpoint(
+                            ckpt_path,
+                            progress_callback=on_progress,
+                            enable_agents=agents_enabled,
+                            num_sim_rounds=int(n_sim),
+                            shots_per_chapter=int(n_shots),
+                            word_count=int(w_count),
+                        )
+
+                    thread = threading.Thread(target=_run)
+                    thread.start()
+
+                    while thread.is_alive():
+                        try:
+                            progress_q.get(timeout=0.1)
+                            while not progress_q.empty():
+                                try:
+                                    progress_q.get_nowait()
+                                except queue.Empty:
+                                    break
+                            yield ("\n".join(logs), "", "", "", "", "", None)
+                        except queue.Empty:
+                            continue
+
+                    thread.join()
+                    output = result[0]
+                    yield _format_output(output, logs, orch)
+
+                resume_btn.click(
+                    fn=resume_pipeline,
+                    inputs=[checkpoint_dropdown, sim_rounds, shots_per_ch, word_count, enable_agents_cb],
+                    outputs=[progress_log, draft_output, sim_output, enhanced_output, video_output, agent_output, orchestrator_state],
                 )
 
             # ═══════════════════════════════════════
@@ -402,6 +482,31 @@ def create_ui():
                             openclaw_port, openclaw_model],
                     outputs=[openclaw_status],
                 )
+
+                gr.Markdown("### Cache LLM")
+                cache_info = gr.Textbox(label="Cache info", interactive=False)
+                with gr.Row():
+                    cache_stats_btn = gr.Button("Xem cache stats")
+                    cache_clear_btn = gr.Button("Xoa cache", variant="stop")
+
+                def show_cache_stats():
+                    try:
+                        from services.llm_cache import LLMCache
+                        stats = LLMCache(ttl_days=ConfigManager().llm.cache_ttl_days).stats()
+                        return f"Total: {stats['total']} | Valid: {stats['valid']} | Expired: {stats['expired']}"
+                    except Exception as e:
+                        return f"Loi: {e}"
+
+                def clear_cache():
+                    try:
+                        from services.llm_cache import LLMCache
+                        LLMCache().clear()
+                        return "Da xoa cache!"
+                    except Exception as e:
+                        return f"Loi: {e}"
+
+                cache_stats_btn.click(fn=show_cache_stats, outputs=[cache_info])
+                cache_clear_btn.click(fn=clear_cache, outputs=[cache_info])
 
                 save_btn = gr.Button("Luu cai dat", variant="primary")
                 save_status = gr.Textbox(label="Trạng thái", interactive=False)

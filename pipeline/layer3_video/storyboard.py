@@ -1,6 +1,7 @@
 """Layer 3: Tạo storyboard và kịch bản video - Lấy cảm hứng từ waoowaoo."""
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from models.schemas import (
     EnhancedStory, Chapter, StoryboardPanel, VoiceLine,
     VideoScript, ShotType, Character,
@@ -8,6 +9,7 @@ from models.schemas import (
 from services.llm_client import LLMClient
 from services import prompts
 from pipeline.layer3_video._locations import generate_location_prompts
+from config import ConfigManager
 
 logger = logging.getLogger(__name__)
 
@@ -114,11 +116,14 @@ class StoryboardGenerator:
     def generate_character_prompts(
         self, characters: list[Character], genre: str,
     ) -> dict[str, dict]:
-        """Tạo image prompt cho từng nhân vật."""
+        """Tạo image prompt cho từng nhân vật (parallel)."""
+        max_workers = ConfigManager().llm.max_parallel_workers
         char_prompts = {}
-        for c in characters:
-            try:
-                result = self.llm.generate_json(
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {}
+            for c in characters:
+                future = executor.submit(
+                    self.llm.generate_json,
                     system_prompt="Bạn là artist director. Trả về JSON.",
                     user_prompt=prompts.CHARACTER_IMAGE_PROMPT.format(
                         name=c.name,
@@ -127,9 +132,13 @@ class StoryboardGenerator:
                         genre=genre,
                     ),
                 )
-                char_prompts[c.name] = result
-            except Exception as e:
-                logger.warning(f"Lỗi tạo prompt cho {c.name}: {e}")
+                futures[future] = c.name
+            for future in as_completed(futures):
+                name = futures[future]
+                try:
+                    char_prompts[name] = future.result()
+                except Exception as e:
+                    logger.warning(f"Lỗi tạo prompt cho {name}: {e}")
         return char_prompts
 
     def generate_full_video_script(
@@ -156,32 +165,44 @@ class StoryboardGenerator:
             for name, data in char_prompts.items()
         }
 
-        # Tạo storyboard cho từng chương
+        # Tạo storyboard cho từng chương (parallel)
+        _log(f"🎬 Đang tạo storyboard {len(story.chapters)} chương (parallel)...")
+        max_workers = ConfigManager().llm.max_parallel_workers
+        all_panels_map = {}
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    self.generate_chapter_storyboard, chapter, characters, shots_per_chapter
+                ): chapter.chapter_number
+                for chapter in story.chapters
+            }
+            for future in as_completed(futures):
+                ch_num = futures[future]
+                try:
+                    all_panels_map[ch_num] = future.result()
+                    _log(f"🎬 Storyboard chương {ch_num} xong")
+                except Exception as e:
+                    logger.warning(f"Lỗi storyboard chương {ch_num}: {e}")
+                    all_panels_map[ch_num] = []
+
+        # Maintain chapter order
         all_panels = []
         for chapter in story.chapters:
-            _log(
-                f"🎬 Đang tạo storyboard chương {chapter.chapter_number}: "
-                f"{chapter.title}..."
-            )
-            panels = self.generate_chapter_storyboard(
-                chapter, characters, shots_per_chapter,
-            )
-            all_panels.extend(panels)
+            all_panels.extend(all_panels_map.get(chapter.chapter_number, []))
 
         script.panels = all_panels
 
-        # Tạo image prompt cho địa điểm
-        _log("🗺️ Đang tạo mô tả hình ảnh địa điểm...")
-        script.location_descriptions = generate_location_prompts(
-            self.llm,
-            all_panels,
-            world_locations=[],  # EnhancedStory không có world; panels là nguồn chính
-            genre=story.genre,
-        )
-
-        # Tạo kịch bản lồng tiếng
-        _log("🎙️ Đang tạo kịch bản lồng tiếng...")
-        voice_lines, voice_descs = self.generate_voice_script(all_panels, characters)
+        # Tạo location prompts + voice script song song (cả hai cần panels, độc lập nhau)
+        _log("🗺️🎙️ Đang tạo địa điểm + lồng tiếng (parallel)...")
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            loc_future = executor.submit(
+                generate_location_prompts, self.llm, all_panels, [], story.genre,
+            )
+            voice_future = executor.submit(
+                self.generate_voice_script, all_panels, characters,
+            )
+            script.location_descriptions = loc_future.result()
+            voice_lines, voice_descs = voice_future.result()
         script.voice_lines = voice_lines
 
         # Tính tổng thời lượng

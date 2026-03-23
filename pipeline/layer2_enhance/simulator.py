@@ -6,6 +6,7 @@ MiroFish tạo các agent tự trị trên mạng xã hội giả lập.
 """
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from models.schemas import (
     Character, Relationship, RelationType, SimulationEvent, AgentPost,
@@ -13,6 +14,7 @@ from models.schemas import (
 )
 from services.llm_client import LLMClient
 from services import prompts
+from config import ConfigManager
 from pipeline.layer2_enhance._agent import CharacterAgent, TENSION_DELTAS
 
 logger = logging.getLogger(__name__)
@@ -72,60 +74,74 @@ class DramaSimulator:
             for r in related
         )
 
+    def _run_single_agent(self, name: str, round_number: int, context: str) -> AgentPost | None:
+        """Chạy một agent trong vòng mô phỏng. Thread-safe (read-only shared state)."""
+        agent = self.agents[name]
+        recent_posts = self._get_recent_posts(name)
+        rel_text = self._get_relationships_text(name)
+        c = agent.character
+
+        try:
+            result = self.llm.generate_json(
+                system_prompt=(
+                    f"Bạn đang nhập vai {name} trong một mô phỏng tương tác. "
+                    f"Hãy hành động theo tính cách nhân vật. Trả về JSON."
+                ),
+                user_prompt=prompts.AGENT_PERSONA.format(
+                    character_name=name,
+                    genre=context,
+                    personality=c.personality,
+                    background=c.background,
+                    motivation=c.motivation,
+                    relationships=rel_text,
+                    current_context=(
+                        f"Vòng mô phỏng {round_number}. "
+                        f"Bạn đang trong thế giới truyện. "
+                        f"Ký ức gần đây: {'; '.join(agent.memory[-3:]) if agent.memory else 'Không có.'}"
+                    ),
+                    recent_posts=recent_posts,
+                ),
+                temperature=0.95,
+            )
+
+            return AgentPost(
+                agent_name=name,
+                content=result.get("content", "..."),
+                action_type=result.get("action_type", "post"),
+                target=result.get("target", ""),
+                sentiment=result.get("sentiment", "trung lập"),
+                round_number=round_number,
+            )
+        except Exception as e:
+            logger.warning(f"Agent {name} lỗi ở vòng {round_number}: {e}")
+            return None
+
     def simulate_round(
         self, round_number: int, context: str,
     ) -> list[AgentPost]:
-        """Chạy một vòng mô phỏng - mỗi agent hành động một lần."""
+        """Chạy một vòng mô phỏng - tất cả agents hành động song song."""
         round_posts = []
+        max_workers = ConfigManager().llm.max_parallel_workers
 
-        for name, agent in self.agents.items():
-            recent_posts = self._get_recent_posts(name)
-            rel_text = self._get_relationships_text(name)
-            c = agent.character
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(self._run_single_agent, name, round_number, context): name
+                for name in self.agents
+            }
+            for future in as_completed(futures):
+                post = future.result()
+                if post is not None:
+                    round_posts.append(post)
 
-            try:
-                result = self.llm.generate_json(
-                    system_prompt=(
-                        f"Bạn đang nhập vai {name} trong một mô phỏng tương tác. "
-                        f"Hãy hành động theo tính cách nhân vật. Trả về JSON."
-                    ),
-                    user_prompt=prompts.AGENT_PERSONA.format(
-                        character_name=name,
-                        genre=context,
-                        personality=c.personality,
-                        background=c.background,
-                        motivation=c.motivation,
-                        relationships=rel_text,
-                        current_context=(
-                            f"Vòng mô phỏng {round_number}. "
-                            f"Bạn đang trong thế giới truyện. "
-                            f"Ký ức gần đây: {'; '.join(agent.memory[-3:]) if agent.memory else 'Không có.'}"
-                        ),
-                        recent_posts=recent_posts,
-                    ),
-                    temperature=0.95,
+        # Post-round updates (sequential, safe)
+        for post in round_posts:
+            agent = self.agents[post.agent_name]
+            agent.posts.append(post)
+            agent.add_memory(f"Vòng {round_number}: {post.content[:100]}")
+            if post.target and post.target in self.agents:
+                self.agents[post.target].add_memory(
+                    f"Vòng {round_number}: {post.agent_name} đã {post.action_type} - {post.content[:80]}"
                 )
-
-                post = AgentPost(
-                    agent_name=name,
-                    content=result.get("content", "..."),
-                    action_type=result.get("action_type", "post"),
-                    target=result.get("target", ""),
-                    sentiment=result.get("sentiment", "trung lập"),
-                    round_number=round_number,
-                )
-                round_posts.append(post)
-                agent.posts.append(post)
-                agent.add_memory(f"Vòng {round_number}: {post.content[:100]}")
-
-                # Cập nhật memory cho agent bị target
-                if post.target and post.target in self.agents:
-                    self.agents[post.target].add_memory(
-                        f"Vòng {round_number}: {name} đã {post.action_type} - {post.content[:80]}"
-                    )
-
-            except Exception as e:
-                logger.warning(f"Agent {name} lỗi ở vòng {round_number}: {e}")
 
         self.all_posts.extend(round_posts)
         return round_posts
