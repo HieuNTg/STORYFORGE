@@ -179,6 +179,7 @@ class StoryGenerator:
             ),
             temperature=0.3,
             max_tokens=1000,
+            model_tier="cheap",
         )
         states = []
         for s in result.get("character_states", []):
@@ -200,6 +201,7 @@ class StoryGenerator:
             ),
             temperature=0.3,
             max_tokens=1000,
+            model_tier="cheap",
         )
         events = []
         for e in result.get("events", []):
@@ -215,7 +217,9 @@ class StoryGenerator:
         return self.llm.generate(
             system_prompt="Bạn là trợ lý tóm tắt nội dung. Viết bằng tiếng Việt.",
             user_prompt=prompts.SUMMARIZE_CHAPTER.format(content=content[:3000]),
+            temperature=0.3,
             max_tokens=500,
+            model_tier="cheap",
         )
 
     def generate_full_story(

@@ -51,6 +51,8 @@ class LLMClient:
         self._last_key = ""
         self._current_model = ""
         self._client_lock = threading.Lock()
+        # Cache OpenAI clients by base_url for model routing
+        self._clients_cache: dict[str, OpenAI] = {}
         # Evict expired cache entries on startup
         try:
             config = ConfigManager()
@@ -79,6 +81,24 @@ class LLMClient:
 
         return self._client
 
+    def _get_cheap_client(self) -> tuple[OpenAI, str]:
+        """Get client and model for cheap tier. Returns (client, model_name)."""
+        config = ConfigManager()
+        if not config.llm.cheap_model:
+            client = self._get_client()
+            with self._client_lock:
+                model = self._current_model or config.llm.model
+            return client, model
+
+        cheap_base = config.llm.cheap_base_url or config.llm.base_url
+        api_key = config.llm.api_key
+
+        with self._client_lock:
+            cache_key = f"{cheap_base}:{api_key}"
+            if cache_key not in self._clients_cache:
+                self._clients_cache[cache_key] = OpenAI(api_key=api_key, base_url=cheap_base)
+            return self._clients_cache[cache_key], config.llm.cheap_model
+
     def generate(
         self,
         system_prompt: str,
@@ -86,14 +106,22 @@ class LLMClient:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         json_mode: bool = False,
+        model_tier: str = "default",
     ) -> str:
         """Gọi LLM với retry, cache, và fallback."""
         config = ConfigManager()
-        client = self._get_client()
+
+        # Resolve client and model based on tier
+        if model_tier == "cheap" and config.llm.cheap_model:
+            client, effective_model = self._get_cheap_client()
+        else:
+            client = self._get_client()
+            effective_model = self._current_model or config.llm.model
+
         effective_temp = temperature if temperature is not None else config.llm.temperature
 
         kwargs = {
-            "model": self._current_model or config.llm.model,
+            "model": effective_model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -138,8 +166,7 @@ class LLMClient:
                     continue
                 break
 
-        # OpenClaw fallback (existing logic)
-        config = ConfigManager()
+        # OpenClaw fallback (existing logic — config already bound above)
         if config.llm.backend_type == "openclaw" and config.llm.auto_fallback and config.llm.api_key:
             logger.warning(f"OpenClaw lỗi, fallback sang API: {last_exc}")
             fallback_client = OpenAI(api_key=config.llm.api_key, base_url=config.llm.base_url)
@@ -163,6 +190,7 @@ class LLMClient:
         user_prompt: str,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        model_tier: str = "default",
     ) -> dict:
         """Gọi LLM và parse kết quả JSON với auto-repair."""
         result = self.generate(
@@ -171,6 +199,7 @@ class LLMClient:
             temperature=temperature,
             max_tokens=max_tokens,
             json_mode=True,
+            model_tier=model_tier,
         )
         text = result.strip()
         # Strip markdown code block
@@ -193,13 +222,14 @@ class LLMClient:
         except json.JSONDecodeError:
             pass
 
-        # Attempt 3: ask LLM to fix
+        # Attempt 3: ask LLM to fix (use cheap model)
         logger.warning("JSON repair failed, asking LLM to fix")
         fixed = self.generate(
             system_prompt="Fix this malformed JSON. Return ONLY valid JSON, no explanation.",
             user_prompt=text[:4000],
             temperature=0.0,
             json_mode=True,
+            model_tier="cheap",
         )
         return json.loads(fixed)
 
@@ -223,13 +253,19 @@ class LLMClient:
         user_prompt: str,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        model_tier: str = "default",
     ):
         """Gọi LLM với streaming."""
         config = ConfigManager()
-        client = self._get_client()
+
+        if model_tier == "cheap" and config.llm.cheap_model:
+            client, effective_model = self._get_cheap_client()
+        else:
+            client = self._get_client()
+            effective_model = self._current_model or config.llm.model
 
         kwargs = {
-            "model": self._current_model or config.llm.model,
+            "model": effective_model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},

@@ -19,6 +19,9 @@ class LLMConfig:
     openclaw_port: int = 3002
     openclaw_model: str = "deepseek-web/deepseek-chat"
     auto_fallback: bool = True  # Tự động chuyển sang API khi OpenClaw fail
+    # Model routing: cheap model for summaries/analysis
+    cheap_model: str = ""  # empty = use primary model
+    cheap_base_url: str = ""  # empty = use primary base_url
     cache_enabled: bool = True
     cache_ttl_days: int = 7
     max_parallel_workers: int = 3
@@ -99,6 +102,8 @@ class ConfigManager:
                 "openclaw_port": self.llm.openclaw_port,
                 "openclaw_model": self.llm.openclaw_model,
                 "auto_fallback": self.llm.auto_fallback,
+                "cheap_model": self.llm.cheap_model,
+                "cheap_base_url": self.llm.cheap_base_url,
                 "cache_enabled": self.llm.cache_enabled,
                 "cache_ttl_days": self.llm.cache_ttl_days,
                 "max_parallel_workers": self.llm.max_parallel_workers,

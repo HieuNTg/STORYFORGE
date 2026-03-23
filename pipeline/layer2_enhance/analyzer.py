@@ -39,6 +39,7 @@ class StoryAnalyzer:
                 characters=chars_text,
                 synopsis=synopsis,
             ),
+            model_tier="cheap",
         )
 
         # Parse relationships

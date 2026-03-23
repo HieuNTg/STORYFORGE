@@ -435,6 +435,18 @@ def create_ui():
                     label="Max Tokens",
                 )
 
+                gr.Markdown("### Model gia re (tom tat/phan tich)")
+                cheap_model = gr.Textbox(
+                    label="Cheap Model (de trong = dung model chinh)",
+                    value=config.llm.cheap_model,
+                    placeholder="vd: gpt-4o-mini, deepseek-chat",
+                )
+                cheap_base_url = gr.Textbox(
+                    label="Base URL cheap model (de trong = dung chung)",
+                    value=config.llm.cheap_base_url,
+                    placeholder="de trong = dung base URL chinh",
+                )
+
                 gr.Markdown("### Backend AI")
                 backend_type = gr.Radio(
                     choices=["api", "openclaw"],
@@ -512,6 +524,7 @@ def create_ui():
                 save_status = gr.Textbox(label="Trạng thái", interactive=False)
 
                 def save_settings(key, url, model, temp, tokens,
+                                  cheap_m, cheap_url,
                                   backend, oc_port, oc_model, fallback):
                     cfg = ConfigManager()
                     cfg.llm.api_key = key
@@ -519,6 +532,8 @@ def create_ui():
                     cfg.llm.model = model
                     cfg.llm.temperature = temp
                     cfg.llm.max_tokens = int(tokens)
+                    cfg.llm.cheap_model = cheap_m
+                    cfg.llm.cheap_base_url = cheap_url
                     cfg.llm.backend_type = backend
                     cfg.llm.openclaw_port = int(oc_port)
                     cfg.llm.openclaw_model = oc_model
@@ -532,6 +547,7 @@ def create_ui():
                 save_btn.click(
                     fn=save_settings,
                     inputs=[api_key, base_url, model_name, temperature, max_tokens,
+                            cheap_model, cheap_base_url,
                             backend_type, openclaw_port, openclaw_model, auto_fallback],
                     outputs=[save_status],
                 )
