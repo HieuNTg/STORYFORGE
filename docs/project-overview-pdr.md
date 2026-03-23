@@ -158,6 +158,50 @@ A modular AI pipeline that transforms a genre + story idea into:
   - Camera directions are cinematically sound
   - All dialogue attributed correctly
 
+### Phase 5: Story Quality Metrics (NEW)
+
+**Req-5.1**: LLM-as-judge quality scoring per chapter
+- Input: Chapter content + previous chapter context
+- Output: ChapterScore (coherence, character_consistency, drama, writing_quality on 1-5 scale)
+- Acceptance Criteria:
+  - All 4 dimensions scored
+  - Scores clamped to 1-5 range
+  - Long chapters excerpted (head+tail) to fit budget
+  - Uses "cheap" model tier + temp=0.2 for determinism
+
+**Req-5.2**: Aggregate story quality scores
+- Input: list[ChapterScore] + layer marker
+- Output: StoryScore (avg per dimension, overall, weakest_chapter)
+- Acceptance Criteria:
+  - Overall = mean of 4 dimension averages
+  - Identifies lowest-scoring chapter
+  - Scoring layer recorded (1 or 2)
+
+**Req-5.3**: Parallel scoring with sequential context
+- Process: Score chapters in parallel, but build context sequentially
+- Acceptance Criteria:
+  - Max 3 workers (ThreadPoolExecutor)
+  - Each chapter receives prev chapter content as context
+  - No LLM call overhead > 30% of chapter write time
+
+**Req-5.4**: Integration at Layer 1 & Layer 2
+- After Layer 1 story generation: Score draft chapters
+- After Layer 2 enhancement: Score enhanced chapters + compute delta
+- Logging: Overall score, weakest chapter, improvement (Layer 2 vs Layer 1)
+- Acceptance Criteria:
+  - Scoring gracefully skips on failure (non-blocking)
+  - Scores appended to PipelineOutput.quality_scores[]
+  - UI displays quality tab with metrics
+
+**Req-5.5**: UI quality metrics tab
+- New "Chat Luong" tab displaying quality_output Markdown
+- Checkbox: "Cham diem tu dong" to toggle scoring on/off
+- Display: Per-layer scores with weakest chapter highlights
+- Acceptance Criteria:
+  - Tab visible when scoring completes
+  - Checkbox controls orchestrator enable_scoring parameter
+  - Output updates with pipeline progress
+
 ## Non-Functional Requirements
 
 ### Performance
@@ -277,6 +321,23 @@ A modular AI pipeline that transforms a genre + story idea into:
 - [x] Character state tracking reduces inconsistencies in multi-chapter stories
 - [x] Test: 10-chapter story with character tracking (manual validation)
 
+### Phase 5 Completion (NEW - COMPLETE)
+
+- [x] ChapterScore model with 4 dimensions (coherence, character_consistency, drama, writing_quality)
+- [x] StoryScore aggregate model with layer marker
+- [x] QualityScorer service with score_chapter() & score_story() methods
+- [x] Parallel scoring (max 3 workers, ThreadPoolExecutor)
+- [x] Sequential context building (each chapter sees prev chapter)
+- [x] Long chapter truncation (head 2600 + tail 1400 chars)
+- [x] Cheap model tier + low temperature (0.2)
+- [x] Layer 1 scoring integration (after story generation)
+- [x] Layer 2 scoring integration (after enhancement + delta logging)
+- [x] UI: "Chat Luong" tab with quality_output Markdown
+- [x] UI: "Cham diem tu dong" checkbox (enable_scoring)
+- [x] 9-element output tuple (added quality field)
+- [x] All 77 test cases passed
+- [x] No breaking changes to Phase 1-4
+
 ### Phase 2 Roadmap (In Progress)
 
 - [ ] Multi-agent feedback loops (6+ agents)
@@ -322,6 +383,28 @@ A modular AI pipeline that transforms a genre + story idea into:
 - Measure: References to past events in later chapters
 - Success: 70%+ of chapters reference previous chapters accurately
 - Tool: Manual audit of cross-chapter coherence
+
+### Phase 5 (Story Quality Metrics)
+
+**Metric**: Scoring speed
+- Measure: Time to score N chapters (Layer 1 + Layer 2)
+- Success: < 10% overhead vs chapter writing time
+- Tool: Log delta from orchestrator
+
+**Metric**: Score consistency
+- Measure: Same chapter scored twice = same result (±0.1)
+- Success: 95%+ consistency (low temperature = deterministic)
+- Tool: Unit test with fixed content
+
+**Metric**: Coherence detection
+- Measure: Can identify low-coherence vs high-coherence chapters
+- Success: Low chapters score < 2.5, high chapters > 3.5
+- Tool: Manual audit of sample outputs
+
+**Metric**: Character consistency detection
+- Measure: Detects OOC (out-of-character) behavior
+- Success: Flags inconsistent actions < 3 chapters after established trait
+- Tool: Manual review of sample chapters
 
 ### Layer 2 (Phase 2)
 

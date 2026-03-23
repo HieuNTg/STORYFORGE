@@ -22,6 +22,19 @@ Input: Genre + Story Idea + Config
 └─────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
+│ QUALITY METRICS: Scoring Layer 1 (Phase 5)                       │
+│                                                                   │
+│ - QualityScorer: LLM-as-judge on 4 dimensions                     │
+│   * coherence: Plot logic & flow                                  │
+│   * character_consistency: Behavior matches personality            │
+│   * drama: Tension & engagement                                   │
+│   * writing_quality: Prose clarity & vividness                    │
+│ - Parallel scoring (max 3 workers), sequential context            │
+│ - Identifies weakest chapters, logs metrics                       │
+│ Output: StoryScore with per-chapter breakdown + layer marker      │
+└─────────────────────────────────────────────────────────────────┘
+  ↓
+┌─────────────────────────────────────────────────────────────────┐
 │ LAYER 2: Drama Enhancement (via agents)                          │
 │                                                                   │
 │ - Multi-agent feedback loops (6 agents)                           │
@@ -32,6 +45,15 @@ Input: Genre + Story Idea + Config
 └─────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
+│ QUALITY METRICS: Scoring Layer 2 (Phase 5)                       │
+│                                                                   │
+│ - Same 4 dimensions as Layer 1, but on enhanced story             │
+│ - Computes delta (improvement from Layer 1)                       │
+│ - Logs overall + weakest chapter                                  │
+│ Output: StoryScore with layer=2 marker, delta computation         │
+└─────────────────────────────────────────────────────────────────┘
+  ↓
+┌─────────────────────────────────────────────────────────────────┐
 │ LAYER 3: Video Storyboarding                                     │
 │                                                                   │
 │ - Scene-level breakdown (shots per chapter)                       │
@@ -39,7 +61,7 @@ Input: Genre + Story Idea + Config
 │ Output: Storyboard + video production specs                       │
 └─────────────────────────────────────────────────────────────────┘
   ↓
-Final Output: Complete novel + enhanced narrative + video specs
+Final Output: Complete novel + enhanced narrative + quality scores + video specs
 ```
 
 ## Layer 1: Story Generation Architecture
@@ -237,6 +259,74 @@ AgentRegistry
 └─ register(agent) → void
 ```
 
+## Quality Scoring Architecture (Phase 5)
+
+### QualityScorer Flow
+
+```
+PipelineOrchestrator.run_full_pipeline()
+│
+├─ [After Layer 1: story generation complete]
+│  ├─ enable_scoring=True?
+│  │  └─ QualityScorer.score_story(draft.chapters, layer=1)
+│  │     ├─ For each chapter:
+│  │     │  └─ score_chapter(chapter, prev_context) → ChapterScore
+│  │     │     ├─ Excerpt long chapters (head 2600 + tail 1400)
+│  │     │     ├─ Call LLM: SCORE_CHAPTER prompt (temp=0.2, cheap tier)
+│  │     │     ├─ Parse JSON response (4 scores)
+│  │     │     └─ Clamp to 1-5 range, compute overall (mean)
+│  │     │
+│  │     └─ Parallel pool (ThreadPoolExecutor, max 3 workers)
+│  │        └─ Aggregate to StoryScore:
+│  │           ├─ avg_coherence, avg_character, avg_drama, avg_writing
+│  │           ├─ overall = mean(4 averages)
+│  │           ├─ weakest_chapter = min overall
+│  │           └─ scoring_layer = 1 (marker)
+│  │
+│  └─ Append to output.quality_scores[]
+│     └─ Log: "Layer 1: {score.overall:.1f}/5 | Weakest: {weakest_ch}"
+│
+├─ [After Layer 2: drama enhancement complete]
+│  ├─ enable_scoring=True?
+│  │  └─ QualityScorer.score_story(enhanced.chapters, layer=2)
+│  │     └─ Same process as Layer 1
+│  │
+│  └─ Append to output.quality_scores[]
+│     └─ Log with delta: "Layer 2: {score.overall:.1f}/5 | Delta: {+0.5}"
+│
+└─ Return PipelineOutput with quality_scores[]
+   └─ UI displays via "Chat Luong" tab
+```
+
+### Scoring Dimensions
+
+| Dimension | Scale | Definition |
+|-----------|-------|-----------|
+| **coherence** | 1-5 | Plot logic, narrative flow, internal consistency |
+| **character_consistency** | 1-5 | Characters behave per established personality/arc |
+| **drama** | 1-5 | Tension, emotional engagement, pacing, stakes |
+| **writing_quality** | 1-5 | Prose clarity, vocabulary, imagery, dialogue naturalness |
+
+Each dimension independently scored; **overall = mean(4 dimensions)**
+
+### LLM-as-Judge Configuration
+
+**Prompt**: `SCORE_CHAPTER` (services/prompts.py)
+- Input: Chapter content (excerpted if > 4000 chars) + prev chapter context
+- Output: JSON with 4 scores (1-5) + notes field
+- Temperature: 0.2 (deterministic, low variance)
+- Model tier: "cheap" (cost control)
+- Max tokens: 500 (compact output)
+
+**Excerpt Strategy** (long chapters):
+```
+if len(content) > 4000:
+    head = content[:2600]
+    tail = content[-1400:]
+    excerpted = head + "\n...\n" + tail
+```
+Preserves beginning (setup) and ending (consequences) while cutting middle.
+
 ## Export & Download Architecture (Phase 4)
 
 ### Export Methods
@@ -326,6 +416,13 @@ export_files_output = gr.File(               # gr.File widget
 - Plot events: 1000 tokens max
 - Total: ~2500 tokens per chapter
 
+### Quality Scoring (Phase 5)
+- Per chapter: ~150-200 tokens input (excerpted content + context)
+- Per chapter: ~50-100 tokens output (4 scores + notes)
+- 10 chapters: ~3000 tokens total
+- Model: "cheap" tier (lower cost than writing)
+- Parallelization: max 3 workers (ThreadPoolExecutor)
+
 **Rolling context budget**:
 - Keep only last `context_window_chapters` summaries
 - Cap plot_events to 50 (prevents unbounded growth)
@@ -335,5 +432,5 @@ export_files_output = gr.File(               # gr.File widget
 
 **Architectural Principle**: Modular layers with clear handoffs. Each layer can be run independently or as part of full pipeline.
 
-**Last Updated**: 2026-03-23 (Phase 4: Export & Download)
-**Version**: 1.1
+**Last Updated**: 2026-03-23 (Phase 5: Quality Metrics)
+**Version**: 1.2

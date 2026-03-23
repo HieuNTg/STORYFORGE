@@ -298,7 +298,44 @@ except Exception as e:
     # Use defaults from class
 ```
 
-## Performance & Efficiency
+## Quality Scoring Standards (Phase 5)
+
+### QualityScorer Pattern
+
+**Service design**:
+```python
+class QualityScorer:
+    """Score story chapters on 4 dimensions: coherence, character_consistency, drama, writing_quality."""
+
+    def __init__(self):
+        self.llm = LLMClient()
+
+    def score_chapter(self, chapter: Chapter, context: str = "") -> ChapterScore:
+        """Score single chapter with optional context (prev chapter).
+
+        - Excerpts long chapters (> 4000 chars: head 2600 + tail 1400)
+        - Uses "cheap" model tier for cost efficiency
+        - temp=0.2 for deterministic scores
+        - Clamps scores to 1-5 range
+        """
+        # Implementation...
+
+    def score_story(self, chapters: list[Chapter], layer: int = 1) -> StoryScore:
+        """Score all chapters with rolling context.
+
+        - Parallel: max 3 workers (ThreadPoolExecutor)
+        - Sequential context: each chapter sees prev chapter's head
+        - Aggregates to StoryScore (4 averages + overall)
+        - Returns: StoryScore with layer marker
+        """
+        # Implementation...
+```
+
+**Field validation**:
+- All scores: `ge=1, le=5` (Pydantic validation)
+- ChapterScore.overall: computed mean of 4 dimensions
+- StoryScore.overall: computed mean of 4 aggregates
+- Fallback on clamp failure: default to 3.0 (neutral)
 
 ### Token Budgets
 
@@ -308,6 +345,7 @@ except Exception as e:
 | Summarization | 0.7 | 500 | Quick recap |
 | Character extraction | 0.3 | 1000 | Consistent state |
 | Plot extraction | 0.3 | 1000 | Event tracking |
+| Quality scoring | 0.2 | 500 | Cheap deterministic judgment |
 
 ### Caching
 
@@ -457,4 +495,4 @@ docs(architecture): Update Layer 1 flow diagram
 
 ---
 
-**Last Updated**: 2026-03-23 (Phase 4: Export & Download) | **Version**: 1.1
+**Last Updated**: 2026-03-23 (Phase 5: Story Quality Metrics) | **Version**: 1.2

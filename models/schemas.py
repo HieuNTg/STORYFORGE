@@ -194,6 +194,31 @@ class VideoScript(BaseModel):
     location_descriptions: dict[str, str] = Field(default_factory=dict)
 
 
+# === Quality Metrics ===
+
+class ChapterScore(BaseModel):
+    """Quality score for a single chapter."""
+    chapter_number: int
+    coherence: float = Field(default=3.0, ge=1, le=5, description="Plot logic & flow")
+    character_consistency: float = Field(default=3.0, ge=1, le=5, description="Character behavior consistency")
+    drama: float = Field(default=3.0, ge=1, le=5, description="Tension & engagement")
+    writing_quality: float = Field(default=3.0, ge=1, le=5, description="Prose quality & clarity")
+    overall: float = Field(default=0.0, description="Computed average of 4 dimensions")
+    notes: str = Field(default="", max_length=200, description="Brief strengths/weaknesses note")
+
+
+class StoryScore(BaseModel):
+    """Aggregate quality score for full story."""
+    chapter_scores: list[ChapterScore] = Field(default_factory=list, description="Per-chapter scores")
+    avg_coherence: float = Field(default=0.0, description="Mean coherence across chapters")
+    avg_character: float = Field(default=0.0, description="Mean character consistency")
+    avg_drama: float = Field(default=0.0, description="Mean drama/tension")
+    avg_writing: float = Field(default=0.0, description="Mean writing quality")
+    overall: float = Field(default=0.0, description="Computed average of 4 aggregates")
+    weakest_chapter: int = Field(default=0, description="Chapter number with lowest overall")
+    scoring_layer: int = Field(default=0, description="Which layer was scored (1 or 2)")
+
+
 # === Agent Review ===
 
 class AgentReview(BaseModel):
@@ -222,3 +247,4 @@ class PipelineOutput(BaseModel):
     progress: float = 0.0
     logs: list[str] = Field(default_factory=list)
     reviews: list[AgentReview] = Field(default_factory=list)
+    quality_scores: list[StoryScore] = Field(default_factory=list)

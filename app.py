@@ -128,6 +128,10 @@ def create_ui():
                             value=True,
                             label="Bat phong ban danh gia (Agent Review)",
                         )
+                        enable_scoring_cb = gr.Checkbox(
+                            value=True,
+                            label="Cham diem tu dong (Quality Metrics)",
+                        )
 
                         run_btn = gr.Button(
                             "Chay Pipeline", variant="primary", size="lg",
@@ -166,6 +170,10 @@ def create_ui():
                                     label="Ket qua danh gia", lines=20,
                                     interactive=False,
                                 )
+                            with gr.TabItem("Chat Luong"):
+                                quality_output = gr.Markdown(
+                                    value="*Chua co diem. Chay pipeline voi 'Cham diem tu dong' bat.*",
+                                )
 
                         export_formats = gr.CheckboxGroup(
                             choices=["TXT", "Markdown", "JSON"],
@@ -191,7 +199,7 @@ def create_ui():
                 orchestrator_state = gr.State(None)
 
                 def _format_output(output, logs, orch):
-                    """Format PipelineOutput for UI display. Returns 8-tuple."""
+                    """Format PipelineOutput for UI display. Returns 9-tuple."""
                     draft_text = ""
                     if output and output.story_draft:
                         d = output.story_draft
@@ -260,15 +268,49 @@ def create_ui():
                                 agent_text += f"- Goi y: {'; '.join(r.suggestions[:3])}\n"
                             agent_text += "\n"
 
+                    quality_text = ""
+                    if output and output.quality_scores:
+                        quality_text = "## Diem Chat Luong Truyen\n\n"
+                        for qs in output.quality_scores:
+                            quality_text += f"### Layer {qs.scoring_layer} — Tong: {qs.overall:.1f}/5\n\n"
+                            quality_text += (
+                                f"| Chi tieu | Diem |\n|---|---|\n"
+                                f"| Mach lac | {qs.avg_coherence:.1f} |\n"
+                                f"| Nhan vat | {qs.avg_character:.1f} |\n"
+                                f"| Kich tinh | {qs.avg_drama:.1f} |\n"
+                                f"| Van phong | {qs.avg_writing:.1f} |\n\n"
+                            )
+                            quality_text += f"**Chuong yeu nhat:** {qs.weakest_chapter}\n\n"
+                            quality_text += "| Chuong | Mach lac | Nhan vat | Kich tinh | Van phong | Tong | Ghi chu |\n"
+                            quality_text += "|---|---|---|---|---|---|---|\n"
+                            for cs in qs.chapter_scores:
+                                quality_text += (
+                                    f"| {cs.chapter_number} | {cs.coherence:.1f} | "
+                                    f"{cs.character_consistency:.1f} | {cs.drama:.1f} | "
+                                    f"{cs.writing_quality:.1f} | {cs.overall:.1f} | "
+                                    f"{cs.notes[:50]} |\n"
+                                )
+                            quality_text += "\n---\n\n"
+
+                        # Show improvement delta if both layers scored
+                        if len(output.quality_scores) >= 2:
+                            l1 = output.quality_scores[0].overall
+                            l2 = output.quality_scores[1].overall
+                            diff = l2 - l1
+                            sign = "+" if diff > 0 else ""
+                            quality_text += f"**Cai thien Layer 1 → 2:** {sign}{diff:.1f} diem\n"
+
                     return (
                         "",  # clear live preview
                         "\n".join(output.logs if output else logs),
-                        draft_text, sim_text, enhanced_text, video_text, agent_text, orch,
+                        draft_text, sim_text, enhanced_text, video_text, agent_text,
+                        quality_text or "*Khong co diem chat luong.*", orch,
                     )
 
                 def run_pipeline(
                     title, genre, style, idea, n_chapters, n_chars,
                     w_count, n_sim, _drama, n_shots, agents_enabled,
+                    scoring_enabled,
                 ):
                     errors = []
                     if not idea or len(idea.strip()) < 10:
@@ -276,7 +318,7 @@ def create_ui():
                     if n_chapters < 1 or n_chapters > 50:
                         errors.append("So chuong phai tu 1-50")
                     if errors:
-                        yield ("", "\n".join(errors), "", "", "", "", "", None)
+                        yield ("", "\n".join(errors), "", "", "", "", "", "", None)
                         return
 
                     orch = PipelineOrchestrator()
@@ -315,6 +357,7 @@ def create_ui():
                             progress_callback=on_progress,
                             stream_callback=on_stream,
                             enable_agents=agents_enabled,
+                            enable_scoring=scoring_enabled,
                         )
 
                     thread = threading.Thread(target=_run)
@@ -335,7 +378,7 @@ def create_ui():
                                     break
                             if msg_type == "stream":
                                 current_preview = msg_data
-                            yield (current_preview, "\n".join(logs), "", "", "", "", "", None)
+                            yield (current_preview, "\n".join(logs), "", "", "", "", "", "", None)
                         except queue.Empty:
                             continue
 
@@ -343,7 +386,7 @@ def create_ui():
 
                     # Flush final stream content before clearing preview
                     if stream_text[0]:
-                        yield (stream_text[0], "\n".join(logs), "", "", "", "", "", None)
+                        yield (stream_text[0], "\n".join(logs), "", "", "", "", "", "", None)
 
                     output = result[0]
                     yield _format_output(output, logs, orch)
@@ -354,11 +397,12 @@ def create_ui():
                         title_input, genre_input, style_input, idea_input,
                         num_chapters, num_characters, word_count,
                         sim_rounds, drama_level, shots_per_ch, enable_agents_cb,
+                        enable_scoring_cb,
                     ],
                     outputs=[
                         live_preview, progress_log, draft_output, sim_output,
                         enhanced_output, video_output, agent_output,
-                        orchestrator_state,
+                        quality_output, orchestrator_state,
                     ],
                 )
 
@@ -402,7 +446,7 @@ def create_ui():
 
                 def resume_pipeline(ckpt_choice, n_sim, n_shots, w_count, agents_enabled):
                     if not ckpt_choice:
-                        yield ("", "Chon checkpoint truoc!", "", "", "", "", "", None)
+                        yield ("", "Chon checkpoint truoc!", "", "", "", "", "", "", None)
                         return
 
                     filename = ckpt_choice.split(" (")[0]
@@ -439,7 +483,7 @@ def create_ui():
                                     progress_q.get_nowait()
                                 except queue.Empty:
                                     break
-                            yield ("", "\n".join(logs), "", "", "", "", "", None)
+                            yield ("", "\n".join(logs), "", "", "", "", "", "", None)
                         except queue.Empty:
                             continue
 
@@ -450,7 +494,7 @@ def create_ui():
                 resume_btn.click(
                     fn=resume_pipeline,
                     inputs=[checkpoint_dropdown, sim_rounds, shots_per_ch, word_count, enable_agents_cb],
-                    outputs=[live_preview, progress_log, draft_output, sim_output, enhanced_output, video_output, agent_output, orchestrator_state],
+                    outputs=[live_preview, progress_log, draft_output, sim_output, enhanced_output, video_output, agent_output, quality_output, orchestrator_state],
                 )
 
             # ═══════════════════════════════════════

@@ -140,6 +140,22 @@ Trả về JSON:
   ]
 }}"""
 
+SCORE_CHAPTER = """Đánh giá chương truyện sau theo 4 tiêu chí (thang điểm 1-5, trong đó 1=rất kém, 3=trung bình, 5=xuất sắc):
+
+1. **coherence:** Cốt truyện logic, mạch lạc, không mâu thuẫn
+2. **character_consistency:** Nhân vật hành xử nhất quán với tính cách, phát triển hợp lý
+3. **drama:** Tình huống gay cấn, hấp dẫn, tạo cảm xúc cho người đọc
+4. **writing_quality:** Câu văn hay, rõ ràng, sinh động, giàu hình ảnh
+
+NỘI DUNG CHƯƠNG {chapter_number}:
+{content}
+
+BỐI CẢNH TRƯỚC ĐÓ:
+{context}
+
+Trả về JSON:
+{{"coherence": X, "character_consistency": X, "drama": X, "writing_quality": X, "notes": "nhận xét ngắn gọn về điểm mạnh/yếu"}}"""
+
 # ============================================================
 # LAYER 2: MÔ PHỎNG TĂNG KỊCH TÍNH (MiroFish-inspired)
 # ============================================================

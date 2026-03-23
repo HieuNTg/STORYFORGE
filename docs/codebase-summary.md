@@ -198,6 +198,55 @@ Main endpoints:
 4. **Layer 2** (optional): Feed StoryDraft to drama simulator with character states
 5. **Layer 3** (optional): Generate storyboards from enhanced story
 
+## Phase 5: Story Quality Metrics (NEW)
+
+### Overview
+LLM-as-judge quality scoring at Layer 1 & Layer 2. Scores story coherence, character consistency, drama, writing quality on 1-5 scale.
+
+### New Models
+- **ChapterScore**: Single chapter scores (4 dimensions + overall mean)
+- **StoryScore**: Aggregate story scores (avg per dimension, weakest chapter, layer marker)
+- Both added to `PipelineOutput.quality_scores[]`
+
+### Quality Scorer Service
+**services/quality_scorer.py** — `QualityScorer` class:
+- `score_chapter(chapter: Chapter, context: str) -> ChapterScore`
+  - Excerpts long chapters (head 2600 + tail 1400 chars to fit budget)
+  - Uses "cheap" model tier, temp=0.2 for consistency
+  - Clamps scores to 1-5 range
+- `score_story(chapters: list[Chapter], layer: int) -> StoryScore`
+  - Parallel scoring with ThreadPoolExecutor (max 3 workers)
+  - Sequential context building (each chapter sees prev chapter's content)
+  - Aggregates to overall 4-metric story score
+  - Identifies weakest chapter
+
+### Scoring Prompt
+**SCORE_CHAPTER** (services/prompts.py, lines 143-157):
+```
+Evaluate chapter on 4 criteria (1-5 scale):
+1. coherence: Plot logic & flow
+2. character_consistency: Behavior matches personality
+3. drama: Tension & engagement
+4. writing_quality: Prose clarity & vividness
+```
+
+### Pipeline Integration
+**orchestrator.py**:
+- `enable_scoring: bool = True` parameter (new)
+- Layer 1 scoring (after story draft, lines 106-115)
+  - Logs: overall score, weakest chapter
+- Layer 2 scoring (after enhancement, lines 165-179)
+  - Logs: score + delta from Layer 1
+
+### UI Changes
+**app.py**:
+- "Chat Luong" tab (line 173): New quality output tab
+- `quality_output` Markdown (line 174-176): Display scoring results
+- `enable_scoring_cb` checkbox (line 131-134): Toggle scoring on/off
+- 9-element tuple outputs (added quality field)
+
+---
+
 ## Development Status
 
 **Phase 1 (COMPLETE)**: Character state tracking with rolling context
@@ -205,9 +254,14 @@ Main endpoints:
 - Parallel extraction in generate_full_story()
 - Context window configuration
 
-**Phase 2 (Planned)**: Enhanced agent feedback & drama analysis
-**Phase 3 (Planned)**: Video production integration
+**Phase 5 (COMPLETE)**: Story quality metrics
+- ChapterScore, StoryScore models
+- QualityScorer service with parallel processing
+- Integration at Layer 1 & Layer 2
+- UI tab + toggle
+
+**Phase 2-3-4**: In progress/planned
 
 ---
 
-**Last Updated**: 2026-03-23 | **Doc Version**: 1.0
+**Last Updated**: 2026-03-23 | **Doc Version**: 1.1

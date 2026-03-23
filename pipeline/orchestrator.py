@@ -15,6 +15,7 @@ from pipeline.layer2_enhance.analyzer import StoryAnalyzer
 from pipeline.layer2_enhance.simulator import DramaSimulator
 from pipeline.layer2_enhance.enhancer import StoryEnhancer
 from pipeline.layer3_video.storyboard import StoryboardGenerator
+from services.quality_scorer import QualityScorer
 from config import ConfigManager
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ class PipelineOrchestrator:
         progress_callback=None,
         stream_callback=None,
         enable_agents: bool = True,
+        enable_scoring: bool = True,
     ) -> PipelineOutput:
         """Chạy toàn bộ pipeline 3 lớp."""
 
@@ -101,6 +103,17 @@ class PipelineOrchestrator:
             _log(f"⏱️ Layer 1 hoàn tất trong {time.time() - layer_start:.1f}s")
             self._save_checkpoint(1)
 
+            if enable_scoring:
+                _log("[METRICS] Dang cham diem chat luong Layer 1...")
+                try:
+                    scorer = QualityScorer()
+                    l1_score = scorer.score_story(draft.chapters, layer=1)
+                    self.output.quality_scores.append(l1_score)
+                    _log(f"[METRICS] Layer 1: {l1_score.overall:.1f}/5 | "
+                         f"Chuong yeu nhat: {l1_score.weakest_chapter}")
+                except Exception as e:
+                    logger.warning(f"Quality scoring Layer 1 failed: {e}")
+
             if enable_agents:
                 _log("[AGENTS] Phong ban dang danh gia Layer 1...")
                 try:
@@ -148,6 +161,22 @@ class PipelineOrchestrator:
             self.output.progress = 0.66
             _log(f"⏱️ Layer 2 hoàn tất trong {time.time() - layer_start:.1f}s")
             self._save_checkpoint(2)
+
+            if enable_scoring:
+                _log("[METRICS] Dang cham diem chat luong Layer 2...")
+                try:
+                    scorer = QualityScorer()
+                    l2_score = scorer.score_story(enhanced.chapters, layer=2)
+                    self.output.quality_scores.append(l2_score)
+                    delta = ""
+                    if len(self.output.quality_scores) >= 2:
+                        l1_overall = self.output.quality_scores[0].overall
+                        diff = l2_score.overall - l1_overall
+                        delta = f" | Delta: {diff:+.1f}"
+                    _log(f"[METRICS] Layer 2: {l2_score.overall:.1f}/5 | "
+                         f"Chuong yeu nhat: {l2_score.weakest_chapter}{delta}")
+                except Exception as e:
+                    logger.warning(f"Quality scoring Layer 2 failed: {e}")
 
             if enable_agents:
                 _log("[AGENTS] Phong ban dang danh gia Layer 2...")
@@ -357,7 +386,7 @@ class PipelineOrchestrator:
                 })
         return checkpoints
 
-    def resume_from_checkpoint(self, checkpoint_path: str, progress_callback=None, enable_agents=True, **kwargs) -> PipelineOutput:
+    def resume_from_checkpoint(self, checkpoint_path: str, progress_callback=None, enable_agents=True, enable_scoring=True, **kwargs) -> PipelineOutput:
         """Resume pipeline from a saved checkpoint."""
         with open(checkpoint_path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -406,6 +435,15 @@ class PipelineOrchestrator:
                 self.output.enhanced_story = enhanced
                 self.output.progress = 0.66
                 self._save_checkpoint(2)
+
+                if enable_scoring:
+                    try:
+                        scorer = QualityScorer()
+                        l2_score = scorer.score_story(enhanced.chapters, layer=2)
+                        self.output.quality_scores.append(l2_score)
+                        _log(f"[METRICS] Layer 2: {l2_score.overall:.1f}/5")
+                    except Exception as e:
+                        logger.warning(f"Quality scoring failed: {e}")
             except Exception as e:
                 _log(f"Layer 2 loi: {e}")
                 enhanced = EnhancedStory(
