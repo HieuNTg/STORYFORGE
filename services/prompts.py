@@ -95,6 +95,40 @@ Trả về JSON:
   ]
 }}"""
 
+CONTINUE_OUTLINE = """Bạn là biên kịch chuyên xây dựng cốt truyện {genre}.
+Tiêu đề: {title}
+Nhân vật: {characters}
+Bối cảnh: {world}
+
+TRUYỆN HIỆN TẠI ({existing_chapters} chương):
+Tóm tắt: {synopsis}
+
+CÁC CHƯƠNG ĐÃ CÓ:
+{existing_outlines}
+
+TRẠNG THÁI NHÂN VẬT HIỆN TẠI:
+{character_states}
+
+SỰ KIỆN QUAN TRỌNG ĐÃ XẢY RA:
+{plot_events}
+
+Hãy tạo dàn ý cho {additional_chapters} chương tiếp theo (bắt đầu từ chương {start_chapter}).
+Cốt truyện phải tiếp nối tự nhiên, phát triển xung đột, và tiến tới cao trào.
+
+Trả về JSON:
+{{
+  "outlines": [
+    {{
+      "chapter_number": {start_chapter},
+      "title": "tiêu đề chương",
+      "summary": "tóm tắt nội dung",
+      "key_events": ["sự kiện 1", "sự kiện 2"],
+      "characters_involved": ["tên nhân vật"],
+      "emotional_arc": "cung bậc cảm xúc chương này"
+    }}
+  ]
+}}"""
+
 WRITE_CHAPTER = """Bạn là tiểu thuyết gia tài năng chuyên viết {genre} bằng tiếng Việt.
 
 Phong cách viết: {style}

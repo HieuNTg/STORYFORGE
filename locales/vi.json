@@ -195,5 +195,27 @@
   "guide.usage_title": "### Cách sử dụng",
   "guide.usage_steps": "1. Vào **Cài Đặt** → nhập API Key và chọn model\n2. Vào **Pipeline Đầy Đủ** → nhập ý tưởng truyện\n3. Điều chỉnh các thông số nếu cần\n4. Nhấn **Chạy Pipeline** và đợi\n5. Xem kết quả ở các tab: Truyện, Mô Phỏng, Video, Đánh Giá\n6. Nhấn **Xuất file** để lưu kết quả",
   "guide.api_title": "### API tương thích",
-  "guide.api_desc": "Hỗ trợ mọi API tương thích OpenAI: OpenAI, Anthropic (qua proxy), Google Gemini, DeepSeek, Groq, Together AI, OpenRouter, Ollama, v.v."
+  "guide.api_desc": "Hỗ trợ mọi API tương thích OpenAI: OpenAI, Anthropic (qua proxy), Google Gemini, DeepSeek, Groq, Together AI, OpenRouter, Ollama, v.v.",
+
+  "continue.title": "### Tiếp tục truyện",
+  "continue.add_chapters": "Thêm chương",
+  "continue.num_chapters": "Số chương thêm",
+  "continue.btn_add": "Thêm chương mới",
+  "continue.btn_delete": "Xóa chương cuối",
+  "continue.btn_enhance": "Tăng kịch tính lại (Layer 2)",
+  "continue.delete_from": "Xóa từ chương số",
+  "continue.story_summary": "Tóm tắt truyện hiện tại",
+  "continue.no_story": "Chưa có truyện. Hãy chạy pipeline hoặc chọn checkpoint.",
+  "continue.char_editor": "### Chỉnh sửa nhân vật",
+  "continue.char_name": "Tên nhân vật",
+  "continue.char_personality": "Tính cách mới",
+  "continue.char_motivation": "Động lực mới",
+  "continue.btn_update_char": "Cập nhật nhân vật",
+  "continue.log": "Nhật ký tiếp tục",
+  "continue.loaded": "Đã tải truyện: {title} ({chapters} chương)",
+  "continue.no_checkpoint": "Chọn checkpoint trước!",
+  "continue.chapters_added": "Đã thêm {count} chương mới!",
+  "continue.chapters_deleted": "Đã xóa chương từ {from_ch} trở đi.",
+  "continue.char_updated": "Đã cập nhật nhân vật: {name}",
+  "continue.enhanced": "Đã tăng kịch tính lại!"
 }

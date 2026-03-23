@@ -342,6 +342,56 @@ def create_ui():
                             refresh_ckpt_btn = gr.Button(_t("btn.refresh"), scale=0)
                         resume_btn = gr.Button(_t("btn.resume"), variant="secondary")
 
+                        # ── Story Continuation ──
+                        with gr.Accordion(_t("continue.title"), open=False):
+                            continue_summary = gr.Textbox(
+                                label=_t("continue.story_summary"),
+                                lines=3, interactive=False,
+                                value=_t("continue.no_story"),
+                            )
+                            load_ckpt_btn = gr.Button(_t("btn.refresh") + " + Load", variant="secondary")
+
+                            with gr.Row():
+                                continue_chapters = gr.Slider(
+                                    1, 20, value=3, step=1,
+                                    label=_t("continue.num_chapters"),
+                                )
+                                continue_btn = gr.Button(
+                                    _t("continue.btn_add"), variant="primary",
+                                )
+
+                            with gr.Row():
+                                delete_from_ch = gr.Slider(
+                                    1, 50, value=1, step=1,
+                                    label=_t("continue.delete_from"),
+                                )
+                                delete_btn = gr.Button(
+                                    _t("continue.btn_delete"), variant="stop",
+                                )
+
+                            enhance_btn = gr.Button(
+                                _t("continue.btn_enhance"), variant="secondary",
+                            )
+
+                            gr.Markdown(_t("continue.char_editor"))
+                            with gr.Row():
+                                char_name_input = gr.Textbox(
+                                    label=_t("continue.char_name"), scale=1,
+                                )
+                                char_personality_input = gr.Textbox(
+                                    label=_t("continue.char_personality"), scale=2,
+                                )
+                                char_motivation_input = gr.Textbox(
+                                    label=_t("continue.char_motivation"), scale=2,
+                                )
+                            update_char_btn = gr.Button(
+                                _t("continue.btn_update_char"), variant="secondary",
+                            )
+
+                            continue_log = gr.Textbox(
+                                label=_t("continue.log"), lines=5, interactive=False,
+                            )
+
                 # State
                 orchestrator_state = gr.State(None)
 
@@ -785,6 +835,105 @@ def create_ui():
                         draft_output, sim_output, enhanced_output, video_output,
                         agent_output, quality_output, orchestrator_state,
                     ],
+                )
+
+                # ── Continuation handlers ──
+                def _ckpt_path(ckpt_choice):
+                    """Extract checkpoint file path from dropdown choice."""
+                    if not ckpt_choice:
+                        return None
+                    filename = ckpt_choice.split(" (")[0]
+                    return os.path.join(PipelineOrchestrator.CHECKPOINT_DIR, filename)
+
+                def load_checkpoint_for_continuation(ckpt_choice, orch):
+                    """Load checkpoint and show story summary."""
+                    path = _ckpt_path(ckpt_choice)
+                    if not path:
+                        return _t("continue.no_checkpoint"), orch
+                    if orch is None:
+                        orch = PipelineOrchestrator()
+                    orch.load_from_checkpoint(path)
+                    d = orch.output.story_draft
+                    if d:
+                        summary = _t("continue.loaded", title=d.title, chapters=len(d.chapters))
+                        summary += f"\n{d.synopsis[:200]}..." if d.synopsis else ""
+                        chars = ", ".join(c.name for c in d.characters[:8])
+                        summary += f"\n{_t('format.characters_label', names=chars)}"
+                        return summary, orch
+                    return _t("continue.no_story"), orch
+
+                load_ckpt_btn.click(
+                    fn=load_checkpoint_for_continuation,
+                    inputs=[checkpoint_dropdown, orchestrator_state],
+                    outputs=[continue_summary, orchestrator_state],
+                )
+
+                def add_chapters_handler(orch, n_chapters, w_count):
+                    if orch is None or not orch.output.story_draft:
+                        return _t("continue.no_story"), orch
+                    logs = []
+                    orch.continue_story(
+                        additional_chapters=int(n_chapters),
+                        word_count=int(w_count),
+                        progress_callback=lambda m: logs.append(m),
+                    )
+                    return "\n".join(logs) + "\n" + _t("continue.chapters_added", count=int(n_chapters)), orch
+
+                continue_btn.click(
+                    fn=add_chapters_handler,
+                    inputs=[orchestrator_state, continue_chapters, word_count],
+                    outputs=[continue_log, orchestrator_state],
+                )
+
+                def delete_chapters_handler(orch, from_ch):
+                    if orch is None or not orch.output.story_draft:
+                        return _t("continue.no_story"), orch
+                    orch.remove_chapters(int(from_ch))
+                    return _t("continue.chapters_deleted", from_ch=int(from_ch)), orch
+
+                delete_btn.click(
+                    fn=delete_chapters_handler,
+                    inputs=[orchestrator_state, delete_from_ch],
+                    outputs=[continue_log, orchestrator_state],
+                )
+
+                def update_char_handler(orch, name, personality, motivation):
+                    if orch is None or not orch.output.story_draft:
+                        return _t("continue.no_story"), orch
+                    if not name:
+                        return _t("continue.char_name"), orch
+                    updates = {}
+                    if personality:
+                        updates["personality"] = personality
+                    if motivation:
+                        updates["motivation"] = motivation
+                    if not updates:
+                        return _t("continue.char_personality") + " / " + _t("continue.char_motivation"), orch
+                    orch.update_character(name, updates)
+                    return _t("continue.char_updated", name=name), orch
+
+                update_char_btn.click(
+                    fn=update_char_handler,
+                    inputs=[orchestrator_state, char_name_input,
+                            char_personality_input, char_motivation_input],
+                    outputs=[continue_log, orchestrator_state],
+                )
+
+                def enhance_handler(orch, n_sim, w_count):
+                    if orch is None or not orch.output.story_draft:
+                        return _t("continue.no_story"), orch
+                    logs = []
+                    orch.enhance_chapters(
+                        num_sim_rounds=int(n_sim),
+                        word_count=int(w_count),
+                        progress_callback=lambda m: logs.append(m),
+                    )
+                    return "\n".join(logs) + "\n" + _t("continue.enhanced"), orch
+
+                enhance_btn.click(
+                    fn=enhance_handler,
+                    inputs=[orchestrator_state, sim_rounds, word_count],
+                    outputs=[continue_log, orchestrator_state],
                 )
 
             # ═══════════════════════════════════════

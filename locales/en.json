@@ -195,5 +195,27 @@
   "guide.usage_title": "### How to use",
   "guide.usage_steps": "1. Go to **Settings** → enter API Key and select model\n2. Go to **Full Pipeline** → enter story idea\n3. Adjust parameters as needed\n4. Click **Run Pipeline** and wait\n5. View results in tabs: Story, Simulation, Video, Review\n6. Click **Export files** to save results",
   "guide.api_title": "### Compatible APIs",
-  "guide.api_desc": "Supports any OpenAI-compatible API: OpenAI, Anthropic (via proxy), Google Gemini, DeepSeek, Groq, Together AI, OpenRouter, Ollama, etc."
+  "guide.api_desc": "Supports any OpenAI-compatible API: OpenAI, Anthropic (via proxy), Google Gemini, DeepSeek, Groq, Together AI, OpenRouter, Ollama, etc.",
+
+  "continue.title": "### Continue Story",
+  "continue.add_chapters": "Add chapters",
+  "continue.num_chapters": "Chapters to add",
+  "continue.btn_add": "Add new chapters",
+  "continue.btn_delete": "Delete last chapters",
+  "continue.btn_enhance": "Re-enhance (Layer 2)",
+  "continue.delete_from": "Delete from chapter #",
+  "continue.story_summary": "Current story summary",
+  "continue.no_story": "No story loaded. Run pipeline or select checkpoint.",
+  "continue.char_editor": "### Edit Characters",
+  "continue.char_name": "Character name",
+  "continue.char_personality": "New personality",
+  "continue.char_motivation": "New motivation",
+  "continue.btn_update_char": "Update character",
+  "continue.log": "Continuation log",
+  "continue.loaded": "Story loaded: {title} ({chapters} chapters)",
+  "continue.no_checkpoint": "Select a checkpoint first!",
+  "continue.chapters_added": "Added {count} new chapters!",
+  "continue.chapters_deleted": "Deleted chapters from {from_ch} onward.",
+  "continue.char_updated": "Character updated: {name}",
+  "continue.enhanced": "Re-enhancement complete!"
 }

@@ -388,3 +388,162 @@ class StoryGenerator:
 
         _log("✅ Layer 1 hoàn tất - Bản thảo truyện đã sẵn sàng!")
         return draft
+
+    def rebuild_context(self, draft: StoryDraft) -> StoryContext:
+        """Rebuild StoryContext from existing StoryDraft chapters."""
+        context_window = self.config.pipeline.context_window_chapters
+        context = StoryContext(
+            total_chapters=len(draft.chapters),
+            current_chapter=len(draft.chapters),
+        )
+        # Use chapter summaries as recent_summaries
+        for ch in draft.chapters[-context_window:]:
+            if ch.summary:
+                context.recent_summaries.append(ch.summary)
+            else:
+                logger.warning(f"Chapter {ch.chapter_number} has no summary for context rebuild")
+        # Use stored character states and plot events
+        context.character_states = list(draft.character_states)
+        context.plot_events = list(draft.plot_events[-50:])
+        return context
+
+    def continue_story(
+        self,
+        draft: StoryDraft,
+        additional_chapters: int = 5,
+        word_count: int = 2000,
+        style: str = "",
+        progress_callback=None,
+        stream_callback=None,
+    ) -> StoryDraft:
+        """Continue writing from existing StoryDraft by adding more chapters."""
+        context_window = self.config.pipeline.context_window_chapters
+        effective_style = style or self.config.pipeline.writing_style
+
+        def _log(msg):
+            logger.info(msg)
+            if progress_callback:
+                progress_callback(msg)
+
+        start_chapter = len(draft.chapters) + 1
+        _log(f"📋 Generating outlines for chapters {start_chapter}-{start_chapter + additional_chapters - 1}...")
+
+        # Build context strings for outline generation
+        chars_text = "\n".join(
+            f"- {c.name} ({c.role}): {c.personality}, Động lực: {c.motivation}"
+            for c in draft.characters
+        )
+        existing_outlines_text = "\n".join(
+            f"Ch.{o.chapter_number}: {o.title} — {o.summary}"
+            for o in draft.outlines
+        )
+        states_text = "\n".join(
+            f"- {s.name}: mood={s.mood}, arc={s.arc_position}, last={s.last_action}"
+            for s in draft.character_states
+        ) or "N/A"
+        events_text = "\n".join(
+            f"- Ch.{e.chapter_number}: {e.event}"
+            for e in draft.plot_events[-20:]
+        ) or "N/A"
+
+        world_text = f"{draft.world.name}: {draft.world.description}" if draft.world else "N/A"
+
+        result = self.llm.generate_json(
+            system_prompt="Bạn là biên kịch tài năng. Trả về JSON.",
+            user_prompt=prompts.CONTINUE_OUTLINE.format(
+                genre=draft.genre, title=draft.title,
+                characters=chars_text, world=world_text,
+                existing_chapters=len(draft.chapters),
+                synopsis=draft.synopsis,
+                existing_outlines=existing_outlines_text,
+                character_states=states_text,
+                plot_events=events_text,
+                additional_chapters=additional_chapters,
+                start_chapter=start_chapter,
+            ),
+            temperature=0.9,
+        )
+        new_outlines = [ChapterOutline(**o) for o in result.get("outlines", [])]
+        if not new_outlines:
+            _log("⚠️ No outlines generated. Aborting continuation.")
+            return draft
+
+        draft.outlines.extend(new_outlines)
+
+        # Rebuild context from existing chapters
+        story_context = self.rebuild_context(draft)
+
+        final_total = len(draft.chapters) + len(new_outlines)
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            for outline in new_outlines:
+                story_context.current_chapter = outline.chapter_number
+                story_context.total_chapters = final_total
+
+                _log(f"📖 Writing chapter {outline.chapter_number}: {outline.title}...")
+                if stream_callback:
+                    chapter = self.write_chapter_stream(
+                        draft.title, draft.genre, effective_style,
+                        draft.characters, draft.world, outline,
+                        word_count=word_count, context=story_context,
+                        stream_callback=stream_callback,
+                    )
+                else:
+                    chapter = self.write_chapter(
+                        draft.title, draft.genre, effective_style,
+                        draft.characters, draft.world, outline,
+                        word_count=word_count, context=story_context,
+                    )
+                draft.chapters.append(chapter)
+
+                # Parallel extraction
+                _log(f"🔍 Extracting context for chapter {outline.chapter_number}...")
+                summary_f = executor.submit(self.summarize_chapter, chapter.content)
+                states_f = executor.submit(
+                    self.extract_character_states, chapter.content, draft.characters
+                )
+                events_f = executor.submit(
+                    self.extract_plot_events, chapter.content, outline.chapter_number
+                )
+
+                try:
+                    summary = summary_f.result()
+                except Exception:
+                    summary = ""
+                try:
+                    new_states = states_f.result()
+                except Exception:
+                    new_states = []
+                try:
+                    new_events = events_f.result()
+                except Exception:
+                    new_events = []
+
+                chapter.summary = summary
+                story_context.recent_summaries.append(summary)
+                story_context.recent_summaries = story_context.recent_summaries[-context_window:]
+
+                if new_states:
+                    existing = {s.name: s for s in story_context.character_states}
+                    for s in new_states:
+                        existing[s.name] = s
+                    story_context.character_states = list(existing.values())
+
+                story_context.plot_events.extend(new_events)
+                story_context.plot_events = story_context.plot_events[-50:]
+
+        draft.character_states = list(story_context.character_states)
+        draft.plot_events = list(story_context.plot_events)
+
+        _log(f"✅ Continuation complete — {len(new_outlines)} chapters added!")
+        return draft
+
+    @staticmethod
+    def remove_chapters(draft: StoryDraft, from_chapter: int) -> StoryDraft:
+        """Remove chapters from `from_chapter` onward. Returns modified draft."""
+        draft.chapters = [ch for ch in draft.chapters if ch.chapter_number < from_chapter]
+        draft.outlines = [o for o in draft.outlines if o.chapter_number < from_chapter]
+        # Filter plot events for remaining chapters
+        draft.plot_events = [e for e in draft.plot_events if e.chapter_number < from_chapter]
+        # Clear character states (they reflect removed chapters' state)
+        draft.character_states = []
+        return draft
