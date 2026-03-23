@@ -303,8 +303,8 @@ def create_ui():
                                 )
 
                         export_formats = gr.CheckboxGroup(
-                            choices=["TXT", "Markdown", "JSON"],
-                            value=["TXT", "Markdown", "JSON"],
+                            choices=["TXT", "Markdown", "JSON", "HTML"],
+                            value=["TXT", "Markdown", "JSON", "HTML"],
                             label="Dinh dang xuat",
                         )
                         with gr.Row():

@@ -325,6 +325,11 @@ class PipelineOrchestrator:
             if md_path:
                 files.append(md_path)
 
+        if "HTML" in formats:
+            html_path = self._export_html(output_dir, timestamp)
+            if html_path:
+                files.append(html_path)
+
         return files
 
     def export_zip(self, output_dir: str = "output", formats: list[str] | None = None) -> str:
@@ -338,6 +343,16 @@ class PipelineOrchestrator:
             for f in files:
                 zf.write(f, os.path.basename(f))
         return zip_path
+
+    def _export_html(self, output_dir: str, timestamp: str) -> Optional[str]:
+        """Export story as standalone HTML reader page."""
+        story = self.output.enhanced_story or self.output.story_draft
+        if not story:
+            return None
+        from services.html_exporter import HTMLExporter
+        path = os.path.join(output_dir, f"{timestamp}_story.html")
+        chars = self.output.story_draft.characters if self.output.story_draft else []
+        return HTMLExporter.export(story, path, characters=chars)
 
     def export_video_assets(self, output_dir: str = "output") -> Optional[str]:
         """Export video script as creator-friendly asset package (ZIP).
