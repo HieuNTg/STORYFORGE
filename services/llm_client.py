@@ -162,12 +162,14 @@ class LLMClient:
         system_prompt: str,
         user_prompt: str,
         temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
     ) -> dict:
         """Gọi LLM và parse kết quả JSON với auto-repair."""
         result = self.generate(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             temperature=temperature,
+            max_tokens=max_tokens,
             json_mode=True,
         )
         text = result.strip()

@@ -43,6 +43,9 @@ class PipelineConfig:
     shots_per_chapter: int = 8
     video_style: str = "Phim ngắn drama"
 
+    # Context tracking
+    context_window_chapters: int = 2
+
     # Ngôn ngữ
     language: str = "vi"
 
@@ -110,6 +113,7 @@ class ConfigManager:
                 "drama_intensity": self.pipeline.drama_intensity,
                 "shots_per_chapter": self.pipeline.shots_per_chapter,
                 "video_style": self.pipeline.video_style,
+                "context_window_chapters": self.pipeline.context_window_chapters,
                 "language": self.pipeline.language,
             },
         }

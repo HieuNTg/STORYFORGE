@@ -46,6 +46,32 @@ class Chapter(BaseModel):
     summary: str = ""
 
 
+class CharacterState(BaseModel):
+    """Trạng thái nhân vật thay đổi theo chương."""
+    name: str
+    mood: str = ""
+    arc_position: str = ""  # e.g., "rising", "crisis", "resolution"
+    knowledge: list[str] = Field(default_factory=list)
+    relationship_changes: list[str] = Field(default_factory=list)
+    last_action: str = ""
+
+
+class PlotEvent(BaseModel):
+    """Sự kiện quan trọng để theo dõi tính liên tục."""
+    chapter_number: int
+    event: str
+    characters_involved: list[str] = Field(default_factory=list)
+
+
+class StoryContext(BaseModel):
+    """Rolling context cho việc viết chương."""
+    recent_summaries: list[str] = Field(default_factory=list)
+    character_states: list[CharacterState] = Field(default_factory=list)
+    plot_events: list[PlotEvent] = Field(default_factory=list)
+    total_chapters: int = 0
+    current_chapter: int = 0
+
+
 class StoryDraft(BaseModel):
     """Bản thảo truyện từ Layer 1."""
     title: str
@@ -56,6 +82,8 @@ class StoryDraft(BaseModel):
     world: Optional[WorldSetting] = None
     outlines: list[ChapterOutline] = Field(default_factory=list)
     chapters: list[Chapter] = Field(default_factory=list)
+    character_states: list[CharacterState] = Field(default_factory=list)
+    plot_events: list[PlotEvent] = Field(default_factory=list)
 
 
 # === Layer 2: Mô phỏng tăng kịch tính ===

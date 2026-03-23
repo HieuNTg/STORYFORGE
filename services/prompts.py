@@ -102,6 +102,44 @@ tập trung vào sự kiện chính và phát triển nhân vật:
 
 {content}"""
 
+EXTRACT_CHARACTER_STATE = """Phân tích chương truyện sau và trích xuất trạng thái hiện tại của từng nhân vật.
+
+NỘI DUNG CHƯƠNG:
+{content}
+
+DANH SÁCH NHÂN VẬT CẦN THEO DÕI:
+{characters}
+
+Trả về JSON:
+{{
+  "character_states": [
+    {{
+      "name": "tên nhân vật",
+      "mood": "tâm trạng hiện tại",
+      "arc_position": "rising/crisis/falling/resolution",
+      "knowledge": ["điều nhân vật biết được trong chương này"],
+      "relationship_changes": ["thay đổi mối quan hệ"],
+      "last_action": "hành động cuối cùng trong chương"
+    }}
+  ]
+}}"""
+
+EXTRACT_PLOT_EVENTS = """Trích xuất các sự kiện quan trọng từ chương truyện sau.
+Chỉ liệt kê sự kiện có ảnh hưởng đến cốt truyện.
+
+NỘI DUNG CHƯƠNG {chapter_number}:
+{content}
+
+Trả về JSON:
+{{
+  "events": [
+    {{
+      "event": "mô tả ngắn gọn sự kiện",
+      "characters_involved": ["tên nhân vật liên quan"]
+    }}
+  ]
+}}"""
+
 # ============================================================
 # LAYER 2: MÔ PHỎNG TĂNG KỊCH TÍNH (MiroFish-inspired)
 # ============================================================
