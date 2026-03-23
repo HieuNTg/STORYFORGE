@@ -15,7 +15,7 @@ class LLMConfig:
     temperature: float = 0.8
     max_tokens: int = 4096
     # Cấu hình backend switching
-    backend_type: str = "api"  # "api" hoặc "openclaw"
+    backend_type: str = "openclaw"  # "api" hoặc "openclaw"
     openclaw_port: int = 3002
     openclaw_model: str = "deepseek-web/deepseek-chat"
     auto_fallback: bool = True  # Tự động chuyển sang API khi OpenClaw fail
