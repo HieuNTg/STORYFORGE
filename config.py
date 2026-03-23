@@ -14,11 +14,9 @@ class LLMConfig:
     model: str = "gpt-4o-mini"
     temperature: float = 0.8
     max_tokens: int = 4096
-    # Cấu hình backend switching
-    backend_type: str = "openclaw"  # "api" hoặc "openclaw"
-    openclaw_port: int = 3002
-    openclaw_model: str = "deepseek-web/deepseek-chat"
-    auto_fallback: bool = True  # Tự động chuyển sang API khi OpenClaw fail
+    # Backend: "api" (OpenAI-compatible) hoặc "web" (browser auth, free)
+    backend_type: str = "api"
+    web_auth_provider: str = "deepseek-web"  # Provider cho web auth
     # Model routing: cheap model for summaries/analysis
     cheap_model: str = ""  # empty = use primary model
     cheap_base_url: str = ""  # empty = use primary base_url
@@ -97,11 +95,8 @@ class ConfigManager:
                 "model": self.llm.model,
                 "temperature": self.llm.temperature,
                 "max_tokens": self.llm.max_tokens,
-                # Backend switching
                 "backend_type": self.llm.backend_type,
-                "openclaw_port": self.llm.openclaw_port,
-                "openclaw_model": self.llm.openclaw_model,
-                "auto_fallback": self.llm.auto_fallback,
+                "web_auth_provider": self.llm.web_auth_provider,
                 "cheap_model": self.llm.cheap_model,
                 "cheap_base_url": self.llm.cheap_base_url,
                 "cache_enabled": self.llm.cache_enabled,

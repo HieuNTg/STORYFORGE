@@ -70,13 +70,11 @@ __pycache__/
 *.pyo
 data/config.json
 data/*.db
+data/auth_profiles.json
 output/
 novel_auto.log
 .venv/
 venv/
-
-# OpenClaw state (credentials - sensitive)
-vendor/openclaw-zero-token/.openclaw-zero-state/
 
 # CK meta commands
 prompt.md

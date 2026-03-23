@@ -63,14 +63,9 @@ class LLMClient:
 
     def _get_client(self) -> OpenAI:
         config = ConfigManager()
-        if config.llm.backend_type == "openclaw":
-            base_url = f"http://localhost:{config.llm.openclaw_port}/v1"
-            api_key = "openclaw-token"
-            model = config.llm.openclaw_model
-        else:
-            base_url = config.llm.base_url
-            api_key = config.llm.api_key
-            model = config.llm.model
+        base_url = config.llm.base_url
+        api_key = config.llm.api_key
+        model = config.llm.model
 
         cache_key = f"{base_url}:{api_key}"
         with self._client_lock:
@@ -80,6 +75,17 @@ class LLMClient:
                 self._current_model = model
 
         return self._client
+
+    def _is_web_backend(self) -> bool:
+        """Check if currently using web (browser auth) backend."""
+        return ConfigManager().llm.backend_type == "web"
+
+    def _get_web_client(self):
+        """Get DeepSeekWebClient for web backend. Lazy import."""
+        from services.deepseek_web_client import DeepSeekWebClient
+        if not hasattr(self, "_web_client") or self._web_client is None:
+            self._web_client = DeepSeekWebClient()
+        return self._web_client
 
     def _get_cheap_client(self) -> tuple[OpenAI, str]:
         """Get client and model for cheap tier. Returns (client, model_name)."""
@@ -108,31 +114,17 @@ class LLMClient:
         json_mode: bool = False,
         model_tier: str = "default",
     ) -> str:
-        """Gọi LLM với retry, cache, và fallback."""
+        """Gọi LLM với retry, cache. Hỗ trợ API và web (browser auth) backend."""
         config = ConfigManager()
-
-        # Resolve client and model based on tier
-        if model_tier == "cheap" and config.llm.cheap_model:
-            client, effective_model = self._get_cheap_client()
-        else:
-            client = self._get_client()
-            effective_model = self._current_model or config.llm.model
-
         effective_temp = temperature if temperature is not None else config.llm.temperature
 
-        kwargs = {
-            "model": effective_model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": effective_temp,
-            "max_tokens": max_tokens or config.llm.max_tokens,
-        }
-        if json_mode:
-            kwargs["response_format"] = {"type": "json_object"}
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
 
         # Cache check (only for deterministic calls)
+        effective_model = config.llm.model if not self._is_web_backend() else "deepseek-web"
         use_cache = config.llm.cache_enabled and effective_temp <= 0.7
         cache = None
         cache_params = None
@@ -140,12 +132,32 @@ class LLMClient:
             cache = LLMCache(ttl_days=config.llm.cache_ttl_days)
             cache_params = dict(
                 system_prompt=system_prompt, user_prompt=user_prompt,
-                model=kwargs["model"], temperature=effective_temp,
+                model=effective_model, temperature=effective_temp,
                 json_mode=json_mode,
             )
             cached = cache.get(**cache_params)
             if cached is not None:
                 return cached
+
+        # Route to web backend (DeepSeek browser auth)
+        if self._is_web_backend():
+            return self._generate_web(messages, effective_temp, use_cache, cache, cache_params)
+
+        # API backend — resolve client and model based on tier
+        if model_tier == "cheap" and config.llm.cheap_model:
+            client, effective_model = self._get_cheap_client()
+        else:
+            client = self._get_client()
+            effective_model = self._current_model or config.llm.model
+
+        kwargs = {
+            "model": effective_model,
+            "messages": messages,
+            "temperature": effective_temp,
+            "max_tokens": max_tokens or config.llm.max_tokens,
+        }
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
 
         # Retry loop with exponential backoff
         last_exc = None
@@ -153,7 +165,6 @@ class LLMClient:
             try:
                 response = client.chat.completions.create(**kwargs)
                 result = response.choices[0].message.content or ""
-                # Store in cache
                 if use_cache and cache is not None and cache_params is not None:
                     cache.put(result, **cache_params)
                 return result
@@ -166,22 +177,31 @@ class LLMClient:
                     continue
                 break
 
-        # OpenClaw fallback (existing logic — config already bound above)
-        if config.llm.backend_type == "openclaw" and config.llm.auto_fallback and config.llm.api_key:
-            logger.warning(f"OpenClaw lỗi, fallback sang API: {last_exc}")
-            fallback_client = OpenAI(api_key=config.llm.api_key, base_url=config.llm.base_url)
-            kwargs["model"] = config.llm.model
+        logger.error(f"Lỗi gọi LLM sau {MAX_RETRIES} lần: {last_exc}")
+        raise last_exc
+
+    def _generate_web(self, messages, temperature, use_cache, cache, cache_params) -> str:
+        """Generate via DeepSeek web backend with retry."""
+        last_exc = None
+        for attempt in range(MAX_RETRIES):
             try:
-                response = fallback_client.chat.completions.create(**kwargs)
-                result = response.choices[0].message.content or ""
+                web_client = self._get_web_client()
+                result = web_client.chat_completion_sync(
+                    messages=messages, temperature=temperature,
+                )
                 if use_cache and cache is not None and cache_params is not None:
                     cache.put(result, **cache_params)
                 return result
-            except Exception as e2:
-                logger.error(f"Fallback API cũng lỗi: {e2}")
-                raise
+            except Exception as e:
+                last_exc = e
+                if attempt < MAX_RETRIES - 1 and _is_transient(e):
+                    delay = BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
+                    logger.warning(f"Web LLM attempt {attempt+1} failed: {e}. Retry in {delay:.1f}s")
+                    time.sleep(delay)
+                    continue
+                break
 
-        logger.error(f"Lỗi gọi LLM sau {MAX_RETRIES} lần: {last_exc}")
+        logger.error(f"Lỗi web LLM sau {MAX_RETRIES} lần: {last_exc}")
         raise last_exc
 
     def generate_json(
@@ -255,9 +275,38 @@ class LLMClient:
         max_tokens: Optional[int] = None,
         model_tier: str = "default",
     ):
-        """Gọi LLM với streaming."""
+        """Gọi LLM với streaming. Hỗ trợ API và web backend."""
         config = ConfigManager()
+        effective_temp = temperature if temperature is not None else config.llm.temperature
 
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        # Web backend streaming
+        if self._is_web_backend():
+            last_exc = None
+            for attempt in range(MAX_RETRIES):
+                try:
+                    web_client = self._get_web_client()
+                    for chunk in web_client.chat_completion(
+                        messages=messages, temperature=effective_temp, stream=True,
+                    ):
+                        yield chunk
+                    return
+                except Exception as e:
+                    last_exc = e
+                    if attempt < MAX_RETRIES - 1 and _is_transient(e):
+                        delay = BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
+                        logger.warning(f"Web stream attempt {attempt+1} failed: {e}. Retry in {delay:.1f}s")
+                        time.sleep(delay)
+                        continue
+                    break
+            logger.error(f"Lỗi web stream sau {MAX_RETRIES} lần: {last_exc}")
+            raise last_exc
+
+        # API backend streaming
         if model_tier == "cheap" and config.llm.cheap_model:
             client, effective_model = self._get_cheap_client()
         else:
@@ -266,16 +315,12 @@ class LLMClient:
 
         kwargs = {
             "model": effective_model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": temperature if temperature is not None else config.llm.temperature,
+            "messages": messages,
+            "temperature": effective_temp,
             "max_tokens": max_tokens or config.llm.max_tokens,
             "stream": True,
         }
 
-        # Retry loop for transient errors (mirrors generate())
         last_exc = None
         for attempt in range(MAX_RETRIES):
             try:
@@ -283,7 +328,7 @@ class LLMClient:
                 for chunk in response:
                     if chunk.choices and chunk.choices[0].delta.content:
                         yield chunk.choices[0].delta.content
-                return  # success
+                return
             except Exception as e:
                 last_exc = e
                 if attempt < MAX_RETRIES - 1 and _is_transient(e):
@@ -293,26 +338,18 @@ class LLMClient:
                     continue
                 break
 
-        # OpenClaw fallback
-        if config.llm.backend_type == "openclaw" and config.llm.auto_fallback and config.llm.api_key:
-            logger.warning(f"OpenClaw lỗi, fallback sang API: {last_exc}")
-            fallback_client = OpenAI(api_key=config.llm.api_key, base_url=config.llm.base_url)
-            kwargs["model"] = config.llm.model
-            try:
-                response = fallback_client.chat.completions.create(**kwargs)
-                for chunk in response:
-                    if chunk.choices and chunk.choices[0].delta.content:
-                        yield chunk.choices[0].delta.content
-                return
-            except Exception as e2:
-                logger.error(f"Fallback API cũng lỗi: {e2}")
-                raise
-
         logger.error(f"Lỗi stream LLM sau {MAX_RETRIES} lần: {last_exc}")
         raise last_exc
 
     def check_connection(self) -> tuple[bool, str]:
-        """Kiểm tra kết nối backend."""
+        """Kiểm tra kết nối backend (API hoặc web)."""
+        if self._is_web_backend():
+            try:
+                web_client = self._get_web_client()
+                return web_client.check_connection()
+            except Exception as e:
+                return False, f"Lỗi web backend: {e}"
+
         try:
             client = self._get_client()
             response = client.chat.completions.create(

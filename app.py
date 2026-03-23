@@ -6,6 +6,7 @@ Pipeline 3 lớp:
   Layer 3 (waoowaoo-inspired): Tạo storyboard và kịch bản video
 """
 
+import json
 import logging
 import threading
 import queue
@@ -46,6 +47,23 @@ STYLES = [
 
 DRAMA_LEVELS = ["thấp", "trung bình", "cao"]
 
+# Template path
+TEMPLATES_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "data", "templates", "story_templates.json",
+)
+
+
+def _load_templates() -> dict:
+    """Load story templates from JSON file."""
+    if os.path.exists(TEMPLATES_PATH):
+        try:
+            with open(TEMPLATES_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
 
 def create_ui():
     """Tạo giao diện Gradio."""
@@ -78,12 +96,23 @@ def create_ui():
             with gr.TabItem("Pipeline Đầy Đủ"):
                 with gr.Row():
                     with gr.Column(scale=1):
+                        # Quick start section
+                        gr.Markdown("### Bat dau nhanh")
+                        genre_input = gr.Dropdown(
+                            choices=GENRES, value="Tiên Hiệp", label="Thể loại",
+                        )
+                        template_dropdown = gr.Dropdown(
+                            label="Mau truyen (template)",
+                            choices=[], interactive=True,
+                            info="Chon mau hoac tu nhap y tuong ben duoi",
+                        )
+                        quick_start_btn = gr.Button(
+                            "Tao ngay!", variant="primary", size="lg",
+                        )
+
                         gr.Markdown("### Thông tin truyện")
                         title_input = gr.Textbox(
                             label="Tiêu đề", placeholder="Để trống để AI đề xuất",
-                        )
-                        genre_input = gr.Dropdown(
-                            choices=GENRES, value="Tiên Hiệp", label="Thể loại",
                         )
                         style_input = gr.Dropdown(
                             choices=STYLES, value="Miêu tả chi tiết",
@@ -406,6 +435,66 @@ def create_ui():
                     ],
                 )
 
+                # Template handlers
+                templates_data = _load_templates()
+
+                def update_template_choices(genre):
+                    """Update template dropdown when genre changes."""
+                    genre_templates = templates_data.get(genre, [])
+                    choices = [t["title"] for t in genre_templates]
+                    return gr.update(choices=choices, value=choices[0] if choices else None)
+
+                def apply_template(genre, template_title):
+                    """Auto-fill form fields from selected template."""
+                    genre_templates = templates_data.get(genre, [])
+                    for t in genre_templates:
+                        if t["title"] == template_title:
+                            return (
+                                t["title"],
+                                t.get("style", "Miêu tả chi tiết"),
+                                t["idea"],
+                                t.get("num_chapters", 5),
+                                t.get("num_characters", 5),
+                                t.get("words_per_chapter", 1500),
+                            )
+                    return (gr.update(), gr.update(), gr.update(),
+                            gr.update(), gr.update(), gr.update())
+
+                genre_input.change(
+                    fn=update_template_choices,
+                    inputs=[genre_input],
+                    outputs=[template_dropdown],
+                )
+                template_dropdown.change(
+                    fn=apply_template,
+                    inputs=[genre_input, template_dropdown],
+                    outputs=[title_input, style_input, idea_input,
+                             num_chapters, num_characters, word_count],
+                )
+
+                # Quick start — select template then run pipeline
+                quick_start_btn.click(
+                    fn=run_pipeline,
+                    inputs=[
+                        title_input, genre_input, style_input, idea_input,
+                        num_chapters, num_characters, word_count,
+                        sim_rounds, drama_level, shots_per_ch, enable_agents_cb,
+                        enable_scoring_cb,
+                    ],
+                    outputs=[
+                        live_preview, progress_log, draft_output, sim_output,
+                        enhanced_output, video_output, agent_output,
+                        quality_output, orchestrator_state,
+                    ],
+                )
+
+                # Load initial templates for default genre
+                app.load(
+                    fn=update_template_choices,
+                    inputs=[genre_input],
+                    outputs=[template_dropdown],
+                )
+
                 def export_files(orch, formats):
                     if orch is None:
                         return None
@@ -538,36 +627,85 @@ def create_ui():
 
                 gr.Markdown("### Backend AI")
                 backend_type = gr.Radio(
-                    choices=["api", "openclaw"],
+                    choices=["api", "web"],
                     value=config.llm.backend_type,
                     label="Loai backend",
-                )
-                openclaw_port = gr.Number(
-                    value=config.llm.openclaw_port,
-                    label="OpenClaw Port",
-                    visible=True,
-                )
-                openclaw_model = gr.Textbox(
-                    value=config.llm.openclaw_model,
-                    label="OpenClaw Model",
-                )
-                auto_fallback = gr.Checkbox(
-                    value=config.llm.auto_fallback,
-                    label="Tu dong chuyen sang API khi OpenClaw loi",
+                    info="api = OpenAI-compatible API | web = Dang nhap trinh duyet (mien phi)",
                 )
 
-                openclaw_status = gr.Textbox(
-                    label="Trang thai OpenClaw", interactive=False,
+                # Web auth controls
+                gr.Markdown("### Dang nhap qua trinh duyet (Web Auth)")
+                web_auth_status = gr.Textbox(
+                    label="Trang thai dang nhap", interactive=False,
+                    value="Chua dang nhap",
+                )
+                with gr.Row():
+                    launch_chrome_btn = gr.Button("Khoi dong trinh duyet")
+                    capture_btn = gr.Button("Bat dau thu thap credentials", variant="primary")
+                clear_auth_btn = gr.Button("Xoa credentials", variant="stop", size="sm")
+
+                def launch_chrome():
+                    from services.browser_auth import BrowserAuth
+                    auth = BrowserAuth()
+                    ok, msg = auth.launch_chrome()
+                    return msg
+
+                def capture_credentials():
+                    """Capture credentials in background thread to avoid UI blocking."""
+                    from services.browser_auth import BrowserAuth
+                    auth = BrowserAuth()
+                    result = [None]
+
+                    def _run():
+                        result[0] = auth.capture_deepseek_credentials(timeout=300)
+
+                    thread = threading.Thread(target=_run)
+                    thread.start()
+
+                    yield "Dang cho dang nhap... (hay dang nhap DeepSeek trong trinh duyet)"
+                    while thread.is_alive():
+                        time.sleep(2)
+                        if auth.is_authenticated():
+                            break
+                        yield "Dang cho dang nhap... (hay dang nhap DeepSeek trong trinh duyet)"
+
+                    thread.join(timeout=5)
+                    if result[0]:
+                        ok, msg = result[0]
+                        yield msg
+                    else:
+                        yield "Het thoi gian hoac loi."
+
+                def clear_credentials():
+                    from services.browser_auth import BrowserAuth
+                    auth = BrowserAuth()
+                    auth.clear_credentials()
+                    return "Da xoa credentials."
+
+                def check_auth_status():
+                    from services.browser_auth import BrowserAuth
+                    auth = BrowserAuth()
+                    if auth.is_authenticated():
+                        creds = auth.get_credentials()
+                        updated = creds.get("updated_at", "?") if creds else "?"
+                        return f"Da dang nhap (cap nhat: {updated})"
+                    return "Chua dang nhap"
+
+                launch_chrome_btn.click(fn=launch_chrome, outputs=[web_auth_status])
+                capture_btn.click(fn=capture_credentials, outputs=[web_auth_status])
+                clear_auth_btn.click(fn=clear_credentials, outputs=[web_auth_status])
+                app.load(fn=check_auth_status, outputs=[web_auth_status])
+
+                gr.Markdown("---")
+                connection_status = gr.Textbox(
+                    label="Trang thai ket noi", interactive=False,
                 )
                 test_connection_btn = gr.Button("Kiem tra ket noi")
 
-                def test_connection(backend, key, url, model, oc_port, oc_model):
+                def test_connection(backend, key, url, model):
                     cfg = ConfigManager()
                     cfg.llm.backend_type = backend
-                    if backend == "openclaw":
-                        cfg.llm.openclaw_port = int(oc_port)
-                        cfg.llm.openclaw_model = oc_model
-                    else:
+                    if backend == "api":
                         cfg.llm.api_key = key
                         cfg.llm.base_url = url
                         cfg.llm.model = model
@@ -579,9 +717,8 @@ def create_ui():
 
                 test_connection_btn.click(
                     fn=test_connection,
-                    inputs=[backend_type, api_key, base_url, model_name,
-                            openclaw_port, openclaw_model],
-                    outputs=[openclaw_status],
+                    inputs=[backend_type, api_key, base_url, model_name],
+                    outputs=[connection_status],
                 )
 
                 gr.Markdown("### Cache LLM")
@@ -613,8 +750,7 @@ def create_ui():
                 save_status = gr.Textbox(label="Trạng thái", interactive=False)
 
                 def save_settings(key, url, model, temp, tokens,
-                                  cheap_m, cheap_url,
-                                  backend, oc_port, oc_model, fallback):
+                                  cheap_m, cheap_url, backend):
                     cfg = ConfigManager()
                     cfg.llm.api_key = key
                     cfg.llm.base_url = url
@@ -624,9 +760,6 @@ def create_ui():
                     cfg.llm.cheap_model = cheap_m
                     cfg.llm.cheap_base_url = cheap_url
                     cfg.llm.backend_type = backend
-                    cfg.llm.openclaw_port = int(oc_port)
-                    cfg.llm.openclaw_model = oc_model
-                    cfg.llm.auto_fallback = fallback
                     cfg.save()
                     # Reset LLM client singleton
                     from services.llm_client import LLMClient
@@ -636,8 +769,7 @@ def create_ui():
                 save_btn.click(
                     fn=save_settings,
                     inputs=[api_key, base_url, model_name, temperature, max_tokens,
-                            cheap_model, cheap_base_url,
-                            backend_type, openclaw_port, openclaw_model, auto_fallback],
+                            cheap_model, cheap_base_url, backend_type],
                     outputs=[save_status],
                 )
 

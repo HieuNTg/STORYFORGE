@@ -1,0 +1,112 @@
+{
+  "Tiên Hiệp": [
+    {
+      "title": "Phàm Nhân Tu Tiên",
+      "idea": "Thanh niên nghèo ở làng chài vô tình nhặt được ngọc cổ, mở ra con đường tu tiên. Phải vượt qua thử thách tông môn, kẻ thù truy sát và bí mật thân thế.",
+      "num_chapters": 5,
+      "num_characters": 5,
+      "words_per_chapter": 1500,
+      "style": "Miêu tả chi tiết"
+    },
+    {
+      "title": "Nghịch Thiên Cải Mệnh",
+      "idea": "Tu sĩ bị phản bội, rơi xuống vực sâu nhưng được truyền thừa cổ đại. Quyết tâm báo thù và thay đổi số mệnh, từ phế vật trở thành cường giả.",
+      "num_chapters": 5,
+      "num_characters": 6,
+      "words_per_chapter": 1500,
+      "style": "Hành động mãnh liệt"
+    }
+  ],
+  "Huyền Huyễn": [
+    {
+      "title": "Vạn Giới Chí Tôn",
+      "idea": "Thiếu niên sở hữu huyết mạch thần bí, có thể du hành giữa các thế giới. Mỗi thế giới mang một thử thách và sức mạnh mới, nhưng cũng ẩn chứa nguy hiểm chết người.",
+      "num_chapters": 5,
+      "num_characters": 5,
+      "words_per_chapter": 1500,
+      "style": "Miêu tả chi tiết"
+    },
+    {
+      "title": "Hồn Thú Sư",
+      "idea": "Trong thế giới nơi con người ký kết hợp đồng với hồn thú, cậu thiếu niên mồ côi phát hiện mình có thể giao tiếp với mọi hồn thú. Bí mật này đưa cậu vào cuộc chiến giữa các đế quốc.",
+      "num_chapters": 5,
+      "num_characters": 5,
+      "words_per_chapter": 1500,
+      "style": "Hành động mãnh liệt"
+    }
+  ],
+  "Ngôn Tình": [
+    {
+      "title": "Hợp Đồng Tình Yêu",
+      "idea": "Nữ sinh viên nghèo buộc phải ký hợp đồng giả vờ làm bạn gái của CEO lạnh lùng để trả nợ cho gia đình. Từ ghét thành thương, nhưng bí mật quá khứ đe dọa chia cắt họ.",
+      "num_chapters": 5,
+      "num_characters": 4,
+      "words_per_chapter": 1500,
+      "style": "Trữ tình lãng mạn"
+    },
+    {
+      "title": "Mùa Hè Năm Ấy",
+      "idea": "Hai người bạn thời thơ ấu gặp lại sau 10 năm xa cách. Cô là bác sĩ, anh là nghệ sĩ lang thang. Tình cảm cũ trỗi dậy giữa những hiểu lầm và tổn thương chưa lành.",
+      "num_chapters": 5,
+      "num_characters": 4,
+      "words_per_chapter": 1500,
+      "style": "Trữ tình lãng mạn"
+    }
+  ],
+  "Linh Dị": [
+    {
+      "title": "Âm Dương Sư Phố Cổ",
+      "idea": "Chàng trai trẻ thừa kế tiệm đồ cổ từ ông nội, phát hiện mình có thể nhìn thấy linh hồn. Mỗi món đồ cổ chứa một câu chuyện ma ám, và anh phải giải thoát chúng trước khi bị nguyền rủa.",
+      "num_chapters": 5,
+      "num_characters": 4,
+      "words_per_chapter": 1500,
+      "style": "U ám kịch tính"
+    },
+    {
+      "title": "Bệnh Viện 13 Tầng",
+      "idea": "Bác sĩ mới ra trường được phân công trực đêm tại bệnh viện cũ. Tầng 13 bị niêm phong nhưng đêm đêm có tiếng kêu cứu vọng lại. Cô quyết định tìm hiểu sự thật.",
+      "num_chapters": 5,
+      "num_characters": 5,
+      "words_per_chapter": 1500,
+      "style": "U ám kịch tính"
+    }
+  ],
+  "Đô Thị": [
+    {
+      "title": "Thiên Tài Trở Về",
+      "idea": "Hacker thiên tài bị tổ chức bí ẩn truy đuổi, phải ẩn danh làm bảo vệ cho tập đoàn lớn. Dần dần phát hiện tập đoàn này liên quan đến cái chết bí ẩn của cha mình.",
+      "num_chapters": 5,
+      "num_characters": 6,
+      "words_per_chapter": 1500,
+      "style": "Đối thoại sắc bén"
+    },
+    {
+      "title": "Khởi Nghiệp Từ Số 0",
+      "idea": "Sau khi phá sản và bị bạn gái bỏ rơi, chàng trai 25 tuổi quyết tâm xây dựng lại từ đầu với một ý tưởng startup độc đáo. Đối mặt với cạnh tranh, phản bội và áp lực.",
+      "num_chapters": 5,
+      "num_characters": 5,
+      "words_per_chapter": 1500,
+      "style": "Đối thoại sắc bén"
+    }
+  ],
+  "Xuyên Không": [
+    {
+      "title": "Xuyên Về Thời Tam Quốc",
+      "idea": "Sinh viên lịch sử xuyên không về thời Tam Quốc, trở thành mưu sĩ vô danh. Dùng kiến thức hiện đại để thay đổi cục diện, nhưng lịch sử không dễ thay đổi.",
+      "num_chapters": 5,
+      "num_characters": 6,
+      "words_per_chapter": 1500,
+      "style": "Miêu tả chi tiết"
+    }
+  ],
+  "Trọng Sinh": [
+    {
+      "title": "Trọng Sinh Về Năm 18 Tuổi",
+      "idea": "Doanh nhân thất bại ở tuổi 40 bất ngờ trọng sinh về năm 18 tuổi. Với ký ức tương lai, anh quyết tâm sống khác: cứu người cha, giữ mối tình đầu, và xây dựng đế chế kinh doanh.",
+      "num_chapters": 5,
+      "num_characters": 5,
+      "words_per_chapter": 1500,
+      "style": "Đối thoại sắc bén"
+    }
+  ]
+}
