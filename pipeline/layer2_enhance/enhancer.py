@@ -7,9 +7,14 @@ from models.schemas import (
 )
 from services.llm_client import LLMClient
 from services import prompts
+from services import prompts as prompt_templates
+from pipeline.layer2_enhance.genre_drama_rules import get_genre_enhancement_hints
 from config import ConfigManager
 
 logger = logging.getLogger(__name__)
+
+MAX_REENHANCE_ROUNDS = 2
+MIN_DRAMA_SCORE = 0.6
 
 
 class StoryEnhancer:
@@ -24,6 +29,7 @@ class StoryEnhancer:
         sim_result: SimulationResult,
         word_count: int = 2000,
         total_chapters: int = 1,
+        genre: str = "",
     ) -> Chapter:
         """Tăng cường kịch tính cho một chương.
 
@@ -59,17 +65,22 @@ class StoryEnhancer:
             for r in sim_result.updated_relationships[:10]
         )
 
+        genre_hints = get_genre_enhancement_hints(genre, chapter.chapter_number, total_chapters)
+
         enhanced_content = self.llm.generate(
             system_prompt=(
                 "Bạn là nhà văn tài năng chuyên viết truyện kịch tính. "
                 "Viết hoàn toàn bằng tiếng Việt."
             ),
             user_prompt=prompts.ENHANCE_CHAPTER.format(
-                original_chapter=chapter.content[:4000],
+                original_chapter=chapter.content[:6000],
                 drama_events=events_text,
                 suggestions=suggestions_text,
                 updated_relationships=rel_text,
                 word_count=word_count,
+                genre_style=genre or "kịch tính",
+                genre_hints=genre_hints,
+                strong_points="(sẽ được phân tích trong feedback round)",
             ),
             max_tokens=8192,
         )
@@ -110,7 +121,7 @@ class StoryEnhancer:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
                 executor.submit(
-                    self.enhance_chapter, chapter, sim_result, word_count, total_chapters
+                    self.enhance_chapter, chapter, sim_result, word_count, total_chapters, draft.genre
                 ): chapter.chapter_number
                 for chapter in draft.chapters
             }
@@ -138,4 +149,84 @@ class StoryEnhancer:
         _log(
             f"✅ Layer 2 hoàn tất! Điểm kịch tính: {enhanced.drama_score:.2f}"
         )
+        return enhanced
+
+    def _find_weak_chapters(self, enhanced: EnhancedStory) -> list[dict]:
+        """Analyze chapters and return detailed weakness info for targeted rewriting."""
+        weak = []
+        for ch in enhanced.chapters:
+            try:
+                result = self.llm.generate_json(
+                    system_prompt="Đánh giá kịch tính chi tiết. Trả về JSON.",
+                    user_prompt=prompt_templates.QUICK_DRAMA_CHECK.format(
+                        content=ch.content[:3000],
+                    ),
+                    temperature=0.2,
+                    max_tokens=300,
+                    use_cheap_model=True,
+                )
+                score = result.get("drama_score", 0.5)
+                if score < MIN_DRAMA_SCORE:
+                    weak.append({
+                        "chapter_number": ch.chapter_number,
+                        "score": score,
+                        "weak_points": result.get("weak_points", []),
+                        "strong_points": result.get("strong_points", []),
+                    })
+            except Exception as e:
+                logger.debug(f"Drama check failed for ch {ch.chapter_number}: {e}")
+        return weak
+
+    def enhance_with_feedback(
+        self,
+        draft: StoryDraft,
+        sim_result: SimulationResult,
+        word_count: int = 2000,
+        progress_callback=None,
+    ) -> EnhancedStory:
+        """Enhance story with iterative feedback — re-enhance weak chapters."""
+        def _log(msg):
+            logger.info(msg)
+            if progress_callback:
+                progress_callback(msg)
+
+        enhanced = self.enhance_story(draft, sim_result, word_count, progress_callback)
+
+        genre = draft.genre if hasattr(draft, 'genre') else ""
+
+        for round_num in range(1, MAX_REENHANCE_ROUNDS + 1):
+            weak_analyses = self._find_weak_chapters(enhanced)
+            if not weak_analyses:
+                _log(f"✅ Feedback round {round_num}: all chapters pass drama threshold")
+                break
+            _log(f"🔄 Feedback round {round_num}: re-enhancing {len(weak_analyses)} weak chapters (targeted)")
+            for analysis in weak_analyses:
+                ch_num = analysis["chapter_number"]
+                idx = ch_num - 1
+                if 0 <= idx < len(enhanced.chapters):
+                    # Targeted rewriting with specific weak/strong points
+                    genre_hints = get_genre_enhancement_hints(genre, ch_num, len(enhanced.chapters))
+                    weak_text = "\n".join(f"- {wp}" for wp in analysis.get("weak_points", []))
+                    strong_text = "\n".join(f"- {sp}" for sp in analysis.get("strong_points", []))
+
+                    rewritten = self.llm.generate(
+                        system_prompt="Bạn là nhà văn tài năng. Viết hoàn toàn bằng tiếng Việt.",
+                        user_prompt=prompt_templates.REENHANCE_CHAPTER.format(
+                            chapter_content=enhanced.chapters[idx].content[:6000],
+                            weak_points=weak_text or "Kịch tính chung còn yếu",
+                            strong_points=strong_text or "Không có điểm mạnh nổi bật",
+                            genre_hints=genre_hints,
+                            suggestions="\n".join(sim_result.drama_suggestions[:3]),
+                            word_count=word_count,
+                        ),
+                        max_tokens=8192,
+                    )
+                    enhanced.chapters[idx] = Chapter(
+                        chapter_number=ch_num,
+                        title=enhanced.chapters[idx].title,
+                        content=rewritten,
+                        word_count=len(rewritten.split()),
+                        summary=enhanced.chapters[idx].summary,
+                    )
+                    _log(f"  ✓ Chương {ch_num}: score {analysis['score']:.2f} → re-enhanced")
         return enhanced

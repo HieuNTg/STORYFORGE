@@ -29,8 +29,8 @@ class LLMConfig:
 class PipelineConfig:
     """Cấu hình pipeline tổng thể."""
     # Layer 1 - Tạo truyện
-    num_chapters: int = 10
-    words_per_chapter: int = 2000
+    num_chapters: int = 100
+    words_per_chapter: int = 3000
     genre: str = "Tiên Hiệp"
     sub_genres: list = field(default_factory=list)
     writing_style: str = "Miêu tả chi tiết"
@@ -45,10 +45,29 @@ class PipelineConfig:
     video_style: str = "Phim ngắn drama"
 
     # Context tracking
-    context_window_chapters: int = 2
+    context_window_chapters: int = 5
+
+    # Story Bible — bộ nhớ dài hạn cho truyện 100+ chương
+    arc_size: int = 30
+    story_bible_enabled: bool = True
 
     # Ngôn ngữ
     language: str = "vi"
+
+    # Features: user system, image gen, share, PDF
+    user_storage_path: str = "data/users"
+    image_prompt_style: str = "cinematic"
+    share_base_url: str = ""
+    pdf_font: str = "NotoSansVN"
+
+    # Image generation provider
+    image_provider: str = "none"  # none / dalle / sd-api / seedream
+    image_api_key: str = ""
+    image_api_url: str = ""
+
+    # Seedream (ByteDance) image generation
+    seedream_api_key: str = ""
+    seedream_api_url: str = ""
 
 
 class ConfigManager:
@@ -86,6 +105,31 @@ class ConfigManager:
                 import logging
                 logging.getLogger(__name__).warning(f"Config load error: {e}")
 
+        # Environment variable overrides (for Docker/production)
+        env_map = {
+            "STORYFORGE_API_KEY": ("llm", "api_key"),
+            "STORYFORGE_BASE_URL": ("llm", "base_url"),
+            "STORYFORGE_MODEL": ("llm", "model"),
+            "STORYFORGE_BACKEND": ("llm", "backend_type"),
+            "STORYFORGE_TEMPERATURE": ("llm", "temperature"),
+            "STORYFORGE_IMAGE_PROVIDER": ("pipeline", "image_provider"),
+            "IMAGE_API_KEY": ("pipeline", "image_api_key"),
+            "IMAGE_API_URL": ("pipeline", "image_api_url"),
+            "SEEDREAM_API_KEY": ("pipeline", "seedream_api_key"),
+            "SEEDREAM_API_URL": ("pipeline", "seedream_api_url"),
+        }
+        for env_key, (section, field) in env_map.items():
+            val = os.environ.get(env_key)
+            if val:
+                target = self.llm if section == "llm" else self.pipeline
+                # Convert to float for temperature
+                if field == "temperature":
+                    try:
+                        val = float(val)
+                    except ValueError:
+                        continue
+                setattr(target, field, val)
+
     def save(self):
         os.makedirs(os.path.dirname(self.CONFIG_FILE), exist_ok=True)
         data = {
@@ -115,6 +159,17 @@ class ConfigManager:
                 "video_style": self.pipeline.video_style,
                 "context_window_chapters": self.pipeline.context_window_chapters,
                 "language": self.pipeline.language,
+                "user_storage_path": self.pipeline.user_storage_path,
+                "image_prompt_style": self.pipeline.image_prompt_style,
+                "share_base_url": self.pipeline.share_base_url,
+                "pdf_font": self.pipeline.pdf_font,
+                "image_provider": self.pipeline.image_provider,
+                "image_api_key": self.pipeline.image_api_key,
+                "image_api_url": self.pipeline.image_api_url,
+                "seedream_api_key": self.pipeline.seedream_api_key,
+                "seedream_api_url": self.pipeline.seedream_api_url,
+                "arc_size": self.pipeline.arc_size,
+                "story_bible_enabled": self.pipeline.story_bible_enabled,
             },
         }
         with open(self.CONFIG_FILE, "w", encoding="utf-8") as f:

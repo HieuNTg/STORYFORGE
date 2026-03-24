@@ -208,7 +208,10 @@ class TestExportCSV:
         vs = _make_video_script(2)
         exporter = VideoExporter(vs)
         csv = exporter.export_timeline_csv()
-        assert csv.startswith("start_time,end_time,type,text,character,shot_type,chapter")
+        # Header may use quoted fields (CSV dialect)
+        header = csv.split('\n')[0].strip()
+        unquoted = header.replace('"', '')
+        assert unquoted == "start_time,end_time,type,text,character,shot_type,chapter"
 
     def test_csv_rows(self):
         vs = _make_video_script(3)

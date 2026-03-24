@@ -12,6 +12,7 @@ from models.schemas import (
 from services.llm_client import LLMClient
 from services import prompts
 from config import ConfigManager
+from pipeline.layer1_story.story_bible_manager import StoryBibleManager
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ class StoryGenerator:
     def __init__(self):
         self.llm = LLMClient()
         self.config = ConfigManager()
+        self.bible_manager = StoryBibleManager()
 
     def suggest_titles(self, genre: str, requirements: str = "") -> list[str]:
         """Đề xuất tiêu đề truyện."""
@@ -88,10 +90,17 @@ class StoryGenerator:
         outlines = [ChapterOutline(**o) for o in result.get("outlines", [])]
         return synopsis, outlines
 
-    def _format_context(self, context: StoryContext) -> str:
-        """Format StoryContext thành chuỗi cho prompt."""
+    def _format_context(self, context: StoryContext, bible_context: str = "") -> str:
+        """Format StoryContext thành chuỗi cho prompt.
+
+        Nếu bible_context được cung cấp (từ StoryBible), dùng nó thay vì rolling summaries đơn giản.
+        """
         if not context or (not context.recent_summaries and not context.character_states):
-            return "Đây là chương đầu tiên."
+            return bible_context or "Đây là chương đầu tiên."
+
+        # Khi có bible context, dùng nó — đã bao gồm summaries và char states
+        if bible_context:
+            return bible_context
 
         parts = []
         if context.recent_summaries:
@@ -113,7 +122,7 @@ class StoryGenerator:
 
     def _build_chapter_prompt(
         self, title, genre, style, characters, world, outline,
-        word_count, context=None, previous_summary="",
+        word_count, context=None, previous_summary="", bible_context: str = "",
     ) -> tuple[str, str]:
         """Build system/user prompts for chapter writing. Returns (system_prompt, user_prompt)."""
         chars_text = "\n".join(
@@ -125,7 +134,11 @@ class StoryGenerator:
             f"Sự kiện chính: {', '.join(outline.key_events)}\n"
             f"Cảm xúc: {outline.emotional_arc}"
         )
-        context_text = self._format_context(context) if context else (previous_summary or "Đây là chương đầu tiên.")
+        context_text = (
+            self._format_context(context, bible_context)
+            if context
+            else (bible_context or previous_summary or "Đây là chương đầu tiên.")
+        )
 
         sys_prompt = f"Bạn là tiểu thuyết gia tài năng viết truyện {genre} bằng tiếng Việt."
         user_prompt = prompts.WRITE_CHAPTER.format(
@@ -318,9 +331,26 @@ class StoryGenerator:
         # Rolling context for chapter-to-chapter coherence
         story_context = StoryContext(total_chapters=len(outlines))
 
+        # Khởi tạo Story Bible nếu được bật
+        bible_enabled = self.config.pipeline.story_bible_enabled
+        if bible_enabled:
+            draft.story_bible = self.bible_manager.initialize(
+                draft, arc_size=self.config.pipeline.arc_size
+            )
+
         with ThreadPoolExecutor(max_workers=3) as executor:
             for outline in outlines:
                 story_context.current_chapter = outline.chapter_number
+
+                # Tạo bible context cho chương này (nếu có bible)
+                bible_ctx = ""
+                if bible_enabled and draft.story_bible:
+                    bible_ctx = self.bible_manager.get_context_for_chapter(
+                        draft.story_bible,
+                        outline.chapter_number,
+                        recent_summaries=list(story_context.recent_summaries),
+                        character_states=list(story_context.character_states),
+                    )
 
                 _log(f"📖 Đang viết chương {outline.chapter_number}: {outline.title}...")
                 if stream_callback:
@@ -330,9 +360,21 @@ class StoryGenerator:
                         stream_callback=stream_callback,
                     )
                 else:
-                    chapter = self.write_chapter(
-                        title, genre, style, characters, world,
-                        outline, word_count=word_count, context=story_context,
+                    # Truyền bible_ctx vào prompt nếu có
+                    sys_prompt, user_prompt = self._build_chapter_prompt(
+                        title, genre, style, characters, world, outline,
+                        word_count, story_context, bible_context=bible_ctx,
+                    )
+                    content = self.llm.generate(
+                        system_prompt=sys_prompt,
+                        user_prompt=user_prompt,
+                        max_tokens=8192,
+                    )
+                    chapter = Chapter(
+                        chapter_number=outline.chapter_number,
+                        title=outline.title,
+                        content=content,
+                        word_count=len(content.split()),
                     )
                 draft.chapters.append(chapter)
 
@@ -381,6 +423,13 @@ class StoryGenerator:
                 story_context.plot_events.extend(new_events)
                 # Cap to last 50 events in context to prevent unbounded growth
                 story_context.plot_events = story_context.plot_events[-50:]
+
+                # Cập nhật Story Bible
+                if bible_enabled and draft.story_bible:
+                    self.bible_manager.update_after_chapter(
+                        draft.story_bible, chapter,
+                        list(story_context.character_states), new_events,
+                    )
 
         # Store final states in draft for Layer 2
         draft.character_states = list(story_context.character_states)

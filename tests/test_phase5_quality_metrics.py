@@ -455,9 +455,9 @@ class TestAppYieldTuples:
         for i, line in enumerate(content.split('\n')):
             stripped = line.strip()
             if stripped.startswith('yield '):
-                # Valid: yield (, yield _format_output, yield "...", yield msg (variable)
+                # Valid: yield (, yield _format_output, yield "...", yield msg, yield _t(...)
                 valid = any(tok in stripped for tok in (
-                    'yield (', 'yield _format_output', 'yield "',
+                    'yield (', 'yield _format_output', 'yield "', 'yield _t(',
                 )) or stripped == 'yield msg' or stripped.startswith('yield msg')
                 assert valid, f"Unexpected yield format at line {i+1}: {stripped}"
 

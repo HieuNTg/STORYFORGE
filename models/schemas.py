@@ -16,6 +16,7 @@ class Character(BaseModel):
     motivation: str = Field(description="Động lực")
     appearance: str = Field(default="", description="Ngoại hình")
     relationships: list[str] = Field(default_factory=list, description="Mối quan hệ")
+    reference_image: str = Field(default="", description="Ảnh tham chiếu nhân vật")
 
 
 class WorldSetting(BaseModel):
@@ -63,6 +64,38 @@ class PlotEvent(BaseModel):
     characters_involved: list[str] = Field(default_factory=list)
 
 
+class PlotThread(BaseModel):
+    """Tuyến cốt truyện đang theo dõi."""
+    thread_id: str = ""
+    description: str = ""
+    status: str = "active"  # active/resolved/abandoned
+    started_chapter: int = 0
+    resolved_chapter: int = 0
+    characters_involved: list[str] = Field(default_factory=list)
+
+
+class StoryArc(BaseModel):
+    """Một arc trong truyện dài."""
+    arc_number: int = 0
+    title: str = ""
+    summary: str = ""
+    start_chapter: int = 0
+    end_chapter: int = 0
+    key_events: list[str] = Field(default_factory=list)
+    status: str = "active"  # active/completed
+
+
+class StoryBible(BaseModel):
+    """Memory dài hạn cho truyện 100+ chương."""
+    premise: str = ""
+    world_rules: list[str] = Field(default_factory=list)
+    active_threads: list[PlotThread] = Field(default_factory=list)
+    resolved_threads: list[PlotThread] = Field(default_factory=list)
+    arcs: list[StoryArc] = Field(default_factory=list)
+    milestone_events: list[str] = Field(default_factory=list)
+    arc_summaries: list[str] = Field(default_factory=list)
+
+
 class StoryContext(BaseModel):
     """Rolling context cho việc viết chương."""
     recent_summaries: list[str] = Field(default_factory=list)
@@ -84,6 +117,7 @@ class StoryDraft(BaseModel):
     chapters: list[Chapter] = Field(default_factory=list)
     character_states: list[CharacterState] = Field(default_factory=list)
     plot_events: list[PlotEvent] = Field(default_factory=list)
+    story_bible: Optional[StoryBible] = None
 
 
 # === Layer 2: Mô phỏng tăng kịch tính ===
@@ -174,6 +208,7 @@ class StoryboardPanel(BaseModel):
     duration_seconds: float = Field(default=5.0)
     image_prompt: str = Field(default="", description="Prompt tạo hình ảnh")
     sound_effect: str = Field(default="", description="Hiệu ứng âm thanh")
+    image_path: str = Field(default="", description="Đường dẫn ảnh đã tạo")
 
 
 class VoiceLine(BaseModel):
@@ -232,6 +267,59 @@ class AgentReview(BaseModel):
     refined_content: Optional[str] = None
     layer: int = 0
     iteration: int = 0
+
+
+# === Features: Drama, Image Gen, User, Share ===
+
+class EscalationPattern(BaseModel):
+    """Drama escalation pattern for Layer 2."""
+    pattern_type: str = Field(description="betrayal/revelation/confrontation/sacrifice/reversal")
+    trigger_tension: float = Field(default=0.6, ge=0, le=1, description="Min tension to trigger")
+    characters_required: int = Field(default=2, ge=1)
+    description: str = ""
+    intensity_multiplier: float = Field(default=1.5, ge=1.0, le=3.0)
+
+
+class ImagePrompt(BaseModel):
+    """AI image generation prompt from story content."""
+    panel_number: int = 0
+    chapter_number: int = 0
+    scene_description: str = ""
+    style: str = Field(default="cinematic", description="cinematic/anime/watercolor/realistic")
+    dalle_prompt: str = ""
+    sd_prompt: str = ""
+    negative_prompt: str = ""
+    characters_in_scene: list[str] = Field(default_factory=list)
+
+
+class UserProfile(BaseModel):
+    """Simple user profile for story library."""
+    user_id: str
+    username: str
+    password_hash: str = ""
+    created_at: str = ""
+    story_ids: list[str] = Field(default_factory=list)
+    usage_count: int = 0
+    credits: int = 20  # Free tier: 20 credits
+    tier: str = "free"  # free/pro/studio
+    total_stories_created: int = 0
+
+
+class ReadingStats(BaseModel):
+    """Reading statistics for a story."""
+    total_words: int = 0
+    total_chapters: int = 0
+    estimated_reading_minutes: int = 0
+    avg_words_per_chapter: int = 0
+
+
+class ShareableStory(BaseModel):
+    """Story share metadata."""
+    share_id: str
+    story_title: str
+    created_at: str = ""
+    html_path: str = ""
+    expires_at: str = ""
 
 
 # === Pipeline Output ===

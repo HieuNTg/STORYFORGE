@@ -16,6 +16,9 @@ from pipeline.layer2_enhance.simulator import DramaSimulator
 from pipeline.layer2_enhance.enhancer import StoryEnhancer
 from pipeline.layer3_video.storyboard import StoryboardGenerator
 from services.quality_scorer import QualityScorer
+from services.seedream_client import SeedreamClient
+from services.tts_audio_generator import TTSAudioGenerator
+from services.video_composer import VideoComposer
 from config import ConfigManager
 
 logger = logging.getLogger(__name__)
@@ -149,9 +152,9 @@ class PipelineOrchestrator:
             )
             self.output.simulation_result = sim_result
 
-            # Tăng cường kịch tính
+            # Tăng cường kịch tính (with feedback loop)
             _log("[L2] ✍️ Đang viết lại truyện với kịch tính cao hơn...")
-            enhanced = self.enhancer.enhance_story(
+            enhanced = self.enhancer.enhance_with_feedback(
                 draft=draft,
                 sim_result=sim_result,
                 word_count=word_count,
@@ -243,7 +246,96 @@ class PipelineOrchestrator:
             _log(f"⚠️ Layer 3 lỗi ({str(e)}), pipeline dừng sau Layer 2.")
             self.output.status = "partial"
 
+        # ═══════ LAYER 3.5: SẢN XUẤT MEDIA ═══════
+        if self.output.video_script and self.config.pipeline.image_provider != "none":
+            _log("══════ LAYER 3.5: SẢN XUẤT ẢNH + AUDIO + VIDEO ══════")
+            layer_start = time.time()
+            try:
+                media = self._run_media_production(
+                    draft, enhanced, self.output.video_script,
+                    progress_callback=lambda m: _log(m),
+                )
+                if media.get("video_path"):
+                    _log(f"🎬 Video: {media['video_path']}")
+                _log(f"⏱️ Layer 3.5 hoàn tất trong {time.time() - layer_start:.1f}s")
+            except Exception as e:
+                logger.warning(f"Media production failed: {e}")
+                _log(f"⚠️ Media production lỗi: {e}")
+
         return self.output
+
+    def _run_media_production(
+        self, draft, enhanced, video_script, progress_callback=None
+    ) -> dict:
+        """Layer 3.5: Generate images, TTS audio, compose video.
+
+        Returns dict with paths: {character_refs, scene_images, audio_paths, video_path}
+        """
+        result = {"character_refs": {}, "scene_images": [], "audio_paths": [], "video_path": ""}
+        cfg = self.config.pipeline
+
+        def _log(msg):
+            if progress_callback:
+                progress_callback(msg)
+
+        # Step 1: Character reference images (Seedream)
+        seedream = SeedreamClient(api_key=cfg.seedream_api_key, base_url=cfg.seedream_api_url)
+        if seedream.is_configured() and draft.characters:
+            _log("[MEDIA] 🎨 Tạo ảnh tham chiếu nhân vật...")
+            for char in draft.characters:
+                desc = char.appearance or char.personality or char.name
+                ref_path = seedream.generate_character_reference(char.name, desc)
+                if ref_path:
+                    char.reference_image = ref_path
+                    result["character_refs"][char.name] = ref_path
+                    _log(f"[MEDIA] ✓ {char.name}")
+
+        # Step 2: Scene images with character consistency
+        if seedream.is_configured() and video_script and video_script.panels:
+            _log(f"[MEDIA] 🖼️ Tạo {len(video_script.panels)} ảnh cảnh...")
+            for i, panel in enumerate(video_script.panels):
+                refs = [
+                    result["character_refs"][name]
+                    for name in panel.characters_in_frame
+                    if name in result["character_refs"]
+                ]
+                prompt = panel.image_prompt or panel.description
+                filename = f"ch{panel.chapter_number:02d}_p{panel.panel_number:02d}.png"
+                path = seedream.generate_scene(prompt, refs, filename)
+                if path:
+                    panel.image_path = path
+                    result["scene_images"].append(path)
+                if (i + 1) % 5 == 0:
+                    _log(f"[MEDIA] Đã tạo {i + 1}/{len(video_script.panels)} ảnh")
+
+        # Step 3: TTS audio
+        if enhanced and enhanced.chapters:
+            _log("[MEDIA] 🔊 Tạo audio giọng đọc...")
+            tts = TTSAudioGenerator(voice="female")
+            audio_dir = "output/audiobook"
+            try:
+                result["audio_paths"] = tts.generate_full_audiobook(enhanced.chapters, audio_dir)
+                _log(f"[MEDIA] ✓ {len(result['audio_paths'])} file audio")
+            except Exception as e:
+                _log(f"[MEDIA] ⚠️ TTS lỗi: {e}")
+
+        # Step 4: Video composition
+        if result["scene_images"] and video_script:
+            _log("[MEDIA] 🎬 Đang ghép video...")
+            composer = VideoComposer()
+            audio_path = ""
+            if result["audio_paths"]:
+                merged = composer.merge_chapter_audios(result["audio_paths"])
+                if merged:
+                    audio_path = merged
+            video_path = composer.compose(video_script.panels, audio_path)
+            if video_path:
+                result["video_path"] = video_path
+                _log(f"[MEDIA] ✓ Video: {video_path}")
+            else:
+                _log("[MEDIA] ⚠️ Không tạo được video")
+
+        return result
 
     def run_layer1_only(
         self, title, genre, idea, style, num_chapters, num_characters,
@@ -269,7 +361,7 @@ class PipelineOrchestrator:
             num_rounds=num_sim_rounds,
             progress_callback=progress_callback,
         )
-        return self.enhancer.enhance_story(
+        return self.enhancer.enhance_with_feedback(
             draft=draft, sim_result=sim_result,
             word_count=word_count, progress_callback=progress_callback,
         )
@@ -606,7 +698,7 @@ class PipelineOrchestrator:
             self.output.simulation_result = sim_result
 
             _log("Enhancing story with dramatic elements...")
-            enhanced = self.enhancer.enhance_story(
+            enhanced = self.enhancer.enhance_with_feedback(
                 draft=draft, sim_result=sim_result,
                 word_count=word_count,
                 progress_callback=lambda m: _log(f"[L2] {m}"),

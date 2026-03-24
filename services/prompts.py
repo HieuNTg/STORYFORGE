@@ -304,12 +304,12 @@ Trả về JSON:
   "overall_drama_score": 0.7
 }}"""
 
-ENHANCE_CHAPTER = """Bạn là nhà văn tài năng. Hãy viết lại chương truyện sau để tăng tính kịch tính.
+ENHANCE_CHAPTER = """Bạn là nhà văn tài năng chuyên viết truyện {genre_style}. Hãy viết lại chương truyện sau.
 
 CHƯƠNG GỐC:
 {original_chapter}
 
-CÁC SỰ KIỆN KỊCH TÍNH CẦN THÊM VÀO:
+CÁC SỰ KIỆN KỊCH TÍNH CẦN THÊM:
 {drama_events}
 
 GỢI Ý TĂNG CƯỜNG:
@@ -318,15 +318,20 @@ GỢI Ý TĂNG CƯỜNG:
 MỐI QUAN HỆ ĐÃ CẬP NHẬT:
 {updated_relationships}
 
+HƯỚNG DẪN THỂ LOẠI:
+{genre_hints}
+
+ĐIỂM MẠNH CẦN GIỮ:
+{strong_points}
+
 YÊU CẦU:
-- Giữ nguyên cốt truyện chính nhưng thêm các yếu tố kịch tính
-- Tăng cường xung đột nội tâm nhân vật
-- Thêm twist, bất ngờ tự nhiên
-- Đối thoại sắc bén, căng thẳng hơn
-- Tạo cliffhanger mạnh mẽ hơn
-- Miêu tả cảm xúc sâu sắc hơn
-- Khoảng {word_count} từ
-- Viết hoàn toàn bằng tiếng Việt
+- Giữ cốt truyện chính, tăng kịch tính tại các điểm yếu đã chỉ ra
+- Tăng xung đột nội tâm nhân vật
+- Thêm twist tự nhiên, không gượng ép
+- Đối thoại sắc bén theo phong cách thể loại
+- Cliffhanger mạnh mẽ cuối chương
+- Cảm xúc sâu sắc, phù hợp emotional arc
+- Khoảng {word_count} từ, viết hoàn toàn tiếng Việt
 
 Bắt đầu viết lại:"""
 
@@ -437,3 +442,54 @@ Trả về JSON:
   "image_prompt": "detailed English prompt for AI image generation",
   "negative_prompt": "things to avoid"
 }}"""
+
+# ============================================================
+# LAYER 2: ESCALATION & FEEDBACK
+# ============================================================
+
+ESCALATION_EVENT = """Dựa trên mối quan hệ căng thẳng giữa các nhân vật, hãy tạo một sự kiện kịch tính.
+
+LOẠI KỊCH BẢN: {pattern_type}
+NHÂN VẬT LIÊN QUAN: {characters}
+MỐI QUAN HỆ: {relationship}
+THỂ LOẠI: {genre}
+
+Trả về JSON:
+{{"event_type": "{pattern_type}", "description": "mô tả sự kiện kịch tính", "characters_involved": [{characters_list}], "drama_score": 0.8, "suggested_insertion": ""}}"""
+
+QUICK_DRAMA_CHECK = """Đánh giá chi tiết mức kịch tính của chương truyện sau.
+
+NỘI DUNG:
+{content}
+
+Phân tích theo 5 tiêu chí (0-1 mỗi tiêu chí):
+1. conflict_tension: Mức xung đột/căng thẳng
+2. dialogue_quality: Đối thoại sắc bén, có chiều sâu
+3. emotional_depth: Chiều sâu cảm xúc nhân vật
+4. pacing: Nhịp độ phù hợp (không quá nhanh/chậm)
+5. cliffhanger: Kết chương hấp dẫn
+
+Trả về JSON:
+{{"drama_score": 0.7, "conflict_tension": 0.6, "dialogue_quality": 0.7, "emotional_depth": 0.5, "pacing": 0.8, "cliffhanger": 0.6, "weak_points": ["điểm yếu cụ thể 1", "điểm yếu 2"], "strong_points": ["điểm mạnh cần giữ"]}}"""
+
+REENHANCE_CHAPTER = """Viết lại chương truyện sau, tập trung CỤ THỂ vào các điểm yếu đã phân tích.
+
+CHƯƠNG GỐC:
+{chapter_content}
+
+PHÂN TÍCH ĐIỂM YẾU (cần sửa):
+{weak_points}
+
+ĐIỂM MẠNH (PHẢI GIỮ NGUYÊN):
+{strong_points}
+
+HƯỚNG DẪN THỂ LOẠI:
+{genre_hints}
+
+YÊU CẦU:
+- CHỈ cải thiện các điểm yếu đã liệt kê, KHÔNG thay đổi điểm mạnh
+- Giữ cốt truyện, tăng kịch tính tại các điểm yếu
+- Khoảng {word_count} từ
+- Viết hoàn toàn bằng tiếng Việt
+
+Bắt đầu viết lại:"""

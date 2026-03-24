@@ -1,0 +1,179 @@
+"""Settings tab — API config, web auth, cache management, language, compact mode."""
+
+import threading
+import time
+import gradio as gr
+from config import ConfigManager
+
+
+# ── Web auth helpers (thin wrappers, kept here to avoid circular deps) ──
+
+def _launch_chrome(_t):
+    from services.browser_auth import BrowserAuth
+    _, msg = BrowserAuth().launch_chrome()
+    return msg
+
+
+def _capture_credentials(_t):
+    from services.browser_auth import BrowserAuth
+    auth = BrowserAuth()
+    result = [None]
+    threading.Thread(target=lambda: result.__setitem__(0, auth.capture_deepseek_credentials(timeout=300))).start()
+    yield _t("settings.waiting_login")
+    import time as _time
+    while result[0] is None:
+        _time.sleep(2)
+        if auth.is_authenticated():
+            break
+        yield _t("settings.waiting_login")
+    if result[0]:
+        _, msg = result[0]
+        yield msg
+    else:
+        yield _t("settings.login_timeout")
+
+
+def _clear_credentials(_t):
+    from services.browser_auth import BrowserAuth
+    BrowserAuth().clear_credentials()
+    return _t("settings.creds_cleared")
+
+
+def _check_auth_status(_t):
+    from services.browser_auth import BrowserAuth
+    auth = BrowserAuth()
+    if auth.is_authenticated():
+        creds = auth.get_credentials()
+        return _t("settings.logged_in", time=(creds or {}).get("updated_at", "?"))
+    return _t("settings.not_logged_in")
+
+
+# ── Tab builder ──
+
+def build_settings_tab(_t, i18n, app_block):
+    """Build the settings and configuration tab.
+
+    Args:
+        _t: i18n translation callable
+        i18n: I18n singleton instance
+        app_block: the top-level gr.Blocks instance (for compact mode + load hook)
+
+    Returns:
+        dict with language_selector and save_status component refs.
+    """
+    from services.i18n import SUPPORTED_LANGUAGES
+    config = ConfigManager()
+
+    # Language + compact mode
+    gr.Markdown(f"### {_t('label.language')}")
+    lang_choices = [f"{v} ({k})" for k, v in SUPPORTED_LANGUAGES.items()]
+    language_selector = gr.Dropdown(
+        choices=lang_choices,
+        value=f"{SUPPORTED_LANGUAGES.get(i18n.lang, 'vi')} ({i18n.lang})",
+        label=_t("label.language"), info=_t("settings.language_restart"),
+    )
+    gr.Markdown("---")
+    compact_mode_cb = gr.Checkbox(
+        value=False,
+        label=_t("settings.compact_mode") if _t("settings.compact_mode") != "settings.compact_mode" else "Compact Mode",
+        info="Reduce padding and font size for smaller screens",
+    )
+    compact_mode_cb.change(
+        fn=lambda e: gr.update(elem_classes=["compact-mode"] if e else []),
+        inputs=[compact_mode_cb], outputs=[app_block],
+    )
+
+    # API config
+    gr.Markdown(_t("settings.api_config"))
+    api_key = gr.Textbox(label=_t("settings.api_key"), value=config.llm.api_key, type="password")
+    base_url = gr.Textbox(label=_t("settings.base_url"), value=config.llm.base_url)
+    model_name = gr.Textbox(label=_t("settings.model"), value=config.llm.model)
+    temperature = gr.Slider(0, 2, value=config.llm.temperature, step=0.1, label=_t("settings.temperature"))
+    max_tokens = gr.Slider(1024, 16384, value=config.llm.max_tokens, step=512, label=_t("settings.max_tokens"))
+    gr.Markdown(_t("settings.cheap_model"))
+    cheap_model = gr.Textbox(label=_t("settings.cheap_model_label"), value=config.llm.cheap_model, placeholder=_t("settings.cheap_model_placeholder"))
+    cheap_base_url = gr.Textbox(label=_t("settings.cheap_url_label"), value=config.llm.cheap_base_url, placeholder=_t("settings.cheap_url_placeholder"))
+    gr.Markdown(_t("settings.backend"))
+    backend_type = gr.Radio(choices=["api", "web"], value=config.llm.backend_type, label=_t("settings.backend_label"), info=_t("settings.backend_info"))
+
+    # Web auth
+    gr.Markdown(_t("settings.web_auth"))
+    web_auth_status = gr.Textbox(label=_t("settings.auth_status"), interactive=False, value=_t("settings.not_logged_in"))
+    with gr.Row():
+        launch_chrome_btn = gr.Button(_t("btn.launch_chrome"))
+        capture_btn = gr.Button(_t("btn.capture_creds"), variant="primary")
+    clear_auth_btn = gr.Button(_t("btn.clear_creds"), variant="stop", size="sm")
+    launch_chrome_btn.click(fn=lambda: _launch_chrome(_t), outputs=[web_auth_status])
+    capture_btn.click(fn=lambda: _capture_credentials(_t), outputs=[web_auth_status])
+    clear_auth_btn.click(fn=lambda: _clear_credentials(_t), outputs=[web_auth_status])
+    app_block.load(fn=lambda: _check_auth_status(_t), outputs=[web_auth_status])
+
+    # Connection test
+    gr.Markdown("---")
+    connection_status = gr.Textbox(label=_t("settings.connection_status"), interactive=False)
+    test_connection_btn = gr.Button(_t("btn.test_connection"))
+
+    def test_connection(backend, key, url, model):
+        cfg = ConfigManager()
+        cfg.llm.backend_type = backend
+        if backend == "api":
+            cfg.llm.api_key, cfg.llm.base_url, cfg.llm.model = key, url, model
+        from services.llm_client import LLMClient
+        LLMClient._instance = None
+        ok, msg = LLMClient().check_connection()
+        return f"{'OK' if ok else 'LOI'}: {msg}"
+
+    test_connection_btn.click(fn=test_connection, inputs=[backend_type, api_key, base_url, model_name], outputs=[connection_status])
+
+    # Cache management
+    gr.Markdown(_t("settings.cache_title"))
+    cache_info = gr.Textbox(label=_t("settings.cache_label"), interactive=False)
+    with gr.Row():
+        cache_stats_btn = gr.Button(_t("btn.cache_stats"))
+        cache_clear_btn = gr.Button(_t("btn.clear_cache"), variant="stop")
+
+    def show_cache_stats():
+        try:
+            from services.llm_cache import LLMCache
+            s = LLMCache(ttl_days=ConfigManager().llm.cache_ttl_days).stats()
+            return f"Total: {s['total']} | Valid: {s['valid']} | Expired: {s['expired']}"
+        except Exception as e:
+            return f"Loi: {e}"
+
+    def clear_cache():
+        try:
+            from services.llm_cache import LLMCache
+            LLMCache().clear()
+            return "Da xoa cache!"
+        except Exception as e:
+            return f"Loi: {e}"
+
+    cache_stats_btn.click(fn=show_cache_stats, outputs=[cache_info])
+    cache_clear_btn.click(fn=clear_cache, outputs=[cache_info])
+
+    # Save settings
+    save_btn = gr.Button(_t("btn.save_settings"), variant="primary")
+    save_status = gr.Textbox(label=_t("settings.status_label"), interactive=False)
+
+    def save_settings(key, url, model, temp, tokens, cheap_m, cheap_url, backend, lang_choice):
+        cfg = ConfigManager()
+        cfg.llm.api_key, cfg.llm.base_url, cfg.llm.model = key, url, model
+        cfg.llm.temperature, cfg.llm.max_tokens = temp, int(tokens)
+        cfg.llm.cheap_model, cfg.llm.cheap_base_url, cfg.llm.backend_type = cheap_m, cheap_url, backend
+        if lang_choice:
+            lang_code = lang_choice.split("(")[-1].rstrip(")")
+            cfg.pipeline.language = lang_code
+            i18n.set_language(lang_code)
+        cfg.save()
+        from services.llm_client import LLMClient
+        LLMClient._instance = None
+        return _t("settings.saved")
+
+    save_btn.click(
+        fn=save_settings,
+        inputs=[api_key, base_url, model_name, temperature, max_tokens,
+                cheap_model, cheap_base_url, backend_type, language_selector],
+        outputs=[save_status],
+    )
+
+    return {"language_selector": language_selector, "save_status": save_status}

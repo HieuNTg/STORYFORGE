@@ -11,351 +11,215 @@ Input: Genre + Story Idea + Config
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │ LAYER 1: Story Generation (StoryGenerator)                       │
-│                                                                   │
-│ 1. Generate characters, world, chapter outlines                   │
-│ 2. Parallel chapter writing with rolling context                  │
-│ 3. Character State Tracking (Phase 1):                            │
-│    - Extract character mood, arc, knowledge per chapter           │
-│    - Track plot events for continuity                             │
-│    - Maintain sliding window of recent summaries                  │
+│ - Generate characters, world, chapter outlines                   │
+│ - Parallel chapter writing with rolling context                  │
+│ - Character State Tracking: mood, arc, knowledge per chapter     │
+│ - Track plot events for continuity (cap 50)                      │
 │ Output: StoryDraft (chapters + character_states + plot_events)   │
 └─────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ QUALITY METRICS: Scoring Layer 1 (Phase 5)                       │
-│                                                                   │
-│ - QualityScorer: LLM-as-judge on 4 dimensions                     │
-│   * coherence: Plot logic & flow                                  │
-│   * character_consistency: Behavior matches personality            │
-│   * drama: Tension & engagement                                   │
-│   * writing_quality: Prose clarity & vividness                    │
-│ - Parallel scoring (max 3 workers), sequential context            │
-│ - Identifies weakest chapters, logs metrics                       │
-│ Output: StoryScore with per-chapter breakdown + layer marker      │
+│ QUALITY METRICS: Scoring Layer 1                                 │
+│ - QualityScorer: LLM-as-judge, 4 dimensions (1-5 scale)         │
+│ - Parallel scoring (max 3 workers), sequential context           │
+│ Output: StoryScore (per-chapter breakdown, weakest chapter)      │
 └─────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ LAYER 2: Drama Enhancement (via agents)                          │
-│                                                                   │
-│ - Multi-agent feedback loops (6 agents)                           │
-│ - Character consistency checks                                    │
-│ - Dialogue quality & continuity                                   │
-│ - Drama intensity scoring                                         │
-│ Output: Enhanced StoryDraft with feedback metadata                │
+│ LAYER 2: Drama Enhancement (multi-agent)                         │
+│ - 6 agents: character consistency, continuity, dialogue,         │
+│   drama critic, editor-in-chief                                  │
+│ - Context-aware escalation patterns (feedback loop)              │
+│ Output: Enhanced StoryDraft + agent feedback metadata            │
 └─────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ QUALITY METRICS: Scoring Layer 2 (Phase 5)                       │
-│                                                                   │
-│ - Same 4 dimensions as Layer 1, but on enhanced story             │
-│ - Computes delta (improvement from Layer 1)                       │
-│ - Logs overall + weakest chapter                                  │
-│ Output: StoryScore with layer=2 marker, delta computation         │
+│ QUALITY METRICS: Scoring Layer 2                                 │
+│ - Same 4 dimensions; computes delta vs Layer 1                   │
+│ Output: StoryScore layer=2 + improvement delta                   │
 └─────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │ LAYER 3: Video Storyboarding                                     │
-│                                                                   │
-│ - Scene-level breakdown (shots per chapter)                       │
-│ - Camera directions & visual metadata                             │
-│ Output: Storyboard + video production specs                       │
+│ - Scene-level breakdown (shots per chapter)                      │
+│ - Camera directions & visual metadata                            │
+│ Output: Storyboard + VideoScript                                 │
 └─────────────────────────────────────────────────────────────────┘
   ↓
-Final Output: Complete novel + enhanced narrative + quality scores + video specs
+┌─────────────────────────────────────────────────────────────────┐
+│ EXPORT SERVICES                                                   │
+│ VideoExporter  → SRT, voiceover, image prompts, CapCut, CSV, ZIP │
+│ HTMLExporter   → Self-contained HTML reader                       │
+│ TTSGenerator   → edge-tts MP3/WAV per chapter (vi voices)        │
+│ ImageGenerator → DALL-E / SD panels from image prompts           │
+└─────────────────────────────────────────────────────────────────┘
+  ↓
+Final Output: novel + enhanced story + quality scores + video assets + audio + images
 ```
 
-## Phase 2: UI Polish & Progress UX Architecture
+## UI Modularization (ui/tabs/)
 
-### Progress Bar & Status Tracking
+`app.py` is a thin shell — all tab UI logic lives in `ui/tabs/`:
 
-**Real-time progress bar** (app.py `_progress_html()`):
 ```
-Layer 1: Tao truyen | Layer 2: Mo phong | Layer 3: Video
-├─ Idle: Gray (#e8e8e8)
-├─ Active: Blue (#3b82f6) with pulse animation
-└─ Done: Green (#22c55e)
-```
-
-**Layer detection** (app.py `_detect_layer()`):
-- Parses pipeline log messages for layer keywords
-- Vietnamese diacritics support via NFD normalization (`_strip_diacritics()`)
-- Updates progress bar in real-time via progress_callback
-
-**Status badge states**:
-- `status-idle`: San sang (Ready)
-- `status-running`: Running with pulse animation
-- `status-done`: Hoan thanh (Completed)
-- `status-error`: Error state (red)
-
-### Output Tabs Consolidation (6 → 4)
-
-**Before Phase 2**:
-1. Story Draft (Layer 1)
-2. Enhanced Narrative (Layer 2)
-3. Simulation Results
-4. Video Storyboard
-5. Agent Reviews
-6. Quality Metrics
-
-**After Phase 2**:
-1. **Truyen**: Layer 1 draft + Layer 2 enhanced (split sections)
-2. **Mo Phong**: Simulation results
-3. **Video**: Storyboard & script
-4. **Danh Gia**: Agent reviews + quality scores
-
-**Benefits**: Reduced clutter, faster navigation, grouped logical outputs
-
-### Progressive Disclosure: Collapsed Accordion
-
-**Detail progress log** (app.py):
-- "Chi tiet tien trinh" accordion (collapsed by default)
-- Contains full stream of log messages
-- Users expand only when needed
-- Saves screen space, keeps UI focus on live preview
-
-### Mobile Responsive Design
-
-**Breakpoint**: `@media (max-width: 768px)`
-- Progress bar font: 12px → 10px
-- Flexbox adjustments for narrow screens
-- Touch-friendly badge/button sizing
-
-### XSS-Safe HTML Rendering
-
-**HTML escaping**:
-- All user input escaped via `html.escape()`
-- Progress step text sanitized
-- Status badge text sanitized
-- Prevents script injection via log messages
-
-### Resume Pipeline Streaming
-
-**Signature alignment**:
-```python
-# run_pipeline()
-def run_pipeline(self, ..., progress_callback=None, ...) -> PipelineOutput
-
-# resume_from_checkpoint() — NOW MATCHES
-def resume_from_checkpoint(self, ..., progress_callback=None, ...) -> PipelineOutput
+app.py
+├─ ui/tabs/pipeline_tab.py      # Genre dropdown, 13 templates, generation form
+├─ ui/tabs/web_auth_tab.py      # Chrome CDP launch, credential capture/clear
+├─ ui/tabs/output_tab.py        # Story draft / simulation / video storyboard
+├─ ui/tabs/quality_tab.py       # ChapterScore / StoryScore display
+├─ ui/tabs/export_tab.py        # TXT/MD/JSON/HTML checkboxes + ZIP download
+└─ ui/tabs/continuation_tab.py  # Chapter slider, character editor, re-enhance
 ```
 
-**Benefits**:
-- Both methods support live progress updates
-- DRY principle: consistent callback mechanism
-- Enables streaming UI updates across resume flow
+**Benefits**: each tab is independently testable; app.py only wires layout + event routing.
+
+**Output tabs** (4): Truyen | Mo Phong | Video | Danh Gia
+
+## New Service Layer Components
+
+### TTSAudioGenerator (services/tts_audio_generator.py)
+
+```
+TTSAudioGenerator
+├─ __init__(voice, rate, pitch) — defaults to Vietnamese voice
+├─ generate_chapter_audio(chapter: Chapter) → str  # path to MP3/WAV
+│  ├─ Split chapter content into segments
+│  ├─ edge-tts synthesis per segment
+│  └─ Merge + write to output/audio/
+├─ list_voices(lang="vi") → list[str]
+└─ Wired to all pipeline entry points via feedback loop callback
+```
+
+**Voices**: `vi-VN-HoaiMyNeural`, `vi-VN-NamMinhNeural` (and others via edge-tts discovery)
+**Config**: voice, rate, pitch from PipelineConfig or env
+
+### ImageGenerator (services/image_generator.py)
+
+```
+ImageGenerator
+├─ __init__(provider, api_key, api_url)
+│  └─ provider: "none" | "dalle" | "sd"
+├─ generate_panel_image(prompt: str, panel_number: int) → Optional[str]
+│  ├─ "none" → skip (returns None)
+│  ├─ "dalle" → OpenAI images.generate() → download + save
+│  └─ "sd"   → POST to IMAGE_API_URL with IMAGE_API_KEY → save
+└─ batch_generate(image_prompts: list[str]) → list[Optional[str]]
+   └─ ThreadPoolExecutor (max 3 workers)
+```
+
+**Provider selection**: `STORYFORGE_IMAGE_PROVIDER` env var
+**Credentials**: `IMAGE_API_KEY`, `IMAGE_API_URL`
+
+### CreditManager (services/credit_manager.py)
+
+```
+CreditManager
+├─ create_account(username, password) → Account
+│  └─ bcrypt.hashpw(password) stored — never plain text
+├─ authenticate(username, password) → bool
+│  └─ bcrypt.checkpw() verification
+├─ get_balance(username) → int
+├─ deduct(username, amount) → bool
+│  └─ Returns False if insufficient credits
+├─ top_up(username, amount) → int  # new balance
+└─ audit_log(username) → list[Transaction]
+```
+
+**Integration**: `orchestrator.run_pipeline()` calls `credit_manager.deduct()` before LLM call;
+raises `InsufficientCreditsError` if balance exhausted.
+
+## CI/CD Pipeline (GitHub Actions)
+
+```
+.github/workflows/ci.yml
+│
+├─ Trigger: push / PR → main
+│
+├─ Job: lint
+│  └─ flake8 --max-line-length=120
+│
+├─ Job: typecheck
+│  └─ mypy --strict (key services + models)
+│
+├─ Job: test
+│  ├─ pytest tests/ -v --cov
+│  └─ Coverage report uploaded as artifact
+│
+└─ Job: build-validate
+   └─ python -c "import app" (smoke import check)
+```
+
+**Escalation patterns**: test failures trigger agent feedback loop review (context-aware escalation).
+
+## Credit System Architecture
+
+```
+User Request
+  ↓
+CreditManager.authenticate()
+  ↓ (authenticated)
+CreditManager.deduct(cost_estimate)
+  ├─ Insufficient → raise InsufficientCreditsError → UI shows top-up prompt
+  └─ OK → proceed
+         ↓
+  PipelineOrchestrator.run_pipeline()
+         ↓
+  [On completion] log audit entry
+  [On failure]    refund partial credits
+```
+
+**Cost model**: configurable credits-per-LLM-call; TTS and image generation have separate rates.
 
 ## Layer 1: Story Generation Architecture
-
-### StoryGenerator Class Flow
 
 ```
 generate_full_story(title, genre, idea, num_chapters, ...)
 │
 ├─→ generate_characters() → list[Character]
-│
 ├─→ generate_world() → WorldSetting
-│
 ├─→ generate_outline() → (synopsis, list[ChapterOutline])
 │
-├─→ [MAIN LOOP] for each chapter:
-│   │
-│   ├─→ write_chapter(outline, context=story_context) → Chapter
-│   │   └─ Prompt includes:
-│   │      - Character descriptions & relationships
-│   │      - World details
-│   │      - Chapter outline
-│   │      - ROLLING CONTEXT (Phase 1):
-│   │        * Recent chapter summaries (rolling window)
-│   │        * Current character states (mood, arc, knowledge)
-│   │        * Recent plot events (capped to 50)
-│   │
-│   ├─→ [PARALLEL] Extract context (ThreadPoolExecutor, max_workers=3):
-│   │   ├─→ summarize_chapter() → summary_f
-│   │   ├─→ extract_character_states() → states_f (Phase 1)
-│   │   └─→ extract_plot_events() → events_f (Phase 1)
-│   │
-│   └─→ Update story_context (rolling):
-│       ├─ recent_summaries.append(summary)
-│       │  └─ Keep only last context_window_chapters summaries
-│       ├─ Merge character_states (by name, latest wins)
-│       └─ Extend plot_events (cap at 50 to prevent unbounded growth)
-│
-└─→ Return StoryDraft with:
-    - All chapters
-    - character_states (final state per character)
-    - plot_events (all tracked events)
-```
-
-### Phase 1: Character State Tracking
-
-**Problem Solved**: Without context, LLM tends to forget character progression, relationships, and major plot points across chapters.
-
-**Solution**: Rolling context window with three extracted artifacts:
-
-1. **CharacterState** (per chapter extraction)
-   ```
-   name: str
-   mood: str                    # "hopeful", "desperate", etc.
-   arc_position: str           # "rising", "crisis", "resolution"
-   knowledge: list[str]        # What character knows
-   relationship_changes: list  # How relationships evolved
-   last_action: str            # Most recent action/decision
-   ```
-
-2. **PlotEvent** (per chapter extraction)
-   ```
-   chapter_number: int
-   event: str                  # "Character X discovers Y"
-   characters_involved: list   # ["X", "Y"]
-   ```
-
-3. **StoryContext** (rolling window passed to next chapter)
-   ```
-   recent_summaries: list[str]       # Last N chapters (N = context_window_chapters)
-   character_states: list[CharacterState]  # Current state per character
-   plot_events: list[PlotEvent]      # Last 50 important events
-   total_chapters: int
-   current_chapter: int
-   ```
-
-**Extraction Prompts** (services/prompts.py):
-- `EXTRACT_CHARACTER_STATE`: Analyzes chapter content, outputs structured character state
-- `EXTRACT_PLOT_EVENTS`: Identifies major story events from chapter
-
-**LLM Parameters** (extraction vs writing):
-- Writing: temp=0.8, max_tokens=4096 (creative)
-- Extraction: temp=0.3, max_tokens=1000 (consistent, compact)
-
-### Data Flow Diagram
-
-```
-Chapter Content
-    ↓
-    ├→ LLM: summarize_chapter() ──→ Text summary
+└─→ [MAIN LOOP] for each chapter:
+    ├─→ write_chapter(outline, context=story_context) → Chapter
+    │   └─ Prompt includes rolling context (summaries, char states, plot events)
     │
-    ├→ LLM: extract_character_states() ──→ CharacterState[]
-    │                                       ├─ mood
-    │                                       ├─ arc_position
-    │                                       ├─ knowledge
-    │                                       ├─ relationship_changes
-    │                                       └─ last_action
+    ├─→ [PARALLEL] ThreadPoolExecutor(max_workers=3):
+    │   ├─→ summarize_chapter()
+    │   ├─→ extract_character_states()  (temp=0.3, max_tokens=1000)
+    │   └─→ extract_plot_events()       (temp=0.3, max_tokens=1000)
     │
-    └→ LLM: extract_plot_events() ──→ PlotEvent[]
-                                       ├─ chapter_number
-                                       ├─ event
-                                       └─ characters_involved
-
-    All three outputs → StoryContext (rolling)
-    ↓
-    next chapter: write_chapter(context=story_context)
-    └─ Receives all rolling context in prompt
+    └─→ Update story_context:
+        ├─ recent_summaries (keep last context_window_chapters)
+        ├─ character_states (merge by name, latest wins)
+        └─ plot_events (cap at 50)
 ```
 
 ## LLM Client Architecture
 
-### Dual-Backend Routing (API vs Web)
-
 ```
 LLMClient (singleton)
-├─ _is_web_backend() → bool
-│  └─ Check backend_type == "web"
+├─ generate(system, user, temperature, max_tokens, json_mode) → str
+│  ├─ localize_prompt(template, lang) → localized prompt
+│  ├─ Cache hit? → return cached
+│  ├─ branch backend_type:
+│  │  ├─ "api" → OpenAI-compatible (HTTPS)
+│  │  └─ "web" → DeepSeekWebClient (browser auth + PoW)
+│  ├─ Retry (MAX_RETRIES=3, exponential backoff)
+│  └─ Cache result
 │
-├─ generate(system_prompt, user_prompt, ...) → str
-│  ├─ Check LLMCache for hit → return cached
-│  ├─ Branch on backend_type:
-│  │  ├─ "api": Use OpenAI-compatible client (http/https)
-│  │  └─ "web": Use DeepSeekWebClient (browser auth + PoW)
-│  ├─ Retry with exponential backoff (MAX_RETRIES=3)
-│  └─ Cache result + return
-│
-└─ generate_json(system_prompt, user_prompt, max_tokens) → dict
-   ├─ Call generate() with json_mode=true
-   ├─ Parse JSON response
-   ├─ Validate against model schema (Pydantic)
-   └─ Return parsed dict
-```
-
-### Web Backend (DeepSeek Browser Auth)
-
-```
-DeepSeekWebClient
-├─ __init__() → Load cached credentials from data/auth_profiles.json
-├─ create_chat(messages, model, stream=False) → str or Iterator[str]
-│  ├─ Construct request headers (Authorization + cookies)
-│  ├─ Detect PoW challenge in response
-│  ├─ _solve_pow(challenge, salt, difficulty) → solve hash
-│  ├─ Retry with solution nonce
-│  └─ Stream or return response
-└─ get_models() → list of available models
-
-BrowserAuth
-├─ launch_chrome() → start Chrome on port 9222 (CDP)
-├─ capture_credentials() → Playwright intercepts login flow
-│  ├─ Monitor Network.responseReceived events
-│  ├─ Extract Authorization header + cookies
-│  └─ Store in data/auth_profiles.json
-└─ clear_credentials() → remove cached auth
-```
-
-### Retry Logic
-
-```
-Call LLM
-  ↓
-[Attempt 1-3]
-  ├─ Cache hit? → Return cached result
-  ├─ Call backend (API or Web)
-  │  ├─ Success → Cache + return
-  │  └─ Transient error (429, 5xx, timeout)?
-  │     └─ Exponential backoff + retry
-  │
-  └─ Non-transient error (4xx, auth) → Fail immediately
-```
-
-## Configuration Management
-
-### ConfigManager (Singleton)
-
-```
-ConfigManager (singleton)
-├─ Load from data/config.json on init
-├─ LLMConfig:
-│  ├─ API credentials (api_key, base_url, model) — for "api" backend
-│  ├─ Web auth (backend_type, web_auth_provider) — for "web" backend
-│  ├─ Temperature & max_tokens defaults
-│  ├─ Cache settings (cache_enabled, cache_ttl_days)
-│  └─ Model routing (cheap_model, cheap_base_url for cost control)
-│
-└─ PipelineConfig:
-   ├─ Layer 1: num_chapters, words_per_chapter, genre, style
-   ├─ Phase 1: context_window_chapters (default: 2)
-   ├─ Layer 2: num_simulation_rounds, num_agents, drama_intensity
-   ├─ Layer 3: shots_per_chapter, video_style
-   └─ Language: "vi" (Vietnamese)
-
-Templates (data/templates/story_templates.json)
-├─ Organized by genre (Tiên Hiệp, Huyền Huyễn, Ngôn Tình, etc.)
-├─ 13 pre-configured templates with:
-│  ├─ Title, story idea, recommended chapters/characters
-│  └─ Pre-tuned word count and writing style
-└─ Loaded on app startup for zero-config quick start
+└─ generate_json(system, user, max_tokens) → dict
+   ├─ generate() with json_mode=True
+   ├─ Parse + Pydantic validate
+   └─ Return dict
 ```
 
 ## Agent Architecture (Layer 2)
 
-### Agent Registry Pattern
-
 ```
-BaseAgent (abstract interface)
+BaseAgent (abstract)
 ├─ feedback(story_draft, context) → AgentFeedback
-├─ name, expertise, confidence
-└─ Subclasses:
-   ├─ CharacterSpecialist (consistency checks)
-   ├─ ContinuityChecker (plot holes)
-   ├─ DialogueExpert (dialogue quality)
-   ├─ DramaCritic (intensity scoring)
-   ├─ EditorInChief (final review)
-   └─ [more agents]
+└─ Subclasses: CharacterSpecialist, ContinuityChecker, DialogueExpert,
+               DramaCritic, EditorInChief
 
 AgentRegistry
 ├─ discover() → list[BaseAgent]
@@ -363,247 +227,94 @@ AgentRegistry
 └─ register(agent) → void
 ```
 
-## Quality Scoring Architecture (Phase 5)
+**Context-aware escalation**: agents detect threshold breaches (drama_intensity, coherence < 2.5)
+and escalate feedback priority; orchestrator re-runs affected chapter enhancement.
 
-### QualityScorer Flow
+## Quality Scoring Architecture
 
 ```
-PipelineOrchestrator.run_full_pipeline()
+QualityScorer.score_story(chapters, layer)
+├─ ThreadPoolExecutor(max 3 workers)
+│  └─ score_chapter(chapter, prev_context) → ChapterScore
+│     ├─ Excerpt: head 2600 + tail 1400 if > 4000 chars
+│     ├─ LLM: SCORE_CHAPTER (temp=0.2, cheap tier, max_tokens=500)
+│     └─ Clamp 1-5, compute overall (mean of 4 dimensions)
 │
-├─ [After Layer 1: story generation complete]
-│  ├─ enable_scoring=True?
-│  │  └─ QualityScorer.score_story(draft.chapters, layer=1)
-│  │     ├─ For each chapter:
-│  │     │  └─ score_chapter(chapter, prev_context) → ChapterScore
-│  │     │     ├─ Excerpt long chapters (head 2600 + tail 1400)
-│  │     │     ├─ Call LLM: SCORE_CHAPTER prompt (temp=0.2, cheap tier)
-│  │     │     ├─ Parse JSON response (4 scores)
-│  │     │     └─ Clamp to 1-5 range, compute overall (mean)
-│  │     │
-│  │     └─ Parallel pool (ThreadPoolExecutor, max 3 workers)
-│  │        └─ Aggregate to StoryScore:
-│  │           ├─ avg_coherence, avg_character, avg_drama, avg_writing
-│  │           ├─ overall = mean(4 averages)
-│  │           ├─ weakest_chapter = min overall
-│  │           └─ scoring_layer = 1 (marker)
-│  │
-│  └─ Append to output.quality_scores[]
-│     └─ Log: "Layer 1: {score.overall:.1f}/5 | Weakest: {weakest_ch}"
-│
-├─ [After Layer 2: drama enhancement complete]
-│  ├─ enable_scoring=True?
-│  │  └─ QualityScorer.score_story(enhanced.chapters, layer=2)
-│  │     └─ Same process as Layer 1
-│  │
-│  └─ Append to output.quality_scores[]
-│     └─ Log with delta: "Layer 2: {score.overall:.1f}/5 | Delta: {+0.5}"
-│
-└─ Return PipelineOutput with quality_scores[]
-   └─ UI displays via "Chat Luong" tab
+└─ Aggregate → StoryScore:
+   ├─ avg_coherence, avg_character, avg_drama, avg_writing
+   ├─ overall = mean(4 averages)
+   ├─ weakest_chapter = min overall
+   └─ scoring_layer = 1 | 2
 ```
 
-### Scoring Dimensions
+## Export Architecture
 
-| Dimension | Scale | Definition |
-|-----------|-------|-----------|
-| **coherence** | 1-5 | Plot logic, narrative flow, internal consistency |
-| **character_consistency** | 1-5 | Characters behave per established personality/arc |
-| **drama** | 1-5 | Tension, emotional engagement, pacing, stakes |
-| **writing_quality** | 1-5 | Prose clarity, vocabulary, imagery, dialogue naturalness |
+### VideoExporter
+- `export_all(output_dir)` → ZIP (SRT, voiceover, image_prompts, capcut_draft.json, timeline.csv)
+- Max 200 panels; returns None on error
 
-Each dimension independently scored; **overall = mean(4 dimensions)**
+### HTMLExporter
+- `export(output_dir)` → `.html` (self-contained, dark/light, chapter nav, character cards)
 
-### LLM-as-Judge Configuration
+### TTSAudioGenerator
+- `generate_chapter_audio(chapter)` → MP3 path
 
-**Prompt**: `SCORE_CHAPTER` (services/prompts.py)
-- Input: Chapter content (excerpted if > 4000 chars) + prev chapter context
-- Output: JSON with 4 scores (1-5) + notes field
-- Temperature: 0.2 (deterministic, low variance)
-- Model tier: "cheap" (cost control)
-- Max tokens: 500 (compact output)
+### ImageGenerator
+- `batch_generate(prompts)` → list of image paths (or None if provider="none")
 
-**Excerpt Strategy** (long chapters):
-```
-if len(content) > 4000:
-    head = content[:2600]
-    tail = content[-1400:]
-    excerpted = head + "\n...\n" + tail
-```
-Preserves beginning (setup) and ending (consequences) while cutting middle.
+### Orchestrator Export Methods
 
-## Export & Download Architecture (Phase 4)
-
-### Export Methods
-
-**export_output(output_dir, formats)** → `list[str]`
-- Generates files in specified formats
-- Returns list of file paths (empty if no output generated)
-- Formats: TXT, Markdown, JSON
-- Files timestamped: `{timestamp}_{type}.{ext}`
-
-| Format | Files Generated | Content |
-|--------|-----------------|---------|
-| TXT | `draft.txt`, `enhanced.txt` | Story chapters (plain text) |
-| JSON | `video_script.json`, `simulation.json` | Structured data |
-| Markdown | `story.md` | Story with metadata (genre, drama_score) |
-
-**export_zip(output_dir, formats)** → `str`
-- Bundles all exported files into single ZIP
-- Returns ZIP file path (empty string if no files)
-- Archive name: `{timestamp}_novel_auto.zip`
-- Preserves basenames (removes path prefixes)
-
-**_export_markdown(output_dir, timestamp)** → `Optional[str]`
-- Private method: writes Markdown with metadata
-- Prefers enhanced_story, fallback to story_draft
-- Returns file path or None if no story available
-- Includes: Title, Genre, Drama Score, Chapters
-
-### UI Integration (app.py)
-
-**Export widgets** (Pipeline tab):
 ```python
-export_formats = gr.CheckboxGroup(
-    choices=["TXT", "Markdown", "JSON"],
-    value=["TXT", "Markdown", "JSON"]
-)
-export_btn = gr.Button("Xuat file")          # Individual files
-zip_btn = gr.Button("Download All (ZIP)")    # Bundle
-export_files_output = gr.File(               # gr.File widget
-    label="File xuat", file_count="multiple"
-)
+orchestrator.export_video_assets(output_dir)  → Optional[str]  # ZIP path
+orchestrator.export_html(output_dir)          → Optional[str]  # HTML path
+orchestrator.export_audio(output_dir)         → list[str]      # MP3 paths per chapter
+orchestrator.export_images(output_dir)        → list[str]      # image paths per panel
 ```
 
-**Event handlers**:
-- `export_btn.click()` → `export_files()` → returns `list[str]` paths
-- `zip_btn.click()` → `export_zip_handler()` → returns `[zip_path]`
-- Both update `export_files_output` (gr.File displays downloads)
-
-### File Output Location
-- Default: `output/` directory
-- Timestamped: `YYYYMMDD_HHMMSS_{type}.{ext}`
-- ZIP: `YYYYMMDD_HHMMSS_novel_auto.zip`
-
-## Error Handling Strategy
-
-### LLM Client
-- **Transient errors** (429, 5xx, timeout): Retry with backoff
-- **Non-transient** (invalid auth, 400): Fail fast
-- **Cache hit**: No LLM call needed
-
-### Extraction Methods
-- Parse error in CharacterState/PlotEvent → Log + skip entry
-- LLM call fails → Fallback to empty list, log warning
-- No rollback; continue with next chapter
-
-### Export Methods
-- No files generated → return empty list/string
-- File write error → Log error, skip file
-- ZIP creation error → Log error, return empty string
-- UI handles None/empty gracefully (no download shown)
-
-### Schema Validation
-- Pydantic models auto-validate on instantiation
-- Invalid data → validation error logged, entry skipped
-- Type coercion attempted (int to str, etc.)
-
-## Token Efficiency
-
-### Chapter Writing (Layer 1)
-- `words_per_chapter`: ~2000 words (context)
-- `max_tokens`: 4096 (output)
-- Total: ~6000 tokens per chapter
-
-### Context Extraction (Phase 1)
-- Summary: 500 tokens max
-- Character states: 1000 tokens max
-- Plot events: 1000 tokens max
-- Total: ~2500 tokens per chapter
-
-### Quality Scoring (Phase 5)
-- Per chapter: ~150-200 tokens input (excerpted content + context)
-- Per chapter: ~50-100 tokens output (4 scores + notes)
-- 10 chapters: ~3000 tokens total
-- Model: "cheap" tier (lower cost than writing)
-- Parallelization: max 3 workers (ThreadPoolExecutor)
-
-**Rolling context budget**:
-- Keep only last `context_window_chapters` summaries
-- Cap plot_events to 50 (prevents unbounded growth)
-- Character states replaced per chapter (no accumulation)
-
-## StoryForge Phase 1: Browser Web Auth Architecture
-
-### Entry Point: Gradio Web UI (app.py)
+## Configuration Management
 
 ```
-┌─────────────────────────────────────────┐
-│ Gradio Web Interface                     │
-├─────────────────────────────────────────┤
-│ Web Auth Tab:                            │
-│ ├─ "Tao Chrome CDP" → launch_chrome()   │
-│ ├─ "Bat dau dang nhap" → capture_creds()│
-│ └─ Status: shows auth provider + state  │
-│                                          │
-│ Pipeline Tab:                            │
-│ ├─ Genre dropdown ────────┐             │
-│ │                         ↓             │
-│ ├─ Template dropdown ← update_templates()│
-│ ├─ "Tao ngay" button ───→ apply_template
-│ │                         + generate     │
-│ └─ Full form (optional customization)   │
-│                                          │
-│ Output Tabs:                             │
-│ ├─ Story output                         │
-│ ├─ Quality metrics                      │
-│ └─ Export (TXT, MD, JSON, ZIP)          │
-└─────────────────────────────────────────┘
-          ↓
-    Config → backend_type
-          ↓
-    ┌─────────────────────────────────────┐
-    │ LLMClient (Singleton)               │
-    │ ├─ branch: backend_type == "web"   │
-    │ │  ├─ Load creds from auth_profiles│
-    │ │  └─ DeepSeekWebClient (HTTP)     │
-    │ └─ branch: backend_type == "api"   │
-    │    └─ OpenAI-compatible (HTTPS)    │
-    └─────────────────────────────────────┘
-          ↓
-    StoryGenerator.generate_full_story()
+ConfigManager (singleton)
+├─ LLMConfig:
+│  ├─ api_key, base_url, model
+│  ├─ backend_type ("api" | "web"), web_auth_provider
+│  ├─ temperature, max_tokens, cache settings
+│  └─ cheap_model, cheap_base_url
+│
+└─ PipelineConfig:
+   ├─ num_chapters, words_per_chapter, genre, style
+   ├─ context_window_chapters (default: 2)
+   ├─ Layer 2: num_simulation_rounds, num_agents, drama_intensity
+   ├─ Layer 3: shots_per_chapter, video_style
+   └─ language: "vi" | "en"
+
+Environment overrides:
+├─ STORYFORGE_IMAGE_PROVIDER (none | dalle | sd)
+├─ IMAGE_API_KEY
+└─ IMAGE_API_URL
 ```
 
-### Browser Auth Flow
+## Error Handling
 
-```
-User clicks "Tao Chrome CDP"
-  ↓
-BrowserAuth.launch_chrome()
-├─ Find Chrome executable (Windows/Mac/Linux)
-├─ Launch with --remote-debugging-port=9222 (CDP)
-└─ Connect via Playwright
-  ↓
-User logs into DeepSeek
-  ↓
-Playwright intercepts Network.responseReceived
-├─ Monitor for Authorization header
-├─ Extract: "Bearer {token}"
-└─ Extract: Cookies (session, __Secure-*)
-  ↓
-BrowserAuth.capture_credentials()
-├─ Store in data/auth_profiles.json
-├─ Format: {"provider": "deepseek-web", "token": "...", "cookies": {...}}
-└─ Return to UI: "Authenticated: DeepSeek"
-  ↓
-LLMClient reloads credentials on next generate() call
-├─ Check data/auth_profiles.json for "deepseek-web"
-├─ Pass to DeepSeekWebClient
-└─ All subsequent requests use captured credentials
-```
+- **LLM**: Transient (429, 5xx) → retry/backoff; non-transient (4xx) → fail fast
+- **Extraction**: Parse error → log + skip; fallback to empty list
+- **Credits**: InsufficientCreditsError → surface to UI, pipeline aborted
+- **TTS/Image**: Provider error → log warning, skip; pipeline continues
+- **Export**: File write error → log, skip that format; ZIP still attempted
+
+## Token Budget
+
+| Operation | Temp | Max Tokens | Notes |
+|-----------|------|-----------|-------|
+| Chapter writing | 0.8 | 4096 | Creative, high variance |
+| State extraction | 0.3 | 1000 | Compact, consistent |
+| Chapter scoring | 0.2 | 500 | Deterministic |
+| Summarization | 0.3 | 500 | Brief |
+
+Rolling context budget: last `context_window_chapters` summaries + char states (replaced each chapter) + plot_events (cap 50).
 
 ---
 
-**Architectural Principle**: Modular layers with clear handoffs. Web auth is transparent to pipeline—same generation code works with API or web backend.
+**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Web auth, credits, TTS, and image generation are transparent to core pipeline logic.
 
-**Last Updated**: 2026-03-23 (StoryForge Phase 1: Web Auth + Templates)
-**Version**: 1.3
+**Last Updated**: 2026-03-24 | **Version**: 1.5 (Phase 7: TTS, Images, Credits, CI/CD, UI Modularization)

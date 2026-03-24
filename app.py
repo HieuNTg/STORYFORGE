@@ -19,6 +19,23 @@ import gradio as gr
 from config import ConfigManager
 from pipeline.orchestrator import PipelineOrchestrator
 from services.i18n import I18n
+from services.image_prompt_generator import ImagePromptGenerator
+from ui.handlers import (
+    handle_export_files, handle_export_zip, handle_export_video_assets,
+    get_checkpoint_choices,
+    handle_load_checkpoint, handle_add_chapters, handle_delete_chapters,
+    handle_update_character, handle_enhance, handle_generate_images,
+)
+from ui.tabs import (
+    build_pipeline_tab,
+    build_story_tab,
+    build_simulation_tab,
+    build_video_tab,
+    build_review_tab,
+    build_export_tab,
+    build_account_tab,
+    build_settings_tab,
+)
 
 # Logging
 logging.basicConfig(
@@ -74,6 +91,7 @@ def _styles() -> list[str]:
 
 def _drama_levels() -> list[str]:
     return [_t(k) for k in _DRAMA_KEYS]
+
 
 # Template path
 TEMPLATES_PATH = os.path.join(
@@ -132,8 +150,6 @@ def _detect_layer(msg: str) -> int:
 def create_ui():
     """Tạo giao diện Gradio."""
 
-    config = ConfigManager()
-
     with gr.Blocks(
         title="StoryForge",
         theme=gr.themes.Soft(),
@@ -181,6 +197,17 @@ def create_ui():
             .gr-column { min-width: 100% !important; }
             .progress-segment { font-size: 10px; }
         }
+        /* Touch-friendly */
+        @media (max-width: 768px) {
+            .gradio-button { min-height: 44px; }
+        }
+        @media (max-width: 480px) {
+            .tab-nav { flex-wrap: wrap; }
+            .tab-nav button { flex: 1 1 45%; font-size: 11px; }
+        }
+        /* Compact mode */
+        .compact-mode .prose { font-size: 14px; }
+        .compact-mode .block { padding: 8px !important; }
         """,
     ) as app:
         gr.Markdown(
@@ -195,75 +222,22 @@ def create_ui():
             with gr.TabItem(_t("tab.pipeline")):
                 with gr.Row():
                     with gr.Column(scale=1):
-                        # Quick start section
-                        gr.Markdown(_t("section.quick_start"))
-                        genre_input = gr.Dropdown(
-                            choices=_genres(), value=_genres()[0], label=_t("label.genre"),
-                        )
-                        template_dropdown = gr.Dropdown(
-                            label=_t("label.template"),
-                            choices=[], interactive=True,
-                            info=_t("label.template_info"),
-                        )
-                        quick_start_btn = gr.Button(
-                            _t("btn.create_now"), variant="primary", size="lg",
-                        )
-
-                        gr.Markdown(_t("section.story_info"))
-                        title_input = gr.Textbox(
-                            label=_t("label.title"), placeholder=_t("label.title_placeholder"),
-                        )
-                        style_input = gr.Dropdown(
-                            choices=_styles(), value=_styles()[0],
-                            label=_t("label.style"),
-                        )
-                        idea_input = gr.Textbox(
-                            label=_t("label.idea"),
-                            placeholder=_t("label.idea_placeholder"),
-                            lines=4,
-                        )
-
-                        gr.Markdown(_t("section.config"))
-                        num_chapters = gr.Slider(
-                            1, 50, value=5, step=1, label=_t("label.num_chapters"),
-                        )
-                        num_characters = gr.Slider(
-                            2, 15, value=5, step=1, label=_t("label.num_characters"),
-                        )
-                        word_count = gr.Slider(
-                            500, 5000, value=2000, step=100,
-                            label=_t("label.word_count"),
-                        )
-
-                        gr.Markdown(_t("section.layer2"))
-                        sim_rounds = gr.Slider(
-                            1, 10, value=3, step=1,
-                            label=_t("label.sim_rounds"),
-                        )
-                        drama_level = gr.Dropdown(
-                            choices=_drama_levels(), value=_drama_levels()[2],
-                            label=_t("label.drama_level"),
-                        )
-
-                        gr.Markdown(_t("section.layer3"))
-                        shots_per_ch = gr.Slider(
-                            4, 20, value=8, step=1,
-                            label=_t("label.shots_per_ch"),
-                        )
-
-                        gr.Markdown(_t("section.agent_review"))
-                        enable_agents_cb = gr.Checkbox(
-                            value=True,
-                            label=_t("label.enable_agents"),
-                        )
-                        enable_scoring_cb = gr.Checkbox(
-                            value=True,
-                            label=_t("label.enable_scoring"),
-                        )
-
-                        run_btn = gr.Button(
-                            _t("btn.run_pipeline"), variant="primary", size="lg",
-                        )
+                        form = build_pipeline_tab(_t, _genres, _styles, _drama_levels)
+                        genre_input = form["genre_input"]
+                        template_dropdown = form["template_dropdown"]
+                        quick_start_btn = form["quick_start_btn"]
+                        title_input = form["title_input"]
+                        style_input = form["style_input"]
+                        idea_input = form["idea_input"]
+                        num_chapters = form["num_chapters"]
+                        num_characters = form["num_characters"]
+                        word_count = form["word_count"]
+                        sim_rounds = form["sim_rounds"]
+                        drama_level = form["drama_level"]
+                        shots_per_ch = form["shots_per_ch"]
+                        enable_agents_cb = form["enable_agents_cb"]
+                        enable_scoring_cb = form["enable_scoring_cb"]  # enable_scoring_cb = gr.Checkbox (see ui/tabs/pipeline_tab.py)
+                        run_btn = form["run_btn"]
 
                     with gr.Column(scale=2):
                         # Status + Progress bar
@@ -284,43 +258,35 @@ def create_ui():
                                 label=_t("label.log"), lines=8, interactive=False,
                             )
 
-                        # Output tabs (6 → 4)
+                        # Output tabs
                         with gr.Tabs():
                             with gr.TabItem(_t("tab.story")):
-                                gr.Markdown(_t("output.draft_header"))
-                                draft_output = gr.Textbox(
-                                    label=_t("label.draft"), lines=15, interactive=False,
-                                )
-                                gr.Markdown(_t("output.enhanced_header"))
-                                enhanced_output = gr.Textbox(
-                                    label=_t("label.enhanced"), lines=15,
-                                    interactive=False,
-                                )
+                                story = build_story_tab(_t)
+                                draft_output = story["draft_output"]
+                                enhanced_output = story["enhanced_output"]
                             with gr.TabItem(_t("tab.simulation")):
-                                sim_output = gr.Textbox(
-                                    label=_t("label.sim_result"), lines=20,
-                                    interactive=False,
-                                )
+                                sim = build_simulation_tab(_t)
+                                sim_output = sim["sim_output"]
+                                escalation_display = sim["escalation_display"]
                             with gr.TabItem(_t("tab.video")):
-                                video_output = gr.Textbox(
-                                    label=_t("label.storyboard"), lines=20,
-                                    interactive=False,
-                                )
-                                gr.Markdown(_t("output.video_export"))
-                                video_export_btn = gr.Button(
-                                    _t("btn.export_video"), variant="secondary",
-                                )
-                                video_export_file = gr.File(
-                                    label=_t("label.video_assets"),
-                                )
+                                vid = build_video_tab(_t)
+                                video_output = vid["video_output"]
+                                video_export_btn = vid["video_export_btn"]
+                                video_export_file = vid["video_export_file"]
+                                image_prompts_df = vid["image_prompts_df"]
+                                image_provider_dd = vid["image_provider_dd"]
+                                generate_images_btn = vid["generate_images_btn"]
+                                image_gallery = vid["image_gallery"]
+                                tts_voice_dd = vid["tts_voice_dd"]
+                                generate_tts_btn = vid["generate_tts_btn"]
+                                compose_video_btn = vid["compose_video_btn"]
+                                tts_audio_output = vid["tts_audio_output"]
+                                video_output_file = vid["video_output_file"]
+                                video_status = vid["video_status"]
                             with gr.TabItem(_t("tab.review")):
-                                agent_output = gr.Textbox(
-                                    label=_t("label.agent_result"), lines=12,
-                                    interactive=False,
-                                )
-                                quality_output = gr.Markdown(
-                                    value=_t("output.no_quality"),
-                                )
+                                rev = build_review_tab(_t)
+                                agent_output = rev["agent_output"]
+                                quality_output = rev["quality_output"]  # quality_output = gr.Markdown (see ui/tabs/review_tab.py)
 
                         export_formats = gr.CheckboxGroup(
                             choices=["TXT", "Markdown", "JSON", "HTML"],
@@ -337,7 +303,8 @@ def create_ui():
                         gr.Markdown(_t("section.checkpoint"))
                         with gr.Row():
                             checkpoint_dropdown = gr.Dropdown(
-                                label=_t("label.resume_checkpoint"), choices=[], interactive=True,
+                                label=_t("label.resume_checkpoint"),
+                                choices=[], interactive=True,
                             )
                             refresh_ckpt_btn = gr.Button(_t("btn.refresh"), scale=0)
                         resume_btn = gr.Button(_t("btn.resume"), variant="secondary")
@@ -349,7 +316,9 @@ def create_ui():
                                 lines=3, interactive=False,
                                 value=_t("continue.no_story"),
                             )
-                            load_ckpt_btn = gr.Button(_t("btn.refresh") + " + Load", variant="secondary")
+                            load_ckpt_btn = gr.Button(
+                                _t("btn.refresh") + " + Load", variant="secondary",
+                            )
 
                             with gr.Row():
                                 continue_chapters = gr.Slider(
@@ -392,11 +361,14 @@ def create_ui():
                                 label=_t("continue.log"), lines=5, interactive=False,
                             )
 
-                # State
+                # Shared orchestrator state
                 orchestrator_state = gr.State(None)
+                # Shared user state (also used in account tab)
+                user_state = gr.State(None)
 
+                # ── Output formatter ──
                 def _format_output(output, logs, orch):
-                    """Format PipelineOutput for UI display. Returns 11-tuple."""
+                    """Format PipelineOutput for UI display. Returns 13-tuple."""
                     draft_text = ""
                     if output and output.story_draft:
                         d = output.story_draft
@@ -493,7 +465,6 @@ def create_ui():
                                 )
                             quality_text += "\n---\n\n"
 
-                        # Show improvement delta if both layers scored
                         if len(output.quality_scores) >= 2:
                             l1 = output.quality_scores[0].overall
                             l2 = output.quality_scores[1].overall
@@ -501,21 +472,54 @@ def create_ui():
                             sign = "+" if diff > 0 else ""
                             quality_text += _t("quality.improvement", sign=sign, diff=f"{diff:.1f}") + "\n"
 
-                    status = "done" if output else "error"
+                    # Build image prompts table from video script panels
+                    image_prompts_rows = []
+                    if output and output.video_script:
+                        img_gen = ImagePromptGenerator()
+                        chars_map = {}
+                        if output.story_draft:
+                            chars_map = {c.name: c.appearance or c.personality for c in output.story_draft.characters}
+                        for panel in output.video_script.panels:
+                            ip = img_gen.generate_from_panel(panel, chars_map)
+                            image_prompts_rows.append([
+                                f"Ch.{ip.chapter_number} P.{ip.panel_number}",
+                                ip.dalle_prompt,
+                                ip.sd_prompt,
+                            ])
+
+                    # Build escalation events from simulation result (high drama_score)
+                    escalation_data = None
+                    if output and output.simulation_result:
+                        high_drama = [
+                            {
+                                "event_type": e.event_type,
+                                "description": e.description,
+                                "drama_score": round(e.drama_score, 2),
+                                "characters": e.characters_involved,
+                            }
+                            for e in output.simulation_result.events
+                            if e.drama_score >= 0.7
+                        ]
+                        if high_drama:
+                            escalation_data = high_drama
+
+                    run_status = "done" if output else "error"
                     status_label = _t("status.done") if output else _t("status.error")
                     return (
-                        f'<span class="status-badge status-{status}">{_html.escape(status_label)}</span>',
+                        f'<span class="status-badge status-{run_status}">{_html.escape(status_label)}</span>',
                         _progress_html(4 if output else 0, _t("status.complete_label") if output else ""),
                         "",  # clear live preview
                         "\n".join(output.logs if output else logs),
                         draft_text, sim_text, enhanced_text, video_text, agent_text,
                         quality_text or _t("output.no_quality_alt"), orch,
+                        image_prompts_rows or None, escalation_data,
                     )
 
+                # ── Pipeline runner ──
                 def run_pipeline(
                     title, genre, style, idea, n_chapters, n_chars,
                     w_count, n_sim, _drama, n_shots, agents_enabled,
-                    scoring_enabled,
+                    scoring_enabled, user_state_data=None,
                 ):
                     errors = []
                     if not idea or len(idea.strip()) < 10:
@@ -526,20 +530,38 @@ def create_ui():
                         yield (
                             _status_badge("status-error", "status.error"),
                             _progress_html(0),
-                            "", "\n".join(errors), "", "", "", "", "", "", None,
+                            "", "\n".join(errors), "", "", "", "", "", "", None, None, None,
                         )
                         return
+
+                    # ── Credit check (logged-in users only) ──
+                    if user_state_data:
+                        try:
+                            from models.schemas import UserProfile
+                            from services.credit_manager import CreditManager
+                            profile = UserProfile(**user_state_data)
+                            cm = CreditManager()
+                            allowed, msg = cm.check_credits(profile, "story_generation")
+                            if not allowed:
+                                yield (
+                                    _status_badge("status-error", "status.error"),
+                                    _progress_html(0),
+                                    "", msg, "", "", "", "", "", "", None, None, None,
+                                )
+                                return
+                            cm.deduct_credits(profile, "story_generation")
+                        except Exception:
+                            pass  # Non-blocking: skip credit check on error
 
                     orch = PipelineOrchestrator()
                     logs = []
                     progress_queue = queue.Queue()
-                    stream_text = [""]  # mutable for closure
+                    stream_text = [""]
 
                     def on_progress(msg):
                         logs.append(msg)
                         progress_queue.put(("log", msg))
 
-                    # Throttled stream callback (200ms batches)
                     last_stream_time = [0.0]
 
                     def on_stream(partial_text):
@@ -549,7 +571,6 @@ def create_ui():
                             progress_queue.put(("stream", partial_text))
                             last_stream_time[0] = now
 
-                    # Chạy pipeline trong thread
                     result = [None]
 
                     def _run():
@@ -572,12 +593,10 @@ def create_ui():
                     thread = threading.Thread(target=_run)
                     thread.start()
 
-                    # Queue-based progress + stream updates
                     current_preview = ""
                     while thread.is_alive():
                         try:
                             msg_type, msg_data = progress_queue.get(timeout=0.1)
-                            # Drain remaining
                             while not progress_queue.empty():
                                 try:
                                     t, d = progress_queue.get_nowait()
@@ -592,52 +611,60 @@ def create_ui():
                                 _status_badge("status-running", "status.running"),
                                 _progress_html(layer, logs[-1] if logs else ""),
                                 current_preview, "\n".join(logs),
-                                "", "", "", "", "", "", None,
+                                "", "", "", "", "", "", None, None, None,
                             )
                         except queue.Empty:
                             continue
 
                     thread.join()
 
-                    # Flush final stream content before clearing preview
                     if stream_text[0]:
                         layer = _detect_layer(logs[-1]) if logs else 0
                         yield (
                             _status_badge("status-running", "status.running"),
                             _progress_html(layer, logs[-1] if logs else ""),
                             stream_text[0], "\n".join(logs),
-                            "", "", "", "", "", "", None,
+                            "", "", "", "", "", "", None, None, None,
                         )
 
                     output = result[0]
                     yield _format_output(output, logs, orch)
 
+                # Pipeline outputs list (reused by run + quick_start + resume)
+                _pipeline_outputs = [
+                    status_html, progress_bar, live_preview, progress_log,
+                    draft_output, sim_output, enhanced_output, video_output,
+                    agent_output, quality_output, orchestrator_state,
+                    image_prompts_df, escalation_display,
+                ]
+                _pipeline_inputs = [
+                    title_input, genre_input, style_input, idea_input,
+                    num_chapters, num_characters, word_count,
+                    sim_rounds, drama_level, shots_per_ch, enable_agents_cb,
+                    enable_scoring_cb, user_state,
+                ]
+
                 run_btn.click(
                     fn=run_pipeline,
-                    inputs=[
-                        title_input, genre_input, style_input, idea_input,
-                        num_chapters, num_characters, word_count,
-                        sim_rounds, drama_level, shots_per_ch, enable_agents_cb,
-                        enable_scoring_cb,
-                    ],
+                    inputs=_pipeline_inputs,
                     outputs=[
                         status_html, progress_bar, live_preview, progress_log,
                         draft_output, sim_output, enhanced_output, video_output,
                         agent_output, quality_output, orchestrator_state,
+                        image_prompts_df, escalation_display,
                     ],
                 )
+                quick_start_btn.click(fn=run_pipeline, inputs=_pipeline_inputs, outputs=_pipeline_outputs)
 
-                # Template handlers
+                # ── Template handlers ──
                 templates_data = _load_templates()
 
                 def update_template_choices(genre):
-                    """Update template dropdown when genre changes."""
                     genre_templates = templates_data.get(genre, [])
                     choices = [t["title"] for t in genre_templates]
                     return gr.update(choices=choices, value=choices[0] if choices else None)
 
                 def apply_template(genre, template_title):
-                    """Auto-fill form fields from selected template."""
                     genre_templates = templates_data.get(genre, [])
                     for t in genre_templates:
                         if t["title"] == template_title:
@@ -663,49 +690,14 @@ def create_ui():
                     outputs=[title_input, style_input, idea_input,
                              num_chapters, num_characters, word_count],
                 )
+                app.load(fn=update_template_choices, inputs=[genre_input], outputs=[template_dropdown])
 
-                # Quick start — select template then run pipeline
-                quick_start_btn.click(
-                    fn=run_pipeline,
-                    inputs=[
-                        title_input, genre_input, style_input, idea_input,
-                        num_chapters, num_characters, word_count,
-                        sim_rounds, drama_level, shots_per_ch, enable_agents_cb,
-                        enable_scoring_cb,
-                    ],
-                    outputs=[
-                        status_html, progress_bar, live_preview, progress_log,
-                        draft_output, sim_output, enhanced_output, video_output,
-                        agent_output, quality_output, orchestrator_state,
-                    ],
-                )
-
-                # Load initial templates for default genre
-                app.load(
-                    fn=update_template_choices,
-                    inputs=[genre_input],
-                    outputs=[template_dropdown],
-                )
-
+                # ── Export handlers ──
                 def export_files(orch, formats):
-                    if orch is None:
-                        return None
-                    try:
-                        paths = orch.export_output(formats=formats)
-                        return paths if paths else None
-                    except Exception as e:
-                        logger.error(f"Export failed: {e}")
-                        return None
+                    return handle_export_files(orch, formats)
 
                 def export_zip_handler(orch, formats):
-                    if orch is None:
-                        return None
-                    try:
-                        zip_path = orch.export_zip(formats=formats)
-                        return [zip_path] if zip_path else None
-                    except Exception as e:
-                        logger.error(f"ZIP export failed: {e}")
-                        return None
+                    return handle_export_zip(orch, formats, _t)
 
                 export_btn.click(
                     fn=export_files,
@@ -722,14 +714,10 @@ def create_ui():
                     if orch is None:
                         gr.Info(_t("info.run_pipeline_first"))
                         return None
-                    try:
-                        zip_path = orch.export_video_assets()
-                        if not zip_path:
-                            gr.Info(_t("info.no_video_script"))
-                        return zip_path if zip_path else None
-                    except Exception as e:
-                        logger.error(f"Video asset export failed: {e}")
-                        return None
+                    result = handle_export_video_assets(orch, _t)
+                    if result is None:
+                        gr.Info(_t("info.no_video_script"))
+                    return result
 
                 video_export_btn.click(
                     fn=export_video_assets,
@@ -737,9 +725,48 @@ def create_ui():
                     outputs=[video_export_file],
                 )
 
+                # ── Image generation handler ──
+                def generate_images_handler(orch, provider):
+                    paths, msg = handle_generate_images(orch, provider, t=_t)
+                    if msg:
+                        gr.Info(msg)
+                    return paths or []
+
+                generate_images_btn.click(
+                    fn=generate_images_handler,
+                    inputs=[orchestrator_state, image_provider_dd],
+                    outputs=[image_gallery],
+                )
+
+                # ── TTS Audio handler ──
+                def tts_audio_handler(orch, voice):
+                    from ui.handlers import handle_export_tts_audio
+                    paths, msg = handle_export_tts_audio(orch, voice)
+                    if msg:
+                        gr.Info(msg)
+                    return paths or []
+
+                generate_tts_btn.click(
+                    fn=tts_audio_handler,
+                    inputs=[orchestrator_state, tts_voice_dd],
+                    outputs=[tts_audio_output],
+                )
+
+                # ── Video compose handler ──
+                def compose_video_handler(orch, voice):
+                    from ui.handlers import handle_compose_video
+                    audio_files, video_file, status = handle_compose_video(orch, voice)
+                    return audio_files or [], video_file, status
+
+                compose_video_btn.click(
+                    fn=compose_video_handler,
+                    inputs=[orchestrator_state, tts_voice_dd],
+                    outputs=[tts_audio_output, video_output_file, video_status],
+                )
+
+                # ── Checkpoint handlers ──
                 def refresh_checkpoints():
-                    ckpts = PipelineOrchestrator.list_checkpoints()
-                    choices = [f"{c['file']} ({c['modified']}, {c['size_kb']}KB)" for c in ckpts]
+                    choices = get_checkpoint_choices()
                     return gr.update(choices=choices, value=choices[0] if choices else None)
 
                 refresh_ckpt_btn.click(fn=refresh_checkpoints, outputs=[checkpoint_dropdown])
@@ -749,7 +776,7 @@ def create_ui():
                         yield (
                             _status_badge("status-error", "status.error"),
                             _progress_html(0),
-                            "", _t("error.select_checkpoint"), "", "", "", "", "", "", None,
+                            "", _t("error.select_checkpoint"), "", "", "", "", "", "", None, None, None,
                         )
                         return
 
@@ -808,7 +835,7 @@ def create_ui():
                                 _status_badge("status-running", "status.running"),
                                 _progress_html(layer, logs[-1] if logs else ""),
                                 current_preview, "\n".join(logs),
-                                "", "", "", "", "", "", None,
+                                "", "", "", "", "", "", None, None, None,
                             )
                         except queue.Empty:
                             continue
@@ -821,7 +848,7 @@ def create_ui():
                             _status_badge("status-running", "status.running"),
                             _progress_html(layer, logs[-1] if logs else ""),
                             stream_text[0], "\n".join(logs),
-                            "", "", "", "", "", "", None,
+                            "", "", "", "", "", "", None, None, None,
                         )
 
                     output = result[0]
@@ -830,37 +857,12 @@ def create_ui():
                 resume_btn.click(
                     fn=resume_pipeline,
                     inputs=[checkpoint_dropdown, sim_rounds, shots_per_ch, word_count, enable_agents_cb],
-                    outputs=[
-                        status_html, progress_bar, live_preview, progress_log,
-                        draft_output, sim_output, enhanced_output, video_output,
-                        agent_output, quality_output, orchestrator_state,
-                    ],
+                    outputs=_pipeline_outputs,
                 )
 
                 # ── Continuation handlers ──
-                def _ckpt_path(ckpt_choice):
-                    """Extract checkpoint file path from dropdown choice."""
-                    if not ckpt_choice:
-                        return None
-                    filename = ckpt_choice.split(" (")[0]
-                    return os.path.join(PipelineOrchestrator.CHECKPOINT_DIR, filename)
-
                 def load_checkpoint_for_continuation(ckpt_choice, orch):
-                    """Load checkpoint and show story summary."""
-                    path = _ckpt_path(ckpt_choice)
-                    if not path:
-                        return _t("continue.no_checkpoint"), orch
-                    if orch is None:
-                        orch = PipelineOrchestrator()
-                    orch.load_from_checkpoint(path)
-                    d = orch.output.story_draft
-                    if d:
-                        summary = _t("continue.loaded", title=d.title, chapters=len(d.chapters))
-                        summary += f"\n{d.synopsis[:200]}..." if d.synopsis else ""
-                        chars = ", ".join(c.name for c in d.characters[:8])
-                        summary += f"\n{_t('format.characters_label', names=chars)}"
-                        return summary, orch
-                    return _t("continue.no_story"), orch
+                    return handle_load_checkpoint(ckpt_choice, orch, _t)
 
                 load_ckpt_btn.click(
                     fn=load_checkpoint_for_continuation,
@@ -869,15 +871,7 @@ def create_ui():
                 )
 
                 def add_chapters_handler(orch, n_chapters, w_count):
-                    if orch is None or not orch.output.story_draft:
-                        return _t("continue.no_story"), orch
-                    logs = []
-                    orch.continue_story(
-                        additional_chapters=int(n_chapters),
-                        word_count=int(w_count),
-                        progress_callback=lambda m: logs.append(m),
-                    )
-                    return "\n".join(logs) + "\n" + _t("continue.chapters_added", count=int(n_chapters)), orch
+                    return handle_add_chapters(orch, n_chapters, w_count, _t)
 
                 continue_btn.click(
                     fn=add_chapters_handler,
@@ -886,10 +880,7 @@ def create_ui():
                 )
 
                 def delete_chapters_handler(orch, from_ch):
-                    if orch is None or not orch.output.story_draft:
-                        return _t("continue.no_story"), orch
-                    orch.remove_chapters(int(from_ch))
-                    return _t("continue.chapters_deleted", from_ch=int(from_ch)), orch
+                    return handle_delete_chapters(orch, from_ch, _t)
 
                 delete_btn.click(
                     fn=delete_chapters_handler,
@@ -898,19 +889,7 @@ def create_ui():
                 )
 
                 def update_char_handler(orch, name, personality, motivation):
-                    if orch is None or not orch.output.story_draft:
-                        return _t("continue.no_story"), orch
-                    if not name:
-                        return _t("continue.char_name"), orch
-                    updates = {}
-                    if personality:
-                        updates["personality"] = personality
-                    if motivation:
-                        updates["motivation"] = motivation
-                    if not updates:
-                        return _t("continue.char_personality") + " / " + _t("continue.char_motivation"), orch
-                    orch.update_character(name, updates)
-                    return _t("continue.char_updated", name=name), orch
+                    return handle_update_character(orch, name, personality, motivation, _t)
 
                 update_char_btn.click(
                     fn=update_char_handler,
@@ -920,15 +899,7 @@ def create_ui():
                 )
 
                 def enhance_handler(orch, n_sim, w_count):
-                    if orch is None or not orch.output.story_draft:
-                        return _t("continue.no_story"), orch
-                    logs = []
-                    orch.enhance_chapters(
-                        num_sim_rounds=int(n_sim),
-                        word_count=int(w_count),
-                        progress_callback=lambda m: logs.append(m),
-                    )
-                    return "\n".join(logs) + "\n" + _t("continue.enhanced"), orch
+                    return handle_enhance(orch, n_sim, w_count, _t)
 
                 enhance_btn.click(
                     fn=enhance_handler,
@@ -937,211 +908,25 @@ def create_ui():
                 )
 
             # ═══════════════════════════════════════
-            # TAB 2: CÀI ĐẶT
+            # TAB: XUẤT FILE
+            # ═══════════════════════════════════════
+            with gr.TabItem(_t("tab.export")):
+                build_export_tab(_t, orchestrator_state)
+
+            # ═══════════════════════════════════════
+            # TAB: TÀI KHOẢN
+            # ═══════════════════════════════════════
+            with gr.TabItem(_t("tab.account")):
+                build_account_tab(_t, orchestrator_state, user_state=user_state)
+
+            # ═══════════════════════════════════════
+            # TAB: CÀI ĐẶT
             # ═══════════════════════════════════════
             with gr.TabItem(_t("tab.settings")):
-                # Language selector at top
-                gr.Markdown(f"### {_t('label.language')}")
-                from services.i18n import SUPPORTED_LANGUAGES
-                lang_choices = [f"{v} ({k})" for k, v in SUPPORTED_LANGUAGES.items()]
-                current_lang_display = f"{SUPPORTED_LANGUAGES.get(i18n.lang, 'vi')} ({i18n.lang})"
-                language_selector = gr.Dropdown(
-                    choices=lang_choices,
-                    value=current_lang_display,
-                    label=_t("label.language"),
-                    info=_t("settings.language_restart"),
-                )
-
-                gr.Markdown(_t("settings.api_config"))
-                api_key = gr.Textbox(
-                    label=_t("settings.api_key"),
-                    value=config.llm.api_key,
-                    type="password",
-                )
-                base_url = gr.Textbox(
-                    label=_t("settings.base_url"),
-                    value=config.llm.base_url,
-                )
-                model_name = gr.Textbox(
-                    label=_t("settings.model"),
-                    value=config.llm.model,
-                )
-                temperature = gr.Slider(
-                    0, 2, value=config.llm.temperature, step=0.1,
-                    label=_t("settings.temperature"),
-                )
-                max_tokens = gr.Slider(
-                    1024, 16384, value=config.llm.max_tokens, step=512,
-                    label=_t("settings.max_tokens"),
-                )
-
-                gr.Markdown(_t("settings.cheap_model"))
-                cheap_model = gr.Textbox(
-                    label=_t("settings.cheap_model_label"),
-                    value=config.llm.cheap_model,
-                    placeholder=_t("settings.cheap_model_placeholder"),
-                )
-                cheap_base_url = gr.Textbox(
-                    label=_t("settings.cheap_url_label"),
-                    value=config.llm.cheap_base_url,
-                    placeholder=_t("settings.cheap_url_placeholder"),
-                )
-
-                gr.Markdown(_t("settings.backend"))
-                backend_type = gr.Radio(
-                    choices=["api", "web"],
-                    value=config.llm.backend_type,
-                    label=_t("settings.backend_label"),
-                    info=_t("settings.backend_info"),
-                )
-
-                # Web auth controls
-                gr.Markdown(_t("settings.web_auth"))
-                web_auth_status = gr.Textbox(
-                    label=_t("settings.auth_status"), interactive=False,
-                    value=_t("settings.not_logged_in"),
-                )
-                with gr.Row():
-                    launch_chrome_btn = gr.Button(_t("btn.launch_chrome"))
-                    capture_btn = gr.Button(_t("btn.capture_creds"), variant="primary")
-                clear_auth_btn = gr.Button(_t("btn.clear_creds"), variant="stop", size="sm")
-
-                def launch_chrome():
-                    from services.browser_auth import BrowserAuth
-                    auth = BrowserAuth()
-                    ok, msg = auth.launch_chrome()
-                    return msg
-
-                def capture_credentials():
-                    """Capture credentials in background thread to avoid UI blocking."""
-                    from services.browser_auth import BrowserAuth
-                    auth = BrowserAuth()
-                    result = [None]
-
-                    def _run():
-                        result[0] = auth.capture_deepseek_credentials(timeout=300)
-
-                    thread = threading.Thread(target=_run)
-                    thread.start()
-
-                    yield _t("settings.waiting_login")
-                    while thread.is_alive():
-                        time.sleep(2)
-                        if auth.is_authenticated():
-                            break
-                        yield _t("settings.waiting_login")
-
-                    thread.join(timeout=5)
-                    if result[0]:
-                        ok, msg = result[0]
-                        yield msg
-                    else:
-                        yield _t("settings.login_timeout")
-
-                def clear_credentials():
-                    from services.browser_auth import BrowserAuth
-                    auth = BrowserAuth()
-                    auth.clear_credentials()
-                    return _t("settings.creds_cleared")
-
-                def check_auth_status():
-                    from services.browser_auth import BrowserAuth
-                    auth = BrowserAuth()
-                    if auth.is_authenticated():
-                        creds = auth.get_credentials()
-                        updated = creds.get("updated_at", "?") if creds else "?"
-                        return _t("settings.logged_in", time=updated)
-                    return _t("settings.not_logged_in")
-
-                launch_chrome_btn.click(fn=launch_chrome, outputs=[web_auth_status])
-                capture_btn.click(fn=capture_credentials, outputs=[web_auth_status])
-                clear_auth_btn.click(fn=clear_credentials, outputs=[web_auth_status])
-                app.load(fn=check_auth_status, outputs=[web_auth_status])
-
-                gr.Markdown("---")
-                connection_status = gr.Textbox(
-                    label=_t("settings.connection_status"), interactive=False,
-                )
-                test_connection_btn = gr.Button(_t("btn.test_connection"))
-
-                def test_connection(backend, key, url, model):
-                    cfg = ConfigManager()
-                    cfg.llm.backend_type = backend
-                    if backend == "api":
-                        cfg.llm.api_key = key
-                        cfg.llm.base_url = url
-                        cfg.llm.model = model
-                    from services.llm_client import LLMClient
-                    LLMClient._instance = None
-                    client = LLMClient()
-                    ok, msg = client.check_connection()
-                    return f"{'OK' if ok else 'LOI'}: {msg}"
-
-                test_connection_btn.click(
-                    fn=test_connection,
-                    inputs=[backend_type, api_key, base_url, model_name],
-                    outputs=[connection_status],
-                )
-
-                gr.Markdown(_t("settings.cache_title"))
-                cache_info = gr.Textbox(label=_t("settings.cache_label"), interactive=False)
-                with gr.Row():
-                    cache_stats_btn = gr.Button(_t("btn.cache_stats"))
-                    cache_clear_btn = gr.Button(_t("btn.clear_cache"), variant="stop")
-
-                def show_cache_stats():
-                    try:
-                        from services.llm_cache import LLMCache
-                        stats = LLMCache(ttl_days=ConfigManager().llm.cache_ttl_days).stats()
-                        return f"Total: {stats['total']} | Valid: {stats['valid']} | Expired: {stats['expired']}"
-                    except Exception as e:
-                        return f"Loi: {e}"
-
-                def clear_cache():
-                    try:
-                        from services.llm_cache import LLMCache
-                        LLMCache().clear()
-                        return "Da xoa cache!"
-                    except Exception as e:
-                        return f"Loi: {e}"
-
-                cache_stats_btn.click(fn=show_cache_stats, outputs=[cache_info])
-                cache_clear_btn.click(fn=clear_cache, outputs=[cache_info])
-
-                save_btn = gr.Button(_t("btn.save_settings"), variant="primary")
-                save_status = gr.Textbox(label=_t("settings.status_label"), interactive=False)
-
-                def save_settings(key, url, model, temp, tokens,
-                                  cheap_m, cheap_url, backend, lang_choice):
-                    cfg = ConfigManager()
-                    cfg.llm.api_key = key
-                    cfg.llm.base_url = url
-                    cfg.llm.model = model
-                    cfg.llm.temperature = temp
-                    cfg.llm.max_tokens = int(tokens)
-                    cfg.llm.cheap_model = cheap_m
-                    cfg.llm.cheap_base_url = cheap_url
-                    cfg.llm.backend_type = backend
-                    # Save language
-                    if lang_choice:
-                        lang_code = lang_choice.split("(")[-1].rstrip(")")
-                        cfg.pipeline.language = lang_code
-                        i18n.set_language(lang_code)
-                    cfg.save()
-                    # Reset LLM client singleton
-                    from services.llm_client import LLMClient
-                    LLMClient._instance = None
-                    return _t("settings.saved")
-
-                save_btn.click(
-                    fn=save_settings,
-                    inputs=[api_key, base_url, model_name, temperature, max_tokens,
-                            cheap_model, cheap_base_url, backend_type, language_selector],
-                    outputs=[save_status],
-                )
+                build_settings_tab(_t, i18n, app)
 
             # ═══════════════════════════════════════
-            # TAB 3: HƯỚNG DẪN
+            # TAB: HƯỚNG DẪN
             # ═══════════════════════════════════════
             with gr.TabItem(_t("tab.guide")):
                 guide_text = "\n\n".join([

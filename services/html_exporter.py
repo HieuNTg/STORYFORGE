@@ -216,6 +216,7 @@ class HTMLExporter:
         story: Union[StoryDraft, EnhancedStory],
         output_path: str,
         characters: Optional[list[Character]] = None,
+        share_id: Optional[str] = None,
     ) -> str:
         """Export story as beautiful standalone HTML file.
 
@@ -260,6 +261,15 @@ class HTMLExporter:
             chapter_nav=_build_chapter_nav(story.chapters),
             chapters_html=_build_chapters_html(story.chapters),
         )
+
+        # Inject share metadata if share_id provided
+        if share_id:
+            from datetime import datetime
+            share_meta = (
+                f'\n<meta name="storyforge-share" content="{html.escape(share_id)}">'
+                f'\n<meta name="storyforge-created" content="{datetime.now().isoformat()}">'
+            )
+            rendered = rendered.replace('</head>', f'{share_meta}\n</head>', 1)
 
         os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
         with open(output_path, 'w', encoding='utf-8') as f:

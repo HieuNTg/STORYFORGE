@@ -53,3 +53,17 @@ class CharacterSpecialistAgent(BaseAgent):
             )
 
         return characters_info, chapters_content
+
+    def extract_consistency_context(self, output: PipelineOutput) -> str:
+        """Extract character consistency rules for enhancer prompt injection."""
+        if not output.story_draft:
+            return ""
+        draft = output.story_draft
+        lines = []
+        for c in draft.characters:
+            lines.append(f"[{c.name}] Role={c.role}, Tính cách={c.personality}, Động lực={c.motivation}")
+            if c.relationships:
+                lines.append(f"  Quan hệ: {', '.join(c.relationships[:3])}")
+        for s in draft.character_states:
+            lines.append(f"[{s.name}] Mood={s.mood}, Arc={s.arc_position}, Last={s.last_action}")
+        return "\n".join(lines)
