@@ -24,9 +24,6 @@ RUN curl -fsSL \
     -o assets/fonts/NotoSans-Regular.ttf \
     || echo "WARNING: Font download failed - PDF Vietnamese rendering will use fallback font"
 
-# Copy templates if not in data volume
-COPY data/templates/ data/templates/ 2>/dev/null || true
-
 EXPOSE 7860
 
 # Health check
