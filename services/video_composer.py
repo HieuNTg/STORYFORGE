@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)
 class VideoComposer:
     """Compose video from storyboard images and audio narration."""
 
-    def __init__(self, fps: int = 1, resolution: str = "1024x1024"):
-        self.fps = fps  # Base fps (images shown at panel duration)
+    def __init__(self, fps: int = 25, resolution: str = "1024x1024"):
+        self.fps = fps  # Base fps for zoompan duration calculation
         self.resolution = resolution
         self.output_dir = "output/video"
         os.makedirs(self.output_dir, exist_ok=True)
@@ -29,7 +29,6 @@ class VideoComposer:
         audio_path: optional path to full audiobook MP3.
         Returns: path to output MP4 or None.
         """
-        # Filter panels that have actual images
         valid_panels = [
             p
             for p in panels
@@ -45,6 +44,10 @@ class VideoComposer:
         try:
             concat_path = self._write_concat_file(valid_panels)
 
+            # Use first panel duration for zoompan d parameter
+            first_duration = getattr(valid_panels[0], "duration_seconds", 5.0)
+            zoompan_d = int(self.fps * first_duration)
+
             cmd = [
                 "ffmpeg", "-y",
                 "-f", "concat",
@@ -54,7 +57,7 @@ class VideoComposer:
                 (
                     f"scale={self.resolution}:force_original_aspect_ratio=decrease,"
                     f"pad={self.resolution}:(ow-iw)/2:(oh-ih)/2:black,"
-                    f"zoompan=z='min(zoom+0.001,1.3)':d=125:s={self.resolution}"
+                    f"zoompan=z='min(zoom+0.001,1.3)':d={zoompan_d}:s={self.resolution}"
                 ),
                 "-pix_fmt", "yuv420p",
             ]

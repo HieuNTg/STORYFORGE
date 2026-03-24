@@ -3,6 +3,8 @@
 import asyncio
 import logging
 import os
+import re
+import shutil
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -41,7 +43,6 @@ class TTSAudioGenerator:
                 running = False
 
             if running:
-                # Already in async context — run in a new thread with its own loop
                 import concurrent.futures
 
                 with concurrent.futures.ThreadPoolExecutor() as pool:
@@ -75,6 +76,100 @@ class TTSAudioGenerator:
             except Exception as e:
                 logger.warning(f"Failed chapter {ch.chapter_number}: {e}")
         return paths
+
+    @staticmethod
+    def measure_duration(audio_path: str) -> float:
+        """Measure audio file duration in seconds using pydub."""
+        try:
+            from pydub import AudioSegment
+            audio = AudioSegment.from_file(audio_path)
+            return len(audio) / 1000.0
+        except Exception:
+            return 5.0  # default 5 seconds
+
+    def assign_voices(self, characters: list) -> dict:
+        """Map characters to Vietnamese voices based on gender."""
+        mapping = {"narrator": self.voice}
+        for char in characters:
+            gender = getattr(char, "gender", None)
+            if gender and gender.lower() in ("nam", "male", "m"):
+                mapping[char.name] = VIETNAMESE_VOICES["male"]
+            else:
+                mapping[char.name] = VIETNAMESE_VOICES["female"]
+        return mapping
+
+    def _segment_dialogue(self, text: str, voice_map: dict) -> list:
+        """Split text into dialogue segments by character."""
+        segments = []
+        pattern = r"(?:^|\n)\s*(?:—\s*)?([^:\n]+?):\s*(.+?)(?=\n\s*(?:—\s*)?[^:\n]+?:|$)"
+        last_end = 0
+        for match in re.finditer(pattern, text, re.DOTALL):
+            if match.start() > last_end:
+                narrator_text = text[last_end:match.start()].strip()
+                if narrator_text:
+                    segments.append({"speaker": "narrator", "text": narrator_text,
+                                     "voice": voice_map.get("narrator", self.voice)})
+            speaker = match.group(1).strip()
+            speech = match.group(2).strip()
+            voice = voice_map.get(speaker, voice_map.get("narrator", self.voice))
+            segments.append({"speaker": speaker, "text": speech, "voice": voice})
+            last_end = match.end()
+        if last_end < len(text):
+            remaining = text[last_end:].strip()
+            if remaining:
+                segments.append({"speaker": "narrator", "text": remaining,
+                                  "voice": voice_map.get("narrator", self.voice)})
+        if not segments:
+            segments.append({"speaker": "narrator", "text": text,
+                              "voice": voice_map.get("narrator", self.voice)})
+        return segments
+
+    def generate_chapter_multivoice(
+        self, chapter_text: str, chapter_num: int,
+        voice_map: dict, output_dir: str = "output"
+    ) -> tuple:
+        """Generate multi-voice audio for a chapter. Returns (path, duration_seconds)."""
+        os.makedirs(output_dir, exist_ok=True)
+        segments = self._segment_dialogue(chapter_text, voice_map)
+
+        segment_paths = []
+        for i, seg in enumerate(segments):
+            voice = seg.get("voice", voice_map.get("narrator", self.voice))
+            seg_path = os.path.join(output_dir, f"ch{chapter_num:02d}_seg{i:03d}.mp3")
+            old_voice = self.voice
+            self.voice = voice
+            try:
+                self.generate_audio(seg["text"], seg_path)
+                segment_paths.append(seg_path)
+            except Exception as e:
+                logger.warning(f"TTS segment {i} failed: {e}")
+            finally:
+                self.voice = old_voice
+
+        if not segment_paths:
+            return "", 0.0
+
+        output_path = os.path.join(output_dir, f"chapter_{chapter_num:02d}.mp3")
+        if len(segment_paths) == 1:
+            shutil.move(segment_paths[0], output_path)
+        else:
+            try:
+                from pydub import AudioSegment
+                combined = AudioSegment.empty()
+                for sp in segment_paths:
+                    combined += AudioSegment.from_file(sp)
+                combined.export(output_path, format="mp3")
+                for sp in segment_paths:
+                    try:
+                        os.remove(sp)
+                    except OSError:
+                        pass
+            except Exception as e:
+                logger.warning(f"Segment merge failed, using first: {e}")
+                shutil.move(segment_paths[0], output_path)
+
+        duration = self.measure_duration(output_path)
+        return output_path, duration
 
     @staticmethod
     def list_voices() -> dict:

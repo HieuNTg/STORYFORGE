@@ -23,6 +23,8 @@ class LLMConfig:
     cache_enabled: bool = True
     cache_ttl_days: int = 7
     max_parallel_workers: int = 3
+    fallback_models: list = field(default_factory=list)
+    # Each entry: {"base_url": "...", "model": "...", "api_key": "..."}
 
 
 @dataclass
@@ -68,6 +70,15 @@ class PipelineConfig:
     # Seedream (ByteDance) image generation
     seedream_api_key: str = ""
     seedream_api_url: str = ""
+
+    # Video quality
+    video_quality: str = "draft"  # "draft" or "final"
+
+
+VIDEO_QUALITY_PRESETS = {
+    "draft": {"resolution": "512x512", "fps": 24, "crf": "28", "preset": "fast"},
+    "final": {"resolution": "1024x1024", "fps": 30, "crf": "23", "preset": "medium"},
+}
 
 
 class ConfigManager:
@@ -172,5 +183,24 @@ class ConfigManager:
                 "story_bible_enabled": self.pipeline.story_bible_enabled,
             },
         }
+        # Validate before save
+        warnings = self.validate()
+        if warnings:
+            import logging
+            for w in warnings:
+                logging.getLogger(__name__).warning(f"Config: {w}")
         with open(self.CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+
+    def validate(self) -> list[str]:
+        """Validate config, return list of warning messages."""
+        errors = []
+        if not self.llm.api_key and self.llm.backend_type == "api":
+            errors.append("API key bắt buộc cho backend API")
+        if self.pipeline.num_chapters < 1:
+            errors.append("Số chương phải >= 1")
+        if self.pipeline.words_per_chapter < 100:
+            errors.append("Số từ/chương phải >= 100")
+        if self.pipeline.video_quality not in ("draft", "final"):
+            errors.append("video_quality phải là 'draft' hoặc 'final'")
+        return errors

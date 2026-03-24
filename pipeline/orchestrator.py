@@ -1,33 +1,28 @@
-"""Điều phối pipeline 3 lớp: Tạo truyện → Mô phỏng kịch tính → Video."""
+"""Dieu phoi pipeline 3 lop: Tao truyen -> Mo phong kich tinh -> Video."""
 
 import logging
-import json
-import os
-import re
 import time
-import zipfile
-from datetime import datetime
 from typing import Optional
 
-from models.schemas import PipelineOutput, StoryDraft, EnhancedStory
+from models.schemas import EnhancedStory, PipelineOutput, StoryDraft
 from pipeline.layer1_story.generator import StoryGenerator
 from pipeline.layer2_enhance.analyzer import StoryAnalyzer
 from pipeline.layer2_enhance.simulator import DramaSimulator
 from pipeline.layer2_enhance.enhancer import StoryEnhancer
 from pipeline.layer3_video.storyboard import StoryboardGenerator
-from services.quality_scorer import QualityScorer
-from services.seedream_client import SeedreamClient
-from services.tts_audio_generator import TTSAudioGenerator
-from services.video_composer import VideoComposer
 from config import ConfigManager
+from pipeline.orchestrator_media import MediaProducer
+from pipeline.orchestrator_export import PipelineExporter
+from pipeline.orchestrator_checkpoint import CheckpointManager, CHECKPOINT_DIR
+from pipeline.orchestrator_continuation import StoryContinuation
 
 logger = logging.getLogger(__name__)
 
 
 class PipelineOrchestrator:
-    """Điều phối toàn bộ pipeline từ input đến output."""
+    """Dieu phoi toan bo pipeline tu input den output."""
 
-    CHECKPOINT_DIR = "output/checkpoints"
+    CHECKPOINT_DIR = CHECKPOINT_DIR
 
     def __init__(self):
         self.config = ConfigManager()
@@ -38,12 +33,30 @@ class PipelineOrchestrator:
         self.storyboard_gen = StoryboardGenerator()
         self.output = PipelineOutput()
 
+        self.media_producer = MediaProducer(self.config)
+        self.exporter = PipelineExporter(self.output)
+        self.checkpoint = CheckpointManager(
+            self.output, self.analyzer, self.simulator,
+            self.enhancer, self.storyboard_gen,
+        )
+        self.continuation = StoryContinuation(
+            self.output, self.story_gen, self.analyzer,
+            self.simulator, self.enhancer, self.checkpoint,
+        )
+
+    def _sync_output(self):
+        """Keep sub-components pointing at the current self.output."""
+        self.exporter.output = self.output
+        self.checkpoint.output = self.output
+        self.continuation.output = self.output
+        self.continuation.checkpoint_manager.output = self.output
+
     def run_full_pipeline(
         self,
         title: str,
         genre: str,
         idea: str,
-        style: str = "Miêu tả chi tiết",
+        style: str = "Mieu ta chi tiet",
         num_chapters: int = 10,
         num_characters: int = 5,
         word_count: int = 2000,
@@ -54,7 +67,7 @@ class PipelineOrchestrator:
         enable_agents: bool = True,
         enable_scoring: bool = True,
     ) -> PipelineOutput:
-        """Chạy toàn bộ pipeline 3 lớp."""
+        """Chay toan bo pipeline 3 lop."""
 
         def _log(msg):
             self.output.logs.append(msg)
@@ -63,19 +76,18 @@ class PipelineOrchestrator:
                 progress_callback(msg)
 
         self.output = PipelineOutput(status="running", current_layer=1)
+        self._sync_output()
         draft = None
         enhanced = None
         pipeline_start = time.time()
 
-        # Fail-fast: kiểm tra kết nối trước khi bắt đầu
         from services.llm_client import LLMClient
         ok, msg = LLMClient().check_connection()
         if not ok:
             self.output.status = "error"
-            _log(f"❌ Không kết nối được LLM: {msg}")
+            _log(f"Khong ket noi duoc LLM: {msg}")
             return self.output
 
-        # Khởi tạo agents một lần duy nhất
         if enable_agents:
             try:
                 from pipeline.agents import register_all_agents
@@ -86,29 +98,26 @@ class PipelineOrchestrator:
                 logger.warning(f"Khong the khoi tao agents: {e}")
                 enable_agents = False
 
-        _log("══════ LAYER 1: TẠO TRUYỆN ══════")
+        _log("══════ LAYER 1: TAO TRUYEN ══════")
         self.output.current_layer = 1
         layer_start = time.time()
         try:
             draft = self.story_gen.generate_full_story(
-                title=title,
-                genre=genre,
-                idea=idea,
-                style=style,
-                num_chapters=num_chapters,
-                num_characters=num_characters,
+                title=title, genre=genre, idea=idea, style=style,
+                num_chapters=num_chapters, num_characters=num_characters,
                 word_count=word_count,
                 progress_callback=lambda m: _log(f"[L1] {m}"),
                 stream_callback=stream_callback,
             )
             self.output.story_draft = draft
             self.output.progress = 0.33
-            _log(f"⏱️ Layer 1 hoàn tất trong {time.time() - layer_start:.1f}s")
-            self._save_checkpoint(1)
+            _log(f"Layer 1 hoan tat trong {time.time() - layer_start:.1f}s")
+            self.checkpoint.save(1)
 
             if enable_scoring:
                 _log("[METRICS] Dang cham diem chat luong Layer 1...")
                 try:
+                    from services.quality_scorer import QualityScorer
                     scorer = QualityScorer()
                     l1_score = scorer.score_story(draft.chapters, layer=1)
                     self.output.quality_scores.append(l1_score)
@@ -129,20 +138,18 @@ class PipelineOrchestrator:
                     logger.warning(f"Agent review Layer 1 loi: {e}")
         except Exception as e:
             self.output.status = "error"
-            _log(f"❌ Layer 1 thất bại: {str(e)}")
+            _log(f"Layer 1 that bai: {str(e)}")
             logger.exception("Layer 1 error")
             return self.output
 
-        _log("══════ LAYER 2: MÔ PHỎNG TĂNG KỊCH TÍNH ══════")
+        _log("══════ LAYER 2: MO PHONG TANG KICH TINH ══════")
         self.output.current_layer = 2
         layer_start = time.time()
         try:
-            # Phân tích truyện
-            _log("[L2] 🔍 Đang phân tích cấu trúc truyện...")
+            _log("[L2] Dang phan tich cau truc truyen...")
             analysis = self.analyzer.analyze(draft)
 
-            # Mô phỏng tương tác nhân vật
-            _log(f"[L2] 🎭 Bắt đầu mô phỏng {num_sim_rounds} vòng...")
+            _log(f"[L2] Bat dau mo phong {num_sim_rounds} vong...")
             sim_result = self.simulator.run_simulation(
                 characters=draft.characters,
                 relationships=analysis["relationships"],
@@ -152,29 +159,27 @@ class PipelineOrchestrator:
             )
             self.output.simulation_result = sim_result
 
-            # Tăng cường kịch tính (with feedback loop)
-            _log("[L2] ✍️ Đang viết lại truyện với kịch tính cao hơn...")
+            _log("[L2] Dang viet lai truyen voi kich tinh cao hon...")
             enhanced = self.enhancer.enhance_with_feedback(
-                draft=draft,
-                sim_result=sim_result,
+                draft=draft, sim_result=sim_result,
                 word_count=word_count,
                 progress_callback=lambda m: _log(f"[L2] {m}"),
             )
             self.output.enhanced_story = enhanced
             self.output.progress = 0.66
-            _log(f"⏱️ Layer 2 hoàn tất trong {time.time() - layer_start:.1f}s")
-            self._save_checkpoint(2)
+            _log(f"Layer 2 hoan tat trong {time.time() - layer_start:.1f}s")
+            self.checkpoint.save(2)
 
             if enable_scoring:
                 _log("[METRICS] Dang cham diem chat luong Layer 2...")
                 try:
+                    from services.quality_scorer import QualityScorer
                     scorer = QualityScorer()
                     l2_score = scorer.score_story(enhanced.chapters, layer=2)
                     self.output.quality_scores.append(l2_score)
                     delta = ""
                     if len(self.output.quality_scores) >= 2:
-                        l1_overall = self.output.quality_scores[0].overall
-                        diff = l2_score.overall - l1_overall
+                        diff = l2_score.overall - self.output.quality_scores[0].overall
                         delta = f" | Delta: {diff:+.1f}"
                     _log(f"[METRICS] Layer 2: {l2_score.overall:.1f}/5 | "
                          f"Chuong yeu nhat: {l2_score.weakest_chapter}{delta}")
@@ -192,12 +197,10 @@ class PipelineOrchestrator:
                 except Exception as e:
                     logger.warning(f"Agent review Layer 2 loi: {e}")
         except Exception as e:
-            # Layer 2 thất bại: dùng story_draft làm fallback EnhancedStory
-            logger.warning(f"Layer 2 thất bại, dùng bản thảo gốc: {e}")
-            _log(f"⚠️ Layer 2 lỗi ({str(e)}), tiếp tục với bản thảo gốc.")
+            logger.warning(f"Layer 2 that bai, dung ban thao goc: {e}")
+            _log(f"Layer 2 loi ({str(e)}), tiep tuc voi ban thao goc.")
             enhanced = EnhancedStory(
-                title=draft.title,
-                genre=draft.genre,
+                title=draft.title, genre=draft.genre,
                 chapters=list(draft.chapters),
                 enhancement_notes=["Layer 2 skipped due to error"],
                 drama_score=0.0,
@@ -206,7 +209,7 @@ class PipelineOrchestrator:
             self.output.progress = 0.66
             self.output.status = "partial"
 
-        _log("══════ LAYER 3: TẠO KỊCH BẢN VIDEO ══════")
+        _log("══════ LAYER 3: TAO KICH BAN VIDEO ══════")
         self.output.current_layer = 3
         layer_start = time.time()
         try:
@@ -220,7 +223,7 @@ class PipelineOrchestrator:
             self.output.progress = 1.0
             if self.output.status != "partial":
                 self.output.status = "completed"
-            self._save_checkpoint(3)
+            self.checkpoint.save(3)
 
             if enable_agents:
                 _log("[AGENTS] Phong ban dang danh gia Layer 3...")
@@ -233,115 +236,40 @@ class PipelineOrchestrator:
                 except Exception as e:
                     logger.warning(f"Agent review Layer 3 loi: {e}")
 
-            _log(f"⏱️ Layer 3 hoàn tất trong {time.time() - layer_start:.1f}s")
-            _log("🎉 PIPELINE HOÀN TẤT!")
+            _log(f"Layer 3 hoan tat trong {time.time() - layer_start:.1f}s")
+            _log("PIPELINE HOAN TAT!")
             total_time = time.time() - pipeline_start
-            _log(f"📊 Tổng kết: {len(enhanced.chapters)} chương, "
+            _log(f"Tong ket: {len(enhanced.chapters)} chuong, "
                  f"{len(video_script.panels)} panels video, "
-                 f"~{video_script.total_duration_seconds/60:.1f} phút, "
-                 f"tổng thời gian: {total_time:.0f}s")
+                 f"~{video_script.total_duration_seconds / 60:.1f} phut, "
+                 f"tong thoi gian: {total_time:.0f}s")
         except Exception as e:
-            # Layer 3 thất bại: vẫn có enhanced_story
-            logger.warning(f"Layer 3 thất bại: {e}")
-            _log(f"⚠️ Layer 3 lỗi ({str(e)}), pipeline dừng sau Layer 2.")
+            logger.warning(f"Layer 3 that bai: {e}")
+            _log(f"Layer 3 loi ({str(e)}), pipeline dung sau Layer 2.")
             self.output.status = "partial"
 
-        # ═══════ LAYER 3.5: SẢN XUẤT MEDIA ═══════
         if self.output.video_script and self.config.pipeline.image_provider != "none":
-            _log("══════ LAYER 3.5: SẢN XUẤT ẢNH + AUDIO + VIDEO ══════")
+            _log("══════ LAYER 3.5: SAN XUAT ANH + AUDIO + VIDEO ══════")
             layer_start = time.time()
             try:
-                media = self._run_media_production(
+                media = self.media_producer.run(
                     draft, enhanced, self.output.video_script,
                     progress_callback=lambda m: _log(m),
                 )
                 if media.get("video_path"):
-                    _log(f"🎬 Video: {media['video_path']}")
-                _log(f"⏱️ Layer 3.5 hoàn tất trong {time.time() - layer_start:.1f}s")
+                    _log(f"Video: {media['video_path']}")
+                _log(f"Layer 3.5 hoan tat trong {time.time() - layer_start:.1f}s")
             except Exception as e:
                 logger.warning(f"Media production failed: {e}")
-                _log(f"⚠️ Media production lỗi: {e}")
+                _log(f"Media production loi: {e}")
 
         return self.output
-
-    def _run_media_production(
-        self, draft, enhanced, video_script, progress_callback=None
-    ) -> dict:
-        """Layer 3.5: Generate images, TTS audio, compose video.
-
-        Returns dict with paths: {character_refs, scene_images, audio_paths, video_path}
-        """
-        result = {"character_refs": {}, "scene_images": [], "audio_paths": [], "video_path": ""}
-        cfg = self.config.pipeline
-
-        def _log(msg):
-            if progress_callback:
-                progress_callback(msg)
-
-        # Step 1: Character reference images (Seedream)
-        seedream = SeedreamClient(api_key=cfg.seedream_api_key, base_url=cfg.seedream_api_url)
-        if seedream.is_configured() and draft.characters:
-            _log("[MEDIA] 🎨 Tạo ảnh tham chiếu nhân vật...")
-            for char in draft.characters:
-                desc = char.appearance or char.personality or char.name
-                ref_path = seedream.generate_character_reference(char.name, desc)
-                if ref_path:
-                    char.reference_image = ref_path
-                    result["character_refs"][char.name] = ref_path
-                    _log(f"[MEDIA] ✓ {char.name}")
-
-        # Step 2: Scene images with character consistency
-        if seedream.is_configured() and video_script and video_script.panels:
-            _log(f"[MEDIA] 🖼️ Tạo {len(video_script.panels)} ảnh cảnh...")
-            for i, panel in enumerate(video_script.panels):
-                refs = [
-                    result["character_refs"][name]
-                    for name in panel.characters_in_frame
-                    if name in result["character_refs"]
-                ]
-                prompt = panel.image_prompt or panel.description
-                filename = f"ch{panel.chapter_number:02d}_p{panel.panel_number:02d}.png"
-                path = seedream.generate_scene(prompt, refs, filename)
-                if path:
-                    panel.image_path = path
-                    result["scene_images"].append(path)
-                if (i + 1) % 5 == 0:
-                    _log(f"[MEDIA] Đã tạo {i + 1}/{len(video_script.panels)} ảnh")
-
-        # Step 3: TTS audio
-        if enhanced and enhanced.chapters:
-            _log("[MEDIA] 🔊 Tạo audio giọng đọc...")
-            tts = TTSAudioGenerator(voice="female")
-            audio_dir = "output/audiobook"
-            try:
-                result["audio_paths"] = tts.generate_full_audiobook(enhanced.chapters, audio_dir)
-                _log(f"[MEDIA] ✓ {len(result['audio_paths'])} file audio")
-            except Exception as e:
-                _log(f"[MEDIA] ⚠️ TTS lỗi: {e}")
-
-        # Step 4: Video composition
-        if result["scene_images"] and video_script:
-            _log("[MEDIA] 🎬 Đang ghép video...")
-            composer = VideoComposer()
-            audio_path = ""
-            if result["audio_paths"]:
-                merged = composer.merge_chapter_audios(result["audio_paths"])
-                if merged:
-                    audio_path = merged
-            video_path = composer.compose(video_script.panels, audio_path)
-            if video_path:
-                result["video_path"] = video_path
-                _log(f"[MEDIA] ✓ Video: {video_path}")
-            else:
-                _log("[MEDIA] ⚠️ Không tạo được video")
-
-        return result
 
     def run_layer1_only(
         self, title, genre, idea, style, num_chapters, num_characters,
         word_count, progress_callback=None,
     ) -> StoryDraft:
-        """Chỉ chạy Layer 1."""
+        """Chi chay Layer 1."""
         return self.story_gen.generate_full_story(
             title=title, genre=genre, idea=idea, style=style,
             num_chapters=num_chapters, num_characters=num_characters,
@@ -352,7 +280,7 @@ class PipelineOrchestrator:
         self, draft: StoryDraft, num_sim_rounds: int = 5,
         word_count: int = 2000, progress_callback=None,
     ) -> EnhancedStory:
-        """Chỉ chạy Layer 2 trên bản thảo có sẵn."""
+        """Chi chay Layer 2 tren ban thao co san."""
         analysis = self.analyzer.analyze(draft)
         sim_result = self.simulator.run_simulation(
             characters=draft.characters,
@@ -366,349 +294,74 @@ class PipelineOrchestrator:
             word_count=word_count, progress_callback=progress_callback,
         )
 
+    # ── Thin wrappers delegating to sub-components ──────────────────────────
+
     def export_output(self, output_dir: str = "output", formats: list[str] | None = None) -> list[str]:
-        """Xuất kết quả ra file. Returns list of generated file paths."""
-        if formats is None:
-            formats = ["TXT", "Markdown", "JSON"]
-        os.makedirs(output_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        files = []
-
-        if "TXT" in formats:
-            if self.output.story_draft:
-                path = os.path.join(output_dir, f"{timestamp}_draft.txt")
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(f"# {self.output.story_draft.title}\n\n")
-                    for ch in self.output.story_draft.chapters:
-                        f.write(f"\n## Chương {ch.chapter_number}: {ch.title}\n\n")
-                        f.write(ch.content + "\n")
-                files.append(path)
-
-            if self.output.enhanced_story:
-                path = os.path.join(output_dir, f"{timestamp}_enhanced.txt")
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(f"# {self.output.enhanced_story.title} (Phiên bản kịch tính)\n\n")
-                    for ch in self.output.enhanced_story.chapters:
-                        f.write(f"\n## Chương {ch.chapter_number}: {ch.title}\n\n")
-                        f.write(ch.content + "\n")
-                files.append(path)
-
-        if "JSON" in formats:
-            if self.output.video_script:
-                path = os.path.join(output_dir, f"{timestamp}_video_script.json")
-                with open(path, "w", encoding="utf-8") as f:
-                    json.dump(
-                        self.output.video_script.model_dump(),
-                        f, ensure_ascii=False, indent=2,
-                    )
-                files.append(path)
-
-            if self.output.simulation_result:
-                path = os.path.join(output_dir, f"{timestamp}_simulation.json")
-                with open(path, "w", encoding="utf-8") as f:
-                    json.dump(
-                        self.output.simulation_result.model_dump(),
-                        f, ensure_ascii=False, indent=2,
-                    )
-                files.append(path)
-
-        if "Markdown" in formats:
-            md_path = self._export_markdown(output_dir, timestamp)
-            if md_path:
-                files.append(md_path)
-
-        if "HTML" in formats:
-            html_path = self._export_html(output_dir, timestamp)
-            if html_path:
-                files.append(html_path)
-
-        return files
+        self._sync_output()
+        return self.exporter.export_output(output_dir, formats)
 
     def export_zip(self, output_dir: str = "output", formats: list[str] | None = None) -> str:
-        """Export all files and bundle into a single ZIP. Returns ZIP path or empty string."""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        files = self.export_output(output_dir, formats)
-        if not files:
-            return ""
-        zip_path = os.path.join(output_dir, f"{timestamp}_storyforge.zip")
-        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-            for f in files:
-                zf.write(f, os.path.basename(f))
-        return zip_path
+        self._sync_output()
+        return self.exporter.export_zip(output_dir, formats)
 
     def _export_html(self, output_dir: str, timestamp: str) -> Optional[str]:
-        """Export story as standalone HTML reader page."""
-        story = self.output.enhanced_story or self.output.story_draft
-        if not story:
-            return None
-        from services.html_exporter import HTMLExporter
-        path = os.path.join(output_dir, f"{timestamp}_story.html")
-        chars = self.output.story_draft.characters if self.output.story_draft else []
-        return HTMLExporter.export(story, path, characters=chars)
+        self._sync_output()
+        return self.exporter._export_html(output_dir, timestamp)
 
     def export_video_assets(self, output_dir: str = "output") -> Optional[str]:
-        """Export video script as creator-friendly asset package (ZIP).
-
-        Returns ZIP path or None if no video script available.
-        """
-        if not self.output.video_script:
-            return None
-        from services.video_exporter import VideoExporter
-        exporter = VideoExporter(self.output.video_script)
-        return exporter.export_all(output_dir)
+        self._sync_output()
+        return self.exporter.export_video_assets(output_dir)
 
     def _export_markdown(self, output_dir: str, timestamp: str) -> Optional[str]:
-        """Export story as formatted Markdown. Returns file path or None."""
-        story = self.output.enhanced_story or self.output.story_draft
-        if not story:
-            return None
-        path = os.path.join(output_dir, f"{timestamp}_story.md")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(f"# {story.title}\n\n")
-            if hasattr(story, 'genre'):
-                f.write(f"**Thể loại:** {story.genre}\n")
-            if hasattr(story, 'drama_score'):
-                f.write(f"**Điểm kịch tính:** {story.drama_score:.2f}\n")
-            f.write("\n---\n\n")
-            for ch in story.chapters:
-                f.write(f"## Chương {ch.chapter_number}: {ch.title}\n\n")
-                f.write(ch.content + "\n\n")
-        return path
+        self._sync_output()
+        return self.exporter._export_markdown(output_dir, timestamp)
 
-    def _save_checkpoint(self, layer: int):
-        """Save pipeline state after layer completion."""
-        os.makedirs(self.CHECKPOINT_DIR, exist_ok=True)
-        raw_title = self.output.story_draft.title[:30] if self.output.story_draft else "untitled"
-        slug = re.sub(r'[^\w\-]', '_', raw_title)
-        path = os.path.join(self.CHECKPOINT_DIR, f"{slug}_layer{layer}.json")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(self.output.model_dump_json(indent=2))
-        logger.info(f"Checkpoint saved: {path}")
-        return path
+    def _save_checkpoint(self, layer: int) -> str:
+        self._sync_output()
+        return self.checkpoint.save(layer)
 
     @classmethod
     def list_checkpoints(cls) -> list:
-        """List available checkpoints."""
-        if not os.path.exists(cls.CHECKPOINT_DIR):
-            return []
-        checkpoints = []
-        for f in sorted(os.listdir(cls.CHECKPOINT_DIR), reverse=True):
-            if f.endswith(".json"):
-                path = os.path.join(cls.CHECKPOINT_DIR, f)
-                stat = os.stat(path)
-                checkpoints.append({
-                    "file": f,
-                    "path": path,
-                    "size_kb": stat.st_size // 1024,
-                    "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
-                })
-        return checkpoints
+        return CheckpointManager.list_checkpoints()
 
     def resume_from_checkpoint(self, checkpoint_path: str, progress_callback=None, enable_agents=True, enable_scoring=True, **kwargs) -> PipelineOutput:
-        """Resume pipeline from a saved checkpoint."""
-        with open(checkpoint_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        self.output = PipelineOutput(**data)
-        last_layer = self.output.current_layer
-
-        def _log(msg):
-            self.output.logs.append(msg)
-            logger.info(msg)
-            if progress_callback:
-                progress_callback(msg)
-
-        _log(f"Resuming from checkpoint: layer {last_layer}")
-
-        if enable_agents:
-            try:
-                from pipeline.agents import register_all_agents
-                from pipeline.agents.agent_registry import AgentRegistry
-                register_all_agents()
-            except Exception as e:
-                logger.warning(f"Khong the khoi tao agents: {e}")
-                enable_agents = False
-
-        draft = self.output.story_draft
-        enhanced = self.output.enhanced_story
-
-        # Resume from appropriate layer
-        if last_layer <= 1 and draft:
-            _log("══════ RESUMING LAYER 2 ══════")
-            self.output.current_layer = 2
-            try:
-                analysis = self.analyzer.analyze(draft)
-                sim_result = self.simulator.run_simulation(
-                    characters=draft.characters,
-                    relationships=analysis["relationships"],
-                    genre=draft.genre,
-                    num_rounds=kwargs.get("num_sim_rounds", 5),
-                    progress_callback=lambda m: _log(f"[L2] {m}"),
-                )
-                self.output.simulation_result = sim_result
-                enhanced = self.enhancer.enhance_story(
-                    draft=draft, sim_result=sim_result,
-                    word_count=kwargs.get("word_count", 2000),
-                    progress_callback=lambda m: _log(f"[L2] {m}"),
-                )
-                self.output.enhanced_story = enhanced
-                self.output.progress = 0.66
-                self._save_checkpoint(2)
-
-                if enable_scoring:
-                    try:
-                        scorer = QualityScorer()
-                        l2_score = scorer.score_story(enhanced.chapters, layer=2)
-                        self.output.quality_scores.append(l2_score)
-                        _log(f"[METRICS] Layer 2: {l2_score.overall:.1f}/5")
-                    except Exception as e:
-                        logger.warning(f"Quality scoring failed: {e}")
-            except Exception as e:
-                _log(f"Layer 2 loi: {e}")
-                enhanced = EnhancedStory(
-                    title=draft.title, genre=draft.genre,
-                    chapters=list(draft.chapters),
-                    enhancement_notes=["Layer 2 skipped"], drama_score=0.0,
-                )
-                self.output.enhanced_story = enhanced
-                self.output.status = "partial"
-
-        if (last_layer <= 2) and enhanced:
-            _log("══════ RESUMING LAYER 3 ══════")
-            self.output.current_layer = 3
-            try:
-                video_script = self.storyboard_gen.generate_full_video_script(
-                    story=enhanced,
-                    characters=draft.characters if draft else [],
-                    shots_per_chapter=kwargs.get("shots_per_chapter", 8),
-                    progress_callback=lambda m: _log(f"[L3] {m}"),
-                )
-                self.output.video_script = video_script
-                self.output.progress = 1.0
-                if self.output.status != "partial":
-                    self.output.status = "completed"
-                self._save_checkpoint(3)
-                _log("PIPELINE HOAN TAT (resumed)!")
-            except Exception as e:
-                _log(f"Layer 3 loi: {e}")
-                self.output.status = "partial"
-
-        return self.output
-
-    # ═══════════════════════════════════════
-    # STORY CONTINUATION METHODS
-    # ═══════════════════════════════════════
+        self._sync_output()
+        result = self.checkpoint.resume(checkpoint_path, progress_callback, enable_agents, enable_scoring, **kwargs)
+        self.output = result
+        self._sync_output()
+        return result
 
     def load_from_checkpoint(self, checkpoint_path: str) -> Optional[StoryDraft]:
-        """Load StoryDraft from checkpoint for continuation/editing."""
-        try:
-            with open(checkpoint_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            self.output = PipelineOutput(**data)
-            return self.output.story_draft
-        except Exception as e:
-            logger.error(f"Failed to load checkpoint {checkpoint_path}: {e}")
-            return None
-
-    def continue_story(
-        self,
-        additional_chapters: int = 5,
-        word_count: int = 2000,
-        style: str = "",
-        progress_callback=None,
-        stream_callback=None,
-    ) -> StoryDraft:
-        """Continue writing from current StoryDraft."""
-        if not self.output.story_draft:
-            raise ValueError("No story draft loaded. Load checkpoint first.")
-        draft = self.story_gen.continue_story(
-            draft=self.output.story_draft,
-            additional_chapters=additional_chapters,
-            word_count=word_count,
-            style=style,
-            progress_callback=progress_callback,
-            stream_callback=stream_callback,
-        )
-        self.output.story_draft = draft
-        self._save_checkpoint(1)
+        self._sync_output()
+        draft = self.continuation.load_from_checkpoint(checkpoint_path)
+        self.output = self.continuation.output
+        self._sync_output()
         return draft
+
+    def continue_story(self, additional_chapters=5, word_count=2000, style="", progress_callback=None, stream_callback=None) -> StoryDraft:
+        self._sync_output()
+        result = self.continuation.continue_story(additional_chapters, word_count, style, progress_callback, stream_callback)
+        self.output = self.continuation.output
+        self._sync_output()
+        return result
 
     def remove_chapters(self, from_chapter: int, progress_callback=None) -> StoryDraft:
-        """Remove chapters from a given position onward."""
-        if not self.output.story_draft:
-            raise ValueError("No story draft loaded.")
-        draft = StoryGenerator.remove_chapters(self.output.story_draft, from_chapter)
-        self.output.story_draft = draft
-        # Clear enhanced/video since they're now stale
-        self.output.enhanced_story = None
-        self.output.video_script = None
-        self._save_checkpoint(1)
-        if progress_callback:
-            progress_callback(f"Removed chapters from {from_chapter} onward. {len(draft.chapters)} chapters remain.")
-        return draft
+        self._sync_output()
+        result = self.continuation.remove_chapters(from_chapter, progress_callback)
+        self.output = self.continuation.output
+        self._sync_output()
+        return result
 
-    def update_character(
-        self, char_name: str, updates: dict, progress_callback=None
-    ) -> StoryDraft:
-        """Update a character's attributes in the current draft."""
-        if not self.output.story_draft:
-            raise ValueError("No story draft loaded.")
-        draft = self.output.story_draft
-        for c in draft.characters:
-            if c.name == char_name:
-                for key, value in updates.items():
-                    if hasattr(c, key) and value:
-                        setattr(c, key, value)
-                if progress_callback:
-                    progress_callback(f"Updated character: {char_name}")
-                self._save_checkpoint(1)
-                return draft
-        if progress_callback:
-            progress_callback(f"Character not found: {char_name}")
-        return draft
+    def update_character(self, char_name: str, updates: dict, progress_callback=None) -> StoryDraft:
+        self._sync_output()
+        result = self.continuation.update_character(char_name, updates, progress_callback)
+        self.output = self.continuation.output
+        self._sync_output()
+        return result
 
-    def enhance_chapters(
-        self,
-        num_sim_rounds: int = 3,
-        word_count: int = 2000,
-        progress_callback=None,
-    ) -> Optional[EnhancedStory]:
-        """Run Layer 2 enhancement on all chapters."""
-        if not self.output.story_draft:
-            raise ValueError("No story draft loaded.")
-
-        draft = self.output.story_draft
-
-        def _log(msg):
-            logger.info(msg)
-            if progress_callback:
-                progress_callback(msg)
-
-        try:
-            _log("Analyzing story for enhancement...")
-            analysis = self.analyzer.analyze(draft)
-
-            _log("Running drama simulation...")
-            sim_result = self.simulator.run_simulation(
-                characters=draft.characters,
-                relationships=analysis["relationships"],
-                genre=draft.genre,
-                num_rounds=num_sim_rounds,
-                progress_callback=lambda m: _log(f"[L2] {m}"),
-            )
-            self.output.simulation_result = sim_result
-
-            _log("Enhancing story with dramatic elements...")
-            enhanced = self.enhancer.enhance_with_feedback(
-                draft=draft, sim_result=sim_result,
-                word_count=word_count,
-                progress_callback=lambda m: _log(f"[L2] {m}"),
-            )
-
-            self.output.enhanced_story = enhanced
-            self._save_checkpoint(2)
-            _log("Enhancement complete!")
-            return enhanced
-
-        except Exception as e:
-            _log(f"Enhancement error: {e}")
-            return None
+    def enhance_chapters(self, num_sim_rounds=3, word_count=2000, progress_callback=None) -> Optional[EnhancedStory]:
+        self._sync_output()
+        result = self.continuation.enhance_chapters(num_sim_rounds, word_count, progress_callback)
+        self.output = self.continuation.output
+        self._sync_output()
+        return result

@@ -194,6 +194,15 @@ class StoryEnhancer:
 
         genre = draft.genre if hasattr(draft, 'genre') else ""
 
+        # Log drama_multiplier influence: event scores already incorporate agent multipliers
+        # from simulator._apply_escalation. Report average event drama_score as proxy.
+        if sim_result.events:
+            avg_event_score = sum(e.drama_score for e in sim_result.events) / len(sim_result.events)
+            logger.info(
+                f"Drama multiplier influence: avg event drama_score={avg_event_score:.3f} "
+                f"across {len(sim_result.events)} events (agent multipliers embedded)"
+            )
+
         for round_num in range(1, MAX_REENHANCE_ROUNDS + 1):
             weak_analyses = self._find_weak_chapters(enhanced)
             if not weak_analyses:

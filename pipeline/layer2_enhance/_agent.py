@@ -65,10 +65,10 @@ class EmotionalState:
 
     @property
     def drama_multiplier(self) -> float:
-        """How much this character's state amplifies drama."""
+        """How much this character's state amplifies drama. Bounded to [0.5, 3.0]."""
         base = MOOD_DRAMA.get(self.mood, 1.0)
         desperation = self.stakes * (1.0 - self.energy) * 0.5
-        return base + desperation
+        return min(3.0, max(0.5, base + desperation))
 
     def to_prompt_text(self) -> str:
         """Format for LLM prompt injection."""

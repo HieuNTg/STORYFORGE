@@ -361,6 +361,19 @@ class DramaSimulator:
             )
             raw_score = result.get("drama_score", 0.7)
             boosted = min(1.0, raw_score * pattern.intensity_multiplier)
+            # Scale by average drama_multiplier of involved agents (bounded 0.5–3.0)
+            chars_involved = result.get("characters_involved", chars)
+            agent_multipliers = [
+                self.agents[c.strip()].emotion.drama_multiplier
+                for c in chars_involved
+                if c.strip() in self.agents
+            ]
+            avg_multiplier = (
+                sum(agent_multipliers) / len(agent_multipliers)
+                if agent_multipliers else 1.0
+            )
+            avg_multiplier = min(3.0, max(0.5, avg_multiplier))
+            boosted = min(1.0, boosted * avg_multiplier)
             return SimulationEvent(
                 round_number=round_num,
                 event_type=result.get("event_type", pattern.pattern_type),

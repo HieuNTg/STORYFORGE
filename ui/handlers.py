@@ -345,3 +345,48 @@ def handle_compose_video(orch_state, voice: str = "female") -> tuple:
     except Exception as e:
         logger.error(f"Video compose error: {e}")
         return None, None, f"Lỗi: {e}"
+
+
+# ── Genre presets ──────────────────────────────────────────────────────────────
+
+GENRE_PRESETS = {
+    "Tiên Hiệp": {"num_chapters": 50, "words_per_chapter": 3000, "writing_style": "Miêu tả chi tiết"},
+    "Huyền Huyễn": {"num_chapters": 40, "words_per_chapter": 3000, "writing_style": "Miêu tả chi tiết"},
+    "Ngôn Tình": {"num_chapters": 30, "words_per_chapter": 2500, "writing_style": "Trữ tình lãng mạn"},
+    "Cung Đấu": {"num_chapters": 40, "words_per_chapter": 2800, "writing_style": "Miêu tả chi tiết"},
+    "Đô Thị": {"num_chapters": 30, "words_per_chapter": 2500, "writing_style": "Đối thoại sắc bén"},
+    "Kiếm Hiệp": {"num_chapters": 40, "words_per_chapter": 3000, "writing_style": "Miêu tả chi tiết"},
+    "Xuyên Không": {"num_chapters": 40, "words_per_chapter": 2800, "writing_style": "Miêu tả chi tiết"},
+    "Trọng Sinh": {"num_chapters": 40, "words_per_chapter": 2800, "writing_style": "Miêu tả chi tiết"},
+}
+
+
+def handle_genre_autofill(genre_value: str) -> tuple:
+    """Return preset (num_chapters, words_per_chapter, writing_style) for genre."""
+    preset = GENRE_PRESETS.get(genre_value)
+    if not preset:
+        return (None, None, None)
+    return (preset["num_chapters"], preset["words_per_chapter"], preset["writing_style"])
+
+
+# ── Character gallery handler ──────────────────────────────────────────────────
+
+def handle_character_gallery(orch_state) -> list:
+    """Populate character gallery from pipeline output. Returns list of (path, name)."""
+    if orch_state is None:
+        return []
+    try:
+        output = getattr(orch_state, "output", None)
+        if not output:
+            return []
+        char_refs = getattr(output, "character_refs", None)
+        if not char_refs:
+            vs = getattr(output, "video_script", None)
+            if vs:
+                char_refs = getattr(vs, "character_refs", None)
+        if not char_refs:
+            return []
+        return [(path, name) for name, path in char_refs.items() if path and os.path.exists(path)]
+    except Exception as e:
+        logger.error("Character gallery error: %s", e)
+        return []

@@ -149,41 +149,83 @@ class LLMClient:
         if self._is_web_backend():
             return self._generate_web(messages, effective_temp, use_cache, cache, cache_params)
 
-        # API backend — resolve client and model based on tier
-        if model_tier == "cheap" and config.llm.cheap_model:
-            client, effective_model = self._get_cheap_client()
-        else:
-            client = self._get_client()
-            effective_model = self._current_model or config.llm.model
+        # API backend — build provider chain and try each
+        chain = self._build_fallback_chain(config, model_tier)
+        eff_max_tokens = max_tokens or config.llm.max_tokens
 
-        kwargs = {
-            "model": effective_model,
-            "messages": messages,
-            "temperature": effective_temp,
-            "max_tokens": max_tokens or config.llm.max_tokens,
-        }
-        if json_mode:
-            kwargs["response_format"] = {"type": "json_object"}
-
-        # Retry loop with exponential backoff
-        last_exc = None
-        for attempt in range(MAX_RETRIES):
+        all_errors = []
+        for provider in chain:
             try:
-                response = client.chat.completions.create(**kwargs)
-                result = response.choices[0].message.content or ""
+                result = self._try_provider(
+                    provider, messages, effective_temp, eff_max_tokens, json_mode
+                )
                 if use_cache and cache is not None and cache_params is not None:
                     cache.put(result, **cache_params)
                 return result
             except Exception as e:
+                all_errors.append(f"{provider['label']}: {e}")
+                if not _is_transient(e):
+                    raise  # 4xx errors — don't try fallbacks
+                logger.warning(f"Provider {provider['label']} failed, trying next...")
+
+        error_msg = "; ".join(all_errors)
+        logger.error(f"All LLM providers failed: {error_msg}")
+        raise RuntimeError(f"All LLM providers failed: {error_msg}")
+
+    def _build_fallback_chain(self, config, model_tier: str) -> list[dict]:
+        """Build ordered list of providers to try: primary → cheap → fallbacks."""
+        chain = []
+        if model_tier == "cheap" and config.llm.cheap_model:
+            client, model = self._get_cheap_client()
+            chain.append({"client": client, "model": model, "label": f"cheap:{model}"})
+        else:
+            chain.append({
+                "client": self._get_client(),
+                "model": self._current_model or config.llm.model,
+                "label": "primary",
+            })
+        # Add cheap as fallback if not already primary
+        if model_tier != "cheap" and config.llm.cheap_model:
+            client, model = self._get_cheap_client()
+            chain.append({"client": client, "model": model, "label": f"cheap:{model}"})
+        # Add configured fallback models
+        for fb in getattr(config.llm, 'fallback_models', []):
+            fb_model = fb.get("model", "")
+            if not fb_model:
+                continue
+            fb_base = fb.get("base_url", config.llm.base_url)
+            fb_key = fb.get("api_key", config.llm.api_key)
+            cache_key = f"{fb_base}:{fb_key}"
+            with self._client_lock:
+                if cache_key not in self._clients_cache:
+                    self._clients_cache[cache_key] = OpenAI(api_key=fb_key, base_url=fb_base)
+                chain.append({"client": self._clients_cache[cache_key], "model": fb_model, "label": f"fallback:{fb_model}"})
+        return chain
+
+    def _try_provider(self, provider: dict, messages: list, temperature: float,
+                      max_tokens: int, json_mode: bool) -> str:
+        """Try a single provider with retry."""
+        kwargs = {
+            "model": provider["model"],
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+        last_exc = None
+        for attempt in range(2):
+            try:
+                response = provider["client"].chat.completions.create(**kwargs)
+                result = response.choices[0].message.content or ""
+                logger.info(f"LLM success via {provider['label']}")
+                return result
+            except Exception as e:
                 last_exc = e
-                if attempt < MAX_RETRIES - 1 and _is_transient(e):
-                    delay = BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
-                    logger.warning(f"LLM attempt {attempt+1} failed: {e}. Retry in {delay:.1f}s")
-                    time.sleep(delay)
+                if attempt == 0 and _is_transient(e):
+                    time.sleep(BASE_DELAY)
                     continue
                 break
-
-        logger.error(f"Lỗi gọi LLM sau {MAX_RETRIES} lần: {last_exc}")
         raise last_exc
 
     def _generate_web(self, messages, temperature, use_cache, cache, cache_params) -> str:
