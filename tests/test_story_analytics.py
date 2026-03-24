@@ -1,4 +1,5 @@
 """Tests for StoryAnalytics service."""
+import os
 import pytest
 from models.schemas import Chapter, StoryDraft, EnhancedStory
 
