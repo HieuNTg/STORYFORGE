@@ -36,7 +36,10 @@ from ui.tabs import (
     build_export_tab,
     build_account_tab,
     build_settings_tab,
+    build_analytics_tab,
+    build_reader_tab,
 )
+from ui.tabs.branching_tab import build_branching_tab
 
 # Logging
 logging.basicConfig(
@@ -240,6 +243,7 @@ def create_ui():
                         shots_per_ch = form["shots_per_ch"]
                         enable_agents_cb = form["enable_agents_cb"]
                         enable_scoring_cb = form["enable_scoring_cb"]  # enable_scoring_cb = gr.Checkbox (see ui/tabs/pipeline_tab.py)
+                        enable_media_cb = form["enable_media_cb"]
                         run_btn = form["run_btn"]
 
                     with gr.Column(scale=2):
@@ -523,7 +527,7 @@ def create_ui():
                 def run_pipeline(
                     title, genre, style, idea, n_chapters, n_chars,
                     w_count, n_sim, _drama, n_shots, agents_enabled,
-                    scoring_enabled, user_state_data=None,
+                    scoring_enabled, media_enabled, user_state_data=None,
                 ):
                     errors = []
                     if not idea or len(idea.strip()) < 10:
@@ -592,6 +596,7 @@ def create_ui():
                             stream_callback=on_stream,
                             enable_agents=agents_enabled,
                             enable_scoring=scoring_enabled,
+                            enable_media=media_enabled,
                         )
 
                     thread = threading.Thread(target=_run)
@@ -645,7 +650,7 @@ def create_ui():
                     title_input, genre_input, style_input, idea_input,
                     num_chapters, num_characters, word_count,
                     sim_rounds, drama_level, shots_per_ch, enable_agents_cb,
-                    enable_scoring_cb, user_state,
+                    enable_scoring_cb, enable_media_cb, user_state,
                 ]
 
                 run_btn.click(
@@ -930,6 +935,24 @@ def create_ui():
             # ═══════════════════════════════════════
             with gr.TabItem(_t("tab.export")):
                 build_export_tab(_t, orchestrator_state)
+
+            # ═══════════════════════════════════════
+            # TAB: ĐỌC TRUYỆN
+            # ═══════════════════════════════════════
+            with gr.TabItem("Đọc Truyện"):
+                build_reader_tab(_t, orchestrator_state)
+
+            # ═══════════════════════════════════════
+            # TAB: PHÂN TÍCH
+            # ═══════════════════════════════════════
+            with gr.TabItem("Phân Tích"):
+                build_analytics_tab(_t, orchestrator_state)
+
+            # ═══════════════════════════════════════
+            # TAB: RE NHANH
+            # ═══════════════════════════════════════
+            with gr.TabItem("Re Nhanh"):
+                build_branching_tab(_t, orchestrator_state)
 
             # ═══════════════════════════════════════
             # TAB: TÀI KHOẢN

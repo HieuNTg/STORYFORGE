@@ -30,6 +30,9 @@ novel-auto/
 │   ├── tts_audio_generator.py      # edge-tts integration, Vietnamese voice synthesis
 │   ├── image_generator.py          # DALL-E / SD API image generation per storyboard panel
 │   ├── credit_manager.py           # Credit/monetization system with bcrypt-hashed accounts
+│   ├── self_review.py              # CoT+CAI self-review for chapter quality assessment
+│   ├── story_brancher.py           # Interactive story branching with DAG management
+│   ├── wattpad_exporter.py         # Wattpad/NovelHD export service
 │   └── i18n.py                     # Thread-safe i18n singleton (vi/en JSON locales)
 ├── pipeline/
 │   ├── orchestrator.py             # Main workflow coordinator
@@ -58,7 +61,8 @@ novel-auto/
 │       ├── output_tab.py           # Story/simulation/video output
 │       ├── quality_tab.py          # Quality metrics display
 │       ├── export_tab.py           # Export format selection + download
-│       └── continuation_tab.py     # Chapter continuation & character editing
+│       ├── continuation_tab.py     # Chapter continuation & character editing
+│       └── branching_tab.py        # Story branching UI with fork/merge controls
 ├── locales/
 │   ├── vi.json                     # Vietnamese locale strings (200+)
 │   └── en.json                     # English locale strings (200+)
@@ -204,6 +208,26 @@ Chapter → [parallel] summarize + extract_character_states + extract_plot_event
 - UI: chapter slider, character editor, delete/re-enhance buttons
 - Checkpoint-based — context rebuilt from existing chapters
 
+## CoT Self-Review (Phase 9, F1)
+
+- `services/self_review.py`: `SelfReviewService` with CoT+CAI prompt injection
+- Identifies weak chapters below 3.0/5.0 quality threshold (~20-30% revision rate)
+- Integrated into Layer 1 generator for auto-revision
+- Uses cheaper model tier with temp=0.2 for consistency
+
+## Story Branching (Phase 9, F2)
+
+- `services/story_brancher.py`: DAG-based branch management
+- `ui/tabs/branching_tab.py`: Fork/merge UI visualization
+- Multi-path story exploration; user-driven convergence (no auto-merge)
+- In-memory storage (Gradio State) — MVP, no persistence
+
+## Wattpad/NovelHD Export (Phase 9, F3)
+
+- `services/wattpad_exporter.py`: Direct export to Wattpad chapter structure
+- NovelHD metadata format with character/world transcription
+- Integrated into export_tab.py with format selection checkbox
+
 ## CI/CD Pipeline (GitHub Actions)
 
 `.github/workflows/ci.yml`:
@@ -222,6 +246,7 @@ Chapter → [parallel] summarize + extract_character_states + extract_plot_event
 | Phase 5 | COMPLETE | i18n (vi/en), 200+ locale strings |
 | Phase 6 | COMPLETE | Story continuation, character editing, checkpoint workflow |
 | Phase 7 | COMPLETE | TTS audio (edge-tts), image generation, credit/monetization, CI/CD |
+| Phase 9 | COMPLETE | 31 team issues fixed; CoT self-review, story branching, Wattpad export |
 
 ---
 

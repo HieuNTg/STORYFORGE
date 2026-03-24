@@ -1,10 +1,12 @@
 """Vietnamese TTS audio generation using edge-tts."""
 
 import asyncio
+import concurrent.futures
 import logging
 import os
 import re
 import shutil
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import reduce
 from typing import Optional
@@ -20,6 +22,18 @@ VIETNAMESE_VOICES = {
 
 class TTSAudioGenerator:
     """Generate audio files from text using edge-tts."""
+
+    _shared_executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
+    _executor_lock = threading.Lock()
+
+    @classmethod
+    def _get_executor(cls) -> concurrent.futures.ThreadPoolExecutor:
+        """Return the shared ThreadPoolExecutor, creating it lazily (double-checked locking)."""
+        if cls._shared_executor is None:
+            with cls._executor_lock:
+                if cls._shared_executor is None:
+                    cls._shared_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+        return cls._shared_executor
 
     def __init__(self, voice: str = "female", rate: str = "+0%", volume: str = "+0%"):
         self.voice = VIETNAMESE_VOICES.get(voice, voice)
@@ -45,12 +59,9 @@ class TTSAudioGenerator:
                 running = False
 
             if running:
-                import concurrent.futures
-
-                with concurrent.futures.ThreadPoolExecutor() as pool:
-                    result = pool.submit(
-                        asyncio.run, self._generate_async(text, output_path)
-                    ).result(timeout=300)
+                result = self._get_executor().submit(
+                    asyncio.run, self._generate_async(text, output_path)
+                ).result(timeout=300)
                 return result
             else:
                 return asyncio.run(self._generate_async(text, output_path))
@@ -112,7 +123,8 @@ class TTSAudioGenerator:
             from pydub import AudioSegment
             audio = AudioSegment.from_file(audio_path)
             return len(audio) / 1000.0
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Duration measure failed: {e}")
             return 5.0  # default 5 seconds
 
     def assign_voices(self, characters: list) -> dict:

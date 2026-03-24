@@ -3,9 +3,11 @@
 import gradio as gr
 from ui.handlers import (
     handle_export_pdf,
+    handle_export_epub,
     handle_export_tts,
     handle_export_tts_audio,
     handle_share_story,
+    handle_export_wattpad,
 )
 
 
@@ -22,8 +24,10 @@ def build_export_tab(_t, orchestrator_state):
     gr.Markdown(f"### {_t('tab.export')}")
     with gr.Row():
         pdf_btn = gr.Button(_t("btn.export_pdf"), variant="secondary")
+        epub_btn = gr.Button(_t("btn.export_epub"), variant="secondary")
         tts_btn = gr.Button(_t("btn.export_tts"), variant="secondary")
         share_btn = gr.Button(_t("btn.share"), variant="primary")
+        wattpad_btn = gr.Button("Wattpad Export", variant="secondary")
 
     gr.Markdown("---")
     gr.Markdown(f"#### {_t('label.voice_select')}")
@@ -44,6 +48,9 @@ def build_export_tab(_t, orchestrator_state):
     def _export_pdf(orch_state):
         return handle_export_pdf(orch_state, _t)
 
+    def _export_epub(orch_state):
+        return handle_export_epub(orch_state, _t)
+
     def _export_tts(orch_state):
         return handle_export_tts(orch_state, _t)
 
@@ -54,8 +61,16 @@ def build_export_tab(_t, orchestrator_state):
     def _share_story(orch_state):
         return handle_share_story(orch_state, _t)
 
+    def _export_wattpad(orch_state):
+        return handle_export_wattpad(orch_state, _t)
+
     pdf_btn.click(
         fn=_export_pdf,
+        inputs=[orchestrator_state],
+        outputs=[export_file_output, reading_stats_display],
+    )
+    epub_btn.click(
+        fn=_export_epub,
         inputs=[orchestrator_state],
         outputs=[export_file_output, reading_stats_display],
     )
@@ -73,6 +88,11 @@ def build_export_tab(_t, orchestrator_state):
         fn=_share_story,
         inputs=[orchestrator_state],
         outputs=[share_link_display, export_file_output],
+    )
+    wattpad_btn.click(
+        fn=_export_wattpad,
+        inputs=[orchestrator_state],
+        outputs=[export_file_output, reading_stats_display],
     )
 
     return {

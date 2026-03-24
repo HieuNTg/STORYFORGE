@@ -322,6 +322,36 @@ class ShareableStory(BaseModel):
     expires_at: str = ""
 
 
+# === Story Branching ===
+
+class BranchChoice(BaseModel):
+    """A decision point choice."""
+    choice_id: str = Field(description="Unique choice identifier")
+    text: str = Field(description="Choice text shown to user")
+    next_node_id: str = Field(default="", description="ID of next story node")
+    state_delta: dict = Field(default_factory=dict, description="Character state changes")
+
+
+class StoryNode(BaseModel):
+    """A node in the branching story tree."""
+    node_id: str = Field(description="Unique node identifier")
+    chapter_number: int = 0
+    title: str = ""
+    content: str = ""
+    choices: list[BranchChoice] = Field(default_factory=list)
+    parent_id: str = Field(default="", description="Parent node ID")
+    is_ending: bool = False
+
+
+class StoryTree(BaseModel):
+    """Complete branching story structure (DAG)."""
+    root_id: str = "root"
+    nodes: dict[str, StoryNode] = Field(default_factory=dict)
+    current_node_id: str = "root"
+    title: str = ""
+    genre: str = ""
+
+
 # === Pipeline Output ===
 
 class PipelineOutput(BaseModel):

@@ -82,6 +82,24 @@ def handle_export_pdf(orch_state, t) -> tuple:
         return None, {"error": str(e)}
 
 
+def handle_export_epub(orch_state, t) -> tuple:
+    """Export story as EPUB and return (file_list, reading_stats_dict)."""
+    if orch_state is None:
+        return None, t("msg.no_story")
+    try:
+        from services.epub_exporter import EPUBExporter
+        story = orch_state.output.enhanced_story or orch_state.output.story_draft
+        if not story:
+            return None, t("msg.no_story")
+        chars = orch_state.output.story_draft.characters if orch_state.output.story_draft else []
+        path = EPUBExporter.export(story, "output/story.epub", characters=chars)
+        stats = PDFExporter.compute_reading_stats(story).model_dump()
+        return [path] if path else None, stats
+    except Exception as e:
+        logger.error(f"EPUB export error: {e}")
+        return None, {"error": str(e)}
+
+
 def handle_export_tts(orch_state, t) -> Optional[list]:
     """Export TTS script and return file list."""
     if orch_state is None:
@@ -370,6 +388,22 @@ def handle_genre_autofill(genre_value: str) -> tuple:
 
 
 # ── Character gallery handler ──────────────────────────────────────────────────
+
+def handle_export_wattpad(orch_state, t) -> tuple:
+    """Export story in Wattpad-ready format. Returns (file_list, metadata_dict)."""
+    if orch_state is None:
+        return [], {"error": "No story"}
+    story = orch_state.output.enhanced_story or orch_state.output.story_draft
+    if not story:
+        return [], {"error": "No story data"}
+    try:
+        from services.wattpad_exporter import PlatformExporter
+        result = PlatformExporter.export_wattpad(story)
+        return result["files"], result["metadata"]
+    except Exception as e:
+        logger.error(f"Wattpad export failed: {e}")
+        return [], {"error": str(e)}
+
 
 def handle_character_gallery(orch_state) -> list:
     """Populate character gallery from pipeline output. Returns list of (path, name)."""

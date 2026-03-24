@@ -53,12 +53,20 @@ def test_compose_writes_concat_file(tmp_path):
     composer = VideoComposer()
     composer.output_dir = str(tmp_path)
 
-    with patch("services.video_composer.subprocess.run", return_value=mock_result):
+    # Capture concat content before cleanup removes it
+    captured_content = {}
+    orig_write = composer._write_concat_file
+
+    def _capture_write(p):
+        path = orig_write(p)
+        captured_content["text"] = open(path, encoding="utf-8").read()
+        return path
+
+    with patch.object(composer, '_write_concat_file', side_effect=_capture_write), \
+         patch("services.video_composer.subprocess.run", return_value=mock_result):
         result = composer.compose(panels=panels, output_filename="test.mp4")
 
-    concat_path = tmp_path / "concat.txt"
-    assert concat_path.exists()
-    content = concat_path.read_text(encoding="utf-8")
+    content = captured_content["text"]
     assert "duration 3.0" in content
     assert "duration 7.0" in content
     # Last entry repeated without duration (FFmpeg requirement)

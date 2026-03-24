@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+import sqlite3
 import time
 import random
 import threading
@@ -15,6 +16,11 @@ logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
 BASE_DELAY = 1.0
+
+
+class WebBackendExhausted(Exception):
+    """All web backend attempts failed."""
+    pass
 
 # Transient error indicators
 _TRANSIENT_CODES = {429, 500, 502, 503, 504}
@@ -58,7 +64,7 @@ class LLMClient:
             config = ConfigManager()
             if config.llm.cache_enabled:
                 LLMCache(ttl_days=config.llm.cache_ttl_days).evict_expired()
-        except Exception:
+        except (OSError, sqlite3.Error):
             pass
 
     def _get_client(self) -> OpenAI:
@@ -105,6 +111,51 @@ class LLMClient:
                 self._clients_cache[cache_key] = OpenAI(api_key=api_key, base_url=cheap_base)
             return self._clients_cache[cache_key], config.llm.cheap_model
 
+    def _retry_with_backoff(self, fn, label: str = "LLM"):
+        """Execute fn with retry + exponential backoff. Returns result or raises last exception."""
+        last_exc = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                return fn()
+            except Exception as e:
+                last_exc = e
+                if attempt < MAX_RETRIES - 1 and _is_transient(e):
+                    delay = BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
+                    logger.warning(f"{label} attempt {attempt+1} failed: {e}. Retry in {delay:.1f}s")
+                    time.sleep(delay)
+                    continue
+                break
+        raise last_exc
+
+    def _stream_with_retry(self, gen_factory, label: str = "stream"):
+        """Issue #2: retry wrapper for streaming generators.
+
+        Only retries if no chunks were yielded yet (H1 fix: prevents
+        duplicate output when failure occurs mid-stream).
+        """
+        last_exc = None
+        chunks_yielded = 0
+        for attempt in range(MAX_RETRIES):
+            try:
+                for chunk in gen_factory():
+                    chunks_yielded += 1
+                    yield chunk
+                return
+            except Exception as e:
+                last_exc = e
+                if chunks_yielded > 0:
+                    # Mid-stream failure — cannot safely retry without duplication
+                    logger.error(f"{label} failed after {chunks_yielded} chunks: {e}")
+                    raise
+                if attempt < MAX_RETRIES - 1 and _is_transient(e):
+                    delay = BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
+                    logger.warning(f"{label} attempt {attempt+1} failed: {e}. Retry in {delay:.1f}s")
+                    time.sleep(delay)
+                    continue
+                break
+        logger.error(f"{label} failed after {MAX_RETRIES} attempts: {last_exc}")
+        raise last_exc
+
     def generate(
         self,
         system_prompt: str,
@@ -131,7 +182,7 @@ class LLMClient:
 
         # Cache check (only for deterministic calls)
         effective_model = config.llm.model if not self._is_web_backend() else "deepseek-web"
-        use_cache = config.llm.cache_enabled and effective_temp <= 0.7
+        use_cache = config.llm.cache_enabled and effective_temp <= 1.0
         cache = None
         cache_params = None
         if use_cache:
@@ -147,10 +198,11 @@ class LLMClient:
 
         # Route to web backend (DeepSeek browser auth)
         if self._is_web_backend():
-            result = self._generate_web(messages, effective_temp, use_cache, cache, cache_params)
-            if not isinstance(result, BaseException):
+            try:
+                result = self._generate_web(messages, effective_temp, use_cache, cache, cache_params)
                 return result
-            logger.warning(f"Web backend exhausted, falling back to API chain: {result}")
+            except WebBackendExhausted as e:
+                logger.warning(f"Web backend exhausted, falling back to API chain: {e}")
 
         # API backend — build provider chain and try each
         chain = self._build_fallback_chain(config, model_tier)
@@ -207,55 +259,34 @@ class LLMClient:
 
     def _try_provider(self, provider: dict, messages: list, temperature: float,
                       max_tokens: int, json_mode: bool) -> str:
-        """Try a single provider with retry."""
         kwargs = {
-            "model": provider["model"],
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
+            "model": provider["model"], "messages": messages,
+            "temperature": temperature, "max_tokens": max_tokens,
         }
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
-        last_exc = None
-        for attempt in range(MAX_RETRIES):
-            try:
-                response = provider["client"].chat.completions.create(**kwargs)
-                result = response.choices[0].message.content or ""
-                logger.info(f"LLM success via {provider['label']}")
-                return result
-            except Exception as e:
-                last_exc = e
-                if attempt < MAX_RETRIES - 1 and _is_transient(e):
-                    delay = BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
-                    logger.warning(f"Provider {provider['label']} attempt {attempt+1} failed: {e}. Retry in {delay:.1f}s")
-                    time.sleep(delay)
-                    continue
-                break
-        raise last_exc
+
+        def _call():
+            response = provider["client"].chat.completions.create(**kwargs)
+            result = response.choices[0].message.content or ""
+            logger.info(f"LLM success via {provider['label']}")
+            return result
+
+        return self._retry_with_backoff(_call, label=f"Provider {provider['label']}")
 
     def _generate_web(self, messages, temperature, use_cache, cache, cache_params) -> str:
-        """Generate via DeepSeek web backend with retry."""
-        last_exc = None
-        for attempt in range(MAX_RETRIES):
-            try:
-                web_client = self._get_web_client()
-                result = web_client.chat_completion_sync(
-                    messages=messages, temperature=temperature,
-                )
-                if use_cache and cache is not None and cache_params is not None:
-                    cache.put(result, **cache_params)
-                return result
-            except Exception as e:
-                last_exc = e
-                if attempt < MAX_RETRIES - 1 and _is_transient(e):
-                    delay = BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
-                    logger.warning(f"Web LLM attempt {attempt+1} failed: {e}. Retry in {delay:.1f}s")
-                    time.sleep(delay)
-                    continue
-                break
+        def _call():
+            web_client = self._get_web_client()
+            return web_client.chat_completion_sync(messages=messages, temperature=temperature)
 
-        logger.error(f"Lỗi web LLM sau {MAX_RETRIES} lần: {last_exc}")
-        return last_exc  # Return exception to allow API fallback in generate()
+        try:
+            result = self._retry_with_backoff(_call, label="Web LLM")
+            if use_cache and cache is not None and cache_params is not None:
+                cache.put(result, **cache_params)
+            return result
+        except Exception as e:
+            logger.error(f"Web LLM failed after {MAX_RETRIES} attempts: {e}")
+            raise WebBackendExhausted(str(e)) from e
 
     def generate_json(
         self,
@@ -304,7 +335,15 @@ class LLMClient:
             json_mode=True,
             model_tier="cheap",
         )
-        return json.loads(fixed)
+        # Issue #1: re-raise with text preview on final parse failure
+        try:
+            return json.loads(fixed)
+        except json.JSONDecodeError as e:
+            preview = fixed[:200] if fixed else "<empty>"
+            raise ValueError(
+                f"JSON parse failed after 3 attempts. "
+                f"Last text (truncated): {preview!r}"
+            ) from e
 
     @staticmethod
     def _repair_json(text: str) -> str:
@@ -343,27 +382,15 @@ class LLMClient:
             {"role": "user", "content": user_prompt},
         ]
 
-        # Web backend streaming
+        # Web backend streaming — Issue #2: use _stream_with_retry
         if self._is_web_backend():
-            last_exc = None
-            for attempt in range(MAX_RETRIES):
-                try:
-                    web_client = self._get_web_client()
-                    for chunk in web_client.chat_completion(
-                        messages=messages, temperature=effective_temp, stream=True,
-                    ):
-                        yield chunk
-                    return
-                except Exception as e:
-                    last_exc = e
-                    if attempt < MAX_RETRIES - 1 and _is_transient(e):
-                        delay = BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
-                        logger.warning(f"Web stream attempt {attempt+1} failed: {e}. Retry in {delay:.1f}s")
-                        time.sleep(delay)
-                        continue
-                    break
-            logger.error(f"Lỗi web stream sau {MAX_RETRIES} lần: {last_exc}")
-            raise last_exc
+            def _web_gen():
+                web_client = self._get_web_client()
+                yield from web_client.chat_completion(
+                    messages=messages, temperature=effective_temp, stream=True,
+                )
+            yield from self._stream_with_retry(_web_gen, "Web stream")
+            return
 
         # API backend streaming
         if model_tier == "cheap" and config.llm.cheap_model:
@@ -380,25 +407,14 @@ class LLMClient:
             "stream": True,
         }
 
-        last_exc = None
-        for attempt in range(MAX_RETRIES):
-            try:
-                response = client.chat.completions.create(**kwargs)
-                for chunk in response:
-                    if chunk.choices and chunk.choices[0].delta.content:
-                        yield chunk.choices[0].delta.content
-                return
-            except Exception as e:
-                last_exc = e
-                if attempt < MAX_RETRIES - 1 and _is_transient(e):
-                    delay = BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
-                    logger.warning(f"Stream attempt {attempt+1} failed: {e}. Retry in {delay:.1f}s")
-                    time.sleep(delay)
-                    continue
-                break
+        # Issue #2: use _stream_with_retry for API path as well
+        def _api_gen():
+            response = client.chat.completions.create(**kwargs)
+            for chunk in response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
 
-        logger.error(f"Lỗi stream LLM sau {MAX_RETRIES} lần: {last_exc}")
-        raise last_exc
+        yield from self._stream_with_retry(_api_gen, "API stream")
 
     def check_connection(self) -> tuple[bool, str]:
         """Kiểm tra kết nối backend (API hoặc web)."""

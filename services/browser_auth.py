@@ -12,7 +12,17 @@ import platform
 import subprocess
 import threading
 import time
+import urllib.error
 from typing import Optional
+
+# Issue #11: lazy import so module loads even without cryptography package
+_HAS_CRYPTOGRAPHY = False
+try:
+    from cryptography.fernet import Fernet, InvalidToken
+    _HAS_CRYPTOGRAPHY = True
+except ImportError:
+    Fernet = None
+    InvalidToken = Exception  # placeholder for except clauses
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +34,33 @@ AUTH_PROFILES_PATH = os.path.join(
 
 # Chrome CDP port
 CDP_PORT = 9222
+
+# Encryption key for auth profiles
+_ENCRYPTION_KEY_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "data", ".auth_key",
+)
+
+# Issue #12: marker prefix to distinguish encrypted files from plaintext
+_ENCRYPTED_MARKER = b"SF_ENC:"
+
+
+def _get_or_create_fernet():
+    """Get or create Fernet encryption key for auth profiles.
+
+    Returns None when cryptography package is not installed (Issue #11).
+    """
+    if not _HAS_CRYPTOGRAPHY:
+        return None
+    os.makedirs(os.path.dirname(_ENCRYPTION_KEY_PATH), exist_ok=True)
+    if os.path.exists(_ENCRYPTION_KEY_PATH):
+        with open(_ENCRYPTION_KEY_PATH, "rb") as f:
+            key = f.read()
+    else:
+        key = Fernet.generate_key()
+        with open(_ENCRYPTION_KEY_PATH, "wb") as f:
+            f.write(key)
+    return Fernet(key)
 
 # DeepSeek web URLs for interception
 DEEPSEEK_DOMAINS = ["chat.deepseek.com", "deepseek.com"]
@@ -132,18 +169,23 @@ class BrowserAuth:
                     return True, f"Chrome da khoi dong. Hay dang nhap DeepSeek trong trinh duyet."
             return False, "Chrome khoi dong nhung CDP khong phan hoi."
 
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError) as e:
             logger.error(f"Chrome launch error: {e}")
             return False, f"Loi khoi dong Chrome: {e}"
 
     def _is_cdp_available(self) -> bool:
-        """Check if Chrome CDP is responding."""
+        """Check if Chrome CDP is responding.
+
+        Issue #14: CDP is intentionally over HTTP to localhost only — no SSL needed.
+        Guard ensures we never attempt a non-localhost CDP URL.
+        """
         try:
             import urllib.request
+            # Only allow localhost CDP connections (Issue #14)
             url = f"http://127.0.0.1:{CDP_PORT}/json/version"
             req = urllib.request.urlopen(url, timeout=2)
             return req.status == 200
-        except Exception:
+        except (urllib.error.URLError, OSError, ValueError):
             return False
 
     def capture_deepseek_credentials(self, timeout: int = 300) -> tuple[bool, str]:
@@ -179,8 +221,9 @@ class BrowserAuth:
 
         try:
             with sync_playwright() as pw:
-                # Connect to existing Chrome via CDP
-                browser = pw.chromium.connect_over_cdp(f"http://127.0.0.1:{CDP_PORT}")
+                # CDP intentionally over HTTP to localhost only — no SSL needed (Issue #14)
+                cdp_url = f"http://127.0.0.1:{CDP_PORT}"
+                browser = pw.chromium.connect_over_cdp(cdp_url)
                 context = browser.contexts[0] if browser.contexts else browser.new_context()
 
                 # Find or create DeepSeek tab
@@ -230,8 +273,8 @@ class BrowserAuth:
                     if has_session and not captured["bearer"]:
                         try:
                             page.evaluate("fetch('/api/v0/users/current')")
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug(f"Page eval failed: {e}")
 
                     time.sleep(2)
 
@@ -255,16 +298,82 @@ class BrowserAuth:
             logger.error(f"Credential capture error: {e}")
             return False, f"Loi: {e}"
 
+    def _load_profiles(self) -> dict:
+        """Load and decrypt auth profiles.
+
+        Issue #12: When encryption key exists, only accept files with the SF_ENC:
+        prefix. Legacy plaintext is auto-migrated. Unrecognized formats are refused
+        to prevent downgrade attacks.
+        """
+        if not os.path.exists(AUTH_PROFILES_PATH):
+            return {}
+
+        with open(AUTH_PROFILES_PATH, "rb") as f:
+            raw = f.read()
+
+        key_exists = os.path.exists(_ENCRYPTION_KEY_PATH)
+
+        if _HAS_CRYPTOGRAPHY and key_exists:
+            if raw.startswith(_ENCRYPTED_MARKER):
+                # Normal path: strip marker then decrypt
+                try:
+                    fernet = _get_or_create_fernet()
+                    decrypted = fernet.decrypt(raw[len(_ENCRYPTED_MARKER):])
+                    return json.loads(decrypted.decode("utf-8"))
+                except InvalidToken:
+                    logger.error("Auth profile decryption failed — possible tampering")
+                    return {}
+            elif raw.startswith(b"{"):
+                # Legacy plaintext detected while key is present — migrate it
+                logger.warning("Migrating plaintext auth profiles to encrypted format")
+                try:
+                    data = json.loads(raw.decode("utf-8"))
+                    if isinstance(data, dict):
+                        self._save_credentials_dict(data)
+                        return data
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    pass
+                return {}
+            else:
+                # Unrecognized format — refuse to load (prevents downgrade attack)
+                logger.error("Auth profile format unrecognized — refusing to load")
+                return {}
+
+        # No encryption available — load plaintext
+        try:
+            return json.loads(raw.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return {}
+
+    def _save_credentials_dict(self, profiles: dict):
+        """Save profiles dict encrypted (with SF_ENC: marker) or plaintext fallback.
+
+        Issue #12: Prepend _ENCRYPTED_MARKER so _load_profiles can distinguish
+        encrypted files from legacy plaintext and refuse downgrades.
+        """
+        os.makedirs(os.path.dirname(AUTH_PROFILES_PATH), exist_ok=True)
+        if _HAS_CRYPTOGRAPHY:
+            try:
+                fernet = _get_or_create_fernet()
+                payload = json.dumps(profiles, ensure_ascii=False).encode("utf-8")
+                encrypted = _ENCRYPTED_MARKER + fernet.encrypt(payload)
+                with open(AUTH_PROFILES_PATH, "wb") as f:
+                    f.write(encrypted)
+                return
+            except Exception as e:
+                logger.warning(f"Encryption failed, falling back to plaintext: {e}")
+        with open(AUTH_PROFILES_PATH, "w", encoding="utf-8") as f:
+            json.dump(profiles, f, ensure_ascii=False, indent=2)
+
     def _save_credentials(self, credentials: dict):
-        """Save captured credentials to auth_profiles.json."""
+        """Save captured credentials to encrypted auth_profiles.json."""
         os.makedirs(os.path.dirname(AUTH_PROFILES_PATH), exist_ok=True)
 
         profiles = {}
         if os.path.exists(AUTH_PROFILES_PATH):
             try:
-                with open(AUTH_PROFILES_PATH, "r", encoding="utf-8") as f:
-                    profiles = json.load(f)
-            except Exception:
+                profiles = self._load_profiles()
+            except (json.JSONDecodeError, OSError):
                 pass
 
         provider = credentials.get("provider", "deepseek-web")
@@ -275,9 +384,12 @@ class BrowserAuth:
             "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
 
-        with open(AUTH_PROFILES_PATH, "w", encoding="utf-8") as f:
-            json.dump(profiles, f, ensure_ascii=False, indent=2)
-        logger.info(f"Credentials saved for {provider}")
+        # Delegate to _save_credentials_dict which handles encryption + SF_ENC: marker
+        self._save_credentials_dict(profiles)
+        if _HAS_CRYPTOGRAPHY:
+            logger.info(f"Encrypted credentials saved for {provider}")
+        else:
+            logger.warning(f"Credentials saved WITHOUT encryption (install cryptography package)")
 
     def get_credentials(self, provider: str = "deepseek-web") -> Optional[dict]:
         """Load saved credentials for a provider.
@@ -286,13 +398,10 @@ class BrowserAuth:
             dict with keys: cookies, bearer, user_agent, updated_at
             or None if not found
         """
-        if not os.path.exists(AUTH_PROFILES_PATH):
-            return None
         try:
-            with open(AUTH_PROFILES_PATH, "r", encoding="utf-8") as f:
-                profiles = json.load(f)
+            profiles = self._load_profiles()
             return profiles.get(provider)
-        except Exception:
+        except (json.JSONDecodeError, OSError):
             return None
 
     def is_authenticated(self, provider: str = "deepseek-web") -> bool:
@@ -302,27 +411,32 @@ class BrowserAuth:
 
     def clear_credentials(self, provider: str = "deepseek-web"):
         """Remove saved credentials for a provider."""
-        if not os.path.exists(AUTH_PROFILES_PATH):
-            return
         try:
-            with open(AUTH_PROFILES_PATH, "r", encoding="utf-8") as f:
-                profiles = json.load(f)
+            profiles = self._load_profiles()
             if provider in profiles:
                 del profiles[provider]
-                with open(AUTH_PROFILES_PATH, "w", encoding="utf-8") as f:
-                    json.dump(profiles, f, ensure_ascii=False, indent=2)
-        except Exception:
+                self._save_credentials_dict(profiles)
+        except (json.JSONDecodeError, OSError):
             pass
+
+    def clear_sensitive(self):
+        """Best-effort cleanup of sensitive data from memory (Issue #13).
+
+        Python does not guarantee memory zeroing, but triggering GC
+        reduces the window sensitive data is readable in memory.
+        """
+        import gc
+        gc.collect()
 
     def stop_chrome(self):
         """Stop the Chrome process if we launched it."""
-        if self._chrome_process:
+        if getattr(self, '_chrome_process', None):
             try:
                 self._chrome_process.terminate()
                 self._chrome_process.wait(timeout=5)
-            except Exception:
+            except (OSError, subprocess.SubprocessError):
                 try:
                     self._chrome_process.kill()
-                except Exception:
+                except (OSError, subprocess.SubprocessError):
                     pass
             self._chrome_process = None

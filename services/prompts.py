@@ -493,3 +493,43 @@ YÊU CẦU:
 - Viết hoàn toàn bằng tiếng Việt
 
 Bắt đầu viết lại:"""
+
+# ============================================================
+# ANALYTICS: EMOTION EXTRACTION
+# ============================================================
+
+EXTRACT_CHAPTER_EMOTIONS = """Phân tích cảm xúc trong đoạn văn sau và trả về JSON:
+
+Chương {chapter_number}: {title}
+---
+{content}
+---
+
+Ví dụ output:
+{{
+  "joy": 3,
+  "sadness": 7,
+  "anger": 2,
+  "fear": 5,
+  "surprise": 8,
+  "tension": 6,
+  "romance": 1,
+  "dominant_emotion": "buồn",
+  "emotional_summary": "Chương mang âm hưởng buồn với nhiều mất mát và nuối tiếc"
+}}
+
+Trả về JSON với format:
+{{
+  "joy": <0-10>,
+  "sadness": <0-10>,
+  "anger": <0-10>,
+  "fear": <0-10>,
+  "surprise": <0-10>,
+  "tension": <0-10>,
+  "romance": <0-10>,
+  "dominant_emotion": "<tên cảm xúc chiếm chủ đạo>",
+  "emotional_summary": "<mô tả ngắn 1 câu về cung bậc cảm xúc>"
+}}
+
+Chú ý: Đánh giá dựa trên NỘI DUNG và NGỮ CẢNH, không chỉ từ khóa.
+Chỉ trả về JSON, không giải thích."""

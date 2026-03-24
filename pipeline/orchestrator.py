@@ -66,6 +66,7 @@ class PipelineOrchestrator:
         stream_callback=None,
         enable_agents: bool = True,
         enable_scoring: bool = True,
+        enable_media: bool = False,
     ) -> PipelineOutput:
         """Chay toan bo pipeline 3 lop."""
 
@@ -142,6 +143,11 @@ class PipelineOrchestrator:
             logger.exception("Layer 1 error")
             return self.output
 
+        if not draft or not draft.chapters:
+            _log("[ERROR] Layer 1 produced no chapters. Cannot proceed.")
+            self.output.status = "error"
+            return self.output
+
         _log("══════ LAYER 2: MO PHONG TANG KICH TINH ══════")
         self.output.current_layer = 2
         layer_start = time.time()
@@ -200,14 +206,25 @@ class PipelineOrchestrator:
             logger.warning(f"Layer 2 that bai, dung ban thao goc: {e}")
             _log(f"Layer 2 loi ({str(e)}), tiep tuc voi ban thao goc.")
             enhanced = EnhancedStory(
-                title=draft.title, genre=draft.genre,
+                title=draft.title,
+                genre=draft.genre,
                 chapters=list(draft.chapters),
-                enhancement_notes=["Layer 2 skipped due to error"],
+                enhancement_notes=[
+                    "Layer 2 skipped due to error",
+                    f"Error: {str(e)[:200]}",
+                    "Using original draft chapters — drama score will be 0",
+                ],
                 drama_score=0.0,
             )
             self.output.enhanced_story = enhanced
             self.output.progress = 0.66
             self.output.status = "partial"
+            _log("[WARN] Layer 3 will use unenhanced chapters. Video quality may be lower.")
+
+        if not enhanced or not enhanced.chapters:
+            _log("[ERROR] No chapters available for Layer 3. Pipeline stopping.")
+            self.output.status = "error"
+            return self.output
 
         _log("══════ LAYER 3: TAO KICH BAN VIDEO ══════")
         self.output.current_layer = 3
@@ -248,20 +265,28 @@ class PipelineOrchestrator:
             _log(f"Layer 3 loi ({str(e)}), pipeline dung sau Layer 2.")
             self.output.status = "partial"
 
-        if self.output.video_script and self.config.pipeline.image_provider != "none":
-            _log("══════ LAYER 3.5: SAN XUAT ANH + AUDIO + VIDEO ══════")
-            layer_start = time.time()
-            try:
-                media = self.media_producer.run(
-                    draft, enhanced, self.output.video_script,
-                    progress_callback=lambda m: _log(m),
-                )
-                if media.get("video_path"):
-                    _log(f"Video: {media['video_path']}")
-                _log(f"Layer 3.5 hoan tat trong {time.time() - layer_start:.1f}s")
-            except Exception as e:
-                logger.warning(f"Media production failed: {e}")
-                _log(f"Media production loi: {e}")
+        should_run_media = (
+            enable_media
+            and self.output.video_script
+            and self.config.pipeline.image_provider != "none"
+        )
+        if should_run_media:
+            if not self.output.video_script or not self.output.video_script.panels:
+                _log("[WARN] No video panels. Skipping Layer 3.5.")
+            else:
+                _log("══════ LAYER 3.5: SAN XUAT ANH + AUDIO + VIDEO ══════")
+                layer_start = time.time()
+                try:
+                    media = self.media_producer.run(
+                        draft, enhanced, self.output.video_script,
+                        progress_callback=lambda m: _log(m),
+                    )
+                    if media.get("video_path"):
+                        _log(f"Video: {media['video_path']}")
+                    _log(f"Layer 3.5 hoan tat trong {time.time() - layer_start:.1f}s")
+                except Exception as e:
+                    logger.warning(f"Media production failed: {e}")
+                    _log(f"Media production loi: {e}")
 
         return self.output
 

@@ -1,11 +1,24 @@
 """Video composer — assemble images + audio into MP4 using FFmpeg."""
 
+import asyncio
 import os
+import re
 import subprocess
 import logging
-from typing import Optional
+from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_media_path(path: str) -> bool:
+    """Validate media file path to prevent injection."""
+    if not path or not os.path.isfile(path):
+        return False
+    # Block shell metacharacters and command injection attempts
+    if re.search(r'[;&|`$\n\r]', path):
+        logger.warning(f"Rejected suspicious path: {path}")
+        return False
+    return True
 
 
 class VideoComposer:
@@ -16,6 +29,17 @@ class VideoComposer:
         self.resolution = resolution
         self.output_dir = "output/video"
         os.makedirs(self.output_dir, exist_ok=True)
+
+    def _calc_timeout(self, total_duration: float) -> int:
+        """Calculate FFmpeg timeout based on duration and resolution."""
+        base = total_duration * 2 + 120
+        # Scale by resolution (1024x1024 = 1.0x, 1920x1080 ~ 2x, 3840x2160 ~ 4x)
+        try:
+            width = int(self.resolution.split("x")[0])
+            scale = max(1.0, (width / 1024) ** 1.5)
+        except (ValueError, IndexError):
+            scale = 1.0
+        return int(base * scale)
 
     def compose(
         self,
@@ -40,6 +64,7 @@ class VideoComposer:
             return None
 
         output_path = os.path.join(self.output_dir, output_filename)
+        concat_path = None
 
         try:
             concat_path = self._write_concat_file(valid_panels)
@@ -49,8 +74,8 @@ class VideoComposer:
             avg_duration = total_duration / len(valid_panels)
             zoompan_d = int(self.fps * avg_duration)
 
-            # Dynamic timeout: total video duration * 2 + 120s buffer
-            ffmpeg_timeout = int(total_duration * 2 + 120)
+            # Dynamic timeout: scales with resolution
+            ffmpeg_timeout = self._calc_timeout(total_duration)
 
             cmd = [
                 "ffmpeg", "-y",
@@ -66,7 +91,7 @@ class VideoComposer:
                 "-pix_fmt", "yuv420p",
             ]
 
-            if audio_path and os.path.exists(audio_path):
+            if audio_path and _validate_media_path(audio_path):
                 cmd.extend(["-i", audio_path, "-c:a", "aac", "-shortest"])
 
             cmd.extend(["-c:v", "libx264", "-preset", "medium", "-crf", "23", output_path])
@@ -75,7 +100,8 @@ class VideoComposer:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=ffmpeg_timeout)
 
             if result.returncode != 0:
-                logger.error(f"FFmpeg failed: {result.stderr[:500]}")
+                logger.error(f"FFmpeg failed: {result.stderr[-2000:]}")
+                logger.debug(f"FFmpeg full stderr: {result.stderr}")
                 return self._compose_simple(valid_panels, audio_path, output_path)
 
             logger.info(f"Video created: {output_path}")
@@ -90,6 +116,120 @@ class VideoComposer:
         except Exception as e:
             logger.error(f"Video composition failed: {e}")
             return None
+        finally:
+            if concat_path and os.path.exists(concat_path):
+                try:
+                    os.remove(concat_path)
+                except OSError:
+                    pass
+
+    async def compose_async(
+        self,
+        panels: list,
+        audio_path: str = "",
+        output_filename: str = "story_video.mp4",
+        progress_callback: Callable[[str], None] = None,
+    ) -> Optional[str]:
+        """Async video composition with progress reporting."""
+        valid_panels = [
+            p for p in panels
+            if getattr(p, "image_path", "") and os.path.exists(getattr(p, "image_path", ""))
+        ]
+        if not valid_panels:
+            logger.warning("No panels with images found")
+            return None
+
+        output_path = os.path.join(self.output_dir, output_filename)
+        concat_path = None
+        process = None
+
+        try:
+            concat_path = self._write_concat_file(valid_panels)
+            total_duration = sum(getattr(p, "duration_seconds", 5.0) for p in valid_panels)
+            avg_duration = total_duration / len(valid_panels)
+            zoompan_d = int(self.fps * avg_duration)
+            ffmpeg_timeout = self._calc_timeout(total_duration)
+
+            cmd = [
+                "ffmpeg", "-y", "-progress", "pipe:1",
+                "-f", "concat", "-safe", "0", "-i", concat_path,
+                "-vf",
+                (
+                    f"scale={self.resolution}:force_original_aspect_ratio=decrease,"
+                    f"pad={self.resolution}:(ow-iw)/2:(oh-ih)/2:black,"
+                    f"zoompan=z='min(zoom+0.001,1.3)':d={zoompan_d}:s={self.resolution}"
+                ),
+                "-pix_fmt", "yuv420p",
+            ]
+
+            if audio_path and _validate_media_path(audio_path):
+                cmd.extend(["-i", audio_path, "-c:a", "aac", "-shortest"])
+
+            cmd.extend(["-c:v", "libx264", "-preset", "medium", "-crf", "23", output_path])
+
+            if progress_callback:
+                progress_callback(f"Starting FFmpeg encode ({len(valid_panels)} panels)...")
+
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            # Parse FFmpeg progress output (H2 fix: wall-clock total timeout)
+            deadline = asyncio.get_event_loop().time() + ffmpeg_timeout
+            while True:
+                remaining = deadline - asyncio.get_event_loop().time()
+                if remaining <= 0:
+                    raise asyncio.TimeoutError()
+                line = await asyncio.wait_for(process.stdout.readline(), timeout=remaining)
+                if not line:
+                    break
+                decoded = line.decode("utf-8", errors="replace").strip()
+                if decoded.startswith("out_time_ms=") and progress_callback:
+                    try:
+                        elapsed_ms = int(decoded.split("=")[1])
+                        elapsed_s = elapsed_ms / 1_000_000
+                        pct = min(100, int(elapsed_s / total_duration * 100))
+                        progress_callback(f"Encoding video... {pct}%")
+                    except (ValueError, ZeroDivisionError):
+                        pass
+
+            await process.wait()
+
+            if process.returncode != 0:
+                stderr = await process.stderr.read()
+                stderr_text = stderr.decode()
+                logger.error(f"FFmpeg async failed: {stderr_text[-2000:]}")
+                logger.debug(f"FFmpeg full stderr: {stderr_text}")
+                return self._compose_simple(valid_panels, audio_path, output_path)
+
+            if progress_callback:
+                progress_callback("Video encoding complete!")
+            logger.info(f"Video created: {output_path}")
+            return output_path
+
+        except FileNotFoundError:
+            logger.error("FFmpeg not found.")
+            return None
+        except asyncio.TimeoutError:
+            logger.error(f"FFmpeg timed out (>{ffmpeg_timeout}s)")
+            if process and process.returncode is None:
+                process.kill()
+                await process.wait()
+            return None
+        except Exception as e:
+            logger.error(f"Async video composition failed: {e}")
+            if process and process.returncode is None:
+                process.kill()
+                await process.wait()
+            return None
+        finally:
+            if concat_path and os.path.exists(concat_path):
+                try:
+                    os.remove(concat_path)
+                except OSError:
+                    pass
 
     def merge_chapter_audios(
         self, audio_paths: list, output_path: str = ""
@@ -148,13 +288,21 @@ class VideoComposer:
         self, panels: list, audio_path: str, output_path: str
     ) -> Optional[str]:
         """Simpler composition without Ken Burns effect (fallback)."""
+        fallback_concat = os.path.join(self.output_dir, "concat_simple.txt")
         try:
-            concat_path = os.path.join(self.output_dir, "concat.txt")
+            # Write fresh concat file — do not reuse potentially corrupt concat.txt
+            with open(fallback_concat, "w", encoding="utf-8") as f:
+                for panel in panels:
+                    img = self._escape_concat_path(panel.image_path)
+                    duration = getattr(panel, "duration_seconds", 5.0)
+                    f.write(f"file '{img}'\n")
+                    f.write(f"duration {duration}\n")
+                f.write(f"file '{self._escape_concat_path(panels[-1].image_path)}'\n")
 
             cmd = [
                 "ffmpeg", "-y",
                 "-f", "concat", "-safe", "0",
-                "-i", concat_path,
+                "-i", fallback_concat,
                 "-vf",
                 (
                     f"scale={self.resolution}:force_original_aspect_ratio=decrease,"
@@ -166,7 +314,7 @@ class VideoComposer:
                 "-crf", "28",
             ]
 
-            if audio_path and os.path.exists(audio_path):
+            if audio_path and _validate_media_path(audio_path):
                 cmd.extend(["-i", audio_path, "-c:a", "aac", "-shortest"])
 
             cmd.append(output_path)
@@ -182,3 +330,9 @@ class VideoComposer:
         except Exception as e:
             logger.error(f"Simple composition failed: {e}")
             return None
+        finally:
+            if os.path.exists(fallback_concat):
+                try:
+                    os.remove(fallback_concat)
+                except OSError:
+                    pass

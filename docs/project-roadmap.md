@@ -1,6 +1,6 @@
 # Novel Auto Project Roadmap
 
-**Last Updated**: 2026-03-23 | **Version**: 2.0 | **Overall Progress**: 80%
+**Last Updated**: 2026-03-24 | **Version**: 2.1 | **Overall Progress**: 90%
 
 ---
 
@@ -9,10 +9,11 @@
 Novel Auto Pipeline is a 3-layer system for automated story generation, enhancement, and video storyboarding. Phase 4 (File Download Export) completed 2026-03-23. Four core improvements shipped; one remaining (quality metrics).
 
 ### Delivery Status
-- **Completed**: Phases 1-4 (80% of scope)
+- **Completed**: Phases 1-4, Phase 9 (90% of scope)
 - **In Progress**: None (all phases complete or planned)
 - **Planned**: Phase 5 (quality metrics)
 - **Timeline**: All phases delivered ahead of original schedule
+- **Phase 9 Additions**: 31 team-identified issues resolved; 3 new features: CoT Self-Review, Story Branching, Wattpad/NovelHD Export
 
 ---
 
@@ -113,6 +114,38 @@ Novel Auto Pipeline is a 3-layer system for automated story generation, enhancem
 
 ---
 
+### Phase 9: Team Fixes & Advanced Features ✓ COMPLETE
+**Completion Date**: 2026-03-24 | **Effort**: 18h | **Status**: Shipped
+
+**Deliverables**:
+- **F1: CoT Self-Review** — Chain-of-thought self-review using prompt injection (CAI) to identify weak chapters (<3.0/5.0) and auto-revise
+- **F2: Interactive Story Branching** — Directed acyclic graph (DAG) story branching with fork/merge UI; multi-path story exploration
+- **F3: Wattpad/NovelHD Export** — Direct export to Wattpad chapters + NovelHD metadata format with character/world transcription
+- **Bug Fixes & Hardening** — 31 issues resolved across Backend (7), Security (4), Performance (6), QA (6), Product (8)
+
+**Issues Resolved**:
+- Backend: LLM cache hardening, streaming retry deduplication, ffmpeg timeout fixes, orchestrator validation
+- Security: Browser auth auto-migration, SQLite WAL improvements
+- Performance: Media pipeline optimizations, analytics exports tuning
+- QA: Export locale strings, self-review thresholds, branch convergence patterns
+- Product: UI checkboxes for media opt-in, feature completeness validation
+
+**Impact**: Comprehensive quality improvements, expanded export/distribution capabilities, stabilized production-grade features.
+
+**Files Added**:
+- `services/self_review.py` — CoT+CAI self-review for chapter quality
+- `services/story_brancher.py` — Interactive story branching with DAG management
+- `services/wattpad_exporter.py` — Wattpad/NovelHD export service
+- `ui/tabs/branching_tab.py` — Branching UI tab with fork/merge visualization
+
+**Key Decisions**:
+- CoT threshold: 3.0/5.0 (20-30% revision rate)
+- Branch storage: In-memory only (Gradio State), no persistence for MVP
+- Export format: NovelHD metadata standard + Wattpad chapter structure
+- Media opt-in: Explicit checkbox in UI; disabled by default
+
+---
+
 ### Phase 5: Story Quality Metrics (PLANNED)
 **Planned Completion**: Q2 2026 | **Effort**: 4h | **Status**: Planned
 
@@ -182,6 +215,22 @@ Phase 1 (Character State)
 
 ## Changelog
 
+### Version 2.1 (2026-03-24)
+**Minor Release**: Phase 9 stabilization + advanced features
+
+**New Features**:
+- CoT self-review for weak chapters (Phase 9, F1)
+- Interactive story branching DAG (Phase 9, F2)
+- Wattpad/NovelHD direct export (Phase 9, F3)
+- 31 team-identified issues resolved (Performance, Security, QA, Product)
+
+**Breaking Changes**: None (backward-compatible)
+
+**Known Issues**:
+- Phase 5 quality scoring not yet integrated
+- No async implementation (ThreadPool only)
+- Branch persistence not implemented (MVP: in-memory only)
+
 ### Version 2.0 (2026-03-23)
 **Major Release**: All advanced improvements Phases 1-4 shipped
 
@@ -190,13 +239,6 @@ Phase 1 (Character State)
 - Model routing & cost optimization (Phase 2)
 - Streaming preview (Phase 3)
 - File download/export (Phase 4)
-
-**Breaking Changes**: None (backward-compatible)
-
-**Known Issues**:
-- Phase 5 quality scoring not yet integrated
-- No async implementation (ThreadPool only)
-- Export performance on >100 chapter stories may be slow
 
 ---
 

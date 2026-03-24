@@ -376,6 +376,28 @@ class StoryGenerator:
                         content=content,
                         word_count=len(content.split()),
                     )
+                # Optional self-review (opt-in via config.pipeline.enable_self_review)
+                if getattr(self.config.pipeline, 'enable_self_review', False):
+                    from services.self_review import SelfReviewer
+                    reviewer = SelfReviewer(
+                        threshold=getattr(self.config.pipeline, 'self_review_threshold', 3.0)
+                    )
+                    revised_content, review_scores = reviewer.review_and_revise(
+                        content=chapter.content,
+                        chapter_number=outline.chapter_number,
+                        title=outline.title,
+                        genre=genre,
+                        word_count=word_count,
+                    )
+                    if revised_content != chapter.content:
+                        if progress_callback:
+                            progress_callback(
+                                f"Chuong {outline.chapter_number} da duoc cai thien "
+                                f"(score: {review_scores['overall']:.1f})"
+                            )
+                        chapter.content = revised_content
+                        chapter.word_count = len(revised_content.split())
+
                 draft.chapters.append(chapter)
 
                 # Parallel extraction: summary + character states + plot events
@@ -421,8 +443,14 @@ class StoryGenerator:
                     story_context.character_states = list(existing.values())
 
                 story_context.plot_events.extend(new_events)
-                # Cap to last 50 events in context to prevent unbounded growth
-                story_context.plot_events = story_context.plot_events[-50:]
+                # Smart pruning: keep recent + high-drama events
+                if len(story_context.plot_events) > 50:
+                    events = story_context.plot_events
+                    # Keep 30 most recent
+                    recent = events[-30:]
+                    # From older events, keep top 20 by drama relevance (longer descriptions = more important)
+                    older = sorted(events[:-30], key=lambda e: len(e.description), reverse=True)[:20]
+                    story_context.plot_events = older + recent
 
                 # Cập nhật Story Bible
                 if bible_enabled and draft.story_bible:
@@ -578,7 +606,12 @@ class StoryGenerator:
                     story_context.character_states = list(existing.values())
 
                 story_context.plot_events.extend(new_events)
-                story_context.plot_events = story_context.plot_events[-50:]
+                # Smart pruning: keep recent + high-drama events
+                if len(story_context.plot_events) > 50:
+                    events = story_context.plot_events
+                    recent = events[-30:]
+                    older = sorted(events[:-30], key=lambda e: len(e.description), reverse=True)[:20]
+                    story_context.plot_events = older + recent
 
         draft.character_states = list(story_context.character_states)
         draft.plot_events = list(story_context.plot_events)

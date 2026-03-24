@@ -80,6 +80,10 @@ def build_pipeline_tab(_t, _genres, _styles, _drama_levels):
         value=True,
         label=_t("label.enable_scoring"),
     )
+    enable_media_cb = gr.Checkbox(
+        value=False,
+        label=_t("label.enable_media"),
+    )
 
     run_btn = gr.Button(
         _t("btn.run_pipeline"), variant="primary", size="lg",
@@ -100,5 +104,6 @@ def build_pipeline_tab(_t, _genres, _styles, _drama_levels):
         "shots_per_ch": shots_per_ch,
         "enable_agents_cb": enable_agents_cb,
         "enable_scoring_cb": enable_scoring_cb,
+        "enable_media_cb": enable_media_cb,
         "run_btn": run_btn,
     }
