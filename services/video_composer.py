@@ -3,20 +3,43 @@
 import asyncio
 import os
 import re
+import shlex
 import subprocess
 import logging
 from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
+# Directories that media inputs are expected to live under
+_ALLOWED_MEDIA_DIRS = [
+    os.path.abspath("output"),
+    os.path.abspath("data"),
+    os.path.abspath("assets"),
+]
 
-def _validate_media_path(path: str) -> bool:
-    """Validate media file path to prevent injection."""
+
+def _validate_media_path(path: str, allowed_dirs: list = None) -> bool:
+    """Validate media file path to prevent injection and path traversal.
+
+    Checks:
+    - File must exist
+    - No shell metacharacters (belt-and-suspenders; subprocess list-form is safe, but
+      the path is also written into concat .txt files read by FFmpeg)
+    - Resolved absolute path must be inside one of the allowed directories
+    """
     if not path or not os.path.isfile(path):
         return False
-    # Block shell metacharacters and command injection attempts
+    # Block shell metacharacters
     if re.search(r'[;&|`$\n\r]', path):
-        logger.warning(f"Rejected suspicious path: {path}")
+        logger.warning(f"Rejected suspicious path (metacharacters): {shlex.quote(path)}")
+        return False
+    # Directory containment check — prevents path traversal
+    resolved = os.path.realpath(os.path.abspath(path))
+    dirs = allowed_dirs or _ALLOWED_MEDIA_DIRS
+    if not any(resolved.startswith(os.path.realpath(d) + os.sep) or
+               resolved == os.path.realpath(d)
+               for d in dirs):
+        logger.warning(f"Rejected path outside allowed directories: {shlex.quote(path)}")
         return False
     return True
 

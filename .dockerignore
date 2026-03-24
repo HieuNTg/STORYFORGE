@@ -1,19 +1,37 @@
-__pycache__
-*.pyc
-*.pyo
-.git
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Git
+.git/
 .gitignore
-.coverage
-*.log
+.gitmodules
+
+# Dev tools
 .claude/
+.github/
 plans/
 docs/
 tests/
+scripts/
+vendor/
+
+# Docs (keep requirements.txt)
 *.md
 !requirements.txt
+
+# Runtime data
 output/*
 data/cache.db
 data/auth_profiles.json
-.env
-.venv
-node_modules
+data/.auth_key
+.coverage
+htmlcov/
+coverage_html/
+
+# Env & logs
+.env*
+!.env.example
+*.log

@@ -110,8 +110,8 @@ def _load_templates() -> dict:
         try:
             with open(TEMPLATES_PATH, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception:
-            pass
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning(f"Failed to load templates from {TEMPLATES_PATH}: {e}")
     return {}
 
 
@@ -529,9 +529,16 @@ def create_ui():
                     w_count, n_sim, _drama, n_shots, agents_enabled,
                     scoring_enabled, media_enabled, user_state_data=None,
                 ):
+                    # Strip inputs before validation
+                    title = (title or "").strip()
+                    idea = (idea or "").strip()
                     errors = []
-                    if not idea or len(idea.strip()) < 10:
+                    if len(title) > 200:
+                        errors.append("Tiêu đề không được vượt quá 200 ký tự.")
+                    if not idea or len(idea) < 10:
                         errors.append(_t("error.idea_too_short"))
+                    elif len(idea) > 10000:
+                        errors.append("Ý tưởng không được vượt quá 10.000 ký tự.")
                     if n_chapters < 1 or n_chapters > 50:
                         errors.append(_t("error.chapter_range"))
                     if errors:
@@ -558,8 +565,8 @@ def create_ui():
                                 )
                                 return
                             cm.deduct_credits(profile, "story_generation")
-                        except Exception:
-                            pass  # Non-blocking: skip credit check on error
+                        except (ImportError, AttributeError, TypeError, ValueError, OSError) as e:
+                            logger.warning(f"Credit check skipped due to error: {e}")
 
                     orch = PipelineOrchestrator()
                     logs = []
@@ -939,19 +946,19 @@ def create_ui():
             # ═══════════════════════════════════════
             # TAB: ĐỌC TRUYỆN
             # ═══════════════════════════════════════
-            with gr.TabItem("Đọc Truyện"):
+            with gr.TabItem(_t("tab.reader")):
                 build_reader_tab(_t, orchestrator_state)
 
             # ═══════════════════════════════════════
             # TAB: PHÂN TÍCH
             # ═══════════════════════════════════════
-            with gr.TabItem("Phân Tích"):
+            with gr.TabItem(_t("tab.analytics")):
                 build_analytics_tab(_t, orchestrator_state)
 
             # ═══════════════════════════════════════
             # TAB: RE NHANH
             # ═══════════════════════════════════════
-            with gr.TabItem("Re Nhanh"):
+            with gr.TabItem(_t("tab.branching")):
                 build_branching_tab(_t, orchestrator_state)
 
             # ═══════════════════════════════════════

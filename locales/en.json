@@ -293,5 +293,30 @@
   "branch.no_trees": "No saved trees",
 
   "btn.wattpad_export": "Wattpad Export",
-  "export.wattpad_zip": "Wattpad ZIP package"
+  "export.wattpad_zip": "Wattpad ZIP package",
+
+  "tab.reader": "Read Story",
+  "tab.analytics": "Analytics",
+  "tab.branching": "Quick Branch",
+
+  "reader.title": "### Read Story",
+  "reader.open_btn": "Open Reader",
+  "reader.new_window_btn": "Open in new window",
+  "reader.placeholder": "Click 'Open Reader' to start reading",
+  "reader.no_story": "No story yet. Please create a story first.",
+  "reader.no_content": "No story content available.",
+
+  "analytics.title": "### Story Analytics",
+  "analytics.analyze_btn": "Analyze",
+  "analytics.llm_btn": "Emotion Analysis (LLM)",
+  "analytics.placeholder": "*Click 'Analyze' to view results*",
+  "analytics.no_story": "*No story loaded*",
+  "analytics.plotly_missing": "Charts require the `plotly` package. Install: `pip install plotly`",
+
+  "error.story_create_fail": "Story creation failed. Please simplify your idea and try again.",
+  "error.json_validation": "Internal data error. Please try again or simplify your idea.",
+  "error.api_connection": "Cannot connect to AI. Check your API key and network connection.",
+  "error.timeout": "Request timed out. Please try again.",
+  "error.export_fail": "Export failed. Please try again.",
+  "error.save_fail": "Save failed. Please try again."
 }

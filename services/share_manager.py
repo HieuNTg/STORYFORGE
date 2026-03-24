@@ -1,4 +1,5 @@
 """Manage shareable story links with UUID-based HTML exports."""
+import html
 import json
 import logging
 import os
@@ -41,7 +42,8 @@ class ShareManager:
             logger.error(f"Share HTML export failed: {e}")
             # Fallback HTML cơ bản
             with open(html_path, "w", encoding="utf-8") as f:
-                f.write(f"<html><body><h1>{story.title}</h1></body></html>")
+                safe_title = html.escape(story.title)
+                f.write(f"<html><body><h1>{safe_title}</h1></body></html>")
 
         share = ShareableStory(
             share_id=share_id,
@@ -103,7 +105,8 @@ class ShareManager:
         try:
             with open(self.SHARES_INDEX, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception:
+        except (json.JSONDecodeError, OSError) as e:
+            logger.debug(f"Index load error: {e}")
             return []
 
     def _save_index(self):

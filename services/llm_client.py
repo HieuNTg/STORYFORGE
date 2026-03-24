@@ -17,6 +17,18 @@ logger = logging.getLogger(__name__)
 MAX_RETRIES = 3
 BASE_DELAY = 1.0
 
+# Patterns that may expose credentials in error messages
+_REDACT_PATTERNS = re.compile(
+    r'((?:Authorization|Bearer|api[_-]?key|x-api-key)\s*[:=]\s*)'
+    r'([A-Za-z0-9\-_.~+/]{8,})',
+    re.IGNORECASE,
+)
+
+
+def _redact(message: str) -> str:
+    """Strip API keys, bearer tokens, and auth headers from a string before logging."""
+    return _REDACT_PATTERNS.sub(r'\1[REDACTED]', str(message))
+
 
 class WebBackendExhausted(Exception):
     """All web backend attempts failed."""
@@ -121,7 +133,7 @@ class LLMClient:
                 last_exc = e
                 if attempt < MAX_RETRIES - 1 and _is_transient(e):
                     delay = BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
-                    logger.warning(f"{label} attempt {attempt+1} failed: {e}. Retry in {delay:.1f}s")
+                    logger.warning(f"{label} attempt {attempt+1} failed: {_redact(e)}. Retry in {delay:.1f}s")
                     time.sleep(delay)
                     continue
                 break
@@ -145,16 +157,56 @@ class LLMClient:
                 last_exc = e
                 if chunks_yielded > 0:
                     # Mid-stream failure — cannot safely retry without duplication
-                    logger.error(f"{label} failed after {chunks_yielded} chunks: {e}")
+                    logger.error(f"{label} failed after {chunks_yielded} chunks: {_redact(e)}")
                     raise
                 if attempt < MAX_RETRIES - 1 and _is_transient(e):
                     delay = BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
-                    logger.warning(f"{label} attempt {attempt+1} failed: {e}. Retry in {delay:.1f}s")
+                    logger.warning(f"{label} attempt {attempt+1} failed: {_redact(e)}. Retry in {delay:.1f}s")
                     time.sleep(delay)
                     continue
                 break
-        logger.error(f"{label} failed after {MAX_RETRIES} attempts: {last_exc}")
+        logger.error(f"{label} failed after {MAX_RETRIES} attempts: {_redact(last_exc)}")
         raise last_exc
+
+    def _stream_with_chunk_timeout(self, source_gen, chunk_timeout: int = 60):
+        """Wrap a streaming generator with a per-chunk timeout.
+
+        Raises TimeoutError if no chunk is received within `chunk_timeout` seconds.
+        Uses a background thread + queue to enforce the deadline without stalling
+        the caller on blocked I/O indefinitely.
+        """
+        import queue as _queue
+
+        _SENTINEL = object()
+        chunk_queue: _queue.Queue = _queue.Queue()
+
+        def _producer():
+            try:
+                for chunk in source_gen:
+                    chunk_queue.put(chunk)
+            except Exception as exc:
+                chunk_queue.put(exc)
+            finally:
+                chunk_queue.put(_SENTINEL)
+
+        producer_thread = threading.Thread(target=_producer, daemon=True)
+        producer_thread.start()
+
+        while True:
+            try:
+                item = chunk_queue.get(timeout=chunk_timeout)
+            except _queue.Empty:
+                logger.error(
+                    f"Stream chunk timeout: no data received in {chunk_timeout}s"
+                )
+                raise TimeoutError(
+                    f"Streaming response stalled — no chunk received within {chunk_timeout}s"
+                )
+            if item is _SENTINEL:
+                return
+            if isinstance(item, Exception):
+                raise item
+            yield item
 
     def generate(
         self,
@@ -218,7 +270,7 @@ class LLMClient:
                     cache.put(result, **cache_params)
                 return result
             except Exception as e:
-                all_errors.append(f"{provider['label']}: {e}")
+                all_errors.append(f"{provider['label']}: {_redact(e)}")
                 if not _is_transient(e):
                     raise  # 4xx errors — don't try fallbacks
                 logger.warning(f"Provider {provider['label']} failed, trying next...")
@@ -285,7 +337,7 @@ class LLMClient:
                 cache.put(result, **cache_params)
             return result
         except Exception as e:
-            logger.error(f"Web LLM failed after {MAX_RETRIES} attempts: {e}")
+            logger.error(f"Web LLM failed after {MAX_RETRIES} attempts: {_redact(e)}")
             raise WebBackendExhausted(str(e)) from e
 
     def generate_json(
@@ -382,14 +434,16 @@ class LLMClient:
             {"role": "user", "content": user_prompt},
         ]
 
-        # Web backend streaming — Issue #2: use _stream_with_retry
+        # Web backend streaming — use _stream_with_retry + chunk timeout
         if self._is_web_backend():
             def _web_gen():
                 web_client = self._get_web_client()
                 yield from web_client.chat_completion(
                     messages=messages, temperature=effective_temp, stream=True,
                 )
-            yield from self._stream_with_retry(_web_gen, "Web stream")
+            yield from self._stream_with_chunk_timeout(
+                self._stream_with_retry(_web_gen, "Web stream"), chunk_timeout=60
+            )
             return
 
         # API backend streaming
@@ -407,14 +461,16 @@ class LLMClient:
             "stream": True,
         }
 
-        # Issue #2: use _stream_with_retry for API path as well
+        # use _stream_with_retry + chunk timeout for API path
         def _api_gen():
             response = client.chat.completions.create(**kwargs)
             for chunk in response:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
 
-        yield from self._stream_with_retry(_api_gen, "API stream")
+        yield from self._stream_with_chunk_timeout(
+            self._stream_with_retry(_api_gen, "API stream"), chunk_timeout=60
+        )
 
     def check_connection(self) -> tuple[bool, str]:
         """Kiểm tra kết nối backend (API hoặc web)."""

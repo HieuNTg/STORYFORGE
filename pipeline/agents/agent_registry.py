@@ -1,5 +1,7 @@
 """Registry quản lý và điều phối các agent."""
+import importlib
 import logging
+import pkgutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Optional
 from config import ConfigManager
@@ -26,6 +28,34 @@ class AgentRegistry:
             return
         self._agents.append(agent)
         logger.info(f"Đã đăng ký agent: {agent.name} ({agent.role})")
+
+    def auto_discover(self):
+        """Auto-discover and register all BaseAgent subclasses in pipeline/agents/."""
+        import pipeline.agents as agents_pkg
+
+        skip = {"base_agent", "agent_registry", "agent_prompts", "__init__"}
+        editor_agent = None
+
+        for _importer, modname, _ispkg in pkgutil.iter_modules(agents_pkg.__path__):
+            if modname in skip:
+                continue
+            module = importlib.import_module(f"pipeline.agents.{modname}")
+            for attr_name in dir(module):
+                attr = getattr(module, attr_name)
+                if (
+                    isinstance(attr, type)
+                    and issubclass(attr, BaseAgent)
+                    and attr is not BaseAgent
+                ):
+                    instance = attr()
+                    if instance.role == "editor_in_chief":
+                        editor_agent = instance
+                    else:
+                        self.register(instance)
+
+        # Editor always last — it aggregates all other agents
+        if editor_agent:
+            self.register(editor_agent)
 
     def get_agents_for_layer(self, layer: int) -> list[BaseAgent]:
         """Lấy danh sách agent hoạt động ở layer cụ thể."""

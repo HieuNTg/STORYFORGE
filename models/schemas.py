@@ -366,3 +366,4 @@ class PipelineOutput(BaseModel):
     logs: list[str] = Field(default_factory=list)
     reviews: list[AgentReview] = Field(default_factory=list)
     quality_scores: list[StoryScore] = Field(default_factory=list)
+    analytics: dict = Field(default_factory=dict)

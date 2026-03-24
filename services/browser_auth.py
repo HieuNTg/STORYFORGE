@@ -352,18 +352,24 @@ class BrowserAuth:
         encrypted files from legacy plaintext and refuse downgrades.
         """
         os.makedirs(os.path.dirname(AUTH_PROFILES_PATH), exist_ok=True)
-        if _HAS_CRYPTOGRAPHY:
-            try:
-                fernet = _get_or_create_fernet()
-                payload = json.dumps(profiles, ensure_ascii=False).encode("utf-8")
-                encrypted = _ENCRYPTED_MARKER + fernet.encrypt(payload)
-                with open(AUTH_PROFILES_PATH, "wb") as f:
-                    f.write(encrypted)
-                return
-            except Exception as e:
-                logger.warning(f"Encryption failed, falling back to plaintext: {e}")
-        with open(AUTH_PROFILES_PATH, "w", encoding="utf-8") as f:
-            json.dump(profiles, f, ensure_ascii=False, indent=2)
+        if not _HAS_CRYPTOGRAPHY:
+            logger.error(
+                "Cannot save credentials: 'cryptography' package is required. "
+                "Install it with: pip install cryptography"
+            )
+            raise RuntimeError(
+                "Credential storage requires the 'cryptography' package. "
+                "Install it with: pip install cryptography"
+            )
+        try:
+            fernet = _get_or_create_fernet()
+            payload = json.dumps(profiles, ensure_ascii=False).encode("utf-8")
+            encrypted = _ENCRYPTED_MARKER + fernet.encrypt(payload)
+            with open(AUTH_PROFILES_PATH, "wb") as f:
+                f.write(encrypted)
+        except Exception as e:
+            logger.error(f"Encryption failed, credentials NOT saved: {e}")
+            raise
 
     def _save_credentials(self, credentials: dict):
         """Save captured credentials to encrypted auth_profiles.json."""

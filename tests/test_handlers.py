@@ -178,7 +178,7 @@ class TestHandleSaveStory(unittest.TestCase):
         um.save_story.side_effect = Exception("DB error")
         orch = _make_orch_state(story_draft=_make_story_draft())
         msg, table = handle_save_story({"user_id": "u1"}, orch, "T", _t)
-        self.assertIn("Error", msg)
+        self.assertIn("error", msg.lower())
 
 
 # ---------------------------------------------------------------------------
@@ -331,7 +331,7 @@ class TestHandleShareStory(unittest.TestCase):
         MockConfig.return_value.pipeline.share_base_url = ""
         orch = _make_orch_state(enhanced_story=_make_enhanced_story())
         link, _ = handle_share_story(orch, _t)
-        self.assertIn("Error", link)
+        self.assertIn("error", link.lower())
 
 
 # ---------------------------------------------------------------------------

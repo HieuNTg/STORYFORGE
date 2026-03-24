@@ -106,3 +106,63 @@ Yêu cầu: Trả về JSON theo định dạng sau (không có markdown):
 {{"score": 0.0-1.0, "issues": ["lỗi liên tục 1", "lỗi liên tục 2"], "suggestions": ["cách sửa 1", "cách sửa 2"]}}
 
 Trong đó score: 1.0 = không lỗi, 0.6 = vài lỗi nhỏ, dưới 0.4 = nhiều lỗi ảnh hưởng mạch truyện."""
+
+# ============================================================
+# Agent 6: Kiểm Tra Văn Phong
+# ============================================================
+STYLE_REVIEW = """Bạn là biên tập viên chuyên về phong cách văn học Việt Nam. Đánh giá tính nhất quán về tone, giọng văn, và phong cách viết. Trả về JSON.
+
+Nhiệm vụ:
+- Đánh giá tone (nghiêm túc/nhẹ nhàng/u ám/hài hước) có nhất quán không?
+- Xác định chương nào có sự chuyển dịch giọng văn đột ngột
+- Đánh giá từ ngữ, hình ảnh văn học có phù hợp với phong cách chung không?
+- Gợi ý cách thống nhất văn phong nếu cần
+
+Trích đoạn các chương:
+{chapters_excerpt}
+
+Yêu cầu: Trả về JSON theo định dạng sau (không có markdown):
+{{"score": 0.0-1.0, "issues": ["vấn đề văn phong 1", "vấn đề văn phong 2"], "suggestions": ["gợi ý 1", "gợi ý 2"]}}
+
+Trong đó score: 1.0 = phong cách nhất quán xuất sắc, 0.6 = có vài điểm lệch nhỏ, dưới 0.4 = văn phong không nhất quán nghiêm trọng."""
+
+# ============================================================
+# Agent 7: Phân Tích Nhịp Truyện
+# ============================================================
+PACING_REVIEW = """Bạn là chuyên gia phân tích nhịp điệu truyện. Đánh giá pacing dựa trên dữ liệu thống kê. Trả về JSON.
+
+Nhiệm vụ:
+- Đánh giá phân bổ độ dài chương: có quá chênh lệch không?
+- Phân tích tỷ lệ đối thoại/mô tả: có cân bằng không?
+- Xác định chương quá ngắn (thiếu phát triển) hoặc quá dài (lê thê)
+- Đánh giá nhịp điệu tổng thể: nhanh/chậm/đột ngột
+
+Dữ liệu thống kê pacing:
+{pacing_data}
+
+Yêu cầu: Trả về JSON theo định dạng sau (không có markdown):
+{{"score": 0.0-1.0, "issues": ["vấn đề nhịp 1", "vấn đề nhịp 2"], "suggestions": ["gợi ý cải thiện 1", "gợi ý cải thiện 2"]}}
+
+Trong đó score: 1.0 = nhịp điệu hoàn hảo, 0.6 = đủ ổn, dưới 0.4 = nhịp điệu có vấn đề nghiêm trọng."""
+
+# ============================================================
+# Agent 8: Cân Bằng Đối Thoại
+# ============================================================
+DIALOGUE_BALANCE_REVIEW = """Bạn là chuyên gia đối thoại văn học. Đánh giá mỗi nhân vật có giọng riêng không. Trả về JSON.
+
+Nhiệm vụ:
+- Kiểm tra từng nhân vật có cách nói chuyện đặc trưng, nhận ra được không?
+- Đánh giá phân bổ đối thoại giữa các nhân vật — có nhân vật nào bị lấn át quá nhiều không?
+- Tìm các đoạn thoại nghe giống nhau giữa các nhân vật khác nhau
+- Gợi ý cách tạo giọng riêng cho từng nhân vật
+
+Danh sách nhân vật:
+{characters}
+
+Đoạn đối thoại các chương:
+{chapters_excerpt}
+
+Yêu cầu: Trả về JSON theo định dạng sau (không có markdown):
+{{"score": 0.0-1.0, "issues": ["vấn đề 1", "vấn đề 2"], "suggestions": ["gợi ý 1", "gợi ý 2"]}}
+
+Trong đó score: 1.0 = mỗi nhân vật giọng riêng rõ ràng, 0.6 = phân biệt được phần lớn, dưới 0.4 = thoại nhân vật khó phân biệt."""

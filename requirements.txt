@@ -9,3 +9,6 @@ fpdf2>=2.7.0
 edge-tts>=6.1.0
 ffmpeg-python>=0.2.0
 pydub>=0.25.1
+cryptography>=41.0.0
+ebooklib>=0.18
+plotly>=5.18.0

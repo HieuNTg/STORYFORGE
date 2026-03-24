@@ -18,6 +18,38 @@ from services.user_manager import UserManager
 logger = logging.getLogger(__name__)
 
 
+# ── User-friendly error mapping ────────────────────────────────────────────────
+
+_ERROR_MAP = [
+    ("JSON validation", "error.json_validation"),
+    ("json", "error.json_validation"),
+    ("validation", "error.json_validation"),
+    ("Connection", "error.api_connection"),
+    ("connection", "error.api_connection"),
+    ("ConnectionError", "error.api_connection"),
+    ("Timeout", "error.timeout"),
+    ("timeout", "error.timeout"),
+    ("TimeoutError", "error.timeout"),
+    ("APIError", "error.story_create_fail"),
+    ("generation failed", "error.story_create_fail"),
+    ("story", "error.story_create_fail"),
+]
+
+
+def _friendly_error(exc: Exception, t, fallback_key: str = "error.story_create_fail") -> str:
+    """Map a technical exception to a user-friendly i18n message.
+
+    Keeps the original detail in logs; returns a localised string for the UI.
+    """
+    exc_str = str(exc)
+    exc_type = type(exc).__name__
+    combined = f"{exc_type} {exc_str}"
+    for needle, key in _ERROR_MAP:
+        if needle in combined:
+            return t(key)
+    return t(fallback_key)
+
+
 # ── Login / Register ──────────────────────────────────────────────────────────
 
 def handle_login(username: str, password: str, t) -> tuple:
@@ -60,7 +92,8 @@ def handle_save_story(user_state: Optional[dict], orch_state, title: str, t) -> 
         table = [[s["story_id"], s["title"], s.get("saved_at", "")] for s in stories]
         return f"{t('msg.story_saved')} ID: {story_id}", table
     except Exception as e:
-        return f"Error: {e}", []
+        logger.error(f"Save story error: {e}")
+        return _friendly_error(e, t, "error.save_fail"), []
 
 
 # ── Export handlers ────────────────────────────────────────────────────────────
@@ -79,7 +112,7 @@ def handle_export_pdf(orch_state, t) -> tuple:
         return [path] if path else None, stats
     except Exception as e:
         logger.error(f"PDF export error: {e}")
-        return None, {"error": str(e)}
+        return None, {"error": _friendly_error(e, t, "error.export_fail")}
 
 
 def handle_export_epub(orch_state, t) -> tuple:
@@ -97,7 +130,7 @@ def handle_export_epub(orch_state, t) -> tuple:
         return [path] if path else None, stats
     except Exception as e:
         logger.error(f"EPUB export error: {e}")
-        return None, {"error": str(e)}
+        return None, {"error": _friendly_error(e, t, "error.export_fail")}
 
 
 def handle_export_tts(orch_state, t) -> Optional[list]:
@@ -154,7 +187,7 @@ def handle_share_story(orch_state, t) -> tuple:
         return link, None
     except Exception as e:
         logger.error(f"Share error: {e}")
-        return f"Error: {e}", None
+        return _friendly_error(e, t, "error.export_fail"), None
 
 
 # ── File export helpers ────────────────────────────────────────────────────────

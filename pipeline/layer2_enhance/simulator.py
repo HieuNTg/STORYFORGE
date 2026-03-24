@@ -6,7 +6,7 @@ MiroFish tạo các agent tự trị trên mạng xã hội giả lập.
 """
 
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError, as_completed
 
 from models.schemas import (
     Character, Relationship, RelationType, SimulationEvent, AgentPost,
@@ -193,7 +193,7 @@ class DramaSimulator:
         reactions = []
         targeted = {p.target: p for p in posts if p.target and p.target in self.agents}
 
-        max_workers = ConfigManager().llm.max_parallel_workers
+        max_workers = min(ConfigManager().llm.max_parallel_workers, 10)
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {}
             for target_name, triggering_post in targeted.items():
@@ -204,9 +204,16 @@ class DramaSimulator:
                 futures[future] = target_name
 
             for future in as_completed(futures):
-                result = future.result()
-                if result:
-                    reactions.append(result)
+                try:
+                    result = future.result(timeout=120)
+                    if result:
+                        reactions.append(result)
+                except FutureTimeoutError:
+                    target_name = futures[future]
+                    logger.warning(f"Reaction from {target_name} timed out after 120s, skipping")
+                except Exception as e:
+                    target_name = futures[future]
+                    logger.warning(f"Reaction from {target_name} raised unexpected error: {e}")
         return reactions
 
     def _run_reaction(self, agent: CharacterAgent, triggering_post: AgentPost, round_num: int, context: str) -> AgentPost | None:
@@ -249,7 +256,7 @@ class DramaSimulator:
     ) -> list[AgentPost]:
         """Chạy một vòng mô phỏng - tất cả agents hành động song song."""
         round_posts = []
-        max_workers = ConfigManager().llm.max_parallel_workers
+        max_workers = min(ConfigManager().llm.max_parallel_workers, 10)
         genre_hint = get_genre_escalation_prompt(context, round_number, total_rounds)
         round_context = f"{context} {genre_hint}".strip() if genre_hint else context
 
@@ -259,7 +266,16 @@ class DramaSimulator:
                 for name in self.agents
             }
             for future in as_completed(futures):
-                post, metadata = future.result()
+                try:
+                    post, metadata = future.result(timeout=120)
+                except FutureTimeoutError:
+                    name = futures[future]
+                    logger.warning(f"Agent {name} timed out at round {round_number}, skipping")
+                    continue
+                except Exception as e:
+                    name = futures[future]
+                    logger.warning(f"Agent {name} raised unexpected error at round {round_number}: {e}")
+                    continue
                 if post is not None:
                     round_posts.append(post)
                     # Apply emotional + trust updates immediately
@@ -426,7 +442,8 @@ class DramaSimulator:
                         suggested_insertion=ev.get("suggested_insertion", ""),
                     )
                     all_events.append(event)
-                except Exception:
+                except (KeyError, ValueError, TypeError) as e:
+                    logger.debug(f"Skipping malformed simulation event at round {round_num}: {e}")
                     continue
 
             all_drama_scores.append(evaluation.get("overall_drama_score", 0.5))

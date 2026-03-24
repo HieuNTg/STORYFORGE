@@ -293,5 +293,30 @@
   "branch.no_trees": "Chưa có cây truyện nào",
 
   "btn.wattpad_export": "Wattpad Export",
-  "export.wattpad_zip": "Gói ZIP Wattpad"
+  "export.wattpad_zip": "Gói ZIP Wattpad",
+
+  "tab.reader": "Đọc Truyện",
+  "tab.analytics": "Phân Tích",
+  "tab.branching": "Re Nhanh",
+
+  "reader.title": "### Đọc Truyện",
+  "reader.open_btn": "Mở Reader",
+  "reader.new_window_btn": "Mở cửa sổ mới",
+  "reader.placeholder": "Nhấn 'Mở Reader' để bắt đầu đọc",
+  "reader.no_story": "Chưa có truyện. Hãy tạo truyện trước.",
+  "reader.no_content": "Chưa có nội dung truyện.",
+
+  "analytics.title": "### Phân Tích Truyện",
+  "analytics.analyze_btn": "Phân tích",
+  "analytics.llm_btn": "Phân tích cảm xúc (LLM)",
+  "analytics.placeholder": "*Nhấn 'Phân tích' để xem kết quả*",
+  "analytics.no_story": "*Chưa có truyện*",
+  "analytics.plotly_missing": "Biểu đồ yêu cầu gói `plotly`. Cài đặt: `pip install plotly`",
+
+  "error.story_create_fail": "Tạo truyện thất bại. Vui lòng đơn giản hóa ý tưởng và thử lại.",
+  "error.json_validation": "Lỗi dữ liệu nội bộ. Vui lòng thử lại hoặc đơn giản hóa ý tưởng.",
+  "error.api_connection": "Không thể kết nối AI. Kiểm tra API key và kết nối mạng.",
+  "error.timeout": "Quá thời gian chờ. Vui lòng thử lại.",
+  "error.export_fail": "Xuất file thất bại. Vui lòng thử lại.",
+  "error.save_fail": "Lưu thất bại. Vui lòng thử lại."
 }

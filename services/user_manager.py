@@ -55,7 +55,8 @@ class UserManager:
                     if data.get("username") == username:
                         if self._verify_password(password, data.get("password_hash", "")):
                             return UserProfile(**data)
-                except Exception:
+                except (json.JSONDecodeError, OSError, KeyError, TypeError) as e:
+                    logger.debug(f"Login scan error for {fname}: {e}")
                     continue
         return None
 
@@ -96,7 +97,8 @@ class UserManager:
                         "title": meta["title"],
                         "saved_at": meta.get("saved_at", ""),
                     })
-                except Exception:
+                except (json.JSONDecodeError, OSError, KeyError) as e:
+                    logger.debug(f"Story list error: {e}")
                     continue
         return result
 
@@ -123,7 +125,8 @@ class UserManager:
     def _verify_password(self, password: str, hash_str: str) -> bool:
         try:
             return bcrypt.checkpw(password.encode('utf-8'), hash_str.encode('utf-8'))
-        except Exception:
+        except (ValueError, TypeError) as e:
+            logger.debug(f"Password verify failed: {e}")
             return False
 
     def _save_profile(self, profile: UserProfile):
@@ -138,5 +141,6 @@ class UserManager:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 return UserProfile(**json.load(f))
-        except Exception:
+        except (json.JSONDecodeError, OSError, KeyError, TypeError) as e:
+            logger.debug(f"Profile load error: {e}")
             return None

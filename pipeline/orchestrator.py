@@ -127,6 +127,17 @@ class PipelineOrchestrator:
                 except Exception as e:
                     logger.warning(f"Quality scoring Layer 1 failed: {e}")
 
+            # Auto analytics
+            try:
+                from services.story_analytics import StoryAnalytics
+                analytics = StoryAnalytics.analyze_story(draft)
+                self.output.analytics = {"layer1": analytics}
+                _log(f"[ANALYTICS] Layer 1: {analytics['total_words']} từ, "
+                     f"{analytics['reading_time_minutes']} phút đọc, "
+                     f"dialogue: {analytics['dialogue_ratio']:.0%}")
+            except Exception as e:
+                logger.warning(f"Analytics Layer 1 failed: {e}")
+
             if enable_agents:
                 _log("[AGENTS] Phong ban dang danh gia Layer 1...")
                 try:
@@ -191,6 +202,17 @@ class PipelineOrchestrator:
                          f"Chuong yeu nhat: {l2_score.weakest_chapter}{delta}")
                 except Exception as e:
                     logger.warning(f"Quality scoring Layer 2 failed: {e}")
+
+            # Auto analytics
+            try:
+                from services.story_analytics import StoryAnalytics
+                analytics = StoryAnalytics.analyze_story(enhanced)
+                self.output.analytics["layer2"] = analytics
+                _log(f"[ANALYTICS] Layer 2: {analytics['total_words']} từ, "
+                     f"{analytics['reading_time_minutes']} phút đọc, "
+                     f"dialogue: {analytics['dialogue_ratio']:.0%}")
+            except Exception as e:
+                logger.warning(f"Analytics Layer 2 failed: {e}")
 
             if enable_agents:
                 _log("[AGENTS] Phong ban dang danh gia Layer 2...")

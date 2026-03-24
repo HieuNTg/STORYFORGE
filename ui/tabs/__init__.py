@@ -8,6 +8,8 @@ from .review_tab import build_review_tab
 from .export_tab import build_export_tab
 from .account_tab import build_account_tab
 from .settings_tab import build_settings_tab
+from .analytics_tab import build_analytics_tab
+from .reader_tab import build_reader_tab
 
 __all__ = [
     "build_pipeline_tab",
@@ -18,4 +20,6 @@ __all__ = [
     "build_export_tab",
     "build_account_tab",
     "build_settings_tab",
+    "build_analytics_tab",
+    "build_reader_tab",
 ]
