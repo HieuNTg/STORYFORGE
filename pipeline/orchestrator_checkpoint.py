@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import threading
 from datetime import datetime
 from typing import Optional
 
@@ -32,15 +33,26 @@ class CheckpointManager:
         self.enhancer = enhancer
         self.storyboard_gen = storyboard_gen
 
-    def save(self, layer: int) -> str:
-        """Save pipeline state after layer completion. Returns checkpoint path."""
+    def save(self, layer: int, background: bool = True) -> str:
+        """Save pipeline state after layer completion. Non-blocking by default."""
         os.makedirs(CHECKPOINT_DIR, exist_ok=True)
         raw_title = self.output.story_draft.title[:30] if self.output.story_draft else "untitled"
         slug = re.sub(r"[^\w\-]", "_", raw_title)
         path = os.path.join(CHECKPOINT_DIR, f"{slug}_layer{layer}.json")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(self.output.model_dump_json(indent=2))
-        logger.info(f"Checkpoint saved: {path}")
+        data = self.output.model_dump_json(indent=2)
+
+        def _write():
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(data)
+                logger.info(f"Checkpoint saved: {path}")
+            except Exception as e:
+                logger.error(f"Checkpoint save failed: {e}")
+
+        if background:
+            threading.Thread(target=_write, daemon=True).start()
+        else:
+            _write()
         return path
 
     @staticmethod
@@ -70,9 +82,12 @@ class CheckpointManager:
         **kwargs,
     ) -> PipelineOutput:
         """Resume pipeline from a saved checkpoint."""
-        with open(checkpoint_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        self.output = PipelineOutput(**data)
+        try:
+            with open(checkpoint_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.output = PipelineOutput(**data)
+        except (json.JSONDecodeError, Exception) as e:
+            raise ValueError(f"Checkpoint corrupted or incompatible: {e}") from e
         last_layer = self.output.current_layer
 
         def _log(msg):
@@ -107,7 +122,7 @@ class CheckpointManager:
                     progress_callback=lambda m: _log(f"[L2] {m}"),
                 )
                 self.output.simulation_result = sim_result
-                enhanced = self.enhancer.enhance_story(
+                enhanced = self.enhancer.enhance_with_feedback(
                     draft=draft, sim_result=sim_result,
                     word_count=kwargs.get("word_count", 2000),
                     progress_callback=lambda m: _log(f"[L2] {m}"),

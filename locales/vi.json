@@ -12,6 +12,7 @@
   "tab.video": "Video",
   "tab.review": "Đánh Giá",
 
+  "section.audio_video": "🔊 Audio & Video",
   "section.quick_start": "### Bắt đầu nhanh",
   "section.story_info": "### Thông tin truyện",
   "section.config": "### Cấu hình",
@@ -20,6 +21,10 @@
   "section.agent_review": "### Agent Review",
   "section.checkpoint": "### Checkpoint / Resume",
 
+  "label.audio_files": "Audio Files",
+  "label.char_gallery": "Nhân vật tham chiếu",
+  "label.chapter_col": "Chương",
+  "label.dalle_prompt": "DALL-E Prompt",
   "label.genre": "Thể loại",
   "label.template": "Mẫu truyện (template)",
   "label.template_info": "Chọn mẫu hoặc tự nhập ý tưởng bên dưới",
@@ -48,8 +53,14 @@
   "label.file_output": "File xuất",
   "label.video_assets": "Video assets download",
   "label.language": "Ngôn ngữ giao diện",
+  "label.media_status": "Trạng thái",
+  "label.sd_prompt": "SD Prompt",
+  "label.video_mp4": "Video MP4",
+  "label.voice_selector": "Giọng đọc",
 
+  "btn.compose_video": "Ghép Video MP4",
   "btn.create_now": "Tạo ngay!",
+  "btn.generate_tts_audio": "Tạo Audio",
   "btn.run_pipeline": "Chạy Pipeline",
   "btn.export": "Xuất file",
   "btn.download_zip": "Download All (ZIP)",

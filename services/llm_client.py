@@ -147,7 +147,10 @@ class LLMClient:
 
         # Route to web backend (DeepSeek browser auth)
         if self._is_web_backend():
-            return self._generate_web(messages, effective_temp, use_cache, cache, cache_params)
+            result = self._generate_web(messages, effective_temp, use_cache, cache, cache_params)
+            if not isinstance(result, BaseException):
+                return result
+            logger.warning(f"Web backend exhausted, falling back to API chain: {result}")
 
         # API backend — build provider chain and try each
         chain = self._build_fallback_chain(config, model_tier)
@@ -214,7 +217,7 @@ class LLMClient:
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
         last_exc = None
-        for attempt in range(2):
+        for attempt in range(MAX_RETRIES):
             try:
                 response = provider["client"].chat.completions.create(**kwargs)
                 result = response.choices[0].message.content or ""
@@ -222,8 +225,10 @@ class LLMClient:
                 return result
             except Exception as e:
                 last_exc = e
-                if attempt == 0 and _is_transient(e):
-                    time.sleep(BASE_DELAY)
+                if attempt < MAX_RETRIES - 1 and _is_transient(e):
+                    delay = BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
+                    logger.warning(f"Provider {provider['label']} attempt {attempt+1} failed: {e}. Retry in {delay:.1f}s")
+                    time.sleep(delay)
                     continue
                 break
         raise last_exc
@@ -250,7 +255,7 @@ class LLMClient:
                 break
 
         logger.error(f"Lỗi web LLM sau {MAX_RETRIES} lần: {last_exc}")
-        raise last_exc
+        return last_exc  # Return exception to allow API fallback in generate()
 
     def generate_json(
         self,

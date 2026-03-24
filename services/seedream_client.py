@@ -1,11 +1,14 @@
 """ByteDance Seedream 4.5 client — character-consistent image generation."""
 
 import os
+import re
 import logging
 import base64
 from typing import Optional
 
 import requests
+
+MAX_REF_SIZE = 10 * 1024 * 1024  # 10MB
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +51,8 @@ class SeedreamClient:
             f"detailed facial features, cinematic quality, 4K"
         )
 
-        fname = filename or f"{name.lower().replace(' ', '_')}_reference.png"
+        safe_name = re.sub(r'[^\w\-.]', '_', name.lower())
+        fname = filename or f"{safe_name}_reference.png"
         output_path = os.path.join("output/characters", fname)
 
         return self._text_to_image(prompt, output_path)
@@ -110,10 +114,14 @@ class SeedreamClient:
             # Read reference images as base64
             image_data = []
             for ref_path in reference_paths[:10]:  # Max 10 references
-                if os.path.exists(ref_path):
-                    with open(ref_path, "rb") as f:
-                        b64 = base64.b64encode(f.read()).decode("utf-8")
-                        image_data.append(f"data:image/png;base64,{b64}")
+                if not os.path.exists(ref_path):
+                    continue
+                if os.path.getsize(ref_path) > MAX_REF_SIZE:
+                    logger.warning(f"Skipping reference image (too large >10MB): {ref_path}")
+                    continue
+                with open(ref_path, "rb") as f:
+                    b64 = base64.b64encode(f.read()).decode("utf-8")
+                    image_data.append(f"data:image/png;base64,{b64}")
 
             if not image_data:
                 return self._text_to_image(prompt, output_path)

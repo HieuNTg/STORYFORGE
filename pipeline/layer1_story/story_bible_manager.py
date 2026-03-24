@@ -82,6 +82,12 @@ class StoryBibleManager:
                 bible.arc_summaries.append(f"Arc {arc.arc_number}: {arc.summary}")
                 logger.info(f"Arc {arc.arc_number} completed at chapter {ch_num}")
 
+        # Bound resolved_threads and arc_summaries to prevent unbounded growth
+        if len(bible.resolved_threads) > 50:
+            bible.resolved_threads = bible.resolved_threads[-50:]
+        if len(bible.arc_summaries) > 20:
+            bible.arc_summaries = bible.arc_summaries[-20:]
+
     def get_context_for_chapter(
         self,
         bible: StoryBible,

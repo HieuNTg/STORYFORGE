@@ -2,6 +2,7 @@
 
 import os
 import json
+import threading
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -82,16 +83,18 @@ VIDEO_QUALITY_PRESETS = {
 
 
 class ConfigManager:
-    """Singleton quản lý cấu hình."""
+    """Singleton quản lý cấu hình (thread-safe)."""
 
     _instance = None
+    _lock = threading.Lock()
     CONFIG_FILE = "data/config.json"
 
     def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+                cls._instance._initialized = False
+            return cls._instance
 
     def __init__(self):
         if self._initialized:
@@ -141,8 +144,13 @@ class ConfigManager:
                         continue
                 setattr(target, field, val)
 
-    def save(self):
+    def save(self) -> list[str]:
+        """Save config. Returns warnings. Raises ValueError on critical errors."""
         os.makedirs(os.path.dirname(self.CONFIG_FILE), exist_ok=True)
+        warnings = self.validate()
+        critical = [w for w in warnings if "bắt buộc" in w or "phải" in w]
+        if critical:
+            raise ValueError(f"Config invalid: {'; '.join(critical)}")
         data = {
             "llm": {
                 "api_key": self.llm.api_key,
@@ -183,14 +191,13 @@ class ConfigManager:
                 "story_bible_enabled": self.pipeline.story_bible_enabled,
             },
         }
-        # Validate before save
-        warnings = self.validate()
         if warnings:
             import logging
             for w in warnings:
                 logging.getLogger(__name__).warning(f"Config: {w}")
         with open(self.CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+        return warnings
 
     def validate(self) -> list[str]:
         """Validate config, return list of warning messages."""

@@ -5,6 +5,8 @@ import logging
 import os
 import re
 import shutil
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import reduce
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -76,6 +78,32 @@ class TTSAudioGenerator:
             except Exception as e:
                 logger.warning(f"Failed chapter {ch.chapter_number}: {e}")
         return paths
+
+    def generate_full_audiobook_parallel(
+        self, chapters: list, output_dir: str = "output", max_workers: int = 3
+    ) -> list:
+        """Generate audio for all chapters in parallel. Returns ordered list of .mp3 paths."""
+        os.makedirs(output_dir, exist_ok=True)
+        results: dict[int, str] = {}
+
+        def _gen_chapter(ch):
+            try:
+                path = self.generate_chapter_audio(ch.content, ch.chapter_number, output_dir)
+                logger.info(f"Generated audio for chapter {ch.chapter_number}")
+                return ch.chapter_number, path
+            except Exception as e:
+                logger.warning(f"Failed chapter {ch.chapter_number}: {e}")
+                return ch.chapter_number, None
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {executor.submit(_gen_chapter, ch): ch for ch in chapters}
+            for future in as_completed(futures):
+                ch_num, path = future.result()
+                if path:
+                    results[ch_num] = path
+
+        # Return paths in chapter order
+        return [results[ch.chapter_number] for ch in chapters if ch.chapter_number in results]
 
     @staticmethod
     def measure_duration(audio_path: str) -> float:
@@ -155,9 +183,8 @@ class TTSAudioGenerator:
         else:
             try:
                 from pydub import AudioSegment
-                combined = AudioSegment.empty()
-                for sp in segment_paths:
-                    combined += AudioSegment.from_file(sp)
+                segments_list = [AudioSegment.from_file(sp) for sp in segment_paths]
+                combined = reduce(lambda a, b: a + b, segments_list, AudioSegment.empty())
                 combined.export(output_path, format="mp3")
                 for sp in segment_paths:
                     try:

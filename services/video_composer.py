@@ -44,9 +44,13 @@ class VideoComposer:
         try:
             concat_path = self._write_concat_file(valid_panels)
 
-            # Use first panel duration for zoompan d parameter
-            first_duration = getattr(valid_panels[0], "duration_seconds", 5.0)
-            zoompan_d = int(self.fps * first_duration)
+            # Use average panel duration for zoompan d (per-panel timing handled by concat demuxer)
+            total_duration = sum(getattr(p, "duration_seconds", 5.0) for p in valid_panels)
+            avg_duration = total_duration / len(valid_panels)
+            zoompan_d = int(self.fps * avg_duration)
+
+            # Dynamic timeout: total video duration * 2 + 120s buffer
+            ffmpeg_timeout = int(total_duration * 2 + 120)
 
             cmd = [
                 "ffmpeg", "-y",
@@ -67,8 +71,8 @@ class VideoComposer:
 
             cmd.extend(["-c:v", "libx264", "-preset", "medium", "-crf", "23", output_path])
 
-            logger.info(f"Running FFmpeg: {' '.join(cmd[:10])}...")
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+            logger.info(f"Running FFmpeg: {' '.join(cmd[:10])}... (timeout={ffmpeg_timeout}s)")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=ffmpeg_timeout)
 
             if result.returncode != 0:
                 logger.error(f"FFmpeg failed: {result.stderr[:500]}")
@@ -81,7 +85,7 @@ class VideoComposer:
             logger.error("FFmpeg not found. Install ffmpeg to enable video composition.")
             return None
         except subprocess.TimeoutExpired:
-            logger.error("FFmpeg timed out (>10 min)")
+            logger.error(f"FFmpeg timed out (>{ffmpeg_timeout}s)")
             return None
         except Exception as e:
             logger.error(f"Video composition failed: {e}")
@@ -122,17 +126,22 @@ class VideoComposer:
 
     # ── Private ────────────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _escape_concat_path(path: str) -> str:
+        """Escape path for FFmpeg concat demuxer (forward slashes, escape single quotes)."""
+        return path.replace("\\", "/").replace("'", "\\'")
+
     def _write_concat_file(self, panels: list) -> str:
         """Write FFmpeg concat demuxer file. Returns path."""
         concat_path = os.path.join(self.output_dir, "concat.txt")
         with open(concat_path, "w", encoding="utf-8") as f:
             for panel in panels:
-                img = panel.image_path.replace("\\", "/")
+                img = self._escape_concat_path(panel.image_path)
                 duration = getattr(panel, "duration_seconds", 5.0)
                 f.write(f"file '{img}'\n")
                 f.write(f"duration {duration}\n")
             # FFmpeg requires repeating last entry without duration
-            f.write(f"file '{panels[-1].image_path.replace(chr(92), '/')}'\n")
+            f.write(f"file '{self._escape_concat_path(panels[-1].image_path)}'\n")
         return concat_path
 
     def _compose_simple(

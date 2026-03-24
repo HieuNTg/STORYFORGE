@@ -12,6 +12,7 @@
   "tab.video": "Video",
   "tab.review": "Review",
 
+  "section.audio_video": "🔊 Audio & Video",
   "section.quick_start": "### Quick Start",
   "section.story_info": "### Story Info",
   "section.config": "### Configuration",
@@ -20,6 +21,10 @@
   "section.agent_review": "### Agent Review",
   "section.checkpoint": "### Checkpoint / Resume",
 
+  "label.audio_files": "Audio Files",
+  "label.char_gallery": "Character References",
+  "label.chapter_col": "Chapter",
+  "label.dalle_prompt": "DALL-E Prompt",
   "label.genre": "Genre",
   "label.template": "Story template",
   "label.template_info": "Select a template or enter your own idea below",
@@ -48,8 +53,14 @@
   "label.file_output": "Exported files",
   "label.video_assets": "Video assets download",
   "label.language": "Interface language",
+  "label.media_status": "Status",
+  "label.sd_prompt": "SD Prompt",
+  "label.video_mp4": "Video MP4",
+  "label.voice_selector": "Voice",
 
+  "btn.compose_video": "Compose Video MP4",
   "btn.create_now": "Create now!",
+  "btn.generate_tts_audio": "Generate Audio",
   "btn.run_pipeline": "Run Pipeline",
   "btn.export": "Export files",
   "btn.download_zip": "Download All (ZIP)",

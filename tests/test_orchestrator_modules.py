@@ -235,7 +235,7 @@ class TestCheckpointManagerSave(unittest.TestCase):
                 output.story_draft.title = "TestTitle"
                 output.model_dump_json.return_value = '{"title": "test"}'
                 mgr = CheckpointManager(output, None, None, None, None)
-                path = mgr.save(1)
+                path = mgr.save(1, background=False)
                 self.assertTrue(os.path.exists(path))
                 self.assertIn("layer1", path)
 
@@ -247,7 +247,7 @@ class TestCheckpointManagerSave(unittest.TestCase):
                 output.story_draft.title = "My Story: Part 1"
                 output.model_dump_json.return_value = "{}"
                 mgr = CheckpointManager(output, None, None, None, None)
-                path = mgr.save(2)
+                path = mgr.save(2, background=False)
                 filename = os.path.basename(path)
                 self.assertNotIn(":", filename)
 
@@ -259,7 +259,7 @@ class TestCheckpointManagerSave(unittest.TestCase):
                 output.story_draft = None
                 output.model_dump_json.return_value = "{}"
                 mgr = CheckpointManager(output, None, None, None, None)
-                path = mgr.save(1)
+                path = mgr.save(1, background=False)
                 self.assertIn("untitled", path)
 
 

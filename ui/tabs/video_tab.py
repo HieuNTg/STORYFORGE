@@ -28,7 +28,7 @@ def build_video_tab(_t):
 
     with gr.Accordion(_t("label.image_prompts"), open=False):
         image_prompts_df = gr.Dataframe(
-            headers=["Chapter", "DALL-E Prompt", "SD Prompt"],
+            headers=[_t("label.chapter_col"), _t("label.dalle_prompt"), _t("label.sd_prompt")],
             label=_t("label.image_prompts"),
             interactive=False,
         )
@@ -58,27 +58,27 @@ def build_video_tab(_t):
     )
 
     character_gallery = gr.Gallery(
-        label="Character References",
+        label=_t("label.char_gallery"),
         columns=4,
         height="auto",
         visible=True,
     )
 
     gr.Markdown("---")
-    gr.Markdown("### 🔊 Audio & Video")
+    gr.Markdown(_t("section.audio_video"))
     with gr.Row():
         tts_voice_dd = gr.Dropdown(
             choices=[("Nữ (HoaiMy)", "female"), ("Nam (NamMinh)", "male")],
             value="female",
-            label="Giọng đọc",
+            label=_t("label.voice_selector"),
             scale=1,
         )
-        generate_tts_btn = gr.Button("Tạo Audio", variant="secondary", scale=1)
-        compose_video_btn = gr.Button("Ghép Video MP4", variant="primary", scale=1)
+        generate_tts_btn = gr.Button(_t("btn.generate_tts_audio"), variant="secondary", scale=1)
+        compose_video_btn = gr.Button(_t("btn.compose_video"), variant="primary", scale=1)
 
-    tts_audio_output = gr.File(label="Audio Files", file_count="multiple")
-    video_output_file = gr.File(label="Video MP4")
-    video_status = gr.Textbox(label="Trạng thái", lines=2, interactive=False)
+    tts_audio_output = gr.File(label=_t("label.audio_files"), file_count="multiple")
+    video_output_file = gr.File(label=_t("label.video_mp4"))
+    video_status = gr.Textbox(label=_t("label.media_status"), lines=2, interactive=False)
 
     return {
         "video_output": video_output,

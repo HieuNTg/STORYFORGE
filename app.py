@@ -743,25 +743,17 @@ def create_ui():
                 )
 
                 # ── Image generation handler ──
-                def generate_images_handler(orch, provider):
+                def generate_images_and_refresh(orch, provider):
                     paths, msg = handle_generate_images(orch, provider, t=_t)
                     if msg:
                         gr.Info(msg)
-                    return paths or []
+                    gallery = handle_character_gallery(orch)
+                    return paths or [], gallery
 
                 generate_images_btn.click(
-                    fn=generate_images_handler,
+                    fn=generate_images_and_refresh,
                     inputs=[orchestrator_state, image_provider_dd],
-                    outputs=[image_gallery],
-                )
-
-                def refresh_char_gallery(orch):
-                    return handle_character_gallery(orch)
-
-                generate_images_btn.click(
-                    fn=refresh_char_gallery,
-                    inputs=[orchestrator_state],
-                    outputs=[character_gallery],
+                    outputs=[image_gallery, character_gallery],
                 )
 
                 # ── TTS Audio handler ──

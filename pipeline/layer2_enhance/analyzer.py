@@ -94,8 +94,10 @@ class StoryAnalyzer:
 
     @staticmethod
     def _calc_tension(current: dict, prior: list) -> float:
-        """Calculate cumulative tension. Unresolved conflicts add, resolved ones decay."""
+        """Calculate cumulative tension with exponential escalation for climax chapters."""
         base = 0.3 if current.get("conflict") else 0.0
-        # Accumulate from prior unresolved
+        # Count unresolved conflicts in recent chapters
         unresolved = sum(1 for p in prior[-5:] if p.get("conflict") and p.get("tension_score", 0) > 0.3)
-        return min(1.0, base + unresolved * 0.15)
+        # Exponential curve: tension builds faster as conflicts accumulate
+        escalation = (1.0 - 0.7 ** unresolved) if unresolved > 0 else 0.0
+        return min(1.0, base + escalation * 0.7)
