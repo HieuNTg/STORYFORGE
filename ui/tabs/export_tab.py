@@ -27,7 +27,7 @@ def build_export_tab(_t, orchestrator_state):
         epub_btn = gr.Button(_t("btn.export_epub"), variant="secondary")
         tts_btn = gr.Button(_t("btn.export_tts"), variant="secondary")
         share_btn = gr.Button(_t("btn.share"), variant="primary")
-        wattpad_btn = gr.Button("Wattpad Export", variant="secondary")
+        wattpad_btn = gr.Button(_t("btn.wattpad_export"), variant="secondary")
 
     gr.Markdown("---")
     gr.Markdown(f"#### {_t('label.voice_select')}")
@@ -42,6 +42,11 @@ def build_export_tab(_t, orchestrator_state):
 
     audio_status = gr.Textbox(label="Status", interactive=False, visible=True)
     export_file_output = gr.File(label="Download", file_count="multiple")
+    wattpad_file_output = gr.File(
+        label=_t("export.wattpad_zip"),
+        file_count="single",
+        visible=True,
+    )
     share_link_display = gr.Textbox(label=_t("label.share_link"), interactive=False)
     reading_stats_display = gr.JSON(label=_t("label.reading_stats"))
 
@@ -92,11 +97,12 @@ def build_export_tab(_t, orchestrator_state):
     wattpad_btn.click(
         fn=_export_wattpad,
         inputs=[orchestrator_state],
-        outputs=[export_file_output, reading_stats_display],
+        outputs=[wattpad_file_output, reading_stats_display],
     )
 
     return {
         "export_file_output": export_file_output,
+        "wattpad_file_output": wattpad_file_output,
         "share_link_display": share_link_display,
         "reading_stats_display": reading_stats_display,
         "audio_status": audio_status,

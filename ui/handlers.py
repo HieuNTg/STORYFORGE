@@ -390,19 +390,20 @@ def handle_genre_autofill(genre_value: str) -> tuple:
 # ── Character gallery handler ──────────────────────────────────────────────────
 
 def handle_export_wattpad(orch_state, t) -> tuple:
-    """Export story in Wattpad-ready format. Returns (file_list, metadata_dict)."""
+    """Export story in Wattpad-ready format. Returns (zip_file_list, metadata_dict)."""
     if orch_state is None:
-        return [], {"error": "No story"}
+        return None, {"error": "No story"}
     story = orch_state.output.enhanced_story or orch_state.output.story_draft
     if not story:
-        return [], {"error": "No story data"}
+        return None, {"error": "No story data"}
     try:
         from services.wattpad_exporter import PlatformExporter
         result = PlatformExporter.export_wattpad(story)
-        return result["files"], result["metadata"]
+        zip_path = result.get("zip_path")
+        return [zip_path] if zip_path else result["files"], result["metadata"]
     except Exception as e:
         logger.error(f"Wattpad export failed: {e}")
-        return [], {"error": str(e)}
+        return None, {"error": str(e)}
 
 
 def handle_character_gallery(orch_state) -> list:

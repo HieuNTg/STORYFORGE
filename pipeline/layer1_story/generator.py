@@ -377,11 +377,13 @@ class StoryGenerator:
                         word_count=len(content.split()),
                     )
                 # Optional self-review (opt-in via config.pipeline.enable_self_review)
-                if getattr(self.config.pipeline, 'enable_self_review', False):
-                    from services.self_review import SelfReviewer
-                    reviewer = SelfReviewer(
-                        threshold=getattr(self.config.pipeline, 'self_review_threshold', 3.0)
-                    )
+                if self.config.pipeline.enable_self_review:
+                    if not hasattr(self, '_self_reviewer'):
+                        from services.self_review import SelfReviewer
+                        self._self_reviewer = SelfReviewer(
+                            threshold=self.config.pipeline.self_review_threshold
+                        )
+                    reviewer = self._self_reviewer
                     revised_content, review_scores = reviewer.review_and_revise(
                         content=chapter.content,
                         chapter_number=outline.chapter_number,
@@ -570,6 +572,26 @@ class StoryGenerator:
                         draft.characters, draft.world, outline,
                         word_count=word_count, context=story_context,
                     )
+                # Optional self-review for continued chapters
+                if self.config.pipeline.enable_self_review:
+                    if not hasattr(self, '_self_reviewer'):
+                        from services.self_review import SelfReviewer
+                        self._self_reviewer = SelfReviewer(
+                            threshold=self.config.pipeline.self_review_threshold
+                        )
+                    revised, scores = self._self_reviewer.review_and_revise(
+                        content=chapter.content,
+                        chapter_number=outline.chapter_number,
+                        title=outline.title,
+                        genre=draft.genre,
+                        word_count=word_count,
+                    )
+                    if revised != chapter.content:
+                        _log(f"Chuong {outline.chapter_number} da duoc cai thien "
+                             f"(score: {scores['overall']:.1f})")
+                        chapter.content = revised
+                        chapter.word_count = len(revised.split())
+
                 draft.chapters.append(chapter)
 
                 # Parallel extraction

@@ -33,6 +33,17 @@ def build_branching_tab(_t, orchestrator_state):
     branch_status = gr.Textbox(label="Trang thai", interactive=False)
     path_display = gr.Textbox(label="Duong di da chon", interactive=False, lines=3)
 
+    gr.Markdown("---")
+    gr.Markdown("### Luu / Tai cay truyen")
+
+    with gr.Row():
+        save_tree_btn = gr.Button(_t("branch.save"), variant="secondary")
+        load_dropdown = gr.Dropdown(label=_t("branch.saved_trees"), choices=[], scale=2)
+        refresh_btn = gr.Button("↻", variant="secondary", scale=0)
+        load_tree_btn = gr.Button(_t("branch.load"), variant="secondary")
+
+    save_load_status = gr.Textbox(label="", interactive=False)
+
     def _load_chapters(orch_state):
         if not orch_state:
             return gr.update(choices=[]), "Chua co truyen"
@@ -102,6 +113,42 @@ def build_branching_tab(_t, orchestrator_state):
         path = " -> ".join(reversed(path_parts))
         return tree, new_node.content[:3000], path, f"Da tao nhanh moi: {new_node.title}"
 
+    def _save_tree(tree):
+        if not tree:
+            return tree, _t("branch.no_trees")
+        from services.story_brancher import StoryBrancher
+        try:
+            path = StoryBrancher.save_tree(tree)
+            return tree, _t("branch.saved").format(path=path)
+        except Exception as e:
+            logger.error(f"Save tree failed: {e}")
+            return tree, f"Loi luu: {e}"
+
+    def _refresh_trees():
+        from services.story_brancher import StoryBrancher
+        saved = StoryBrancher.list_saved_trees()
+        if not saved:
+            return gr.update(choices=[], value=None)
+        choices = [label for label, _ in saved]
+        return gr.update(choices=choices, value=choices[0])
+
+    def _load_tree(selected_label):
+        if not selected_label:
+            return None, "", _t("branch.no_trees")
+        from services.story_brancher import StoryBrancher
+        saved = StoryBrancher.list_saved_trees()
+        path = next((p for label, p in saved if label == selected_label), None)
+        if not path:
+            return None, "", _t("branch.no_trees")
+        try:
+            tree = StoryBrancher.load_tree(path)
+            node = tree.nodes.get(tree.current_node_id)
+            content = node.content[:3000] if node else ""
+            return tree, content, _t("branch.loaded").format(title=tree.title)
+        except Exception as e:
+            logger.error(f"Load tree failed: {e}")
+            return None, "", f"Loi tai: {e}"
+
     init_btn.click(
         fn=_load_chapters,
         inputs=[orchestrator_state],
@@ -121,6 +168,22 @@ def build_branching_tab(_t, orchestrator_state):
         fn=_follow_choice,
         inputs=[tree_state, choice_display, word_count],
         outputs=[tree_state, current_content, path_display, branch_status],
+    )
+
+    save_tree_btn.click(
+        fn=_save_tree,
+        inputs=[tree_state],
+        outputs=[tree_state, save_load_status],
+    )
+    refresh_btn.click(
+        fn=_refresh_trees,
+        inputs=[],
+        outputs=[load_dropdown],
+    )
+    load_tree_btn.click(
+        fn=_load_tree,
+        inputs=[load_dropdown],
+        outputs=[tree_state, current_content, save_load_status],
     )
 
     return {"tree_state": tree_state, "branch_status": branch_status}

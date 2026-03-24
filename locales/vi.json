@@ -54,6 +54,8 @@
   "label.file_output": "File xuất",
   "label.video_assets": "Video assets download",
   "label.language": "Ngôn ngữ giao diện",
+  "label.self_review_enable": "Bat tu danh gia chat luong chuong",
+  "label.self_review_threshold": "Nguong diem (chuong duoi muc nay se duoc sua)",
   "label.media_status": "Trạng thái",
   "label.sd_prompt": "SD Prompt",
   "label.video_mp4": "Video MP4",
@@ -160,6 +162,8 @@
   "settings.connection_status": "Trạng thái kết nối",
   "settings.cache_title": "### Cache LLM",
   "settings.cache_label": "Cache info",
+  "settings.self_review_title": "### Tu Danh Gia (CoT Self-Review)",
+  "settings.self_review_threshold_info": "3.0 = chi sua chuong yeu (~20-30%). 4.0 = sua nhieu hon.",
   "settings.saved": "Đã lưu cài đặt!",
   "settings.status_label": "Trạng thái",
   "settings.language_restart": "Thay đổi ngôn ngữ cần khởi động lại ứng dụng.",
@@ -279,5 +283,15 @@
   "tier_pro": "Pro",
   "tier_studio": "Studio",
   "msg_not_enough_credits": "Không đủ credits",
-  "label_usage_summary": "Tóm Tắt Sử Dụng"
+  "label_usage_summary": "Tóm Tắt Sử Dụng",
+
+  "branch.save": "Lưu cây truyện",
+  "branch.load": "Tải cây truyện",
+  "branch.saved_trees": "Cây truyện đã lưu",
+  "branch.saved": "Đã lưu: {path}",
+  "branch.loaded": "Đã tải cây truyện: {title}",
+  "branch.no_trees": "Chưa có cây truyện nào",
+
+  "btn.wattpad_export": "Wattpad Export",
+  "export.wattpad_zip": "Gói ZIP Wattpad"
 }

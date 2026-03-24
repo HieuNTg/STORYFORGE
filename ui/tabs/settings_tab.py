@@ -151,11 +151,24 @@ def build_settings_tab(_t, i18n, app_block):
     cache_stats_btn.click(fn=show_cache_stats, outputs=[cache_info])
     cache_clear_btn.click(fn=clear_cache, outputs=[cache_info])
 
+    # Self-review settings
+    gr.Markdown(_t("settings.self_review_title"))
+    enable_self_review_cb = gr.Checkbox(
+        value=config.pipeline.enable_self_review,
+        label=_t("label.self_review_enable"),
+    )
+    self_review_threshold = gr.Slider(
+        1.0, 5.0, value=config.pipeline.self_review_threshold,
+        step=0.5, label=_t("label.self_review_threshold"),
+        info=_t("settings.self_review_threshold_info"),
+    )
+
     # Save settings
     save_btn = gr.Button(_t("btn.save_settings"), variant="primary")
     save_status = gr.Textbox(label=_t("settings.status_label"), interactive=False)
 
-    def save_settings(key, url, model, temp, tokens, cheap_m, cheap_url, backend, lang_choice):
+    def save_settings(key, url, model, temp, tokens, cheap_m, cheap_url, backend, lang_choice,
+                      self_review_enabled, self_review_thresh):
         cfg = ConfigManager()
         cfg.llm.api_key, cfg.llm.base_url, cfg.llm.model = key, url, model
         cfg.llm.temperature, cfg.llm.max_tokens = temp, int(tokens)
@@ -164,6 +177,8 @@ def build_settings_tab(_t, i18n, app_block):
             lang_code = lang_choice.split("(")[-1].rstrip(")")
             cfg.pipeline.language = lang_code
             i18n.set_language(lang_code)
+        cfg.pipeline.enable_self_review = self_review_enabled
+        cfg.pipeline.self_review_threshold = self_review_thresh
         cfg.save()
         from services.llm_client import LLMClient
         LLMClient._instance = None
@@ -172,7 +187,8 @@ def build_settings_tab(_t, i18n, app_block):
     save_btn.click(
         fn=save_settings,
         inputs=[api_key, base_url, model_name, temperature, max_tokens,
-                cheap_model, cheap_base_url, backend_type, language_selector],
+                cheap_model, cheap_base_url, backend_type, language_selector,
+                enable_self_review_cb, self_review_threshold],
         outputs=[save_status],
     )
 

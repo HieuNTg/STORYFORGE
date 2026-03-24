@@ -75,6 +75,10 @@ class PipelineConfig:
     # Video quality
     video_quality: str = "draft"  # "draft" or "final"
 
+    # Self-review (CoT quality check)
+    enable_self_review: bool = False  # Opt-in CoT self-review
+    self_review_threshold: float = 3.0  # Score threshold (1.0-5.0)
+
 
 VIDEO_QUALITY_PRESETS = {
     "draft": {"resolution": "512x512", "fps": 24, "crf": "28", "preset": "fast"},
@@ -189,6 +193,8 @@ class ConfigManager:
                 "seedream_api_url": self.pipeline.seedream_api_url,
                 "arc_size": self.pipeline.arc_size,
                 "story_bible_enabled": self.pipeline.story_bible_enabled,
+                "enable_self_review": self.pipeline.enable_self_review,
+                "self_review_threshold": self.pipeline.self_review_threshold,
             },
         }
         if warnings:
@@ -210,4 +216,6 @@ class ConfigManager:
             errors.append("Số từ/chương phải >= 100")
         if self.pipeline.video_quality not in ("draft", "final"):
             errors.append("video_quality phải là 'draft' hoặc 'final'")
+        if not (1.0 <= self.pipeline.self_review_threshold <= 5.0):
+            errors.append("self_review_threshold phải từ 1.0 đến 5.0")
         return errors

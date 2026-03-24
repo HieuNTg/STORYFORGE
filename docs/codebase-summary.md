@@ -189,6 +189,8 @@ novel-auto/
 - Layer 2: `num_simulation_rounds`, `num_agents`, `drama_intensity`
 - Layer 3: `shots_per_chapter`, `video_style`
 - `language` ("vi" / "en")
+- `enable_self_review` (bool, default: False) — opt-in CoT self-review
+- `self_review_threshold` (float 1.0-5.0, default: 3.0) — quality threshold for auto-revision
 
 ## Character State Tracking (Phase 1)
 
@@ -208,25 +210,30 @@ Chapter → [parallel] summarize + extract_character_states + extract_plot_event
 - UI: chapter slider, character editor, delete/re-enhance buttons
 - Checkpoint-based — context rebuilt from existing chapters
 
-## CoT Self-Review (Phase 9, F1)
+## CoT Self-Review (Phase 9, F1 → Phase 10)
 
 - `services/self_review.py`: `SelfReviewService` with CoT+CAI prompt injection
-- Identifies weak chapters below 3.0/5.0 quality threshold (~20-30% revision rate)
+- Identifies weak chapters below configurable quality threshold (~20-30% revision rate)
 - Integrated into Layer 1 generator for auto-revision
 - Uses cheaper model tier with temp=0.2 for consistency
+- **Phase 10**: `enable_self_review` (bool, opt-in) + `self_review_threshold` (1.0-5.0) in config; applied to both `generate_full_story()` and `continue_story()`
+- UI controls in settings_tab.py
 
-## Story Branching (Phase 9, F2)
+## Story Branching (Phase 9, F2 → Phase 10)
 
 - `services/story_brancher.py`: DAG-based branch management
 - `ui/tabs/branching_tab.py`: Fork/merge UI visualization
 - Multi-path story exploration; user-driven convergence (no auto-merge)
-- In-memory storage (Gradio State) — MVP, no persistence
+- **Phase 10**: `save_tree()`, `load_tree()`, `list_saved_trees()` static methods; JSON persistence to `data/branches/`
+- Save/load buttons in branching_tab.py UI
 
-## Wattpad/NovelHD Export (Phase 9, F3)
+## Wattpad/NovelHD Export (Phase 9, F3 → Phase 10)
 
 - `services/wattpad_exporter.py`: Direct export to Wattpad chapter structure
 - NovelHD metadata format with character/world transcription
 - Integrated into export_tab.py with format selection checkbox
+- **Phase 10**: ZIP bundle support, `character_appendix` in metadata, `reading_time_min` per chapter (words/200 minimum 1)
+- Local export only (Wattpad API deprecated 2023)
 
 ## CI/CD Pipeline (GitHub Actions)
 
@@ -247,7 +254,8 @@ Chapter → [parallel] summarize + extract_character_states + extract_plot_event
 | Phase 6 | COMPLETE | Story continuation, character editing, checkpoint workflow |
 | Phase 7 | COMPLETE | TTS audio (edge-tts), image generation, credit/monetization, CI/CD |
 | Phase 9 | COMPLETE | 31 team issues fixed; CoT self-review, story branching, Wattpad export |
+| Phase 10 | COMPLETE | Self-review config polish, branch persistence, Wattpad enhancements; 813 tests |
 
 ---
 
-**Last Updated**: 2026-03-24 | **Doc Version**: 1.8 (Phase 9: CoT Self-Review, Story Branching, Wattpad Export)
+**Last Updated**: 2026-03-24 | **Doc Version**: 1.9 (Phase 10: Self-Review Config, Branch Persistence, Wattpad Polish)

@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import zipfile
 from typing import Union
 from models.schemas import StoryDraft, EnhancedStory
 
@@ -22,9 +23,22 @@ class PlatformExporter:
         story: Union[StoryDraft, EnhancedStory],
         output_dir: str = "output/wattpad",
     ) -> dict:
-        """Export Wattpad-ready package: per-chapter HTML + metadata JSON + full_story.txt."""
+        """Export Wattpad-ready package: per-chapter HTML + metadata JSON + full_story.txt + ZIP."""
         os.makedirs(output_dir, exist_ok=True)
         files = []
+
+        # Build chapter details with reading_time_min
+        chapter_details = []
+        for ch in story.chapters:
+            words = len(ch.content.split())
+            chapter_details.append({
+                "chapter_number": ch.chapter_number,
+                "title": ch.title,
+                "content": ch.content,
+                "word_count": words,
+                "reading_time_min": max(1, words // 200),
+                "author_notes": "",
+            })
 
         # Metadata
         meta = {
@@ -34,8 +48,12 @@ class PlatformExporter:
             "tags": PlatformExporter._generate_tags(story),
             "language": "vi",
             "chapters": len(story.chapters),
-            "total_words": sum(len(ch.content.split()) for ch in story.chapters),
+            "total_words": sum(cd["word_count"] for cd in chapter_details),
             "platform_notes": "Copy-paste moi chuong vao Wattpad editor",
+            "chapter_details": [
+                {k: v for k, v in cd.items() if k != "content"}
+                for cd in chapter_details
+            ],
         }
         meta_path = os.path.join(output_dir, "metadata.json")
         with open(meta_path, "w", encoding="utf-8") as f:
@@ -59,8 +77,25 @@ class PlatformExporter:
                 f.write(f"{'-' * 30}\n{ch.content}\n\n")
         files.append(txt_path)
 
-        logger.info(f"Wattpad export: {len(files)} files -> {output_dir}")
-        return {"files": files, "metadata": meta, "output_dir": output_dir}
+        # Character appendix
+        if hasattr(story, "characters") and story.characters:
+            char_text = "\n".join(
+                f"- {c.name}: {c.personality}" for c in story.characters
+            )
+            char_path = os.path.join(output_dir, "characters.txt")
+            with open(char_path, "w", encoding="utf-8") as f:
+                f.write(f"Nhan vat chinh:\n{char_text}")
+            files.append(char_path)
+
+        # ZIP bundle
+        safe_title = re.sub(r'[^\w\s-]', '', story.title)[:30].strip() or "story"
+        zip_path = os.path.join(output_dir, f"{safe_title}_wattpad.zip")
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for fp in files:
+                zf.write(fp, os.path.basename(fp))
+
+        logger.info(f"Wattpad export: {len(files)} files + ZIP -> {output_dir}")
+        return {"files": files, "zip_path": zip_path, "metadata": meta, "output_dir": output_dir}
 
     @staticmethod
     def _chapter_to_wattpad_html(chapter) -> str:

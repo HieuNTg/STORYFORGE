@@ -116,13 +116,19 @@ StoryBrancher
 │  └─ User-driven; no auto-merge (MVP)
 ├─ export_multipath_story() → dict
 │  └─ JSON: all branches, connections, chapter choices
+├─ save_tree(tree: StoryTree, filename="") → str  [PHASE 10]
+│  └─ Persist to data/branches/{timestamp}.json
+├─ load_tree(path: str) → StoryTree  [PHASE 10]
+│  └─ Deserialize from JSON file
+├─ list_saved_trees() → list[dict]  [PHASE 10]
+│  └─ Return metadata for all saved trees
 └─ Constraints:
-   ├─ In-memory only (no DB persistence)
+   ├─ In-memory + local JSON persistence (Phase 10)
    ├─ Max 10 branches per story (MVP)
    └─ User selects active path for Layer 2+
 ```
 
-**Integration**: Interactive tab UI (branching_tab.py); branches exported as JSON metadata.
+**Integration**: Interactive tab UI (branching_tab.py); save/load buttons. Branches exported as JSON metadata + persisted locally.
 
 ### WattpadExporter (services/wattpad_exporter.py)
 
@@ -131,14 +137,18 @@ WattpadExporter
 ├─ __init__(username, password) — optional auth for direct upload
 ├─ export_chapters(chapters, metadata) → list[dict]
 │  ├─ Wattpad chapter format: title, parts, author_notes
-│  ├─ NovelHD metadata: character bios, world worldbuilding, tags
-│  └─ Character/world transcription per chapter
+│  ├─ NovelHD metadata: character bios, worldbuilding, tags
+│  ├─ Character/world transcription per chapter
+│  ├─ reading_time_min per chapter (words / 200, min 1)  [PHASE 10]
+│  └─ character_appendix in metadata  [PHASE 10]
+├─ export_zip(output_dir) → str  [PHASE 10]
+│  └─ Bundle chapters + character appendix into ZIP
 ├─ validate_format(chapter) → bool
 │  └─ Length limits, character encoding, formatting rules
-└─ upload_if_authenticated() → list[str]  # chapter URLs
+└─ Local export only (Wattpad API deprecated 2023)
 ```
 
-**Integration**: Export tab checkbox; outputs `.wattpad.json` + `.novelHD.json` metadata.
+**Integration**: Export tab checkbox; outputs ZIP bundle with `.wattpad.json` + `.novelHD.json` metadata (Phase 10).
 
 ### TTSAudioGenerator (services/tts_audio_generator.py)
 
@@ -251,6 +261,10 @@ generate_full_story(title, genre, idea, num_chapters, ...)
     │   ├─→ extract_character_states()  (temp=0.3, max_tokens=1000)
     │   └─→ extract_plot_events()       (temp=0.3, max_tokens=1000)
     │
+    ├─→ [OPTIONAL] Self-Review (if enable_self_review):
+    │   └─→ SelfReviewService.review_chapter() → ChapterReview
+    │       └─ If score < self_review_threshold: auto-revise chapter
+    │
     └─→ Update story_context:
         ├─ recent_summaries (keep last context_window_chapters)
         ├─ character_states (merge by name, latest wins)
@@ -349,13 +363,17 @@ ConfigManager (singleton)
    ├─ context_window_chapters (default: 2)
    ├─ Layer 2: num_simulation_rounds, num_agents, drama_intensity
    ├─ Layer 3: shots_per_chapter, video_style
-   └─ language: "vi" | "en"
+   ├─ language: "vi" | "en"
+   ├─ enable_self_review (bool, default: False)  [PHASE 10]
+   └─ self_review_threshold (float 1.0-5.0, default: 3.0)  [PHASE 10]
 
 Environment overrides:
 ├─ STORYFORGE_IMAGE_PROVIDER (none | dalle | sd)
 ├─ IMAGE_API_KEY
 └─ IMAGE_API_URL
 ```
+
+**Phase 10 Addition**: Self-review configuration allows users to opt-in and customize quality thresholds per pipeline run.
 
 ## Error Handling
 
@@ -378,6 +396,6 @@ Rolling context budget: last `context_window_chapters` summaries + char states (
 
 ---
 
-**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Web auth, credits, TTS, and image generation are transparent to core pipeline logic. Phase 9 adds CoT self-review, interactive branching, and expanded export capabilities.
+**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Web auth, credits, TTS, and image generation are transparent to core pipeline logic. Phase 9 adds CoT self-review, interactive branching, and expanded export capabilities. Phase 10 adds configuration polish and persistence.
 
-**Last Updated**: 2026-03-24 | **Version**: 1.6 (Phase 9: CoT Self-Review, Story Branching, Wattpad Export, 31 Issue Fixes)
+**Last Updated**: 2026-03-24 | **Version**: 1.7 (Phase 10: Self-Review Config, Branch Persistence, Wattpad Polish)

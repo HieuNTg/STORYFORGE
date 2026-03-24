@@ -54,6 +54,8 @@
   "label.file_output": "Exported files",
   "label.video_assets": "Video assets download",
   "label.language": "Interface language",
+  "label.self_review_enable": "Enable chapter quality self-review",
+  "label.self_review_threshold": "Review threshold (chapters below this get revised)",
   "label.media_status": "Status",
   "label.sd_prompt": "SD Prompt",
   "label.video_mp4": "Video MP4",
@@ -160,6 +162,8 @@
   "settings.connection_status": "Connection status",
   "settings.cache_title": "### LLM Cache",
   "settings.cache_label": "Cache info",
+  "settings.self_review_title": "### Self-Review (CoT Quality Check)",
+  "settings.self_review_threshold_info": "3.0 = only fix weak chapters (~20-30%). 4.0 = fix more.",
   "settings.saved": "Settings saved!",
   "settings.status_label": "Status",
   "settings.language_restart": "Language change requires application restart.",
@@ -279,5 +283,15 @@
   "tier_pro": "Pro",
   "tier_studio": "Studio",
   "msg_not_enough_credits": "Not enough credits",
-  "label_usage_summary": "Usage Summary"
+  "label_usage_summary": "Usage Summary",
+
+  "branch.save": "Save tree",
+  "branch.load": "Load tree",
+  "branch.saved_trees": "Saved trees",
+  "branch.saved": "Saved: {path}",
+  "branch.loaded": "Loaded tree: {title}",
+  "branch.no_trees": "No saved trees",
+
+  "btn.wattpad_export": "Wattpad Export",
+  "export.wattpad_zip": "Wattpad ZIP package"
 }

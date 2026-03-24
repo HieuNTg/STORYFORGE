@@ -1,11 +1,17 @@
 """Interactive story branching — generate decision points and branch content."""
 
+import json
 import logging
+import os
+import re
+import time
 import uuid
 from models.schemas import StoryNode, BranchChoice, StoryTree, Chapter
 from services.llm_client import LLMClient
 
 logger = logging.getLogger(__name__)
+
+BRANCHES_DIR = "data/branches"
 
 BRANCH_POINT_PROMPT = """Dua tren noi dung chuong sau, tao 2-3 lua chon
 cho nguoi doc de tiep tuc cau truyen theo huong khac nhau.
@@ -137,3 +143,42 @@ class StoryBrancher:
         choice.next_node_id = new_id
         tree.current_node_id = new_id
         return new_node
+
+    @staticmethod
+    def save_tree(tree: StoryTree, filename: str = "") -> str:
+        """Save StoryTree to JSON. Returns file path."""
+        os.makedirs(BRANCHES_DIR, exist_ok=True)
+        if not filename:
+            safe_title = re.sub(r'[^\w\-]', '_', tree.title)[:30]
+            filename = f"{safe_title}_{int(time.time())}.json"
+        path = os.path.join(BRANCHES_DIR, filename)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(tree.model_dump(), f, ensure_ascii=False, indent=2)
+        logger.info(f"Tree saved: {path}")
+        return path
+
+    @staticmethod
+    def load_tree(path: str) -> StoryTree:
+        """Load StoryTree from JSON file."""
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return StoryTree.model_validate(data)
+
+    @staticmethod
+    def list_saved_trees() -> list:
+        """List saved trees. Returns [(display_name, path), ...]."""
+        if not os.path.isdir(BRANCHES_DIR):
+            return []
+        results = []
+        for fname in sorted(os.listdir(BRANCHES_DIR), reverse=True):
+            if fname.endswith(".json"):
+                path = os.path.join(BRANCHES_DIR, fname)
+                try:
+                    with open(path, "r", encoding="utf-8") as fh:
+                        data = json.load(fh)
+                    title = data.get("title", fname)
+                    nodes = len(data.get("nodes", {}))
+                    results.append((f"{title} ({nodes} nodes)", path))
+                except Exception:
+                    results.append((fname, path))
+        return results

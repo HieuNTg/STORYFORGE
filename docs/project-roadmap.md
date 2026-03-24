@@ -1,19 +1,19 @@
 # Novel Auto Project Roadmap
 
-**Last Updated**: 2026-03-24 | **Version**: 2.1 | **Overall Progress**: 90%
+**Last Updated**: 2026-03-24 | **Version**: 2.2 | **Overall Progress**: 95%
 
 ---
 
 ## Executive Summary
 
-Novel Auto Pipeline is a 3-layer system for automated story generation, enhancement, and video storyboarding. Phase 4 (File Download Export) completed 2026-03-23. Four core improvements shipped; one remaining (quality metrics).
+Novel Auto Pipeline is a 3-layer system for automated story generation, enhancement, and video storyboarding. Phase 9 (Team Issues & Advanced Features) completed 2026-03-24. Phase 10 (Feature Polish) shipped with configuration refinements and persistence enhancements.
 
 ### Delivery Status
-- **Completed**: Phases 1-4, Phase 9 (90% of scope)
+- **Completed**: Phases 1-4, Phase 9, Phase 10 (95% of scope)
 - **In Progress**: None (all phases complete or planned)
 - **Planned**: Phase 5 (quality metrics)
 - **Timeline**: All phases delivered ahead of original schedule
-- **Phase 9 Additions**: 31 team-identified issues resolved; 3 new features: CoT Self-Review, Story Branching, Wattpad/NovelHD Export
+- **Phase 10 Additions**: Self-review configuration (opt-in + threshold control), branch tree persistence (save/load/list), Wattpad ZIP + character appendix + reading_time_min
 
 ---
 
@@ -146,6 +146,33 @@ Novel Auto Pipeline is a 3-layer system for automated story generation, enhancem
 
 ---
 
+### Phase 10: Feature Polish & Persistence ✓ COMPLETE
+**Completion Date**: 2026-03-24 | **Effort**: 6h | **Status**: Shipped
+
+**Deliverables**:
+- **F1: Self-Review Configuration** — `enable_self_review` (bool, opt-in) + `self_review_threshold` (1.0-5.0 scale) in PipelineConfig
+- **F2: Branch Persistence** — `save_tree()`, `load_tree()`, `list_saved_trees()` static methods using JSON files in `data/branches/`
+- **F3: Wattpad Export Polish** — ZIP bundle support, `character_appendix` in metadata, `reading_time_min` per chapter (words/200, minimum 1)
+- **Test Coverage**: 813 tests passing (was 808)
+
+**Impact**: User control over self-review thresholds, persistent branching workflows, richer export metadata.
+
+**Files Modified**:
+- `config.py` — Added `enable_self_review`, `self_review_threshold` fields
+- `services/story_brancher.py` — Added persistence methods
+- `services/wattpad_exporter.py` — Added character appendix, reading_time_min, ZIP bundling
+- `ui/tabs/settings_tab.py` — Self-review config UI controls
+- `ui/tabs/branching_tab.py` — Save/load/list tree buttons
+- `pipeline/layer1_story/generator.py` — Applied config to both generate_full_story() + continue_story()
+
+**Key Decisions**:
+- Self-review opt-in (False by default) — backward compatible
+- Branch persistence: local JSON only (no cloud sync)
+- Reading time: 200 words per minute (Vietnamese standard)
+- ZIP output for Wattpad with manifest metadata
+
+---
+
 ### Phase 5: Story Quality Metrics (PLANNED)
 **Planned Completion**: Q2 2026 | **Effort**: 4h | **Status**: Planned
 
@@ -214,6 +241,21 @@ Phase 1 (Character State)
 ---
 
 ## Changelog
+
+### Version 2.2 (2026-03-24)
+**Minor Release**: Phase 10 feature polish and persistence
+
+**New Features**:
+- Self-review configuration: `enable_self_review` + `self_review_threshold` (opt-in, configurable 1.0-5.0)
+- Branch persistence: save/load/list story trees to local JSON
+- Wattpad export enhancements: ZIP bundles, character appendix, reading_time_min per chapter
+- 813 tests passing (5 new tests for persistence/config)
+
+**Breaking Changes**: None (full backward compatibility)
+
+**Known Issues**:
+- Branch persistence local-only (no cloud sync)
+- Phase 5 quality scoring not yet integrated
 
 ### Version 2.1 (2026-03-24)
 **Minor Release**: Phase 9 stabilization + advanced features
