@@ -250,4 +250,4 @@ Chapter → [parallel] summarize + extract_character_states + extract_plot_event
 
 ---
 
-**Last Updated**: 2026-03-24 | **Doc Version**: 1.7 (Phase 7: TTS, Images, Credits, CI/CD)
+**Last Updated**: 2026-03-24 | **Doc Version**: 1.8 (Phase 9: CoT Self-Review, Story Branching, Wattpad Export)

@@ -15,6 +15,7 @@ Input: Genre + Story Idea + Config
 │ - Parallel chapter writing with rolling context                  │
 │ - Character State Tracking: mood, arc, knowledge per chapter     │
 │ - Track plot events for continuity (cap 50)                      │
+│ - CoT Self-Review: Identify weak chapters (<3.0/5.0), auto-revise│
 │ Output: StoryDraft (chapters + character_states + plot_events)   │
 └─────────────────────────────────────────────────────────────────┘
   ↓
@@ -47,6 +48,12 @@ Input: Genre + Story Idea + Config
 └─────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
+│ INTERACTIVE FEATURES (Layer 2+)                                   │
+│ StoryBrancher  → DAG-based multi-path story exploration           │
+│ WattpadExporter→ Direct Wattpad/NovelHD chapter export            │
+└─────────────────────────────────────────────────────────────────┘
+  ↓
+┌─────────────────────────────────────────────────────────────────┐
 │ EXPORT SERVICES                                                   │
 │ VideoExporter  → SRT, voiceover, image prompts, CapCut, CSV, ZIP │
 │ HTMLExporter   → Self-contained HTML reader                       │
@@ -76,6 +83,62 @@ app.py
 **Output tabs** (4): Truyen | Mo Phong | Video | Danh Gia
 
 ## New Service Layer Components
+
+### SelfReviewService (services/self_review.py)
+
+```
+SelfReviewService
+├─ __init__() — integrates with cheap model tier
+├─ review_chapter(chapter: Chapter, context: StoryContext) → ChapterReview
+│  ├─ CoT prompt: identify weaknesses (dialogue, pacing, character consistency)
+│  ├─ CAI (Capability Analysis & Iteration): inject self-critique + revision request
+│  ├─ Score: 1-5 scale; if <3.0, auto-revise with LLM feedback
+│  └─ Return: quality_score, issues, revised_content (if applicable)
+├─ review_story(chapters, context) → list[ChapterReview]
+│  └─ Parallel (max 3 workers, cheap tier)
+└─ Thresholds:
+   ├─ Weak chapter: <3.0/5.0
+   ├─ Revision rate: ~20-30% of chapters
+   └─ Cost optimization: 1 LLM call per weak chapter
+```
+
+**Integration**: Runs post-write for Layer 1; auto-revises weak chapters before Layer 2.
+
+### StoryBrancher (services/story_brancher.py)
+
+```
+StoryBrancher
+├─ __init__() — DAG management (in-memory, Gradio State)
+├─ fork_at_chapter(branch_point, variations) → list[Branch]
+│  ├─ Creates multiple story paths from single chapter
+│  └─ Each variation: new outline, character state overrides
+├─ merge_branches(branches, merge_strategy) → Chapter
+│  └─ User-driven; no auto-merge (MVP)
+├─ export_multipath_story() → dict
+│  └─ JSON: all branches, connections, chapter choices
+└─ Constraints:
+   ├─ In-memory only (no DB persistence)
+   ├─ Max 10 branches per story (MVP)
+   └─ User selects active path for Layer 2+
+```
+
+**Integration**: Interactive tab UI (branching_tab.py); branches exported as JSON metadata.
+
+### WattpadExporter (services/wattpad_exporter.py)
+
+```
+WattpadExporter
+├─ __init__(username, password) — optional auth for direct upload
+├─ export_chapters(chapters, metadata) → list[dict]
+│  ├─ Wattpad chapter format: title, parts, author_notes
+│  ├─ NovelHD metadata: character bios, world worldbuilding, tags
+│  └─ Character/world transcription per chapter
+├─ validate_format(chapter) → bool
+│  └─ Length limits, character encoding, formatting rules
+└─ upload_if_authenticated() → list[str]  # chapter URLs
+```
+
+**Integration**: Export tab checkbox; outputs `.wattpad.json` + `.novelHD.json` metadata.
 
 ### TTSAudioGenerator (services/tts_audio_generator.py)
 
@@ -315,6 +378,6 @@ Rolling context budget: last `context_window_chapters` summaries + char states (
 
 ---
 
-**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Web auth, credits, TTS, and image generation are transparent to core pipeline logic.
+**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Web auth, credits, TTS, and image generation are transparent to core pipeline logic. Phase 9 adds CoT self-review, interactive branching, and expanded export capabilities.
 
-**Last Updated**: 2026-03-24 | **Version**: 1.5 (Phase 7: TTS, Images, Credits, CI/CD, UI Modularization)
+**Last Updated**: 2026-03-24 | **Version**: 1.6 (Phase 9: CoT Self-Review, Story Branching, Wattpad Export, 31 Issue Fixes)
