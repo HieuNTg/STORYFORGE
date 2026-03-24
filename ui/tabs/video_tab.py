@@ -57,6 +57,13 @@ def build_video_tab(_t):
         visible=True,
     )
 
+    character_gallery = gr.Gallery(
+        label="Character References",
+        columns=4,
+        height="auto",
+        visible=True,
+    )
+
     gr.Markdown("---")
     gr.Markdown("### 🔊 Audio & Video")
     with gr.Row():
@@ -87,4 +94,5 @@ def build_video_tab(_t):
         "tts_audio_output": tts_audio_output,
         "video_output_file": video_output_file,
         "video_status": video_status,
+        "character_gallery": character_gallery,
     }

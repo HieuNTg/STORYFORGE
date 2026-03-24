@@ -65,12 +65,12 @@ class TestProgressHtmlGeneration(unittest.TestCase):
         self.assertEqual(result.count("progress-segment active"), 1)
         self.assertIn("Layer 3: Video", result)
 
-    def test_progress_html_layer_4_complete(self):
-        """Test progress HTML with layer=4 (all complete)."""
+    def test_progress_html_layer_4_active(self):
+        """Test progress HTML with layer=4 (media active)."""
         result = _progress_html(4)
-        # All 3 layers should be done
+        # Layers 1-3 done, layer 4 active
         self.assertEqual(result.count("progress-segment done"), 3)
-        self.assertNotIn("progress-segment active", result)
+        self.assertIn("progress-segment active", result)
 
     def test_progress_html_with_step_text(self):
         """Test _progress_html with step text."""
@@ -85,13 +85,12 @@ class TestProgressHtmlGeneration(unittest.TestCase):
         # Step div should not be included if step is empty
         self.assertNotIn("progress-step-text", result) or result.count("progress-step-text") == 0
 
-    def test_progress_html_has_three_segments(self):
-        """Test that progress HTML always has 3 segments."""
-        for layer in range(5):
+    def test_progress_html_has_four_segments(self):
+        """Test that progress HTML always has 4 segments (Layer 1/2/3 + Media)."""
+        for layer in range(6):
             result = _progress_html(layer)
-            # Count divs with class progress-segment
             segments = len(re.findall(r'class="[^"]*progress-segment[^"]*"', result))
-            self.assertEqual(segments, 3, f"Layer {layer} should have 3 segments")
+            self.assertEqual(segments, 4, f"Layer {layer} should have 4 segments")
 
     def test_progress_html_segment_labels(self):
         """Test that all three layer labels appear in progress HTML."""
@@ -126,7 +125,7 @@ class TestProgressHtmlGeneration(unittest.TestCase):
         """Test _progress_html with layer > 4."""
         result = _progress_html(10)
         # Should mark all as done
-        self.assertEqual(result.count("progress-segment done"), 3)
+        self.assertEqual(result.count("progress-segment done"), 4)
 
 
 class TestLayerDetection(unittest.TestCase):

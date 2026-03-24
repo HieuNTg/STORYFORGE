@@ -25,6 +25,7 @@ from ui.handlers import (
     get_checkpoint_choices,
     handle_load_checkpoint, handle_add_chapters, handle_delete_chapters,
     handle_update_character, handle_enhance, handle_generate_images,
+    handle_genre_autofill, handle_character_gallery,
 )
 from ui.tabs import (
     build_pipeline_tab,
@@ -112,10 +113,10 @@ def _load_templates() -> dict:
 
 
 def _progress_html(layer: int = 0, step: str = "") -> str:
-    """Generate progress bar HTML. layer: 0=idle, 1/2/3=active layer."""
+    """Generate progress bar HTML. layer: 0=idle, 1/2/3/4=active layer."""
     segments = []
-    labels = [_t("progress.layer1"), _t("progress.layer2"), _t("progress.layer3")]
-    for i in range(3):
+    labels = [_t("progress.layer1"), _t("progress.layer2"), _t("progress.layer3"), "Media"]
+    for i in range(4):
         lnum = i + 1
         if layer > lnum:
             cls = "progress-segment done"
@@ -138,6 +139,8 @@ def _strip_diacritics(text: str) -> str:
 def _detect_layer(msg: str) -> int:
     """Detect current layer from progress log message."""
     normalized = _strip_diacritics(msg).upper()
+    if "MEDIA" in normalized or "IMAGE" in normalized or "TTS" in normalized or "AUDIO" in normalized:
+        return 4
     if "LAYER 3" in normalized or "STORYBOARD" in normalized or "VIDEO" in normalized:
         return 3
     if "LAYER 2" in normalized or "MO PHONG" in normalized or "ENHANCE" in normalized:
@@ -283,6 +286,7 @@ def create_ui():
                                 tts_audio_output = vid["tts_audio_output"]
                                 video_output_file = vid["video_output_file"]
                                 video_status = vid["video_status"]
+                                character_gallery = vid["character_gallery"]
                             with gr.TabItem(_t("tab.review")):
                                 rev = build_review_tab(_t)
                                 agent_output = rev["agent_output"]
@@ -679,10 +683,23 @@ def create_ui():
                     return (gr.update(), gr.update(), gr.update(),
                             gr.update(), gr.update(), gr.update())
 
+                def genre_autofill(genre_value):
+                    n_ch, w_ch, style = handle_genre_autofill(genre_value)
+                    return (
+                        gr.update(value=n_ch) if n_ch else gr.update(),
+                        gr.update(value=w_ch) if w_ch else gr.update(),
+                        gr.update(value=style) if style else gr.update(),
+                    )
+
                 genre_input.change(
                     fn=update_template_choices,
                     inputs=[genre_input],
                     outputs=[template_dropdown],
+                )
+                genre_input.change(
+                    fn=genre_autofill,
+                    inputs=[genre_input],
+                    outputs=[num_chapters, word_count, style_input],
                 )
                 template_dropdown.change(
                     fn=apply_template,
@@ -736,6 +753,15 @@ def create_ui():
                     fn=generate_images_handler,
                     inputs=[orchestrator_state, image_provider_dd],
                     outputs=[image_gallery],
+                )
+
+                def refresh_char_gallery(orch):
+                    return handle_character_gallery(orch)
+
+                generate_images_btn.click(
+                    fn=refresh_char_gallery,
+                    inputs=[orchestrator_state],
+                    outputs=[character_gallery],
                 )
 
                 # ── TTS Audio handler ──
