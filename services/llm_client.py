@@ -387,14 +387,15 @@ class LLMClient:
             json_mode=True,
             model_tier="cheap",
         )
-        # Issue #1: re-raise with text preview on final parse failure
+        # Re-raise with full diagnostic on final parse failure
         try:
             return json.loads(fixed)
         except json.JSONDecodeError as e:
-            preview = fixed[:200] if fixed else "<empty>"
+            preview = fixed[:800] if fixed else "<empty>"
             raise ValueError(
                 f"JSON parse failed after 3 attempts. "
-                f"Last text (truncated): {preview!r}"
+                f"Parse error: {e}. "
+                f"Last text ({len(fixed)} chars, showing first 800): {preview!r}"
             ) from e
 
     @staticmethod

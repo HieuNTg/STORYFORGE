@@ -3,7 +3,7 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from models.schemas import (
-    StoryDraft, SimulationResult, EnhancedStory, Chapter,
+    StoryDraft, SimulationResult, EnhancedStory, Chapter, count_words,
 )
 from services.llm_client import LLMClient
 from services import prompts
@@ -89,7 +89,7 @@ class StoryEnhancer:
             chapter_number=chapter.chapter_number,
             title=chapter.title,
             content=enhanced_content,
-            word_count=len(enhanced_content.split()),
+            word_count=count_words(enhanced_content),
             summary=chapter.summary,
         )
 
@@ -234,7 +234,7 @@ class StoryEnhancer:
                         chapter_number=ch_num,
                         title=enhanced.chapters[idx].title,
                         content=rewritten,
-                        word_count=len(rewritten.split()),
+                        word_count=count_words(rewritten),
                         summary=enhanced.chapters[idx].summary,
                     )
                     _log(f"  ✓ Chương {ch_num}: score {analysis['score']:.2f} → re-enhanced")

@@ -7,7 +7,7 @@ from typing import Optional, Generator
 
 from models.schemas import (
     Character, WorldSetting, ChapterOutline, Chapter, StoryDraft,
-    CharacterState, PlotEvent, StoryContext,
+    CharacterState, PlotEvent, StoryContext, count_words,
 )
 from services.llm_client import LLMClient
 from services import prompts
@@ -219,7 +219,7 @@ class StoryGenerator:
             chapter_number=outline.chapter_number,
             title=outline.title,
             content=content,
-            word_count=len(content.split()),
+            word_count=count_words(content),
         )
 
     def write_chapter_stream(
@@ -261,7 +261,7 @@ class StoryGenerator:
             chapter_number=outline.chapter_number,
             title=outline.title,
             content=full_content,
-            word_count=len(full_content.split()),
+            word_count=count_words(full_content),
         )
 
     @staticmethod
@@ -414,7 +414,7 @@ class StoryGenerator:
                         chapter_number=outline.chapter_number,
                         title=outline.title,
                         content=content,
-                        word_count=len(content.split()),
+                        word_count=count_words(content),
                     )
                 # Optional self-review (opt-in via config.pipeline.enable_self_review)
                 if self.config.pipeline.enable_self_review:
@@ -438,7 +438,7 @@ class StoryGenerator:
                                 f"(score: {review_scores['overall']:.1f})"
                             )
                         chapter.content = revised_content
-                        chapter.word_count = len(revised_content.split())
+                        chapter.word_count = count_words(revised_content)
 
                 draft.chapters.append(chapter)
 
@@ -452,24 +452,28 @@ class StoryGenerator:
                     self.extract_plot_events, chapter.content, outline.chapter_number
                 )
 
-                # Collect results with fallbacks
+                # Collect results with timeout (120s) to prevent pipeline hang
+                _EXTRACTION_TIMEOUT = 120
                 try:
-                    summary = summary_f.result()
+                    summary = summary_f.result(timeout=_EXTRACTION_TIMEOUT)
                 except Exception as e:
                     logger.warning(f"Summary extraction failed: {e}")
                     summary = ""
+                    summary_f.cancel()
 
                 try:
-                    new_states = states_f.result()
+                    new_states = states_f.result(timeout=_EXTRACTION_TIMEOUT)
                 except Exception as e:
                     logger.warning(f"Character state extraction failed: {e}")
                     new_states = []
+                    states_f.cancel()
 
                 try:
-                    new_events = events_f.result()
+                    new_events = events_f.result(timeout=_EXTRACTION_TIMEOUT)
                 except Exception as e:
                     logger.warning(f"Plot event extraction failed: {e}")
                     new_events = []
+                    events_f.cancel()
 
                 # Update rolling context
                 chapter.summary = summary
@@ -485,13 +489,12 @@ class StoryGenerator:
                     story_context.character_states = list(existing.values())
 
                 story_context.plot_events.extend(new_events)
-                # Smart pruning: keep recent + high-drama events
+                # Smart pruning: keep recent + high-impact events (cap at 50)
                 if len(story_context.plot_events) > 50:
                     events = story_context.plot_events
-                    # Keep 30 most recent
                     recent = events[-30:]
-                    # From older events, keep top 20 by drama relevance (longer descriptions = more important)
-                    older = sorted(events[:-30], key=lambda e: len(e.description), reverse=True)[:20]
+                    # From older events, keep top 20 by importance (longer event text = more detail)
+                    older = sorted(events[:-30], key=lambda e: len(e.event), reverse=True)[:20]
                     story_context.plot_events = older + recent
 
                 # Cập nhật Story Bible
@@ -630,7 +633,7 @@ class StoryGenerator:
                         _log(f"Chuong {outline.chapter_number} da duoc cai thien "
                              f"(score: {scores['overall']:.1f})")
                         chapter.content = revised
-                        chapter.word_count = len(revised.split())
+                        chapter.word_count = count_words(revised)
 
                 draft.chapters.append(chapter)
 
@@ -644,18 +647,22 @@ class StoryGenerator:
                     self.extract_plot_events, chapter.content, outline.chapter_number
                 )
 
+                _EXTRACTION_TIMEOUT = 120
                 try:
-                    summary = summary_f.result()
+                    summary = summary_f.result(timeout=_EXTRACTION_TIMEOUT)
                 except Exception:
                     summary = ""
+                    summary_f.cancel()
                 try:
-                    new_states = states_f.result()
+                    new_states = states_f.result(timeout=_EXTRACTION_TIMEOUT)
                 except Exception:
                     new_states = []
+                    states_f.cancel()
                 try:
-                    new_events = events_f.result()
+                    new_events = events_f.result(timeout=_EXTRACTION_TIMEOUT)
                 except Exception:
                     new_events = []
+                    events_f.cancel()
 
                 chapter.summary = summary
                 story_context.recent_summaries.append(summary)

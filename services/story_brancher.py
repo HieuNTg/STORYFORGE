@@ -159,9 +159,14 @@ class StoryBrancher:
 
     @staticmethod
     def load_tree(path: str) -> StoryTree:
-        """Load StoryTree from JSON file."""
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        """Load StoryTree from JSON file. Raises ValueError on corrupt data."""
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            raise ValueError(f"Corrupt tree file '{path}': {e}") from e
+        if not isinstance(data, dict) or "root_id" not in data:
+            raise ValueError(f"Invalid tree format in '{path}': missing required fields")
         return StoryTree.model_validate(data)
 
     @staticmethod

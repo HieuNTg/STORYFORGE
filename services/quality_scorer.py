@@ -64,7 +64,7 @@ class QualityScorer:
         chapter content for coherence checking.
         """
         if not chapters:
-            return StoryScore(scoring_layer=layer)
+            return StoryScore(scoring_layer=layer, weakest_chapter=0)
 
         # Build (chapter, context) pairs sequentially so each chapter
         # receives the previous chapter's content as context
@@ -91,6 +91,9 @@ class QualityScorer:
                     scores.append(ChapterScore(chapter_number=ch.chapter_number))
 
         scores.sort(key=lambda s: s.chapter_number)
+
+        if not scores:
+            return StoryScore(scoring_layer=layer, weakest_chapter=0)
 
         story_score = StoryScore(
             chapter_scores=scores,

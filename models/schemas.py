@@ -1,8 +1,14 @@
 """Mô hình dữ liệu cho toàn bộ pipeline."""
 
+import re
 from pydantic import BaseModel, Field
 from typing import Optional
 from enum import Enum
+
+
+def count_words(text: str) -> int:
+    """Count words accurately — filters out standalone punctuation tokens."""
+    return len([w for w in text.split() if re.search(r'\w', w)])
 
 
 # === Layer 1: Tạo truyện ===

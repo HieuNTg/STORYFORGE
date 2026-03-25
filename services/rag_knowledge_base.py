@@ -4,6 +4,7 @@ Graceful degradation: if chromadb or sentence-transformers are not installed,
 all operations silently no-op and query() returns [].
 """
 
+import hashlib
 import logging
 import os
 import re
@@ -157,7 +158,11 @@ class RAGKnowledgeBase:
                 f"persist_dir='{self._persist_dir}'"
             )
         except Exception as e:
-            logger.warning(f"RAGKnowledgeBase init failed — RAG disabled: {e}")
+            logger.error(
+                f"RAGKnowledgeBase init failed — RAG disabled: {e}. "
+                f"Check persist_dir='{self._persist_dir}' is writable and "
+                f"chromadb/sentence-transformers are properly installed."
+            )
             self._available = False
 
     def add_documents(self, texts: list[str], metadatas: list[dict]) -> int:
@@ -165,9 +170,9 @@ class RAGKnowledgeBase:
         if not self._available or not texts:
             return 0
         try:
-            # Generate unique IDs based on content hash + index
+            # Generate deterministic IDs using SHA256 (stable across restarts)
             ids = [
-                f"doc_{abs(hash(t)) % (10**9)}_{i}"
+                f"doc_{hashlib.sha256(t.encode()).hexdigest()[:12]}_{i}"
                 for i, t in enumerate(texts)
             ]
             self._collection.add(

@@ -86,11 +86,17 @@ class LLMCache:
     def put(self, response: str, **params):
         key = self._make_key(**params)
         conn = self._get_conn()
-        conn.execute(
-            "INSERT OR REPLACE INTO cache (key, response, created_at) VALUES (?,?,?)",
-            (key, response, time.time()),
-        )
-        conn.commit()
+        try:
+            conn.execute(
+                "INSERT OR REPLACE INTO cache (key, response, created_at) VALUES (?,?,?)",
+                (key, response, time.time()),
+            )
+            conn.commit()
+        except sqlite3.OperationalError as e:
+            # Handle concurrent write contention (database locked)
+            logger.warning(f"Cache put failed (concurrent write): {e}")
+        except sqlite3.Error as e:
+            logger.warning(f"Cache put failed: {e}")
 
     def evict_expired(self) -> int:
         """Remove expired entries. Returns number of entries removed."""
