@@ -43,6 +43,17 @@ Input: Genre + Story Idea + Config
 └─────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
+│ SMART CHAPTER REVISION (Phase 17)                                │
+│ - SmartRevisionService: Auto-detect weak chapters (score         │
+│   < smart_revision_threshold, 1.0-5.0 scale)                    │
+│ - Aggregate agent review guidance per chapter (regex-filtered)   │
+│ - LLM revises with targeted issues/suggestions                   │
+│ - Re-score to validate: accept if delta >= +0.3                 │
+│ - Max 2 passes per chapter; feature gated                        │
+│ Output: Refined chapters + revision metadata (score deltas)      │
+└─────────────────────────────────────────────────────────────────┘
+  ↓
+┌─────────────────────────────────────────────────────────────────┐
 │ QUALITY METRICS: Scoring Layer 2                                 │
 │ - Same 4 dimensions; computes delta vs Layer 1                   │
 │ Output: StoryScore layer=2 + improvement delta                   │
@@ -387,6 +398,37 @@ DebateOrchestrator
 **Integration**: `agent_registry.py` `run_review_cycle()` wires debate into story quality feedback loop when `enable_agent_debate=True`.
 **A/B Test**: Threshold changed Phase 16→16.5: 1.5 → **0.10** (0-1 scale) for validated drama delta.
 
+### SmartRevisionService (services/smart_revision.py) — Phase 17
+
+```
+SmartRevisionService
+├─ __init__(threshold: float = 3.5, max_passes: int = 2)
+│  ├─ threshold: 1.0-5.0 scale; chapters with overall < threshold marked as weak
+│  └─ max_passes: max revision attempts per chapter (default 2)
+│
+├─ revise_weak_chapters(enhanced_story, quality_scores, reviews, genre, progress_callback)
+│  ├─ Identify weak chapters: ChapterScore.overall < threshold
+│  ├─ For each weak chapter:
+│  │  ├─ Aggregate agent guidance via _aggregate_review_guidance()
+│  │  ├─ Build SMART_REVISE_CHAPTER prompt with issues + suggestions
+│  │  └─ [LOOP max_passes]:
+│  │     ├─ LLM revise chapter (temp=0.7)
+│  │     ├─ Re-score revised chapter
+│  │     ├─ Compute delta vs old_score
+│  │     └─ Accept if delta >= MIN_IMPROVEMENT_DELTA (+0.3)
+│  └─ Return: {revised_count, total_weak, score_deltas: [{chapter, old/new_score, delta, passes}]}
+│
+└─ _aggregate_review_guidance(chapter_number: int, reviews: list) → (issues, suggestions)
+   ├─ Word-boundary regex filter: `\bch(?:ương\s*)?N\b` for chapter-specific guidance
+   ├─ Include general issues from low-scoring agents (score < 0.6)
+   └─ Cap 5 issues + 5 suggestions per chapter
+```
+
+**Config**: `enable_smart_revision` (bool, default False), `smart_revision_threshold` (float 1.0-5.0, default 3.5)
+**Validation**: MIN_IMPROVEMENT_DELTA = +0.3 (validated decision threshold)
+**Integration**: Runs after Layer 2 agent reviews when `enable_smart_revision=True`
+**Benefits**: Automatic weak chapter detection + targeted revision reduces manual QA burden
+
 ## CI/CD Pipeline (GitHub Actions)
 
 ```
@@ -595,7 +637,9 @@ ConfigManager (singleton)
    ├─ long_context_timeout_seconds (int, default: 120)  [PHASE 15]
    ├─ enable_voice_emotion (bool, default: False)  [PHASE 15]
    ├─ enable_agent_debate (bool, default: False)  [PHASE 16]
-   └─ max_debate_rounds (int, default: 3)  [PHASE 16]
+   ├─ max_debate_rounds (int, default: 3)  [PHASE 16]
+   ├─ enable_smart_revision (bool, default: False)  [PHASE 17]
+   └─ smart_revision_threshold (float 1.0-5.0, default: 3.5)  [PHASE 17]
 
 Environment overrides:
 ├─ STORYFORGE_IMAGE_PROVIDER (none | dalle | sd-api | seedream | replicate)
@@ -612,6 +656,7 @@ Environment overrides:
 **Phase 15 Addition**: Long-context LLM configuration (token counter, endpoint, timeout) + emotion-aware TTS voice adjustment.
 **Phase 16 Addition**: Multi-agent debate protocol configuration (enable/disable, max rounds).
 **Phase 16.5 Addition**: Debate upgraded to LLM-powered; DramaCriticAgent & CharacterSpecialistAgent analyze peer reviews via LLM prompts (DRAMA_DEBATE, CHARACTER_DEBATE); A/B threshold 0.10.
+**Phase 17 Addition**: Smart chapter revision configuration (enable/disable, threshold). Weak chapters auto-detected after Layer 2 agent reviews and revised with aggregated guidance.
 
 ## Error Handling
 
@@ -634,6 +679,6 @@ Rolling context budget: last `context_window_chapters` summaries + char states (
 
 ---
 
-**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Web auth, credits, TTS, and image generation are transparent to core pipeline logic. Phase 9 adds CoT self-review, interactive branching, and expanded export capabilities. Phase 10 adds configuration polish and persistence. Phase 13 adds RAG world-building context, agent dependency graph orchestration, and multi-provider voice synthesis with XTTS v2 cloning. Phase 14 adds character visual profile persistence and multi-provider character-consistent image generation (IP-Adapter + Seedream). Sprint 0 includes 11 critical bug fixes (SQLite concurrency, plot event pruning, word count helpers). Phase 15 adds long-context LLM support (token counter, context window awareness) and emotion-aware voice synthesis. Phase 16 adds multi-agent debate protocol. Phase 16.5 upgrades debate to LLM-powered analysis with revised_score per DebateEntry, DRY helpers in BaseAgent, and A/B threshold 0.10.
+**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Web auth, credits, TTS, and image generation are transparent to core pipeline logic. Phase 9 adds CoT self-review, interactive branching, and expanded export capabilities. Phase 10 adds configuration polish and persistence. Phase 13 adds RAG world-building context, agent dependency graph orchestration, and multi-provider voice synthesis with XTTS v2 cloning. Phase 14 adds character visual profile persistence and multi-provider character-consistent image generation (IP-Adapter + Seedream). Sprint 0 includes 11 critical bug fixes (SQLite concurrency, plot event pruning, word count helpers). Phase 15 adds long-context LLM support (token counter, context window awareness) and emotion-aware voice synthesis. Phase 16 adds multi-agent debate protocol. Phase 16.5 upgrades debate to LLM-powered analysis with revised_score per DebateEntry, DRY helpers in BaseAgent, and A/B threshold 0.10. Phase 17 adds smart chapter revision (auto-detect weak chapters, aggregate agent guidance, validate improvements).
 
-**Last Updated**: 2026-03-25 | **Version**: 2.1 (Phase 16.5: LLM-Powered Debate Upgrade + Revised Scores)
+**Last Updated**: 2026-03-25 | **Version**: 2.2 (Phase 17: Smart Chapter Revision)

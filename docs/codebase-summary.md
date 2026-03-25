@@ -192,6 +192,21 @@ novel-auto/
   CONTINUE_OUTLINE
 - **Phase 13**: RAG_CONTEXT_SECTION — injected into world-building & chapter prompts when RAG enabled
 - **Phase 16.5**: DRAMA_DEBATE, CHARACTER_DEBATE — LLM debate templates for agent analysis (DramaCriticAgent, CharacterSpecialistAgent)
+- **Phase 17**: SMART_REVISE_CHAPTER — targeted revision prompt with aggregated agent issues/suggestions
+
+### smart_revision.py (Phase 17)
+- `SmartRevisionService` — auto-detect and revise weak chapters
+- `revise_weak_chapters(enhanced_story, quality_scores, reviews, genre)` → dict with revision stats
+  - Identifies chapters with `overall < smart_revision_threshold` (1.0-5.0 scale)
+  - Aggregates agent review issues/suggestions per chapter via regex word-boundary matching
+  - Revises with targeted guidance; re-scores to validate improvement
+  - Accepts revisions if delta >= +0.3 (MIN_IMPROVEMENT_DELTA)
+  - Max 2 passes per chapter (configurable)
+- `_aggregate_review_guidance(chapter_number, reviews)` → (issues, suggestions) tuple
+  - Filters chapter-specific guidance via regex (`\bch(?:ương\s*)?N\b`)
+  - Includes general low-score suggestions if no chapter-specific found
+  - Caps at 5 issues + 5 suggestions per chapter
+- **Phase 17**: Feature gated by `enable_smart_revision` config (default False)
 
 ### rag_knowledge_base.py (Phase 13)
 - RAGKnowledgeBase service using ChromaDB + sentence-transformers
@@ -257,6 +272,8 @@ novel-auto/
 - **Phase 15**: `enable_voice_emotion` (bool, default: False) — emotion-aware TTS rate/pitch
 - **Phase 16**: `enable_agent_debate` (bool, default: False) — multi-agent debate protocol
 - **Phase 16**: `max_debate_rounds` (int, default: 3) — max debate rounds per decision
+- **Phase 17**: `enable_smart_revision` (bool, default: False) — auto-revise weak chapters after Layer 2
+- **Phase 17**: `smart_revision_threshold` (float 1.0-5.0, default: 3.5) — score threshold for weak chapter detection
 
 ## Character State Tracking (Phase 1)
 
@@ -328,7 +345,8 @@ Chapter → [parallel] summarize + extract_character_states + extract_plot_event
 | Phase 15 | COMPLETE | Long-context LLM support (token counter, OpenAI SDK), emotion-aware voice rate/pitch; 1072 tests |
 | Phase 16 | COMPLETE | Multi-agent debate protocol (3-round), debate response callbacks, debate decision consensus; 1102 tests |
 | **Phase 16.5** | COMPLETE | LLM-powered debate (replaces rule-based), revised_score in DebateEntry, A/B threshold 0.10; 1108 tests |
+| **Phase 17** | COMPLETE | Smart chapter revision (auto-detect weak chapters via quality scores, aggregate agent guidance, LLM revision with validation); 1116 tests |
 
 ---
 
-**Last Updated**: 2026-03-25 | **Doc Version**: 2.3 (Phase 16.5: LLM-Powered Debate + Revised Scores)
+**Last Updated**: 2026-03-25 | **Doc Version**: 2.4 (Phase 17: Smart Chapter Revision)

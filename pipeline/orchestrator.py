@@ -224,6 +224,26 @@ class PipelineOrchestrator:
                     self.output.reviews.extend(reviews)
                 except Exception as e:
                     logger.warning(f"Agent review Layer 2 loi: {e}")
+
+            # Smart chapter revision: auto-fix weak chapters using agent reviews
+            if enable_scoring and self.config.pipeline.enable_smart_revision:
+                _log("[REVISION] Kiem tra chuong yeu...")
+                try:
+                    from services.smart_revision import SmartRevisionService
+                    revisor = SmartRevisionService(
+                        threshold=self.config.pipeline.smart_revision_threshold
+                    )
+                    revision_result = revisor.revise_weak_chapters(
+                        enhanced_story=enhanced,
+                        quality_scores=self.output.quality_scores,
+                        reviews=self.output.reviews,
+                        genre=genre,
+                        progress_callback=lambda m: _log(f"[REVISION] {m}"),
+                    )
+                    if revision_result["revised_count"] > 0:
+                        _log(f"[REVISION] Da sua {revision_result['revised_count']}/{revision_result['total_weak']} chuong yeu")
+                except Exception as e:
+                    logger.warning(f"Smart revision failed: {e}")
         except Exception as e:
             logger.warning(f"Layer 2 that bai, dung ban thao goc: {e}")
             _log(f"Layer 2 loi ({str(e)}), tiep tuc voi ban thao goc.")

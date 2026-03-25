@@ -539,3 +539,33 @@ Trả về JSON với format:
 
 Chú ý: Đánh giá dựa trên NỘI DUNG và NGỮ CẢNH, không chỉ từ khóa.
 Chỉ trả về JSON, không giải thích."""
+
+# ============================================================
+# SMART CHAPTER REVISION (Phase 17)
+# ============================================================
+
+SMART_REVISE_CHAPTER = """Bạn là nhà văn chuyên nghiệp. Hãy sửa lại chương truyện dựa trên phản hồi cụ thể từ ban biên tập.
+
+CHƯƠNG {chapter_number}: {title}
+
+NỘI DUNG GỐC:
+{content}
+
+CÁC VẤN ĐỀ CẦN SỬA (từ phản hồi biên tập):
+{issues}
+
+GỢI Ý CẢI THIỆN:
+{suggestions}
+
+THỂ LOẠI: {genre}
+
+YÊU CẦU BẮT BUỘC:
+- CHỈ sửa các vấn đề đã liệt kê ở trên
+- Áp dụng các gợi ý cải thiện
+- KHÔNG thay đổi cốt truyện, nhân vật, dòng thời gian
+- KHÔNG thêm nhân vật mới hoặc tình tiết mới
+- Giữ nguyên phong cách và giọng văn
+- Khoảng {word_count} từ (+/- 10%)
+- Viết hoàn toàn bằng tiếng Việt
+
+Bắt đầu viết lại chương:"""

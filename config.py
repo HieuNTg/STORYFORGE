@@ -113,6 +113,10 @@ class PipelineConfig:
     enable_agent_debate: bool = False
     max_debate_rounds: int = 3
 
+    # Smart chapter revision (auto-fix weak chapters using agent reviews)
+    enable_smart_revision: bool = False
+    smart_revision_threshold: float = 3.5  # 1.0-5.0 scale
+
 
 VIDEO_QUALITY_PRESETS = {
     "draft": {"resolution": "512x512", "fps": 24, "crf": "28", "preset": "fast"},
@@ -184,6 +188,7 @@ class ConfigManager:
             "LONG_CONTEXT_API_KEY": ("pipeline", "long_context_api_key"),
             "LONG_CONTEXT_BASE_URL": ("pipeline", "long_context_base_url"),
             "STORYFORGE_AGENT_DEBATE": ("pipeline", "enable_agent_debate"),
+            "STORYFORGE_SMART_REVISION": ("pipeline", "enable_smart_revision"),
         }
         for env_key, (section, field) in env_map.items():
             val = os.environ.get(env_key)
@@ -196,7 +201,7 @@ class ConfigManager:
                     except ValueError:
                         continue
                 # Convert to bool for boolean fields
-                elif field in ("rag_enabled", "enable_character_consistency", "use_long_context", "enable_agent_debate"):
+                elif field in ("rag_enabled", "enable_character_consistency", "use_long_context", "enable_agent_debate", "enable_smart_revision"):
                     val = val.lower() in ("1", "true", "yes")
                 setattr(target, field, val)
 
@@ -258,6 +263,8 @@ class ConfigManager:
                 "enable_character_consistency": self.pipeline.enable_character_consistency,
                 "replicate_api_key": self.pipeline.replicate_api_key,
                 "character_consistency_provider": self.pipeline.character_consistency_provider,
+                "enable_smart_revision": self.pipeline.enable_smart_revision,
+                "smart_revision_threshold": self.pipeline.smart_revision_threshold,
             },
         }
         if warnings:
@@ -281,4 +288,6 @@ class ConfigManager:
             errors.append("video_quality phải là 'draft' hoặc 'final'")
         if not (1.0 <= self.pipeline.self_review_threshold <= 5.0):
             errors.append("self_review_threshold phải từ 1.0 đến 5.0")
+        if not (1.0 <= self.pipeline.smart_revision_threshold <= 5.0):
+            errors.append("smart_revision_threshold phải từ 1.0 đến 5.0")
         return errors
