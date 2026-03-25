@@ -12,6 +12,7 @@ from functools import reduce
 from typing import Optional
 
 from config import ConfigManager
+from services.emotion_classifier import classify_emotion, get_voice_params
 
 logger = logging.getLogger(__name__)
 
@@ -109,11 +110,29 @@ class TTSAudioGenerator:
         return self._generate_edge_tts(text, output_path)
 
     def generate_chapter_audio(
-        self, chapter_text: str, chapter_num: int, output_dir: str = "output"
+        self,
+        chapter_text: str,
+        chapter_num: int,
+        output_dir: str = "output",
+        emotion: str = "",
     ) -> Optional[str]:
-        """Generate audio for a single chapter."""
+        """Generate audio for a single chapter with optional emotion modulation."""
         os.makedirs(output_dir, exist_ok=True)
         output_path = os.path.join(output_dir, f"chapter_{chapter_num:02d}.mp3")
+
+        cfg = ConfigManager().pipeline
+        if cfg.enable_voice_emotion and not emotion:
+            emotion = classify_emotion(chapter_text)
+
+        if emotion:
+            logger.info("Chapter %d emotion: %s", chapter_num, emotion)
+            params = get_voice_params(emotion)
+            orig_rate = self.rate
+            self.rate = params["rate"]
+            try:
+                return self.generate_audio(chapter_text, output_path)
+            finally:
+                self.rate = orig_rate
         return self.generate_audio(chapter_text, output_path)
 
     def generate_full_audiobook(self, chapters: list, output_dir: str = "output") -> list:
@@ -156,6 +175,15 @@ class TTSAudioGenerator:
 
         # Return paths in chapter order
         return [results[ch.chapter_number] for ch in chapters if ch.chapter_number in results]
+
+    def _resolve_xtts_reference(self, emotion: str = "") -> str:
+        """Resolve reference audio, preferring emotion-specific variant."""
+        if emotion and self.xtts_reference_audio:
+            base, ext = os.path.splitext(self.xtts_reference_audio)
+            emotion_path = f"{base}_{emotion}{ext}"
+            if os.path.exists(emotion_path):
+                return emotion_path
+        return self.xtts_reference_audio or ""
 
     # ── Private providers ─────────────────────────────────────────────────────
 

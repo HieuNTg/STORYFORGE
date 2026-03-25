@@ -98,6 +98,17 @@ class PipelineConfig:
     replicate_api_key: str = ""
     character_consistency_provider: str = "seedream"  # seedream | replicate
 
+    # Long-context mode (e.g. Gemini 1.5 Pro, Claude 3, GPT-4o-128k)
+    use_long_context: bool = False
+    long_context_provider: str = ""
+    long_context_model: str = ""
+    long_context_api_key: str = ""
+    long_context_base_url: str = ""
+    long_context_max_tokens: int = 1000000
+
+    # Voice emotion synthesis
+    enable_voice_emotion: bool = False
+
 
 VIDEO_QUALITY_PRESETS = {
     "draft": {"resolution": "512x512", "fps": 24, "crf": "28", "preset": "fast"},
@@ -163,6 +174,11 @@ class ConfigManager:
             "XTTS_REFERENCE_AUDIO": ("pipeline", "xtts_reference_audio"),
             "REPLICATE_API_KEY": ("pipeline", "replicate_api_key"),
             "STORYFORGE_CHAR_CONSISTENCY": ("pipeline", "enable_character_consistency"),
+            "STORYFORGE_LONG_CONTEXT": ("pipeline", "use_long_context"),
+            "LONG_CONTEXT_PROVIDER": ("pipeline", "long_context_provider"),
+            "LONG_CONTEXT_MODEL": ("pipeline", "long_context_model"),
+            "LONG_CONTEXT_API_KEY": ("pipeline", "long_context_api_key"),
+            "LONG_CONTEXT_BASE_URL": ("pipeline", "long_context_base_url"),
         }
         for env_key, (section, field) in env_map.items():
             val = os.environ.get(env_key)
@@ -175,7 +191,7 @@ class ConfigManager:
                     except ValueError:
                         continue
                 # Convert to bool for boolean fields
-                elif field in ("rag_enabled", "enable_character_consistency"):
+                elif field in ("rag_enabled", "enable_character_consistency", "use_long_context"):
                     val = val.lower() in ("1", "true", "yes")
                 setattr(target, field, val)
 

@@ -40,6 +40,14 @@ class StoryGenerator:
         self.llm = LLMClient()
         self.config = ConfigManager()
         self.bible_manager = StoryBibleManager()
+        self._long_ctx_client = None
+
+    @property
+    def long_context_client(self):
+        if self._long_ctx_client is None:
+            from services.long_context_client import LongContextClient
+            self._long_ctx_client = LongContextClient()
+        return self._long_ctx_client
 
     def suggest_titles(self, genre: str, requirements: str = "") -> list[str]:
         """Đề xuất tiêu đề truyện."""
@@ -118,11 +126,39 @@ class StoryGenerator:
         outlines = [ChapterOutline(**o) for o in result.get("outlines", [])]
         return synopsis, outlines
 
-    def _format_context(self, context: StoryContext, bible_context: str = "") -> str:
+    def _format_context(
+        self,
+        context: StoryContext,
+        bible_context: str = "",
+        full_chapter_texts: Optional[list[str]] = None,
+    ) -> str:
         """Format StoryContext thành chuỗi cho prompt.
 
-        Nếu bible_context được cung cấp (từ StoryBible), dùng nó thay vì rolling summaries đơn giản.
+        Nếu full_chapter_texts được cung cấp (long-context mode), format toàn bộ
+        nội dung chương dưới dạng numbered sections kèm character states/plot events.
+        Nếu bible_context được cung cấp (từ StoryBible), dùng nó thay vì rolling summaries.
         """
+        # Long-context mode: include full chapter texts
+        if full_chapter_texts:
+            parts = []
+            parts.append("## Toàn bộ nội dung các chương trước:")
+            for i, text in enumerate(full_chapter_texts, start=1):
+                parts.append(f"### Chương {i}:\n{text}")
+            # Still include character states and plot events for reference
+            if context and context.character_states:
+                states_text = "\n".join(
+                    f"- {s.name}: tâm trạng={s.mood}, vị trí={s.arc_position}, "
+                    f"hành động cuối={s.last_action}"
+                    for s in context.character_states
+                )
+                parts.append(f"## Trạng thái nhân vật hiện tại:\n{states_text}")
+            if context and context.plot_events:
+                events_text = "\n".join(
+                    f"- Ch.{e.chapter_number}: {e.event}" for e in context.plot_events[-10:]
+                )
+                parts.append(f"## Sự kiện quan trọng đã xảy ra:\n{events_text}")
+            return "\n\n".join(parts)
+
         if not context or (not context.recent_summaries and not context.character_states):
             return bible_context or "Đây là chương đầu tiên."
 
@@ -151,6 +187,7 @@ class StoryGenerator:
     def _build_chapter_prompt(
         self, title, genre, style, characters, world, outline,
         word_count, context=None, previous_summary="", bible_context: str = "",
+        full_chapter_texts: Optional[list[str]] = None,
     ) -> tuple[str, str]:
         """Build system/user prompts for chapter writing. Returns (system_prompt, user_prompt)."""
         chars_text = "\n".join(
@@ -163,7 +200,7 @@ class StoryGenerator:
             f"Cảm xúc: {outline.emotional_arc}"
         )
         context_text = (
-            self._format_context(context, bible_context)
+            self._format_context(context, bible_context, full_chapter_texts)
             if context
             else (bible_context or previous_summary or "Đây là chương đầu tiên.")
         )
@@ -378,6 +415,9 @@ class StoryGenerator:
                 draft, arc_size=self.config.pipeline.arc_size
             )
 
+        # Long-context tracking: accumulate full chapter texts
+        all_chapter_texts = []
+
         with ThreadPoolExecutor(max_workers=3) as executor:
             for outline in outlines:
                 story_context.current_chapter = outline.chapter_number
@@ -400,16 +440,39 @@ class StoryGenerator:
                         stream_callback=stream_callback,
                     )
                 else:
-                    # Truyền bible_ctx vào prompt nếu có
+                    # Decide whether to use long-context mode (skip for first chapter)
+                    use_lc = False
+                    if (
+                        all_chapter_texts
+                        and self.config.pipeline.use_long_context
+                        and self.long_context_client.is_configured
+                    ):
+                        from services.token_counter import fits_in_context
+                        if fits_in_context(all_chapter_texts, self.long_context_client.max_context):
+                            use_lc = True
+                        else:
+                            logger.info(
+                                f"Chapter {outline.chapter_number}: long-context skipped "
+                                f"(texts exceed context window), falling back to rolling context"
+                            )
+
                     sys_prompt, user_prompt = self._build_chapter_prompt(
                         title, genre, style, characters, world, outline,
                         word_count, story_context, bible_context=bible_ctx,
+                        full_chapter_texts=all_chapter_texts if use_lc else None,
                     )
-                    content = self.llm.generate(
-                        system_prompt=sys_prompt,
-                        user_prompt=user_prompt,
-                        max_tokens=8192,
-                    )
+                    if use_lc:
+                        content = self.long_context_client.generate(
+                            system_prompt=sys_prompt,
+                            user_prompt=user_prompt,
+                            max_tokens=8192,
+                        )
+                    else:
+                        content = self.llm.generate(
+                            system_prompt=sys_prompt,
+                            user_prompt=user_prompt,
+                            max_tokens=8192,
+                        )
                     chapter = Chapter(
                         chapter_number=outline.chapter_number,
                         title=outline.title,
@@ -441,6 +504,7 @@ class StoryGenerator:
                         chapter.word_count = count_words(revised_content)
 
                 draft.chapters.append(chapter)
+                all_chapter_texts.append(chapter.content)
 
                 # Parallel extraction: summary + character states + plot events
                 _log(f"🔍 Đang trích xuất context chương {outline.chapter_number}...")
@@ -595,6 +659,9 @@ class StoryGenerator:
         # Rebuild context from existing chapters
         story_context = self.rebuild_context(draft)
 
+        # Collect existing chapter texts for potential long-context usage
+        all_chapter_texts = [ch.content for ch in draft.chapters if ch.content]
+
         final_total = len(draft.chapters) + len(new_outlines)
         with ThreadPoolExecutor(max_workers=3) as executor:
             for outline in new_outlines:
@@ -610,11 +677,46 @@ class StoryGenerator:
                         stream_callback=stream_callback,
                     )
                 else:
-                    chapter = self.write_chapter(
-                        draft.title, draft.genre, effective_style,
-                        draft.characters, draft.world, outline,
-                        word_count=word_count, context=story_context,
-                    )
+                    # Decide whether to use long-context mode
+                    use_lc = False
+                    if (
+                        all_chapter_texts
+                        and self.config.pipeline.use_long_context
+                        and self.long_context_client.is_configured
+                    ):
+                        from services.token_counter import fits_in_context
+                        if fits_in_context(all_chapter_texts, self.long_context_client.max_context):
+                            use_lc = True
+                        else:
+                            logger.info(
+                                f"Chapter {outline.chapter_number}: long-context skipped "
+                                f"(texts exceed context window), falling back to rolling context"
+                            )
+
+                    if use_lc:
+                        sys_prompt, user_prompt = self._build_chapter_prompt(
+                            draft.title, draft.genre, effective_style,
+                            draft.characters, draft.world, outline,
+                            word_count, story_context,
+                            full_chapter_texts=all_chapter_texts,
+                        )
+                        chapter_content = self.long_context_client.generate(
+                            system_prompt=sys_prompt,
+                            user_prompt=user_prompt,
+                            max_tokens=8192,
+                        )
+                        chapter = Chapter(
+                            chapter_number=outline.chapter_number,
+                            title=outline.title,
+                            content=chapter_content,
+                            word_count=count_words(chapter_content),
+                        )
+                    else:
+                        chapter = self.write_chapter(
+                            draft.title, draft.genre, effective_style,
+                            draft.characters, draft.world, outline,
+                            word_count=word_count, context=story_context,
+                        )
                 # Optional self-review for continued chapters
                 if self.config.pipeline.enable_self_review:
                     if not hasattr(self, '_self_reviewer'):
@@ -636,6 +738,7 @@ class StoryGenerator:
                         chapter.word_count = count_words(revised)
 
                 draft.chapters.append(chapter)
+                all_chapter_texts.append(chapter.content)
 
                 # Parallel extraction
                 _log(f"🔍 Extracting context for chapter {outline.chapter_number}...")
