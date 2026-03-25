@@ -1,5 +1,6 @@
 """Tab builder modules for StoryForge Gradio UI."""
 
+from .onboarding_tab import build_onboarding_banner
 from .pipeline_tab import build_pipeline_tab
 from .story_tab import build_story_tab
 from .simulation_tab import build_simulation_tab
@@ -12,6 +13,7 @@ from .analytics_tab import build_analytics_tab
 from .reader_tab import build_reader_tab
 
 __all__ = [
+    "build_onboarding_banner",
     "build_pipeline_tab",
     "build_story_tab",
     "build_simulation_tab",

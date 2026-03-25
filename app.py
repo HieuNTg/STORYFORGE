@@ -41,6 +41,7 @@ from ui.tabs import (
     build_reader_tab,
 )
 from ui.tabs.branching_tab import build_branching_tab
+from ui.tabs.onboarding_tab import build_onboarding_banner
 
 # Logging
 logging.basicConfig(
@@ -211,6 +212,8 @@ def create_ui():
         theme=_APP_THEME,
         css=_APP_CSS,
     ) as app:
+        build_onboarding_banner(_t)
+
         gr.Markdown(
             f"# {_t('app.title')}\n### {_t('app.subtitle')}\n\n{_t('app.pipeline_desc')}",
             elem_classes="pipeline-header",

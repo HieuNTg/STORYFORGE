@@ -173,6 +173,15 @@ class PipelineOrchestrator:
             except Exception as e:
                 logger.warning(f"Analytics Layer 1 failed: {e}")
 
+            # Build knowledge graph from story draft
+            try:
+                from services.knowledge_graph import StoryKnowledgeGraph
+                kg = StoryKnowledgeGraph().build_from_story_draft(draft)
+                self.output.knowledge_graph_summary = kg.to_summary()
+                _log(f"[KG] Knowledge graph: {kg.node_count()} nodes, {kg.edge_count()} edges")
+            except Exception as e:
+                logger.warning(f"Knowledge graph build failed: {e}")
+
             if enable_agents:
                 _log("[AGENTS] Phong ban dang danh gia Layer 1...")
                 try:
