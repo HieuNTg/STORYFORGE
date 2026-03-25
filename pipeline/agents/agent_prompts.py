@@ -166,3 +166,62 @@ Yêu cầu: Trả về JSON theo định dạng sau (không có markdown):
 {{"score": 0.0-1.0, "issues": ["vấn đề 1", "vấn đề 2"], "suggestions": ["gợi ý 1", "gợi ý 2"]}}
 
 Trong đó score: 1.0 = mỗi nhân vật giọng riêng rõ ràng, 0.6 = phân biệt được phần lớn, dưới 0.4 = thoại nhân vật khó phân biệt."""
+
+# ============================================================
+# Debate: Nhà Phê Bình Kịch Tính (Phase 16.5)
+# ============================================================
+DRAMA_DEBATE = """Bạn là Nhà Phê Bình Kịch Tính tham gia vòng tranh luận với các chuyên gia khác.
+
+Đánh giá của bạn (Round 1):
+- Điểm: {own_score}
+- Vấn đề: {own_issues}
+- Gợi ý: {own_suggestions}
+
+Đánh giá của các chuyên gia khác:
+{other_reviews_json}
+
+Trích đoạn nội dung truyện:
+{chapter_excerpt}
+
+Nhiệm vụ:
+- Phân tích phản hồi của từng chuyên gia khác
+- CHALLENGE (phản đối) nếu họ gợi ý giảm kịch tính, bớt xung đột, hoặc đánh giá thấp drama
+- SUPPORT (ủng hộ) nếu họ gợi ý tăng cường kịch tính hợp lý
+- Với mỗi challenge/support, đề xuất revised_score (0.0-1.0) cho agent đó
+- Lý giải dựa trên bằng chứng cụ thể từ nội dung truyện
+
+Trả về JSON hợp lệ (không markdown):
+{{"entries": [{{"stance": "challenge" hoặc "support" hoặc "neutral", "target_agent": "tên agent", "target_issue": "vấn đề cụ thể", "reasoning": "lý do dựa trên bằng chứng", "revised_score": 0.0-1.0}}]}}
+
+Nếu không có gì cần phản đối hay ủng hộ, trả về: {{"entries": []}}"""
+
+# ============================================================
+# Debate: Chuyên Gia Nhân Vật (Phase 16.5)
+# ============================================================
+CHARACTER_DEBATE = """Bạn là Chuyên Gia Nhân Vật tham gia vòng tranh luận với các chuyên gia khác.
+
+Đánh giá của bạn (Round 1):
+- Điểm: {own_score}
+- Vấn đề: {own_issues}
+- Gợi ý: {own_suggestions}
+
+Đánh giá của các chuyên gia khác:
+{other_reviews_json}
+
+Thông tin nhân vật:
+{characters_info}
+
+Trích đoạn nội dung truyện:
+{chapter_excerpt}
+
+Nhiệm vụ:
+- Phân tích phản hồi của từng chuyên gia khác
+- CHALLENGE (phản đối) nếu gợi ý của họ phá vỡ tính nhất quán nhân vật, thay đổi tính cách đột ngột, hoặc tạo plot twist thiếu căn cứ
+- SUPPORT (ủng hộ) nếu gợi ý giúp củng cố tính cách, phát triển arc nhân vật hợp lý
+- Với mỗi challenge/support, đề xuất revised_score (0.0-1.0) cho agent đó
+- Lý giải dựa trên bằng chứng cụ thể về nhân vật
+
+Trả về JSON hợp lệ (không markdown):
+{{"entries": [{{"stance": "challenge" hoặc "support" hoặc "neutral", "target_agent": "tên agent", "target_issue": "vấn đề cụ thể", "reasoning": "lý do dựa trên bằng chứng", "revised_score": 0.0-1.0}}]}}
+
+Nếu không có gì cần phản đối hay ủng hộ, trả về: {{"entries": []}}"""

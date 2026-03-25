@@ -153,12 +153,14 @@ novel-auto/
 - agent_registry.py run_review_cycle() uses tiered execution; flat-parallel fallback if DAG disabled
 - Pure Python, no external dependencies
 
-### debate_orchestrator.py (Phase 16)
+### debate_orchestrator.py (Phase 16, Phase 16.5 LLM upgrade)
 - `DebateOrchestrator` — 3-round multi-agent debate protocol for story decisions
-- Agents present DebateStance positions; gather consensus via debate_response() callbacks
+- **Phase 16.5**: Agents now use LLM-powered debate_response() (with rule-based fallback) instead of static keyword matching
+- Agents challenge/support peers using LLM analysis; produces `revised_score` (0.0-1.0) per DebateEntry
 - Integration: agent_registry.py `run_review_cycle()` wires debate into feedback loop
-- Schemas: DebateStance (position, reasoning, evidence), DebateEntry (agent, stance, rebuttal), DebateResult (consensus, votes)
+- Schemas: DebateStance (position, reasoning, evidence), DebateEntry (agent, stance, rebuttal, revised_score), DebateResult (consensus, votes)
 - Config: `enable_agent_debate` (bool), `max_debate_rounds` (int)
+- **Phase 16.5**: A/B test threshold changed from 1.5 → 0.10 (validates +0.10 drama delta)
 
 ### i18n.py
 - Thread-safe singleton; JSON locale lookup with fallback chain: requested → `vi` → raw key
@@ -189,6 +191,7 @@ novel-auto/
   SCORE_CHAPTER, SUGGEST_TITLE, GENERATE_CHARACTERS, GENERATE_WORLD, GENERATE_OUTLINE,
   CONTINUE_OUTLINE
 - **Phase 13**: RAG_CONTEXT_SECTION — injected into world-building & chapter prompts when RAG enabled
+- **Phase 16.5**: DRAMA_DEBATE, CHARACTER_DEBATE — LLM debate templates for agent analysis (DramaCriticAgent, CharacterSpecialistAgent)
 
 ### rag_knowledge_base.py (Phase 13)
 - RAGKnowledgeBase service using ChromaDB + sentence-transformers
@@ -324,7 +327,8 @@ Chapter → [parallel] summarize + extract_character_states + extract_plot_event
 | **Sprint 0** | COMPLETE | 11 bug fixes: SQLite concurrency, plot event pruning, word count helpers, JSON error preview, null safety; 1072 tests |
 | Phase 15 | COMPLETE | Long-context LLM support (token counter, OpenAI SDK), emotion-aware voice rate/pitch; 1072 tests |
 | Phase 16 | COMPLETE | Multi-agent debate protocol (3-round), debate response callbacks, debate decision consensus; 1102 tests |
+| **Phase 16.5** | COMPLETE | LLM-powered debate (replaces rule-based), revised_score in DebateEntry, A/B threshold 0.10; 1108 tests |
 
 ---
 
-**Last Updated**: 2026-03-25 | **Doc Version**: 2.2 (Sprint 0 + Phase 15: Long-Context LLM + Voice Emotion + Phase 16: Multi-Agent Debate)
+**Last Updated**: 2026-03-25 | **Doc Version**: 2.3 (Phase 16.5: LLM-Powered Debate + Revised Scores)

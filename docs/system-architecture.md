@@ -360,24 +360,32 @@ EmotionClassifier
 **Output**: EmotionResult with label + confidence for TTS rate/pitch adjustment.
 **Integration**: `tts_audio_generator.py` uses EmotionClassifier to modulate voice characteristics per emotional context.
 
-### DebateOrchestrator (pipeline/agents/debate_orchestrator.py) — Phase 16
+### DebateOrchestrator (pipeline/agents/debate_orchestrator.py) — Phase 16, Phase 16.5 LLM Upgrade
 
 ```
 DebateOrchestrator
-├─ run_debate(topic: str, agents: list[BaseAgent]) → DebateResult
-│  ├─ Round 1: Agents present initial DebateStance positions
-│  ├─ Round 2: Agents rebut opposing stances via debate_response()
-│  ├─ Round 3: Agents finalize positions; consensus vote counted
-│  └─ Returns: DebateResult (consensus, vote counts, decision)
+├─ run_debate(agents, story_draft, layer, round1_reviews) → DebateResult
+│  ├─ Round 1: Agents present initial AgentReview scores
+│  ├─ Round 2: Agents call LLM-powered debate_response() to challenge/support peers
+│  │           Phase 16.5: produces revised_score (0.0-1.0) per DebateEntry
+│  ├─ Round 3: Final debate round, consensus vote counted
+│  └─ Returns: DebateResult (consensus_score, final_reviews, total_challenges)
 └─ Max rounds: configurable via max_debate_rounds
 ```
 
-**Schemas**:
-- `DebateStance`: position, reasoning, supporting evidence
-- `DebateEntry`: agent name, stance, rebuttal text
-- `DebateResult`: consensus label, vote counts per position, final decision
+**Schemas** (Phase 16.5 updates):
+- `DebateStance`: CHALLENGE, SUPPORT, NEUTRAL (enum)
+- `DebateEntry`: agent_name, round_number, stance, target_agent, target_issue, reasoning, **revised_score** (new)
+- `DebateResult`: consensus_score, final_reviews (list[AgentReview]), total_challenges, debate_skipped, entries
+
+**Phase 16.5 LLM Debate**: DramaCriticAgent and CharacterSpecialistAgent now use LLM-powered debate_response():
+- Analyzes peer reviews via LLM (DRAMA_DEBATE, CHARACTER_DEBATE prompts)
+- Challenges gently (e.g., drama-reducing suggestions) with evidence
+- Produces revised_score to adjust target agent's score if challenge accepted
+- Fallback: Rule-based keyword detection if LLM fails
 
 **Integration**: `agent_registry.py` `run_review_cycle()` wires debate into story quality feedback loop when `enable_agent_debate=True`.
+**A/B Test**: Threshold changed Phase 16→16.5: 1.5 → **0.10** (0-1 scale) for validated drama delta.
 
 ## CI/CD Pipeline (GitHub Actions)
 
@@ -472,18 +480,25 @@ LLMClient (singleton)
 
 ```
 BaseAgent (abstract)
-├─ feedback(story_draft, context) → AgentFeedback
+├─ review(output, layer, iteration, prior_reviews) → AgentReview
+├─ debate_response(story_draft, layer, own_review, all_reviews) → list[DebateEntry]
+├─ _parse_debate_llm_response(result, all_reviews) → list[DebateEntry]  [Phase 16.5 DRY]
+├─ _get_chapter_excerpt(story_draft, max_chars) → str  [Phase 16.5 DRY]
+├─ _parse_review_json(result, layer, iteration) → AgentReview
 └─ Subclasses: CharacterSpecialist, ContinuityChecker, DialogueExpert,
                DramaCritic, EditorInChief
 
 AgentRegistry
 ├─ discover() → list[BaseAgent]
 ├─ get_by_name(name) → BaseAgent
+├─ run_review_cycle(story_draft, context) → list[AgentReview]
 └─ register(agent) → void
 ```
 
 **Context-aware escalation**: agents detect threshold breaches (drama_intensity, coherence < 2.5)
 and escalate feedback priority; orchestrator re-runs affected chapter enhancement.
+
+**Phase 16.5 DRY improvements**: `_parse_debate_llm_response()` and `_get_chapter_excerpt()` shared in BaseAgent to reduce duplication across agent implementations.
 
 ### Agent Dependency Graph (AgentDAG) — Phase 13
 
@@ -596,6 +611,7 @@ Environment overrides:
 **Phase 14 Addition**: Character consistency configuration; enable visual profile store + choose provider (seedream uses image descriptions, replicate uses reference images).
 **Phase 15 Addition**: Long-context LLM configuration (token counter, endpoint, timeout) + emotion-aware TTS voice adjustment.
 **Phase 16 Addition**: Multi-agent debate protocol configuration (enable/disable, max rounds).
+**Phase 16.5 Addition**: Debate upgraded to LLM-powered; DramaCriticAgent & CharacterSpecialistAgent analyze peer reviews via LLM prompts (DRAMA_DEBATE, CHARACTER_DEBATE); A/B threshold 0.10.
 
 ## Error Handling
 
@@ -618,6 +634,6 @@ Rolling context budget: last `context_window_chapters` summaries + char states (
 
 ---
 
-**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Web auth, credits, TTS, and image generation are transparent to core pipeline logic. Phase 9 adds CoT self-review, interactive branching, and expanded export capabilities. Phase 10 adds configuration polish and persistence. Phase 13 adds RAG world-building context, agent dependency graph orchestration, and multi-provider voice synthesis with XTTS v2 cloning. Phase 14 adds character visual profile persistence and multi-provider character-consistent image generation (IP-Adapter + Seedream). Sprint 0 includes 11 critical bug fixes (SQLite concurrency, plot event pruning, word count helpers). Phase 15 adds long-context LLM support (token counter, context window awareness) and emotion-aware voice synthesis. Phase 16 adds multi-agent debate protocol for story decision consensus.
+**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Web auth, credits, TTS, and image generation are transparent to core pipeline logic. Phase 9 adds CoT self-review, interactive branching, and expanded export capabilities. Phase 10 adds configuration polish and persistence. Phase 13 adds RAG world-building context, agent dependency graph orchestration, and multi-provider voice synthesis with XTTS v2 cloning. Phase 14 adds character visual profile persistence and multi-provider character-consistent image generation (IP-Adapter + Seedream). Sprint 0 includes 11 critical bug fixes (SQLite concurrency, plot event pruning, word count helpers). Phase 15 adds long-context LLM support (token counter, context window awareness) and emotion-aware voice synthesis. Phase 16 adds multi-agent debate protocol. Phase 16.5 upgrades debate to LLM-powered analysis with revised_score per DebateEntry, DRY helpers in BaseAgent, and A/B threshold 0.10.
 
-**Last Updated**: 2026-03-25 | **Version**: 2.0 (Sprint 0 + Phase 15: Long-Context LLM + Voice Emotion + Phase 16: Multi-Agent Debate)
+**Last Updated**: 2026-03-25 | **Version**: 2.1 (Phase 16.5: LLM-Powered Debate Upgrade + Revised Scores)

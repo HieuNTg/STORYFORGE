@@ -31,7 +31,7 @@ from models.schemas import (
     ChapterOutline,
 )
 
-DRAMA_THRESHOLD = 1.5  # +1.5 pts on agent score (0-1 scale) to ship
+DRAMA_THRESHOLD = 0.10  # +0.10 on 0-1 scale to ship (validated decision)
 
 
 # ── Test Data ────────────────────────────────────────────────────────────
@@ -198,6 +198,7 @@ class TestABDebate:
 
     def test_no_challenge_when_no_triggers(self):
         """No challenges when reviews don't contain trigger keywords."""
+        from unittest.mock import patch
         from pipeline.agents.drama_critic import DramaCriticAgent as DramaCritic
 
         critic = DramaCritic()
@@ -209,7 +210,8 @@ class TestABDebate:
         ]
 
         draft = _make_draft()
-        entries = critic.debate_response(draft, 2, own, all_reviews)
+        with patch.object(critic.llm, "generate_json", return_value={"entries": []}):
+            entries = critic.debate_response(draft, 2, own, all_reviews)
         assert len(entries) == 0
 
     def test_debate_skipped_when_no_challenges(self):
@@ -268,8 +270,8 @@ class TestABDebate:
         assert json.loads(json_str) == report
 
     def test_ab_threshold_value(self):
-        """Threshold should be 1.5 on 0-1 scale (high bar for shipping)."""
-        assert DRAMA_THRESHOLD == 1.5
+        """Threshold should be 0.10 on 0-1 scale (validated decision)."""
+        assert DRAMA_THRESHOLD == 0.10
 
     def test_debate_entry_schema(self):
         """DebateEntry should round-trip through model_dump/validate."""
@@ -299,10 +301,151 @@ class TestABDebate:
         assert data["consensus_score"] == 0.74
 
 
+# ── LLM-Backed Debate Tests (Phase 16.5) ────────────────────────────────
+
+class TestLLMDebate:
+    """Tests for LLM-backed debate_response() with mocked LLM."""
+
+    def test_llm_debate_produces_revised_score(self):
+        """LLM debate should produce DebateEntries with revised_score != None."""
+        from unittest.mock import patch
+        from pipeline.agents.drama_critic import DramaCriticAgent
+
+        critic = DramaCriticAgent()
+        own = _make_review("Nha Phe Binh Kich Tinh", 0.5)
+        peer = _make_review("Chuyen Gia Nhan Vat", 0.6,
+                            suggestions=["Nên giảm bớt kịch tính"])
+        all_reviews = [own, peer]
+
+        mock_response = {
+            "entries": [{
+                "stance": "challenge",
+                "target_agent": "Chuyen Gia Nhan Vat",
+                "target_issue": "Giảm kịch tính",
+                "reasoning": "Giảm kịch tính sẽ làm mất tension arc",
+                "revised_score": 0.45,
+            }]
+        }
+
+        with patch.object(critic.llm, "generate_json", return_value=mock_response):
+            entries = critic.debate_response(_make_output(_make_draft()), 2, own, all_reviews)
+
+        assert len(entries) >= 1
+        challenge = entries[0]
+        assert challenge.stance == DebateStance.CHALLENGE
+        assert challenge.revised_score is not None
+        assert challenge.revised_score == 0.45
+
+    def test_llm_debate_fallback_on_error(self):
+        """When LLM fails, debate should fall back to rule-based and still work."""
+        from unittest.mock import patch
+        from pipeline.agents.drama_critic import DramaCriticAgent
+
+        critic = DramaCriticAgent()
+        own = _make_review("Nha Phe Binh Kich Tinh", 0.5)
+        peer = _make_review("Chuyen Gia Nhan Vat", 0.6,
+                            suggestions=["Nên giảm bớt kịch tính"])
+        all_reviews = [own, peer]
+
+        with patch.object(critic.llm, "generate_json", side_effect=RuntimeError("API down")):
+            entries = critic.debate_response(_make_output(_make_draft()), 2, own, all_reviews)
+
+        # Rule-based fallback should still detect "giảm" keyword and challenge
+        challenges = [e for e in entries if e.stance == DebateStance.CHALLENGE]
+        assert len(challenges) >= 1
+        # Fallback never sets revised_score
+        assert all(e.revised_score is None for e in entries)
+
+    def test_ab_delta_nonzero_with_llm(self):
+        """With LLM debate producing revised_scores, A/B delta should be != 0."""
+        from unittest.mock import patch
+        from pipeline.agents.debate_orchestrator import DebateOrchestrator
+        from pipeline.agents.drama_critic import DramaCriticAgent
+        from pipeline.agents.character_specialist import CharacterSpecialistAgent
+
+        draft = _make_draft(3)
+        output = _make_output(draft)
+
+        control_reviews = [
+            _make_review("Chuyen Gia Nhan Vat", 0.55,
+                         suggestions=["Nên giảm bớt kịch tính"]),
+            _make_review("Nha Phe Binh Kich Tinh", 0.50),
+        ]
+        control_scores = [r.score for r in control_reviews]
+
+        # Mock LLM to return revised_score that changes the outcome
+        drama_mock_response = {
+            "entries": [{
+                "stance": "challenge",
+                "target_agent": "Chuyen Gia Nhan Vat",
+                "target_issue": "Giảm kịch tính",
+                "reasoning": "Tension arc cần được duy trì",
+                "revised_score": 0.35,
+            }]
+        }
+        char_mock_response = {"entries": []}
+
+        drama_agent = DramaCriticAgent()
+        char_agent = CharacterSpecialistAgent()
+
+        # Patch char_agent first, then drama_agent (reverse order prevents mock override issue)
+        with patch.object(char_agent.llm, "generate_json", return_value=char_mock_response), \
+             patch.object(drama_agent.llm, "generate_json", return_value=drama_mock_response):
+            variant_reviews = [r.model_copy() for r in control_reviews]
+            orch = DebateOrchestrator(max_rounds=3)
+            result = orch.run_debate([drama_agent, char_agent], output, 2, variant_reviews)
+
+        variant_scores = [r.score for r in result.final_reviews]
+        delta = mean(variant_scores) - mean(control_scores)
+
+        # Delta should be non-zero because revised_score changes Chuyen Gia Nhan Vat's score
+        assert delta != 0.0
+        assert result.total_challenges >= 1
+
+    def test_debate_revised_score_clamped(self):
+        """revised_score should be clamped to [0.0, 1.0] range."""
+        from pipeline.agents.base_agent import BaseAgent
+        from unittest.mock import MagicMock
+
+        # Create a concrete subclass for testing
+        agent = MagicMock(spec=BaseAgent)
+        agent.name = "test_agent"
+        agent._parse_debate_llm_response = BaseAgent._parse_debate_llm_response.__get__(agent)
+
+        all_reviews = [_make_review("peer_agent", 0.5)]
+
+        result_over = {
+            "entries": [{
+                "stance": "challenge",
+                "target_agent": "peer_agent",
+                "target_issue": "test",
+                "reasoning": "test",
+                "revised_score": 1.5,  # Over max
+            }]
+        }
+        entries = agent._parse_debate_llm_response(result_over, all_reviews)
+        assert len(entries) == 1
+        assert entries[0].revised_score == 1.0  # Clamped
+
+        result_under = {
+            "entries": [{
+                "stance": "support",
+                "target_agent": "peer_agent",
+                "target_issue": "test",
+                "reasoning": "test",
+                "revised_score": -0.5,  # Under min
+            }]
+        }
+        entries = agent._parse_debate_llm_response(result_under, all_reviews)
+        assert len(entries) == 1
+        assert entries[0].revised_score == 0.0  # Clamped
+
+
 # ── CLI: Real API A/B Test ───────────────────────────────────────────────
 
 def _run_real_ab():
-    """Run A/B test with real LLM. Requires configured API key."""
+    """Run A/B test with real LLM. Requires configured API key.
+    NOTE: Currently uses mock runner — replace with full pipeline when ready."""
     print("=" * 60)
     print("A/B TEST: Multi-Agent Debate (REAL API)")
     print("=" * 60)

@@ -1,7 +1,12 @@
 """Agent Nhà Phê Bình Kịch Tính - đánh giá arc căng thẳng và độ hấp dẫn."""
+import json
+import logging
+
 from models.schemas import AgentReview, DebateEntry, DebateStance, PipelineOutput
 from pipeline.agents.base_agent import BaseAgent
 from pipeline.agents import agent_prompts
+
+logger = logging.getLogger(__name__)
 
 
 class DramaCriticAgent(BaseAgent):
@@ -27,28 +32,56 @@ class DramaCriticAgent(BaseAgent):
         return self._parse_review_json(result, layer, iteration)
 
     def debate_response(self, story_draft, layer, own_review, all_reviews):
-        """Challenge reviews that undervalue drama or suggest reducing tension."""
+        """Challenge reviews that undervalue drama. LLM-backed with rule-based fallback."""
+        try:
+            return self._llm_debate(story_draft, own_review, all_reviews)
+        except Exception as e:
+            logger.warning(f"LLM debate failed, using rule-based fallback: {e}")
+            return self._rule_based_debate(story_draft, all_reviews)
+
+    def _llm_debate(self, story_draft, own_review, all_reviews):
+        """LLM-powered debate analysis."""
+        other_reviews = [
+            {"agent_name": r.agent_name, "score": r.score,
+             "issues": r.issues, "suggestions": r.suggestions}
+            for r in all_reviews if r.agent_name != self.name
+        ]
+        if not other_reviews:
+            return []
+
+        # Extract chapter excerpt from story_draft (handles PipelineOutput or StoryDraft)
+        chapter_excerpt = self._get_chapter_excerpt(story_draft)
+
+        prompt = agent_prompts.DRAMA_DEBATE.format(
+            own_score=own_review.score,
+            own_issues=json.dumps(own_review.issues, ensure_ascii=False),
+            own_suggestions=json.dumps(own_review.suggestions, ensure_ascii=False),
+            other_reviews_json=json.dumps(other_reviews, ensure_ascii=False, indent=2),
+            chapter_excerpt=chapter_excerpt,
+        )
+        result = self.llm.generate_json(
+            system_prompt="Bạn là nhà phê bình kịch tính. Phân tích phản hồi và tranh luận. Trả về JSON hợp lệ.",
+            user_prompt=prompt,
+            temperature=0.4,
+            max_tokens=500,
+        )
+        return self._parse_debate_llm_response(result, all_reviews)
+
+    def _rule_based_debate(self, story_draft, all_reviews):
+        """Fallback: keyword-based challenge detection."""
         entries = []
+        low_drama_keywords = ["giảm", "bớt kịch tính", "quá mức", "giảm xung đột"]
         for review in all_reviews:
             if review.agent_name == self.name:
                 continue
-            # Challenge if another agent suggests reducing drama
-            low_drama_keywords = ["giảm", "bớt kịch tính", "quá mức", "giảm xung đột"]
             for suggestion in review.suggestions:
                 if any(kw in suggestion.lower() for kw in low_drama_keywords):
-                    genre = getattr(story_draft, 'genre', None)
-                    if genre is None and hasattr(story_draft, 'story_draft'):
-                        genre = getattr(story_draft.story_draft, 'genre', 'unknown')
                     entries.append(DebateEntry(
-                        agent_name=self.name,
-                        round_number=2,
+                        agent_name=self.name, round_number=2,
                         stance=DebateStance.CHALLENGE,
                         target_agent=review.agent_name,
                         target_issue=suggestion[:100],
-                        reasoning=(
-                            f"Drama reduction would harm story tension. Current drama level "
-                            f"is appropriate for {genre}."
-                        ),
+                        reasoning="Drama reduction would harm story tension.",
                     ))
         return entries
 
