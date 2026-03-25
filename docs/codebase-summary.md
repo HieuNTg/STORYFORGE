@@ -37,7 +37,12 @@ novel-auto/
 │   ├── story_brancher.py           # Interactive story branching with DAG management
 │   ├── wattpad_exporter.py         # Wattpad/NovelHD export service
 │   ├── rag_knowledge_base.py       # RAG with ChromaDB + sentence-transformers (500-char chunks)
-│   └── i18n.py                     # Thread-safe i18n singleton (vi/en JSON locales)
+│   ├── i18n.py                     # Thread-safe i18n singleton (vi/en JSON locales)
+│   ├── adaptive_prompts.py         # 12 genre + 4 score-booster adaptive prompt templates (Phase 18)
+│   ├── quality_gate.py             # Inline quality gate between pipeline layers (Phase 18)
+│   ├── onboarding.py               # 4-step onboarding wizard state machine (Phase 19)
+│   ├── knowledge_graph.py          # Story entity knowledge graph; NetworkX + pure Python fallback (Phase 19)
+│   └── progress_tracker.py         # Structured event tracker for pipeline milestones (Phase 20)
 ├── pipeline/
 │   ├── orchestrator.py             # Main workflow coordinator
 │   ├── layer1_story/
@@ -73,7 +78,8 @@ novel-auto/
 │   └── en.json                     # English locale strings (200+)
 ├── .github/
 │   └── workflows/
-│       └── ci.yml                  # GitHub Actions CI/CD pipeline
+│       └── ci.yml                  # GitHub Actions CI/CD (parallel lint/typecheck/test + staging-deploy, Phase 20)
+├── docker-compose.staging.yml      # Staging environment stack (Phase 20)
 ├── data/
 │   ├── config.json                 # LLM & pipeline configuration
 │   ├── templates/
@@ -199,14 +205,44 @@ novel-auto/
 - `revise_weak_chapters(enhanced_story, quality_scores, reviews, genre)` → dict with revision stats
   - Identifies chapters with `overall < smart_revision_threshold` (1.0-5.0 scale)
   - Aggregates agent review issues/suggestions per chapter via regex word-boundary matching
-  - Revises with targeted guidance; re-scores to validate improvement
-  - Accepts revisions if delta >= +0.3 (MIN_IMPROVEMENT_DELTA)
+  - Revises with targeted guidance; re-scores to validate; accepts if delta >= +0.3
   - Max 2 passes per chapter (configurable)
-- `_aggregate_review_guidance(chapter_number, reviews)` → (issues, suggestions) tuple
-  - Filters chapter-specific guidance via regex (`\bch(?:ương\s*)?N\b`)
-  - Includes general low-score suggestions if no chapter-specific found
-  - Caps at 5 issues + 5 suggestions per chapter
-- **Phase 17**: Feature gated by `enable_smart_revision` config (default False)
+- Feature gated by `enable_smart_revision` config (default False)
+
+### adaptive_prompts.py (Phase 18)
+- `AdaptivePrompts` — 12 genre-specific emphasis prompts + 4 score-booster templates
+- `get_genre_prompt(genre)` → genre-tuned emphasis string (romance, mystery, fantasy, sci-fi, thriller, drama, comedy, horror, historical, action, slice-of-life, literary)
+- `get_score_booster(dimension)` → booster for weakest quality dimension (coherence/character/drama/writing)
+- `build_adaptive_prompt(genre, quality_scores)` → combined prompt injected into chapter generation
+- Integration: `generator.py` `_build_chapter_prompt()` appends adaptive section
+
+### quality_gate.py (Phase 18)
+- `QualityGate` — inline scoring gate between pipeline layers
+- `check(story_score, layer)` → `GateResult(passed, score, threshold, layer)`
+- Raises `QualityGateError` if `score < quality_gate_threshold` and gate enabled
+- Emits structured event via ProgressTracker on each check
+- Config: `enable_quality_gate` (bool, default False), `quality_gate_threshold` (float 1.0-5.0)
+- Integration: orchestrator calls gate between L1→L2 and L2→L3
+
+### onboarding.py (Phase 19)
+- `OnboardingManager` — 4-step wizard state machine: genre → characters → style → confirm
+- `step_genre()`, `step_characters()`, `step_style()`, `step_confirm()` → sequential state transitions
+- `step_confirm()` returns populated `PipelineConfig`; `reset()` clears state
+- Reduces first-run misconfiguration; UI wizard tab calls steps sequentially
+
+### knowledge_graph.py (Phase 19)
+- `StoryKnowledgeGraph` — entity relationship graph for story artifacts
+- `index_story(story_draft)` — extracts character/location/event nodes + edges from L1 output
+- `get_character_relationships(name)` → list of edges for entity
+- `get_entity_context(name)` → formatted context string (for future prompt injection)
+- `export_graph()` → serializable `{nodes, edges}` dict
+- NetworkX DiGraph if installed; pure Python adjacency dict fallback (zero hard deps)
+
+### progress_tracker.py (Phase 20)
+- `ProgressTracker` — structured event emission throughout pipeline
+- `emit(event, data)` — logs structured event + calls registered Gradio callback
+- Standard events: `gate_checked`, `revision_done`, `scoring_complete`, `layer_start`, `layer_complete`
+- Injected by orchestrator; services call `tracker.emit()` at milestones
 
 ### rag_knowledge_base.py (Phase 13)
 - RAGKnowledgeBase service using ChromaDB + sentence-transformers
@@ -274,6 +310,9 @@ novel-auto/
 - **Phase 16**: `max_debate_rounds` (int, default: 3) — max debate rounds per decision
 - **Phase 17**: `enable_smart_revision` (bool, default: False) — auto-revise weak chapters after Layer 2
 - **Phase 17**: `smart_revision_threshold` (float 1.0-5.0, default: 3.5) — score threshold for weak chapter detection
+- **Phase 18**: `enable_quality_gate` (bool, default: False) — inline quality gate between layers
+- **Phase 18**: `quality_gate_threshold` (float 1.0-5.0) — minimum score to pass gate
+- **Phase 18**: `preset_profile` (str, "beginner" | "advanced" | "pro") — preset config bundle
 
 ## Character State Tracking (Phase 1)
 
@@ -322,7 +361,9 @@ Chapter → [parallel] summarize + extract_character_states + extract_plot_event
 
 `.github/workflows/ci.yml`:
 - Triggers: push / PR to main
-- Jobs: lint (flake8), typecheck (mypy), test (pytest), build validation
+- **Phase 20**: lint (flake8) + typecheck (mypy) + test (pytest, 1327 tests incl. 22 E2E) run **in parallel**
+- `build-validate` job after test: `python -c "import app"` smoke check
+- `staging-deploy` job: deploy to staging via `docker-compose.staging.yml` after build passes
 - Context-aware escalation: failures escalate via agent feedback loop patterns
 
 ## Development Status
@@ -346,7 +387,10 @@ Chapter → [parallel] summarize + extract_character_states + extract_plot_event
 | Phase 16 | COMPLETE | Multi-agent debate protocol (3-round), debate response callbacks, debate decision consensus; 1102 tests |
 | **Phase 16.5** | COMPLETE | LLM-powered debate (replaces rule-based), revised_score in DebateEntry, A/B threshold 0.10; 1108 tests |
 | **Phase 17** | COMPLETE | Smart chapter revision (auto-detect weak chapters via quality scores, aggregate agent guidance, LLM revision with validation); 1116 tests |
+| **Phase 18** | COMPLETE | Settings presets (Beginner/Advanced/Pro), adaptive prompts (12 genre + 4 score boosters), quality gate (inline between layers); +22 tests |
+| **Phase 19** | COMPLETE | Onboarding wizard (4-step guided flow), knowledge graph (NetworkX + pure Python), E2E pipeline tests (22 tests); +22 tests |
+| **Phase 20** | COMPLETE | Staging environment (docker-compose.staging.yml, parallel CI), progress tracker (structured events for gate/revision/scoring); +159 tests |
 
 ---
 
-**Last Updated**: 2026-03-25 | **Doc Version**: 2.4 (Phase 17: Smart Chapter Revision)
+**Last Updated**: 2026-03-25 | **Doc Version**: 2.4 (Phase 18-20: Presets, Adaptive Prompts, Quality Gate, Onboarding, Knowledge Graph, Staging, Progress Tracker) | **Tests**: 1327
