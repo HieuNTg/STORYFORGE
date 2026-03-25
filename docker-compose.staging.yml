@@ -1,0 +1,32 @@
+version: "3.8"
+
+services:
+  storyforge-staging:
+    build: .
+    container_name: storyforge-staging
+    ports:
+      - "7861:7860"  # Different port to avoid conflict with production
+    volumes:
+      - storyforge-staging-data:/app/data
+      - storyforge-staging-output:/app/output
+    env_file:
+      - .env.staging
+    environment:
+      - STORYFORGE_BASE_URL=${STORYFORGE_BASE_URL:-https://api.openai.com/v1}
+      - STORYFORGE_MODEL=${STORYFORGE_MODEL:-gpt-4o-mini}
+      - STORYFORGE_BACKEND=${STORYFORGE_BACKEND:-api}
+      - STORYFORGE_TEMPERATURE=${STORYFORGE_TEMPERATURE:-0.8}
+      # Staging-specific: enable all quality features for validation
+      - STORYFORGE_QUALITY_GATE=true
+      - STORYFORGE_SMART_REVISION=true
+      - STORYFORGE_AGENT_DEBATE=true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:7860/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  storyforge-staging-data:
+  storyforge-staging-output:

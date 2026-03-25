@@ -402,3 +402,4 @@ class PipelineOutput(BaseModel):
     quality_scores: list[StoryScore] = Field(default_factory=list)
     analytics: dict = Field(default_factory=dict)
     knowledge_graph_summary: str = ""
+    progress_events: list = Field(default_factory=list)

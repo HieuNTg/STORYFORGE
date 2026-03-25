@@ -82,6 +82,9 @@ class PipelineOrchestrator:
         enhanced = None
         pipeline_start = time.time()
 
+        from services.progress_tracker import ProgressTracker
+        tracker = ProgressTracker(callback=_log)
+
         from services.llm_client import LLMClient
         ok, msg = LLMClient().check_connection()
         if not ok:
@@ -116,12 +119,13 @@ class PipelineOrchestrator:
             self.checkpoint.save(1)
 
             if enable_scoring:
-                _log("[METRICS] Dang cham diem chat luong Layer 1...")
+                tracker.scoring_started(1)
                 try:
                     from services.quality_scorer import QualityScorer
                     scorer = QualityScorer()
                     l1_score = scorer.score_story(draft.chapters, layer=1)
                     self.output.quality_scores.append(l1_score)
+                    tracker.scoring_done(1, l1_score.overall)
                     _log(f"[METRICS] Layer 1: {l1_score.overall:.1f}/5 | "
                          f"Chuong yeu nhat: {l1_score.weakest_chapter}")
                 except Exception as e:
@@ -136,9 +140,13 @@ class PipelineOrchestrator:
                         chapter_threshold=self.config.pipeline.quality_gate_chapter_threshold,
                         max_retries=self.config.pipeline.quality_gate_max_retries,
                     )
+                    tracker.gate_started(1)
                     gate_result = gate.check(l1_score if self.output.quality_scores else None)
                     _log(f"[GATE] {gate_result.message}")
-                    if not gate_result.passed and gate_result.should_retry:
+                    if gate_result.passed:
+                        tracker.gate_passed(1, l1_score.overall if l1_score else 0.0)
+                    elif gate_result.should_retry:
+                        tracker.gate_retry(1, l1_score.overall if l1_score else 0.0, attempt=1)
                         _log("[GATE] Dang thu tao lai Layer 1...")
                         draft = self.story_gen.generate_full_story(
                             title=title, genre=genre, idea=idea, style=style,
@@ -159,6 +167,12 @@ class PipelineOrchestrator:
                             l1_score = None
                         gate_result = gate.check(l1_score, retry_count=1)
                         _log(f"[GATE] Retry result: {gate_result.message}")
+                        if gate_result.passed:
+                            tracker.gate_passed(1, l1_score.overall if l1_score else 0.0)
+                        else:
+                            tracker.gate_failed(1, l1_score.overall if l1_score else 0.0)
+                    else:
+                        tracker.gate_failed(1, l1_score.overall if l1_score else 0.0)
                 except Exception as e:
                     logger.warning(f"Quality gate Layer 1 failed: {e}")
 
@@ -232,12 +246,13 @@ class PipelineOrchestrator:
             self.checkpoint.save(2)
 
             if enable_scoring:
-                _log("[METRICS] Dang cham diem chat luong Layer 2...")
+                tracker.scoring_started(2)
                 try:
                     from services.quality_scorer import QualityScorer
                     scorer = QualityScorer()
                     l2_score = scorer.score_story(enhanced.chapters, layer=2)
                     self.output.quality_scores.append(l2_score)
+                    tracker.scoring_done(2, l2_score.overall)
                     delta = ""
                     if len(self.output.quality_scores) >= 2:
                         diff = l2_score.overall - self.output.quality_scores[0].overall
@@ -258,9 +273,13 @@ class PipelineOrchestrator:
                     )
                     # Use last appended score (Layer 2)
                     l2_check_score = self.output.quality_scores[-1] if self.output.quality_scores else None
+                    tracker.gate_started(2)
                     gate_result = gate.check(l2_check_score)
                     _log(f"[GATE] {gate_result.message}")
-                    if not gate_result.passed and gate_result.should_retry:
+                    if gate_result.passed:
+                        tracker.gate_passed(2, l2_check_score.overall if l2_check_score else 0.0)
+                    elif gate_result.should_retry:
+                        tracker.gate_retry(2, l2_check_score.overall if l2_check_score else 0.0, attempt=1)
                         _log("[GATE] Dang thu tao lai Layer 2...")
                         enhanced = self.enhancer.enhance_with_feedback(
                             draft=draft, sim_result=sim_result,
@@ -279,6 +298,12 @@ class PipelineOrchestrator:
                             l2_score = None
                         gate_result = gate.check(l2_score, retry_count=1)
                         _log(f"[GATE] Retry result: {gate_result.message}")
+                        if gate_result.passed:
+                            tracker.gate_passed(2, l2_score.overall if l2_score else 0.0)
+                        else:
+                            tracker.gate_failed(2, l2_score.overall if l2_score else 0.0)
+                    else:
+                        tracker.gate_failed(2, l2_check_score.overall if l2_check_score else 0.0)
                 except Exception as e:
                     logger.warning(f"Quality gate Layer 2 failed: {e}")
 
@@ -312,15 +337,24 @@ class PipelineOrchestrator:
                     revisor = SmartRevisionService(
                         threshold=self.config.pipeline.smart_revision_threshold
                     )
+
+                    def _revision_progress(m: str):
+                        _log(f"[REVISION] {m}")
+
                     revision_result = revisor.revise_weak_chapters(
                         enhanced_story=enhanced,
                         quality_scores=self.output.quality_scores,
                         reviews=self.output.reviews,
                         genre=genre,
-                        progress_callback=lambda m: _log(f"[REVISION] {m}"),
+                        progress_callback=_revision_progress,
                     )
-                    if revision_result["revised_count"] > 0:
-                        _log(f"[REVISION] Da sua {revision_result['revised_count']}/{revision_result['total_weak']} chuong yeu")
+                    total_weak = revision_result.get("total_weak", 0)
+                    revised_count = revision_result.get("revised_count", 0)
+                    if total_weak > 0:
+                        tracker.revision_started(total_weak)
+                    if revised_count > 0:
+                        tracker.revision_done(revised_count, total_weak)
+                        _log(f"[REVISION] Da sua {revised_count}/{total_weak} chuong yeu")
                 except Exception as e:
                     logger.warning(f"Smart revision failed: {e}")
         except Exception as e:
@@ -409,6 +443,7 @@ class PipelineOrchestrator:
                     logger.warning(f"Media production failed: {e}")
                     _log(f"Media production loi: {e}")
 
+        self.output.progress_events = [e.__dict__ for e in tracker.events]
         return self.output
 
     def run_layer1_only(
