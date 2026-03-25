@@ -9,8 +9,9 @@ class DramaCriticAgent(BaseAgent):
     role = "drama_critic"
     goal = "Đánh giá tension arc, cliffhanger, đa dạng cảm xúc và tích hợp sự kiện kịch tính"
     layers = [2]
+    depends_on: list[str] = ["Kiem Soat Vien", "Chuyen Gia Doi Thoai", "Kiem Tra Van Phong"]
 
-    def review(self, output: PipelineOutput, layer: int, iteration: int) -> AgentReview:
+    def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
         enhanced_chapters, simulation_events = self._extract_data(output)
 
         prompt = agent_prompts.DRAMA_REVIEW.format(

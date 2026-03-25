@@ -1,4 +1,4 @@
-"""Vietnamese TTS audio generation — supports edge-tts and Kling TTS API."""
+"""Vietnamese TTS audio generation — supports edge-tts, Kling TTS API, and XTTS v2."""
 
 import asyncio
 import concurrent.futures
@@ -25,7 +25,9 @@ VIETNAMESE_VOICES = {
 class TTSAudioGenerator:
     """Generate audio files from text using pluggable TTS providers."""
 
-    PROVIDERS = ["edge-tts", "kling", "none"]
+    PROVIDERS = ["edge-tts", "kling", "xtts", "none"]
+
+    VALID_AUDIO_EXTENSIONS = (".wav", ".mp3", ".flac")
 
     _shared_executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
     _executor_lock = threading.Lock()
@@ -47,11 +49,24 @@ class TTSAudioGenerator:
         volume: str = "+0%",
         api_key: str = "",
         api_url: str = "",
+        xtts_api_url: str = "",
+        xtts_reference_audio: str = "",
     ):
         cfg = ConfigManager().pipeline
         self.provider = provider or cfg.tts_provider or "edge-tts"
         self.api_key = api_key or cfg.kling_tts_api_key or os.environ.get("KLING_TTS_API_KEY", "")
         self.api_url = api_url or cfg.kling_tts_api_url or os.environ.get("KLING_TTS_API_URL", "")
+        self.xtts_api_url = (
+            xtts_api_url
+            or cfg.xtts_api_url
+            or os.environ.get("XTTS_API_URL", "")
+        )
+        self.xtts_reference_audio = (
+            xtts_reference_audio
+            or cfg.xtts_reference_audio
+            or os.environ.get("XTTS_REFERENCE_AUDIO", "")
+        )
+        self.character_voice_map: dict = cfg.character_voice_map or {}
         self.voice = VIETNAMESE_VOICES.get(voice, voice)
         self.rate = rate
         self.volume = volume
@@ -82,6 +97,13 @@ class TTSAudioGenerator:
 
         if self.provider == "kling":
             return self._generate_kling(text, output_path)
+
+        if self.provider == "xtts":
+            result = self._generate_xtts(text, output_path)
+            if result is None:
+                logger.warning("XTTS failed, falling back to edge-tts")
+                return self._generate_edge_tts(text, output_path)
+            return result
 
         # Default: edge-tts
         return self._generate_edge_tts(text, output_path)
@@ -202,6 +224,151 @@ class TTSAudioGenerator:
             logger.error("Kling TTS failed: %s", e)
             return None
 
+    def _generate_xtts(
+        self,
+        text: str,
+        output_path: str,
+        reference_audio: Optional[str] = None,
+        language: str = "",
+    ) -> Optional[str]:
+        """Generate via XTTS v2 API (Coqui local server or Replicate).
+
+        Args:
+            text: Text to synthesize.
+            output_path: Destination file path.
+            reference_audio: Override reference audio path (per-character).
+            language: Language code (defaults to config language).
+
+        Returns:
+            output_path on success, None on failure (caller should fallback).
+        """
+        if not self.xtts_api_url:
+            logger.warning("XTTS skipped: xtts_api_url not configured")
+            return None
+
+        ref_audio = reference_audio or self.xtts_reference_audio
+        if not ref_audio:
+            logger.warning("XTTS skipped: no reference audio configured")
+            return None
+
+        # Validate extension
+        ext = os.path.splitext(ref_audio)[1].lower()
+        if ext not in self.VALID_AUDIO_EXTENSIONS:
+            logger.warning("XTTS skipped: unsupported audio extension %s", ext)
+            return None
+
+        if not os.path.exists(ref_audio):
+            logger.warning("XTTS skipped: reference audio not found: %s", ref_audio)
+            return None
+
+        cfg_lang = ConfigManager().pipeline.language or "vi"
+        lang = language or cfg_lang
+
+        try:
+            import requests
+
+            if "replicate" in self.xtts_api_url.lower():
+                return self._generate_xtts_replicate(text, output_path, ref_audio, lang)
+
+            # Local Coqui TTS server
+            with open(ref_audio, "rb") as f:
+                audio_bytes = f.read()
+
+            files = {"speaker_wav": (os.path.basename(ref_audio), audio_bytes, "audio/wav")}
+            data = {"text": text, "language": lang}
+
+            resp = requests.post(
+                f"{self.xtts_api_url.rstrip('/')}/tts_to_audio/",
+                files=files,
+                data=data,
+                timeout=60,
+            )
+            resp.raise_for_status()
+
+            with open(output_path, "wb") as f:
+                f.write(resp.content)
+
+            logger.info("XTTS generated: %s", output_path)
+            return output_path
+
+        except Exception as e:
+            logger.warning("XTTS generation failed: %s", e)
+            return None
+
+    def _generate_xtts_replicate(
+        self,
+        text: str,
+        output_path: str,
+        ref_audio: str,
+        language: str,
+    ) -> Optional[str]:
+        """Generate via Replicate API for XTTS v2."""
+        import base64
+        import time
+
+        import requests
+
+        api_key = os.environ.get("REPLICATE_API_TOKEN", "")
+        if not api_key:
+            logger.warning("XTTS Replicate skipped: REPLICATE_API_TOKEN not set")
+            return None
+
+        with open(ref_audio, "rb") as f:
+            audio_b64 = base64.b64encode(f.read()).decode()
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "version": "f559560eb822dc509045f3921a1921234918b91739db4bf3daab2169b71c7a13",
+            "input": {
+                "text": text,
+                "speaker_wav": f"data:audio/wav;base64,{audio_b64}",
+                "language": language,
+            },
+        }
+
+        resp = requests.post(
+            "https://api.replicate.com/v1/predictions",
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        prediction = resp.json()
+        prediction_id = prediction.get("id")
+
+        # Poll for result (max 120 seconds)
+        deadline = time.time() + 120
+        while time.time() < deadline:
+            poll = requests.get(
+                f"https://api.replicate.com/v1/predictions/{prediction_id}",
+                headers=headers,
+                timeout=15,
+            )
+            poll.raise_for_status()
+            result = poll.json()
+            status = result.get("status")
+            if status == "succeeded":
+                audio_url = result.get("output")
+                if not audio_url:
+                    logger.warning("XTTS Replicate: no output URL in response")
+                    return None
+                audio_resp = requests.get(audio_url, timeout=60)
+                audio_resp.raise_for_status()
+                with open(output_path, "wb") as f:
+                    f.write(audio_resp.content)
+                logger.info("XTTS Replicate generated: %s", output_path)
+                return output_path
+            elif status in ("failed", "canceled"):
+                logger.warning("XTTS Replicate prediction %s: %s", prediction_id, status)
+                return None
+            time.sleep(3)
+
+        logger.warning("XTTS Replicate prediction %s timed out", prediction_id)
+        return None
+
     # ── Utility / helpers ─────────────────────────────────────────────────────
 
     @staticmethod
@@ -217,7 +384,10 @@ class TTSAudioGenerator:
             return 5.0  # default 5 seconds
 
     def assign_voices(self, characters: list) -> dict:
-        """Map characters to Vietnamese voices based on gender."""
+        """Map characters to voices. For xtts provider returns reference audio paths."""
+        if self.provider == "xtts":
+            return self._assign_voices_xtts(characters)
+
         mapping = {"narrator": self.voice}
         for char in characters:
             gender = getattr(char, "gender", None)
@@ -225,6 +395,21 @@ class TTSAudioGenerator:
                 mapping[char.name] = VIETNAMESE_VOICES["male"]
             else:
                 mapping[char.name] = VIETNAMESE_VOICES["female"]
+        return mapping
+
+    def _assign_voices_xtts(self, characters: list) -> dict:
+        """Map characters to reference audio paths for XTTS provider."""
+        mapping = {"narrator": self.xtts_reference_audio or self.voice}
+        for char in characters:
+            name = getattr(char, "name", str(char))
+            ref = self.character_voice_map.get(name, self.xtts_reference_audio)
+            if ref:
+                if not os.path.exists(ref):
+                    logger.warning("XTTS voice file missing for %s: %s", name, ref)
+                mapping[name] = ref
+            else:
+                logger.warning("XTTS no reference audio for %s, using default voice", name)
+                mapping[name] = self.voice
         return mapping
 
     def _segment_dialogue(self, text: str, voice_map: dict) -> list:
@@ -279,6 +464,21 @@ class TTSAudioGenerator:
         for i, seg in enumerate(segments):
             voice = seg.get("voice", voice_map.get("narrator", self.voice))
             seg_path = os.path.join(output_dir, f"ch{chapter_num:02d}_seg{i:03d}.mp3")
+
+            # When voice value is a file path, use XTTS directly with that reference
+            is_file_path = isinstance(voice, str) and os.path.splitext(voice)[1].lower() in self.VALID_AUDIO_EXTENSIONS
+            if is_file_path and self.provider == "xtts":
+                try:
+                    os.makedirs(os.path.dirname(seg_path) or ".", exist_ok=True)
+                    result = self._generate_xtts(seg["text"], seg_path, reference_audio=voice)
+                    if result is None:
+                        result = self._generate_edge_tts(seg["text"], seg_path)
+                    if result:
+                        segment_paths.append(seg_path)
+                except Exception as e:
+                    logger.warning(f"TTS segment {i} failed: {e}")
+                continue
+
             old_voice = self.voice
             self.voice = voice
             try:

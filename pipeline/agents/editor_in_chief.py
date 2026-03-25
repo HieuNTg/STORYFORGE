@@ -9,13 +9,18 @@ class EditorInChiefAgent(BaseAgent):
     role = "editor_in_chief"
     goal = "Đánh giá chất lượng tổng thể và tổng hợp phản hồi từ các chuyên gia"
     layers = [1, 2, 3]
+    depends_on: list[str] = ["Nha Phe Binh Kich Tinh", "Can Bang Doi Thoai", "Phan Tich Nhip Truyen"]
 
-    def review(self, output: PipelineOutput, layer: int, iteration: int) -> AgentReview:
+    def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
         # Tổng hợp reviews từ các agent khác cùng layer (trừ chính mình)
-        other_reviews = [
-            r for r in output.reviews
-            if r.layer == layer and r.agent_role != self.role
-        ]
+        # prior_reviews (from DAG tiered execution) takes precedence when available
+        if prior_reviews:
+            other_reviews = [r for r in prior_reviews if r.agent_role != self.role]
+        else:
+            other_reviews = [
+                r for r in output.reviews
+                if r.layer == layer and r.agent_role != self.role
+            ]
 
         # Kiểm tra điều kiện tự động từ chối
         if other_reviews:

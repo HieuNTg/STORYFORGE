@@ -9,8 +9,9 @@ class DialogueBalanceAgent(BaseAgent):
     role = "dialogue_balance"
     goal = "Đánh giá phân bổ đối thoại, giọng nói riêng biệt của từng nhân vật"
     layers = [2]
+    depends_on: list[str] = ["Chuyen Gia Doi Thoai"]
 
-    def review(self, output: PipelineOutput, layer: int, iteration: int) -> AgentReview:
+    def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
         characters, chapters_excerpt = self._extract_data(output)
 
         prompt = agent_prompts.DIALOGUE_BALANCE_REVIEW.format(

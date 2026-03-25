@@ -9,8 +9,9 @@ class StyleConsistencyAgent(BaseAgent):
     role = "style_consistency"
     goal = "Kiểm tra tính nhất quán về tone, voice, và phong cách viết xuyên suốt truyện"
     layers = [1, 2]
+    depends_on: list[str] = ["Chuyen Gia Nhan Vat"]
 
-    def review(self, output: PipelineOutput, layer: int, iteration: int) -> AgentReview:
+    def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
         chapters_excerpt = self._extract_chapters(output, layer)
 
         prompt = agent_prompts.STYLE_REVIEW.format(

@@ -9,8 +9,9 @@ class CharacterSpecialistAgent(BaseAgent):
     role = "character_specialist"
     goal = "Kiểm tra tính nhất quán của nhân vật: tên, tính cách, động lực, mối quan hệ"
     layers = [1, 2]
+    depends_on: list[str] = []  # Foundation agent — no dependencies
 
-    def review(self, output: PipelineOutput, layer: int, iteration: int) -> AgentReview:
+    def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
         # Lấy danh sách nhân vật và nội dung chương theo layer
         characters_info, chapters_content = self._extract_data(output, layer)
 

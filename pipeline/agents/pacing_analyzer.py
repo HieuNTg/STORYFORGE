@@ -11,8 +11,9 @@ class PacingAnalyzerAgent(BaseAgent):
     role = "pacing_analyzer"
     goal = "Phân tích nhịp điệu truyện — tốc độ hành động, chiều dài scene, cân bằng hành động/đối thoại"
     layers = [1, 2]
+    depends_on: list[str] = ["Chuyen Gia Nhan Vat"]
 
-    def review(self, output: PipelineOutput, layer: int, iteration: int) -> AgentReview:
+    def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
         pacing_data = self._extract_pacing_data(output, layer)
 
         prompt = agent_prompts.PACING_REVIEW.format(

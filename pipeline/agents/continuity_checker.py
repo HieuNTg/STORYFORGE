@@ -9,8 +9,9 @@ class ContinuityCheckerAgent(BaseAgent):
     role = "continuity_checker"
     goal = "Phát hiện lỗi dòng thời gian, luật thế giới, nhân vật chết hồi sinh, địa điểm sai"
     layers = [1, 2, 3]
+    depends_on: list[str] = ["Chuyen Gia Nhan Vat"]
 
-    def review(self, output: PipelineOutput, layer: int, iteration: int) -> AgentReview:
+    def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
         world_setting, chapters_content = self._extract_data(output, layer)
 
         prompt = agent_prompts.CONTINUITY_REVIEW.format(

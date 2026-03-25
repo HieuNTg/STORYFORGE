@@ -7,6 +7,7 @@ from typing import Callable, Optional
 from config import ConfigManager
 from models.schemas import AgentReview, PipelineOutput
 from pipeline.agents.base_agent import BaseAgent
+from pipeline.agents.agent_graph import AgentDAG
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class AgentRegistry:
         """Auto-discover and register all BaseAgent subclasses in pipeline/agents/."""
         import pipeline.agents as agents_pkg
 
-        skip = {"base_agent", "agent_registry", "agent_prompts", "__init__"}
+        skip = {"base_agent", "agent_registry", "agent_prompts", "agent_graph", "__init__"}
         editor_agent = None
 
         for _importer, modname, _ispkg in pkgutil.iter_modules(agents_pkg.__path__):
@@ -61,6 +62,41 @@ class AgentRegistry:
         """Lấy danh sách agent hoạt động ở layer cụ thể."""
         return [a for a in self._agents if layer in a.layers]
 
+    def _run_tier_parallel(
+        self,
+        tier_agents: list[BaseAgent],
+        output: PipelineOutput,
+        layer: int,
+        iteration: int,
+        prior_reviews: list[AgentReview],
+        progress_callback: Optional[Callable[[str], None]],
+    ) -> list[AgentReview]:
+        """Run a single tier of agents in parallel; return their reviews."""
+        tier_reviews: list[AgentReview] = []
+        max_workers = min(len(tier_agents), ConfigManager().llm.max_parallel_workers)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    agent.review, output, layer, iteration,
+                    prior_reviews if prior_reviews else None
+                ): agent
+                for agent in tier_agents
+            }
+            for future in as_completed(futures):
+                agent = futures[future]
+                try:
+                    review = future.result()
+                    tier_reviews.append(review)
+                    if progress_callback:
+                        status = "OK" if review.approved else "WARN"
+                        progress_callback(
+                            f"[AGENTS] {status} {agent.name}: {review.score:.1f}/1.0 "
+                            f"({len(review.issues)} vấn đề)"
+                        )
+                except Exception as e:
+                    logger.warning(f"Agent {agent.name} lỗi ở iteration {iteration}: {e}")
+        return tier_reviews
+
     def run_review_cycle(
         self,
         output: PipelineOutput,
@@ -70,11 +106,37 @@ class AgentRegistry:
     ) -> list[AgentReview]:
         """Chạy vòng đánh giá cho một layer.
 
+        Uses DAG-ordered tiered execution when agent dependencies are declared.
+        Falls back to flat-parallel (original behavior) if DAG validation fails
+        or all agents have no dependencies.
+
         Returns: Danh sách tất cả reviews từ tất cả iterations.
         """
         agents = self.get_agents_for_layer(layer)
         if not agents:
             return []
+
+        # Build DAG and determine execution tiers
+        use_tiered = False
+        tiers_of_agents: list[list[BaseAgent]] = []
+
+        try:
+            dag = AgentDAG()
+            dag.build_from_registry(agents)
+            dag.validate()
+            tiers_of_agents = dag.get_agents_by_tier()
+            # Only use tiered execution if there is more than one tier
+            use_tiered = len(tiers_of_agents) > 1
+        except ValueError as exc:
+            logger.warning(
+                "[AGENTS] DAG cycle detected — falling back to flat-parallel: %s", exc
+            )
+            use_tiered = False
+        except Exception as exc:
+            logger.warning(
+                "[AGENTS] DAG build failed — falling back to flat-parallel: %s", exc
+            )
+            use_tiered = False
 
         all_reviews: list[AgentReview] = []
 
@@ -85,26 +147,28 @@ class AgentRegistry:
                 )
 
             round_reviews: list[AgentReview] = []
-            max_workers = min(len(agents), ConfigManager().llm.max_parallel_workers)
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = {
-                    executor.submit(agent.review, output, layer, iteration): agent
-                    for agent in agents
-                }
-                for future in as_completed(futures):
-                    agent = futures[future]
-                    try:
-                        review = future.result()
-                        round_reviews.append(review)
-                        all_reviews.append(review)
-                        if progress_callback:
-                            status = "OK" if review.approved else "WARN"
-                            progress_callback(
-                                f"[AGENTS] {status} {agent.name}: {review.score:.1f}/1.0 "
-                                f"({len(review.issues)} vấn đề)"
-                            )
-                    except Exception as e:
-                        logger.warning(f"Agent {agent.name} lỗi ở iteration {iteration}: {e}")
+
+            if use_tiered:
+                # Tiered execution: sequential across tiers, parallel within each tier
+                accumulated: list[AgentReview] = []
+                for tier_idx, tier_agents in enumerate(tiers_of_agents):
+                    if progress_callback and len(tiers_of_agents) > 1:
+                        progress_callback(
+                            f"[AGENTS] Tier {tier_idx + 1}/{len(tiers_of_agents)}: "
+                            f"{[a.name for a in tier_agents]}"
+                        )
+                    tier_reviews = self._run_tier_parallel(
+                        tier_agents, output, layer, iteration, accumulated, progress_callback
+                    )
+                    accumulated.extend(tier_reviews)
+                    round_reviews.extend(tier_reviews)
+            else:
+                # Flat-parallel fallback (original behavior)
+                round_reviews = self._run_tier_parallel(
+                    agents, output, layer, iteration, [], progress_callback
+                )
+
+            all_reviews.extend(round_reviews)
 
             # Kiểm tra tất cả đã approve chưa
             if all(r.approved for r in round_reviews):

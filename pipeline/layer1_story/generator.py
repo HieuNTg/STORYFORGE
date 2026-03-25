@@ -16,6 +16,22 @@ from pipeline.layer1_story.story_bible_manager import StoryBibleManager
 
 logger = logging.getLogger(__name__)
 
+# Lazy import — only instantiated when rag_enabled=True
+_rag_kb = None
+
+
+def _get_rag_kb(persist_dir: str):
+    """Return a shared RAGKnowledgeBase instance (lazy init)."""
+    global _rag_kb
+    if _rag_kb is None:
+        try:
+            from services.rag_knowledge_base import RAGKnowledgeBase
+            _rag_kb = RAGKnowledgeBase(persist_dir=persist_dir)
+        except Exception as e:
+            logger.warning(f"RAG init failed: {e}")
+            return None
+    return _rag_kb
+
 
 class StoryGenerator:
     """Tạo truyện hoàn chỉnh từ ý tưởng ban đầu."""
@@ -55,11 +71,23 @@ class StoryGenerator:
         chars_text = "\n".join(
             f"- {c.name} ({c.role}): {c.personality}" for c in characters
         )
+        world_prompt = prompts.GENERATE_WORLD.format(
+            genre=genre, title=title, characters=chars_text,
+        )
+        # Prepend RAG context if enabled
+        if self.config.pipeline.rag_enabled:
+            rag_kb = _get_rag_kb(self.config.pipeline.rag_persist_dir)
+            if rag_kb and rag_kb.is_available:
+                rag_docs = rag_kb.query(f"world setting {genre} {title}", n_results=3)
+                if rag_docs:
+                    rag_section = prompts.RAG_CONTEXT_SECTION.format(
+                        rag_context="\n---\n".join(rag_docs)
+                    )
+                    world_prompt = rag_section + world_prompt
+
         result = self.llm.generate_json(
             system_prompt="Bạn là kiến trúc sư thế giới. Trả về JSON.",
-            user_prompt=prompts.GENERATE_WORLD.format(
-                genre=genre, title=title, characters=chars_text,
-            ),
+            user_prompt=world_prompt,
         )
         return WorldSetting(**result)
 
@@ -139,6 +167,18 @@ class StoryGenerator:
             if context
             else (bible_context or previous_summary or "Đây là chương đầu tiên.")
         )
+
+        # Append RAG context if enabled
+        if self.config.pipeline.rag_enabled:
+            rag_kb = _get_rag_kb(self.config.pipeline.rag_persist_dir)
+            if rag_kb and rag_kb.is_available:
+                query_text = f"chapter {outline.chapter_number} {outline.summary}"
+                rag_docs = rag_kb.query(query_text, n_results=3)
+                if rag_docs:
+                    rag_section = prompts.RAG_CONTEXT_SECTION.format(
+                        rag_context="\n---\n".join(rag_docs)
+                    )
+                    context_text = context_text + "\n\n" + rag_section
 
         sys_prompt = f"Bạn là tiểu thuyết gia tài năng viết truyện {genre} bằng tiếng Việt."
         user_prompt = prompts.WRITE_CHAPTER.format(

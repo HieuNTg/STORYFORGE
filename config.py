@@ -84,6 +84,15 @@ class PipelineConfig:
     kling_tts_api_key: str = ""
     kling_tts_api_url: str = ""
 
+    # RAG world-building
+    rag_enabled: bool = False
+    rag_persist_dir: str = "data/rag"
+
+    # XTTS v2 voice cloning
+    xtts_api_url: str = ""  # http://localhost:8020 or Replicate URL
+    xtts_reference_audio: str = ""  # default reference audio path
+    character_voice_map: dict = field(default_factory=dict)  # {"CharName": "data/voices/char.wav"}
+
 
 VIDEO_QUALITY_PRESETS = {
     "draft": {"resolution": "512x512", "fps": 24, "crf": "28", "preset": "fast"},
@@ -143,6 +152,10 @@ class ConfigManager:
             "STORYFORGE_TTS_PROVIDER": ("pipeline", "tts_provider"),
             "KLING_TTS_API_KEY": ("pipeline", "kling_tts_api_key"),
             "KLING_TTS_API_URL": ("pipeline", "kling_tts_api_url"),
+            "STORYFORGE_RAG_ENABLED": ("pipeline", "rag_enabled"),
+            "STORYFORGE_RAG_DIR": ("pipeline", "rag_persist_dir"),
+            "XTTS_API_URL": ("pipeline", "xtts_api_url"),
+            "XTTS_REFERENCE_AUDIO": ("pipeline", "xtts_reference_audio"),
         }
         for env_key, (section, field) in env_map.items():
             val = os.environ.get(env_key)
@@ -154,6 +167,9 @@ class ConfigManager:
                         val = float(val)
                     except ValueError:
                         continue
+                # Convert to bool for boolean fields
+                elif field in ("rag_enabled",):
+                    val = val.lower() in ("1", "true", "yes")
                 setattr(target, field, val)
 
     def save(self) -> list[str]:
@@ -206,6 +222,11 @@ class ConfigManager:
                 "tts_provider": self.pipeline.tts_provider,
                 "kling_tts_api_key": self.pipeline.kling_tts_api_key,
                 "kling_tts_api_url": self.pipeline.kling_tts_api_url,
+                "rag_enabled": self.pipeline.rag_enabled,
+                "rag_persist_dir": self.pipeline.rag_persist_dir,
+                "xtts_api_url": self.pipeline.xtts_api_url,
+                "xtts_reference_audio": self.pipeline.xtts_reference_audio,
+                "character_voice_map": self.pipeline.character_voice_map,
             },
         }
         if warnings:

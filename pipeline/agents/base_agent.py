@@ -15,13 +15,27 @@ class BaseAgent(ABC):
     role: str = ""
     goal: str = ""
     layers: list[int] = []  # Agent hoạt động ở layer nào (1, 2, 3)
+    depends_on: list[str] = []  # Names of agents this agent depends on (DAG edges)
 
     def __init__(self):
         self.llm = LLMClient()
 
     @abstractmethod
-    def review(self, output: PipelineOutput, layer: int, iteration: int) -> AgentReview:
-        """Đánh giá output hiện tại. Trả về AgentReview."""
+    def review(
+        self,
+        output: PipelineOutput,
+        layer: int,
+        iteration: int,
+        prior_reviews: Optional[list[AgentReview]] = None,
+    ) -> AgentReview:
+        """Đánh giá output hiện tại. Trả về AgentReview.
+
+        Args:
+            output: Pipeline output to review.
+            layer: Current pipeline layer (1, 2, 3).
+            iteration: Current review iteration number.
+            prior_reviews: Reviews from predecessor agents in the DAG (optional).
+        """
         pass
 
     def _parse_review_json(self, result: dict, layer: int, iteration: int) -> AgentReview:

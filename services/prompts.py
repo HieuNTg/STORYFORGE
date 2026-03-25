@@ -498,6 +498,12 @@ Bắt đầu viết lại:"""
 # ANALYTICS: EMOTION EXTRACTION
 # ============================================================
 
+RAG_CONTEXT_SECTION = """
+## Tài liệu tham khảo:
+{rag_context}
+Sử dụng thông tin trên để làm phong phú bối cảnh, nhưng không sao chép nguyên văn.
+"""
+
 EXTRACT_CHAPTER_EMOTIONS = """Phân tích cảm xúc trong đoạn văn sau và trả về JSON:
 
 Chương {chapter_number}: {title}

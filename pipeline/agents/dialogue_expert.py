@@ -9,8 +9,9 @@ class DialogueExpertAgent(BaseAgent):
     role = "dialogue_expert"
     goal = "Đánh giá tính tự nhiên, giọng nhân vật, và chất lượng tiếng Việt trong đối thoại"
     layers = [2, 3]
+    depends_on: list[str] = ["Chuyen Gia Nhan Vat"]
 
-    def review(self, output: PipelineOutput, layer: int, iteration: int) -> AgentReview:
+    def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
         chapters_content = self._extract_chapters(output, layer)
 
         prompt = agent_prompts.DIALOGUE_REVIEW.format(
