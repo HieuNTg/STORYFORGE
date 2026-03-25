@@ -12,6 +12,7 @@ Input: Genre + Story Idea + Config
 ┌─────────────────────────────────────────────────────────────────┐
 │ LAYER 1: Story Generation (StoryGenerator)                       │
 │ - Generate characters, world, chapter outlines                   │
+│ - RAG Knowledge Base: Inject world/character context (Phase 13)  │
 │ - Parallel chapter writing with rolling context                  │
 │ - Character State Tracking: mood, arc, knowledge per chapter     │
 │ - Track plot events for continuity (cap 50)                      │
@@ -28,8 +29,9 @@ Input: Genre + Story Idea + Config
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │ LAYER 2: Drama Enhancement (multi-agent)                         │
-│ - 6 agents: character consistency, continuity, dialogue,         │
-│   drama critic, editor-in-chief                                  │
+│ - 6+ agents: character consistency, continuity, dialogue,        │
+│   drama critic, editor-in-chief (+ more)                         │
+│ - Dependency Graph (Phase 13): 4-tier execution via AgentDAG     │
 │ - Context-aware escalation patterns (feedback loop)              │
 │ Output: Enhanced StoryDraft + agent feedback metadata            │
 └─────────────────────────────────────────────────────────────────┘
@@ -57,7 +59,8 @@ Input: Genre + Story Idea + Config
 │ EXPORT SERVICES                                                   │
 │ VideoExporter  → SRT, voiceover, image prompts, CapCut, CSV, ZIP │
 │ HTMLExporter   → Self-contained HTML reader                       │
-│ TTSGenerator   → edge-tts MP3/WAV per chapter (vi voices)        │
+│ TTSGenerator   → Multi-provider (edge-tts, kling, xtts) MP3/WAV  │
+│                  XTTS v2 voice cloning per character (Phase 13)   │
 │ ImageGenerator → DALL-E / SD panels from image prompts           │
 └─────────────────────────────────────────────────────────────────┘
   ↓
@@ -103,6 +106,30 @@ SelfReviewService
 ```
 
 **Integration**: Runs post-write for Layer 1; auto-revises weak chapters before Layer 2.
+
+### RAGKnowledgeBase (services/rag_knowledge_base.py) — Phase 13
+
+```
+RAGKnowledgeBase
+├─ __init__(persist_dir) — ChromaDB + sentence-transformers
+├─ add_file(filepath: str) → void
+│  ├─ Read .txt, .md, .pdf (10 MB max, graceful degradation)
+│  ├─ Chunk: 500-char sentences, 50-char overlap
+│  └─ Embed + store in ChromaDB
+├─ add_documents(docs: list[str]) → void
+│  └─ Direct document list embedding
+├─ query(prompt: str, top_k: int = 5) → list[str]
+│  ├─ Embed query via sentence-transformers
+│  └─ Return k nearest chunks from ChromaDB
+├─ clear() → void
+├─ count() → int
+└─ Graceful Degradation:
+   └─ If chromadb/sentence-transformers not installed, all ops silently no-op
+```
+
+**Integration**: `generator.py` `generate_world()` & `_build_chapter_prompt()` inject RAG context via RAG_CONTEXT_SECTION prompt when `rag_enabled=True`.
+**Config**: `rag_enabled`, `rag_persist_dir` in PipelineConfig; controlled via UI/API.
+**Cost**: No LLM calls for embedding (uses local sentence-transformers).
 
 ### StoryBrancher (services/story_brancher.py)
 
@@ -150,21 +177,31 @@ WattpadExporter
 
 **Integration**: Export tab checkbox; outputs ZIP bundle with `.wattpad.json` + `.novelHD.json` metadata (Phase 10).
 
-### TTSAudioGenerator (services/tts_audio_generator.py)
+### TTSAudioGenerator (services/tts_audio_generator.py) — Phase 13 XTTS
 
 ```
 TTSAudioGenerator
-├─ __init__(voice, rate, pitch) — defaults to Vietnamese voice
-├─ generate_chapter_audio(chapter: Chapter) → str  # path to MP3/WAV
-│  ├─ Split chapter content into segments
-│  ├─ edge-tts synthesis per segment
-│  └─ Merge + write to output/audio/
+├─ __init__(provider, voice, rate, pitch, character_voice_map)
+│  └─ provider: "edge-tts" (default) | "kling" | "xtts" | "none"
+├─ generate_chapter_audio(chapter: Chapter, character_name: str = "") → str  # MP3/WAV path
+│  ├─ Route to provider:
+│  │  ├─ "xtts": POST multipart to Coqui/Replicate + reference audio per character
+│  │  ├─ "kling": kling API via character_voice_map lookup
+│  │  ├─ "edge-tts": segment synthesis (default)
+│  │  └─ "none": skip (return None)
+│  └─ Fallback: On XTTS failure → retry edge-tts
+├─ character_voice_map: { "CharacterName": "voice_key" } → lookup reference audio
 ├─ list_voices(lang="vi") → list[str]
-└─ Wired to all pipeline entry points via feedback loop callback
+└─ data/voices/: Directory for XTTS reference audio clips (character-specific)
 ```
 
-**Voices**: `vi-VN-HoaiMyNeural`, `vi-VN-NamMinhNeural` (and others via edge-tts discovery)
-**Config**: voice, rate, pitch from PipelineConfig or env
+**Voices**: `vi-VN-HoaiMyNeural`, `vi-VN-NamMinhNeural` (edge-tts); XTTS per-character trained on reference audio (Phase 13)
+**Config**: provider, voice, rate, pitch, xtts_api_url, xtts_reference_audio, character_voice_map from PipelineConfig or env
+**Phase 13 XTTS Features**:
+- Per-character voice cloning via reference audio
+- Fallback to edge-tts on API failure
+- Multipart POST to Coqui TTS server or Replicate API
+- character_voice_map config controls voice per character
 
 ### ImageGenerator (services/image_generator.py)
 
@@ -307,6 +344,30 @@ AgentRegistry
 **Context-aware escalation**: agents detect threshold breaches (drama_intensity, coherence < 2.5)
 and escalate feedback priority; orchestrator re-runs affected chapter enhancement.
 
+### Agent Dependency Graph (AgentDAG) — Phase 13
+
+```
+AgentDAG (pipeline/agents/agent_graph.py)
+├─ Topological sort via Kahn's algorithm (detects cycles)
+├─ Build from registry: agent.depends_on → resolved agent names
+├─ get_execution_order() → list[list[BaseAgent]]
+│  └─ 4 tiers:
+│     Tier 1: CharacterSpecialist (no deps)
+│     Tier 2: Continuity, Dialogue, StyleCoordinator, PacingExpert (depend on Tier 1)
+│     Tier 3: DramaCritic, DialogueBalance (depend on Tier 1–2)
+│     Tier 4: EditorInChief (depends on all)
+│
+└─ AgentRegistry.run_review_cycle(story_draft, context):
+   ├─ If DAG enabled:
+   │  └─ Execute each tier in parallel (ThreadPoolExecutor)
+   └─ Fallback:
+      └─ Flat parallel all agents
+```
+
+**Integration**: `agent_registry.py` `run_review_cycle()` uses tiered execution; enhances agent feedback quality by ensuring dependencies are satisfied before dependent agents run.
+**Pure Python**: No external dependencies beyond BaseAgent interface.
+**Benefits**: Handles unknown agents gracefully; enables future agent extensibility.
+
 ## Quality Scoring Architecture
 
 ```
@@ -365,7 +426,11 @@ ConfigManager (singleton)
    ├─ Layer 3: shots_per_chapter, video_style
    ├─ language: "vi" | "en"
    ├─ enable_self_review (bool, default: False)  [PHASE 10]
-   └─ self_review_threshold (float 1.0-5.0, default: 3.0)  [PHASE 10]
+   ├─ self_review_threshold (float 1.0-5.0, default: 3.0)  [PHASE 10]
+   ├─ rag_enabled (bool, default: False)  [PHASE 13]
+   ├─ rag_persist_dir (str)  [PHASE 13]
+   ├─ xtts_api_url, xtts_reference_audio (str)  [PHASE 13]
+   └─ character_voice_map (dict[str, str])  [PHASE 13]
 
 Environment overrides:
 ├─ STORYFORGE_IMAGE_PROVIDER (none | dalle | sd)
@@ -374,6 +439,7 @@ Environment overrides:
 ```
 
 **Phase 10 Addition**: Self-review configuration allows users to opt-in and customize quality thresholds per pipeline run.
+**Phase 13 Addition**: RAG and XTTS voice cloning configuration; RAG optional, XTTS provider selection with fallback.
 
 ## Error Handling
 
@@ -396,6 +462,6 @@ Rolling context budget: last `context_window_chapters` summaries + char states (
 
 ---
 
-**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Web auth, credits, TTS, and image generation are transparent to core pipeline logic. Phase 9 adds CoT self-review, interactive branching, and expanded export capabilities. Phase 10 adds configuration polish and persistence.
+**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Web auth, credits, TTS, and image generation are transparent to core pipeline logic. Phase 9 adds CoT self-review, interactive branching, and expanded export capabilities. Phase 10 adds configuration polish and persistence. Phase 13 adds RAG world-building context, agent dependency graph orchestration, and multi-provider voice synthesis with XTTS v2 cloning.
 
-**Last Updated**: 2026-03-24 | **Version**: 1.7 (Phase 10: Self-Review Config, Branch Persistence, Wattpad Polish)
+**Last Updated**: 2026-03-25 | **Version**: 1.8 (Phase 13: RAG World-Building, Agent DAG, XTTS Voice Cloning)

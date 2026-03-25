@@ -27,12 +27,13 @@ novel-auto/
 │   ├── quality_scorer.py           # LLM-as-judge quality metrics (4 dimensions, 1-5 scale)
 │   ├── video_exporter.py           # SRT, voiceover, image prompts, CapCut JSON, CSV, ZIP
 │   ├── html_exporter.py            # Self-contained HTML reader (dark/light mode, chapter nav)
-│   ├── tts_audio_generator.py      # edge-tts integration, Vietnamese voice synthesis
+│   ├── tts_audio_generator.py      # Multi-provider TTS (edge-tts, kling, xtts), Vietnamese voices
 │   ├── image_generator.py          # DALL-E / SD API image generation per storyboard panel
 │   ├── credit_manager.py           # Credit/monetization system with bcrypt-hashed accounts
 │   ├── self_review.py              # CoT+CAI self-review for chapter quality assessment
 │   ├── story_brancher.py           # Interactive story branching with DAG management
 │   ├── wattpad_exporter.py         # Wattpad/NovelHD export service
+│   ├── rag_knowledge_base.py       # RAG with ChromaDB + sentence-transformers (500-char chunks)
 │   └── i18n.py                     # Thread-safe i18n singleton (vi/en JSON locales)
 ├── pipeline/
 │   ├── orchestrator.py             # Main workflow coordinator
@@ -46,7 +47,8 @@ novel-auto/
 │   ├── layer3_video/
 │   │   └── storyboard.py           # Shot & scene generation
 │   ├── agents/
-│   │   ├── base_agent.py           # BaseAgent interface
+│   │   ├── base_agent.py           # BaseAgent interface with depends_on & prior_reviews
+│   │   ├── agent_graph.py          # AgentDAG — topological sort + 4-tier execution (Phase 13)
 │   │   ├── character_specialist.py
 │   │   ├── continuity_checker.py
 │   │   ├── dialogue_expert.py
@@ -114,9 +116,11 @@ novel-auto/
 - `generate_json(max_tokens)` — compact extraction with token control
 
 ### tts_audio_generator.py
-- Integrates `edge-tts` for TTS synthesis
+- Multi-provider TTS: edge-tts (default), kling, xtts (Phase 13), or none
+- **Phase 13 XTTS**: Per-character voice cloning via reference audio clips; fallback to edge-tts on failure
 - Vietnamese voice support (multiple voices, speed/pitch control)
 - Per-chapter audio generation; outputs MP3/WAV
+- Character voice mapping via `character_voice_map` config (Phase 13)
 - Wired to pipeline feedback loop at all Layer 1/2/3 entry points
 
 ### image_generator.py
@@ -136,6 +140,14 @@ novel-auto/
 - `score_story(chapters, layer)` → StoryScore — parallel (max 3 workers), sequential context
 - Uses cheap model tier, temp=0.2, max 500 tokens
 
+### agent_graph.py (Phase 13)
+- AgentDAG: Directed Acyclic Graph with topological sort (Kahn's algorithm)
+- 4-tier execution: CharacterSpecialist → [Continuity, Dialogue, Style, Pacing] → [DramaCritic, DialogueBalance] → EditorInChief
+- BaseAgent.depends_on class attribute + prior_reviews param on review()
+- Validates cycles, resolves dependencies, handles missing agents gracefully
+- agent_registry.py run_review_cycle() uses tiered execution; flat-parallel fallback if DAG disabled
+- Pure Python, no external dependencies
+
 ### i18n.py
 - Thread-safe singleton; JSON locale lookup with fallback chain: requested → `vi` → raw key
 - 200+ strings per locale
@@ -146,6 +158,15 @@ novel-auto/
 - Key prompts: WRITE_CHAPTER, EXTRACT_CHARACTER_STATE, EXTRACT_PLOT_EVENTS, SUMMARIZE_CHAPTER,
   SCORE_CHAPTER, SUGGEST_TITLE, GENERATE_CHARACTERS, GENERATE_WORLD, GENERATE_OUTLINE,
   CONTINUE_OUTLINE
+- **Phase 13**: RAG_CONTEXT_SECTION — injected into world-building & chapter prompts when RAG enabled
+
+### rag_knowledge_base.py (Phase 13)
+- RAGKnowledgeBase service using ChromaDB + sentence-transformers
+- Methods: `add_file()`, `add_documents()`, `query()`, `clear()`, `count()`
+- Chunking: 500-char chunks with 50-char overlap; sentence-boundary aware
+- File support: .txt, .md, .pdf (10 MB max, graceful degradation if libs not installed)
+- Integration: `generator.py` `generate_world()` & `_build_chapter_prompt()` inject RAG context when enabled
+- Dependencies: chromadb>=0.4.0, sentence-transformers>=2.2.0
 
 ### video_exporter.py
 - Input: `VideoScript` (panels, voice_lines, character descriptions)
@@ -191,6 +212,8 @@ novel-auto/
 - `language` ("vi" / "en")
 - `enable_self_review` (bool, default: False) — opt-in CoT self-review
 - `self_review_threshold` (float 1.0-5.0, default: 3.0) — quality threshold for auto-revision
+- **Phase 13**: `rag_enabled` (bool, default: False), `rag_persist_dir` — RAG knowledge base config
+- **Phase 13**: `xtts_api_url`, `xtts_reference_audio`, `character_voice_map` — XTTS voice cloning
 
 ## Character State Tracking (Phase 1)
 
@@ -255,7 +278,9 @@ Chapter → [parallel] summarize + extract_character_states + extract_plot_event
 | Phase 7 | COMPLETE | TTS audio (edge-tts), image generation, credit/monetization, CI/CD |
 | Phase 9 | COMPLETE | 31 team issues fixed; CoT self-review, story branching, Wattpad export |
 | Phase 10 | COMPLETE | Self-review config polish, branch persistence, Wattpad enhancements; 813 tests |
+| Phase 11 | COMPLETE | Security fixes, new agents, EPUB pipeline, analytics, web reader upgrades |
+| Phase 13 | COMPLETE | RAG world-building (ChromaDB), agent dependency graph, XTTS v2 voice cloning; 973 tests |
 
 ---
 
-**Last Updated**: 2026-03-24 | **Doc Version**: 1.9 (Phase 10: Self-Review Config, Branch Persistence, Wattpad Polish)
+**Last Updated**: 2026-03-25 | **Doc Version**: 2.0 (Phase 13: RAG World-Building, Agent DAG, XTTS Voice Cloning)
