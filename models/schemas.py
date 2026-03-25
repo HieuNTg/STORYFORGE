@@ -358,6 +358,34 @@ class StoryTree(BaseModel):
     genre: str = ""
 
 
+# === Agent Debate ===
+
+class DebateStance(str, Enum):
+    CHALLENGE = "challenge"
+    SUPPORT = "support"
+    NEUTRAL = "neutral"
+
+
+class DebateEntry(BaseModel):
+    """Single entry in a debate round."""
+    agent_name: str
+    round_number: int = 1
+    stance: DebateStance = DebateStance.NEUTRAL
+    target_agent: str = ""
+    target_issue: str = ""
+    reasoning: str = ""
+    revised_score: Optional[float] = None
+
+
+class DebateResult(BaseModel):
+    """Full debate outcome across all rounds."""
+    rounds: list[list[DebateEntry]] = Field(default_factory=list)
+    final_reviews: list[AgentReview] = Field(default_factory=list)
+    consensus_score: float = 0.0
+    total_challenges: int = 0
+    debate_skipped: bool = False
+
+
 # === Pipeline Output ===
 
 class PipelineOutput(BaseModel):

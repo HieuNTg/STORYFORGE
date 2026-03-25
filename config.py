@@ -109,6 +109,10 @@ class PipelineConfig:
     # Voice emotion synthesis
     enable_voice_emotion: bool = False
 
+    # Multi-agent debate prototype
+    enable_agent_debate: bool = False
+    max_debate_rounds: int = 3
+
 
 VIDEO_QUALITY_PRESETS = {
     "draft": {"resolution": "512x512", "fps": 24, "crf": "28", "preset": "fast"},
@@ -179,6 +183,7 @@ class ConfigManager:
             "LONG_CONTEXT_MODEL": ("pipeline", "long_context_model"),
             "LONG_CONTEXT_API_KEY": ("pipeline", "long_context_api_key"),
             "LONG_CONTEXT_BASE_URL": ("pipeline", "long_context_base_url"),
+            "STORYFORGE_AGENT_DEBATE": ("pipeline", "enable_agent_debate"),
         }
         for env_key, (section, field) in env_map.items():
             val = os.environ.get(env_key)
@@ -191,7 +196,7 @@ class ConfigManager:
                     except ValueError:
                         continue
                 # Convert to bool for boolean fields
-                elif field in ("rag_enabled", "enable_character_consistency", "use_long_context"):
+                elif field in ("rag_enabled", "enable_character_consistency", "use_long_context", "enable_agent_debate"):
                     val = val.lower() in ("1", "true", "yes")
                 setattr(target, field, val)
 

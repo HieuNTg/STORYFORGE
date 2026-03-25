@@ -168,6 +168,16 @@ class AgentRegistry:
                     agents, output, layer, iteration, [], progress_callback
                 )
 
+            # Multi-agent debate: run after round 1 reviews on layer 2
+            if ConfigManager().pipeline.enable_agent_debate and layer == 2:
+                from pipeline.agents.debate_orchestrator import DebateOrchestrator
+                max_rounds = ConfigManager().pipeline.max_debate_rounds
+                orchestrator = DebateOrchestrator(max_rounds=max_rounds)
+                debate_result = orchestrator.run_debate(
+                    agents, output, layer, round_reviews, progress_callback
+                )
+                round_reviews = debate_result.final_reviews
+
             all_reviews.extend(round_reviews)
 
             # Kiểm tra tất cả đã approve chưa

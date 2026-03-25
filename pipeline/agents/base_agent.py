@@ -38,6 +38,10 @@ class BaseAgent(ABC):
         """
         pass
 
+    def debate_response(self, story_draft, layer, own_review, all_reviews):
+        """React to other agents' reviews. Default: no challenges."""
+        return []
+
     def _parse_review_json(self, result: dict, layer: int, iteration: int) -> AgentReview:
         """Parse JSON response thành AgentReview."""
         score = result.get("score", 0.5)

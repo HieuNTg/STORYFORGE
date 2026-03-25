@@ -1,5 +1,5 @@
 """Agent Chuyên Gia Nhân Vật - kiểm tra tính nhất quán của nhân vật."""
-from models.schemas import AgentReview, PipelineOutput
+from models.schemas import AgentReview, DebateEntry, DebateStance, PipelineOutput
 from pipeline.agents.base_agent import BaseAgent
 from pipeline.agents import agent_prompts
 
@@ -26,6 +26,29 @@ class CharacterSpecialistAgent(BaseAgent):
             temperature=0.3,
         )
         return self._parse_review_json(result, layer, iteration)
+
+    def debate_response(self, story_draft, layer, own_review, all_reviews):
+        """Challenge reviews that sacrifice character consistency for drama."""
+        entries = []
+        for review in all_reviews:
+            if review.agent_name == self.name:
+                continue
+            # Challenge if another agent's suggestions break character consistency
+            break_char_keywords = ["thay đổi tính cách", "bất ngờ", "plot twist", "phản bội"]
+            for issue in review.issues:
+                if any(kw in issue.lower() for kw in break_char_keywords):
+                    entries.append(DebateEntry(
+                        agent_name=self.name,
+                        round_number=2,
+                        stance=DebateStance.CHALLENGE,
+                        target_agent=review.agent_name,
+                        target_issue=issue[:100],
+                        reasoning=(
+                            "Character behavior change needs proper foreshadowing "
+                            "and motivation buildup."
+                        ),
+                    ))
+        return entries
 
     def _extract_data(self, output: PipelineOutput, layer: int) -> tuple[str, str]:
         # Lấy nhân vật từ story_draft (luôn có ở layer 1 và 2)

@@ -1,5 +1,5 @@
 """Agent Nhà Phê Bình Kịch Tính - đánh giá arc căng thẳng và độ hấp dẫn."""
-from models.schemas import AgentReview, PipelineOutput
+from models.schemas import AgentReview, DebateEntry, DebateStance, PipelineOutput
 from pipeline.agents.base_agent import BaseAgent
 from pipeline.agents import agent_prompts
 
@@ -25,6 +25,29 @@ class DramaCriticAgent(BaseAgent):
             temperature=0.4,
         )
         return self._parse_review_json(result, layer, iteration)
+
+    def debate_response(self, story_draft, layer, own_review, all_reviews):
+        """Challenge reviews that undervalue drama or suggest reducing tension."""
+        entries = []
+        for review in all_reviews:
+            if review.agent_name == self.name:
+                continue
+            # Challenge if another agent suggests reducing drama
+            low_drama_keywords = ["giảm", "bớt kịch tính", "quá mức", "giảm xung đột"]
+            for suggestion in review.suggestions:
+                if any(kw in suggestion.lower() for kw in low_drama_keywords):
+                    entries.append(DebateEntry(
+                        agent_name=self.name,
+                        round_number=2,
+                        stance=DebateStance.CHALLENGE,
+                        target_agent=review.agent_name,
+                        target_issue=suggestion[:100],
+                        reasoning=(
+                            f"Drama reduction would harm story tension. Current drama level "
+                            f"is appropriate for {story_draft.genre}."
+                        ),
+                    ))
+        return entries
 
     def _extract_data(self, output: PipelineOutput) -> tuple[str, str]:
         enhanced_chapters = "Chưa có chương đã tăng cường."
