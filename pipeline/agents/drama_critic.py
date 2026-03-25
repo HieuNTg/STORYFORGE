@@ -36,6 +36,9 @@ class DramaCriticAgent(BaseAgent):
             low_drama_keywords = ["giảm", "bớt kịch tính", "quá mức", "giảm xung đột"]
             for suggestion in review.suggestions:
                 if any(kw in suggestion.lower() for kw in low_drama_keywords):
+                    genre = getattr(story_draft, 'genre', None)
+                    if genre is None and hasattr(story_draft, 'story_draft'):
+                        genre = getattr(story_draft.story_draft, 'genre', 'unknown')
                     entries.append(DebateEntry(
                         agent_name=self.name,
                         round_number=2,
@@ -44,7 +47,7 @@ class DramaCriticAgent(BaseAgent):
                         target_issue=suggestion[:100],
                         reasoning=(
                             f"Drama reduction would harm story tension. Current drama level "
-                            f"is appropriate for {story_draft.genre}."
+                            f"is appropriate for {genre}."
                         ),
                     ))
         return entries
