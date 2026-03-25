@@ -19,6 +19,8 @@ Input: Genre + Story Idea + Config
 │ - CoT Self-Review: Identify weak chapters (<3.0/5.0), auto-revise│
 │ - Character Visual Profiles: Save & load appearance + reference  │
 │   images for consistent image generation (Phase 14)              │
+│ - Long-Context LLM: Token counting & context-window awareness    │
+│   (Phase 15); full chapter handling via long_context_client      │
 │ Output: StoryDraft (chapters + character_states + plot_events)   │
 └─────────────────────────────────────────────────────────────────┘
   ↓
@@ -34,6 +36,8 @@ Input: Genre + Story Idea + Config
 │ - 6+ agents: character consistency, continuity, dialogue,        │
 │   drama critic, editor-in-chief (+ more)                         │
 │ - Dependency Graph (Phase 13): 4-tier execution via AgentDAG     │
+│ - Multi-agent debate protocol (Phase 16): 3-round consensus      │
+│   on story decisions via debate_response() callbacks             │
 │ - Context-aware escalation patterns (feedback loop)              │
 │ Output: Enhanced StoryDraft + agent feedback metadata            │
 └─────────────────────────────────────────────────────────────────┘
@@ -63,9 +67,12 @@ Input: Genre + Story Idea + Config
 │ HTMLExporter   → Self-contained HTML reader                       │
 │ TTSGenerator   → Multi-provider (edge-tts, kling, xtts) MP3/WAV  │
 │                  XTTS v2 voice cloning per character (Phase 13)   │
+│                  Emotion-aware rate/pitch adjustment (Phase 15)   │
 │ ImageGenerator → DALL-E / SD / Seedream / Replicate IP-Adapter   │
 │                  Character-consistent images via reference        │
 │                  images & frozen visual descriptions (Phase 14)   │
+│ EmotionClassifier→ Rule-based Vietnamese emotion detection        │
+│                  No LLM calls; outputs confidence scores (Phase 15)
 └─────────────────────────────────────────────────────────────────┘
   ↓
 Final Output: novel + enhanced story + quality scores + video assets + audio + images
@@ -307,6 +314,71 @@ CreditManager
 **Integration**: `orchestrator.run_pipeline()` calls `credit_manager.deduct()` before LLM call;
 raises `InsufficientCreditsError` if balance exhausted.
 
+### TokenCounter (services/token_counter.py) — Phase 15
+
+```
+TokenCounter
+├─ estimate_tokens(text: str, model: str) → int
+│  └─ Heuristic: ~4 chars per token (fast approximation)
+├─ fits_in_context(text: str, model: str, context_limit: int) → bool
+│  └─ Returns True if estimated tokens ≤ context_limit
+└─ Supported models: gpt-4, gpt-4o, gpt-3.5-turbo, deepseek, others
+   └─ Context windows: GPT-4/4o (128k), 3.5-turbo (4k), deepseek (4k)
+```
+
+**Integration**: `generator.py` `_format_context()` + `_build_chapter_prompt()` check context fit before LLM call.
+
+### LongContextClient (services/long_context_client.py) — Phase 15
+
+```
+LongContextClient
+├─ __init__(api_key, model, base_url, timeout_seconds)
+├─ generate(prompt: str, max_tokens: int) → str
+│  ├─ OpenAI-compatible API call
+│  ├─ Retry logic: 3 attempts, exponential backoff
+│  └─ JSON mode support if requested
+├─ generate_stream(prompt: str) → Iterator[str]
+│  └─ Streaming response for real-time feedback
+└─ Context window awareness:
+   └─ Splits chapters via token_counter if exceeding limit
+```
+
+**Config**: `use_long_context` (bool), `long_context_model`, `long_context_base_url`, `long_context_timeout_seconds`
+**Integration**: `generator.py` `generate_full_story()` + `continue_story()` route to LongContextClient when `use_long_context=True`.
+
+### EmotionClassifier (services/emotion_classifier.py) — Phase 15
+
+```
+EmotionClassifier
+├─ classify(text: str) → EmotionResult
+│  ├─ Rule-based Vietnamese emotion detection
+│  ├─ No LLM calls (local inference only)
+│  └─ Returns: emotion, confidence (0.0-1.0)
+└─ Emotions: joy, sadness, anger, fear, neutral
+```
+
+**Output**: EmotionResult with label + confidence for TTS rate/pitch adjustment.
+**Integration**: `tts_audio_generator.py` uses EmotionClassifier to modulate voice characteristics per emotional context.
+
+### DebateOrchestrator (pipeline/agents/debate_orchestrator.py) — Phase 16
+
+```
+DebateOrchestrator
+├─ run_debate(topic: str, agents: list[BaseAgent]) → DebateResult
+│  ├─ Round 1: Agents present initial DebateStance positions
+│  ├─ Round 2: Agents rebut opposing stances via debate_response()
+│  ├─ Round 3: Agents finalize positions; consensus vote counted
+│  └─ Returns: DebateResult (consensus, vote counts, decision)
+└─ Max rounds: configurable via max_debate_rounds
+```
+
+**Schemas**:
+- `DebateStance`: position, reasoning, supporting evidence
+- `DebateEntry`: agent name, stance, rebuttal text
+- `DebateResult`: consensus label, vote counts per position, final decision
+
+**Integration**: `agent_registry.py` `run_review_cycle()` wires debate into story quality feedback loop when `enable_agent_debate=True`.
+
 ## CI/CD Pipeline (GitHub Actions)
 
 ```
@@ -502,7 +574,13 @@ ConfigManager (singleton)
    ├─ character_voice_map (dict[str, str])  [PHASE 13]
    ├─ enable_character_consistency (bool, default: False)  [PHASE 14]
    ├─ replicate_api_key (str)  [PHASE 14]
-   └─ character_consistency_provider ("seedream" | "replicate")  [PHASE 14]
+   ├─ character_consistency_provider ("seedream" | "replicate")  [PHASE 14]
+   ├─ use_long_context (bool, default: False)  [PHASE 15]
+   ├─ long_context_model, long_context_base_url (str)  [PHASE 15]
+   ├─ long_context_timeout_seconds (int, default: 120)  [PHASE 15]
+   ├─ enable_voice_emotion (bool, default: False)  [PHASE 15]
+   ├─ enable_agent_debate (bool, default: False)  [PHASE 16]
+   └─ max_debate_rounds (int, default: 3)  [PHASE 16]
 
 Environment overrides:
 ├─ STORYFORGE_IMAGE_PROVIDER (none | dalle | sd-api | seedream | replicate)
@@ -516,6 +594,8 @@ Environment overrides:
 **Phase 10 Addition**: Self-review configuration allows users to opt-in and customize quality thresholds per pipeline run.
 **Phase 13 Addition**: RAG and XTTS voice cloning configuration; RAG optional, XTTS provider selection with fallback.
 **Phase 14 Addition**: Character consistency configuration; enable visual profile store + choose provider (seedream uses image descriptions, replicate uses reference images).
+**Phase 15 Addition**: Long-context LLM configuration (token counter, endpoint, timeout) + emotion-aware TTS voice adjustment.
+**Phase 16 Addition**: Multi-agent debate protocol configuration (enable/disable, max rounds).
 
 ## Error Handling
 
@@ -538,6 +618,6 @@ Rolling context budget: last `context_window_chapters` summaries + char states (
 
 ---
 
-**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Web auth, credits, TTS, and image generation are transparent to core pipeline logic. Phase 9 adds CoT self-review, interactive branching, and expanded export capabilities. Phase 10 adds configuration polish and persistence. Phase 13 adds RAG world-building context, agent dependency graph orchestration, and multi-provider voice synthesis with XTTS v2 cloning. Phase 14 adds character visual profile persistence and multi-provider character-consistent image generation (IP-Adapter + Seedream).
+**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Web auth, credits, TTS, and image generation are transparent to core pipeline logic. Phase 9 adds CoT self-review, interactive branching, and expanded export capabilities. Phase 10 adds configuration polish and persistence. Phase 13 adds RAG world-building context, agent dependency graph orchestration, and multi-provider voice synthesis with XTTS v2 cloning. Phase 14 adds character visual profile persistence and multi-provider character-consistent image generation (IP-Adapter + Seedream). Sprint 0 includes 11 critical bug fixes (SQLite concurrency, plot event pruning, word count helpers). Phase 15 adds long-context LLM support (token counter, context window awareness) and emotion-aware voice synthesis. Phase 16 adds multi-agent debate protocol for story decision consensus.
 
-**Last Updated**: 2026-03-25 | **Version**: 1.9 (Phase 14: Character-Consistent Images with IP-Adapter & Visual Profiles)
+**Last Updated**: 2026-03-25 | **Version**: 2.0 (Sprint 0 + Phase 15: Long-Context LLM + Voice Emotion + Phase 16: Multi-Agent Debate)

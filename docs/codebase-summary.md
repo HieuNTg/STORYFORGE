@@ -125,6 +125,7 @@ novel-auto/
 - Per-chapter audio generation; outputs MP3/WAV
 - Character voice mapping via `character_voice_map` config (Phase 13)
 - Wired to pipeline feedback loop at all Layer 1/2/3 entry points
+- **Phase 15**: Emotion-aware rate/pitch adjustment via EmotionClassifier; `_resolve_xtts_reference()` fallback support
 
 ### image_generator.py
 - Pluggable provider interface: DALLE, SD-API, Seedream, Replicate, or none
@@ -152,10 +153,35 @@ novel-auto/
 - agent_registry.py run_review_cycle() uses tiered execution; flat-parallel fallback if DAG disabled
 - Pure Python, no external dependencies
 
+### debate_orchestrator.py (Phase 16)
+- `DebateOrchestrator` — 3-round multi-agent debate protocol for story decisions
+- Agents present DebateStance positions; gather consensus via debate_response() callbacks
+- Integration: agent_registry.py `run_review_cycle()` wires debate into feedback loop
+- Schemas: DebateStance (position, reasoning, evidence), DebateEntry (agent, stance, rebuttal), DebateResult (consensus, votes)
+- Config: `enable_agent_debate` (bool), `max_debate_rounds` (int)
+
 ### i18n.py
 - Thread-safe singleton; JSON locale lookup with fallback chain: requested → `vi` → raw key
 - 200+ strings per locale
 - `_t(key)` shorthand used throughout app.py (167+ call sites)
+
+### token_counter.py (Phase 15)
+- `estimate_tokens(text, model)` — approximate token count via word count heuristic
+- `fits_in_context(text, model, context_limit)` — check if text fits within context window
+- Supports model context windows: GPT-4/4o (128k), 3.5-turbo (4k), deepseek (4k)
+
+### long_context_client.py (Phase 15)
+- `LongContextClient` — OpenAI-compatible long-context LLM client for full chapter handling
+- Methods: `generate(prompt, max_tokens)`, `generate_stream(prompt)` with streaming
+- Retry logic: 3 attempts with exponential backoff; JSON mode support
+- Context window aware: splits chapters if exceeding limit via token_counter
+- Config: `use_long_context`, `long_context_model`, `long_context_base_url`, `long_context_timeout_seconds`
+
+### emotion_classifier.py (Phase 15)
+- `EmotionClassifier` — Rule-based Vietnamese emotion detection (no LLM calls)
+- Returns emotion label + confidence (0.0-1.0) from fixed set: joy, sadness, anger, fear, neutral
+- Input: Vietnamese text; output: structured EmotionResult
+- Used by TTS pipeline to adjust voice rate & pitch per emotional context
 
 ### prompts.py
 - `localize_prompt(template, lang)` wrapper for all generation prompts
@@ -171,6 +197,7 @@ novel-auto/
 - File support: .txt, .md, .pdf (10 MB max, graceful degradation if libs not installed)
 - Integration: `generator.py` `generate_world()` & `_build_chapter_prompt()` inject RAG context when enabled
 - Dependencies: chromadb>=0.4.0, sentence-transformers>=2.2.0
+- **Sprint 0 Fix**: SHA256 document IDs for deterministic hashing; error-level logging on init failure
 
 ### video_exporter.py
 - Input: `VideoScript` (panels, voice_lines, character descriptions)
@@ -221,6 +248,12 @@ novel-auto/
 - **Phase 14**: `enable_character_consistency` (bool, default: False) — character visual consistency
 - **Phase 14**: `replicate_api_key` (str) — Replicate API key for IP-Adapter
 - **Phase 14**: `character_consistency_provider` (str, "seedream" | "replicate") — provider selection
+- **Phase 15**: `use_long_context` (bool, default: False) — enable long-context LLM for full chapters
+- **Phase 15**: `long_context_model`, `long_context_base_url` — long-context LLM endpoints
+- **Phase 15**: `long_context_timeout_seconds` (int, default: 120) — context window operation timeout
+- **Phase 15**: `enable_voice_emotion` (bool, default: False) — emotion-aware TTS rate/pitch
+- **Phase 16**: `enable_agent_debate` (bool, default: False) — multi-agent debate protocol
+- **Phase 16**: `max_debate_rounds` (int, default: 3) — max debate rounds per decision
 
 ## Character State Tracking (Phase 1)
 
@@ -288,7 +321,10 @@ Chapter → [parallel] summarize + extract_character_states + extract_plot_event
 | Phase 11 | COMPLETE | Security fixes, new agents, EPUB pipeline, analytics, web reader upgrades |
 | Phase 13 | COMPLETE | RAG world-building (ChromaDB), agent dependency graph, XTTS v2 voice cloning; 973 tests |
 | Phase 14 | COMPLETE | Character-consistent images (IP-Adapter + Seedream), visual profile store; 1025 tests |
+| **Sprint 0** | COMPLETE | 11 bug fixes: SQLite concurrency, plot event pruning, word count helpers, JSON error preview, null safety; 1072 tests |
+| Phase 15 | COMPLETE | Long-context LLM support (token counter, OpenAI SDK), emotion-aware voice rate/pitch; 1072 tests |
+| Phase 16 | COMPLETE | Multi-agent debate protocol (3-round), debate response callbacks, debate decision consensus; 1102 tests |
 
 ---
 
-**Last Updated**: 2026-03-25 | **Doc Version**: 2.1 (Phase 14: Character-Consistent Images with IP-Adapter & Visual Profiles)
+**Last Updated**: 2026-03-25 | **Doc Version**: 2.2 (Sprint 0 + Phase 15: Long-Context LLM + Voice Emotion + Phase 16: Multi-Agent Debate)
