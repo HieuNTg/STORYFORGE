@@ -35,3 +35,4 @@ coverage_html/
 .env*
 !.env.example
 *.log
+storyforge.log

@@ -253,12 +253,15 @@ class DramaSimulator:
 
     def simulate_round(
         self, round_number: int, context: str, total_rounds: int = 5,
+        progress_callback=None,
     ) -> list[AgentPost]:
         """Chạy một vòng mô phỏng - tất cả agents hành động song song."""
         round_posts = []
         max_workers = min(ConfigManager().llm.max_parallel_workers, 10)
         genre_hint = get_genre_escalation_prompt(context, round_number, total_rounds)
         round_context = f"{context} {genre_hint}".strip() if genre_hint else context
+        agent_names = list(self.agents.keys())
+        completed_count = 0
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
@@ -266,16 +269,21 @@ class DramaSimulator:
                 for name in self.agents
             }
             for future in as_completed(futures):
+                name = futures[future]
                 try:
                     post, metadata = future.result(timeout=120)
                 except FutureTimeoutError:
-                    name = futures[future]
                     logger.warning(f"Agent {name} timed out at round {round_number}, skipping")
                     continue
                 except Exception as e:
-                    name = futures[future]
                     logger.warning(f"Agent {name} raised unexpected error at round {round_number}: {e}")
                     continue
+                completed_count += 1
+                if progress_callback:
+                    progress_callback(
+                        f"[Agent {completed_count}/{len(agent_names)}] "
+                        f"{name}: {post.action_type if post else 'skip'}"
+                    )
                 if post is not None:
                     round_posts.append(post)
                     # Apply emotional + trust updates immediately
@@ -425,7 +433,9 @@ class DramaSimulator:
             _log(f"🔄 Vòng mô phỏng {round_num}/{num_rounds}...")
 
             # Chạy vòng mô phỏng
-            round_posts = self.simulate_round(round_num, genre, num_rounds)
+            round_posts = self.simulate_round(
+                round_num, genre, num_rounds, progress_callback=progress_callback,
+            )
 
             # Đánh giá kịch tính
             evaluation = self.evaluate_drama(round_posts)

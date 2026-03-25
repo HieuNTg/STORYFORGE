@@ -15,6 +15,7 @@ import os
 import time
 import unicodedata
 import gradio as gr
+from fastapi.responses import JSONResponse
 
 from config import ConfigManager
 from pipeline.orchestrator import PipelineOrchestrator
@@ -51,6 +52,9 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger(__name__)
+
+# Health endpoint uptime tracking
+_START_TIME = time.time()
 
 # i18n singleton — initialized with saved language preference
 i18n = I18n()
@@ -153,68 +157,59 @@ def _detect_layer(msg: str) -> int:
     return 0
 
 
+_APP_THEME = gr.themes.Soft()
+_APP_CSS = """
+.pipeline-header { text-align: center; margin-bottom: 20px; }
+.layer-box { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 10px 0; }
+/* Progress bar */
+.progress-bar-container {
+    display: flex; gap: 4px; margin: 10px 0; height: 32px;
+    background: #f0f0f0; border-radius: 8px; overflow: hidden;
+}
+.progress-segment {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: #666;
+    transition: all 0.5s ease; background: #e8e8e8;
+}
+.progress-segment.active { background: #3b82f6; color: white; animation: pulse-bg 2s infinite; }
+.progress-segment.done { background: #22c55e; color: white; }
+@keyframes pulse-bg { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+.progress-step-text {
+    text-align: center; font-size: 13px; color: #555;
+    margin: 4px 0 8px 0; min-height: 20px;
+}
+/* Status badge */
+.status-badge {
+    display: inline-block; padding: 4px 12px; border-radius: 12px;
+    font-size: 12px; font-weight: 600;
+}
+.status-idle { background: #e5e7eb; color: #6b7280; }
+.status-running { background: #dbeafe; color: #2563eb; animation: pulse-bg 2s infinite; }
+.status-done { background: #dcfce7; color: #16a34a; }
+.status-error { background: #fee2e2; color: #dc2626; }
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .gr-row { flex-direction: column !important; }
+    .gr-column { min-width: 100% !important; }
+    .progress-segment { font-size: 10px; }
+}
+@media (max-width: 768px) { .gradio-button { min-height: 44px; } }
+@media (max-width: 480px) {
+    .tab-nav { flex-wrap: wrap; }
+    .tab-nav button { flex: 1 1 45%; font-size: 11px; }
+}
+.compact-mode .prose { font-size: 14px; }
+.compact-mode .block { padding: 8px !important; }
+"""
+
+
 def create_ui():
     """Tạo giao diện Gradio."""
 
     with gr.Blocks(
         title="StoryForge",
-        theme=gr.themes.Soft(),
-        css="""
-        .pipeline-header { text-align: center; margin-bottom: 20px; }
-        .layer-box { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 10px 0; }
-
-        /* Progress bar */
-        .progress-bar-container {
-            display: flex; gap: 4px; margin: 10px 0; height: 32px;
-            background: #f0f0f0; border-radius: 8px; overflow: hidden;
-        }
-        .progress-segment {
-            flex: 1; display: flex; align-items: center; justify-content: center;
-            font-size: 12px; font-weight: 600; color: #666;
-            transition: all 0.5s ease; background: #e8e8e8;
-        }
-        .progress-segment.active {
-            background: #3b82f6; color: white;
-            animation: pulse-bg 2s infinite;
-        }
-        .progress-segment.done { background: #22c55e; color: white; }
-        @keyframes pulse-bg {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-        .progress-step-text {
-            text-align: center; font-size: 13px; color: #555;
-            margin: 4px 0 8px 0; min-height: 20px;
-        }
-
-        /* Status badge */
-        .status-badge {
-            display: inline-block; padding: 4px 12px; border-radius: 12px;
-            font-size: 12px; font-weight: 600;
-        }
-        .status-idle { background: #e5e7eb; color: #6b7280; }
-        .status-running { background: #dbeafe; color: #2563eb; animation: pulse-bg 2s infinite; }
-        .status-done { background: #dcfce7; color: #16a34a; }
-        .status-error { background: #fee2e2; color: #dc2626; }
-
-        /* Mobile responsive */
-        @media (max-width: 768px) {
-            .gr-row { flex-direction: column !important; }
-            .gr-column { min-width: 100% !important; }
-            .progress-segment { font-size: 10px; }
-        }
-        /* Touch-friendly */
-        @media (max-width: 768px) {
-            .gradio-button { min-height: 44px; }
-        }
-        @media (max-width: 480px) {
-            .tab-nav { flex-wrap: wrap; }
-            .tab-nav button { flex: 1 1 45%; font-size: 11px; }
-        }
-        /* Compact mode */
-        .compact-mode .prose { font-size: 14px; }
-        .compact-mode .block { padding: 8px !important; }
-        """,
+        theme=_APP_THEME,
+        css=_APP_CSS,
     ) as app:
         gr.Markdown(
             f"# {_t('app.title')}\n### {_t('app.subtitle')}\n\n{_t('app.pipeline_desc')}",
@@ -993,6 +988,22 @@ def create_ui():
                     _t("guide.api_desc"),
                 ])
                 gr.Markdown(guide_text)
+
+    # Health check endpoint — attached to the Gradio FastAPI sub-app
+    @app.app.get("/health")
+    async def health_check():
+        cfg = ConfigManager()
+        llm_ok = bool(cfg.llm.api_key) or cfg.llm.backend_type != "api"
+        return JSONResponse({
+            "status": "ok",
+            "version": "2.3",
+            "uptime_seconds": round(time.time() - _START_TIME, 1),
+            "services": {
+                "llm": llm_ok,
+                "tts": cfg.pipeline.tts_provider,
+                "image_gen": cfg.pipeline.image_provider,
+            },
+        })
 
     return app
 

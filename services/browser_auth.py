@@ -15,14 +15,7 @@ import time
 import urllib.error
 from typing import Optional
 
-# Issue #11: lazy import so module loads even without cryptography package
-_HAS_CRYPTOGRAPHY = False
-try:
-    from cryptography.fernet import Fernet, InvalidToken
-    _HAS_CRYPTOGRAPHY = True
-except ImportError:
-    Fernet = None
-    InvalidToken = Exception  # placeholder for except clauses
+from cryptography.fernet import Fernet, InvalidToken
 
 logger = logging.getLogger(__name__)
 
@@ -46,12 +39,7 @@ _ENCRYPTED_MARKER = b"SF_ENC:"
 
 
 def _get_or_create_fernet():
-    """Get or create Fernet encryption key for auth profiles.
-
-    Returns None when cryptography package is not installed (Issue #11).
-    """
-    if not _HAS_CRYPTOGRAPHY:
-        return None
+    """Get or create Fernet encryption key for auth profiles."""
     os.makedirs(os.path.dirname(_ENCRYPTION_KEY_PATH), exist_ok=True)
     if os.path.exists(_ENCRYPTION_KEY_PATH):
         with open(_ENCRYPTION_KEY_PATH, "rb") as f:
@@ -313,7 +301,7 @@ class BrowserAuth:
 
         key_exists = os.path.exists(_ENCRYPTION_KEY_PATH)
 
-        if _HAS_CRYPTOGRAPHY and key_exists:
+        if key_exists:
             if raw.startswith(_ENCRYPTED_MARKER):
                 # Normal path: strip marker then decrypt
                 try:
@@ -339,7 +327,7 @@ class BrowserAuth:
                 logger.error("Auth profile format unrecognized — refusing to load")
                 return {}
 
-        # No encryption available — load plaintext
+        # No key yet — load plaintext (first-run before any credential save)
         try:
             return json.loads(raw.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError):
@@ -352,15 +340,6 @@ class BrowserAuth:
         encrypted files from legacy plaintext and refuse downgrades.
         """
         os.makedirs(os.path.dirname(AUTH_PROFILES_PATH), exist_ok=True)
-        if not _HAS_CRYPTOGRAPHY:
-            logger.error(
-                "Cannot save credentials: 'cryptography' package is required. "
-                "Install it with: pip install cryptography"
-            )
-            raise RuntimeError(
-                "Credential storage requires the 'cryptography' package. "
-                "Install it with: pip install cryptography"
-            )
         try:
             fernet = _get_or_create_fernet()
             payload = json.dumps(profiles, ensure_ascii=False).encode("utf-8")
@@ -392,10 +371,7 @@ class BrowserAuth:
 
         # Delegate to _save_credentials_dict which handles encryption + SF_ENC: marker
         self._save_credentials_dict(profiles)
-        if _HAS_CRYPTOGRAPHY:
-            logger.info(f"Encrypted credentials saved for {provider}")
-        else:
-            logger.warning(f"Credentials saved WITHOUT encryption (install cryptography package)")
+        logger.info(f"Encrypted credentials saved for {provider}")
 
     def get_credentials(self, provider: str = "deepseek-web") -> Optional[dict]:
         """Load saved credentials for a provider.

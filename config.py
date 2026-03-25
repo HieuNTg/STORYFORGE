@@ -79,6 +79,11 @@ class PipelineConfig:
     enable_self_review: bool = False  # Opt-in CoT self-review
     self_review_threshold: float = 3.0  # Score threshold (1.0-5.0)
 
+    # TTS provider
+    tts_provider: str = "edge-tts"  # edge-tts / kling / none
+    kling_tts_api_key: str = ""
+    kling_tts_api_url: str = ""
+
 
 VIDEO_QUALITY_PRESETS = {
     "draft": {"resolution": "512x512", "fps": 24, "crf": "28", "preset": "fast"},
@@ -135,6 +140,9 @@ class ConfigManager:
             "IMAGE_API_URL": ("pipeline", "image_api_url"),
             "SEEDREAM_API_KEY": ("pipeline", "seedream_api_key"),
             "SEEDREAM_API_URL": ("pipeline", "seedream_api_url"),
+            "STORYFORGE_TTS_PROVIDER": ("pipeline", "tts_provider"),
+            "KLING_TTS_API_KEY": ("pipeline", "kling_tts_api_key"),
+            "KLING_TTS_API_URL": ("pipeline", "kling_tts_api_url"),
         }
         for env_key, (section, field) in env_map.items():
             val = os.environ.get(env_key)
@@ -195,6 +203,9 @@ class ConfigManager:
                 "story_bible_enabled": self.pipeline.story_bible_enabled,
                 "enable_self_review": self.pipeline.enable_self_review,
                 "self_review_threshold": self.pipeline.self_review_threshold,
+                "tts_provider": self.pipeline.tts_provider,
+                "kling_tts_api_key": self.pipeline.kling_tts_api_key,
+                "kling_tts_api_url": self.pipeline.kling_tts_api_url,
             },
         }
         if warnings:

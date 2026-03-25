@@ -9,9 +9,7 @@ from unittest.mock import patch
 class TestEncryptionRoundtrip:
     def test_save_and_load_encrypted(self):
         """Credentials saved encrypted can be loaded back."""
-        from services.browser_auth import BrowserAuth, _HAS_CRYPTOGRAPHY
-        if not _HAS_CRYPTOGRAPHY:
-            pytest.skip("cryptography not installed")
+        from services.browser_auth import BrowserAuth
 
         auth = BrowserAuth.__new__(BrowserAuth)
         auth._initialized = True
@@ -26,8 +24,8 @@ class TestEncryptionRoundtrip:
                 assert loaded["deepseek-web"]["cookies"] == "test=1"
                 assert loaded["deepseek-web"]["bearer"] == "abc"
 
-    def test_module_imports_without_cryptography(self):
-        """Module should import even if cryptography is missing."""
+    def test_module_imports_with_cryptography(self):
+        """Module imports successfully with cryptography package installed."""
         import services.browser_auth
         assert hasattr(services.browser_auth, 'BrowserAuth')
 
@@ -35,9 +33,7 @@ class TestEncryptionRoundtrip:
 class TestDowngradePrevention:
     def test_plaintext_rejected_when_key_exists(self):
         """If encryption key exists, refuse plaintext profiles."""
-        from services.browser_auth import BrowserAuth, _HAS_CRYPTOGRAPHY, _ENCRYPTED_MARKER
-        if not _HAS_CRYPTOGRAPHY:
-            pytest.skip("cryptography not installed")
+        from services.browser_auth import BrowserAuth, _ENCRYPTED_MARKER
 
         auth = BrowserAuth.__new__(BrowserAuth)
         auth._initialized = True
