@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class ImageGenerator:
     """Generate images from prompts using various AI providers."""
 
-    PROVIDERS = ["dalle", "sd-api", "seedream", "none"]  # none = prompt-only mode
+    PROVIDERS = ["dalle", "sd-api", "seedream", "replicate", "none"]  # none = prompt-only mode
 
     def __init__(self, provider: str = "none", api_key: str = "", base_url: str = ""):
         cfg = ConfigManager().pipeline
@@ -48,6 +48,29 @@ class ImageGenerator:
 
         logger.warning("Unknown image provider: %s", self.provider)
         return None
+
+    def generate_with_reference(
+        self,
+        prompt: str,
+        reference_paths: list,
+        filename: str = "image.png",
+        size: str = "1024x1024",
+    ) -> Optional[str]:
+        """Generate image conditioned on character reference images.
+
+        For providers with native reference support (seedream, replicate),
+        uses the reference image directly. For others, falls back to text-only.
+        """
+        if not reference_paths:
+            return self.generate(prompt, filename, size)
+
+        if self.provider == "seedream":
+            return self._seedream_with_ref(prompt, reference_paths, filename)
+        if self.provider == "replicate":
+            return self._replicate_with_ref(prompt, reference_paths[0], filename)
+
+        # DALL-E/SD: no native reference support, fall through to text-only
+        return self.generate(prompt, filename, size)
 
     def generate_story_images(
         self, image_prompts: list, chapter_number: int = 0
@@ -148,3 +171,29 @@ class ImageGenerator:
         if result:
             logger.info("Generated Seedream image: %s", result)
         return result
+
+    def _seedream_with_ref(
+        self, prompt: str, reference_paths: list, filename: str
+    ) -> Optional[str]:
+        """Generate via Seedream with character references."""
+        from services.seedream_client import SeedreamClient  # local import avoids circular deps
+
+        cfg = ConfigManager().pipeline
+        client = SeedreamClient(api_key=cfg.seedream_api_key, base_url=cfg.seedream_api_url)
+        if not client.is_configured():
+            logger.warning("Seedream not configured for reference generation")
+            return self.generate(prompt, filename)
+        filepath = os.path.join(self.output_dir, filename)
+        return client.generate_scene(prompt, reference_paths, filepath)
+
+    def _replicate_with_ref(
+        self, prompt: str, reference_path: str, filename: str
+    ) -> Optional[str]:
+        """Generate via Replicate IP-Adapter with character reference."""
+        from services.replicate_ip_adapter import ReplicateIPAdapter  # local import
+
+        client = ReplicateIPAdapter()
+        if not client.is_configured():
+            logger.warning("Replicate not configured for reference generation")
+            return self.generate(prompt, filename)
+        return client.generate(prompt, reference_path, filename)

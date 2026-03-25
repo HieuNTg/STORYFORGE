@@ -22,6 +22,7 @@ class TestMediaProducerErrorRecovery:
         with patch.object(producer, 'config') as mock_cfg:
             mock_cfg.pipeline.seedream_api_key = ""
             mock_cfg.pipeline.seedream_api_url = ""
+            mock_cfg.pipeline.enable_character_consistency = False
             # With no seedream configured, should skip image gen gracefully
             result = producer.run(mock_draft, mock_enhanced, mock_script)
             assert isinstance(result, dict)

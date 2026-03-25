@@ -1,6 +1,7 @@
 """Layer 3.5 media production: images, TTS audio, video composition."""
 
 import logging
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from config import ConfigManager
 from services.seedream_client import SeedreamClient
@@ -40,9 +41,40 @@ class MediaProducer:
                     result["character_refs"][char.name] = ref_path
                     _log(f"[MEDIA] + {char.name}")
 
+        # Step 1.5: Build/load character visual profiles if consistency enabled
+        visual_profiles = {}
+        if cfg.enable_character_consistency and draft.characters:
+            from services.character_visual_profile import CharacterVisualProfileStore
+            profile_store = CharacterVisualProfileStore()
+            for char in draft.characters:
+                if not profile_store.has_profile(char.name):
+                    desc = profile_store.build_visual_description(char)
+                    ref_path = result["character_refs"].get(char.name, "")
+                    profile_store.save_profile(char.name, desc, ref_path)
+                profile = profile_store.load_profile(char.name)
+                if profile:
+                    visual_profiles[char.name] = profile.get("description", "")
+                    # Use stored reference image if character doesn't have one yet
+                    if not char.reference_image and profile.get("reference_image"):
+                        ref = profile["reference_image"]
+                        if os.path.exists(ref):
+                            char.reference_image = ref
+                            result["character_refs"][char.name] = ref
+
         # Step 2: Scene images — parallel with ThreadPoolExecutor
         char_refs = result["character_refs"]
-        if seedream.is_configured() and video_script and video_script.panels:
+        use_consistency = cfg.enable_character_consistency
+        # Determine image generator provider when consistency is enabled
+        if use_consistency:
+            provider = getattr(cfg, "character_consistency_provider", "seedream")
+            if provider == "seedream" and not seedream.is_configured():
+                provider = cfg.image_provider
+            from services.image_generator import ImageGenerator
+            image_gen = ImageGenerator(provider=provider)
+        else:
+            image_gen = None  # use seedream directly (unchanged behavior)
+
+        if (use_consistency or seedream.is_configured()) and video_script and video_script.panels:
             panels = video_script.panels
             _log(f"[MEDIA] Tao {len(panels)} anh canh (song song)...")
 
@@ -51,6 +83,15 @@ class MediaProducer:
             for panel in panels:
                 refs = [char_refs[n] for n in panel.characters_in_frame if n in char_refs]
                 prompt = panel.image_prompt or panel.description
+                # Inject visual descriptions into prompt for text-only providers
+                if use_consistency and visual_profiles and panel.characters_in_frame:
+                    char_descs = "; ".join(
+                        f"[{n}: {visual_profiles[n]}]"
+                        for n in panel.characters_in_frame
+                        if n in visual_profiles
+                    )
+                    if char_descs:
+                        prompt = f"{char_descs} {prompt}"
                 filename = f"ch{panel.chapter_number:02d}_p{panel.panel_number:02d}.png"
                 prepared.append((panel, prompt, refs, filename))
 
@@ -59,10 +100,23 @@ class MediaProducer:
             max_workers = min(5, total)
 
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = {
-                    executor.submit(seedream.generate_scene, prompt, refs, filename): panel
-                    for panel, prompt, refs, filename in prepared
-                }
+                if use_consistency and image_gen is not None:
+                    futures = {
+                        executor.submit(
+                            image_gen.generate_with_reference if refs else image_gen.generate,
+                            *(
+                                (prompt, refs, filename)
+                                if refs
+                                else (prompt, filename)
+                            ),
+                        ): panel
+                        for panel, prompt, refs, filename in prepared
+                    }
+                else:
+                    futures = {
+                        executor.submit(seedream.generate_scene, prompt, refs, filename): panel
+                        for panel, prompt, refs, filename in prepared
+                    }
                 for future in as_completed(futures):
                     panel = futures[future]
                     completed += 1

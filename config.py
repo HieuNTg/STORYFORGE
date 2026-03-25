@@ -93,6 +93,11 @@ class PipelineConfig:
     xtts_reference_audio: str = ""  # default reference audio path
     character_voice_map: dict = field(default_factory=dict)  # {"CharName": "data/voices/char.wav"}
 
+    # Character-consistent images
+    enable_character_consistency: bool = False
+    replicate_api_key: str = ""
+    character_consistency_provider: str = "seedream"  # seedream | replicate
+
 
 VIDEO_QUALITY_PRESETS = {
     "draft": {"resolution": "512x512", "fps": 24, "crf": "28", "preset": "fast"},
@@ -156,6 +161,8 @@ class ConfigManager:
             "STORYFORGE_RAG_DIR": ("pipeline", "rag_persist_dir"),
             "XTTS_API_URL": ("pipeline", "xtts_api_url"),
             "XTTS_REFERENCE_AUDIO": ("pipeline", "xtts_reference_audio"),
+            "REPLICATE_API_KEY": ("pipeline", "replicate_api_key"),
+            "STORYFORGE_CHAR_CONSISTENCY": ("pipeline", "enable_character_consistency"),
         }
         for env_key, (section, field) in env_map.items():
             val = os.environ.get(env_key)
@@ -168,7 +175,7 @@ class ConfigManager:
                     except ValueError:
                         continue
                 # Convert to bool for boolean fields
-                elif field in ("rag_enabled",):
+                elif field in ("rag_enabled", "enable_character_consistency"):
                     val = val.lower() in ("1", "true", "yes")
                 setattr(target, field, val)
 
@@ -227,6 +234,9 @@ class ConfigManager:
                 "xtts_api_url": self.pipeline.xtts_api_url,
                 "xtts_reference_audio": self.pipeline.xtts_reference_audio,
                 "character_voice_map": self.pipeline.character_voice_map,
+                "enable_character_consistency": self.pipeline.enable_character_consistency,
+                "replicate_api_key": self.pipeline.replicate_api_key,
+                "character_consistency_provider": self.pipeline.character_consistency_provider,
             },
         }
         if warnings:

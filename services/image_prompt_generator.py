@@ -29,12 +29,26 @@ class ImagePromptGenerator:
         self.llm = LLMClient()
         self.style = style or ConfigManager().pipeline.image_prompt_style
 
-    def generate_from_panel(self, panel: StoryboardPanel, characters: dict[str, str] = None) -> ImagePrompt:
-        """Convert storyboard panel to image prompts."""
+    def generate_from_panel(
+        self,
+        panel: StoryboardPanel,
+        characters: dict = None,
+        visual_profiles: dict = None,
+    ) -> ImagePrompt:
+        """Convert storyboard panel to image prompts.
+
+        Args:
+            panel: The storyboard panel
+            characters: dict of {name: basic_description}
+            visual_profiles: dict of {name: frozen_visual_description} for consistency
+        """
         chars_desc = ""
-        if characters:
+        if panel.characters_in_frame:
             for name in panel.characters_in_frame:
-                if name in characters:
+                # Prefer visual profile (frozen description) over basic character info
+                if visual_profiles and name in visual_profiles:
+                    chars_desc += f"[{name}: {visual_profiles[name]}] "
+                elif characters and name in characters:
                     chars_desc += f"{name}: {characters[name]}. "
 
         dalle = f"{self.style} style, {panel.description}"
@@ -57,15 +71,28 @@ class ImagePromptGenerator:
     def generate_from_chapter(
         self,
         chapter: Chapter,
-        characters: list[Character] = None,
+        characters: list = None,
         num_images: int = 3,
+        visual_profiles: dict = None,
     ) -> list[ImagePrompt]:
-        """Extract key scenes from chapter and generate image prompts via LLM."""
+        """Extract key scenes from chapter and generate image prompts via LLM.
+
+        Args:
+            chapter: The chapter to extract scenes from
+            characters: list of Character objects
+            num_images: number of image prompts to generate
+            visual_profiles: dict of {name: frozen_visual_description} for consistency
+        """
         chars_text = ""
         if characters:
-            chars_text = "\n".join(
-                f"- {c.name}: {c.appearance or c.personality}" for c in characters
-            )
+            parts = []
+            for c in characters:
+                desc = c.appearance or c.personality
+                # Enhance with visual profile if available
+                if visual_profiles and c.name in visual_profiles:
+                    desc = visual_profiles[c.name]
+                parts.append(f"- {c.name}: {desc}")
+            chars_text = "\n".join(parts)
 
         try:
             result = self.llm.generate_json(
