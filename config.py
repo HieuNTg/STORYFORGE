@@ -117,10 +117,64 @@ class PipelineConfig:
     enable_smart_revision: bool = False
     smart_revision_threshold: float = 3.5  # 1.0-5.0 scale
 
+    # Quality gate (inline scoring between layers)
+    enable_quality_gate: bool = False
+    quality_gate_threshold: float = 2.5  # 1.0-5.0 scale
+    quality_gate_chapter_threshold: float = 2.0
+    quality_gate_max_retries: int = 1
+
 
 VIDEO_QUALITY_PRESETS = {
     "draft": {"resolution": "512x512", "fps": 24, "crf": "28", "preset": "fast"},
     "final": {"resolution": "1024x1024", "fps": 30, "crf": "23", "preset": "medium"},
+}
+
+PIPELINE_PRESETS = {
+    "beginner": {
+        "label": "Người mới — Cơ bản, dễ dùng",
+        "enable_self_review": False,
+        "enable_agent_debate": False,
+        "enable_smart_revision": False,
+        "use_long_context": False,
+        "enable_voice_emotion": False,
+        "enable_character_consistency": False,
+        "rag_enabled": False,
+        "context_window_chapters": 2,
+        "num_simulation_rounds": 3,
+        "drama_intensity": "trung bình",
+    },
+    "advanced": {
+        "label": "Nâng cao — Chất lượng cao hơn",
+        "enable_self_review": True,
+        "self_review_threshold": 3.0,
+        "enable_agent_debate": True,
+        "max_debate_rounds": 3,
+        "enable_smart_revision": True,
+        "smart_revision_threshold": 3.5,
+        "use_long_context": False,
+        "enable_voice_emotion": False,
+        "enable_character_consistency": False,
+        "rag_enabled": False,
+        "context_window_chapters": 5,
+        "num_simulation_rounds": 5,
+        "drama_intensity": "cao",
+    },
+    "pro": {
+        "label": "Chuyên nghiệp — Tất cả tính năng",
+        "enable_self_review": True,
+        "self_review_threshold": 2.5,
+        "enable_agent_debate": True,
+        "max_debate_rounds": 3,
+        "enable_smart_revision": True,
+        "smart_revision_threshold": 3.0,
+        "use_long_context": True,
+        "enable_voice_emotion": True,
+        "enable_character_consistency": True,
+        "rag_enabled": True,
+        "context_window_chapters": 5,
+        "num_simulation_rounds": 5,
+        "drama_intensity": "cao",
+    },
 }
 
 
@@ -189,19 +243,21 @@ class ConfigManager:
             "LONG_CONTEXT_BASE_URL": ("pipeline", "long_context_base_url"),
             "STORYFORGE_AGENT_DEBATE": ("pipeline", "enable_agent_debate"),
             "STORYFORGE_SMART_REVISION": ("pipeline", "enable_smart_revision"),
+            "STORYFORGE_QUALITY_GATE": ("pipeline", "enable_quality_gate"),
+            "STORYFORGE_GATE_THRESHOLD": ("pipeline", "quality_gate_threshold"),
         }
         for env_key, (section, field) in env_map.items():
             val = os.environ.get(env_key)
             if val:
                 target = self.llm if section == "llm" else self.pipeline
-                # Convert to float for temperature
-                if field == "temperature":
+                # Convert to float for float fields
+                if field in ("temperature", "quality_gate_threshold"):
                     try:
                         val = float(val)
                     except ValueError:
                         continue
                 # Convert to bool for boolean fields
-                elif field in ("rag_enabled", "enable_character_consistency", "use_long_context", "enable_agent_debate", "enable_smart_revision"):
+                elif field in ("rag_enabled", "enable_character_consistency", "use_long_context", "enable_agent_debate", "enable_smart_revision", "enable_quality_gate"):
                     val = val.lower() in ("1", "true", "yes")
                 setattr(target, field, val)
 
@@ -265,6 +321,10 @@ class ConfigManager:
                 "character_consistency_provider": self.pipeline.character_consistency_provider,
                 "enable_smart_revision": self.pipeline.enable_smart_revision,
                 "smart_revision_threshold": self.pipeline.smart_revision_threshold,
+                "enable_quality_gate": self.pipeline.enable_quality_gate,
+                "quality_gate_threshold": self.pipeline.quality_gate_threshold,
+                "quality_gate_chapter_threshold": self.pipeline.quality_gate_chapter_threshold,
+                "quality_gate_max_retries": self.pipeline.quality_gate_max_retries,
             },
         }
         if warnings:
@@ -290,4 +350,6 @@ class ConfigManager:
             errors.append("self_review_threshold phải từ 1.0 đến 5.0")
         if not (1.0 <= self.pipeline.smart_revision_threshold <= 5.0):
             errors.append("smart_revision_threshold phải từ 1.0 đến 5.0")
+        if not (1.0 <= self.pipeline.quality_gate_threshold <= 5.0):
+            errors.append("quality_gate_threshold phải từ 1.0 đến 5.0")
         return errors

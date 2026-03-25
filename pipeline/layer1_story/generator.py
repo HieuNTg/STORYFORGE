@@ -11,6 +11,7 @@ from models.schemas import (
 )
 from services.llm_client import LLMClient
 from services import prompts
+from services.adaptive_prompts import build_adaptive_write_prompt
 from config import ConfigManager
 from pipeline.layer1_story.story_bible_manager import StoryBibleManager
 
@@ -228,6 +229,7 @@ class StoryGenerator:
             previous_summary=context_text,
             word_count=word_count,
         )
+        user_prompt = build_adaptive_write_prompt(user_prompt, genre)
         return sys_prompt, user_prompt
 
     def write_chapter(

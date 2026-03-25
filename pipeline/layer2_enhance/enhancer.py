@@ -8,6 +8,7 @@ from models.schemas import (
 from services.llm_client import LLMClient
 from services import prompts
 from services import prompts as prompt_templates
+from services.adaptive_prompts import build_adaptive_enhance_prompt
 from pipeline.layer2_enhance.genre_drama_rules import get_genre_enhancement_hints
 from config import ConfigManager
 
@@ -67,21 +68,24 @@ class StoryEnhancer:
 
         genre_hints = get_genre_enhancement_hints(genre, chapter.chapter_number, total_chapters)
 
+        enhance_prompt = prompts.ENHANCE_CHAPTER.format(
+            original_chapter=chapter.content[:6000],
+            drama_events=events_text,
+            suggestions=suggestions_text,
+            updated_relationships=rel_text,
+            word_count=word_count,
+            genre_style=genre or "kịch tính",
+            genre_hints=genre_hints,
+            strong_points="(sẽ được phân tích trong feedback round)",
+        )
+        enhance_prompt = build_adaptive_enhance_prompt(enhance_prompt, genre)
+
         enhanced_content = self.llm.generate(
             system_prompt=(
                 "Bạn là nhà văn tài năng chuyên viết truyện kịch tính. "
                 "Viết hoàn toàn bằng tiếng Việt."
             ),
-            user_prompt=prompts.ENHANCE_CHAPTER.format(
-                original_chapter=chapter.content[:6000],
-                drama_events=events_text,
-                suggestions=suggestions_text,
-                updated_relationships=rel_text,
-                word_count=word_count,
-                genre_style=genre or "kịch tính",
-                genre_hints=genre_hints,
-                strong_points="(sẽ được phân tích trong feedback round)",
-            ),
+            user_prompt=enhance_prompt,
             max_tokens=8192,
         )
 

@@ -126,6 +126,41 @@ class PipelineOrchestrator:
                          f"Chuong yeu nhat: {l1_score.weakest_chapter}")
                 except Exception as e:
                     logger.warning(f"Quality scoring Layer 1 failed: {e}")
+                    l1_score = None
+
+            if enable_scoring and self.config.pipeline.enable_quality_gate:
+                try:
+                    from services.quality_gate import QualityGate
+                    gate = QualityGate(
+                        gate_threshold=self.config.pipeline.quality_gate_threshold,
+                        chapter_threshold=self.config.pipeline.quality_gate_chapter_threshold,
+                        max_retries=self.config.pipeline.quality_gate_max_retries,
+                    )
+                    gate_result = gate.check(l1_score if self.output.quality_scores else None)
+                    _log(f"[GATE] {gate_result.message}")
+                    if not gate_result.passed and gate_result.should_retry:
+                        _log("[GATE] Dang thu tao lai Layer 1...")
+                        draft = self.story_gen.generate_full_story(
+                            title=title, genre=genre, idea=idea, style=style,
+                            num_chapters=num_chapters, num_characters=num_characters,
+                            word_count=word_count,
+                            progress_callback=lambda m: _log(f"[L1-RETRY] {m}"),
+                            stream_callback=stream_callback,
+                        )
+                        self.output.story_draft = draft
+                        # Re-score after retry
+                        try:
+                            from services.quality_scorer import QualityScorer
+                            scorer = QualityScorer()
+                            l1_score = scorer.score_story(draft.chapters, layer=1)
+                            self.output.quality_scores[-1] = l1_score
+                        except Exception as e:
+                            logger.warning(f"Quality scoring L1-retry failed: {e}")
+                            l1_score = None
+                        gate_result = gate.check(l1_score, retry_count=1)
+                        _log(f"[GATE] Retry result: {gate_result.message}")
+                except Exception as e:
+                    logger.warning(f"Quality gate Layer 1 failed: {e}")
 
             # Auto analytics
             try:
@@ -202,6 +237,41 @@ class PipelineOrchestrator:
                          f"Chuong yeu nhat: {l2_score.weakest_chapter}{delta}")
                 except Exception as e:
                     logger.warning(f"Quality scoring Layer 2 failed: {e}")
+                    l2_score = None
+
+            if enable_scoring and self.config.pipeline.enable_quality_gate:
+                try:
+                    from services.quality_gate import QualityGate
+                    gate = QualityGate(
+                        gate_threshold=self.config.pipeline.quality_gate_threshold,
+                        chapter_threshold=self.config.pipeline.quality_gate_chapter_threshold,
+                        max_retries=self.config.pipeline.quality_gate_max_retries,
+                    )
+                    # Use last appended score (Layer 2)
+                    l2_check_score = self.output.quality_scores[-1] if self.output.quality_scores else None
+                    gate_result = gate.check(l2_check_score)
+                    _log(f"[GATE] {gate_result.message}")
+                    if not gate_result.passed and gate_result.should_retry:
+                        _log("[GATE] Dang thu tao lai Layer 2...")
+                        enhanced = self.enhancer.enhance_with_feedback(
+                            draft=draft, sim_result=sim_result,
+                            word_count=word_count,
+                            progress_callback=lambda m: _log(f"[L2-RETRY] {m}"),
+                        )
+                        self.output.enhanced_story = enhanced
+                        # Re-score after retry
+                        try:
+                            from services.quality_scorer import QualityScorer
+                            scorer = QualityScorer()
+                            l2_score = scorer.score_story(enhanced.chapters, layer=2)
+                            self.output.quality_scores[-1] = l2_score
+                        except Exception as e:
+                            logger.warning(f"Quality scoring L2-retry failed: {e}")
+                            l2_score = None
+                        gate_result = gate.check(l2_score, retry_count=1)
+                        _log(f"[GATE] Retry result: {gate_result.message}")
+                except Exception as e:
+                    logger.warning(f"Quality gate Layer 2 failed: {e}")
 
             # Auto analytics
             try:

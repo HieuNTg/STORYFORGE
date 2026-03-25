@@ -3,7 +3,7 @@
 import threading
 import time
 import gradio as gr
-from config import ConfigManager
+from config import ConfigManager, PIPELINE_PRESETS
 
 
 # ── Web auth helpers (thin wrappers, kept here to avoid circular deps) ──
@@ -73,6 +73,20 @@ def build_settings_tab(_t, i18n, app_block):
         label=_t("label.language"), info=_t("settings.language_restart"),
     )
     gr.Markdown("---")
+
+    # Pipeline preset selector
+    gr.Markdown("### Chế độ cài đặt nhanh")
+    _preset_choices = [f"{v['label']} ({k})" for k, v in PIPELINE_PRESETS.items()]
+    preset_dropdown = gr.Dropdown(
+        choices=["Tùy chỉnh"] + _preset_choices,
+        value="Tùy chỉnh",
+        label="Chế độ cài đặt",
+        info="Chọn preset để tự động cấu hình các tính năng",
+    )
+    apply_preset_btn = gr.Button("Áp dụng preset", size="sm")
+    preset_status = gr.Textbox(label="Trạng thái preset", interactive=False, visible=False)
+    gr.Markdown("---")
+
     compact_mode_cb = gr.Checkbox(
         value=False,
         label=_t("settings.compact_mode") if _t("settings.compact_mode") != "settings.compact_mode" else "Compact Mode",
@@ -161,6 +175,33 @@ def build_settings_tab(_t, i18n, app_block):
         1.0, 5.0, value=config.pipeline.self_review_threshold,
         step=0.5, label=_t("label.self_review_threshold"),
         info=_t("settings.self_review_threshold_info"),
+    )
+
+    # Preset apply handler
+    def apply_preset(choice):
+        if not choice or choice == "Tùy chỉnh":
+            return gr.update(), gr.update(), gr.update(value="Không có thay đổi.", visible=True)
+        key = choice.split("(")[-1].rstrip(")")
+        preset = PIPELINE_PRESETS.get(key)
+        if not preset:
+            return gr.update(), gr.update(), gr.update(value=f"Preset '{key}' không tồn tại.", visible=True)
+        cfg = ConfigManager()
+        for field_name, value in preset.items():
+            if field_name == "label":
+                continue
+            if hasattr(cfg.pipeline, field_name):
+                setattr(cfg.pipeline, field_name, value)
+        cfg.save()
+        return (
+            gr.update(value=preset.get("enable_self_review", False)),
+            gr.update(value=preset.get("self_review_threshold", 3.0)),
+            gr.update(value=f"Đã áp dụng preset: {preset['label']}", visible=True),
+        )
+
+    apply_preset_btn.click(
+        fn=apply_preset,
+        inputs=[preset_dropdown],
+        outputs=[enable_self_review_cb, self_review_threshold, preset_status],
     )
 
     # Save settings
