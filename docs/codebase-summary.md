@@ -28,7 +28,10 @@ novel-auto/
 │   ├── video_exporter.py           # SRT, voiceover, image prompts, CapCut JSON, CSV, ZIP
 │   ├── html_exporter.py            # Self-contained HTML reader (dark/light mode, chapter nav)
 │   ├── tts_audio_generator.py      # Multi-provider TTS (edge-tts, kling, xtts), Vietnamese voices
-│   ├── image_generator.py          # DALL-E / SD API image generation per storyboard panel
+│   ├── image_generator.py          # DALL-E / SD API image generation; now with character consistency
+│   ├── image_prompt_generator.py   # Scene/panel image prompts; frozen visual descriptions (Phase 14)
+│   ├── replicate_ip_adapter.py     # IP-Adapter client for Replicate API (Phase 14)
+│   ├── character_visual_profile.py # Persistent character visual profiles (Phase 14)
 │   ├── credit_manager.py           # Credit/monetization system with bcrypt-hashed accounts
 │   ├── self_review.py              # CoT+CAI self-review for chapter quality assessment
 │   ├── story_brancher.py           # Interactive story branching with DAG management
@@ -124,10 +127,11 @@ novel-auto/
 - Wired to pipeline feedback loop at all Layer 1/2/3 entry points
 
 ### image_generator.py
-- Pluggable provider interface: DALL-E or Stable Diffusion API
+- Pluggable provider interface: DALLE, SD-API, Seedream, Replicate, or none
 - Generates images per storyboard panel from `export_image_prompts()`
-- Provider selection via `STORYFORGE_IMAGE_PROVIDER` env var (`none` disables)
-- API key/URL injected from environment (`IMAGE_API_KEY`, `IMAGE_API_URL`)
+- **Phase 14**: `generate_with_reference()` routes to seedream/replicate for character consistency
+- Provider selection via `STORYFORGE_IMAGE_PROVIDER` env var
+- API key/URL injected from environment (`IMAGE_API_KEY`, `IMAGE_API_URL`, `SEEDREAM_API_KEY`, `REPLICATE_API_KEY`)
 
 ### credit_manager.py
 - Credit/monetization system for metered usage
@@ -214,6 +218,9 @@ novel-auto/
 - `self_review_threshold` (float 1.0-5.0, default: 3.0) — quality threshold for auto-revision
 - **Phase 13**: `rag_enabled` (bool, default: False), `rag_persist_dir` — RAG knowledge base config
 - **Phase 13**: `xtts_api_url`, `xtts_reference_audio`, `character_voice_map` — XTTS voice cloning
+- **Phase 14**: `enable_character_consistency` (bool, default: False) — character visual consistency
+- **Phase 14**: `replicate_api_key` (str) — Replicate API key for IP-Adapter
+- **Phase 14**: `character_consistency_provider` (str, "seedream" | "replicate") — provider selection
 
 ## Character State Tracking (Phase 1)
 
@@ -280,7 +287,8 @@ Chapter → [parallel] summarize + extract_character_states + extract_plot_event
 | Phase 10 | COMPLETE | Self-review config polish, branch persistence, Wattpad enhancements; 813 tests |
 | Phase 11 | COMPLETE | Security fixes, new agents, EPUB pipeline, analytics, web reader upgrades |
 | Phase 13 | COMPLETE | RAG world-building (ChromaDB), agent dependency graph, XTTS v2 voice cloning; 973 tests |
+| Phase 14 | COMPLETE | Character-consistent images (IP-Adapter + Seedream), visual profile store; 1025 tests |
 
 ---
 
-**Last Updated**: 2026-03-25 | **Doc Version**: 2.0 (Phase 13: RAG World-Building, Agent DAG, XTTS Voice Cloning)
+**Last Updated**: 2026-03-25 | **Doc Version**: 2.1 (Phase 14: Character-Consistent Images with IP-Adapter & Visual Profiles)

@@ -17,6 +17,8 @@ Input: Genre + Story Idea + Config
 │ - Character State Tracking: mood, arc, knowledge per chapter     │
 │ - Track plot events for continuity (cap 50)                      │
 │ - CoT Self-Review: Identify weak chapters (<3.0/5.0), auto-revise│
+│ - Character Visual Profiles: Save & load appearance + reference  │
+│   images for consistent image generation (Phase 14)              │
 │ Output: StoryDraft (chapters + character_states + plot_events)   │
 └─────────────────────────────────────────────────────────────────┘
   ↓
@@ -61,7 +63,9 @@ Input: Genre + Story Idea + Config
 │ HTMLExporter   → Self-contained HTML reader                       │
 │ TTSGenerator   → Multi-provider (edge-tts, kling, xtts) MP3/WAV  │
 │                  XTTS v2 voice cloning per character (Phase 13)   │
-│ ImageGenerator → DALL-E / SD panels from image prompts           │
+│ ImageGenerator → DALL-E / SD / Seedream / Replicate IP-Adapter   │
+│                  Character-consistent images via reference        │
+│                  images & frozen visual descriptions (Phase 14)   │
 └─────────────────────────────────────────────────────────────────┘
   ↓
 Final Output: novel + enhanced story + quality scores + video assets + audio + images
@@ -203,22 +207,87 @@ TTSAudioGenerator
 - Multipart POST to Coqui TTS server or Replicate API
 - character_voice_map config controls voice per character
 
-### ImageGenerator (services/image_generator.py)
+### ImageGenerator (services/image_generator.py) — Phase 14 Character Consistency
 
 ```
 ImageGenerator
 ├─ __init__(provider, api_key, api_url)
-│  └─ provider: "none" | "dalle" | "sd"
+│  └─ provider: "none" | "dalle" | "sd-api" | "seedream" | "replicate"
 ├─ generate_panel_image(prompt: str, panel_number: int) → Optional[str]
 │  ├─ "none" → skip (returns None)
 │  ├─ "dalle" → OpenAI images.generate() → download + save
-│  └─ "sd"   → POST to IMAGE_API_URL with IMAGE_API_KEY → save
+│  ├─ "sd-api" → POST to IMAGE_API_URL with IMAGE_API_KEY
+│  ├─ "seedream" → ByteDance Seedream API
+│  └─ "replicate" → Replicate IP-Adapter (requires reference images)
+├─ generate_with_reference(prompt: str, reference_paths: list[str], filename: str)
+│  └─ Routes to seedream/replicate for character-consistent generation
 └─ batch_generate(image_prompts: list[str]) → list[Optional[str]]
    └─ ThreadPoolExecutor (max 3 workers)
 ```
 
 **Provider selection**: `STORYFORGE_IMAGE_PROVIDER` env var
-**Credentials**: `IMAGE_API_KEY`, `IMAGE_API_URL`
+**Credentials**: `IMAGE_API_KEY`, `IMAGE_API_URL`, `SEEDREAM_API_KEY`, `REPLICATE_API_KEY`
+
+### ReplicateIPAdapter (services/replicate_ip_adapter.py) — Phase 14
+
+```
+ReplicateIPAdapter
+├─ __init__(api_key, model)
+│  └─ model: "tencentarc/ip-adapter-faceid-sdxl" (default)
+├─ is_configured() → bool
+├─ generate(prompt: str, reference_image_path: str, filename: str)
+│  ├─ Encode reference image as base64 data URI
+│  ├─ POST to Replicate /v1/predictions with prompt + image
+│  ├─ Poll for completion (3-sec intervals, 120-sec timeout)
+│  ├─ Download result image
+│  └─ Return filepath or None on error
+└─ Graceful fallback: logs warning if not configured
+```
+
+**Config**: `replicate_api_key` in PipelineConfig or `REPLICATE_API_KEY` env var
+**Model**: IP-Adapter FaceID-SDXL for character identity consistency
+
+### CharacterVisualProfileStore (services/character_visual_profile.py) — Phase 14
+
+```
+CharacterVisualProfileStore
+├─ __init__(base_dir: str = "output/characters")
+│  └─ Persistent store in base_dir/{safe_char_name}/
+├─ save_profile(name: str, appearance_desc: str, reference_image_path: str)
+│  ├─ Store profile.json with description + reference image path
+│  ├─ Copy reference image into profile directory
+│  └─ Log timestamp (ISO format)
+├─ load_profile(name: str) → Optional[dict]
+│  └─ Returns {"name", "description", "reference_image", "created_at"}
+├─ has_profile(name: str) → bool
+├─ get_reference_image(name: str) → Optional[str]
+│  └─ Returns filesystem path to reference image or None
+├─ get_visual_description(name: str) → str
+│  └─ Returns frozen description for prompt injection
+├─ build_visual_description(character) → str
+│  └─ Extract appearance + personality from Character object
+├─ list_profiles() → list[dict]
+│  └─ All saved profiles with metadata
+└─ delete_profile(name: str) → bool
+   └─ Remove profile directory + images
+```
+
+**Integration**: MediaProducer loads/creates profiles when `enable_character_consistency=True`. ImagePromptGenerator injects frozen descriptions into all panel prompts.
+**Storage**: JSON metadata + images in `output/characters/{safe_name}/`
+
+### ImagePromptGenerator Enhanced (services/image_prompt_generator.py) — Phase 14
+
+```
+ImagePromptGenerator
+├─ generate_from_panel(panel, visual_profiles: dict = {})
+│  └─ Inject frozen visual descriptions for each character in visual_profiles
+├─ generate_from_chapter(chapter, visual_profiles: dict = {})
+│  └─ Build panel prompts with consistent character descriptions
+└─ Frozen visual descriptions ensure identical character appearance
+   across all generated images in story
+```
+
+**Integration**: MediaProducer passes `visual_profiles` dict loaded from CharacterVisualProfileStore
 
 ### CreditManager (services/credit_manager.py)
 
@@ -430,16 +499,23 @@ ConfigManager (singleton)
    ├─ rag_enabled (bool, default: False)  [PHASE 13]
    ├─ rag_persist_dir (str)  [PHASE 13]
    ├─ xtts_api_url, xtts_reference_audio (str)  [PHASE 13]
-   └─ character_voice_map (dict[str, str])  [PHASE 13]
+   ├─ character_voice_map (dict[str, str])  [PHASE 13]
+   ├─ enable_character_consistency (bool, default: False)  [PHASE 14]
+   ├─ replicate_api_key (str)  [PHASE 14]
+   └─ character_consistency_provider ("seedream" | "replicate")  [PHASE 14]
 
 Environment overrides:
-├─ STORYFORGE_IMAGE_PROVIDER (none | dalle | sd)
+├─ STORYFORGE_IMAGE_PROVIDER (none | dalle | sd-api | seedream | replicate)
 ├─ IMAGE_API_KEY
-└─ IMAGE_API_URL
+├─ IMAGE_API_URL
+├─ SEEDREAM_API_KEY  [PHASE 14]
+├─ SEEDREAM_API_URL  [PHASE 14]
+└─ REPLICATE_API_KEY  [PHASE 14]
 ```
 
 **Phase 10 Addition**: Self-review configuration allows users to opt-in and customize quality thresholds per pipeline run.
 **Phase 13 Addition**: RAG and XTTS voice cloning configuration; RAG optional, XTTS provider selection with fallback.
+**Phase 14 Addition**: Character consistency configuration; enable visual profile store + choose provider (seedream uses image descriptions, replicate uses reference images).
 
 ## Error Handling
 
@@ -462,6 +538,6 @@ Rolling context budget: last `context_window_chapters` summaries + char states (
 
 ---
 
-**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Web auth, credits, TTS, and image generation are transparent to core pipeline logic. Phase 9 adds CoT self-review, interactive branching, and expanded export capabilities. Phase 10 adds configuration polish and persistence. Phase 13 adds RAG world-building context, agent dependency graph orchestration, and multi-provider voice synthesis with XTTS v2 cloning.
+**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Web auth, credits, TTS, and image generation are transparent to core pipeline logic. Phase 9 adds CoT self-review, interactive branching, and expanded export capabilities. Phase 10 adds configuration polish and persistence. Phase 13 adds RAG world-building context, agent dependency graph orchestration, and multi-provider voice synthesis with XTTS v2 cloning. Phase 14 adds character visual profile persistence and multi-provider character-consistent image generation (IP-Adapter + Seedream).
 
-**Last Updated**: 2026-03-25 | **Version**: 1.8 (Phase 13: RAG World-Building, Agent DAG, XTTS Voice Cloning)
+**Last Updated**: 2026-03-25 | **Version**: 1.9 (Phase 14: Character-Consistent Images with IP-Adapter & Visual Profiles)
