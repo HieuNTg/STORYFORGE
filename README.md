@@ -1,64 +1,70 @@
-# StoryForge
-
-**Automatically generate dramatic stories and video scripts with AI.**
-
-A 3-layer pipeline that turns ideas into complete stories, simulates characters to increase drama, then exports video scripts with detailed storyboards.
-
----
-
-## Pipeline
-
 ```
-Idea → [Layer 1: Story Generation] → [Layer 2: Drama Simulation] → [Layer 3: Video Script] → Output
+ ____ _____ ___  ______   _______ ___  ____   ____ _____
+/ ___|_   _/ _ \|  _ \ \ / /  ___/ _ \|  _ \ / ___| ____|
+\___ \ | || | | | |_) \ V /| |_ | | | | |_) | |  _|  _|
+ ___) || || |_| |  _ < | | |  _|| |_| |  _ <| |_| | |___
+|____/ |_| \___/|_| \_\|_| |_|   \___/|_| \_\\____|_____|
 ```
 
-### Layer 1 — Story Generation
+# STORYFORGE — AI Story Generation Pipeline
 
-- Create characters with personality, backstory, and motivations
-- Build world settings (world-building)
-- Generate detailed chapter outlines
-- Write chapters automatically with rolling context (tracking character state, plot events)
-- Real-time streaming preview while writing
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Alpine.js](https://img.shields.io/badge/Alpine.js-8BC0D0.svg?logo=alpine.js&logoColor=white)](https://alpinejs.dev)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-### Layer 2 — Drama Enhancement
-
-- Analyze relationships and conflicts between characters
-- Each character becomes an autonomous AI agent — interacting, confronting, betraying
-- Extract dramatic situations from simulation
-- Rewrite story with higher drama score
-
-### Layer 3 — Video Script
-
-- Generate storyboard: shot type, camera movement, mood
-- Create image prompts for AI image generation
-- Voice-over script with emotions
-- Character and setting visual descriptions
+> **StoryForge** turns a one-sentence idea into a complete, drama-enhanced story with video-ready storyboards — powered by any OpenAI-compatible LLM.
 
 ---
 
-## Features
+## What is StoryForge?
 
-| Feature | Description |
-|---|---|
-| **Character State Tracking** | Track character state across chapters (mood, actions, relationships) |
-| **Model Routing** | Use cheap model for summaries/analysis, main model for writing — saves ~45% cost |
-| **Streaming Preview** | Watch AI write each chapter in real-time |
-| **File Export** | Export PDF, EPUB, ZIP — download individual files or everything |
-| **Quality Metrics** | Auto-score on 4 dimensions: coherence, character, drama, writing (1-5) |
-| **Agent Review** | AI review board evaluates quality after each layer |
-| **Checkpoint/Resume** | Save progress, resume pipeline from any layer |
-| **LLM Cache** | Cache LLM responses, reduce cost on re-runs |
+Most AI writing tools generate flat, predictable stories. You get characters who never surprise you and plots that follow the path of least resistance.
+
+StoryForge is different. It runs a **3-layer pipeline** where characters become autonomous AI agents that interact, confront, and betray each other in a drama simulation. The simulation discovers conflicts the author never planned — then rewrites the story around them.
+
+The result: stories with genuine dramatic tension, not just grammatically correct prose.
 
 ---
 
-## Installation
+## Key Features
 
-### Requirements
+- **3-Layer Pipeline** — generation → drama simulation → video storyboard, fully automated
+- **Autonomous Character Agents** — each character acts independently based on personality, goals, and relationships
+- **Drama Simulation** — AI agents interact in rounds; conflicts, betrayals, and alliances emerge organically
+- **Quality Scoring** — auto-scored on 4 dimensions: coherence, character depth, drama, writing quality (1–5)
+- **Agent Review Board** — 5 specialist AI critics evaluate and improve the story after each layer
+- **Smart Model Routing** — cheap model for analysis, main model for writing (~45% cost savings)
+- **Checkpoint & Resume** — save progress at any layer, resume on interruption
+- **Export** — PDF, EPUB, or ZIP with all assets
+- **Real-time Streaming** — watch chapters being written live in the browser
+
+---
+
+## Screenshots
+
+> _Coming soon — run the app locally to see the UI._
+
+<!-- Uncomment when screenshots are available:
+| Create Story | Pipeline Running | Reader |
+|:---:|:---:|:---:|
+| ![Create](screenshots/01-create.png) | ![Running](screenshots/02-running.png) | ![Reader](screenshots/03-reader.png) |
+
+| Analytics | Export | Settings |
+|:---:|:---:|:---:|
+| ![Analytics](screenshots/04-analytics.png) | ![Export](screenshots/05-export.png) | ![Settings](screenshots/06-settings.png) |
+-->
+
+---
+
+## Quick Start
+
+### Prerequisites
 
 - Python 3.10+
-- API key from an OpenAI-compatible provider (OpenAI, Google Gemini, Anthropic, OpenRouter, Ollama, etc.)
+- API key from any OpenAI-compatible provider
 
-### Setup
+### Install
 
 ```bash
 git clone https://github.com/HieuNTg/novel-auto.git
@@ -70,25 +76,83 @@ pip install -r requirements.txt
 
 ```bash
 python app.py
+# Web UI at http://localhost:7860
 ```
 
-Open your browser at `http://localhost:7860`
+### First Run
+
+1. **Settings** → choose your AI provider, enter API key, select a model
+2. **Create Story** → pick genre, writing style, describe your idea
+3. **Run Pipeline** → watch generation, simulation, and storyboarding in real-time
+4. **Reader** → read the finished story chapter by chapter
+5. **Export** → download as PDF, EPUB, or ZIP
+
+---
+
+## How It Works
+
+**Layer 1 — Story Generation**
+
+Create characters with personality, backstory, and motivations. Build the world. Generate chapter outlines. Write full chapters with rolling context that tracks character states and plot events across the entire story.
+
+**Layer 2 — Drama Enhancement**
+
+Each character becomes an autonomous AI agent. Agents interact across multiple simulation rounds — forming alliances, confronting rivals, discovering secrets. The system extracts dramatic situations from the simulation and rewrites the story with a higher drama score.
+
+**Layer 3 — Video Script**
+
+Generate shot-by-shot storyboards: camera angles, movement, mood. Create AI image generation prompts for each shot. Produce voice-over scripts with emotional cues and detailed visual descriptions for every scene.
+
+```
+Idea → [Layer 1: Write] → [Layer 2: Simulate] → [Layer 3: Storyboard] → Export
+         Characters          Agent Conflicts       Camera Angles           PDF
+         World-building       Drama Rewrite         Image Prompts          EPUB
+         Chapters             Quality Score         Voice-over             ZIP
+```
 
 ---
 
 ## Configuration
 
-Go to the **Settings** page in the web UI:
+All settings are managed through the web UI at **Settings**:
 
 | Setting | Description | Default |
-|---|---|---|
-| AI Provider | Choose from OpenAI, Gemini, Anthropic, OpenRouter, Ollama, or Custom | OpenAI |
-| API Key | Key from your LLM provider | — |
-| Model | Main model (for writing) | `gpt-5.4-nano` |
-| Secondary Model | Cheap model (for summaries, analysis) | _(blank = use main model)_ |
-| Temperature | Creativity level | `0.8` |
+|:--------|:------------|:--------|
+| **AI Provider** | OpenAI, Gemini, Anthropic, OpenRouter, Ollama, or Custom | OpenAI |
+| **API Key** | Your LLM provider key | — |
+| **Model** | Primary model for story writing | `gpt-5.4-nano` |
+| **Secondary Model** | Budget model for summaries & analysis | _(same as primary)_ |
+| **Temperature** | Creativity level (0.0 – 1.0) | `0.8` |
 
-Configuration is saved to `data/config.json`.
+Config is persisted to `data/config.json`.
+
+---
+
+## Compatible API Providers
+
+Works with any provider exposing an OpenAI-compatible `/v1/chat/completions` endpoint:
+
+| Provider | Models | Notes |
+|:---------|:-------|:------|
+| **OpenAI** | GPT-5.4, o3, o4-mini | Default provider |
+| **Google Gemini** | Gemini 2.5, 3.1 | Via OpenAI-compatible endpoint |
+| **Anthropic** | Haiku 4.5, Sonnet 4.6, Opus 4.6 | Via OpenAI-compatible endpoint |
+| **OpenRouter** | 290+ models | Free tier available |
+| **Ollama** | Any local model | Free, runs locally |
+| **Custom** | Any compatible model | Provide base URL |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|:------|:-----------|
+| Backend | Python 3.10+, FastAPI, Uvicorn |
+| Frontend | Alpine.js 3, Tailwind CSS, vanilla JS |
+| Streaming | Server-Sent Events (SSE) via fetch + ReadableStream |
+| Storage | JSON files, sessionStorage (client-side) |
+| Export | ReportLab (PDF), ebooklib (EPUB), zipfile |
+| LLM | Any OpenAI-compatible API |
 
 ---
 
@@ -96,71 +160,38 @@ Configuration is saved to `data/config.json`.
 
 ```
 storyforge/
-├── app.py                          # FastAPI + Web UI
-├── config.py                       # Configuration management
-├── api/                            # REST API routes
-│   ├── __init__.py                 # Router registry
-│   ├── config_routes.py            # Settings CRUD, connection test
-│   ├── pipeline_routes.py          # Pipeline SSE streaming
-│   ├── export_routes.py            # PDF, EPUB, ZIP export
-│   └── account_routes.py           # Login/register
-├── web/                            # Frontend (Alpine.js + Tailwind)
-│   ├── index.html                  # Single-page app
-│   └── js/                         # JavaScript modules
+├── app.py                        # FastAPI server + web UI
+├── config.py                     # Configuration management
+├── api/                          # REST API routes
+│   ├── config_routes.py          #   Settings CRUD, connection test
+│   ├── pipeline_routes.py        #   Pipeline SSE streaming + resume
+│   └── export_routes.py          #   PDF, EPUB, ZIP export
+├── web/                          # Frontend (Alpine.js + Tailwind)
+│   ├── index.html                #   Single-page application
+│   └── js/                       #   JavaScript modules
 ├── models/
-│   └── schemas.py                  # Pydantic models
+│   └── schemas.py                # Pydantic data models
 ├── services/
-│   ├── llm_client.py               # LLM API client
-│   ├── llm_cache.py                # Cache LLM responses
-│   ├── quality_scorer.py           # Story quality scoring
-│   └── prompts.py                  # Prompt templates
+│   ├── llm_client.py             # LLM API client
+│   ├── llm_cache.py              # Response cache
+│   ├── quality_scorer.py         # 4-dimension quality scoring
+│   └── prompts.py                # Prompt templates
 ├── pipeline/
-│   ├── orchestrator.py             # 3-layer pipeline orchestrator
-│   ├── layer1_story/
-│   │   └── generator.py            # Story generation from scratch
-│   ├── layer2_enhance/
-│   │   ├── analyzer.py             # Character relationship analysis
-│   │   ├── simulator.py            # AI agent simulation
-│   │   └── enhancer.py             # Drama enhancement rewrite
-│   ├── layer3_video/
-│   │   └── storyboard.py           # Storyboard & script generation
-│   └── agents/                     # AI review board
-│       ├── agent_registry.py
+│   ├── orchestrator.py           # 3-layer pipeline orchestrator
+│   ├── layer1_story/             # Story generation
+│   ├── layer2_enhance/           # Drama simulation & enhancement
+│   ├── layer3_video/             # Storyboard & script generation
+│   └── agents/                   # AI review board
 │       ├── drama_critic.py
 │       ├── continuity_checker.py
 │       ├── character_specialist.py
 │       ├── dialogue_expert.py
 │       └── editor_in_chief.py
-├── requirements.txt
-└── docs/                           # Technical documentation
+└── docs/                         # Technical documentation
 ```
-
----
-
-## Usage
-
-1. **Setup API** — Go to Settings, choose your AI provider, enter API key, and select a model
-2. **Enter your idea** — Choose genre, writing style, describe your story idea
-3. **Configure** — Number of chapters, characters, words per chapter, drama level
-4. **Run Pipeline** — Click the button, watch progress in real-time
-5. **View results** — Tabs: Draft, Enhanced, Simulation, Quality
-6. **Export** — Download PDF, EPUB, or ZIP
-
----
-
-## Compatible APIs
-
-Supports any OpenAI-compatible API:
-
-- OpenAI (GPT-5.4, o3, o4-mini)
-- Google Gemini (Gemini 2.5, 3.1 via OpenAI-compatible endpoint)
-- Anthropic Claude (Haiku 4.5, Sonnet 4.6, Opus 4.6)
-- OpenRouter (290+ models, free options available)
-- Ollama (local, free)
-- Any provider with a `/v1/chat/completions` endpoint
 
 ---
 
 ## License
 
-MIT
+[MIT](LICENSE) — Copyright 2026 StoryForge Contributors
