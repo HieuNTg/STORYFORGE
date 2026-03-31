@@ -16,14 +16,8 @@ from fastapi.staticfiles import StaticFiles
 from config import ConfigManager
 
 # Logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("storyforge.log", encoding="utf-8"),
-    ],
-)
+from services.structured_logger import configure_logging
+configure_logging()
 logger = logging.getLogger(__name__)
 
 # Uptime tracking
@@ -38,6 +32,10 @@ def main():
     set_start_time(_START_TIME)
 
     main_app = FastAPI(title="StoryForge")
+
+    from errors.exceptions import StoryForgeError
+    from errors.handlers import storyforge_error_handler
+    main_app.add_exception_handler(StoryForgeError, storyforge_error_handler)
 
     # API routes
     main_app.include_router(api_router)

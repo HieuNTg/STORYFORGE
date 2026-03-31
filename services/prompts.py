@@ -3,6 +3,17 @@
 Prompts are in Vietnamese (canonical). For other languages, use
 `localize_prompt()` to prepend a language instruction so the LLM
 responds in the target language while still understanding the VN prompt.
+
+# Language Policy:
+# - All prompt templates are Vietnamese by default (target audience)
+# - localize_prompt() in llm_client.py handles runtime translation when
+#   config.pipeline.language != "vi"
+# - System prompts use Vietnamese; user prompts use the configured language
+# - Prompt constants should use Vietnamese with clear structure for localization
+#
+# localize_prompt() is called in llm_client.py generate() and generate_json()
+# before every LLM call (lines ~294-297 and ~507-510), so all prompts get
+# wrapped automatically when language != "vi". No per-prompt handling needed.
 """
 
 
@@ -27,12 +38,14 @@ def localize_prompt(prompt: str, language: str = "vi") -> str:
 # LAYER 1: TẠO TRUYỆN
 # ============================================================
 
+# vi-only
 SUGGEST_TITLE = """Bạn là nhà văn sáng tạo chuyên viết truyện {genre}.
 Hãy đề xuất 5 tiêu đề hấp dẫn cho một câu truyện thuộc thể loại {genre}.
 Yêu cầu thêm: {requirements}
 
 Trả về JSON: {{"titles": ["tiêu đề 1", "tiêu đề 2", ...]}}"""
 
+# vi-only
 GENERATE_CHARACTERS = """Bạn là nhà văn chuyên xây dựng nhân vật cho truyện {genre}.
 Tiêu đề truyện: {title}
 Ý tưởng: {idea}
@@ -55,6 +68,7 @@ Trả về JSON:
   ]
 }}"""
 
+# vi-only
 GENERATE_WORLD = """Bạn là kiến trúc sư thế giới cho truyện {genre}.
 Tiêu đề: {title}
 Nhân vật: {characters}
@@ -70,6 +84,7 @@ Trả về JSON:
   "era": "thời đại"
 }}"""
 
+# vi-only
 GENERATE_OUTLINE = """Bạn là biên kịch chuyên xây dựng cốt truyện {genre}.
 Tiêu đề: {title}
 Nhân vật: {characters}
@@ -129,6 +144,7 @@ Trả về JSON:
   ]
 }}"""
 
+# vi-only
 WRITE_CHAPTER = """Bạn là tiểu thuyết gia tài năng chuyên viết {genre} bằng tiếng Việt.
 
 Phong cách viết: {style}
@@ -154,6 +170,7 @@ YÊU CẦU:
 
 Bắt đầu viết chương:"""
 
+# vi-only
 SUMMARIZE_CHAPTER = """Tóm tắt ngắn gọn nội dung chương truyện sau trong 3-5 câu,
 tập trung vào sự kiện chính và phát triển nhân vật:
 

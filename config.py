@@ -109,6 +109,9 @@ class PipelineConfig:
     # Voice emotion synthesis
     enable_voice_emotion: bool = False
 
+    # Prompt injection defense mode: False = log-only, True = block and raise error
+    block_on_injection: bool = False
+
     # Multi-agent debate prototype
     enable_agent_debate: bool = False
     max_debate_rounds: int = 3
@@ -253,6 +256,7 @@ class ConfigManager:
             "STORYFORGE_SMART_REVISION": ("pipeline", "enable_smart_revision"),
             "STORYFORGE_QUALITY_GATE": ("pipeline", "enable_quality_gate"),
             "STORYFORGE_GATE_THRESHOLD": ("pipeline", "quality_gate_threshold"),
+            "STORYFORGE_BLOCK_INJECTION": ("pipeline", "block_on_injection"),
         }
         for env_key, (section, field) in env_map.items():
             val = os.environ.get(env_key)
@@ -265,7 +269,7 @@ class ConfigManager:
                     except ValueError:
                         continue
                 # Convert to bool for boolean fields
-                elif field in ("rag_enabled", "enable_character_consistency", "use_long_context", "enable_agent_debate", "enable_smart_revision", "enable_quality_gate"):
+                elif field in ("rag_enabled", "enable_character_consistency", "use_long_context", "enable_agent_debate", "enable_smart_revision", "enable_quality_gate", "block_on_injection"):
                     val = val.lower() in ("1", "true", "yes")
                 setattr(target, field, val)
 
@@ -278,7 +282,7 @@ class ConfigManager:
             raise ValueError(f"Config invalid: {'; '.join(critical)}")
         data = {
             "llm": {
-                "api_key": self.llm.api_key,
+                # api_key excluded — use STORYFORGE_API_KEY env var
                 "base_url": self.llm.base_url,
                 "model": self.llm.model,
                 "temperature": self.llm.temperature,
@@ -308,16 +312,16 @@ class ConfigManager:
                 "share_base_url": self.pipeline.share_base_url,
                 "pdf_font": self.pipeline.pdf_font,
                 "image_provider": self.pipeline.image_provider,
-                "image_api_key": self.pipeline.image_api_key,
+                # image_api_key excluded — use IMAGE_API_KEY env var
                 "image_api_url": self.pipeline.image_api_url,
-                "seedream_api_key": self.pipeline.seedream_api_key,
+                # seedream_api_key excluded — use SEEDREAM_API_KEY env var
                 "seedream_api_url": self.pipeline.seedream_api_url,
                 "arc_size": self.pipeline.arc_size,
                 "story_bible_enabled": self.pipeline.story_bible_enabled,
                 "enable_self_review": self.pipeline.enable_self_review,
                 "self_review_threshold": self.pipeline.self_review_threshold,
                 "tts_provider": self.pipeline.tts_provider,
-                "kling_tts_api_key": self.pipeline.kling_tts_api_key,
+                # kling_tts_api_key excluded — use KLING_TTS_API_KEY env var
                 "kling_tts_api_url": self.pipeline.kling_tts_api_url,
                 "rag_enabled": self.pipeline.rag_enabled,
                 "rag_persist_dir": self.pipeline.rag_persist_dir,
@@ -325,7 +329,7 @@ class ConfigManager:
                 "xtts_reference_audio": self.pipeline.xtts_reference_audio,
                 "character_voice_map": self.pipeline.character_voice_map,
                 "enable_character_consistency": self.pipeline.enable_character_consistency,
-                "replicate_api_key": self.pipeline.replicate_api_key,
+                # replicate_api_key excluded — use REPLICATE_API_KEY env var
                 "character_consistency_provider": self.pipeline.character_consistency_provider,
                 "enable_smart_revision": self.pipeline.enable_smart_revision,
                 "smart_revision_threshold": self.pipeline.smart_revision_threshold,
@@ -333,6 +337,7 @@ class ConfigManager:
                 "quality_gate_threshold": self.pipeline.quality_gate_threshold,
                 "quality_gate_chapter_threshold": self.pipeline.quality_gate_chapter_threshold,
                 "quality_gate_max_retries": self.pipeline.quality_gate_max_retries,
+                # long_context_api_key excluded — use LONG_CONTEXT_API_KEY env var
             },
         }
         if warnings:

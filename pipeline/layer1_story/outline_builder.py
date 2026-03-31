@@ -1,0 +1,87 @@
+"""Outline and world-building generation functions."""
+
+import logging
+from typing import Optional, TYPE_CHECKING
+
+from models.schemas import Character, WorldSetting, ChapterOutline
+from services import prompts
+
+if TYPE_CHECKING:
+    from services.llm_client import LLMClient
+
+logger = logging.getLogger(__name__)
+
+
+def suggest_titles(
+    llm: "LLMClient",
+    genre: str,
+    requirements: str = "",
+) -> list[str]:
+    """Suggest story titles for a given genre."""
+    result = llm.generate_json(
+        system_prompt="Bạn là nhà văn sáng tạo. Trả về JSON.",
+        user_prompt=prompts.SUGGEST_TITLE.format(
+            genre=genre, requirements=requirements
+        ),
+    )
+    return result.get("titles", [])
+
+
+def generate_world(
+    llm: "LLMClient",
+    config,
+    title: str,
+    genre: str,
+    characters: list[Character],
+    rag_kb=None,
+) -> WorldSetting:
+    """Generate world setting, optionally injecting RAG context."""
+    chars_text = "\n".join(
+        f"- {c.name} ({c.role}): {c.personality}" for c in characters
+    )
+    world_prompt = prompts.GENERATE_WORLD.format(
+        genre=genre, title=title, characters=chars_text,
+    )
+
+    # Prepend RAG context if enabled
+    if config.pipeline.rag_enabled and rag_kb is not None and rag_kb.is_available:
+        rag_docs = rag_kb.query(f"world setting {genre} {title}", n_results=3)
+        if rag_docs:
+            rag_section = prompts.RAG_CONTEXT_SECTION.format(
+                rag_context="\n---\n".join(rag_docs)
+            )
+            world_prompt = rag_section + world_prompt
+
+    result = llm.generate_json(
+        system_prompt="Bạn là kiến trúc sư thế giới. Trả về JSON.",
+        user_prompt=world_prompt,
+    )
+    return WorldSetting(**result)
+
+
+def generate_outline(
+    llm: "LLMClient",
+    title: str,
+    genre: str,
+    characters: list[Character],
+    world: WorldSetting,
+    idea: str,
+    num_chapters: int = 10,
+) -> tuple[str, list[ChapterOutline]]:
+    """Generate story outline. Returns (synopsis, outlines)."""
+    chars_text = "\n".join(
+        f"- {c.name} ({c.role}): {c.personality}, Động lực: {c.motivation}"
+        for c in characters
+    )
+    result = llm.generate_json(
+        system_prompt="Bạn là biên kịch tài năng. Trả về JSON.",
+        user_prompt=prompts.GENERATE_OUTLINE.format(
+            genre=genre, title=title, characters=chars_text,
+            world=f"{world.name}: {world.description}",
+            idea=idea, num_chapters=num_chapters,
+        ),
+        temperature=0.9,
+    )
+    synopsis = result.get("synopsis", "")
+    outlines = [ChapterOutline(**o) for o in result.get("outlines", [])]
+    return synopsis, outlines

@@ -202,6 +202,20 @@ class StoryKnowledgeGraph:
 
         return self
 
+    def get_entity_context(self, char_names: list[str], max_chars: int = 1000) -> str:
+        """Return relationship summary text for given character names (for prompt injection)."""
+        lines = []
+        for name in char_names:
+            rels = self.get_character_relationships(name)
+            if rels:
+                rel_strs = []
+                for r in rels[:5]:
+                    target = r.get("target", r.get("source", "")).replace("char:", "").replace("event:", "")
+                    rel_strs.append(f"{r.get('type', '?')}→{target}")
+                lines.append(f"- {name}: {', '.join(rel_strs)}")
+        summary = "\n".join(lines)
+        return summary[:max_chars]
+
     def to_summary(self, max_chars: int = 2000) -> str:
         """Export graph as compact text summary for LLM context injection."""
         lines = []

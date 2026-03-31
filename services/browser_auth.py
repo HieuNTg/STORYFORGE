@@ -39,7 +39,14 @@ _ENCRYPTED_MARKER = b"SF_ENC:"
 
 
 def _get_or_create_fernet():
-    """Get or create Fernet encryption key for auth profiles."""
+    """Get or create Fernet encryption key for auth profiles.
+
+    Intentionally independent from services/secret_manager.py.
+    secret_manager.py encrypts config secrets at rest using STORYFORGE_SECRET_KEY
+    env var (suitable for server/Docker deployments).
+    This function manages a local machine key in data/.auth_key for browser
+    session credentials — a separate trust boundary (local-only, no env var needed).
+    """
     os.makedirs(os.path.dirname(_ENCRYPTION_KEY_PATH), exist_ok=True)
     if os.path.exists(_ENCRYPTION_KEY_PATH):
         with open(_ENCRYPTION_KEY_PATH, "rb") as f:

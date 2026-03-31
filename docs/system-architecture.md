@@ -17,14 +17,24 @@ Input: Genre + Story Idea + Config
 └─────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
+│ ERROR HANDLING LAYER (Sprint 2)                                  │
+│ - Exception hierarchy: StoryForgeError base class                │
+│ - FastAPI exception handlers: typed errors → HTTP responses      │
+│ - Structured logging: JSON format on LOG_FORMAT=json env var     │
+└─────────────────────────────────────────────────────────────────┘
+  ↓
+┌─────────────────────────────────────────────────────────────────┐
 │ ONBOARDING (Phase 19)                                            │
 │ - OnboardingManager: 4-step wizard (genre→chars→style→confirm)  │
 │ - State machine; config pre-populated before pipeline starts    │
 └─────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ LAYER 1: Story Generation (StoryGenerator)                       │
-│ - Generate characters, world, chapter outlines                   │
+│ LAYER 1: Story Generation (Modular Architecture, Sprint 2)      │
+│ - OrchestrationShell (generator.py): routes to submodules       │
+│ - CharacterGenerator: character creation + state extraction     │
+│ - OutlineBuilder: title suggestion + world + outline generation │
+│ - ChapterWriter: chapter writing + prompt building + context    │
 │ - RAG Knowledge Base: Inject world/character context (Phase 13) │
 │ - Parallel chapter writing with rolling context                  │
 │ - Character State Tracking: mood, arc, knowledge per chapter    │
@@ -33,9 +43,7 @@ Input: Genre + Story Idea + Config
 │ - Character Visual Profiles: Save & load appearance + reference │
 │   images for consistent image generation (Phase 14)             │
 │ - Long-Context LLM: Token counting & context-window awareness   │
-│   (Phase 15); full chapter handling via long_context_client     │
 │ - Adaptive Prompts: 12 genre-specific + 4 score-booster prompts │
-│   injected per chapter via AdaptivePrompts service (Phase 18)   │
 │ Output: StoryDraft (chapters + character_states + plot_events)  │
 └─────────────────────────────────────────────────────────────────┘
   ↓
@@ -174,6 +182,47 @@ app.py
 **Benefits**: each tab is independently testable; app.py only wires layout + event routing.
 
 **Output tabs** (4): Truyen | Mo Phong | Video | Danh Gia
+
+## Error Handling Layer (Sprint 2)
+
+### Exception Hierarchy (errors/exceptions.py)
+
+```
+StoryForgeError (base)
+├─ ConfigError — configuration validation failures
+├─ LLMError — LLM provider/API errors
+├─ PipelineError — pipeline execution errors
+└─ ValidationError — input/output validation failures
+```
+
+**Purpose**: Typed exceptions for domain logic; enables typed exception handling in FastAPI.
+
+### Exception Handlers (errors/handlers.py)
+
+```
+StoryForgeExceptionHandler
+├─ Maps domain exceptions → HTTP responses (4xx/5xx)
+├─ Logs all exceptions at appropriate levels
+└─ Returns structured JSON error responses to client
+
+Integration:
+├─ Wired in app.py via @app.exception_handler()
+└─ Catches unhandled exceptions + converts to JSON
+```
+
+**Benefits**: Consistent error format across all API routes; structured logging for monitoring.
+
+### Structured Logging (services/structured_logger.py)
+
+```
+StructuredLogger
+├─ JSON format when LOG_FORMAT=json env var is set
+├─ Fields: timestamp, level, message, context (dict)
+├─ Backward compatible: standard format as default
+└─ Integration: services emit structured events
+```
+
+**Usage**: Set `LOG_FORMAT=json` in `.env` for JSON logs; parse in monitoring/analytics tools.
 
 ## Security Layer (Sprint 1)
 
@@ -658,33 +707,67 @@ CreditManager.deduct(cost_estimate)
   [On failure]    refund partial credits
 ```
 
-## Layer 1: Story Generation Architecture
+## Layer 1: Story Generation Architecture (Sprint 2 Module Split)
 
 ```
-generate_full_story(title, genre, idea, num_chapters, ...)
+OrchestrationShell (generator.py, ~495 lines)
 │
-├─→ generate_characters() → list[Character]
-├─→ generate_world() → WorldSetting
-├─→ generate_outline() → (synopsis, list[ChapterOutline])
+├─→ CharacterGenerator.generate_characters() → list[Character]
+│   └─ extract_character_state() for first-pass state
+│
+├─→ OutlineBuilder.generate_world() → WorldSetting
+├─→ OutlineBuilder.suggest_title(idea) → str
+├─→ OutlineBuilder.generate_outline() → (synopsis, list[ChapterOutline])
 │
 └─→ [MAIN LOOP] for each chapter:
-    ├─→ write_chapter(outline, context=story_context) → Chapter
-    │   ├─ Prompt includes rolling context (summaries, char states, plot events)
-    │   └─ AdaptivePrompts.build_adaptive_prompt() appended [Phase 18]
+    ├─→ ChapterWriter.write_chapter(outline, context=story_context) → Chapter
+    │   ├─ _build_chapter_prompt(): rolling context + RAG + adaptive prompts
+    │   └─ _format_story_context(): summaries, char states, plot events
     │
     ├─→ [PARALLEL] ThreadPoolExecutor(max_workers=3):
-    │   ├─→ summarize_chapter()
-    │   ├─→ extract_character_states()  (temp=0.3, max_tokens=1000)
-    │   └─→ extract_plot_events()       (temp=0.3, max_tokens=1000)
+    │   ├─→ ChapterWriter.summarize_chapter()
+    │   ├─→ CharacterGenerator.extract_character_states() (temp=0.3, max_tokens=1000)
+    │   └─→ ChapterWriter.extract_plot_events()           (temp=0.3, max_tokens=1000)
     │
     ├─→ [OPTIONAL] Self-Review (if enable_self_review):
     │   └─→ SelfReviewService.review_chapter() → ChapterReview
     │
-    └─→ Update story_context:
+    └─→ Update story_context (via StoryBibleManager):
         ├─ recent_summaries (keep last context_window_chapters)
         ├─ character_states (merge by name, latest wins)
         └─ plot_events (cap at 50)
 ```
+
+### Module Responsibilities (Sprint 2)
+
+**CharacterGenerator** (65 lines)
+- `generate_characters(world, idea, num_chars)` → list[Character]
+- `extract_character_state(chapter, character_name, context)` → CharacterState
+- Purpose: Character creation + per-chapter state tracking
+
+**OutlineBuilder** (87 lines)
+- `suggest_title(idea)` → str
+- `generate_world(genre, idea, setting)` → WorldSetting
+- `generate_outline(world, characters, num_chapters, idea)` → (synopsis, chapters)
+- Purpose: World-building + chapter outline generation
+
+**ChapterWriter** (246 lines)
+- `write_chapter(outline, context, character_states)` → Chapter
+- `_build_chapter_prompt(outline, context, character_states)` → str
+- `_format_story_context(context, character_states)` → str
+- `summarize_chapter(chapter)` → str
+- `extract_plot_events(chapter, character_names)` → list[PlotEvent]
+- Purpose: Chapter writing + prompt construction + context formatting
+
+**StoryBibleManager**
+- Rolling story context: summaries, character states, plot events
+- Maintains state consistency across chapters
+
+**Generator (OrchestrationShell)** (~495 lines)
+- Routes calls to submodules
+- Manages main pipeline loop
+- Handles config + error handling
+- Integrates RAG, adaptive prompts, self-review
 
 ## LLM Client Architecture (MODIFIED Sprint 1)
 
@@ -812,6 +895,6 @@ PipelineConfig:
 
 ---
 
-**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Phase 18 adds inline quality gates between layers and genre-adaptive prompts. Phase 19 adds guided onboarding and entity knowledge graph. Phase 20 adds structured progress telemetry, production-parity staging infrastructure, and frontend resilience (sessionStorage persistence, SSE interruption detection, checkpoint resume). Sprint 1 adds security layer (prompt injection detection, secret encryption), app refactoring (thin entry point, extracted Gradio UI), bilingual emotion detection, provider-aware LLM retry, and SSE batch streaming.
+**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Phase 18 adds inline quality gates between layers and genre-adaptive prompts. Phase 19 adds guided onboarding and entity knowledge graph. Phase 20 adds structured progress telemetry, production-parity staging infrastructure, and frontend resilience (sessionStorage persistence, SSE interruption detection, checkpoint resume). Sprint 1 adds security layer (prompt injection detection, secret encryption), app refactoring (thin entry point, extracted Gradio UI), bilingual emotion detection, provider-aware LLM retry, and SSE batch streaming. Sprint 2 adds modular Layer 1 split (character_generator, chapter_writer, outline_builder), error hierarchy + FastAPI middleware, structured logging service, and prompt policy documentation.
 
-**Last Updated**: 2026-03-31 | **Version**: 2.6 (Sprint 1: Security Layer, App Refactoring, Bilingual Emotion Classification, Provider-Aware Retry, SSE Batch Streaming)
+**Last Updated**: 2026-03-31 | **Version**: 2.7 (Sprint 2: Layer 1 Module Split, Error Hierarchy, Structured Logging)

@@ -29,6 +29,7 @@ novel-auto/
 │   ├── browser_auth.py             # Chrome CDP + Playwright credential capture
 │   ├── deepseek_web_client.py      # DeepSeek web API client with PoW challenge solver
 │   ├── quality_scorer.py           # LLM-as-judge quality metrics (4 dimensions, 1-5 scale)
+│   ├── structured_logger.py        # JSON logging when LOG_FORMAT=json (NEW Sprint 2)
 │   ├── video_exporter.py           # SRT, voiceover, image prompts, CapCut JSON, CSV, ZIP
 │   ├── html_exporter.py            # Self-contained HTML reader (dark/light mode, chapter nav)
 │   ├── tts_audio_generator.py      # Multi-provider TTS (edge-tts, kling, xtts), Vietnamese voices
@@ -50,7 +51,11 @@ novel-auto/
 ├── pipeline/
 │   ├── orchestrator.py             # Main workflow coordinator
 │   ├── layer1_story/
-│   │   └── generator.py            # StoryGenerator — characters, world, chapters, continuation
+│   │   ├── generator.py            # OrchestrationShell (refactored ~495 lines): routes to submodules
+│   │   ├── character_generator.py   # Character generation + state extraction (65 lines, NEW Sprint 2)
+│   │   ├── chapter_writer.py        # Chapter writing + prompt building + context (246 lines, NEW Sprint 2)
+│   │   ├── outline_builder.py       # Title suggestion + world + outline generation (87 lines, NEW Sprint 2)
+│   │   └── story_bible_manager.py   # Story context + state tracking
 │   ├── layer2_enhance/
 │   │   ├── simulator.py            # Drama simulation with agent loops
 │   │   ├── analyzer.py             # Post-simulation analysis
@@ -77,6 +82,10 @@ novel-auto/
 │       ├── export_tab.py           # Export format selection + download
 │       ├── continuation_tab.py     # Chapter continuation & character editing
 │       └── branching_tab.py        # Story branching UI with fork/merge controls
+├── errors/                         # Error handling layer (NEW Sprint 2)
+│   ├── exceptions.py               # Typed exception hierarchy: StoryForgeError base
+│   ├── handlers.py                 # FastAPI exception handler middleware
+│   └── __init__.py                 # Re-exports
 ├── locales/
 │   ├── vi.json                     # Vietnamese locale strings (200+)
 │   └── en.json                     # English locale strings (200+)
@@ -220,7 +229,7 @@ novel-auto/
 - Returns early if text empty; logs each threat at WARNING level
 - Integration: Call before storing user-provided inputs in pipeline config
 
-### prompts.py
+### prompts.py (MODIFIED Sprint 2)
 - `localize_prompt(template, lang)` wrapper for all generation prompts
 - Key prompts: WRITE_CHAPTER, EXTRACT_CHARACTER_STATE, EXTRACT_PLOT_EVENTS, SUMMARIZE_CHAPTER,
   SCORE_CHAPTER, SUGGEST_TITLE, GENERATE_CHARACTERS, GENERATE_WORLD, GENERATE_OUTLINE,
@@ -228,6 +237,7 @@ novel-auto/
 - **Phase 13**: RAG_CONTEXT_SECTION — injected into world-building & chapter prompts when RAG enabled
 - **Phase 16.5**: DRAMA_DEBATE, CHARACTER_DEBATE — LLM debate templates for agent analysis (DramaCriticAgent, CharacterSpecialistAgent)
 - **Phase 17**: SMART_REVISE_CHAPTER — targeted revision prompt with aggregated agent issues/suggestions
+- **Sprint 2**: Language policy docs + vi-only markers in prompts
 
 ### smart_revision.py (Phase 17)
 - `SmartRevisionService` — auto-detect and revise weak chapters
@@ -259,11 +269,11 @@ novel-auto/
 - `step_confirm()` returns populated `PipelineConfig`; `reset()` clears state
 - Reduces first-run misconfiguration; UI wizard tab calls steps sequentially
 
-### knowledge_graph.py (Phase 19)
+### knowledge_graph.py (Phase 19, MODIFIED Sprint 2)
 - `StoryKnowledgeGraph` — entity relationship graph for story artifacts
 - `index_story(story_draft)` — extracts character/location/event nodes + edges from L1 output
 - `get_character_relationships(name)` → list of edges for entity
-- `get_entity_context(name)` → formatted context string (for future prompt injection)
+- `get_entity_context(name)` → formatted context string (for future prompt injection, added Sprint 2)
 - `export_graph()` → serializable `{nodes, edges}` dict
 - NetworkX DiGraph if installed; pure Python adjacency dict fallback (zero hard deps)
 
@@ -272,6 +282,28 @@ novel-auto/
 - `emit(event, data)` — logs structured event + calls registered Gradio callback
 - Standard events: `gate_checked`, `revision_done`, `scoring_complete`, `layer_start`, `layer_complete`
 - Injected by orchestrator; services call `tracker.emit()` at milestones
+
+### Error Handling Layer (NEW Sprint 2)
+
+#### exceptions.py — Typed Exception Hierarchy
+- `StoryForgeError` — base exception class (all project errors inherit)
+  - `ConfigError` — configuration validation failures
+  - `LLMError` — LLM provider/API errors
+  - `PipelineError` — pipeline execution errors
+  - `ValidationError` — input/output validation failures
+  - Additional domain-specific exceptions as needed
+
+#### handlers.py — FastAPI Exception Middleware
+- `StoryForgeExceptionHandler` — maps domain exceptions → HTTP responses
+- Logs all exceptions at appropriate levels (ERROR/WARNING)
+- Returns structured JSON error responses to client
+- Integration: wired in `app.py` via exception handlers
+
+### structured_logger.py (NEW Sprint 2)
+- JSON logging when `LOG_FORMAT=json` env var is set
+- Structured event emission: timestamp, level, message, context (dict)
+- Backward compatible: defaults to standard logging format
+- Integration: services can emit structured events for monitoring
 
 ### Frontend Resilience & Persistence (save-logic-render-audit)
 
@@ -424,6 +456,10 @@ Chapter → [parallel] summarize + extract_character_states + extract_plot_event
 - `staging-deploy` job: deploy to staging via `docker-compose.staging.yml` after build passes
 - Context-aware escalation: failures escalate via agent feedback loop patterns
 
+### config.py (MODIFIED Sprint 2)
+- `save()` method: removed secrets from direct persistence (use SecretManager instead)
+- `block_on_injection` field: feature flag for prompt injection blocking
+
 ## Development Status
 
 | Phase | Status | Summary |
@@ -449,7 +485,8 @@ Chapter → [parallel] summarize + extract_character_states + extract_plot_event
 | **Phase 19** | COMPLETE | Onboarding wizard (4-step guided flow), knowledge graph (NetworkX + pure Python), E2E pipeline tests (22 tests); +22 tests |
 | **Phase 20** | COMPLETE | Staging environment (docker-compose.staging.yml, parallel CI), progress tracker (structured events for gate/revision/scoring); +159 tests |
 | **Sprint 1** | COMPLETE | App refactoring (79-line thin entry point, 1160-line extracted Gradio UI), security layer (Fernet encryption, prompt injection detection), bilingual emotion classifier, provider-aware LLM retry, SSE batch streaming, quality gate enabled by default; .env.example documentation |
+| **Sprint 2** | COMPLETE | Layer 1 module split (generator → character_generator, chapter_writer, outline_builder), error hierarchy + FastAPI middleware, structured logging, knowledge graph method additions, prompt policy docs |
 
 ---
 
-**Last Updated**: 2026-03-31 | **Doc Version**: 2.6 (Sprint 1: Security Layer, App Refactoring, Bilingual Emotion Classification) | **Tests**: 1327
+**Last Updated**: 2026-03-31 | **Doc Version**: 2.7 (Sprint 2: Layer 1 Module Split, Error Hierarchy, Structured Logging) | **Tests**: 1327+
