@@ -125,8 +125,20 @@
             Complete
           </span>
         </template>
+        <template x-if="$store.pipeline.status === 'interrupted'">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-600">
+            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+            Interrupted
+          </span>
+        </template>
       </div>
     </header>
+
+    <!-- Storage warning banner -->
+    <div x-show="$store.app.storageWarning" x-cloak class="mx-4 md:mx-6 mt-2 px-4 py-2 rounded-lg bg-amber-50 border border-amber-200 flex items-center gap-2 text-sm text-amber-700">
+      <svg class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+      <span x-text="$store.app.storageWarning"></span>
+    </div>
 
     <!-- Page content -->
     <div class="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
@@ -354,6 +366,33 @@
               </div>
             </template>
 
+            <!-- Error state -->
+            <div x-show="$store.pipeline.status === 'error'" x-cloak class="card p-5 border-red-200 bg-red-50">
+              <div class="flex items-start gap-3">
+                <svg class="w-6 h-6 text-red-500 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+                <div>
+                  <h3 class="font-semibold text-sm text-red-700 mb-1">Pipeline Error</h3>
+                  <p class="text-sm text-red-600" x-text="$store.pipeline.error"></p>
+                  <button @click="$store.pipeline.reset()" class="mt-3 text-xs font-medium text-red-600 hover:text-red-800 underline cursor-pointer">Try Again</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Interrupted state — connection lost -->
+            <div x-show="$store.pipeline.status === 'interrupted'" x-cloak class="card p-5 border-amber-200 bg-amber-50">
+              <div class="flex items-start gap-3">
+                <svg class="w-6 h-6 text-amber-500 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+                <div>
+                  <h3 class="font-semibold text-sm text-amber-700 mb-1">Connection Interrupted</h3>
+                  <p class="text-sm text-amber-600" x-text="$store.pipeline.error"></p>
+                  <div class="flex gap-3 mt-3">
+                    <button @click="$store.pipeline.loadCheckpoints().then(() => { if ($store.pipeline.checkpoints.length) $store.pipeline.resumeFromCheckpoint($store.pipeline.checkpoints[0].path); else $store.pipeline.run(); })" class="text-xs font-medium px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 cursor-pointer">Resume</button>
+                    <button @click="$store.pipeline.reset()" class="text-xs font-medium text-amber-600 hover:text-amber-800 underline cursor-pointer">Start Over</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Empty state -->
             <div x-show="$store.pipeline.status === 'idle' && !$store.pipeline.result" class="card p-12 text-center">
               <svg class="w-16 h-16 mx-auto text-slate-200 mb-4" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor">
@@ -369,6 +408,32 @@
       <!-- ═══ SETTINGS PAGE ═══ -->
       <div x-show="$store.app.page === 'settings'" x-cloak class="page-enter" x-data="settingsPage()">
         <div class="max-w-2xl mx-auto space-y-6">
+
+          <!-- Loading skeleton while config loads -->
+          <template x-if="!Alpine.store('settings').config">
+            <div class="space-y-6">
+              <div class="card p-5 space-y-4 animate-pulse">
+                <div class="h-5 bg-surface-200 rounded w-40"></div>
+                <div class="h-4 bg-surface-100 rounded w-64"></div>
+                <div class="grid grid-cols-3 gap-3">
+                  <div class="h-20 bg-surface-100 rounded-xl"></div>
+                  <div class="h-20 bg-surface-100 rounded-xl"></div>
+                  <div class="h-20 bg-surface-100 rounded-xl"></div>
+                </div>
+              </div>
+              <div class="card p-5 space-y-4 animate-pulse">
+                <div class="h-5 bg-surface-200 rounded w-32"></div>
+                <div class="h-10 bg-surface-100 rounded-lg"></div>
+              </div>
+              <div class="card p-5 space-y-4 animate-pulse">
+                <div class="h-5 bg-surface-200 rounded w-36"></div>
+                <div class="h-10 bg-surface-100 rounded-lg"></div>
+              </div>
+            </div>
+          </template>
+
+          <!-- Settings form (visible when config loaded) -->
+          <div x-show="Alpine.store('settings').config" x-cloak>
 
           <!-- Step 1: Choose provider -->
           <div class="card p-5 space-y-4">
@@ -401,12 +466,17 @@
             <div class="flex items-center gap-2 mb-1">
               <span class="flex items-center justify-center w-7 h-7 rounded-full bg-brand-600 text-white text-xs font-bold">2</span>
               <h2 class="font-semibold text-base text-slate-700">Enter API Key</h2>
+              <span x-show="maskedKey && maskedKey !== '***'" class="ml-auto text-xs text-green-600 font-medium flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+                Saved
+              </span>
             </div>
             <p class="text-sm text-slate-500" x-html="currentProvider?.guide || 'Select a provider above to see how to get an API key.'"></p>
             <div class="relative">
               <input :type="showKey ? 'text' : 'password'" x-model="form.api_key"
                 class="w-full border border-surface-200 rounded-lg px-3 py-2.5 text-sm pr-10 focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all"
-                :placeholder="currentProvider?.keyPlaceholder || 'Paste API key here...'">
+                :placeholder="maskedKey && maskedKey !== '***' ? 'Saved: ' + maskedKey + ' — leave blank to keep' : (currentProvider?.keyPlaceholder || 'Paste API key here...')"
+              >
               <button @click="showKey = !showKey" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer" type="button">
                 <svg x-show="!showKey" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                 <svg x-show="showKey" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12c1.292 4.338 5.31 7.5 10.066 7.5.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>
@@ -432,7 +502,7 @@
             <div class="flex gap-3 items-end">
               <div class="flex-1">
                 <label class="block text-xs text-slate-400 mb-1">Or type model name</label>
-                <input type="text" x-model="form.model" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all" placeholder="vd: gpt-4o-mini">
+                <input type="text" x-model="form.model" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all" placeholder="e.g. gpt-4o-mini">
               </div>
             </div>
           </div>
@@ -463,34 +533,87 @@
               Advanced Settings
             </summary>
             <div class="px-5 pb-5 border-t border-surface-200 pt-4 space-y-5">
-              <!-- Base URL override -->
+
+              <!-- Writing Style -->
               <div>
-                <label class="block text-sm font-medium text-slate-600 mb-1">Base URL</label>
-                <input type="text" x-model="form.base_url" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none">
-                <p class="text-xs text-slate-400 mt-1">Auto-filled when selecting a provider. Only change for proxy/custom endpoints.</p>
-              </div>
-              <!-- Temperature + Max Tokens -->
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <div class="flex justify-between text-sm mb-1"><span class="text-slate-600">Temperature</span><span class="font-medium text-brand-600" x-text="form.temperature"></span></div>
-                  <input type="range" min="0" max="2" step="0.1" x-model.number="form.temperature" class="w-full accent-brand-600">
-                  <div class="flex justify-between text-xs text-slate-400 mt-0.5"><span>Precise</span><span>Creative</span></div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Writing Style</label>
+                <div class="flex gap-2">
+                  <button @click="form.temperature = 0.3"
+                    :class="form.temperature <= 0.5 ? 'bg-blue-50 border-blue-400 text-blue-700' : 'border-surface-200 text-slate-500 hover:border-blue-300'"
+                    class="flex-1 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all cursor-pointer text-center">
+                    <div class="text-base mb-0.5">🎯</div>Precise
+                  </button>
+                  <button @click="form.temperature = 0.8"
+                    :class="form.temperature > 0.5 && form.temperature <= 1.2 ? 'bg-purple-50 border-purple-400 text-purple-700' : 'border-surface-200 text-slate-500 hover:border-purple-300'"
+                    class="flex-1 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all cursor-pointer text-center">
+                    <div class="text-base mb-0.5">✨</div>Balanced
+                  </button>
+                  <button @click="form.temperature = 1.4"
+                    :class="form.temperature > 1.2 ? 'bg-orange-50 border-orange-400 text-orange-700' : 'border-surface-200 text-slate-500 hover:border-orange-300'"
+                    class="flex-1 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all cursor-pointer text-center">
+                    <div class="text-base mb-0.5">🎨</div>Creative
+                  </button>
                 </div>
-                <div>
-                  <div class="flex justify-between text-sm mb-1"><span class="text-slate-600">Max Tokens</span><span class="font-medium text-brand-600" x-text="form.max_tokens"></span></div>
-                  <input type="range" min="1024" max="16384" step="512" x-model.number="form.max_tokens" class="w-full accent-brand-600">
-                  <div class="flex justify-between text-xs text-slate-400 mt-0.5"><span>Short</span><span>Long</span></div>
+              </div>
+
+              <!-- Response Length -->
+              <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Response Length</label>
+                <div class="flex gap-2">
+                  <button @click="form.max_tokens = 2048"
+                    :class="form.max_tokens <= 2048 ? 'bg-green-50 border-green-400 text-green-700' : 'border-surface-200 text-slate-500 hover:border-green-300'"
+                    class="flex-1 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all cursor-pointer text-center">Short</button>
+                  <button @click="form.max_tokens = 4096"
+                    :class="form.max_tokens > 2048 && form.max_tokens <= 6144 ? 'bg-green-50 border-green-400 text-green-700' : 'border-surface-200 text-slate-500 hover:border-green-300'"
+                    class="flex-1 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all cursor-pointer text-center">Medium</button>
+                  <button @click="form.max_tokens = 8192"
+                    :class="form.max_tokens > 6144 && form.max_tokens <= 12288 ? 'bg-green-50 border-green-400 text-green-700' : 'border-surface-200 text-slate-500 hover:border-green-300'"
+                    class="flex-1 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all cursor-pointer text-center">Long</button>
+                  <button @click="form.max_tokens = 16384"
+                    :class="form.max_tokens > 12288 ? 'bg-green-50 border-green-400 text-green-700' : 'border-surface-200 text-slate-500 hover:border-green-300'"
+                    class="flex-1 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all cursor-pointer text-center">Max</button>
                 </div>
               </div>
-              <!-- Cheap model -->
-              <div class="space-y-3 pt-2 border-t border-surface-100">
-                <p class="text-sm font-medium text-slate-600">Secondary Model (cost saving)</p>
-                <p class="text-xs text-slate-400">Use a cheaper model for secondary tasks (outline, review). Leave blank if not needed.</p>
-                <input type="text" x-model="form.cheap_model" placeholder="vd: gpt-4o-mini" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none">
-                <input type="text" x-model="form.cheap_base_url" placeholder="Separate Base URL (blank = use main URL)" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none">
+
+              <!-- Cost Saving Model -->
+              <div class="space-y-3 pt-3 border-t border-surface-100">
+                <div>
+                  <label class="block text-sm font-medium text-slate-700 mb-1">Cost-Saving Model <span class="font-normal text-slate-400">(optional)</span></label>
+                  <p class="text-xs text-slate-400 mb-2">Use a cheaper model for outlines and reviews to reduce API costs.</p>
+                  <input type="text" x-model="form.cheap_model" placeholder="e.g. gpt-4o-mini, gemini-flash" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none">
+                </div>
               </div>
+
+              <!-- Expert: Base URL + Cheap Base URL -->
+              <details class="pt-2">
+                <summary class="cursor-pointer text-xs font-medium text-slate-400 hover:text-slate-600 select-none">Show expert options</summary>
+                <div class="mt-3 space-y-3">
+                  <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">API Base URL</label>
+                    <input type="text" x-model="form.base_url" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none" placeholder="Auto-filled from provider">
+                    <p class="text-xs text-slate-400 mt-1">Only change if using a proxy or custom endpoint.</p>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">Cost-Saving Model Base URL</label>
+                    <input type="text" x-model="form.cheap_base_url" placeholder="Leave blank to use main URL" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none">
+                  </div>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <label class="block text-xs font-medium text-slate-500 mb-1">Temperature <span class="text-brand-600" x-text="form.temperature"></span></label>
+                      <input type="range" min="0" max="2" step="0.1" x-model.number="form.temperature" class="w-full accent-brand-600">
+                    </div>
+                    <div>
+                      <label class="block text-xs font-medium text-slate-500 mb-1">Max Tokens <span class="text-brand-600" x-text="form.max_tokens"></span></label>
+                      <input type="range" min="1024" max="16384" step="512" x-model.number="form.max_tokens" class="w-full accent-brand-600">
+                    </div>
+                  </div>
+                </div>
+              </details>
+
             </div>
           </details>
+
+          </div><!-- end settings form wrapper -->
 
         </div>
       </div>
@@ -671,41 +794,6 @@
         </div>
       </div>
 
-      <!-- ═══ ACCOUNT PAGE ═══ -->
-      <div x-show="$store.app.page === 'account'" x-cloak class="page-enter" x-data="accountPage()">
-        <div class="max-w-md mx-auto space-y-4">
-          <!-- Logged-in state -->
-          <template x-if="profile">
-            <div class="card p-6 text-center">
-              <div class="w-16 h-16 mx-auto mb-3 rounded-full bg-brand-100 flex items-center justify-center">
-                <svg class="w-8 h-8 text-brand-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-              </div>
-              <h3 class="font-semibold text-lg" x-text="profile.username"></h3>
-              <span class="inline-block mt-1 px-3 py-0.5 rounded-full text-xs font-medium bg-brand-50 text-brand-600" x-text="(profile.tier || 'free').toUpperCase()"></span>
-              <button @click="logout()" class="block mx-auto mt-4 text-sm text-red-500 hover:underline cursor-pointer">Sign Out</button>
-            </div>
-          </template>
-          <!-- Login form -->
-          <template x-if="!profile">
-            <div class="card p-6 space-y-4">
-              <h2 class="font-semibold text-lg text-center text-slate-700">Sign In / Register</h2>
-              <div>
-                <label class="block text-sm font-medium text-slate-600 mb-1">Username</label>
-                <input type="text" x-model="username" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm" @keydown.enter="login()">
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-slate-600 mb-1">Password</label>
-                <input type="password" x-model="password" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm" @keydown.enter="login()">
-              </div>
-              <div class="flex gap-3">
-                <button @click="login()" :disabled="loading" class="btn-primary flex-1 py-2.5 rounded-lg text-sm font-semibold cursor-pointer disabled:opacity-50">Sign In</button>
-                <button @click="register()" :disabled="loading" class="flex-1 py-2.5 rounded-lg text-sm font-medium border border-surface-200 hover:border-brand-500 cursor-pointer disabled:opacity-50">Register</button>
-              </div>
-              <p x-show="message" class="text-sm text-center" :class="message.includes('success') ? 'text-green-600' : 'text-red-500'" x-text="message"></p>
-            </div>
-          </template>
-        </div>
-      </div>
 
       <!-- ═══ GUIDE PAGE ═══ -->
       <div x-show="$store.app.page === 'guide'" x-cloak class="page-enter">
@@ -776,7 +864,6 @@
   <script src="/static/js/pages/reader.js"></script>
   <script src="/static/js/pages/export.js"></script>
   <script src="/static/js/pages/analytics.js"></script>
-  <script src="/static/js/pages/account.js"></script>
   <script src="/static/js/pages/branching.js"></script>
   <script src="/static/js/app.js"></script>
   <script>
@@ -813,6 +900,7 @@
           api_key: '', base_url: 'https://api.openai.com/v1', model: 'gpt-4o-mini',
           temperature: 0.8, max_tokens: 4096, cheap_model: '', cheap_base_url: '',
         },
+        maskedKey: '',
         saving: false,
         testing: false,
         message: '',
@@ -905,14 +993,17 @@
         },
 
         init() {
-          const cfg = Alpine.store('settings').config;
-          if (cfg?.llm) {
+          // Wait for config to load, then populate form
+          const apply = () => {
+            const cfg = Alpine.store('settings').config;
+            if (!cfg?.llm) return;
             this.form.base_url = cfg.llm.base_url || this.form.base_url;
             this.form.model = cfg.llm.model || this.form.model;
             this.form.temperature = cfg.llm.temperature ?? this.form.temperature;
             this.form.max_tokens = cfg.llm.max_tokens || this.form.max_tokens;
             this.form.cheap_model = cfg.llm.cheap_model || '';
             this.form.cheap_base_url = cfg.llm.cheap_base_url || '';
+            this.maskedKey = cfg.llm.api_key_masked || '';
             // Auto-detect provider from base_url
             const url = (cfg.llm.base_url || '').toLowerCase();
             if (url.includes('openai.com')) this.selectedProvider = 'openai';
@@ -921,15 +1012,23 @@
             else if (url.includes('openrouter.ai')) this.selectedProvider = 'openrouter';
             else if (url.includes('localhost') || url.includes('127.0.0.1')) this.selectedProvider = 'local';
             else this.selectedProvider = 'custom';
-          }
+          };
+          apply();
+          // Config may still be loading — watch for it
+          this.$watch(() => Alpine.store('settings').config, () => apply());
         },
 
         async save() {
           this.saving = true;
           this.message = '';
           try {
-            await API.put('/config', this.form);
+            // Don't send empty api_key — it would overwrite the saved key
+            const data = { ...this.form };
+            if (!data.api_key) delete data.api_key;
+            await API.put('/config', data);
             this.message = 'Settings saved successfully!';
+            // Reload config to refresh masked key
+            await Alpine.store('settings').load();
           } catch (e) { this.message = 'Error: ' + e.message; }
           this.saving = false;
         },

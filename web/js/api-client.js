@@ -38,8 +38,8 @@ const API = {
   },
 
   /**
-   * SSE stream — returns EventSource-like async iterator.
-   * Usage: for await (const event of API.stream('/pipeline/run', body)) { ... }
+   * SSE stream with interruption detection.
+   * Yields events. If stream drops without 'done' event, yields { type: 'interrupted' }.
    */
   async *stream(path, body) {
     const res = await fetch(this.base + path, {
@@ -52,25 +52,49 @@ const API = {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let receivedDone = false;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
 
-      // Parse SSE events from buffer
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+        // Parse SSE events from buffer
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            yield JSON.parse(line.slice(6));
-          } catch (e) {
-            console.warn('SSE parse error:', line);
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const event = JSON.parse(line.slice(6));
+              if (event.type === 'done' || event.type === 'error') receivedDone = true;
+              yield event;
+            } catch (e) {
+              console.warn('SSE parse error:', line);
+            }
           }
         }
       }
+    } catch (e) {
+      // Connection lost mid-stream
+      yield { type: 'interrupted', data: 'Connection lost: ' + e.message };
+      return;
+    }
+
+    // Flush decoder for any remaining multi-byte chars
+    buffer += decoder.decode();
+    if (buffer.trim().startsWith('data: ')) {
+      try {
+        const event = JSON.parse(buffer.trim().slice(6));
+        if (event.type === 'done' || event.type === 'error') receivedDone = true;
+        yield event;
+      } catch (e) { /* ignore partial */ }
+    }
+
+    // Stream ended without a done/error event — likely server crash
+    if (!receivedDone) {
+      yield { type: 'interrupted', data: 'Stream ended unexpectedly' };
     }
   },
 

@@ -78,8 +78,8 @@ class AgentDAG:
                 # Try to find it via the _class_name_map populated when
                 # agents are loaded into the graph (done in validate / sort).
                 # At build time we only have names, so log the mismatch.
-                logger.warning(
-                    "Agent dependency '%s' not found in registry — skipping.", dep
+                logger.debug(
+                    "Agent dependency '%s' not in current layer — skipping.", dep
                 )
         return result
 

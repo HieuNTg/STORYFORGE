@@ -10,7 +10,6 @@ const NAV_ITEMS = [
   { id: 'analytics', label: 'Analytics',    icon: 'chart-bar',     group: 'main' },
   { id: 'branching', label: 'Branching',    icon: 'arrows-pointing-out', group: 'main' },
   { id: 'settings',  label: 'Settings',     icon: 'cog-6-tooth',   group: 'bottom' },
-  { id: 'account',   label: 'Account',      icon: 'user-circle',   group: 'bottom' },
   { id: 'guide',     label: 'Guide',        icon: 'question-mark-circle', group: 'bottom' },
 ];
 
@@ -23,6 +22,7 @@ document.addEventListener('alpine:init', () => {
     loading: false,
     sessionId: null,
     pipelineResult: null,
+    storageWarning: '',
 
     navItems: NAV_ITEMS,
 
@@ -34,6 +34,27 @@ document.addEventListener('alpine:init', () => {
 
     toggleSidebar() {
       this.sidebarOpen = !this.sidebarOpen;
+    },
+
+    /** Save pipeline result to sessionStorage with error handling */
+    savePipelineResult(data) {
+      this.pipelineResult = data;
+      this.storageWarning = '';
+      try {
+        // Strip transient fields before storage
+        const toStore = { ...data };
+        delete toStore.livePreview;
+        const json = JSON.stringify(toStore);
+
+        // Warn if approaching typical 5MB limit
+        if (json.length > 4 * 1024 * 1024) {
+          console.warn('Pipeline result large (' + Math.round(json.length / 1024) + 'KB)');
+        }
+        sessionStorage.setItem('sf_result', json);
+      } catch (e) {
+        console.error('sessionStorage save failed:', e.message);
+        this.storageWarning = 'Result too large to cache. It will be lost on page refresh.';
+      }
     },
 
     init() {
@@ -48,18 +69,35 @@ document.addEventListener('alpine:init', () => {
           this.page = h;
         }
       });
+      // Restore pipeline result from sessionStorage
+      try {
+        const saved = sessionStorage.getItem('sf_result');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object') {
+            this.pipelineResult = parsed;
+            Alpine.store('pipeline').result = parsed;
+            Alpine.store('pipeline').status = 'done';
+            Alpine.store('pipeline').progress = 4;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to restore pipeline result:', e.message);
+        sessionStorage.removeItem('sf_result');
+      }
     },
   });
 
   /* ── Pipeline store ── */
   Alpine.store('pipeline', {
-    status: 'idle',  // idle | running | done | error
+    status: 'idle',  // idle | running | done | error | interrupted
     currentLog: '',
     logs: [],
     livePreview: '',
     progress: 0,     // 0-4 (layer number)
     result: null,
     error: null,
+    checkpoints: [],
 
     // Form defaults
     form: {
@@ -88,6 +126,14 @@ document.addEventListener('alpine:init', () => {
     },
 
     async run() {
+      // Client-side validation
+      const idea = (this.form.idea || '').trim();
+      if (!idea || idea.length < 10) {
+        this.error = 'Please enter a story idea (at least 10 characters).';
+        this.status = 'error';
+        return;
+      }
+
       this.status = 'running';
       this.logs = [];
       this.livePreview = '';
@@ -107,13 +153,63 @@ document.addEventListener('alpine:init', () => {
             this.livePreview = event.data;
           } else if (event.type === 'done') {
             this.result = event.data;
-            Alpine.store('app').pipelineResult = event.data;
+            Alpine.store('app').savePipelineResult(event.data);
             Alpine.store('app').sessionId = event.data.session_id;
             this.status = 'done';
             this.progress = 4;
           } else if (event.type === 'error') {
             this.error = event.data;
             this.status = 'error';
+          } else if (event.type === 'interrupted') {
+            this.error = 'Connection lost. You can resume from the last checkpoint.';
+            this.status = 'interrupted';
+          }
+        }
+        if (this.status === 'running') this.status = 'done';
+      } catch (e) {
+        this.error = e.message;
+        this.status = 'error';
+      }
+    },
+
+    async loadCheckpoints() {
+      try {
+        const data = await API.get('/pipeline/checkpoints');
+        this.checkpoints = data.checkpoints || [];
+      } catch (e) {
+        console.error('Load checkpoints failed:', e);
+        this.checkpoints = [];
+      }
+    },
+
+    async resumeFromCheckpoint(path) {
+      this.status = 'running';
+      this.logs = [];
+      this.livePreview = '';
+      this.error = null;
+
+      try {
+        for await (const event of API.stream('/pipeline/resume', { checkpoint: path })) {
+          if (event.type === 'session') {
+            Alpine.store('app').sessionId = event.session_id;
+          } else if (event.type === 'log') {
+            this.currentLog = event.data;
+            this.logs.push(event.data);
+            this.progress = this._detectLayer(event.data);
+          } else if (event.type === 'stream') {
+            this.livePreview = event.data;
+          } else if (event.type === 'done') {
+            this.result = event.data;
+            Alpine.store('app').savePipelineResult(event.data);
+            Alpine.store('app').sessionId = event.data.session_id;
+            this.status = 'done';
+            this.progress = 4;
+          } else if (event.type === 'error') {
+            this.error = event.data;
+            this.status = 'error';
+          } else if (event.type === 'interrupted') {
+            this.error = 'Connection lost during resume.';
+            this.status = 'interrupted';
           }
         }
         if (this.status === 'running') this.status = 'done';
@@ -139,6 +235,7 @@ document.addEventListener('alpine:init', () => {
       this.progress = 0;
       this.result = null;
       this.error = null;
+      this.checkpoints = [];
     },
   });
 

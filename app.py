@@ -35,7 +35,6 @@ from ui.tabs import (
     build_video_tab,
     build_review_tab,
     build_export_tab,
-    build_account_tab,
     build_settings_tab,
     build_analytics_tab,
     build_reader_tab,
@@ -531,7 +530,6 @@ def create_ui():
 
                 # Shared orchestrator state
                 orchestrator_state = gr.State(None)
-                # Shared user state (also used in account tab)
                 user_state = gr.State(None)
 
                 # ── Output formatter ──
@@ -1121,11 +1119,6 @@ def create_ui():
             with gr.TabItem(_t("tab.branching")):
                 build_branching_tab(_t, orchestrator_state)
 
-            # ═══════════════════════════════════════
-            # TAB: TÀI KHOẢN
-            # ═══════════════════════════════════════
-            with gr.TabItem(_t("tab.account")):
-                build_account_tab(_t, orchestrator_state, user_state=user_state)
 
             # ═══════════════════════════════════════
             # TAB: CÀI ĐẶT

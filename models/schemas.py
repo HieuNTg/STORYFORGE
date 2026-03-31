@@ -245,7 +245,7 @@ class ChapterScore(BaseModel):
     drama: float = Field(default=3.0, ge=1, le=5, description="Tension & engagement")
     writing_quality: float = Field(default=3.0, ge=1, le=5, description="Prose quality & clarity")
     overall: float = Field(default=0.0, description="Computed average of 4 dimensions")
-    notes: str = Field(default="", max_length=200, description="Brief strengths/weaknesses note")
+    notes: str = Field(default="", max_length=1000, description="Brief strengths/weaknesses note")
 
 
 class StoryScore(BaseModel):

@@ -5,7 +5,12 @@ function readerPage() {
   return {
     chapter: 0,
     fontSize: 18,
-    story: null,
+
+    get story() {
+      const result = Alpine.store('app').pipelineResult;
+      if (!result) return null;
+      return result.enhanced || result.draft || null;
+    },
 
     get chapters() {
       if (!this.story) return [];
@@ -14,13 +19,6 @@ function readerPage() {
 
     get currentChapter() {
       return this.chapters[this.chapter] || null;
-    },
-
-    init() {
-      const result = Alpine.store('app').pipelineResult;
-      if (result) {
-        this.story = result.enhanced || result.draft || null;
-      }
     },
 
     prev() { if (this.chapter > 0) this.chapter--; },

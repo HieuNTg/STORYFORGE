@@ -44,6 +44,11 @@ class PipelineRequest(BaseModel):
     enable_media: bool = False
 
 
+class ResumeRequest(BaseModel):
+    """Request body for resuming from checkpoint."""
+    checkpoint: str
+
+
 def _genre_keys():
     return [
         "genre.tien_hiep", "genre.huyen_huyen", "genre.kiem_hiep", "genre.do_thi",
@@ -85,9 +90,13 @@ def get_templates():
 
 @router.get("/checkpoints")
 def get_checkpoints():
-    """List available checkpoints."""
-    from ui.handlers import get_checkpoint_choices
-    return {"checkpoints": get_checkpoint_choices()}
+    """List available checkpoints with label and path."""
+    from pipeline.orchestrator import PipelineOrchestrator
+    ckpts = PipelineOrchestrator.list_checkpoints()
+    return {"checkpoints": [
+        {"label": f"{c['file']} ({c['modified']}, {c['size_kb']}KB)", "path": c['file']}
+        for c in ckpts
+    ]}
 
 
 @router.post("/run")
@@ -96,7 +105,13 @@ async def run_pipeline(body: PipelineRequest):
     # Validate input
     idea = (body.idea or "").strip()
     if not idea or len(idea) < 10:
-        return {"error": _t("error.idea_too_short")}
+        def _error_stream():
+            yield f"data: {json.dumps({'type': 'error', 'data': 'Story idea is too short. Please enter at least 10 characters.'})}\n\n"
+        return StreamingResponse(
+            _error_stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     def event_generator():
         orch = PipelineOrchestrator()
@@ -190,3 +205,83 @@ async def run_pipeline(body: PipelineRequest):
     )
 
 
+@router.post("/resume")
+async def resume_pipeline(body: ResumeRequest):
+    """Resume pipeline from a checkpoint, streaming progress via SSE."""
+    # Resolve checkpoint safely — accept filename only, prevent path traversal
+    import pathlib
+    checkpoint_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "output", "checkpoints")
+    safe_name = pathlib.Path(body.checkpoint).name  # strips any directory components
+    checkpoint_path = os.path.join(checkpoint_dir, safe_name)
+    if not safe_name or not os.path.exists(checkpoint_path):
+        def _error_stream():
+            yield f"data: {json.dumps({'type': 'error', 'data': 'Checkpoint not found.'})}\n\n"
+        return StreamingResponse(
+            _error_stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    def event_generator():
+        orch = PipelineOrchestrator()
+        session_id = str(id(orch))
+        _orchestrators[session_id] = orch
+
+        logs = []
+        progress_queue = queue.Queue()
+
+        def on_progress(msg):
+            logs.append(msg)
+            progress_queue.put(("log", msg))
+
+        result = [None]
+
+        def _run():
+            try:
+                result[0] = orch.resume_from_checkpoint(
+                    checkpoint_path=checkpoint_path,
+                    progress_callback=on_progress,
+                )
+            except Exception as e:
+                logger.error(f"Resume error: {e}")
+                progress_queue.put(("error", str(e)))
+
+        thread = threading.Thread(target=_run)
+        thread.start()
+
+        yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
+
+        while thread.is_alive():
+            try:
+                msg_type, msg_data = progress_queue.get(timeout=0.2)
+                while not progress_queue.empty():
+                    try:
+                        t, d = progress_queue.get_nowait()
+                        if t == "error":
+                            msg_type, msg_data = t, d
+                    except queue.Empty:
+                        break
+                event = {"type": msg_type, "data": msg_data}
+                if msg_type == "log":
+                    event["logs_count"] = len(logs)
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            except queue.Empty:
+                continue
+
+        thread.join()
+
+        output = result[0]
+        if output:
+            from api.pipeline_output_builder import build_output_summary
+            summary = build_output_summary(output)
+            summary["session_id"] = session_id
+            summary["logs"] = logs
+            yield f"data: {json.dumps({'type': 'done', 'data': summary}, ensure_ascii=False, default=str)}\n\n"
+        else:
+            yield f"data: {json.dumps({'type': 'error', 'data': 'Resume failed'})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
