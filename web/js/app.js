@@ -36,28 +36,27 @@ document.addEventListener('alpine:init', () => {
       this.sidebarOpen = !this.sidebarOpen;
     },
 
-    /** Save pipeline result to sessionStorage with error handling */
-    savePipelineResult(data) {
+    /** Save pipeline result via StorageManager (sessionStorage + IndexedDB fallback) */
+    async savePipelineResult(data) {
       this.pipelineResult = data;
       this.storageWarning = '';
-      try {
-        // Strip transient fields before storage
-        const toStore = { ...data };
-        delete toStore.livePreview;
-        const json = JSON.stringify(toStore);
+      // Strip transient fields before storage
+      const toStore = { ...data };
+      delete toStore.livePreview;
+      const json = JSON.stringify(toStore);
 
-        // Warn if approaching typical 5MB limit
-        if (json.length > 4 * 1024 * 1024) {
-          console.warn('Pipeline result large (' + Math.round(json.length / 1024) + 'KB)');
-        }
-        sessionStorage.setItem('sf_result', json);
-      } catch (e) {
-        console.error('sessionStorage save failed:', e.message);
-        this.storageWarning = 'Result too large to cache. It will be lost on page refresh.';
+      if (json.length > 4 * 1024 * 1024) {
+        console.warn('Pipeline result large (' + Math.round(json.length / 1024) + 'KB)');
+      }
+
+      await window.storageManager.setItem('sf_result', json);
+
+      if (window.storageManager.isUsingFallback()) {
+        console.info('[StorageManager] Saved to IndexedDB fallback.');
       }
     },
 
-    init() {
+    async init() {
       // Restore page from hash
       const hash = window.location.hash.slice(1);
       if (hash && NAV_ITEMS.some(n => n.id === hash)) {
@@ -69,9 +68,10 @@ document.addEventListener('alpine:init', () => {
           this.page = h;
         }
       });
-      // Restore pipeline result from sessionStorage
+      // Restore pipeline result via StorageManager
+      await window.storageManager.init();
       try {
-        const saved = sessionStorage.getItem('sf_result');
+        const saved = await window.storageManager.getItem('sf_result');
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed && typeof parsed === 'object') {
@@ -83,7 +83,7 @@ document.addEventListener('alpine:init', () => {
         }
       } catch (e) {
         console.warn('Failed to restore pipeline result:', e.message);
-        sessionStorage.removeItem('sf_result');
+        await window.storageManager.removeItem('sf_result');
       }
     },
   });

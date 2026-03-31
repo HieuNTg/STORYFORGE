@@ -151,7 +151,7 @@ class TestQualityGateConfig:
         ConfigManager._instance = None
         cfg = ConfigManager()
         assert hasattr(cfg.pipeline, "enable_quality_gate")
-        assert cfg.pipeline.enable_quality_gate is False
+        assert cfg.pipeline.enable_quality_gate is True  # Enabled by default since Sprint 1
         assert cfg.pipeline.quality_gate_threshold == 2.5
         assert cfg.pipeline.quality_gate_chapter_threshold == 2.0
         assert cfg.pipeline.quality_gate_max_retries == 1

@@ -47,7 +47,7 @@ class TestProgressHtmlGeneration(unittest.TestCase):
         # Should have one active segment and no done segments
         self.assertEqual(result.count("progress-segment active"), 1)
         self.assertNotIn("progress-segment done", result)
-        self.assertIn("Layer 1: T", result)  # Vietnamese: "Layer 1: Tạo truyện"
+        self.assertIn("Layer 1: Story", result)  # English-first UI
 
     def test_progress_html_layer_2_active(self):
         """Test progress HTML with layer=2 (Layer 2 active, Layer 1 done)."""

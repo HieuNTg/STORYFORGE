@@ -34,12 +34,17 @@
     .card { background:white; border:1px solid #E2E8F0; border-radius:12px; }
     textarea:focus, input:focus, select:focus { outline:none; border-color:#3B82F6; box-shadow:0 0 0 3px rgba(59,130,246,0.15); }
     ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-thumb { background:#CBD5E1; border-radius:3px; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border-width:0; }
   </style>
 </head>
 <body class="h-full bg-surface-50 font-sans text-slate-800" x-data x-init="$store.app.init()">
+  <!-- Skip to content (accessibility) -->
+  <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-brand-600 focus:text-white focus:rounded-lg focus:text-sm focus:font-semibold">Skip to content</a>
 
   <!-- ═══ SIDEBAR ═══ -->
   <aside
+    role="navigation"
+    aria-label="Main navigation"
     class="fixed inset-y-0 left-0 z-30 w-60 bg-white border-r border-surface-200 flex flex-col transition-transform duration-200"
     :class="$store.app.sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
   >
@@ -100,18 +105,20 @@
 
   <!-- ═══ MAIN CONTENT ═══ -->
   <main
+    role="main"
+    aria-label="Main content"
     class="transition-all duration-200 min-h-screen"
     :class="$store.app.sidebarOpen ? 'md:ml-60' : 'ml-0'"
   >
     <!-- Top bar -->
     <header class="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-surface-200 px-4 md:px-6 py-3 flex items-center gap-4">
-      <button @click="$store.app.toggleSidebar()" class="p-1.5 rounded-lg hover:bg-surface-100 cursor-pointer">
-        <svg class="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+      <button @click="$store.app.toggleSidebar()" aria-label="Toggle sidebar" :aria-expanded="$store.app.sidebarOpen" class="p-1.5 rounded-lg hover:bg-surface-100 cursor-pointer">
+        <svg class="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
         </svg>
       </button>
       <h1 class="text-lg font-semibold text-slate-700" x-text="$store.app.navItems.find(n => n.id === $store.app.page)?.label || 'StoryForge'"></h1>
-      <div class="ml-auto flex items-center gap-3">
+      <div class="ml-auto flex items-center gap-3" aria-live="polite" aria-atomic="true">
         <!-- Pipeline status badge -->
         <template x-if="$store.pipeline.status === 'running'">
           <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600">
@@ -135,13 +142,13 @@
     </header>
 
     <!-- Storage warning banner -->
-    <div x-show="$store.app.storageWarning" x-cloak class="mx-4 md:mx-6 mt-2 px-4 py-2 rounded-lg bg-amber-50 border border-amber-200 flex items-center gap-2 text-sm text-amber-700">
+    <div x-show="$store.app.storageWarning" x-cloak role="alert" class="mx-4 md:mx-6 mt-2 px-4 py-2 rounded-lg bg-amber-50 border border-amber-200 flex items-center gap-2 text-sm text-amber-700">
       <svg class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
       <span x-text="$store.app.storageWarning"></span>
     </div>
 
     <!-- Page content -->
-    <div class="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+    <div id="main-content" class="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
 
       <!-- ═══ PIPELINE PAGE ═══ -->
       <div x-show="$store.app.page === 'pipeline'" x-cloak class="page-enter" x-data="pipelinePage()">
@@ -151,28 +158,28 @@
             <div class="card p-5 space-y-4">
               <h2 class="font-semibold text-base text-slate-700">Quick Start</h2>
               <div>
-                <label class="block text-sm font-medium text-slate-600 mb-1">Genre</label>
-                <select x-model="$store.pipeline.form.genre" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm bg-white">
+                <label for="sf-genre" class="block text-sm font-medium text-slate-600 mb-1">Genre</label>
+                <select id="sf-genre" x-model="$store.pipeline.form.genre" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm bg-white">
                   <template x-for="g in $store.pipeline.genres" :key="g">
                     <option :value="g" x-text="g"></option>
                   </template>
                 </select>
               </div>
               <div>
-                <label class="block text-sm font-medium text-slate-600 mb-1">Title</label>
-                <input type="text" x-model="$store.pipeline.form.title" placeholder="Leave blank for AI suggestion" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm">
+                <label for="sf-title" class="block text-sm font-medium text-slate-600 mb-1">Title</label>
+                <input id="sf-title" type="text" x-model="$store.pipeline.form.title" placeholder="Leave blank for AI suggestion" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm">
               </div>
               <div>
-                <label class="block text-sm font-medium text-slate-600 mb-1">Writing Style</label>
-                <select x-model="$store.pipeline.form.style" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm bg-white">
+                <label for="sf-style" class="block text-sm font-medium text-slate-600 mb-1">Writing Style</label>
+                <select id="sf-style" x-model="$store.pipeline.form.style" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm bg-white">
                   <template x-for="s in $store.pipeline.styles" :key="s">
                     <option :value="s" x-text="s"></option>
                   </template>
                 </select>
               </div>
               <div>
-                <label class="block text-sm font-medium text-slate-600 mb-1">Story Idea / Description</label>
-                <textarea x-model="$store.pipeline.form.idea" rows="4" placeholder="Describe your story idea..." class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
+                <label for="sf-idea" class="block text-sm font-medium text-slate-600 mb-1">Story Idea / Description</label>
+                <textarea id="sf-idea" x-model="$store.pipeline.form.idea" rows="4" placeholder="Describe your story idea..." class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
               </div>
             </div>
 
@@ -181,15 +188,15 @@
               <h2 class="font-semibold text-base text-slate-700">Configuration</h2>
               <div>
                 <div class="flex justify-between text-sm"><span class="text-slate-600">Chapters</span><span class="font-medium" x-text="$store.pipeline.form.num_chapters"></span></div>
-                <input type="range" min="1" max="50" x-model.number="$store.pipeline.form.num_chapters" class="w-full accent-brand-600">
+                <input type="range" min="1" max="50" x-model.number="$store.pipeline.form.num_chapters" aria-label="Number of chapters" class="w-full accent-brand-600">
               </div>
               <div>
                 <div class="flex justify-between text-sm"><span class="text-slate-600">Characters</span><span class="font-medium" x-text="$store.pipeline.form.num_characters"></span></div>
-                <input type="range" min="2" max="15" x-model.number="$store.pipeline.form.num_characters" class="w-full accent-brand-600">
+                <input type="range" min="2" max="15" x-model.number="$store.pipeline.form.num_characters" aria-label="Number of characters" class="w-full accent-brand-600">
               </div>
               <div>
                 <div class="flex justify-between text-sm"><span class="text-slate-600">Words / chapter</span><span class="font-medium" x-text="$store.pipeline.form.word_count"></span></div>
-                <input type="range" min="500" max="5000" step="100" x-model.number="$store.pipeline.form.word_count" class="w-full accent-brand-600">
+                <input type="range" min="500" max="5000" step="100" x-model.number="$store.pipeline.form.word_count" aria-label="Words per chapter" class="w-full accent-brand-600">
               </div>
             </div>
 
@@ -199,7 +206,7 @@
               <div class="px-5 pb-4 space-y-3 border-t border-surface-200 pt-3">
                 <div>
                   <div class="flex justify-between text-sm"><span class="text-slate-600">Simulation Rounds</span><span class="font-medium" x-text="$store.pipeline.form.num_sim_rounds"></span></div>
-                  <input type="range" min="1" max="10" x-model.number="$store.pipeline.form.num_sim_rounds" class="w-full accent-brand-600">
+                  <input type="range" min="1" max="10" x-model.number="$store.pipeline.form.num_sim_rounds" aria-label="Simulation rounds" class="w-full accent-brand-600">
                 </div>
                 <div>
                   <label class="block text-sm text-slate-600 mb-1">Drama Level</label>
@@ -211,7 +218,7 @@
                 </div>
                 <div>
                   <div class="flex justify-between text-sm"><span class="text-slate-600">Shots / chapter</span><span class="font-medium" x-text="$store.pipeline.form.shots_per_chapter"></span></div>
-                  <input type="range" min="4" max="20" x-model.number="$store.pipeline.form.shots_per_chapter" class="w-full accent-brand-600">
+                  <input type="range" min="4" max="20" x-model.number="$store.pipeline.form.shots_per_chapter" aria-label="Shots per chapter" class="w-full accent-brand-600">
                 </div>
                 <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
                   <input type="checkbox" x-model="$store.pipeline.form.enable_agents" class="accent-brand-600"> Agent Review
@@ -229,6 +236,8 @@
             <button
               @click="runPipeline()"
               :disabled="$store.pipeline.status === 'running'"
+              :aria-busy="$store.pipeline.status === 'running'"
+              aria-label="Run story generation pipeline"
               class="btn-primary w-full py-3 rounded-xl font-semibold text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span x-show="$store.pipeline.status !== 'running'">Run Pipeline</span>
@@ -258,7 +267,7 @@
                   </div>
                 </template>
               </div>
-              <p class="text-center text-xs text-slate-500 mt-2" x-text="$store.pipeline.currentLog || ''"></p>
+              <p class="text-center text-xs text-slate-500 mt-2" aria-live="polite" x-text="$store.pipeline.currentLog || ''"></p>
             </div>
 
             <!-- Live preview -->
@@ -367,7 +376,7 @@
             </template>
 
             <!-- Error state -->
-            <div x-show="$store.pipeline.status === 'error'" x-cloak class="card p-5 border-red-200 bg-red-50">
+            <div x-show="$store.pipeline.status === 'error'" x-cloak role="alert" class="card p-5 border-red-200 bg-red-50">
               <div class="flex items-start gap-3">
                 <svg class="w-6 h-6 text-red-500 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
                 <div>
@@ -379,7 +388,7 @@
             </div>
 
             <!-- Interrupted state — connection lost -->
-            <div x-show="$store.pipeline.status === 'interrupted'" x-cloak class="card p-5 border-amber-200 bg-amber-50">
+            <div x-show="$store.pipeline.status === 'interrupted'" x-cloak role="alert" class="card p-5 border-amber-200 bg-amber-50">
               <div class="flex items-start gap-3">
                 <svg class="w-6 h-6 text-amber-500 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
                 <div>
@@ -636,9 +645,9 @@
                 <span class="text-sm text-slate-500" x-text="chapters.length + ' chapters'"></span>
                 <div class="flex items-center gap-2">
                   <span class="text-xs text-slate-400">Font size</span>
-                  <button @click="fontSize = Math.max(14, fontSize - 2)" class="w-7 h-7 rounded bg-surface-100 text-slate-500 text-sm font-bold cursor-pointer hover:bg-surface-200">-</button>
+                  <button @click="fontSize = Math.max(14, fontSize - 2)" aria-label="Decrease font size" class="w-7 h-7 rounded bg-surface-100 text-slate-500 text-sm font-bold cursor-pointer hover:bg-surface-200">-</button>
                   <span class="text-xs text-slate-500 w-6 text-center" x-text="fontSize"></span>
-                  <button @click="fontSize = Math.min(28, fontSize + 2)" class="w-7 h-7 rounded bg-surface-100 text-slate-500 text-sm font-bold cursor-pointer hover:bg-surface-200">+</button>
+                  <button @click="fontSize = Math.min(28, fontSize + 2)" aria-label="Increase font size" class="w-7 h-7 rounded bg-surface-100 text-slate-500 text-sm font-bold cursor-pointer hover:bg-surface-200">+</button>
                 </div>
               </div>
             </div>
@@ -659,9 +668,9 @@
             </div>
             <!-- Navigation -->
             <div class="flex justify-between mt-4">
-              <button @click="prev()" :disabled="chapter === 0" class="px-4 py-2 rounded-lg text-sm font-medium border border-surface-200 hover:border-brand-500 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">Previous</button>
-              <span class="text-sm text-slate-400 self-center" x-text="(chapter+1) + '/' + chapters.length"></span>
-              <button @click="next()" :disabled="chapter >= chapters.length - 1" class="px-4 py-2 rounded-lg text-sm font-medium border border-surface-200 hover:border-brand-500 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">Next</button>
+              <button @click="prev()" :disabled="chapter === 0" aria-label="Previous chapter" class="px-4 py-2 rounded-lg text-sm font-medium border border-surface-200 hover:border-brand-500 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">Previous</button>
+              <span class="text-sm text-slate-400 self-center" aria-live="polite" x-text="(chapter+1) + '/' + chapters.length"></span>
+              <button @click="next()" :disabled="chapter >= chapters.length - 1" aria-label="Next chapter" class="px-4 py-2 rounded-lg text-sm font-medium border border-surface-200 hover:border-brand-500 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">Next</button>
             </div>
           </div>
         </template>
@@ -860,6 +869,7 @@
   </main>
 
   <!-- ═══ JS ═══ -->
+  <script src="/static/js/storage-manager.js"></script>
   <script src="/static/js/api-client.js"></script>
   <script src="/static/js/pages/reader.js"></script>
   <script src="/static/js/pages/export.js"></script>
