@@ -123,6 +123,7 @@ def _load_templates() -> dict:
 def _progress_html(layer: int = 0, step: str = "") -> str:
     """Generate progress bar HTML. layer: 0=idle, 1/2/3/4=active layer."""
     segments = []
+    icons = ["1", "2", "3", "4"]
     labels = [_t("progress.layer1"), _t("progress.layer2"), _t("progress.layer3"), "Media"]
     for i in range(4):
         lnum = i + 1
@@ -132,7 +133,11 @@ def _progress_html(layer: int = 0, step: str = "") -> str:
             cls = "progress-segment active"
         else:
             cls = "progress-segment"
-        segments.append(f'<div class="{cls}">{labels[i]}</div>')
+        segments.append(
+            f'<div class="{cls}">'
+            f'<span style="font-size:10px;opacity:0.7;margin-right:4px">{icons[i]}</span>'
+            f'{labels[i]}</div>'
+        )
     bar = f'<div class="progress-bar-container">{"".join(segments)}</div>'
     step_div = f'<div class="progress-step-text">{_html.escape(step)}</div>' if step else ""
     return bar + step_div
@@ -158,49 +163,208 @@ def _detect_layer(msg: str) -> int:
     return 0
 
 
-_APP_THEME = gr.themes.Soft()
+_APP_THEME = gr.themes.Soft(
+    primary_hue=gr.themes.colors.indigo,
+    secondary_hue=gr.themes.colors.slate,
+    neutral_hue=gr.themes.colors.gray,
+    font=[gr.themes.GoogleFont("Inter"), "system-ui", "sans-serif"],
+    font_mono=[gr.themes.GoogleFont("JetBrains Mono"), "monospace"],
+).set(
+    body_background_fill="linear-gradient(135deg, #f5f7fa 0%, #e8ecf4 100%)",
+    block_background_fill="white",
+    block_border_width="0px",
+    block_shadow="0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)",
+    block_radius="12px",
+    button_primary_background_fill="linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)",
+    button_primary_text_color="white",
+    button_primary_shadow="0 4px 14px rgba(79,70,229,0.35)",
+    button_secondary_background_fill="white",
+    button_secondary_border_color="#e0e0e0",
+    button_secondary_shadow="0 1px 3px rgba(0,0,0,0.06)",
+    input_background_fill="#fafbfc",
+    input_border_color="#e2e8f0",
+    input_radius="8px",
+    checkbox_background_color="#f0f0ff",
+    checkbox_border_color="#c7d2fe",
+)
 _APP_CSS = """
-.pipeline-header { text-align: center; margin-bottom: 20px; }
-.layer-box { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 10px 0; }
-/* Progress bar */
+/* ── Global ── */
+.gradio-container { max-width: 1400px !important; margin: 0 auto !important; }
+
+/* ── Header ── */
+.pipeline-header {
+    text-align: center; margin-bottom: 8px; padding: 20px 0 10px;
+}
+.pipeline-header h1 {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    font-size: 2rem !important; font-weight: 800 !important; letter-spacing: -0.02em;
+}
+.pipeline-header h3 {
+    color: #64748b !important; font-weight: 400 !important;
+    font-size: 1rem !important; margin-top: 4px !important;
+}
+
+/* ── Tab navigation ── */
+.tabs > .tab-nav {
+    background: white; border-radius: 12px; padding: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin-bottom: 16px;
+    gap: 2px !important;
+}
+.tabs > .tab-nav button {
+    border-radius: 8px !important; font-weight: 600 !important;
+    padding: 10px 20px !important; transition: all 0.2s ease !important;
+    border: none !important; font-size: 13px !important;
+}
+.tabs > .tab-nav button.selected {
+    background: linear-gradient(135deg, #4f46e5, #6366f1) !important;
+    color: white !important; box-shadow: 0 2px 8px rgba(79,70,229,0.3) !important;
+}
+.tabs > .tab-nav button:not(.selected):hover {
+    background: #f1f5f9 !important;
+}
+
+/* ── Card sections ── */
+.layer-box {
+    border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px;
+    margin: 12px 0; background: white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+/* ── Progress stepper ── */
 .progress-bar-container {
-    display: flex; gap: 4px; margin: 10px 0; height: 32px;
-    background: #f0f0f0; border-radius: 8px; overflow: hidden;
+    display: flex; gap: 0; margin: 12px 0; height: 44px;
+    background: #f1f5f9; border-radius: 12px; overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.06);
 }
 .progress-segment {
     flex: 1; display: flex; align-items: center; justify-content: center;
-    font-size: 12px; font-weight: 600; color: #666;
-    transition: all 0.5s ease; background: #e8e8e8;
+    font-size: 12px; font-weight: 600; color: #94a3b8;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    background: transparent; position: relative;
 }
-.progress-segment.active { background: #3b82f6; color: white; animation: pulse-bg 2s infinite; }
-.progress-segment.done { background: #22c55e; color: white; }
-@keyframes pulse-bg { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+.progress-segment.active {
+    background: linear-gradient(135deg, #4f46e5, #6366f1);
+    color: white; animation: pulse-glow 2s infinite;
+    box-shadow: 0 0 20px rgba(79,70,229,0.3);
+}
+.progress-segment.done {
+    background: linear-gradient(135deg, #059669, #10b981);
+    color: white;
+}
+.progress-segment.done::after {
+    content: " ✓"; font-size: 11px;
+}
+@keyframes pulse-glow {
+    0%, 100% { opacity: 1; box-shadow: 0 0 20px rgba(79,70,229,0.3); }
+    50% { opacity: 0.85; box-shadow: 0 0 30px rgba(79,70,229,0.5); }
+}
 .progress-step-text {
-    text-align: center; font-size: 13px; color: #555;
-    margin: 4px 0 8px 0; min-height: 20px;
+    text-align: center; font-size: 13px; color: #64748b;
+    margin: 6px 0 10px 0; min-height: 20px; font-weight: 500;
 }
-/* Status badge */
+
+/* ── Status badge ── */
 .status-badge {
-    display: inline-block; padding: 4px 12px; border-radius: 12px;
-    font-size: 12px; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 16px; border-radius: 20px;
+    font-size: 13px; font-weight: 600;
 }
-.status-idle { background: #e5e7eb; color: #6b7280; }
-.status-running { background: #dbeafe; color: #2563eb; animation: pulse-bg 2s infinite; }
-.status-done { background: #dcfce7; color: #16a34a; }
-.status-error { background: #fee2e2; color: #dc2626; }
-/* Mobile responsive */
+.status-idle { background: #f1f5f9; color: #64748b; }
+.status-running {
+    background: linear-gradient(135deg, #dbeafe, #e0e7ff);
+    color: #4338ca; animation: pulse-glow 2s infinite;
+}
+.status-done {
+    background: linear-gradient(135deg, #dcfce7, #d1fae5);
+    color: #059669;
+}
+.status-error {
+    background: linear-gradient(135deg, #fee2e2, #fecaca);
+    color: #dc2626;
+}
+
+/* ── Buttons ── */
+.gr-button-primary {
+    transition: all 0.2s ease !important;
+}
+.gr-button-primary:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 20px rgba(79,70,229,0.4) !important;
+}
+.gr-button-secondary:hover {
+    border-color: #6366f1 !important; color: #4f46e5 !important;
+}
+button.lg {
+    padding: 12px 24px !important; font-size: 15px !important;
+    font-weight: 700 !important; border-radius: 10px !important;
+}
+
+/* ── Accordion ── */
+.gr-accordion { border-radius: 10px !important; border: 1px solid #e2e8f0 !important; }
+.gr-accordion .label-wrap { padding: 12px 16px !important; }
+
+/* ── Inputs ── */
+.gr-input, .gr-text-input textarea, .gr-dropdown {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+.gr-input:focus, .gr-text-input textarea:focus {
+    border-color: #6366f1 !important;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.15) !important;
+}
+
+/* ── Form section headers ── */
+.form-section-header {
+    font-size: 14px !important; font-weight: 700 !important;
+    color: #334155 !important; margin: 16px 0 8px !important;
+    padding-bottom: 6px; border-bottom: 2px solid #e2e8f0;
+}
+
+/* ── Onboarding banner ── */
+.onboarding-banner {
+    background: linear-gradient(135deg, #eef2ff, #e0e7ff) !important;
+    border: 1px solid #c7d2fe !important;
+    border-radius: 12px !important; padding: 16px 20px !important;
+}
+
+/* ── Output panels ── */
+.output-panel textarea {
+    font-family: 'Inter', system-ui, sans-serif !important;
+    line-height: 1.7 !important;
+}
+
+/* ── Mobile responsive ── */
 @media (max-width: 768px) {
     .gr-row { flex-direction: column !important; }
     .gr-column { min-width: 100% !important; }
     .progress-segment { font-size: 10px; }
+    .gradio-button { min-height: 44px; }
+    .tabs > .tab-nav { flex-wrap: wrap; }
+    .tabs > .tab-nav button { flex: 1 1 45%; font-size: 11px !important; padding: 8px 12px !important; }
+    .pipeline-header h1 { font-size: 1.5rem !important; }
 }
-@media (max-width: 768px) { .gradio-button { min-height: 44px; } }
 @media (max-width: 480px) {
-    .tab-nav { flex-wrap: wrap; }
-    .tab-nav button { flex: 1 1 45%; font-size: 11px; }
+    .tabs > .tab-nav button { flex: 1 1 100%; }
+    .gradio-container { padding: 8px !important; }
 }
+
+/* ── Compact mode ── */
 .compact-mode .prose { font-size: 14px; }
 .compact-mode .block { padding: 8px !important; }
+.compact-mode .tabs > .tab-nav button { padding: 6px 12px !important; font-size: 11px !important; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ── Animation for new content ── */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.tabitem { animation: fadeIn 0.3s ease; }
 """
 
 
@@ -209,13 +373,11 @@ def create_ui():
 
     with gr.Blocks(
         title="StoryForge",
-        theme=_APP_THEME,
-        css=_APP_CSS,
     ) as app:
         build_onboarding_banner(_t)
 
         gr.Markdown(
-            f"# {_t('app.title')}\n### {_t('app.subtitle')}\n\n{_t('app.pipeline_desc')}",
+            f"# {_t('app.title')}\n### {_t('app.subtitle')}",
             elem_classes="pipeline-header",
         )
 
@@ -1012,13 +1174,47 @@ def create_ui():
 
 
 def main():
-    app = create_ui()
-    app.launch(
-        server_name="0.0.0.0",
-        server_port=7860,
-        share=False,
-        show_error=True,
-    )
+    """Launch StoryForge with new web UI + Gradio fallback."""
+    import os
+    from fastapi import FastAPI
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+    import uvicorn
+
+    # Create the main FastAPI app
+    main_app = FastAPI(title="StoryForge")
+
+    # Mount API routes
+    from api import api_router
+    main_app.include_router(api_router)
+
+    # Serve static JS/CSS from web/
+    web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
+    main_app.mount("/static", StaticFiles(directory=web_dir), name="static")
+
+    # Mount Gradio at /gradio (fallback UI)
+    gradio_app = create_ui()
+    gradio_app = gradio_app.queue()
+    main_app.mount("/gradio", gradio_app.app)
+
+    # Serve web/index.html at root
+    @main_app.get("/")
+    async def serve_index():
+        return FileResponse(os.path.join(web_dir, "index.html"))
+
+    # Health check
+    @main_app.get("/api/health")
+    async def health():
+        cfg = ConfigManager()
+        llm_ok = bool(cfg.llm.api_key) or cfg.llm.backend_type != "api"
+        return {
+            "status": "ok",
+            "version": "3.0",
+            "services": {"llm": llm_ok},
+        }
+
+    logger.info("StoryForge starting — Web UI at http://localhost:7860 | Gradio at http://localhost:7860/gradio")
+    uvicorn.run(main_app, host="0.0.0.0", port=7860, log_level="info")
 
 
 if __name__ == "__main__":

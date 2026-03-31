@@ -22,32 +22,40 @@ def build_export_tab(_t, orchestrator_state):
         dict of components (none need external wiring — handlers registered here).
     """
     gr.Markdown(f"### {_t('tab.export')}")
-    with gr.Row():
-        pdf_btn = gr.Button(_t("btn.export_pdf"), variant="secondary")
-        epub_btn = gr.Button(_t("btn.export_epub"), variant="secondary")
+
+    # ── Document Export ──
+    with gr.Accordion("Document Export (PDF / EPUB / Wattpad)", open=True):
+        with gr.Row():
+            pdf_btn = gr.Button(_t("btn.export_pdf"), variant="secondary")
+            epub_btn = gr.Button(_t("btn.export_epub"), variant="secondary")
+            wattpad_btn = gr.Button(_t("btn.wattpad_export"), variant="secondary")
+
+    # ── Audio Export ──
+    with gr.Accordion("Audio Export (TTS)", open=False):
         tts_btn = gr.Button(_t("btn.export_tts"), variant="secondary")
+        with gr.Row():
+            voice_selector = gr.Dropdown(
+                choices=["female", "male"],
+                value="female",
+                label=_t("label.voice_select"),
+                info=f"{_t('voice_female')} / {_t('voice_male')}",
+                scale=2,
+            )
+            audio_btn = gr.Button(_t("btn.export_audio"), variant="secondary", scale=1)
+        audio_status = gr.Textbox(label="Status", interactive=False, visible=True)
+
+    # ── Share ──
+    with gr.Accordion("Share", open=False):
         share_btn = gr.Button(_t("btn.share"), variant="primary")
-        wattpad_btn = gr.Button(_t("btn.wattpad_export"), variant="secondary")
+        share_link_display = gr.Textbox(label=_t("label.share_link"), interactive=False)
 
-    gr.Markdown("---")
-    gr.Markdown(f"#### {_t('label.voice_select')}")
-    with gr.Row():
-        voice_selector = gr.Dropdown(
-            choices=["female", "male"],
-            value="female",
-            label=_t("label.voice_select"),
-            info=f"{_t('voice_female')} / {_t('voice_male')}",
-        )
-        audio_btn = gr.Button(_t("btn.export_audio"), variant="secondary")
-
-    audio_status = gr.Textbox(label="Status", interactive=False, visible=True)
+    # ── Download area ──
     export_file_output = gr.File(label="Download", file_count="multiple")
     wattpad_file_output = gr.File(
         label=_t("export.wattpad_zip"),
         file_count="single",
         visible=True,
     )
-    share_link_display = gr.Textbox(label=_t("label.share_link"), interactive=False)
     reading_stats_display = gr.JSON(label=_t("label.reading_stats"))
 
     def _export_pdf(orch_state):

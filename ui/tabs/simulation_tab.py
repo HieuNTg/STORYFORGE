@@ -15,6 +15,7 @@ def build_simulation_tab(_t):
     sim_output = gr.Textbox(
         label=_t("label.sim_result"), lines=20,
         interactive=False,
+        elem_classes=["output-panel"],
     )
     with gr.Accordion(_t("label.escalation"), open=False):
         escalation_display = gr.JSON(label=_t("label.escalation"))

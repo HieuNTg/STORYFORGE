@@ -15,14 +15,14 @@ def build_onboarding_banner(_t):
     visible = not mgr.is_completed
     step = mgr.get_current_step_info()
 
-    with gr.Group(visible=visible) as onboarding_group:
-        gr.Markdown("### Huong dan bat dau")
+    with gr.Group(visible=visible, elem_classes=["onboarding-banner"]) as onboarding_group:
+        gr.Markdown("### Hướng dẫn bắt đầu")
         step_title = gr.Markdown(f"**{step['title']}**")
         step_desc = gr.Markdown(step["description"])
 
         with gr.Row():
-            next_btn = gr.Button("Tiep theo ->", variant="primary", size="sm")
-            skip_btn = gr.Button("Bo qua", variant="secondary", size="sm")
+            next_btn = gr.Button("Tiếp theo ->", variant="primary", size="sm")
+            skip_btn = gr.Button("Bỏ qua", variant="secondary", size="sm")
 
     def on_next():
         m = OnboardingManager()

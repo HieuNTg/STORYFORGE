@@ -12,15 +12,17 @@ def build_story_tab(_t):
     Returns:
         dict with draft_output and enhanced_output components.
     """
-    gr.Markdown(_t("output.draft_header"))
-    draft_output = gr.Textbox(
-        label=_t("label.draft"), lines=15, interactive=False,
-    )
-    gr.Markdown(_t("output.enhanced_header"))
-    enhanced_output = gr.Textbox(
-        label=_t("label.enhanced"), lines=15,
-        interactive=False,
-    )
+    with gr.Accordion(_t("output.draft_header"), open=True):
+        draft_output = gr.Textbox(
+            label=_t("label.draft"), lines=15, interactive=False,
+            elem_classes=["output-panel"],
+        )
+    with gr.Accordion(_t("output.enhanced_header"), open=True):
+        enhanced_output = gr.Textbox(
+            label=_t("label.enhanced"), lines=15,
+            interactive=False,
+            elem_classes=["output-panel"],
+        )
 
     return {
         "draft_output": draft_output,

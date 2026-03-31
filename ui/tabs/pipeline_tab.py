@@ -15,7 +15,7 @@ def build_pipeline_tab(_t, _genres, _styles, _drama_levels):
     Returns:
         dict of Gradio component references needed for wiring handlers.
     """
-    # Quick start section
+    # ── Quick Start section ──
     gr.Markdown(_t("section.quick_start"))
     genre_input = gr.Dropdown(
         choices=_genres(), value=_genres()[0], label=_t("label.genre"),
@@ -29,6 +29,7 @@ def build_pipeline_tab(_t, _genres, _styles, _drama_levels):
         _t("btn.create_now"), variant="primary", size="lg",
     )
 
+    # ── Story Info section ──
     gr.Markdown(_t("section.story_info"))
     title_input = gr.Textbox(
         label=_t("label.title"), placeholder=_t("label.title_placeholder"),
@@ -43,6 +44,7 @@ def build_pipeline_tab(_t, _genres, _styles, _drama_levels):
         lines=4,
     )
 
+    # ── Basic config ──
     gr.Markdown(_t("section.config"))
     num_chapters = gr.Slider(
         1, 50, value=5, step=1, label=_t("label.num_chapters"),
@@ -55,35 +57,34 @@ def build_pipeline_tab(_t, _genres, _styles, _drama_levels):
         label=_t("label.word_count"),
     )
 
-    gr.Markdown(_t("section.layer2"))
-    sim_rounds = gr.Slider(
-        1, 10, value=3, step=1,
-        label=_t("label.sim_rounds"),
-    )
-    drama_level = gr.Dropdown(
-        choices=_drama_levels(), value=_drama_levels()[2],
-        label=_t("label.drama_level"),
-    )
+    # ── Advanced settings in accordion ──
+    with gr.Accordion(_t("section.layer2") + " & " + _t("section.layer3"), open=False):
+        sim_rounds = gr.Slider(
+            1, 10, value=3, step=1,
+            label=_t("label.sim_rounds"),
+        )
+        drama_level = gr.Dropdown(
+            choices=_drama_levels(), value=_drama_levels()[2],
+            label=_t("label.drama_level"),
+        )
+        shots_per_ch = gr.Slider(
+            4, 20, value=8, step=1,
+            label=_t("label.shots_per_ch"),
+        )
 
-    gr.Markdown(_t("section.layer3"))
-    shots_per_ch = gr.Slider(
-        4, 20, value=8, step=1,
-        label=_t("label.shots_per_ch"),
-    )
-
-    gr.Markdown(_t("section.agent_review"))
-    enable_agents_cb = gr.Checkbox(
-        value=True,
-        label=_t("label.enable_agents"),
-    )
-    enable_scoring_cb = gr.Checkbox(
-        value=True,
-        label=_t("label.enable_scoring"),
-    )
-    enable_media_cb = gr.Checkbox(
-        value=False,
-        label=_t("label.enable_media"),
-    )
+    with gr.Accordion(_t("section.agent_review"), open=False):
+        enable_agents_cb = gr.Checkbox(
+            value=True,
+            label=_t("label.enable_agents"),
+        )
+        enable_scoring_cb = gr.Checkbox(
+            value=True,
+            label=_t("label.enable_scoring"),
+        )
+        enable_media_cb = gr.Checkbox(
+            value=False,
+            label=_t("label.enable_media"),
+        )
 
     run_btn = gr.Button(
         _t("btn.run_pipeline"), variant="primary", size="lg",

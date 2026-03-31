@@ -45,31 +45,33 @@ def build_account_tab(_t, orchestrator_state, user_state=None):
     gr.Markdown(f"### {_t('tab.account')}")
     if user_state is None:
         user_state = gr.State(value=None)
-    with gr.Row():
-        username_input = gr.Textbox(label=_t("label.username"), scale=1)
-        password_input = gr.Textbox(
-            label=_t("label.password"), type="password", scale=1,
-        )
-    with gr.Row():
-        login_btn = gr.Button(_t("btn.login"), variant="primary")
-        register_btn = gr.Button(_t("btn.register"), variant="secondary")
-    login_status = gr.Textbox(label="Status", interactive=False)
 
-    # Usage summary display (credits + tier info)
-    usage_summary = gr.Markdown(value="", label=_t("label_usage_summary"))
+    # ── Login section ──
+    with gr.Accordion("Login / Register", open=True):
+        with gr.Row():
+            username_input = gr.Textbox(label=_t("label.username"), scale=1)
+            password_input = gr.Textbox(
+                label=_t("label.password"), type="password", scale=1,
+            )
+        with gr.Row():
+            login_btn = gr.Button(_t("btn.login"), variant="primary")
+            register_btn = gr.Button(_t("btn.register"), variant="secondary")
+        login_status = gr.Textbox(label="Status", interactive=False)
+        usage_summary = gr.Markdown(value="", label=_t("label_usage_summary"))
 
-    gr.Markdown(f"### {_t('label.story_library')}")
-    story_library_display = gr.Dataframe(
-        headers=["ID", "Title", "Date"],
-        label=_t("label.story_library"),
-        interactive=False,
-    )
-    with gr.Row():
-        save_title_input = gr.Textbox(
-            label=_t("label.title"), placeholder="Story title",
+    # ── Story Library ──
+    with gr.Accordion(_t("label.story_library"), open=True):
+        story_library_display = gr.Dataframe(
+            headers=["ID", "Title", "Date"],
+            label=_t("label.story_library"),
+            interactive=False,
         )
-        save_story_btn = gr.Button(_t("btn.save_story"), variant="secondary")
-    save_story_status = gr.Textbox(label="Status", interactive=False)
+        with gr.Row():
+            save_title_input = gr.Textbox(
+                label=_t("label.title"), placeholder="Story title", scale=3,
+            )
+            save_story_btn = gr.Button(_t("btn.save_story"), variant="secondary", scale=1)
+        save_story_status = gr.Textbox(label="Status", interactive=False)
 
     def _login(username, password):
         result = handle_login(username, password, _t)

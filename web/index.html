@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StoryForge</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            brand: { 50:'#EFF6FF', 100:'#DBEAFE', 200:'#BFDBFE', 500:'#3B82F6', 600:'#2563EB', 700:'#1D4ED8', 800:'#1E40AF' },
+            surface: { 50:'#F8FAFC', 100:'#F1F5F9', 200:'#E2E8F0' },
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .page-enter { animation: fadeSlideIn 0.25s ease-out; }
+    @keyframes fadeSlideIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .sidebar-link { transition: all 0.15s ease; }
+    .sidebar-link:hover { background: #F1F5F9; }
+    .sidebar-link.active { background: #EFF6FF; color: #2563EB; font-weight: 600; }
+    .progress-step { transition: all 0.4s cubic-bezier(0.4,0,0.2,1); }
+    .btn-primary { background: linear-gradient(135deg,#2563EB,#3B82F6); color:white; }
+    .btn-primary:hover { background: linear-gradient(135deg,#1D4ED8,#2563EB); box-shadow:0 4px 14px rgba(37,99,235,0.35); transform:translateY(-1px); }
+    .card { background:white; border:1px solid #E2E8F0; border-radius:12px; }
+    textarea:focus, input:focus, select:focus { outline:none; border-color:#3B82F6; box-shadow:0 0 0 3px rgba(59,130,246,0.15); }
+    ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-thumb { background:#CBD5E1; border-radius:3px; }
+  </style>
+</head>
+<body class="h-full bg-surface-50 font-sans text-slate-800" x-data x-init="$store.app.init()">
+
+  <!-- ═══ SIDEBAR ═══ -->
+  <aside
+    class="fixed inset-y-0 left-0 z-30 w-60 bg-white border-r border-surface-200 flex flex-col transition-transform duration-200"
+    :class="$store.app.sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+  >
+    <!-- Logo -->
+    <div class="flex items-center gap-3 px-5 py-5 border-b border-surface-200">
+      <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-600 to-brand-500 flex items-center justify-center">
+        <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/>
+        </svg>
+      </div>
+      <div>
+        <div class="font-bold text-lg leading-tight">StoryForge</div>
+        <div class="text-xs text-slate-400">AI Story Generator</div>
+      </div>
+    </div>
+
+    <!-- Nav links -->
+    <nav class="flex-1 overflow-y-auto py-3 px-3">
+      <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-3 mb-2">Create</div>
+      <template x-for="item in $store.app.navItems.filter(n => n.group === 'main')" :key="item.id">
+        <button
+          class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-600 cursor-pointer"
+          :class="{ 'active': $store.app.page === item.id }"
+          @click="$store.app.navigate(item.id)"
+        >
+          <span class="w-5 h-5 flex-shrink-0" x-html="getNavIcon(item.icon)"></span>
+          <span x-text="item.label"></span>
+        </button>
+      </template>
+
+      <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-3 mt-5 mb-2">System</div>
+      <template x-for="item in $store.app.navItems.filter(n => n.group === 'bottom')" :key="item.id">
+        <button
+          class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-600 cursor-pointer"
+          :class="{ 'active': $store.app.page === item.id }"
+          @click="$store.app.navigate(item.id)"
+        >
+          <span class="w-5 h-5 flex-shrink-0" x-html="getNavIcon(item.icon)"></span>
+          <span x-text="item.label"></span>
+        </button>
+      </template>
+    </nav>
+
+    <!-- Status -->
+    <div class="px-4 py-3 border-t border-surface-200 text-xs text-slate-400">
+      v2.3 &middot; <span x-text="$store.pipeline.status === 'running' ? 'Running...' : 'Ready'"></span>
+    </div>
+  </aside>
+
+  <!-- ═══ MOBILE OVERLAY ═══ -->
+  <div
+    x-show="$store.app.sidebarOpen && window.innerWidth <= 768"
+    @click="$store.app.sidebarOpen = false"
+    class="fixed inset-0 z-20 bg-black/30 md:hidden"
+    x-transition.opacity
+    x-cloak
+  ></div>
+
+  <!-- ═══ MAIN CONTENT ═══ -->
+  <main
+    class="transition-all duration-200 min-h-screen"
+    :class="$store.app.sidebarOpen ? 'md:ml-60' : 'ml-0'"
+  >
+    <!-- Top bar -->
+    <header class="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-surface-200 px-4 md:px-6 py-3 flex items-center gap-4">
+      <button @click="$store.app.toggleSidebar()" class="p-1.5 rounded-lg hover:bg-surface-100 cursor-pointer">
+        <svg class="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/>
+        </svg>
+      </button>
+      <h1 class="text-lg font-semibold text-slate-700" x-text="$store.app.navItems.find(n => n.id === $store.app.page)?.label || 'StoryForge'"></h1>
+      <div class="ml-auto flex items-center gap-3">
+        <!-- Pipeline status badge -->
+        <template x-if="$store.pipeline.status === 'running'">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600">
+            <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+            Running
+          </span>
+        </template>
+        <template x-if="$store.pipeline.status === 'done'">
+          <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-600">
+            <span class="w-2 h-2 rounded-full bg-green-500"></span>
+            Complete
+          </span>
+        </template>
+      </div>
+    </header>
+
+    <!-- Page content -->
+    <div class="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
+
+      <!-- ═══ PIPELINE PAGE ═══ -->
+      <div x-show="$store.app.page === 'pipeline'" x-cloak class="page-enter" x-data="pipelinePage()">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <!-- Left: Form -->
+          <div class="lg:col-span-4 space-y-4">
+            <div class="card p-5 space-y-4">
+              <h2 class="font-semibold text-base text-slate-700">Quick Start</h2>
+              <div>
+                <label class="block text-sm font-medium text-slate-600 mb-1">Genre</label>
+                <select x-model="$store.pipeline.form.genre" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm bg-white">
+                  <template x-for="g in $store.pipeline.genres" :key="g">
+                    <option :value="g" x-text="g"></option>
+                  </template>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-600 mb-1">Title</label>
+                <input type="text" x-model="$store.pipeline.form.title" placeholder="Leave blank for AI suggestion" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-600 mb-1">Writing Style</label>
+                <select x-model="$store.pipeline.form.style" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm bg-white">
+                  <template x-for="s in $store.pipeline.styles" :key="s">
+                    <option :value="s" x-text="s"></option>
+                  </template>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-600 mb-1">Story Idea / Description</label>
+                <textarea x-model="$store.pipeline.form.idea" rows="4" placeholder="Describe your story idea..." class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
+              </div>
+            </div>
+
+            <!-- Config sliders -->
+            <div class="card p-5 space-y-3">
+              <h2 class="font-semibold text-base text-slate-700">Configuration</h2>
+              <div>
+                <div class="flex justify-between text-sm"><span class="text-slate-600">Chapters</span><span class="font-medium" x-text="$store.pipeline.form.num_chapters"></span></div>
+                <input type="range" min="1" max="50" x-model.number="$store.pipeline.form.num_chapters" class="w-full accent-brand-600">
+              </div>
+              <div>
+                <div class="flex justify-between text-sm"><span class="text-slate-600">Characters</span><span class="font-medium" x-text="$store.pipeline.form.num_characters"></span></div>
+                <input type="range" min="2" max="15" x-model.number="$store.pipeline.form.num_characters" class="w-full accent-brand-600">
+              </div>
+              <div>
+                <div class="flex justify-between text-sm"><span class="text-slate-600">Words / chapter</span><span class="font-medium" x-text="$store.pipeline.form.word_count"></span></div>
+                <input type="range" min="500" max="5000" step="100" x-model.number="$store.pipeline.form.word_count" class="w-full accent-brand-600">
+              </div>
+            </div>
+
+            <!-- Advanced (collapsible) -->
+            <details class="card overflow-hidden">
+              <summary class="px-5 py-3 cursor-pointer text-sm font-semibold text-slate-600 hover:bg-surface-50 select-none">Advanced</summary>
+              <div class="px-5 pb-4 space-y-3 border-t border-surface-200 pt-3">
+                <div>
+                  <div class="flex justify-between text-sm"><span class="text-slate-600">Simulation Rounds</span><span class="font-medium" x-text="$store.pipeline.form.num_sim_rounds"></span></div>
+                  <input type="range" min="1" max="10" x-model.number="$store.pipeline.form.num_sim_rounds" class="w-full accent-brand-600">
+                </div>
+                <div>
+                  <label class="block text-sm text-slate-600 mb-1">Drama Level</label>
+                  <select x-model="$store.pipeline.form.drama_level" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm bg-white">
+                    <template x-for="d in $store.pipeline.dramaLevels" :key="d">
+                      <option :value="d" x-text="d"></option>
+                    </template>
+                  </select>
+                </div>
+                <div>
+                  <div class="flex justify-between text-sm"><span class="text-slate-600">Shots / chapter</span><span class="font-medium" x-text="$store.pipeline.form.shots_per_chapter"></span></div>
+                  <input type="range" min="4" max="20" x-model.number="$store.pipeline.form.shots_per_chapter" class="w-full accent-brand-600">
+                </div>
+                <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+                  <input type="checkbox" x-model="$store.pipeline.form.enable_agents" class="accent-brand-600"> Agent Review
+                </label>
+                <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+                  <input type="checkbox" x-model="$store.pipeline.form.enable_scoring" class="accent-brand-600"> Auto Scoring
+                </label>
+                <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+                  <input type="checkbox" x-model="$store.pipeline.form.enable_media" class="accent-brand-600"> Media Production
+                </label>
+              </div>
+            </details>
+
+            <!-- Run button -->
+            <button
+              @click="runPipeline()"
+              :disabled="$store.pipeline.status === 'running'"
+              class="btn-primary w-full py-3 rounded-xl font-semibold text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span x-show="$store.pipeline.status !== 'running'">Run Pipeline</span>
+              <span x-show="$store.pipeline.status === 'running'" class="flex items-center justify-center gap-2">
+                <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                Running...
+              </span>
+            </button>
+          </div>
+
+          <!-- Right: Progress + Output -->
+          <div class="lg:col-span-8 space-y-4">
+            <!-- Progress stepper -->
+            <div class="card p-4">
+              <div class="flex gap-1">
+                <template x-for="(label, i) in ['Layer 1: Story', 'Layer 2: Simulation', 'Layer 3: Video', 'Media']" :key="i">
+                  <div
+                    class="progress-step flex-1 h-10 rounded-lg flex items-center justify-center text-xs font-semibold"
+                    :class="{
+                      'bg-green-500 text-white': $store.pipeline.progress > i+1,
+                      'bg-brand-600 text-white animate-pulse': $store.pipeline.progress === i+1,
+                      'bg-surface-100 text-slate-400': $store.pipeline.progress < i+1,
+                    }"
+                  >
+                    <span x-show="$store.pipeline.progress > i+1" class="mr-1">&#10003;</span>
+                    <span x-text="label"></span>
+                  </div>
+                </template>
+              </div>
+              <p class="text-center text-xs text-slate-500 mt-2" x-text="$store.pipeline.currentLog || ''"></p>
+            </div>
+
+            <!-- Live preview -->
+            <div x-show="$store.pipeline.status === 'running' && $store.pipeline.livePreview" class="card p-5" x-cloak>
+              <h3 class="text-sm font-semibold text-slate-600 mb-2">Live Preview</h3>
+              <pre class="text-sm text-slate-700 whitespace-pre-wrap max-h-64 overflow-y-auto leading-relaxed" x-text="$store.pipeline.livePreview"></pre>
+            </div>
+
+            <!-- Results -->
+            <template x-if="$store.pipeline.result">
+              <div class="space-y-4">
+                <!-- Story output -->
+                <div x-show="$store.pipeline.result.has_enhanced || $store.pipeline.result.has_draft" class="card">
+                  <div class="border-b border-surface-200 px-5 py-3">
+                    <div class="flex gap-2">
+                      <button @click="activeTab = 'draft'" class="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer" :class="activeTab === 'draft' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-surface-100'">Draft</button>
+                      <button @click="activeTab = 'enhanced'" class="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer" :class="activeTab === 'enhanced' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-surface-100'" x-show="$store.pipeline.result.has_enhanced">Enhanced</button>
+                      <button @click="activeTab = 'simulation'" class="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer" :class="activeTab === 'simulation' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-surface-100'" x-show="$store.pipeline.result.simulation">Simulation</button>
+                      <button @click="activeTab = 'quality'" class="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer" :class="activeTab === 'quality' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-surface-100'" x-show="$store.pipeline.result.quality">Quality</button>
+                    </div>
+                  </div>
+                  <div class="p-5 max-h-[600px] overflow-y-auto">
+                    <!-- Draft tab -->
+                    <div x-show="activeTab === 'draft'" x-data="{ chapter: 0 }">
+                      <template x-if="$store.pipeline.result.draft">
+                        <div>
+                          <h3 class="text-xl font-bold mb-1" x-text="$store.pipeline.result.draft.title"></h3>
+                          <p class="text-sm text-slate-500 mb-4" x-text="$store.pipeline.result.draft.genre + ' — ' + $store.pipeline.result.draft.synopsis"></p>
+                          <div class="flex gap-2 flex-wrap mb-4">
+                            <template x-for="(ch, idx) in $store.pipeline.result.draft.chapters" :key="idx">
+                              <button @click="chapter = idx" class="px-2.5 py-1 rounded text-xs font-medium cursor-pointer" :class="chapter === idx ? 'bg-brand-600 text-white' : 'bg-surface-100 text-slate-600'" x-text="'Ch.' + ch.number"></button>
+                            </template>
+                          </div>
+                          <template x-if="$store.pipeline.result.draft.chapters[chapter]">
+                            <div>
+                              <h4 class="font-semibold mb-2" x-text="'Chapter ' + $store.pipeline.result.draft.chapters[chapter].number + ': ' + $store.pipeline.result.draft.chapters[chapter].title"></h4>
+                              <div class="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap" x-text="$store.pipeline.result.draft.chapters[chapter].content"></div>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                    </div>
+                    <!-- Enhanced tab -->
+                    <div x-show="activeTab === 'enhanced'" x-data="{ chapter: 0 }">
+                      <template x-if="$store.pipeline.result.enhanced">
+                        <div>
+                          <h3 class="text-xl font-bold mb-1" x-text="$store.pipeline.result.enhanced.title"></h3>
+                          <p class="text-sm text-slate-500 mb-4">Drama Score: <span class="font-semibold text-orange-500" x-text="($store.pipeline.result.enhanced.drama_score || 0).toFixed(2)"></span></p>
+                          <div class="flex gap-2 flex-wrap mb-4">
+                            <template x-for="(ch, idx) in $store.pipeline.result.enhanced.chapters" :key="idx">
+                              <button @click="chapter = idx" class="px-2.5 py-1 rounded text-xs font-medium cursor-pointer" :class="chapter === idx ? 'bg-brand-600 text-white' : 'bg-surface-100 text-slate-600'" x-text="'Ch.' + ch.number"></button>
+                            </template>
+                          </div>
+                          <template x-if="$store.pipeline.result.enhanced.chapters[chapter]">
+                            <div class="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap" x-text="$store.pipeline.result.enhanced.chapters[chapter].content"></div>
+                          </template>
+                        </div>
+                      </template>
+                    </div>
+                    <!-- Simulation tab -->
+                    <div x-show="activeTab === 'simulation'">
+                      <template x-if="$store.pipeline.result.simulation">
+                        <div>
+                          <p class="text-sm text-slate-600 mb-3" x-text="'Events: ' + $store.pipeline.result.simulation.events_count"></p>
+                          <template x-for="ev in $store.pipeline.result.simulation.events" :key="ev.description">
+                            <div class="border-l-2 border-brand-500 pl-3 mb-3">
+                              <span class="text-xs font-semibold text-brand-600" x-text="ev.type"></span>
+                              <span class="text-xs text-slate-400 ml-2" x-text="'drama: ' + ev.drama_score"></span>
+                              <p class="text-sm text-slate-700" x-text="ev.description"></p>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                    </div>
+                    <!-- Quality tab -->
+                    <div x-show="activeTab === 'quality'">
+                      <template x-if="$store.pipeline.result.quality">
+                        <div>
+                          <template x-for="qs in $store.pipeline.result.quality" :key="qs.layer">
+                            <div class="mb-4">
+                              <h4 class="font-semibold mb-2" x-text="'Layer ' + qs.layer + ' — Overall: ' + qs.overall.toFixed(1) + '/5'"></h4>
+                              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <template x-for="[label, val] in [['Coherence', qs.coherence],['Character', qs.character],['Drama', qs.drama],['Writing', qs.writing]]" :key="label">
+                                  <div class="bg-surface-50 rounded-lg p-3 text-center">
+                                    <div class="text-2xl font-bold text-brand-600" x-text="val.toFixed(1)"></div>
+                                    <div class="text-xs text-slate-500" x-text="label"></div>
+                                  </div>
+                                </template>
+                              </div>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Logs accordion -->
+                <details class="card overflow-hidden">
+                  <summary class="px-5 py-3 cursor-pointer text-sm font-medium text-slate-500 hover:bg-surface-50 select-none">Progress Details (<span x-text="$store.pipeline.logs.length"></span> lines)</summary>
+                  <div class="px-5 pb-4 border-t border-surface-200 pt-3 max-h-48 overflow-y-auto">
+                    <pre class="text-xs text-slate-500 whitespace-pre-wrap" x-text="$store.pipeline.logs.join('\n')"></pre>
+                  </div>
+                </details>
+              </div>
+            </template>
+
+            <!-- Empty state -->
+            <div x-show="$store.pipeline.status === 'idle' && !$store.pipeline.result" class="card p-12 text-center">
+              <svg class="w-16 h-16 mx-auto text-slate-200 mb-4" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/>
+              </svg>
+              <h3 class="text-lg font-semibold text-slate-400 mb-1">No Story Yet</h3>
+              <p class="text-sm text-slate-400">Enter your idea on the left and click "Run Pipeline" to start</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ SETTINGS PAGE ═══ -->
+      <div x-show="$store.app.page === 'settings'" x-cloak class="page-enter" x-data="settingsPage()">
+        <div class="max-w-2xl mx-auto space-y-6">
+
+          <!-- Step 1: Choose provider -->
+          <div class="card p-5 space-y-4">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="flex items-center justify-center w-7 h-7 rounded-full bg-brand-600 text-white text-xs font-bold">1</span>
+              <h2 class="font-semibold text-base text-slate-700">Choose AI Provider</h2>
+            </div>
+            <p class="text-sm text-slate-500">Select the AI service you want to use. Connection info will be auto-filled.</p>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <template x-for="p in providers" :key="p.id">
+                <button
+                  @click="selectProvider(p.id)"
+                  :class="selectedProvider === p.id
+                    ? 'border-brand-500 bg-brand-50 ring-2 ring-brand-200'
+                    : 'border-surface-200 hover:border-brand-300 hover:bg-surface-50'"
+                  class="relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer text-center">
+                  <span class="text-2xl" x-text="p.icon"></span>
+                  <span class="text-sm font-semibold text-slate-700" x-text="p.name"></span>
+                  <span class="text-xs text-slate-400" x-text="p.hint"></span>
+                  <span x-show="selectedProvider === p.id" class="absolute top-2 right-2">
+                    <svg class="w-5 h-5 text-brand-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+                  </span>
+                </button>
+              </template>
+            </div>
+          </div>
+
+          <!-- Step 2: API Key -->
+          <div class="card p-5 space-y-4">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="flex items-center justify-center w-7 h-7 rounded-full bg-brand-600 text-white text-xs font-bold">2</span>
+              <h2 class="font-semibold text-base text-slate-700">Enter API Key</h2>
+            </div>
+            <p class="text-sm text-slate-500" x-html="currentProvider?.guide || 'Select a provider above to see how to get an API key.'"></p>
+            <div class="relative">
+              <input :type="showKey ? 'text' : 'password'" x-model="form.api_key"
+                class="w-full border border-surface-200 rounded-lg px-3 py-2.5 text-sm pr-10 focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all"
+                :placeholder="currentProvider?.keyPlaceholder || 'Paste API key here...'">
+              <button @click="showKey = !showKey" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer" type="button">
+                <svg x-show="!showKey" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <svg x-show="showKey" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12c1.292 4.338 5.31 7.5 10.066 7.5.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Step 3: Model -->
+          <div class="card p-5 space-y-4">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="flex items-center justify-center w-7 h-7 rounded-full bg-brand-600 text-white text-xs font-bold">3</span>
+              <h2 class="font-semibold text-base text-slate-700">Choose Model</h2>
+            </div>
+            <div x-show="currentProvider?.models?.length" class="flex flex-wrap gap-2">
+              <template x-for="m in (currentProvider?.models || [])" :key="m.id">
+                <button @click="form.model = m.id"
+                  :class="form.model === m.id ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-slate-600 border-surface-200 hover:border-brand-400'"
+                  class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-all cursor-pointer">
+                  <span x-text="m.label"></span>
+                </button>
+              </template>
+            </div>
+            <div class="flex gap-3 items-end">
+              <div class="flex-1">
+                <label class="block text-xs text-slate-400 mb-1">Or type model name</label>
+                <input type="text" x-model="form.model" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all" placeholder="vd: gpt-4o-mini">
+              </div>
+            </div>
+          </div>
+
+          <!-- Save + Test -->
+          <div class="flex flex-wrap items-center gap-3">
+            <button @click="save()" :disabled="saving" class="btn-primary px-6 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer disabled:opacity-50">
+              <span x-show="!saving">Save Settings</span>
+              <span x-show="saving">Saving...</span>
+            </button>
+            <button @click="testConn()" :disabled="testing" class="px-6 py-2.5 rounded-lg text-sm font-medium border border-surface-200 hover:border-brand-500 hover:text-brand-600 transition-all cursor-pointer disabled:opacity-50">
+              <span x-show="!testing">Test Connection</span>
+              <span x-show="testing">Testing...</span>
+            </button>
+          </div>
+          <!-- Status message -->
+          <div x-show="message" x-transition class="flex items-center gap-2 px-4 py-3 rounded-lg text-sm"
+            :class="message.startsWith('Error') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'">
+            <svg x-show="!message.startsWith('Error')" class="w-5 h-5 text-green-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+            <svg x-show="message.startsWith('Error')" class="w-5 h-5 text-red-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+            <span x-text="message"></span>
+          </div>
+
+          <!-- Advanced settings (collapsible) -->
+          <details class="card overflow-hidden">
+            <summary class="px-5 py-3 cursor-pointer text-sm font-semibold text-slate-600 hover:bg-surface-50 select-none flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.204-.107-.397.165-.71.505-.78.929l-.15.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              Advanced Settings
+            </summary>
+            <div class="px-5 pb-5 border-t border-surface-200 pt-4 space-y-5">
+              <!-- Base URL override -->
+              <div>
+                <label class="block text-sm font-medium text-slate-600 mb-1">Base URL</label>
+                <input type="text" x-model="form.base_url" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none">
+                <p class="text-xs text-slate-400 mt-1">Auto-filled when selecting a provider. Only change for proxy/custom endpoints.</p>
+              </div>
+              <!-- Temperature + Max Tokens -->
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <div class="flex justify-between text-sm mb-1"><span class="text-slate-600">Temperature</span><span class="font-medium text-brand-600" x-text="form.temperature"></span></div>
+                  <input type="range" min="0" max="2" step="0.1" x-model.number="form.temperature" class="w-full accent-brand-600">
+                  <div class="flex justify-between text-xs text-slate-400 mt-0.5"><span>Precise</span><span>Creative</span></div>
+                </div>
+                <div>
+                  <div class="flex justify-between text-sm mb-1"><span class="text-slate-600">Max Tokens</span><span class="font-medium text-brand-600" x-text="form.max_tokens"></span></div>
+                  <input type="range" min="1024" max="16384" step="512" x-model.number="form.max_tokens" class="w-full accent-brand-600">
+                  <div class="flex justify-between text-xs text-slate-400 mt-0.5"><span>Short</span><span>Long</span></div>
+                </div>
+              </div>
+              <!-- Cheap model -->
+              <div class="space-y-3 pt-2 border-t border-surface-100">
+                <p class="text-sm font-medium text-slate-600">Secondary Model (cost saving)</p>
+                <p class="text-xs text-slate-400">Use a cheaper model for secondary tasks (outline, review). Leave blank if not needed.</p>
+                <input type="text" x-model="form.cheap_model" placeholder="vd: gpt-4o-mini" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none">
+                <input type="text" x-model="form.cheap_base_url" placeholder="Separate Base URL (blank = use main URL)" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none">
+              </div>
+            </div>
+          </details>
+
+        </div>
+      </div>
+
+      <!-- ═══ READER PAGE ═══ -->
+      <div x-show="$store.app.page === 'reader'" x-cloak class="page-enter" x-data="readerPage()">
+        <template x-if="!story">
+          <div class="card p-12 text-center">
+            <svg class="w-16 h-16 mx-auto text-slate-200 mb-4" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
+            <h3 class="text-lg font-semibold text-slate-400 mb-1">No Story Yet</h3>
+            <p class="text-sm text-slate-400">Generate a story first, then come back to read</p>
+          </div>
+        </template>
+        <template x-if="story">
+          <div class="max-w-3xl mx-auto">
+            <!-- Title -->
+            <div class="card p-6 mb-4 text-center">
+              <h2 class="text-2xl font-bold text-slate-800" x-text="story.title"></h2>
+              <div class="flex items-center justify-center gap-4 mt-3">
+                <span class="text-sm text-slate-500" x-text="chapters.length + ' chapters'"></span>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs text-slate-400">Font size</span>
+                  <button @click="fontSize = Math.max(14, fontSize - 2)" class="w-7 h-7 rounded bg-surface-100 text-slate-500 text-sm font-bold cursor-pointer hover:bg-surface-200">-</button>
+                  <span class="text-xs text-slate-500 w-6 text-center" x-text="fontSize"></span>
+                  <button @click="fontSize = Math.min(28, fontSize + 2)" class="w-7 h-7 rounded bg-surface-100 text-slate-500 text-sm font-bold cursor-pointer hover:bg-surface-200">+</button>
+                </div>
+              </div>
+            </div>
+            <!-- Chapter selector -->
+            <div class="flex gap-2 flex-wrap mb-4">
+              <template x-for="(ch, idx) in chapters" :key="idx">
+                <button @click="chapter = idx" class="px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors" :class="chapter === idx ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 border border-surface-200 hover:border-brand-500'" x-text="'Ch.' + ch.number"></button>
+              </template>
+            </div>
+            <!-- Content -->
+            <div class="card p-6 md:p-10">
+              <template x-if="currentChapter">
+                <div>
+                  <h3 class="text-xl font-bold text-slate-800 mb-4" x-text="'Chapter ' + currentChapter.number + ': ' + currentChapter.title"></h3>
+                  <div class="text-slate-700 whitespace-pre-wrap leading-[1.9]" :style="'font-size:' + fontSize + 'px'" x-text="currentChapter.content"></div>
+                </div>
+              </template>
+            </div>
+            <!-- Navigation -->
+            <div class="flex justify-between mt-4">
+              <button @click="prev()" :disabled="chapter === 0" class="px-4 py-2 rounded-lg text-sm font-medium border border-surface-200 hover:border-brand-500 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">Previous</button>
+              <span class="text-sm text-slate-400 self-center" x-text="(chapter+1) + '/' + chapters.length"></span>
+              <button @click="next()" :disabled="chapter >= chapters.length - 1" class="px-4 py-2 rounded-lg text-sm font-medium border border-surface-200 hover:border-brand-500 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">Next</button>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- ═══ EXPORT PAGE ═══ -->
+      <div x-show="$store.app.page === 'export'" x-cloak class="page-enter" x-data="exportPage()">
+        <div class="max-w-2xl mx-auto space-y-4">
+          <div x-show="!hasStory" class="card p-12 text-center">
+            <svg class="w-12 h-12 mx-auto text-slate-200 mb-3" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+            <h3 class="text-lg font-semibold text-slate-400">No story to export</h3>
+            <p class="text-sm text-slate-400 mt-1">Run the pipeline first to generate a story</p>
+          </div>
+          <template x-if="hasStory">
+            <div class="space-y-4">
+              <!-- Document formats -->
+              <div class="card p-5">
+                <h3 class="font-semibold text-slate-700 mb-4">Export Documents</h3>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <button @click="exportFormat('pdf')" :disabled="exporting" class="flex flex-col items-center gap-2 p-4 rounded-xl border border-surface-200 hover:border-brand-500 hover:bg-brand-50 transition-all cursor-pointer disabled:opacity-50">
+                    <svg class="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+                    <span class="text-sm font-medium" x-text="exporting === 'pdf' ? 'Exporting...' : 'PDF'"></span>
+                  </button>
+                  <button @click="exportFormat('epub')" :disabled="exporting" class="flex flex-col items-center gap-2 p-4 rounded-xl border border-surface-200 hover:border-brand-500 hover:bg-brand-50 transition-all cursor-pointer disabled:opacity-50">
+                    <svg class="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
+                    <span class="text-sm font-medium" x-text="exporting === 'epub' ? 'Exporting...' : 'EPUB'"></span>
+                  </button>
+                  <button @click="exportZip()" :disabled="exporting" class="flex flex-col items-center gap-2 p-4 rounded-xl border border-surface-200 hover:border-brand-500 hover:bg-brand-50 transition-all cursor-pointer disabled:opacity-50">
+                    <svg class="w-8 h-8 text-brand-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+                    <span class="text-sm font-medium" x-text="exporting === 'zip' ? 'Exporting...' : 'ZIP (All)'"></span>
+                  </button>
+                </div>
+              </div>
+              <p x-show="message" class="text-sm text-center" :class="message.startsWith('Error') ? 'text-red-500' : 'text-green-600'" x-text="message"></p>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- ═══ ANALYTICS PAGE ═══ -->
+      <div x-show="$store.app.page === 'analytics'" x-cloak class="page-enter" x-data="analyticsPage()">
+        <template x-if="!result">
+          <div class="card p-12 text-center">
+            <svg class="w-12 h-12 mx-auto text-slate-200 mb-3" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+            <h3 class="text-lg font-semibold text-slate-400">No Data Yet</h3>
+            <p class="text-sm text-slate-400 mt-1">Generate a story first to see analytics</p>
+          </div>
+        </template>
+        <template x-if="result && stats">
+          <div class="space-y-4">
+            <!-- Stats cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div class="card p-4 text-center">
+                <div class="text-3xl font-bold text-brand-600" x-text="stats.totalChapters"></div>
+                <div class="text-xs text-slate-500 mt-1">Chapters</div>
+              </div>
+              <div class="card p-4 text-center">
+                <div class="text-3xl font-bold text-brand-600" x-text="stats.totalWords.toLocaleString()"></div>
+                <div class="text-xs text-slate-500 mt-1">Total Words</div>
+              </div>
+              <div class="card p-4 text-center">
+                <div class="text-3xl font-bold text-brand-600" x-text="stats.avgWords.toLocaleString()"></div>
+                <div class="text-xs text-slate-500 mt-1">Avg Words/Ch</div>
+              </div>
+              <div class="card p-4 text-center">
+                <div class="text-3xl font-bold text-brand-600" x-text="'~' + stats.readingTime + ' min'"></div>
+                <div class="text-xs text-slate-500 mt-1">Reading Time</div>
+              </div>
+            </div>
+            <!-- Quality scores -->
+            <template x-if="stats.quality && stats.quality.length > 0">
+              <div class="card p-5">
+                <h3 class="font-semibold text-slate-700 mb-4">Quality Scores</h3>
+                <template x-for="qs in stats.quality" :key="qs.layer">
+                  <div class="mb-4">
+                    <div class="text-sm font-medium text-slate-600 mb-2" x-text="'Layer ' + qs.layer + ' — Overall: ' + qs.overall.toFixed(1) + '/5'"></div>
+                    <div class="grid grid-cols-4 gap-3">
+                      <template x-for="[label, val, color] in [['Coherence',qs.coherence,'bg-blue-500'],['Character',qs.character,'bg-green-500'],['Drama',qs.drama,'bg-orange-500'],['Writing',qs.writing,'bg-purple-500']]" :key="label">
+                        <div>
+                          <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-500" x-text="label"></span>
+                            <span class="font-medium" x-text="val.toFixed(1)"></span>
+                          </div>
+                          <div class="h-2 bg-surface-100 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full transition-all" :class="color" :style="'width:' + (val/5*100) + '%'"></div>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </template>
+            <!-- Simulation stats -->
+            <div x-show="stats.hasSimulation" class="card p-5">
+              <h3 class="font-semibold text-slate-700 mb-2">Simulation</h3>
+              <p class="text-sm text-slate-600" x-text="stats.eventsCount + ' drama events generated'"></p>
+            </div>
+          </div>
+        </template>
+      </div>
+
+      <!-- ═══ BRANCHING PAGE ═══ -->
+      <div x-show="$store.app.page === 'branching'" x-cloak class="page-enter" x-data="branchingPage()">
+        <div class="max-w-2xl mx-auto">
+          <template x-if="!hasStory">
+            <div class="card p-12 text-center">
+              <svg class="w-12 h-12 mx-auto text-slate-200 mb-3" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>
+              <h3 class="text-lg font-semibold text-slate-400">No Story Yet</h3>
+              <p class="text-sm text-slate-400 mt-1">Generate a story first to use branching</p>
+            </div>
+          </template>
+          <template x-if="hasStory">
+            <div class="space-y-4">
+              <div class="card p-5">
+                <h3 class="font-semibold text-slate-700 mb-2">Story Branching</h3>
+                <p class="text-sm text-slate-500 mb-4">Select a chapter as the root to create different story branches</p>
+                <div class="flex gap-2 flex-wrap">
+                  <template x-for="(ch, idx) in chapters" :key="idx">
+                    <span class="px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-100 text-slate-600" x-text="'Ch.' + ch.number + ': ' + ch.title"></span>
+                  </template>
+                </div>
+              </div>
+              <div class="card p-5 text-center text-sm text-slate-400">
+                <p>Full branching feature coming soon.</p>
+                <a href="/gradio" target="_blank" class="inline-block mt-2 text-brand-600 hover:underline">Use Gradio UI for branching &rarr;</a>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- ═══ ACCOUNT PAGE ═══ -->
+      <div x-show="$store.app.page === 'account'" x-cloak class="page-enter" x-data="accountPage()">
+        <div class="max-w-md mx-auto space-y-4">
+          <!-- Logged-in state -->
+          <template x-if="profile">
+            <div class="card p-6 text-center">
+              <div class="w-16 h-16 mx-auto mb-3 rounded-full bg-brand-100 flex items-center justify-center">
+                <svg class="w-8 h-8 text-brand-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              </div>
+              <h3 class="font-semibold text-lg" x-text="profile.username"></h3>
+              <span class="inline-block mt-1 px-3 py-0.5 rounded-full text-xs font-medium bg-brand-50 text-brand-600" x-text="(profile.tier || 'free').toUpperCase()"></span>
+              <button @click="logout()" class="block mx-auto mt-4 text-sm text-red-500 hover:underline cursor-pointer">Sign Out</button>
+            </div>
+          </template>
+          <!-- Login form -->
+          <template x-if="!profile">
+            <div class="card p-6 space-y-4">
+              <h2 class="font-semibold text-lg text-center text-slate-700">Sign In / Register</h2>
+              <div>
+                <label class="block text-sm font-medium text-slate-600 mb-1">Username</label>
+                <input type="text" x-model="username" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm" @keydown.enter="login()">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-600 mb-1">Password</label>
+                <input type="password" x-model="password" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm" @keydown.enter="login()">
+              </div>
+              <div class="flex gap-3">
+                <button @click="login()" :disabled="loading" class="btn-primary flex-1 py-2.5 rounded-lg text-sm font-semibold cursor-pointer disabled:opacity-50">Sign In</button>
+                <button @click="register()" :disabled="loading" class="flex-1 py-2.5 rounded-lg text-sm font-medium border border-surface-200 hover:border-brand-500 cursor-pointer disabled:opacity-50">Register</button>
+              </div>
+              <p x-show="message" class="text-sm text-center" :class="message.includes('success') ? 'text-green-600' : 'text-red-500'" x-text="message"></p>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- ═══ GUIDE PAGE ═══ -->
+      <div x-show="$store.app.page === 'guide'" x-cloak class="page-enter">
+        <div class="max-w-3xl mx-auto space-y-6">
+          <div class="card p-6">
+            <h2 class="text-xl font-bold text-slate-800 mb-4">How to Use StoryForge</h2>
+            <div class="space-y-6 text-sm text-slate-700 leading-relaxed">
+              <div>
+                <h3 class="font-semibold text-base text-slate-800 mb-2">How does the pipeline work?</h3>
+                <div class="flex gap-2 items-center text-xs font-medium mb-3 flex-wrap">
+                  <span class="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700">Idea</span>
+                  <span class="text-slate-300">&rarr;</span>
+                  <span class="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700">Layer 1: Story Generation</span>
+                  <span class="text-slate-300">&rarr;</span>
+                  <span class="px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700">Layer 2: Simulation</span>
+                  <span class="text-slate-300">&rarr;</span>
+                  <span class="px-3 py-1.5 rounded-lg bg-green-50 text-green-700">Layer 3: Video</span>
+                </div>
+              </div>
+              <div>
+                <h3 class="font-semibold text-slate-800 mb-1">Layer 1: Story Generation</h3>
+                <ul class="list-disc list-inside space-y-1 text-slate-600">
+                  <li>Create characters with personality, backstory, and motivation</li>
+                  <li>Build world context and setting</li>
+                  <li>Generate detailed outline + write each chapter automatically</li>
+                </ul>
+              </div>
+              <div>
+                <h3 class="font-semibold text-slate-800 mb-1">Layer 2: Drama Simulation</h3>
+                <ul class="list-disc list-inside space-y-1 text-slate-600">
+                  <li>Each character becomes an autonomous AI agent</li>
+                  <li>Agents interact, confront, and betray each other</li>
+                  <li>Rewrites the story with a higher drama score</li>
+                </ul>
+              </div>
+              <div>
+                <h3 class="font-semibold text-slate-800 mb-1">Layer 3: Video Script</h3>
+                <ul class="list-disc list-inside space-y-1 text-slate-600">
+                  <li>Generate storyboard: shot, camera, mood</li>
+                  <li>Create image prompts for AI image generation</li>
+                  <li>Voiceover script with emotional cues</li>
+                </ul>
+              </div>
+              <div>
+                <h3 class="font-semibold text-slate-800 mb-1">How to Use</h3>
+                <ol class="list-decimal list-inside space-y-1 text-slate-600">
+                  <li>Go to <strong>Settings</strong> → enter API Key and choose a model</li>
+                  <li>Go to <strong>Create Story</strong> → enter your idea</li>
+                  <li>Adjust parameters if needed</li>
+                  <li>Click <strong>Run Pipeline</strong> and wait</li>
+                  <li>View results, export files, read the story</li>
+                </ol>
+              </div>
+              <div>
+                <h3 class="font-semibold text-slate-800 mb-1">Compatible APIs</h3>
+                <p class="text-slate-600">Supports: OpenAI, DeepSeek, Gemini, Groq, Together AI, OpenRouter, Ollama, and any provider with a <code class="bg-surface-100 px-1.5 py-0.5 rounded text-xs">/v1/chat/completions</code> endpoint</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ═══ JS ═══ -->
+  <script src="/static/js/api-client.js"></script>
+  <script src="/static/js/pages/reader.js"></script>
+  <script src="/static/js/pages/export.js"></script>
+  <script src="/static/js/pages/analytics.js"></script>
+  <script src="/static/js/pages/account.js"></script>
+  <script src="/static/js/pages/branching.js"></script>
+  <script src="/static/js/app.js"></script>
+  <script>
+    /* Heroicons SVG helper — returns inline SVG for nav icons */
+    function getNavIcon(name) {
+      const icons = {
+        'pencil-square': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"/></svg>',
+        'book-open': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>',
+        'arrow-down-tray': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>',
+        'chart-bar': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>',
+        'arrows-pointing-out': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>',
+        'cog-6-tooth': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
+        'user-circle': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
+        'question-mark-circle': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>',
+      };
+      return icons[name] || '';
+    }
+
+    /* Page component: Pipeline */
+    function pipelinePage() {
+      return {
+        activeTab: 'draft',
+        async runPipeline() {
+          this.activeTab = 'draft';
+          await Alpine.store('pipeline').run();
+        },
+      };
+    }
+
+    /* Page component: Settings */
+    function settingsPage() {
+      return {
+        form: {
+          api_key: '', base_url: 'https://api.openai.com/v1', model: 'gpt-4o-mini',
+          temperature: 0.8, max_tokens: 4096, cheap_model: '', cheap_base_url: '',
+        },
+        saving: false,
+        testing: false,
+        message: '',
+        showKey: false,
+        selectedProvider: 'openai',
+
+        providers: [
+          {
+            id: 'openai', name: 'OpenAI', icon: '🤖', hint: 'GPT-5.4, o3, o4',
+            url: 'https://api.openai.com/v1',
+            keyPlaceholder: 'sk-proj-...',
+            guide: 'Get your API key at <a href="https://platform.openai.com/api-keys" target="_blank" class="text-brand-600 underline font-medium">platform.openai.com</a> → Create new secret key → Copy and paste here.',
+            models: [
+              { id: 'gpt-5.4-nano', label: 'GPT-5.4 Nano (cheapest)' },
+              { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
+              { id: 'gpt-5.4', label: 'GPT-5.4' },
+              { id: 'o4-mini', label: 'o4-mini (reasoning)' },
+              { id: 'o3', label: 'o3 (advanced reasoning)' },
+            ],
+          },
+          {
+            id: 'gemini', name: 'Google Gemini', icon: '💎', hint: 'Gemini 2.5 / 3.1',
+            url: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+            keyPlaceholder: 'AIza...',
+            guide: 'Get a free API key at <a href="https://aistudio.google.com/apikey" target="_blank" class="text-brand-600 underline font-medium">aistudio.google.com</a> → Create API Key → Copy.',
+            models: [
+              { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite (cheapest)' },
+              { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+              { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+              { id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash (preview)' },
+              { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (latest)' },
+              { id: 'gemini-3.1-flash-lite-preview', label: 'Gemini 3.1 Flash Lite (preview)' },
+            ],
+          },
+          {
+            id: 'anthropic', name: 'Anthropic', icon: '🧠', hint: 'Claude 4.5 / 4.6',
+            url: 'https://api.anthropic.com/v1/',
+            keyPlaceholder: 'sk-ant-...',
+            guide: 'Get your API key at <a href="https://console.anthropic.com/settings/keys" target="_blank" class="text-brand-600 underline font-medium">console.anthropic.com</a> → Create Key → Copy.',
+            models: [
+              { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5 (cheapest)' },
+              { id: 'claude-sonnet-4-6-20260217', label: 'Sonnet 4.6' },
+              { id: 'claude-opus-4-6-20260205', label: 'Opus 4.6 (most powerful)' },
+            ],
+          },
+          {
+            id: 'openrouter', name: 'OpenRouter', icon: '🔀', hint: '290+ models',
+            url: 'https://openrouter.ai/api/v1',
+            keyPlaceholder: 'sk-or-...',
+            guide: 'Register at <a href="https://openrouter.ai/keys" target="_blank" class="text-brand-600 underline font-medium">openrouter.ai</a> → Keys → Create Key. 29+ free models available!',
+            models: [
+              { id: 'openrouter/free', label: 'Auto Free (free)' },
+              { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+              { id: 'deepseek/deepseek-r1', label: 'DeepSeek R1' },
+              { id: 'openai/gpt-5.4-mini', label: 'GPT-5.4 Mini' },
+              { id: 'anthropic/claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+            ],
+          },
+          {
+            id: 'local', name: 'Local / Ollama', icon: '💻', hint: 'Free, self-hosted',
+            url: 'http://localhost:11434/v1',
+            keyPlaceholder: 'Leave blank or enter token...',
+            guide: 'Install <a href="https://ollama.com" target="_blank" class="text-brand-600 underline font-medium">Ollama</a> → run <code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs">ollama run qwen3.5:9b</code> → ready to use, no API key needed.',
+            models: [
+              { id: 'qwen3.5:9b', label: 'Qwen 3.5 9B (recommended)' },
+              { id: 'llama3.1:8b', label: 'Llama 3.1 8B' },
+              { id: 'deepseek-r1', label: 'DeepSeek R1' },
+              { id: 'mistral-large-2', label: 'Mistral Large 2' },
+              { id: 'gemma2:9b', label: 'Gemma 2 9B' },
+            ],
+          },
+          {
+            id: 'custom', name: 'Custom', icon: '⚙️', hint: 'Any URL',
+            url: '',
+            keyPlaceholder: 'API key...',
+            guide: 'Enter the base URL and model name manually in the <strong>Advanced Settings</strong> section below.',
+            models: [],
+          },
+        ],
+
+        get currentProvider() {
+          return this.providers.find(p => p.id === this.selectedProvider);
+        },
+
+        selectProvider(id) {
+          this.selectedProvider = id;
+          const p = this.providers.find(x => x.id === id);
+          if (p?.url) this.form.base_url = p.url;
+          if (p?.models?.length) this.form.model = p.models[0].id;
+        },
+
+        init() {
+          const cfg = Alpine.store('settings').config;
+          if (cfg?.llm) {
+            this.form.base_url = cfg.llm.base_url || this.form.base_url;
+            this.form.model = cfg.llm.model || this.form.model;
+            this.form.temperature = cfg.llm.temperature ?? this.form.temperature;
+            this.form.max_tokens = cfg.llm.max_tokens || this.form.max_tokens;
+            this.form.cheap_model = cfg.llm.cheap_model || '';
+            this.form.cheap_base_url = cfg.llm.cheap_base_url || '';
+            // Auto-detect provider from base_url
+            const url = (cfg.llm.base_url || '').toLowerCase();
+            if (url.includes('openai.com')) this.selectedProvider = 'openai';
+            else if (url.includes('googleapis.com') || url.includes('generativelanguage')) this.selectedProvider = 'gemini';
+            else if (url.includes('anthropic.com')) this.selectedProvider = 'anthropic';
+            else if (url.includes('openrouter.ai')) this.selectedProvider = 'openrouter';
+            else if (url.includes('localhost') || url.includes('127.0.0.1')) this.selectedProvider = 'local';
+            else this.selectedProvider = 'custom';
+          }
+        },
+
+        async save() {
+          this.saving = true;
+          this.message = '';
+          try {
+            await API.put('/config', this.form);
+            this.message = 'Settings saved successfully!';
+          } catch (e) { this.message = 'Error: ' + e.message; }
+          this.saving = false;
+        },
+
+        async testConn() {
+          this.testing = true;
+          this.message = 'Testing connection...';
+          this.message = await Alpine.store('settings').testConnection();
+          this.testing = false;
+        },
+      };
+    }
+  </script>
+</body>
+</html>

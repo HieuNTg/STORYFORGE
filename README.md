@@ -1,65 +1,64 @@
 # StoryForge
 
-**Tự động tạo truyện kịch tính và kịch bản video bằng AI.**
+**Automatically generate dramatic stories and video scripts with AI.**
 
-Pipeline 3 lớp biến ý tưởng thành truyện hoàn chỉnh, mô phỏng nhân vật để tăng kịch tính, rồi xuất kịch bản video với storyboard chi tiết.
+A 3-layer pipeline that turns ideas into complete stories, simulates characters to increase drama, then exports video scripts with detailed storyboards.
 
 ---
 
 ## Pipeline
 
 ```
-Ý tưởng → [Layer 1: Tạo Truyện] → [Layer 2: Mô Phỏng Kịch Tính] → [Layer 3: Kịch Bản Video] → Output
+Idea → [Layer 1: Story Generation] → [Layer 2: Drama Simulation] → [Layer 3: Video Script] → Output
 ```
 
-### Layer 1 — Tạo Truyện
+### Layer 1 — Story Generation
 
-- Tạo nhân vật với tính cách, tiểu sử, động lực
-- Xây dựng bối cảnh thế giới (world-building)
-- Tạo dàn ý chi tiết từng chương
-- Viết chương tự động với rolling context (theo dõi trạng thái nhân vật, sự kiện cốt truyện)
-- Hỗ trợ streaming real-time khi viết
+- Create characters with personality, backstory, and motivations
+- Build world settings (world-building)
+- Generate detailed chapter outlines
+- Write chapters automatically with rolling context (tracking character state, plot events)
+- Real-time streaming preview while writing
 
-### Layer 2 — Mô Phỏng Tăng Kịch Tính
+### Layer 2 — Drama Enhancement
 
-- Phân tích mối quan hệ và xung đột giữa nhân vật
-- Mỗi nhân vật trở thành AI agent tự trị — tương tác, đối đầu, phản bội
-- Trích xuất tình huống kịch tính từ mô phỏng
-- Viết lại truyện với drama score cao hơn
+- Analyze relationships and conflicts between characters
+- Each character becomes an autonomous AI agent — interacting, confronting, betraying
+- Extract dramatic situations from simulation
+- Rewrite story with higher drama score
 
-### Layer 3 — Kịch Bản Video
+### Layer 3 — Video Script
 
-- Tạo storyboard: shot type, camera movement, mood
-- Tạo image prompt cho AI image generation
-- Kịch bản lồng tiếng với cảm xúc
-- Mô tả hình ảnh nhân vật và bối cảnh
+- Generate storyboard: shot type, camera movement, mood
+- Create image prompts for AI image generation
+- Voice-over script with emotions
+- Character and setting visual descriptions
 
 ---
 
-## Tính năng
+## Features
 
-| Tính năng | Mô tả |
+| Feature | Description |
 |---|---|
-| **Character State Tracking** | Theo dõi trạng thái nhân vật qua từng chương (tâm trạng, hành động, quan hệ) |
-| **Model Routing** | Dùng cheap model cho tóm tắt/phân tích, model chính cho sáng tác — tiết kiệm ~45% chi phí |
-| **Streaming Preview** | Xem trực tiếp AI viết từng chương real-time |
-| **File Export** | Xuất TXT, Markdown, JSON — download từng file hoặc ZIP |
-| **Quality Metrics** | Chấm điểm tự động 4 chiều: mạch lạc, nhân vật, kịch tính, văn phong (1-5) |
-| **Agent Review** | Phòng ban AI đánh giá chất lượng sau mỗi layer |
-| **Checkpoint/Resume** | Lưu tiến trình, resume pipeline từ bất kỳ layer nào |
-| **LLM Cache** | Cache response LLM, giảm chi phí khi chạy lại |
-| **OpenClaw** | Hỗ trợ backend local với auto-fallback sang API |
+| **Character State Tracking** | Track character state across chapters (mood, actions, relationships) |
+| **Model Routing** | Use cheap model for summaries/analysis, main model for writing — saves ~45% cost |
+| **Streaming Preview** | Watch AI write each chapter in real-time |
+| **File Export** | Export PDF, EPUB, ZIP — download individual files or everything |
+| **Quality Metrics** | Auto-score on 4 dimensions: coherence, character, drama, writing (1-5) |
+| **Agent Review** | AI review board evaluates quality after each layer |
+| **Checkpoint/Resume** | Save progress, resume pipeline from any layer |
+| **LLM Cache** | Cache LLM responses, reduce cost on re-runs |
 
 ---
 
-## Cài đặt
+## Installation
 
-### Yêu cầu
+### Requirements
 
 - Python 3.10+
-- API key từ provider tương thích OpenAI (OpenAI, DeepSeek, Gemini, Groq, OpenRouter, Ollama, v.v.)
+- API key from an OpenAI-compatible provider (OpenAI, Google Gemini, Anthropic, OpenRouter, Ollama, etc.)
 
-### Cài đặt
+### Setup
 
 ```bash
 git clone https://github.com/HieuNTg/novel-auto.git
@@ -67,58 +66,65 @@ cd novel-auto
 pip install -r requirements.txt
 ```
 
-### Chạy
+### Run
 
 ```bash
 python app.py
 ```
 
-Mở trình duyệt tại `http://localhost:7860`
+Open your browser at `http://localhost:7860`
 
 ---
 
-## Cấu hình
+## Configuration
 
-Vào tab **Cài Đặt** trong giao diện web:
+Go to the **Settings** page in the web UI:
 
-| Cấu hình | Mô tả | Mặc định |
+| Setting | Description | Default |
 |---|---|---|
-| API Key | Key từ LLM provider | — |
-| Base URL | Endpoint API | `https://api.openai.com/v1` |
-| Model | Model chính (sáng tác) | `gpt-4o-mini` |
-| Cheap Model | Model rẻ (tóm tắt, phân tích) | _(trống = dùng model chính)_ |
-| Temperature | Độ sáng tạo | `0.8` |
-| Backend | `api` hoặc `openclaw` | `api` |
+| AI Provider | Choose from OpenAI, Gemini, Anthropic, OpenRouter, Ollama, or Custom | OpenAI |
+| API Key | Key from your LLM provider | — |
+| Model | Main model (for writing) | `gpt-5.4-nano` |
+| Secondary Model | Cheap model (for summaries, analysis) | _(blank = use main model)_ |
+| Temperature | Creativity level | `0.8` |
 
-Cấu hình lưu tại `data/config.json`.
+Configuration is saved to `data/config.json`.
 
 ---
 
-## Cấu trúc dự án
+## Project Structure
 
 ```
 storyforge/
-├── app.py                          # Gradio UI
-├── config.py                       # Quản lý cấu hình
+├── app.py                          # FastAPI + Web UI
+├── config.py                       # Configuration management
+├── api/                            # REST API routes
+│   ├── __init__.py                 # Router registry
+│   ├── config_routes.py            # Settings CRUD, connection test
+│   ├── pipeline_routes.py          # Pipeline SSE streaming
+│   ├── export_routes.py            # PDF, EPUB, ZIP export
+│   └── account_routes.py           # Login/register
+├── web/                            # Frontend (Alpine.js + Tailwind)
+│   ├── index.html                  # Single-page app
+│   └── js/                         # JavaScript modules
 ├── models/
 │   └── schemas.py                  # Pydantic models
 ├── services/
-│   ├── llm_client.py               # Client giao tiếp LLM API
+│   ├── llm_client.py               # LLM API client
 │   ├── llm_cache.py                # Cache LLM responses
-│   ├── quality_scorer.py           # Chấm điểm chất lượng truyện
-│   ├── prompts.py                  # Prompt templates
-│   └── openclaw_manager.py         # Quản lý OpenClaw backend
+│   ├── quality_scorer.py           # Story quality scoring
+│   └── prompts.py                  # Prompt templates
 ├── pipeline/
-│   ├── orchestrator.py             # Điều phối pipeline 3 lớp
+│   ├── orchestrator.py             # 3-layer pipeline orchestrator
 │   ├── layer1_story/
-│   │   └── generator.py            # Tạo truyện từ đầu
+│   │   └── generator.py            # Story generation from scratch
 │   ├── layer2_enhance/
-│   │   ├── analyzer.py             # Phân tích quan hệ nhân vật
-│   │   ├── simulator.py            # Mô phỏng AI agent
-│   │   └── enhancer.py             # Viết lại tăng kịch tính
+│   │   ├── analyzer.py             # Character relationship analysis
+│   │   ├── simulator.py            # AI agent simulation
+│   │   └── enhancer.py             # Drama enhancement rewrite
 │   ├── layer3_video/
-│   │   └── storyboard.py           # Tạo storyboard & kịch bản
-│   └── agents/                     # Phòng ban AI đánh giá
+│   │   └── storyboard.py           # Storyboard & script generation
+│   └── agents/                     # AI review board
 │       ├── agent_registry.py
 │       ├── drama_critic.py
 │       ├── continuity_checker.py
@@ -126,34 +132,32 @@ storyforge/
 │       ├── dialogue_expert.py
 │       └── editor_in_chief.py
 ├── requirements.txt
-└── docs/                           # Tài liệu kỹ thuật
+└── docs/                           # Technical documentation
 ```
 
 ---
 
-## Sử dụng
+## Usage
 
-1. **Cài đặt API** — Vào tab Cài Đặt, nhập API key và chọn model
-2. **Nhập ý tưởng** — Chọn thể loại, phong cách, mô tả ý tưởng truyện
-3. **Điều chỉnh** — Số chương, số nhân vật, số từ/chương, mức kịch tính
-4. **Chạy Pipeline** — Nhấn nút, theo dõi tiến trình real-time
-5. **Xem kết quả** — Các tab: Truyện Gốc, Mô Phỏng, Truyện Kịch Tính, Kịch Bản Video, Chất Lượng
-6. **Xuất file** — Download TXT/Markdown/JSON hoặc ZIP toàn bộ
+1. **Setup API** — Go to Settings, choose your AI provider, enter API key, and select a model
+2. **Enter your idea** — Choose genre, writing style, describe your story idea
+3. **Configure** — Number of chapters, characters, words per chapter, drama level
+4. **Run Pipeline** — Click the button, watch progress in real-time
+5. **View results** — Tabs: Draft, Enhanced, Simulation, Quality
+6. **Export** — Download PDF, EPUB, or ZIP
 
 ---
 
-## API tương thích
+## Compatible APIs
 
-Hỗ trợ mọi API tương thích OpenAI:
+Supports any OpenAI-compatible API:
 
-- OpenAI (GPT-4o, GPT-4o-mini)
-- DeepSeek
-- Google Gemini (qua OpenAI-compatible endpoint)
-- Groq
-- Together AI
-- OpenRouter
-- Ollama (local)
-- Bất kỳ provider nào có endpoint `/v1/chat/completions`
+- OpenAI (GPT-5.4, o3, o4-mini)
+- Google Gemini (Gemini 2.5, 3.1 via OpenAI-compatible endpoint)
+- Anthropic Claude (Haiku 4.5, Sonnet 4.6, Opus 4.6)
+- OpenRouter (290+ models, free options available)
+- Ollama (local, free)
+- Any provider with a `/v1/chat/completions` endpoint
 
 ---
 

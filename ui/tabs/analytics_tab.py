@@ -30,7 +30,7 @@ def _create_pacing_chart(analytics: dict) -> object:
 
         fig = make_subplots(specs=[[{"secondary_y": True}]])
         fig.add_trace(
-            go.Bar(x=chapters, y=words, name="Số từ", marker_color="#4a90d9", opacity=0.7),
+            go.Bar(x=chapters, y=words, name="Số từ", marker_color="#6366f1", opacity=0.7),
             secondary_y=False,
         )
         fig.add_trace(
