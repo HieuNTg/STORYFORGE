@@ -67,8 +67,8 @@ The result: stories with genuine dramatic tension, not just grammatically correc
 ### Install
 
 ```bash
-git clone https://github.com/HieuNTg/novel-auto.git
-cd novel-auto
+git clone https://github.com/HieuNTg/STORYFORGE.git
+cd STORYFORGE
 pip install -r requirements.txt
 ```
 
