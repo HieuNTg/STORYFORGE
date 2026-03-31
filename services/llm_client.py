@@ -48,6 +48,69 @@ def _is_transient(exc: Exception) -> bool:
     return False
 
 
+def _detect_provider(base_url: str) -> str:
+    """Detect LLM provider from base URL."""
+    if not base_url:
+        return "openai"
+    url = base_url.lower()
+    if "openrouter" in url:
+        return "openrouter"
+    if "localhost" in url or "127.0.0.1" in url or "ollama" in url:
+        return "ollama"
+    if "anthropic" in url:
+        return "anthropic"
+    if "gemini" in url or "googleapis" in url:
+        return "google"
+    if "api.openai.com" in url:
+        return "openai"
+    return "custom"
+
+
+def _parse_retry_after(exc: Exception) -> float | None:
+    """Extract Retry-After delay from HTTP error response, if available."""
+    # httpx/requests exceptions often embed the response
+    resp = getattr(exc, "response", None)
+    if resp is not None:
+        header = getattr(resp, "headers", {}).get("retry-after") or getattr(resp, "headers", {}).get("Retry-After")
+        if header:
+            try:
+                return float(header)
+            except ValueError:
+                pass
+    return None
+
+
+def _should_retry(exc: Exception, provider: str) -> tuple[bool, float]:
+    """Decide if error is retryable and suggest delay.
+
+    Returns: (should_retry, delay_seconds)
+    """
+    exc_str = str(exc).lower()
+
+    # Ollama: model not loaded = unrecoverable
+    if provider == "ollama" and ("model" in exc_str and ("not found" in exc_str or "not loaded" in exc_str)):
+        return False, 0
+
+    # OpenAI: org quota exceeded = unrecoverable
+    if provider == "openai" and "quota" in exc_str and "exceeded" in exc_str:
+        return False, 0
+
+    # 429 rate limit — use Retry-After header if available, else provider defaults
+    if "429" in exc_str:
+        retry_after = _parse_retry_after(exc)
+        if retry_after is not None:
+            return True, retry_after
+        if provider == "openrouter":
+            return True, 60.0  # OpenRouter needs longer backoff
+        return True, 5.0  # Default rate limit delay
+
+    # Standard transient errors
+    if _is_transient(exc):
+        return True, BASE_DELAY
+
+    return False, 0
+
+
 class LLMClient:
     """Client gọi LLM API thông qua OpenAI-compatible endpoint."""
 
@@ -123,7 +186,7 @@ class LLMClient:
                 self._clients_cache[cache_key] = OpenAI(api_key=api_key, base_url=cheap_base)
             return self._clients_cache[cache_key], config.llm.cheap_model
 
-    def _retry_with_backoff(self, fn, label: str = "LLM"):
+    def _retry_with_backoff(self, fn, label: str = "LLM", provider: str = ""):
         """Execute fn with retry + exponential backoff. Returns result or raises last exception."""
         last_exc = None
         for attempt in range(MAX_RETRIES):
@@ -131,11 +194,17 @@ class LLMClient:
                 return fn()
             except Exception as e:
                 last_exc = e
-                if attempt < MAX_RETRIES - 1 and _is_transient(e):
-                    delay = BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
-                    logger.warning(f"{label} attempt {attempt+1} failed: {_redact(e)}. Retry in {delay:.1f}s")
-                    time.sleep(delay)
-                    continue
+                if attempt < MAX_RETRIES - 1:
+                    if provider:
+                        should_retry, suggested_delay = _should_retry(e, provider)
+                    else:
+                        should_retry = _is_transient(e)
+                        suggested_delay = BASE_DELAY
+                    if should_retry:
+                        delay = max(suggested_delay, BASE_DELAY * (2 ** attempt)) + random.uniform(0, 0.5)
+                        logger.warning(f"{label} attempt {attempt+1} failed: {_redact(e)}. Retry in {delay:.1f}s")
+                        time.sleep(delay)
+                        continue
                 break
         raise last_exc
 
@@ -271,8 +340,12 @@ class LLMClient:
                 return result
             except Exception as e:
                 all_errors.append(f"{provider['label']}: {_redact(e)}")
-                if not _is_transient(e):
-                    raise  # 4xx errors — don't try fallbacks
+                # Use provider-aware retry decision for fallback chain traversal
+                base_url = getattr(provider["client"], "base_url", None)
+                provider_type = _detect_provider(str(base_url) if base_url else "")
+                should_try_next, _ = _should_retry(e, provider_type)
+                if not should_try_next and not _is_transient(e):
+                    raise  # unrecoverable — don't try fallbacks
                 logger.warning(f"Provider {provider['label']} failed, trying next...")
 
         error_msg = "; ".join(all_errors)
@@ -318,13 +391,19 @@ class LLMClient:
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
 
+        # Detect provider type for smarter retry decisions
+        base_url = getattr(provider["client"], "base_url", None)
+        provider_type = _detect_provider(str(base_url) if base_url else "")
+
         def _call():
             response = provider["client"].chat.completions.create(**kwargs)
             result = response.choices[0].message.content or ""
             logger.info(f"LLM success via {provider['label']}")
             return result
 
-        return self._retry_with_backoff(_call, label=f"Provider {provider['label']}")
+        return self._retry_with_backoff(
+            _call, label=f"Provider {provider['label']}", provider=provider_type
+        )
 
     def _generate_web(self, messages, temperature, use_cache, cache, cache_params) -> str:
         def _call():

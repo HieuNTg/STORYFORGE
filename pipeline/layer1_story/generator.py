@@ -11,6 +11,7 @@ from models.schemas import (
 )
 from services.llm_client import LLMClient
 from services import prompts
+from services.input_sanitizer import sanitize_story_input
 from services.adaptive_prompts import build_adaptive_write_prompt
 from config import ConfigManager
 from pipeline.layer1_story.story_bible_manager import StoryBibleManager
@@ -386,6 +387,11 @@ class StoryGenerator:
             logger.info(msg)
             if progress_callback:
                 progress_callback(msg)
+
+        # Soft injection defense — log threats but don't block
+        _san = sanitize_story_input(title=title, idea=idea, genre=genre)
+        if not _san.is_safe:
+            logger.warning(f"Injection threats in story input: {_san.threats_found}")
 
         _log(f"🖊️ Đang tạo nhân vật cho '{title}'...")
         characters = self.generate_characters(title, genre, idea, num_characters)

@@ -310,19 +310,19 @@ class TestAppModule(unittest.TestCase):
 
     def test_load_templates_returns_dict(self):
         """Verify _load_templates returns a dict."""
-        from app import _load_templates
+        from ui.gradio_app import _load_templates
         result = _load_templates()
         self.assertIsInstance(result, dict)
 
     def test_load_templates_has_content(self):
         """Verify _load_templates returns non-empty dict."""
-        from app import _load_templates
+        from ui.gradio_app import _load_templates
         result = _load_templates()
         self.assertGreater(len(result), 0, "Templates should not be empty")
 
     def test_create_ui_returns_gradio_blocks(self):
         """Verify create_ui returns a Gradio Blocks object."""
-        from app import create_ui
+        from ui.gradio_app import create_ui
         with mock.patch("config.ConfigManager") as mock_config:
             mock_cfg = mock.MagicMock()
             mock_cfg.llm.backend_type = "api"

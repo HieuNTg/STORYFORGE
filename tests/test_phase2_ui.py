@@ -20,7 +20,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from app import _progress_html, _detect_layer
+from ui.gradio_app import _progress_html, _detect_layer
 
 
 class TestProgressHtmlGeneration(unittest.TestCase):
@@ -266,7 +266,7 @@ class TestFormatOutput(unittest.TestCase):
 
     def test_format_output_returns_tuple(self):
         """Verify _format_output returns a tuple."""
-        from app import create_ui
+        from ui.gradio_app import create_ui
         # We need to extract _format_output from create_ui
         # For now, we'll test the tuple structure via mocking
         pass
@@ -283,7 +283,7 @@ class TestCSSClasses(unittest.TestCase):
 
     def test_progress_bar_container_css(self):
         """Verify progress-bar-container CSS class exists in app.py."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
@@ -294,7 +294,7 @@ class TestCSSClasses(unittest.TestCase):
 
     def test_progress_segment_css(self):
         """Verify progress-segment CSS class exists in app.py."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
@@ -303,40 +303,40 @@ class TestCSSClasses(unittest.TestCase):
 
     def test_progress_segment_active_css(self):
         """Verify progress-segment.active CSS class exists."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
         self.assertIn(".progress-segment.active", content,
                      "CSS class .progress-segment.active not found")
-        self.assertIn("#3b82f6", content,
-                     "Active segment should have blue color (#3b82f6)")
+        self.assertIn("#4f46e5", content,
+                     "Active segment should have indigo color (#4f46e5)")
 
     def test_progress_segment_done_css(self):
         """Verify progress-segment.done CSS class exists."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
         self.assertIn(".progress-segment.done", content,
                      "CSS class .progress-segment.done not found")
-        self.assertIn("#22c55e", content,
-                     "Done segment should have green color (#22c55e)")
+        self.assertIn("#059669", content,
+                     "Done segment should have green color (#059669)")
 
     def test_status_badge_css(self):
         """Verify status-badge CSS class exists."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
         self.assertIn(".status-badge", content,
                      "CSS class .status-badge not found")
-        self.assertIn("display: inline-block", content,
-                     "status-badge should be inline-block")
+        self.assertIn("display: inline-flex", content,
+                     "status-badge should be inline-flex")
 
     def test_status_idle_css(self):
         """Verify status-idle CSS class exists."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
@@ -345,18 +345,18 @@ class TestCSSClasses(unittest.TestCase):
 
     def test_status_running_css(self):
         """Verify status-running CSS class exists."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
         self.assertIn(".status-running", content,
                      "CSS class .status-running not found")
-        self.assertIn("animation: pulse-bg 2s infinite", content,
+        self.assertIn("animation: pulse-glow 2s infinite", content,
                      "Running status should have pulse animation")
 
     def test_status_done_css(self):
         """Verify status-done CSS class exists."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
@@ -365,7 +365,7 @@ class TestCSSClasses(unittest.TestCase):
 
     def test_status_error_css(self):
         """Verify status-error CSS class exists."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
@@ -374,7 +374,7 @@ class TestCSSClasses(unittest.TestCase):
 
     def test_progress_step_text_css(self):
         """Verify progress-step-text CSS class exists."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
@@ -383,7 +383,7 @@ class TestCSSClasses(unittest.TestCase):
 
     def test_mobile_responsive_media_query(self):
         """Verify mobile responsive CSS media query exists."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
@@ -392,12 +392,12 @@ class TestCSSClasses(unittest.TestCase):
 
     def test_pulse_animation_keyframes(self):
         """Verify pulse-bg animation keyframes exist."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
-        self.assertIn("@keyframes pulse-bg", content,
-                     "pulse-bg keyframes not found")
+        self.assertIn("@keyframes pulse-glow", content,
+                     "pulse-glow keyframes not found")
 
 
 class TestOutputTabsConsolidation(unittest.TestCase):
@@ -405,7 +405,7 @@ class TestOutputTabsConsolidation(unittest.TestCase):
 
     def test_four_output_tabs_exist(self):
         """Verify exactly 4 output tabs in app.py."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
@@ -417,7 +417,7 @@ class TestOutputTabsConsolidation(unittest.TestCase):
 
     def test_truyen_tab_has_two_outputs(self):
         """Verify Truyen tab has both draft and enhanced outputs."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
@@ -431,7 +431,7 @@ class TestOutputTabsConsolidation(unittest.TestCase):
 
     def test_mo_phong_tab_exists(self):
         """Verify Mo Phong (Simulation) tab exists."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
@@ -440,7 +440,7 @@ class TestOutputTabsConsolidation(unittest.TestCase):
 
     def test_video_tab_exists(self):
         """Verify Video tab exists."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
@@ -449,7 +449,7 @@ class TestOutputTabsConsolidation(unittest.TestCase):
 
     def test_danh_gia_tab_exists(self):
         """Verify Danh Gia (Evaluation) tab exists."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
@@ -463,7 +463,7 @@ class TestYieldTupleStructure(unittest.TestCase):
 
     def test_error_yield_has_11_elements(self):
         """Verify error yield returns 11-element tuple."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             lines = f.readlines()
 
@@ -487,7 +487,7 @@ class TestYieldTupleStructure(unittest.TestCase):
 
     def test_progress_yield_has_11_elements(self):
         """Verify progress yield returns 11-element tuple."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             lines = f.readlines()
 
@@ -508,7 +508,7 @@ class TestYieldTupleStructure(unittest.TestCase):
 
     def test_final_output_yield_has_11_elements(self):
         """Verify _format_output returns 11-element tuple."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             lines = f.readlines()
 
@@ -556,7 +556,7 @@ class TestYieldTupleStructure(unittest.TestCase):
 
     def test_format_output_docstring_mentions_11_tuple(self):
         """Verify _format_output docstring mentions 11-tuple."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         with open(app_path, encoding="utf-8") as f:
             content = f.read()
 
@@ -609,7 +609,7 @@ class TestAppCompilation(unittest.TestCase):
 
     def test_app_py_compiles(self):
         """Verify app.py compiles without syntax errors."""
-        app_path = os.path.join(project_root, "app.py")
+        app_path = os.path.join(project_root, "ui", "gradio_app.py")
         import py_compile
         try:
             py_compile.compile(app_path, doraise=True)

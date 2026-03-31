@@ -82,7 +82,7 @@ class TestAgentDAGConstruction:
         dag = AgentDAG()
         with patch("pipeline.agents.agent_graph.logger") as mock_log:
             dag.build_from_registry(agents)
-            mock_log.warning.assert_called_once()
+            mock_log.debug.assert_called_once()
         # Unknown dep should be stripped
         assert dag._nodes["B"].depends_on == []
 

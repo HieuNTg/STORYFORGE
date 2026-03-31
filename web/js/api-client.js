@@ -98,6 +98,39 @@ const API = {
     }
   },
 
+  /**
+   * Buffered SSE stream — batches events every 500ms to reduce re-renders.
+   * Done/error/interrupted events flush buffer then yield immediately.
+   */
+  async *streamBuffered(path, body, bufferMs = 500) {
+    let buffer = [];
+    let lastFlush = Date.now();
+
+    for await (const event of this.stream(path, body)) {
+      const isFinal = ['done', 'error', 'interrupted'].includes(event.type);
+
+      if (isFinal) {
+        // Yield any buffered events first, then the final event
+        for (const e of buffer) yield e;
+        buffer = [];
+        yield event;
+        return;
+      }
+
+      buffer.push(event);
+
+      // Flush buffer every bufferMs
+      if (Date.now() - lastFlush >= bufferMs) {
+        for (const e of buffer) yield e;
+        buffer = [];
+        lastFlush = Date.now();
+      }
+    }
+
+    // Flush remaining events after loop ends
+    for (const e of buffer) yield e;
+  },
+
   /** Download a file from export endpoint */
   async download(path, filename) {
     const res = await fetch(this.base + path, { method: 'POST' });

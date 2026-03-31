@@ -10,6 +10,13 @@
 Input: Genre + Story Idea + Config
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
+│ SECURITY LAYER (Sprint 1)                                        │
+│ - InputSanitizer: 8-pattern prompt injection detection           │
+│ - SecretManager: Fernet encryption for secrets at rest           │
+│ - No modification: sanitizer flags threats; caller decides action│
+└─────────────────────────────────────────────────────────────────┘
+  ↓
+┌─────────────────────────────────────────────────────────────────┐
 │ ONBOARDING (Phase 19)                                            │
 │ - OnboardingManager: 4-step wizard (genre→chars→style→confirm)  │
 │ - State machine; config pre-populated before pipeline starts    │
@@ -134,9 +141,25 @@ Input: Genre + Story Idea + Config
 Final Output: novel + enhanced story + quality scores + video assets + audio + images
 ```
 
+## UI Architecture (Sprint 1)
+
+`app.py` refactored to 79-line thin entry point; all Gradio UI logic moved to `ui/gradio_app.py` (1160 lines):
+
+```
+app.py (FastAPI launcher)
+├─ Mounts API routes (api_router)
+├─ Mounts static files (web/)
+├─ Creates Gradio UI via ui/gradio_app.create_ui()
+└─ Serves index.html at root + health check
+```
+
+`ui/gradio_app.py` handles all Gradio tab creation and routing.
+
+**Benefits**: Thin entry point, modular UI layer, independently testable.
+
 ## UI Modularization (ui/tabs/)
 
-`app.py` is a thin shell — all tab UI logic lives in `ui/tabs/`:
+Gradio tab logic lives in `ui/tabs/`:
 
 ```
 app.py
@@ -151,6 +174,55 @@ app.py
 **Benefits**: each tab is independently testable; app.py only wires layout + event routing.
 
 **Output tabs** (4): Truyen | Mo Phong | Video | Danh Gia
+
+## Security Layer (Sprint 1)
+
+### InputSanitizer (services/input_sanitizer.py)
+
+```
+InputSanitizer
+├─ _INJECTION_PATTERNS: 8 regex patterns
+│  ├─ System prompt override: "ignore|disregard previous instructions"
+│  ├─ Prompt extraction: "show|reveal your prompt"
+│  ├─ Role override: "you are now a [different]"
+│  ├─ Tag injection: "[SYSTEM]|[INST]"
+│  ├─ Token injection: "<|im_start|>"
+│  ├─ Scoring bypass: "don't score|bypass quality check"
+│  └─ Safety bypass: "disable safety filter"
+├─ sanitize_input(text) → SanitizationResult
+│  ├─ Compare text against all patterns
+│  ├─ Does NOT modify text (caller decides action)
+│  └─ Return: {is_safe, cleaned_text, threats_found}
+└─ sanitize_story_input(title, idea, genre) → SanitizationResult
+   └─ Combine all inputs before checking
+```
+
+**Purpose**: Detect prompt injection attempts before LLM prompt construction.
+**Integration**: Call in pipeline_routes before storing user inputs.
+
+### SecretManager (services/secret_manager.py)
+
+```
+SecretManager
+├─ _get_fernet() → Fernet | None
+│  └─ Derive key from STORYFORGE_SECRET_KEY env var via SHA256
+├─ encrypt_json(data: dict) → bytes
+│  ├─ Serialize dict → JSON bytes
+│  ├─ Encrypt with Fernet (no-op if key not set)
+│  └─ Return encrypted bytes
+├─ decrypt_json(data: bytes) → dict
+│  ├─ Decrypt with Fernet
+│  ├─ Fallback to plaintext JSON (backward compatibility)
+│  └─ Return parsed dict
+├─ save_encrypted(filepath, data) → void
+│  └─ Persist encrypted data to file
+└─ load_encrypted(filepath) → dict
+   ├─ Read + decrypt file
+   └─ Return {} on error (graceful degradation)
+```
+
+**Purpose**: Secure at-rest storage of API keys, auth tokens, credentials.
+**Config**: Requires `STORYFORGE_SECRET_KEY` env var; no-op fallback if absent.
 
 ## New Service Layer Components
 
@@ -251,6 +323,23 @@ ProgressTracker
 ```
 
 **Purpose**: Structured telemetry throughout pipeline; Gradio progress bar integration; extensible for future monitoring/analytics.
+
+### Web API Client (web/js/api-client.js) — MODIFIED Sprint 1
+
+```
+api-client.js
+├─ fetchSSE(path: string) → AsyncIterator[SSEEvent]
+│  ├─ Standard SSE fetch with error handling
+│  ├─ Timeout safeguard: 30s without data
+│  └─ On error/EOF: yields { type: 'interrupted' }
+│
+└─ streamBuffered(path: string, batch_size: int) → AsyncIterator[SSEEvent]  [NEW Sprint 1]
+   ├─ Buffers SSE events in batches before yielding
+   ├─ Reduces UI re-renders on high-frequency events
+   └─ Yields batch when: count >= batch_size OR timeout (1s)
+```
+
+**Sprint 1 Change**: Added `streamBuffered()` for batch SSE processing, improving frontend performance.
 
 ### SelfReviewService (services/self_review.py)
 
@@ -393,14 +482,27 @@ LongContextClient
 └─ Config: use_long_context, long_context_model, long_context_base_url, timeout
 ```
 
-### EmotionClassifier (services/emotion_classifier.py) — Phase 15
+### EmotionClassifier (services/emotion_classifier.py) — Phase 15, MODIFIED Sprint 1
 
 ```
 EmotionClassifier
-├─ classify(text: str) → EmotionResult
-│  └─ Rule-based Vietnamese; emotions: joy, sadness, anger, fear, neutral
-└─ Output: {emotion, confidence (0.0-1.0)}
+├─ _detect_language(text: str) → str ("vi" | "en")
+│  └─ Count Vietnamese diacritical marks; fallback to English if <3 marks
+├─ classify_emotion(text: str) → str
+│  ├─ Auto-detect language via _detect_language()
+│  ├─ Use primary keyword set for detected language
+│  ├─ Fallback to secondary set if no match
+│  └─ Return: emotion label (sad, happy, angry, tense, neutral)
+└─ EMOTION_VOICE_PARAMS: rate/pitch adjustments per emotion
+   ├─ sad:     "-15% rate, -5Hz pitch"
+   ├─ happy:   "+10% rate, +3Hz pitch"
+   ├─ angry:   "+5% rate, +5Hz pitch"
+   ├─ tense:   "+8% rate, +2Hz pitch"
+   └─ neutral: "+0% rate, +0Hz pitch"
 ```
+
+**Purpose**: Bilingual emotion detection for TTS voice modulation.
+**Sprint 1 Change**: Added English support with auto-detect fallback; no LLM calls.
 
 ### DebateOrchestrator (pipeline/agents/debate_orchestrator.py) — Phase 16 / 16.5
 
@@ -584,7 +686,7 @@ generate_full_story(title, genre, idea, num_chapters, ...)
         └─ plot_events (cap at 50)
 ```
 
-## LLM Client Architecture
+## LLM Client Architecture (MODIFIED Sprint 1)
 
 ```
 LLMClient (singleton)
@@ -594,12 +696,17 @@ LLMClient (singleton)
 │  ├─ branch backend_type:
 │  │  ├─ "api" → OpenAI-compatible (HTTPS)
 │  │  └─ "web" → DeepSeekWebClient (browser auth + PoW)
-│  ├─ Retry (MAX_RETRIES=3, exponential backoff)
+│  ├─ Provider-aware retry with Retry-After header parsing (Sprint 1)
+│  │  ├─ Parse Retry-After from 429 responses
+│  │  ├─ Exponential backoff: 1s, 2s, 4s
+│  │  └─ MAX_RETRIES=3
 │  └─ Cache result
 │
 └─ generate_json(system, user, max_tokens) → dict
    └─ generate() with json_mode=True → Parse + Pydantic validate
 ```
+
+**Sprint 1 Change**: Added Retry-After header parsing for better rate-limit handling.
 
 ## Agent Architecture (Layer 2)
 
@@ -705,6 +812,6 @@ PipelineConfig:
 
 ---
 
-**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Phase 18 adds inline quality gates between layers and genre-adaptive prompts. Phase 19 adds guided onboarding and entity knowledge graph. Phase 20 adds structured progress telemetry, production-parity staging infrastructure, and frontend resilience (sessionStorage persistence, SSE interruption detection, checkpoint resume).
+**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Phase 18 adds inline quality gates between layers and genre-adaptive prompts. Phase 19 adds guided onboarding and entity knowledge graph. Phase 20 adds structured progress telemetry, production-parity staging infrastructure, and frontend resilience (sessionStorage persistence, SSE interruption detection, checkpoint resume). Sprint 1 adds security layer (prompt injection detection, secret encryption), app refactoring (thin entry point, extracted Gradio UI), bilingual emotion detection, provider-aware LLM retry, and SSE batch streaming.
 
-**Last Updated**: 2026-03-31 | **Version**: 2.5 (Phase 20: SSE Resilience, sessionStorage Persistence, Checkpoint Resume)
+**Last Updated**: 2026-03-31 | **Version**: 2.6 (Sprint 1: Security Layer, App Refactoring, Bilingual Emotion Classification, Provider-Aware Retry, SSE Batch Streaming)

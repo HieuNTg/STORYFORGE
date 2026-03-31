@@ -287,7 +287,7 @@ class TestOrchestratorIntegration:
 
 class TestAppIntegration:
     def test_app_has_video_export(self):
-        app_path = os.path.join(os.path.dirname(__file__), "..", "app.py")
+        app_path = os.path.join(os.path.dirname(__file__), "..", "ui", "gradio_app.py")
         with open(app_path, "r", encoding="utf-8", errors="replace") as f:
             content = f.read()
         assert "video_export_btn" in content

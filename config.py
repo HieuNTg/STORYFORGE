@@ -118,9 +118,11 @@ class PipelineConfig:
     smart_revision_threshold: float = 3.5  # 1.0-5.0 scale
 
     # Quality gate (inline scoring between layers)
-    enable_quality_gate: bool = False
-    quality_gate_threshold: float = 2.5  # 1.0-5.0 scale
-    quality_gate_chapter_threshold: float = 2.0
+    # Recommended thresholds by genre: romance/comedy=2.3, mystery/thriller=2.5,
+    # fantasy/sci-fi=2.5, literary/historical=2.8, action=2.2
+    enable_quality_gate: bool = True
+    quality_gate_threshold: float = 2.5  # 1.0-5.0 scale, P50 across genres
+    quality_gate_chapter_threshold: float = 2.0  # Per-chapter floor
     quality_gate_max_retries: int = 1
 
 

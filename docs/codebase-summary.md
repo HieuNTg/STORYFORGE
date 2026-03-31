@@ -14,13 +14,17 @@
 
 ```
 novel-auto/
-├── app.py                          # Gradio web UI — delegates to ui/tabs/ modules
+├── app.py                          # FastAPI thin entry point (79 lines): launches web UI, API routes, Gradio fallback
+├── ui/gradio_app.py                # Gradio UI (1160 lines): all tab logic extracted from app.py
 ├── config.py                       # ConfigManager (singleton), LLMConfig, PipelineConfig
 ├── models/
 │   └── schemas.py                  # Pydantic models for all layers + quality scoring
 ├── services/
-│   ├── llm_client.py               # LLM wrapper: routes "api" (OpenAI) or "web" (DeepSeek)
+│   ├── llm_client.py               # LLM wrapper: provider-aware retry with Retry-After header parsing
 │   ├── llm_cache.py                # SQLite-based prompt result caching
+│   ├── secret_manager.py           # Fernet encryption for secrets at rest (NEW - Sprint 1)
+│   ├── input_sanitizer.py          # Prompt injection detection: 8 regex patterns (NEW - Sprint 1)
+│   ├── emotion_classifier.py       # Bilingual (vi+en) emotion classification with auto-detect (MODIFIED - Sprint 1)
 │   ├── prompts.py                  # Centralized prompt templates (localize_prompt wrapper)
 │   ├── browser_auth.py             # Chrome CDP + Playwright credential capture
 │   ├── deepseek_web_client.py      # DeepSeek web API client with PoW challenge solver
@@ -76,6 +80,7 @@ novel-auto/
 ├── locales/
 │   ├── vi.json                     # Vietnamese locale strings (200+)
 │   └── en.json                     # English locale strings (200+)
+├── .env.example                    # Environment variable template (NEW - Sprint 1)
 ├── .github/
 │   └── workflows/
 │       └── ci.yml                  # GitHub Actions CI/CD (parallel lint/typecheck/test + staging-deploy, Phase 20)
@@ -86,6 +91,10 @@ novel-auto/
 │   │   └── story_templates.json    # 13 story templates (zero-config onboarding)
 │   ├── auth_profiles.json          # Cached browser auth credentials
 │   └── cache.db                    # SQLite cache for LLM results
+├── web/
+│   ├── index.html                  # Single-page app (professional UI - Sprint 1)
+│   ├── js/api-client.js            # API client with streamBuffered() SSE batch method (MODIFIED - Sprint 1)
+│   └── (CSS, static assets)
 └── output/                         # Generated stories (TXT, MD, JSON, HTML, ZIP)
 ```
 
@@ -185,11 +194,31 @@ novel-auto/
 - Context window aware: splits chapters if exceeding limit via token_counter
 - Config: `use_long_context`, `long_context_model`, `long_context_base_url`, `long_context_timeout_seconds`
 
-### emotion_classifier.py (Phase 15)
-- `EmotionClassifier` — Rule-based Vietnamese emotion detection (no LLM calls)
-- Returns emotion label + confidence (0.0-1.0) from fixed set: joy, sadness, anger, fear, neutral
-- Input: Vietnamese text; output: structured EmotionResult
-- Used by TTS pipeline to adjust voice rate & pitch per emotional context
+### emotion_classifier.py (Phase 15, MODIFIED Sprint 1)
+- `classify_emotion(text)` — Rule-based bilingual (Vietnamese + English) emotion detection
+- Auto-detects language by checking Vietnamese diacritical mark frequency
+- Emotions: sad, happy, angry, tense, neutral (with fallback between languages)
+- Voice modulation params: rate/pitch adjustments per emotion
+- No LLM calls; keyword-based with `_detect_language()` fallback support
+- Input: any text; output: emotion label with confidence (0.0-1.0)
+
+### secret_manager.py (NEW - Sprint 1)
+- Fernet symmetric encryption for secrets at rest
+- `_get_fernet()` — derives Fernet key from `STORYFORGE_SECRET_KEY` env var via SHA256 hash
+- `encrypt_json(data)` — encrypts dict as JSON bytes (graceful fallback to plaintext if no key)
+- `decrypt_json(data)` — decrypts bytes to dict with plaintext JSON fallback for backward compatibility
+- `save_encrypted(filepath, data)` — persist encrypted data
+- `load_encrypted(filepath)` — load + decrypt with error handling (returns {} on failure)
+- Purpose: Secure storage of API keys, auth tokens, credentials at rest
+
+### input_sanitizer.py (NEW - Sprint 1)
+- Prompt injection detection via 8 regex patterns
+- Patterns detect: system prompt overrides, role switches, tag/token injection, safety bypasses
+- `SanitizationResult` — immutable result class: is_safe (bool), cleaned_text (str), threats_found (list)
+- `sanitize_input(text)` — checks text against all patterns; does NOT modify (caller decides action)
+- `sanitize_story_input(title, idea, genre)` — combines all inputs before sanitization
+- Returns early if text empty; logs each threat at WARNING level
+- Integration: Call before storing user-provided inputs in pipeline config
 
 ### prompts.py
 - `localize_prompt(template, lang)` wrapper for all generation prompts
@@ -419,7 +448,8 @@ Chapter → [parallel] summarize + extract_character_states + extract_plot_event
 | **Phase 18** | COMPLETE | Settings presets (Beginner/Advanced/Pro), adaptive prompts (12 genre + 4 score boosters), quality gate (inline between layers); +22 tests |
 | **Phase 19** | COMPLETE | Onboarding wizard (4-step guided flow), knowledge graph (NetworkX + pure Python), E2E pipeline tests (22 tests); +22 tests |
 | **Phase 20** | COMPLETE | Staging environment (docker-compose.staging.yml, parallel CI), progress tracker (structured events for gate/revision/scoring); +159 tests |
+| **Sprint 1** | COMPLETE | App refactoring (79-line thin entry point, 1160-line extracted Gradio UI), security layer (Fernet encryption, prompt injection detection), bilingual emotion classifier, provider-aware LLM retry, SSE batch streaming, quality gate enabled by default; .env.example documentation |
 
 ---
 
-**Last Updated**: 2026-03-31 | **Doc Version**: 2.5 (Phase 20: SSE Resilience, sessionStorage Persistence, Checkpoint Resume) | **Tests**: 1327
+**Last Updated**: 2026-03-31 | **Doc Version**: 2.6 (Sprint 1: Security Layer, App Refactoring, Bilingual Emotion Classification) | **Tests**: 1327
