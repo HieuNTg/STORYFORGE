@@ -244,6 +244,35 @@ novel-auto/
 - Standard events: `gate_checked`, `revision_done`, `scoring_complete`, `layer_start`, `layer_complete`
 - Injected by orchestrator; services call `tracker.emit()` at milestones
 
+### Frontend Resilience & Persistence (save-logic-render-audit)
+
+#### sessionStorage Persistence (web/js/app.js)
+- `savePipelineResult(data)` — saves pipeline output to sessionStorage with error handling
+- Strips transient fields (e.g., livePreview) before storing
+- Size checks: warns if >4MB (typical 5MB limit)
+- `init()` — restores pipeline result on page load; graceful fallback if JSON invalid
+- Graceful degradation: if storage fails, warning shown ("Result too large to cache")
+
+#### SSE Interruption Detection (web/js/api-client.js)
+- `fetchSSE(path)` — robust SSE stream consumption
+- Yields `{ type: 'interrupted', data: '...' }` if:
+  - Stream connection lost (network error)
+  - Stream ends without 'done' event (unexpected termination)
+- Timeout safeguard: aborts after 30 seconds without data
+- On interrupt, UI status set to 'interrupted' (allows manual resume)
+
+#### Checkpoint Resume API (api/pipeline_routes.py)
+- `POST /api/pipeline/resume` — resume from saved checkpoint
+- Path traversal fix: uses `pathlib.Path(body.checkpoint).name` to prevent directory traversal
+- Validates checkpoint exists before resuming
+- Returns SSE stream with same event types as `/api/pipeline/run`
+- Logs streamed with same progress_callback pattern
+
+#### Interrupted UI Status (web/index.html)
+- Pipeline status: 'idle' | 'running' | 'done' | 'error' | **'interrupted'** (new)
+- On interrupt, resume button shows in UI; users can click to continue from checkpoint
+- Storage warning banner: informs users if sessionStorage save failed
+
 ### rag_knowledge_base.py (Phase 13)
 - RAGKnowledgeBase service using ChromaDB + sentence-transformers
 - Methods: `add_file()`, `add_documents()`, `query()`, `clear()`, `count()`
@@ -393,4 +422,4 @@ Chapter → [parallel] summarize + extract_character_states + extract_plot_event
 
 ---
 
-**Last Updated**: 2026-03-25 | **Doc Version**: 2.4 (Phase 18-20: Presets, Adaptive Prompts, Quality Gate, Onboarding, Knowledge Graph, Staging, Progress Tracker) | **Tests**: 1327
+**Last Updated**: 2026-03-31 | **Doc Version**: 2.5 (Phase 20: SSE Resilience, sessionStorage Persistence, Checkpoint Resume) | **Tests**: 1327

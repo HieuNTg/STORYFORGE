@@ -123,6 +123,14 @@ Input: Genre + Story Idea + Config
 │ - Integrates with Gradio progress callbacks                     │
 └─────────────────────────────────────────────────────────────────┘
   ↓
+┌─────────────────────────────────────────────────────────────────┐
+│ FRONTEND RESILIENCE & PERSISTENCE (save-logic-render-audit)     │
+│ - sessionStorage: auto-saves result (size checks, graceful fail) │
+│ - SSE resilience: detects interruption, yields 'interrupted'    │
+│ - Checkpoint resume: POST /api/pipeline/resume (path-safe)      │
+│ - UI status: 'interrupted' allows manual resume from checkpoint  │
+└─────────────────────────────────────────────────────────────────┘
+  ↓
 Final Output: novel + enhanced story + quality scores + video assets + audio + images
 ```
 
@@ -421,6 +429,95 @@ SmartRevisionService
 
 **Config**: `enable_smart_revision` (default False), `smart_revision_threshold` (default 3.5).
 
+## Frontend Resilience & Persistence Architecture (save-logic-render-audit)
+
+### sessionStorage Persistence (web/js/app.js)
+
+```
+Alpine.store('app')
+├─ savePipelineResult(data: object) → void
+│  ├─ Strips transient fields (livePreview)
+│  ├─ Serializes to JSON
+│  ├─ Size check: warn if >4MB (typical 5MB browser limit)
+│  └─ On error: set storageWarning + log to console
+│
+└─ init() → void
+   ├─ Restore from sessionStorage.getItem('sf_result')
+   ├─ Parse JSON + validate object shape
+   ├─ Populate Alpine store + pipeline.result + status='done'
+   └─ Graceful fallback: clear storage if JSON invalid
+```
+
+**Purpose**: Auto-restore pipeline result on page refresh; users don't lose work.
+**Config**: No config needed; automatic on pipeline completion and page init.
+
+### SSE Interruption Detection (web/js/api-client.js)
+
+```
+fetchSSE(path: string) → AsyncIterator[SSEEvent]
+
+Reads EventSource stream:
+├─ Fetch path with { signal: AbortController }
+├─ Read response body via reader.read()
+├─ Parse SSE "data: {...}" lines
+└─ On stream loss/error:
+   ├─ Network error → yield { type: 'interrupted', data: '...' }
+   ├─ Unexpected EOF → yield { type: 'interrupted' }
+   └─ Timeout (30s no data) → abort + yield interrupted
+
+On yield 'interrupted':
+├─ UI sets pipeline.status = 'interrupted'
+├─ Save last checkpoint in sessionStorage
+└─ Show resume button to user
+```
+
+**Purpose**: Detect connection loss; enable manual resume from checkpoint.
+**Guarantees**: Yields exactly one 'done' event OR one 'interrupted' event.
+
+### Checkpoint Resume API (api/pipeline_routes.py)
+
+```
+POST /api/pipeline/resume
+├─ Request: { checkpoint: string }
+├─ Validate path safety:
+│  ├─ Use pathlib.Path(body.checkpoint).name (strips directory traversal)
+│  ├─ Check file exists in output/checkpoints/
+│  └─ Reject if invalid or not found
+├─ Call: orch.resume_from_checkpoint(checkpoint_path, progress_callback)
+└─ Return: SSE stream (same format as /api/pipeline/run)
+
+Resume flow (orch.resume_from_checkpoint):
+├─ Load checkpoint state from file
+├─ Identify where pipeline left off (L1/L2/L3 + chapter number)
+├─ Continue from that point
+└─ Stream progress events + final 'done'
+```
+
+**Purpose**: Complete the pipeline from interruption point; minimize re-computation.
+**Security**: Path traversal prevention via pathlib.Path.name normalization.
+
+### Interrupted UI Status (web/index.html)
+
+```
+Pipeline state machine:
+'idle' → 'running' → 'done' ✓
+             ↓
+        'error'  ✗
+             ↓
+        'interrupted' ← (SSE connection lost)
+             ↓ (user clicks Resume)
+        'running' → 'done' ✓
+
+UI rendering per status:
+├─ 'running': progress bar, live logs
+├─ 'done': show results, export options
+├─ 'error': error message, try again
+├─ 'interrupted': "Connection lost" + Resume button
+└─ Progress stored in sessionStorage; survives page refresh
+```
+
+**Benefits**: User never loses work; can resume at any time within session lifetime.
+
 ## CI/CD Pipeline (GitHub Actions)
 
 ```
@@ -608,6 +705,6 @@ PipelineConfig:
 
 ---
 
-**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Phase 18 adds inline quality gates between layers and genre-adaptive prompts. Phase 19 adds guided onboarding and entity knowledge graph. Phase 20 adds structured progress telemetry and production-parity staging infrastructure.
+**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Phase 18 adds inline quality gates between layers and genre-adaptive prompts. Phase 19 adds guided onboarding and entity knowledge graph. Phase 20 adds structured progress telemetry, production-parity staging infrastructure, and frontend resilience (sessionStorage persistence, SSE interruption detection, checkpoint resume).
 
-**Last Updated**: 2026-03-25 | **Version**: 2.4 (Phase 18-20: Quality Gate, Adaptive Prompts, Onboarding, Knowledge Graph, Staging, Progress Tracker)
+**Last Updated**: 2026-03-31 | **Version**: 2.5 (Phase 20: SSE Resilience, sessionStorage Persistence, Checkpoint Resume)
