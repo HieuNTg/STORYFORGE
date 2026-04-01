@@ -17,6 +17,7 @@ venv/
 data/config.json
 data/*.db
 data/auth_profiles.json
+data/onboarding_state.json
 data/.auth_key
 data/branches/
 output/
@@ -30,6 +31,8 @@ logs.txt
 coverage_html/
 htmlcov/
 .pytest_cache/
+test_output.txt
+data/test_timings.json
 
 # ── IDE & OS ───────────────────────────────────────────────────────
 .DS_Store
@@ -47,6 +50,8 @@ release-manifest.json
 
 # ── Claude Code / Gemini ──────────────────────────────────────────
 .claude/settings.bak.json
+.claude/skills/
+.claude/statusline.*
 .gemini/settings.json
 prompt.md
 ck.md
