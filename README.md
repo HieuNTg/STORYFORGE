@@ -56,8 +56,8 @@ Idea ─→ Layer 1: Generate ─→ Layer 2: Simulate ─→ Layer 3: Storyboar
 
 ```bash
 # Clone & install
-git clone https://github.com/HieuNTg/novel-auto.git
-cd novel-auto
+git clone https://github.com/HieuNTg/STORYFORGE.git
+cd STORYFORGE
 pip install -r requirements.txt
 
 # Run
