@@ -1,5 +1,6 @@
 """Dashboard API routes — aggregated metrics summary + HTML serving."""
 
+import json
 import re
 import time
 from pathlib import Path
@@ -14,6 +15,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 _DASHBOARD_PATH = Path(__file__).parent.parent / "web" / "dashboard.html"
 _DASHBOARD_CACHE: str | None = None
+_TIMINGS_PATH = Path(__file__).parent.parent / "data" / "test_timings.json"
 
 # ---------------------------------------------------------------------------
 # Prometheus text parser helpers
@@ -90,6 +92,26 @@ def dashboard_summary():
         },
         "timestamp": time.time(),
     }
+
+
+# ---------------------------------------------------------------------------
+# Test timings endpoint
+# ---------------------------------------------------------------------------
+
+@router.get("/test-timings")
+def get_test_timings():
+    """Return the latest CI test timing data, or empty defaults if unavailable."""
+    if not _TIMINGS_PATH.exists():
+        return {"tests": [], "timestamp": None}
+    try:
+        data = json.loads(_TIMINGS_PATH.read_text(encoding="utf-8"))
+        return {
+            "tests": data.get("tests", []),
+            "timestamp": data.get("timestamp"),
+            "total_duration": data.get("total_duration"),
+        }
+    except (OSError, json.JSONDecodeError):
+        return {"tests": [], "timestamp": None}
 
 
 # ---------------------------------------------------------------------------

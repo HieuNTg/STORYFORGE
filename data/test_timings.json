@@ -1,0 +1,256 @@
+{
+  "timestamp": 1775016707.9724128,
+  "total_duration": 476.39316058158875,
+  "tests": [
+    {
+      "name": "tests/test_ab_debate.py::TestABDebate::test_ab_report_structure",
+      "duration": 84.98304130000179,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_ab_debate.py::TestABDebate::test_ab_variant_modifies_reviews",
+      "duration": 84.97310040000593,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_ab_debate.py::TestABDebate::test_debate_orchestrator_processes_challenges",
+      "duration": 83.988050200016,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_phase5_quality_metrics.py::TestQualityScorerScoreStory::test_score_story_sets_layer",
+      "duration": 56.74261539999861,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_phase5_quality_metrics.py::TestQualityScorerScoreStory::test_score_story_returns_story_score",
+      "duration": 41.77109340002062,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_ab_debate.py::TestABDebate::test_debate_produces_challenges",
+      "duration": 30.227549400005955,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_ab_debate.py::TestABDebate::test_character_specialist_challenges_plot_twist",
+      "duration": 27.914657399989665,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_error_paths.py::TestLLMAllRetriesExhausted::test_all_fallbacks_exhausted_raises_runtime_error",
+      "duration": 10.372833800007356,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_concurrency.py::TestFutureTimeoutHandling::test_timeout_does_not_crash_the_executor",
+      "duration": 5.002435800008243,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_concurrency.py::TestFutureTimeoutHandling::test_timeout_error_can_be_caught_gracefully",
+      "duration": 5.002406300016446,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_concurrency.py::TestFutureTimeoutHandling::test_slow_task_raises_timeout_error_when_waited_too_short",
+      "duration": 5.002280899992911,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_llm_fallback.py::TestTryProvider::test_try_provider_raises_after_max_attempts",
+      "duration": 3.7388355000002775,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_llm_fallback.py::TestGenerateFallback::test_generate_falls_back_on_transient_error",
+      "duration": 3.67667960000108,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_llm_fallback.py::TestGenerateFallback::test_generate_raises_when_all_providers_fail",
+      "duration": 3.6718729000131134,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_error_paths.py::TestLLMAllRetriesExhausted::test_all_retries_exhausted_raises_runtime_error",
+      "duration": 3.5410651999991387,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_error_paths.py::TestLLMAllRetriesExhausted::test_three_attempts_made_before_exhaustion",
+      "duration": 3.528982799994992,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_phase1_storyforge.py::TestAppModule::test_create_ui_returns_gradio_blocks",
+      "duration": 3.131904100009706,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_llm_fallback.py::TestTryProvider::test_try_provider_retries_on_transient",
+      "duration": 1.2299573000054806,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_user_manager.py::test_password_hash_security",
+      "duration": 0.9015942999976687,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_replicate_ip_adapter.py::test_generate_not_configured",
+      "duration": 0.8124781000078656,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_pdf_exporter.py::test_export_creates_file",
+      "duration": 0.42587549999007024,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_user_manager.py::test_login_valid",
+      "duration": 0.3780138000147417,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_user_manager.py::test_login_wrong_password",
+      "duration": 0.37219270001514815,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_e2e_pipeline.py::TestFullPipelineFlow::test_full_pipeline_completes",
+      "duration": 0.22357269999338314,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_user_manager.py::test_delete_story",
+      "duration": 0.20799880000413395,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_user_manager.py::test_track_usage",
+      "duration": 0.20706280000740662,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_concurrency.py::TestThreadPoolMaxWorkersCap::test_max_workers_respected_cap_at_config_value",
+      "duration": 0.20363180001731962,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_user_manager.py::test_save_and_list_stories",
+      "duration": 0.20232720000785775,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_user_manager.py::test_register_duplicate_raises",
+      "duration": 0.19565889998921193,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_user_manager.py::test_register_new_user",
+      "duration": 0.1827976999920793,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_error_paths.py::TestExportToNonExistentDirectory::test_epub_export_creates_parent_dirs_automatically",
+      "duration": 0.1072584000066854,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_epub_exporter.py::TestExportWithCharacters::test_characters_xhtml_created",
+      "duration": 0.09548370001721196,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_html_exporter.py::TestHTMLExporter::test_share_id_injects_meta_tags",
+      "duration": 0.0469122999929823,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_character_visual_profile.py::test_list_profiles_multiple",
+      "duration": 0.03364690000307746,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_e2e_pipeline.py::TestPipelineGracefulFallbacks::test_pipeline_layer1_failure_returns_error",
+      "duration": 0.03303570000571199,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_api_async.py::test_get_genres",
+      "duration": 0.032894000003580004,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_wattpad_export.py::TestWattpadExport::test_export_creates_zip",
+      "duration": 0.0285135000012815,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_security.py::TestVeryLongInput::test_title_10000_chars_does_not_crash_html_export",
+      "duration": 0.026768600015202537,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_phase1_storyforge.py::TestFilesCompile::test_browser_auth_compiles",
+      "duration": 0.02667769999243319,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_browser_auth_encryption.py::TestDowngradePrevention::test_plaintext_rejected_when_key_exists",
+      "duration": 0.026515699981246144,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_phase1_storyforge.py::TestFilesCompile::test_deepseek_web_client_compiles",
+      "duration": 0.02513110000290908,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_phase3_video_export.py::TestExportAll::test_export_all_zip_contents",
+      "duration": 0.02437100000679493,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_phase1_storyforge.py::TestFilesCompile::test_config_compiles",
+      "duration": 0.021968899993225932,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_phase3_video_export.py::TestExportAll::test_export_all_creates_zip",
+      "duration": 0.021231099992292002,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_phase2_ui.py::TestCSSClasses::test_mobile_responsive_media_query",
+      "duration": 0.02103420000639744,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_security.py::TestVeryLongInput::test_web_reader_truncates_at_word_limit",
+      "duration": 0.02038410000386648,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_phase3_video_export.py::TestExportAll::test_export_all_empty_script",
+      "duration": 0.01937039999756962,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_web_reader_generator.py::TestContentLimits::test_large_story_truncated",
+      "duration": 0.018773099989630282,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_browser_auth_encryption.py::TestEncryptionRoundtrip::test_save_and_load_encrypted",
+      "duration": 0.018064400006551296,
+      "status": "passed"
+    },
+    {
+      "name": "tests/test_phase4_export.py::TestExportZip::test_export_zip_contains_exported_files",
+      "duration": 0.017319200007477775,
+      "status": "passed"
+    }
+  ]
+}

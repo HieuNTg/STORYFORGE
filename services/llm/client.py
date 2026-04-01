@@ -36,6 +36,12 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 cls._instance._initialized = False
             return cls._instance
 
+    @classmethod
+    def reset(cls):
+        """Thread-safe singleton reset — use after config changes."""
+        with cls._lock:
+            cls._instance = None
+
     def __init__(self):
         if self._initialized:
             return
@@ -68,6 +74,21 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 self._current_model = model
 
         return self._client
+
+    def model_for_layer(self, layer: int) -> str:
+        """Return model name for a given pipeline layer (1, 2, or 3).
+
+        Falls back to primary model if layer-specific model not configured.
+        """
+        ConfigManager, _, _ = _imports()
+        config = ConfigManager()
+        layer_map = {
+            1: config.llm.layer1_model,
+            2: config.llm.layer2_model,
+            3: config.llm.layer3_model,
+        }
+        layer_model = layer_map.get(layer, "")
+        return layer_model or self._current_model or config.llm.model
 
     def _is_web_backend(self) -> bool:
         ConfigManager, _, _ = _imports()

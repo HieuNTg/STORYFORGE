@@ -26,6 +26,10 @@ class LLMConfig:
     max_parallel_workers: int = 3
     fallback_models: list = field(default_factory=list)
     # Each entry: {"base_url": "...", "model": "...", "api_key": "..."}
+    # Per-layer model routing (optional, falls back to primary model)
+    layer1_model: str = ""  # Story generation
+    layer2_model: str = ""  # Drama analysis
+    layer3_model: str = ""  # Video/storyboard
 
 
 @dataclass
@@ -189,6 +193,53 @@ PIPELINE_PRESETS = {
 }
 
 
+_OPENROUTER_BASE = "https://openrouter.ai/api/v1"
+
+MODEL_PRESETS = {
+    "openrouter-free-basic": {
+        "label": "OpenRouter Free — Basic (Llama 3.3 70B)",
+        "base_url": _OPENROUTER_BASE,
+        "model": "meta-llama/llama-3.3-70b-instruct:free",
+        "cheap_model": "google/gemma-3-4b-it:free",
+        "cheap_base_url": _OPENROUTER_BASE,
+        "layer1_model": "",
+        "layer2_model": "",
+        "layer3_model": "",
+        "fallback_models": [
+            {"model": "google/gemma-3-27b-it:free", "base_url": _OPENROUTER_BASE},
+        ],
+    },
+    "openrouter-free-optimized": {
+        "label": "OpenRouter Free — Optimized (per-layer routing)",
+        "base_url": _OPENROUTER_BASE,
+        "model": "meta-llama/llama-3.3-70b-instruct:free",
+        "cheap_model": "google/gemma-3-4b-it:free",
+        "cheap_base_url": _OPENROUTER_BASE,
+        "layer1_model": "qwen/qwen3-coder:free",
+        "layer2_model": "meta-llama/llama-3.3-70b-instruct:free",
+        "layer3_model": "google/gemma-3-12b-it:free",
+        "fallback_models": [
+            {"model": "nousresearch/hermes-3-llama-3.1-405b:free", "base_url": _OPENROUTER_BASE},
+            {"model": "google/gemma-3-27b-it:free", "base_url": _OPENROUTER_BASE},
+        ],
+    },
+    "openrouter-free-max": {
+        "label": "OpenRouter Free — Max Context (1M tokens)",
+        "base_url": _OPENROUTER_BASE,
+        "model": "qwen/qwen3-coder:free",
+        "cheap_model": "google/gemma-3-4b-it:free",
+        "cheap_base_url": _OPENROUTER_BASE,
+        "layer1_model": "qwen/qwen3-coder:free",
+        "layer2_model": "nousresearch/hermes-3-llama-3.1-405b:free",
+        "layer3_model": "nvidia/nemotron-nano-12b-v2-vl:free",
+        "fallback_models": [
+            {"model": "meta-llama/llama-3.3-70b-instruct:free", "base_url": _OPENROUTER_BASE},
+            {"model": "stepfun/step-3.5-flash:free", "base_url": _OPENROUTER_BASE},
+        ],
+    },
+}
+
+
 class ConfigManager:
     """Singleton quản lý cấu hình (thread-safe)."""
 
@@ -294,6 +345,9 @@ class ConfigManager:
                 "cache_enabled": self.llm.cache_enabled,
                 "cache_ttl_days": self.llm.cache_ttl_days,
                 "max_parallel_workers": self.llm.max_parallel_workers,
+                "layer1_model": self.llm.layer1_model,
+                "layer2_model": self.llm.layer2_model,
+                "layer3_model": self.llm.layer3_model,
             },
             "pipeline": {
                 "num_chapters": self.pipeline.num_chapters,

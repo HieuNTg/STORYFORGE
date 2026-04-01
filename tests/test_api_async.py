@@ -102,9 +102,7 @@ async def test_apply_preset_beginner(client):
 @pytest.mark.asyncio
 async def test_apply_preset_invalid(client):
     resp = await client.post("/api/config/presets/nonexistent_preset")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["status"] == "error"
+    assert resp.status_code == 404
 
 
 @pytest.mark.asyncio

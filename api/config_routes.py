@@ -2,11 +2,11 @@
 
 import json
 import logging
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
-from config import ConfigManager, PIPELINE_PRESETS
+from config import ConfigManager, PIPELINE_PRESETS, MODEL_PRESETS
 from services.i18n import I18n, SUPPORTED_LANGUAGES
 
 logger = logging.getLogger(__name__)
@@ -24,6 +24,9 @@ class ConfigUpdate(BaseModel):
     cheap_base_url: Optional[str] = None
     backend_type: Optional[str] = None
     language: Optional[str] = None
+    layer1_model: Optional[str] = None
+    layer2_model: Optional[str] = None
+    layer3_model: Optional[str] = None
     enable_self_review: Optional[bool] = None
     self_review_threshold: Optional[float] = None
 
@@ -44,6 +47,9 @@ def get_config():
             "cheap_model": cfg.llm.cheap_model,
             "cheap_base_url": cfg.llm.cheap_base_url,
             "backend_type": cfg.llm.backend_type,
+            "layer1_model": cfg.llm.layer1_model,
+            "layer2_model": cfg.llm.layer2_model,
+            "layer3_model": cfg.llm.layer3_model,
         },
         "pipeline": {
             "language": cfg.pipeline.language,
@@ -73,6 +79,12 @@ def save_config(body: ConfigUpdate):
         cfg.llm.cheap_base_url = body.cheap_base_url
     if body.backend_type is not None:
         cfg.llm.backend_type = body.backend_type
+    if body.layer1_model is not None:
+        cfg.llm.layer1_model = body.layer1_model
+    if body.layer2_model is not None:
+        cfg.llm.layer2_model = body.layer2_model
+    if body.layer3_model is not None:
+        cfg.llm.layer3_model = body.layer3_model
     if body.language is not None:
         cfg.pipeline.language = body.language
         I18n().set_language(body.language)
@@ -83,7 +95,7 @@ def save_config(body: ConfigUpdate):
     cfg.save()
     # Reset LLM client singleton
     from services.llm_client import LLMClient
-    LLMClient._instance = None
+    LLMClient.reset()
     return {"status": "ok"}
 
 
@@ -92,7 +104,7 @@ def test_connection():
     """Test LLM connection with current settings."""
     try:
         from services.llm_client import LLMClient
-        LLMClient._instance = None
+        LLMClient.reset()
         ok, msg = LLMClient().check_connection()
         return {"ok": ok, "message": msg}
     except Exception as e:
@@ -116,7 +128,7 @@ def apply_preset(key: str):
     """Apply a pipeline preset by key."""
     preset = PIPELINE_PRESETS.get(key)
     if not preset:
-        return {"status": "error", "message": f"Preset '{key}' không tồn tại"}
+        raise HTTPException(status_code=404, detail=f"Preset '{key}' not found")
     cfg = ConfigManager()
     for field_name, value in preset.items():
         if field_name == "label":
@@ -124,6 +136,31 @@ def apply_preset(key: str):
         if hasattr(cfg.pipeline, field_name):
             setattr(cfg.pipeline, field_name, value)
     cfg.save()
+    return {"status": "ok", "label": preset.get("label", key)}
+
+
+@router.get("/model-presets")
+def get_model_presets():
+    """Return available model presets (OpenRouter free tiers, etc.)."""
+    return {"presets": {k: {"label": v["label"]} for k, v in MODEL_PRESETS.items()}}
+
+
+@router.post("/model-presets/{key}")
+def apply_model_preset(key: str):
+    """Apply a model preset — sets LLM config fields (base_url, model, fallbacks, etc.)."""
+    preset = MODEL_PRESETS.get(key)
+    if not preset:
+        raise HTTPException(status_code=404, detail=f"Model preset '{key}' not found")
+    cfg = ConfigManager()
+    for field_name, value in preset.items():
+        if field_name == "label":
+            continue
+        if hasattr(cfg.llm, field_name):
+            setattr(cfg.llm, field_name, value)
+    cfg.save()
+    # Reset LLM client to pick up new config
+    from services.llm_client import LLMClient
+    LLMClient.reset()
     return {"status": "ok", "label": preset.get("label", key)}
 
 

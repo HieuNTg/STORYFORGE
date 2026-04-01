@@ -1,4 +1,8 @@
 """Shared pytest fixtures for StoryForge test suite."""
+import json
+import time
+from pathlib import Path
+
 import pytest
 from unittest.mock import MagicMock, patch
 from models.schemas import (
@@ -7,6 +11,53 @@ from models.schemas import (
     SimulationResult, SimulationEvent, VideoScript, StoryboardPanel, VoiceLine,
     ShotType,
 )
+
+
+# ---------------------------------------------------------------------------
+# CI Timing Plugin
+# ---------------------------------------------------------------------------
+
+_TIMINGS_FILE = Path(__file__).parent.parent / "data" / "test_timings.json"
+_TOP_N = 50
+
+_timing_records: list[dict] = []
+_session_start: float = 0.0
+
+
+def pytest_sessionstart(session):  # noqa: ARG001
+    global _session_start, _timing_records
+    _session_start = time.time()
+    _timing_records = []
+
+
+def pytest_runtest_makereport(item, call):
+    if call.when == "call":
+        record = {
+            "name": item.nodeid,
+            "duration": call.duration,
+            "status": "passed" if call.excinfo is None else "failed",
+        }
+        _timing_records.append(record)
+
+
+def pytest_sessionfinish(session, exitstatus):  # noqa: ARG001
+    total = time.time() - _session_start
+    top = sorted(_timing_records, key=lambda r: r["duration"], reverse=True)[:_TOP_N]
+    payload = {
+        "timestamp": time.time(),
+        "total_duration": total,
+        "tests": top,
+    }
+    try:
+        _TIMINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _TIMINGS_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except OSError:
+        pass  # Never fail the test run because of timing writes
+
+
+# ---------------------------------------------------------------------------
+# Shared fixtures
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture

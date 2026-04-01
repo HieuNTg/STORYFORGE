@@ -136,6 +136,35 @@ All 7 sprint items completed:
 - **Security**: JWT auth, PBKDF2 password hashing, constant-time comparison, mandatory secret key
 - **New Features**: Multi-tenancy MVP, analytics dashboard, skeleton loader
 
+## Sprint 5 Completion Report
+
+**Status**: DONE | **Date**: 2026-04-01 | **Test Pass Rate**: 1362/1362 (100%)
+
+### Delivered Items
+
+All 4 sprint items completed:
+
+1. **OR-1 (12h)**: OpenRouter free model presets — 3 presets (basic/optimized/max-context) with per-layer model routing. `MODEL_PRESETS` in config.py, `model_for_layer()` in LLMClient, GET/POST `/api/config/model-presets` endpoints, quick-select UI in settings page.
+2. **P3-2 (8h)**: A/B testing framework — `services/ab_testing.py` thread-safe ABTestManager with SHA-256 deterministic assignment, FIFO result cap (1k), experiment cap (500). Auth-protected CRUD endpoints at `/api/ab/experiments`.
+3. **P3-3 (2h)**: CI timing dashboard — pytest timing fixture in conftest.py writes top-50 slowest tests to `data/test_timings.json`. `GET /api/dashboard/test-timings` endpoint.
+4. **P3-4 (8h)**: Design token system — `web/css/tokens.css` with 50+ CSS custom properties (colors, spacing, typography, shadows, animation). Dark mode via `prefers-color-scheme`. Linked in both index.html and dashboard.html.
+
+### Code Review Fixes (3H, 6M)
+
+- H1: ZeroDivisionError guard in `assign_variant` for empty variants
+- H2: MAX_EXPERIMENTS=500 cap to prevent memory DoS
+- H3: Auth (`Depends(get_current_user)`) on A/B write endpoints
+- M3: Layer model fields added to ConfigUpdate PUT schema
+- M4: Preset 404 returns proper HTTP 404 (was 200)
+- M6: `LLMClient.reset()` classmethod replaces direct `_instance = None`
+
+### Quality Metrics
+
+- **Test Baseline**: 1362 tests, all passing (0 regressions)
+- **Code Review**: 3H + 6M findings, all high-priority fixed
+- **New Features**: OpenRouter free presets, A/B testing, CI timings, design tokens
+- **Security**: Auth on all write endpoints, experiment caps, SHA-256 assignment
+
 ## Key Themes Identified
 
 - **Tech Debt**: app.py (1214 lines), generator.py (805 lines) — both 4x over 200-line guideline

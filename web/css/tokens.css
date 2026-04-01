@@ -1,0 +1,94 @@
+/* StoryForge Design Tokens
+   Naming: --sf-{category}-{name}
+   Light mode defaults; dark mode via @media (prefers-color-scheme: dark)
+*/
+
+:root {
+  /* ── Colors: Brand ── */
+  --sf-color-brand-50:  #EFF6FF;
+  --sf-color-brand-100: #DBEAFE;
+  --sf-color-brand-200: #BFDBFE;
+  --sf-color-brand-500: #3B82F6;
+  --sf-color-brand-600: #2563EB;
+  --sf-color-brand-700: #1D4ED8;
+  --sf-color-brand-800: #1E40AF;
+
+  /* ── Colors: Surface ── */
+  --sf-color-surface-50:  #F8FAFC;
+  --sf-color-surface-100: #F1F5F9;
+  --sf-color-surface-200: #E2E8F0;
+
+  /* ── Colors: Text ── */
+  --sf-color-text-primary:   #1E293B;
+  --sf-color-text-secondary: #475569;
+  --sf-color-text-muted:     #94A3B8;
+
+  /* ── Colors: Status ── */
+  --sf-color-status-success: #16A34A;
+  --sf-color-status-error:   #DC2626;
+  --sf-color-status-warning: #F59E0B;
+
+  /* ── Typography: Font Family ── */
+  --sf-font-sans: 'Inter', system-ui, sans-serif;
+
+  /* ── Typography: Font Size ── */
+  --sf-text-xs:   12px;
+  --sf-text-sm:   14px;
+  --sf-text-base: 16px;
+  --sf-text-lg:   18px;
+  --sf-text-xl:   20px;
+  --sf-text-2xl:  24px;
+
+  /* ── Typography: Font Weight ── */
+  --sf-font-light:    300;
+  --sf-font-normal:   400;
+  --sf-font-medium:   500;
+  --sf-font-semibold: 600;
+  --sf-font-bold:     700;
+
+  /* ── Spacing ── */
+  --sf-space-1:  4px;
+  --sf-space-2:  8px;
+  --sf-space-3:  12px;
+  --sf-space-4:  16px;
+  --sf-space-5:  20px;
+  --sf-space-6:  24px;
+  --sf-space-8:  32px;
+  --sf-space-10: 40px;
+
+  /* ── Shadows ── */
+  --sf-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --sf-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --sf-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+  /* ── Borders: Radius ── */
+  --sf-radius-sm:   6px;
+  --sf-radius-md:   8px;
+  --sf-radius-lg:   12px;
+  --sf-radius-xl:   16px;
+  --sf-radius-full: 9999px;
+
+  /* ── Animation ── */
+  --sf-duration-fast:   150ms;
+  --sf-duration-base:   250ms;
+  --sf-duration-slow:   400ms;
+  --sf-ease-default:    ease;
+  --sf-ease-out:        ease-out;
+  --sf-ease-spring:     cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Surface overrides */
+    --sf-color-surface-50:  #0F172A;
+    --sf-color-surface-100: #1E293B;
+    --sf-color-surface-200: #334155;
+
+    /* Text overrides */
+    --sf-color-text-primary:   #F1F5F9;
+    --sf-color-text-secondary: #CBD5E1;
+    --sf-color-text-muted:     #64748B;
+
+    /* Brand colors unchanged — work in both themes */
+  }
+}
