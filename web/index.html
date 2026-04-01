@@ -1287,6 +1287,8 @@
             // Don't send empty api_key — it would overwrite the saved key
             const data = { ...this.form };
             if (!data.api_key) delete data.api_key;
+            // Auto-set backend_type based on provider selection
+            data.backend_type = 'api';
             await API.put('/config', data);
             this.message = 'Settings saved successfully!';
             // Reload config to refresh masked key
