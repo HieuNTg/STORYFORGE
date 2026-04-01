@@ -1,7 +1,7 @@
 """Character generation and state extraction functions."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from models.schemas import Character, CharacterState
 from services import prompts
@@ -27,6 +27,7 @@ def generate_characters(
     genre: str,
     idea: str,
     num_characters: int = 5,
+    model: Optional[str] = None,
 ) -> list[Character]:
     """Generate character list from story premise."""
     result = llm.generate_json(
@@ -35,6 +36,7 @@ def generate_characters(
             genre=genre, title=title, idea=idea,
             num_characters=num_characters,
         ),
+        model=model,
     )
     return [Character(**c) for c in result.get("characters", [])]
 

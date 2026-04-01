@@ -26,6 +26,7 @@ class GenerationMixin:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         model_tier: str = "default",
+        model: Optional[str] = None,
     ) -> dict:
         """Call LLM and parse JSON result with auto-repair."""
         result = self.generate(
@@ -35,6 +36,7 @@ class GenerationMixin:
             max_tokens=max_tokens,
             json_mode=True,
             model_tier=model_tier,
+            model=model,
         )
         text = result.strip()
         # Strip markdown code block
@@ -83,6 +85,7 @@ class GenerationMixin:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         model_tier: str = "default",
+        model: Optional[str] = None,
     ):
         """Call LLM with streaming. Supports API and web backend."""
         config = _config_manager()()
@@ -115,7 +118,7 @@ class GenerationMixin:
             client, effective_model = self._get_cheap_client()
         else:
             client = self._get_client()
-            effective_model = self._current_model or config.llm.model
+            effective_model = model or self._current_model or config.llm.model
 
         kwargs = {
             "model": effective_model,

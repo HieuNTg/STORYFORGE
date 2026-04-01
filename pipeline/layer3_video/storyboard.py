@@ -17,8 +17,11 @@ logger = logging.getLogger(__name__)
 class StoryboardGenerator:
     """Chuyển truyện thành storyboard và kịch bản video."""
 
+    LAYER = 3
+
     def __init__(self):
         self.llm = LLMClient()
+        self._layer_model = self.llm.model_for_layer(self.LAYER)
 
     def generate_chapter_storyboard(
         self,
@@ -42,6 +45,7 @@ class StoryboardGenerator:
                 locations="Dựa trên nội dung chương",
                 num_shots=num_shots,
             ),
+            model=self._layer_model,
         )
 
         panels = []
@@ -96,6 +100,7 @@ class StoryboardGenerator:
                 storyboard=storyboard_text,
                 characters=chars_text,
             ),
+            model=self._layer_model,
         )
 
         voice_lines = []

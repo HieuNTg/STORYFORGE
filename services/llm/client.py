@@ -148,8 +148,14 @@ class LLMClient(StreamingMixin, GenerationMixin):
         max_tokens: Optional[int] = None,
         json_mode: bool = False,
         model_tier: str = "default",
+        model: Optional[str] = None,
     ) -> str:
-        """Call LLM with retry, cache. Supports API and web (browser auth) backend."""
+        """Call LLM with retry, cache. Supports API and web (browser auth) backend.
+
+        Args:
+            model: Optional model override (e.g. from model_for_layer). Takes
+                   precedence over config model in fallback chain.
+        """
         ConfigManager, _, LLMCache = _imports()
         config = ConfigManager()
         effective_temp = temperature if temperature is not None else config.llm.temperature
@@ -186,7 +192,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
             except WebBackendExhausted as e:
                 logger.warning(f"Web backend exhausted, falling back to API chain: {e}")
 
-        chain = self._build_fallback_chain(config, model_tier)
+        chain = self._build_fallback_chain(config, model_tier, model_override=model)
         eff_max_tokens = max_tokens or config.llm.max_tokens
 
         all_errors = []
@@ -211,17 +217,18 @@ class LLMClient(StreamingMixin, GenerationMixin):
         logger.error(f"All LLM providers failed: {error_msg}")
         raise RuntimeError(f"All LLM providers failed: {error_msg}")
 
-    def _build_fallback_chain(self, config, model_tier: str) -> list[dict]:
+    def _build_fallback_chain(self, config, model_tier: str, model_override: Optional[str] = None) -> list[dict]:
         _, OpenAI, _ = _imports()
         chain = []
         if model_tier == "cheap" and config.llm.cheap_model:
             client, model = self._get_cheap_client()
             chain.append({"client": client, "model": model, "label": f"cheap:{model}"})
         else:
+            primary_model = model_override or self._current_model or config.llm.model
             chain.append({
                 "client": self._get_client(),
-                "model": self._current_model or config.llm.model,
-                "label": "primary",
+                "model": primary_model,
+                "label": f"primary:{primary_model}" if model_override else "primary",
             })
         if model_tier != "cheap" and config.llm.cheap_model:
             client, model = self._get_cheap_client()

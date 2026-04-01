@@ -21,8 +21,11 @@ MIN_DRAMA_SCORE = 0.6
 class StoryEnhancer:
     """Viết lại truyện với tính kịch tích cao hơn."""
 
+    LAYER = 2
+
     def __init__(self):
         self.llm = LLMClient()
+        self._layer_model = self.llm.model_for_layer(self.LAYER)
 
     def enhance_chapter(
         self,
@@ -87,6 +90,7 @@ class StoryEnhancer:
             ),
             user_prompt=enhance_prompt,
             max_tokens=8192,
+            model=self._layer_model,
         )
 
         return Chapter(
@@ -167,7 +171,7 @@ class StoryEnhancer:
                     ),
                     temperature=0.2,
                     max_tokens=300,
-                    use_cheap_model=True,
+                    model_tier="cheap",
                 )
                 score = result.get("drama_score", 0.5)
                 if score < MIN_DRAMA_SCORE:
@@ -233,6 +237,7 @@ class StoryEnhancer:
                             word_count=word_count,
                         ),
                         max_tokens=8192,
+                        model=self._layer_model,
                     )
                     enhanced.chapters[idx] = Chapter(
                         chapter_number=ch_num,

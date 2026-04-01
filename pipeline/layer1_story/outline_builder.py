@@ -16,6 +16,7 @@ def suggest_titles(
     llm: "LLMClient",
     genre: str,
     requirements: str = "",
+    model: Optional[str] = None,
 ) -> list[str]:
     """Suggest story titles for a given genre."""
     result = llm.generate_json(
@@ -23,6 +24,7 @@ def suggest_titles(
         user_prompt=prompts.SUGGEST_TITLE.format(
             genre=genre, requirements=requirements
         ),
+        model=model,
     )
     return result.get("titles", [])
 
@@ -34,6 +36,7 @@ def generate_world(
     genre: str,
     characters: list[Character],
     rag_kb=None,
+    model: Optional[str] = None,
 ) -> WorldSetting:
     """Generate world setting, optionally injecting RAG context."""
     chars_text = "\n".join(
@@ -55,6 +58,7 @@ def generate_world(
     result = llm.generate_json(
         system_prompt="Bạn là kiến trúc sư thế giới. Trả về JSON.",
         user_prompt=world_prompt,
+        model=model,
     )
     return WorldSetting(**result)
 
@@ -67,6 +71,7 @@ def generate_outline(
     world: WorldSetting,
     idea: str,
     num_chapters: int = 10,
+    model: Optional[str] = None,
 ) -> tuple[str, list[ChapterOutline]]:
     """Generate story outline. Returns (synopsis, outlines)."""
     chars_text = "\n".join(
@@ -81,6 +86,7 @@ def generate_outline(
             idea=idea, num_chapters=num_chapters,
         ),
         temperature=0.9,
+        model=model,
     )
     synopsis = result.get("synopsis", "")
     outlines = [ChapterOutline(**o) for o in result.get("outlines", [])]

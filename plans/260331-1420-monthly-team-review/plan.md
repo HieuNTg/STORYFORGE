@@ -37,6 +37,8 @@ StoryForge completed all 20 phases (1327 tests, 97 source files, 17K LOC). This 
 4. **[phase-04-sprint2-plan.md](phase-04-sprint2-plan.md)** — Sprint 2 implementation (April 15-28) — **COMPLETED 2026-03-31**
 5. **[phase-05-sprint3-plan.md](phase-05-sprint3-plan.md)** — Sprint 3 implementation (April 29 - May 12) — **COMPLETED 2026-03-31**
 6. **[phase-06-sprint4-plan.md](phase-06-sprint4-plan.md)** — Sprint 4 implementation (May 13-26) — **COMPLETED 2026-04-01**
+7. **[phase-07-sprint5-plan.md](phase-07-sprint5-plan.md)** — Sprint 5 implementation (May 27 - June 9) — **COMPLETED 2026-04-01**
+8. **[phase-08-sprint6-plan.md](phase-08-sprint6-plan.md)** — Sprint 6 implementation (June 10-23) — Planned
 
 ## Sprint 1 Completion Report
 

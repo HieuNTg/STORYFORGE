@@ -11,8 +11,11 @@ logger = logging.getLogger(__name__)
 class StoryAnalyzer:
     """Phân tích truyện để xây dựng đồ thị quan hệ nhân vật."""
 
+    LAYER = 2
+
     def __init__(self):
         self.llm = LLMClient()
+        self._layer_model = self.llm.model_for_layer(self.LAYER)
 
     def analyze(self, draft: StoryDraft) -> dict:
         """Phân tích truyện, trả về relationships, conflicts, untapped drama."""

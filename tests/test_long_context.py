@@ -187,6 +187,7 @@ class TestLongContextIntegration:
         gen._long_ctx_client = mock_lc
 
         gen.bible_manager = MagicMock()
+        gen._layer_model = None  # No layer-specific model override
 
         chars = [Character(name="Hero", role="protagonist", personality="brave",
                            background="unknown", motivation="save world")]

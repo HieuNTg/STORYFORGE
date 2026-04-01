@@ -157,6 +157,7 @@ def write_chapter(
     word_count: int = 2000,
     context: Optional[StoryContext] = None,
     rag_kb=None,
+    model: Optional[str] = None,
 ) -> Chapter:
     """Write a single chapter (non-streaming)."""
     sys_prompt, user_prompt = build_chapter_prompt(
@@ -167,6 +168,7 @@ def write_chapter(
         system_prompt=sys_prompt,
         user_prompt=user_prompt,
         max_tokens=8192,
+        model=model,
     )
     return Chapter(
         chapter_number=outline.chapter_number,
@@ -189,6 +191,7 @@ def write_chapter_stream(
     context: Optional[StoryContext] = None,
     stream_callback=None,
     rag_kb=None,
+    model: Optional[str] = None,
 ) -> Chapter:
     """Write chapter with streaming. Calls stream_callback(partial_text) each chunk."""
     sys_prompt, user_prompt = build_chapter_prompt(
@@ -202,6 +205,7 @@ def write_chapter_stream(
             system_prompt=sys_prompt,
             user_prompt=user_prompt,
             max_tokens=8192,
+            model=model,
         ):
             full_content += token
             if stream_callback:
@@ -211,6 +215,7 @@ def write_chapter_stream(
         return write_chapter(
             llm, config, title, genre, style, characters, world,
             outline, word_count=word_count, context=context, rag_kb=rag_kb,
+            model=model,
         )
 
     return Chapter(

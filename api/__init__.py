@@ -9,6 +9,8 @@ from api.analytics_routes import router as analytics_router
 from api.metrics_routes import router as metrics_router
 from api.dashboard_routes import router as dashboard_router
 from api.ab_routes import router as ab_router
+from api.branch_routes import router as branch_router
+from api.audio_routes import router as audio_router
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth_router)
@@ -19,5 +21,7 @@ api_router.include_router(analytics_router)
 api_router.include_router(metrics_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(ab_router)
+api_router.include_router(branch_router)
+api_router.include_router(audio_router)
 
 __all__ = ["api_router"]

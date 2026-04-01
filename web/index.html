@@ -183,7 +183,7 @@
     <div id="main-content" class="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
 
       <!-- ═══ PIPELINE PAGE ═══ -->
-      <div x-show="$store.app.page === 'pipeline'" x-cloak class="page-enter" x-data="pipelinePage()">
+      <div x-show="$store.app.page === 'pipeline'" x-cloak class="page-enter" x-data="pipelinePage()" x-init="$nextTick(() => {})" @keydown.escape.window="branchOpen = false">
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <!-- Left: Form -->
           <div class="lg:col-span-4 space-y-4">
@@ -314,11 +314,15 @@
                 <!-- Story output -->
                 <div x-show="$store.pipeline.result.has_enhanced || $store.pipeline.result.has_draft" class="card">
                   <div class="border-b border-surface-200 px-5 py-3">
-                    <div class="flex gap-2">
+                    <div class="flex gap-2 flex-wrap items-center">
                       <button @click="activeTab = 'draft'" class="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer" :class="activeTab === 'draft' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-surface-100'">Draft</button>
                       <button @click="activeTab = 'enhanced'" class="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer" :class="activeTab === 'enhanced' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-surface-100'" x-show="$store.pipeline.result.has_enhanced">Enhanced</button>
                       <button @click="activeTab = 'simulation'" class="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer" :class="activeTab === 'simulation' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-surface-100'" x-show="$store.pipeline.result.simulation">Simulation</button>
                       <button @click="activeTab = 'quality'" class="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer" :class="activeTab === 'quality' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-surface-100'" x-show="$store.pipeline.result.quality">Quality</button>
+                      <button @click="openBranchMode()" class="ml-auto px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer bg-violet-600 text-white hover:bg-violet-700 transition-colors flex items-center gap-1.5" aria-label="Open branch reader">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>
+                        Branch Mode
+                      </button>
                     </div>
                   </div>
                   <div class="p-5 max-h-[600px] overflow-y-auto">
@@ -404,6 +408,76 @@
                     <pre class="text-xs text-slate-500 whitespace-pre-wrap" x-text="$store.pipeline.logs.join('\n')"></pre>
                   </div>
                 </details>
+
+                <!-- Branch reader panel -->
+                <div x-show="branchOpen" x-cloak x-ref="branchPanel" x-data="branchReader()" class="card overflow-hidden border-violet-200">
+                  <!-- Header -->
+                  <div class="flex items-center justify-between px-5 py-3 border-b border-violet-100 bg-violet-50">
+                    <div class="flex items-center gap-2">
+                      <svg class="w-4 h-4 text-violet-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>
+                      <span class="font-semibold text-sm text-violet-700">Branch Reader</span>
+                      <span class="text-xs text-violet-400 ml-1" x-text="sessionId ? 'Depth ' + depth : ''"></span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <button x-show="sessionId" @click="loadTree()" class="text-xs text-violet-500 hover:text-violet-700 cursor-pointer px-2 py-1 rounded hover:bg-violet-100" title="Load tree stats">Tree (<span x-text="nodeCount || '?'"></span> nodes)</button>
+                      <button @click="branchOpen = false" aria-label="Close branch reader" class="p-1 rounded hover:bg-violet-100 text-violet-400 hover:text-violet-700 cursor-pointer">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                  <!-- Loading init -->
+                  <template x-if="loading && !currentNode">
+                    <div class="p-8 text-center">
+                      <svg class="w-6 h-6 animate-spin text-violet-500 mx-auto" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      <p class="text-sm text-slate-400 mt-2">Starting branch session...</p>
+                    </div>
+                  </template>
+                  <!-- Error -->
+                  <div x-show="error" role="alert" class="mx-5 mt-4 px-4 py-2 rounded-lg bg-red-50 border border-red-200 text-sm text-red-600" x-text="error"></div>
+                  <!-- Node content -->
+                  <template x-if="currentNode">
+                    <div class="p-5 space-y-4">
+                      <!-- Breadcrumb -->
+                      <template x-if="history.length > 0">
+                        <div class="flex items-center gap-1 flex-wrap text-xs text-slate-400" aria-label="Story path">
+                          <span>Root</span>
+                          <template x-for="(crumb, i) in history" :key="i">
+                            <span class="flex items-center gap-1">
+                              <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+                              <span class="truncate max-w-[100px]" :title="crumb.choiceLabel" x-text="crumb.choiceLabel"></span>
+                            </span>
+                          </template>
+                        </div>
+                      </template>
+                      <!-- Story text -->
+                      <div class="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap max-h-72 overflow-y-auto bg-surface-50 rounded-lg p-4" x-text="currentNode.text"></div>
+                      <!-- Loading overlay for generation -->
+                      <template x-if="loading">
+                        <div class="flex items-center gap-2 text-sm text-violet-600">
+                          <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                          Generating continuation...
+                        </div>
+                      </template>
+                      <!-- Choice buttons -->
+                      <template x-if="!loading">
+                        <div class="space-y-2">
+                          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">What happens next?</p>
+                          <template x-for="(choice, idx) in currentNode.choices" :key="idx">
+                            <button @click="choose(idx)" class="w-full text-left px-4 py-3 rounded-xl border-2 border-surface-200 hover:border-violet-400 hover:bg-violet-50 transition-all cursor-pointer text-sm text-slate-700 font-medium" x-text="choice"></button>
+                          </template>
+                        </div>
+                      </template>
+                      <!-- Go back / depth -->
+                      <div class="flex items-center justify-between pt-2 border-t border-surface-100">
+                        <button x-show="!isAtRoot" @click="goBack()" :disabled="loading" class="flex items-center gap-1.5 text-xs text-slate-500 hover:text-violet-600 cursor-pointer px-2 py-1 rounded hover:bg-violet-50 transition-colors disabled:opacity-40">
+                          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
+                          Go Back
+                        </button>
+                        <span class="text-xs text-slate-400" x-text="'Depth: ' + depth"></span>
+                      </div>
+                    </div>
+                  </template>
+                </div>
               </div>
             </template>
 
@@ -712,6 +786,10 @@
                   <span class="text-xs text-slate-500 w-6 text-center" x-text="fontSize"></span>
                   <button @click="fontSize = Math.min(28, fontSize + 2)" aria-label="Increase font size" class="w-7 h-7 rounded bg-surface-100 text-slate-500 text-sm font-bold cursor-pointer hover:bg-surface-200">+</button>
                 </div>
+                <button @click="$dispatch('audio-open')" class="ml-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-surface-200 hover:border-brand-500 hover:bg-brand-50 transition-colors cursor-pointer" aria-label="Listen to this chapter">
+                  <svg class="w-4 h-4 text-brand-600" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a1 1 0 00-1.447-.894l-4 2A1 1 0 001 6v8a1 1 0 00.553.894l4 2A1 1 0 007 16V4zM9 6a1 1 0 012 0v8a1 1 0 11-2 0V6zm4-1a1 1 0 00-1 1v8a1 1 0 102 0V6a1 1 0 00-1-1z"/></svg>
+                  Listen
+                </button>
               </div>
             </div>
             <!-- Chapter selector -->
@@ -735,6 +813,73 @@
               <span class="text-sm text-slate-400 self-center" aria-live="polite" x-text="(chapter+1) + '/' + chapters.length"></span>
               <button @click="next()" :disabled="chapter >= chapters.length - 1" aria-label="Next chapter" class="px-4 py-2 rounded-lg text-sm font-medium border border-surface-200 hover:border-brand-500 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">Next</button>
             </div>
+
+            <!-- ═══ AUDIO PLAYER ═══ -->
+            <div x-data="audioPlayer()" @audio-open.window="visible = true; if (!playing) play(chapter)" class="mt-4">
+              <!-- Trigger -->
+              <div x-show="!visible" class="text-center">
+                <button @click="visible = true; play(chapter)" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold btn-primary transition-all cursor-pointer" aria-label="Open audio player">
+                  <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/></svg>
+                  Listen to this chapter
+                </button>
+              </div>
+              <!-- Player panel -->
+              <div x-show="visible" x-transition class="card p-4 space-y-3" x-cloak>
+                <!-- Header -->
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-brand-600" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a1 1 0 00-1.447-.894l-4 2A1 1 0 001 6v8a1 1 0 00.553.894l4 2A1 1 0 007 16V4zM9 6a1 1 0 012 0v8a1 1 0 11-2 0V6zm4-1a1 1 0 00-1 1v8a1 1 0 102 0V6a1 1 0 00-1-1z"/></svg>
+                    <span class="text-sm font-semibold text-slate-700">Audio Player</span>
+                    <span x-show="loading" class="inline-flex items-center gap-1 text-xs text-brand-600">
+                      <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      Generating...
+                    </span>
+                  </div>
+                  <button @click="visible = false; pause()" class="p-1 rounded hover:bg-surface-100 cursor-pointer text-slate-400 hover:text-slate-600" aria-label="Close player">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                </div>
+                <!-- Chapter info -->
+                <div class="text-xs text-slate-500" x-text="currentChapterData ? 'Chapter ' + currentChapterData.number + ': ' + currentChapterData.title : ''"></div>
+                <!-- Error -->
+                <div x-show="error" class="text-xs text-red-500" x-text="error"></div>
+                <!-- Progress bar -->
+                <div class="space-y-1">
+                  <div class="h-2 bg-surface-200 rounded-full cursor-pointer overflow-hidden" @click="seek($event)" role="progressbar" :aria-valuenow="progressPercent" aria-valuemin="0" aria-valuemax="100">
+                    <div class="h-full bg-brand-600 rounded-full transition-all" :style="'width:' + progressPercent + '%'"></div>
+                  </div>
+                  <div class="flex justify-between text-[10px] text-slate-400">
+                    <span x-text="timeDisplay"></span>
+                    <span x-text="'Ch.' + (currentChapter + 1) + '/' + chapters.length"></span>
+                  </div>
+                </div>
+                <!-- Controls -->
+                <div class="flex items-center justify-between">
+                  <button @click="skip(-1)" :disabled="currentChapter === 0" aria-label="Previous chapter" class="p-2 rounded-lg hover:bg-surface-100 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
+                    <svg class="w-5 h-5 text-slate-600" fill="currentColor" viewBox="0 0 20 20"><path d="M7.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L5.586 11H16a1 1 0 100-2H5.586l3.707-3.707a1 1 0 00-1.414-1.414l-4 4z"/></svg>
+                  </button>
+                  <button @click="toggle()" :disabled="loading" :aria-label="playing ? 'Pause' : 'Play'" class="w-12 h-12 rounded-full bg-brand-600 hover:bg-brand-700 text-white flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50 shadow-md">
+                    <template x-if="!playing">
+                      <svg class="w-6 h-6 ml-0.5" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11v11.78a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/></svg>
+                    </template>
+                    <template x-if="playing">
+                      <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                    </template>
+                  </button>
+                  <button @click="skip(1)" :disabled="currentChapter >= chapters.length - 1" aria-label="Next chapter" class="p-2 rounded-lg hover:bg-surface-100 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
+                    <svg class="w-5 h-5 text-slate-600" fill="currentColor" viewBox="0 0 20 20"><path d="M12.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L14.414 9H4a1 1 0 100 2h10.414l-3.707 3.707a1 1 0 001.414 1.414l4-4z"/></svg>
+                  </button>
+                </div>
+                <!-- Speed selector -->
+                <div class="flex items-center justify-center gap-1 flex-wrap">
+                  <span class="text-xs text-slate-400 mr-1">Speed:</span>
+                  <template x-for="rate in [0.5, 0.75, 1, 1.25, 1.5, 2]" :key="rate">
+                    <button @click="setRate(rate)" class="px-2 py-0.5 rounded text-xs font-medium cursor-pointer transition-colors" :class="playbackRate === rate ? 'bg-brand-600 text-white' : 'bg-surface-100 text-slate-600 hover:bg-surface-200'" x-text="rate + 'x'"></button>
+                  </template>
+                </div>
+              </div>
+            </div>
+            <!-- ═══ END AUDIO PLAYER ═══ -->
           </div>
         </template>
       </div>
@@ -934,10 +1079,12 @@
   <!-- ═══ JS ═══ -->
   <script src="/static/js/storage-manager.js"></script>
   <script src="/static/js/api-client.js"></script>
+  <script src="/static/js/audio-player.js"></script>
   <script src="/static/js/pages/reader.js"></script>
   <script src="/static/js/pages/export.js"></script>
   <script src="/static/js/pages/analytics.js"></script>
   <script src="/static/js/pages/branching.js"></script>
+  <script src="/static/js/branch-reader.js"></script>
   <script src="/static/js/app.js"></script>
   <script>
     /* Heroicons SVG helper — returns inline SVG for nav icons */
@@ -959,9 +1106,31 @@
     function pipelinePage() {
       return {
         activeTab: 'draft',
+        branchOpen: false,
+        _branchComp: null,
+
         async runPipeline() {
           this.activeTab = 'draft';
           await Alpine.store('pipeline').run();
+        },
+
+        async openBranchMode() {
+          const result = Alpine.store('pipeline').result;
+          if (!result) return;
+          const story = result.enhanced || result.draft;
+          if (!story) return;
+          // Collect chapter texts
+          const chapters = story.chapters || [];
+          const text = chapters.map(ch => (ch.title ? ch.title + '\n' : '') + ch.content).join('\n\n');
+          this.branchOpen = true;
+          await this.$nextTick();
+          const el = this.$refs.branchPanel;
+          if (el && el._x_dataStack) {
+            const comp = el._x_dataStack[0];
+            if (comp && typeof comp.startSession === 'function') {
+              comp.startSession(text);
+            }
+          }
         },
       };
     }

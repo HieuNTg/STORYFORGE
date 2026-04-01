@@ -1,19 +1,19 @@
 # Novel Auto Project Roadmap
 
-**Last Updated**: 2026-03-25 | **Version**: 2.4 | **Overall Progress**: 100%
+**Last Updated**: 2026-04-01 | **Version**: 2.5 | **Overall Progress**: 100%
 
 ---
 
 ## Executive Summary
 
-Novel Auto Pipeline is a 3-layer system for automated story generation, enhancement, and video storyboarding. Phases 18-20 shipped 2026-03-25: settings presets, adaptive prompts, quality gate, onboarding wizard, knowledge graph, E2E pipeline tests, staging environment, and progress tracker.
+Novel Auto Pipeline is a 3-layer system for automated story generation, enhancement, and video storyboarding. Phases 18-20 shipped 2026-03-25: settings presets, adaptive prompts, quality gate, onboarding wizard, knowledge graph, E2E pipeline tests, staging environment, and progress tracker. Sprint 6 shipped 2026-04-01: per-layer model routing, generator.py split, browser_auth.py split, voice-first narrative mode, interactive branch reader.
 
 ### Delivery Status
-- **Completed**: Phases 1-4, Phase 9, Phase 10, Phase 11, Phase 13, Phase 14, Sprint 0, Phase 15, Phase 16, Phase 16.5, Phase 17, Phase 18, Phase 19, Phase 20 (100% of scope)
+- **Completed**: Phases 1-4, Phase 9, Phase 10, Phase 11, Phase 13, Phase 14, Sprint 0, Phase 15, Phase 16, Phase 16.5, Phase 17, Phase 18, Phase 19, Phase 20, Sprint 6 (100% of scope)
 - **In Progress**: None
 - **Planned**: None (all phases complete)
 - **Timeline**: All phases delivered on schedule
-- **Latest Additions**: Phase 18 (settings presets, adaptive prompts, quality gate), Phase 19 (onboarding wizard, knowledge graph, E2E tests), Phase 20 (staging env, progress tracker); 1327 tests
+- **Latest Additions**: Sprint 6 (model routing, code splits, voice mode, branch reader); 1327 tests
 
 ---
 
