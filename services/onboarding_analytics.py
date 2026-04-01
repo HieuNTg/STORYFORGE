@@ -5,11 +5,15 @@ from threading import Lock
 from typing import Dict, List, Optional
 
 
+MAX_EVENTS = 10_000
+
+
 class OnboardingTracker:
     """Thread-safe in-memory tracker for onboarding funnel events."""
 
-    def __init__(self) -> None:
+    def __init__(self, max_events: int = MAX_EVENTS) -> None:
         self._events: List[Dict] = []
+        self._max_events = max_events
         self._lock = Lock()
 
     def track_step(self, session_id: str, step: str, duration_ms: int) -> None:
@@ -23,6 +27,8 @@ class OnboardingTracker:
         }
         with self._lock:
             self._events.append(event)
+            if len(self._events) > self._max_events:
+                self._events = self._events[-self._max_events:]
 
     def track_dropout(self, session_id: str, step: str) -> None:
         """Record a dropout at a wizard step."""
@@ -35,6 +41,8 @@ class OnboardingTracker:
         }
         with self._lock:
             self._events.append(event)
+            if len(self._events) > self._max_events:
+                self._events = self._events[-self._max_events:]
 
     def get_funnel(self) -> Dict[str, Dict]:
         """Return per-step completion funnel data.

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StoryForge Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background: #0f172a; color: #e2e8f0; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; padding: 1.25rem; }
+    .stat-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-value { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+  <!-- Header -->
+  <header class="flex items-center justify-between mb-8">
+    <div>
+      <h1 class="text-2xl font-bold text-white">StoryForge <span class="text-blue-500">Dashboard</span></h1>
+      <p id="last-updated" class="text-sm text-slate-400 mt-1">Loading…</p>
+    </div>
+    <div class="flex items-center gap-4">
+      <span id="refresh-indicator" class="text-xs text-slate-500">Auto-refresh: 30s</span>
+      <a href="/" class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg transition-colors">
+        ← Back to App
+      </a>
+    </div>
+  </header>
+
+  <!-- 2×2 Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+    <!-- Card 1: Pipeline Runs -->
+    <div class="card">
+      <h2 class="font-semibold text-slate-200 mb-4">Pipeline Runs</h2>
+      <div class="flex items-center gap-6">
+        <div class="w-40 h-40 flex-shrink-0">
+          <canvas id="pipelineChart"></canvas>
+        </div>
+        <div class="space-y-3">
+          <div>
+            <div class="stat-label">Total</div>
+            <div class="stat-value" id="p-total">—</div>
+          </div>
+          <div class="flex gap-6">
+            <div>
+              <div class="stat-label text-green-400">Success</div>
+              <div class="text-xl font-semibold text-green-400" id="p-success">—</div>
+            </div>
+            <div>
+              <div class="stat-label text-red-400">Error</div>
+              <div class="text-xl font-semibold text-red-400" id="p-error">—</div>
+            </div>
+            <div>
+              <div class="stat-label text-yellow-400">Active</div>
+              <div class="text-xl font-semibold text-yellow-400" id="p-active">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 2: Quality Score Distribution -->
+    <div class="card">
+      <h2 class="font-semibold text-slate-200 mb-4">Quality Score Distribution</h2>
+      <canvas id="qualityChart" height="160"></canvas>
+    </div>
+
+    <!-- Card 3: LLM Usage -->
+    <div class="card">
+      <h2 class="font-semibold text-slate-200 mb-4">LLM Usage</h2>
+      <div class="grid grid-cols-3 gap-4">
+        <div>
+          <div class="stat-label">Requests</div>
+          <div class="stat-value" id="llm-total">—</div>
+        </div>
+        <div>
+          <div class="stat-label">Errors</div>
+          <div class="stat-value text-red-400" id="llm-errors">—</div>
+        </div>
+        <div>
+          <div class="stat-label">Error Rate</div>
+          <div class="stat-value text-orange-400" id="llm-rate">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 4: Onboarding Funnel -->
+    <div class="card">
+      <h2 class="font-semibold text-slate-200 mb-4">Onboarding Funnel</h2>
+      <canvas id="funnelChart" height="160"></canvas>
+    </div>
+
+  </div>
+
+  <script>
+    const API = '/api/dashboard/summary';
+    let pipelineChart, qualityChart, funnelChart;
+
+    function initCharts() {
+      const chartDefaults = { responsive: true, maintainAspectRatio: true };
+
+      pipelineChart = new Chart(document.getElementById('pipelineChart'), {
+        type: 'doughnut',
+        data: { labels: ['Success', 'Error', 'Active'], datasets: [{ data: [0, 0, 0], backgroundColor: ['#22c55e', '#ef4444', '#eab308'], borderWidth: 0 }] },
+        options: { ...chartDefaults, plugins: { legend: { display: false } } }
+      });
+
+      qualityChart = new Chart(document.getElementById('qualityChart'), {
+        type: 'bar',
+        data: { labels: [], datasets: [{ label: 'Count', data: [], backgroundColor: '#2563eb', borderRadius: 4 }] },
+        options: { ...chartDefaults, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }, y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } } } }
+      });
+
+      funnelChart = new Chart(document.getElementById('funnelChart'), {
+        type: 'bar',
+        data: { labels: [], datasets: [
+          { label: 'Completed', data: [], backgroundColor: '#2563eb', borderRadius: 4 },
+          { label: 'Dropped', data: [], backgroundColor: '#ef4444', borderRadius: 4 }
+        ]},
+        options: { ...chartDefaults, indexAxis: 'y', plugins: { legend: { labels: { color: '#94a3b8' } } }, scales: { x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' }, stacked: false }, y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } } } }
+      });
+    }
+
+    function updateCharts(data) {
+      // Pipeline
+      const p = data.pipeline;
+      document.getElementById('p-total').textContent = p.total;
+      document.getElementById('p-success').textContent = p.success;
+      document.getElementById('p-error').textContent = p.error;
+      document.getElementById('p-active').textContent = p.active;
+      pipelineChart.data.datasets[0].data = [p.success, p.error, p.active];
+      pipelineChart.update();
+
+      // Quality
+      const q = data.quality;
+      const bucketEntries = Object.entries(q.buckets).filter(([k]) => k !== '+Inf').sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]));
+      const qLabels = bucketEntries.map(([k]) => `≤${k}`);
+      const qCounts = bucketEntries.map(([, v], i) => i === 0 ? v : v - bucketEntries[i - 1][1]);
+      qualityChart.data.labels = qLabels;
+      qualityChart.data.datasets[0].data = qCounts;
+      qualityChart.update();
+
+      // LLM
+      const l = data.llm;
+      document.getElementById('llm-total').textContent = l.total_requests;
+      document.getElementById('llm-errors').textContent = l.total_errors;
+      const rate = l.total_requests > 0 ? ((l.total_errors / l.total_requests) * 100).toFixed(1) + '%' : '0%';
+      document.getElementById('llm-rate').textContent = rate;
+
+      // Funnel
+      const funnel = data.onboarding.funnel;
+      const steps = Object.keys(funnel);
+      funnelChart.data.labels = steps;
+      funnelChart.data.datasets[0].data = steps.map(s => funnel[s].count);
+      funnelChart.data.datasets[1].data = steps.map(s => funnel[s].dropout_count);
+      funnelChart.update();
+
+      // Timestamp
+      document.getElementById('last-updated').textContent = 'Updated: ' + new Date(data.timestamp * 1000).toLocaleTimeString();
+    }
+
+    async function fetchData() {
+      try {
+        const res = await fetch(API);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        updateCharts(await res.json());
+      } catch (e) {
+        document.getElementById('last-updated').textContent = 'Error fetching data — retrying…';
+      }
+    }
+
+    initCharts();
+    fetchData();
+    setInterval(fetchData, 30000);
+  </script>
+</body>
+</html>

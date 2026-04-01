@@ -35,9 +35,40 @@
     textarea:focus, input:focus, select:focus { outline:none; border-color:#3B82F6; box-shadow:0 0 0 3px rgba(59,130,246,0.15); }
     ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-thumb { background:#CBD5E1; border-radius:3px; }
     .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border-width:0; }
+    .skeleton-pulse {
+      background: linear-gradient(90deg, #E2E8F0 25%, #F1F5F9 50%, #E2E8F0 75%);
+      background-size: 200% 100%;
+      animation: skeleton-shimmer 1.5s infinite;
+      border-radius: 8px;
+    }
+    @keyframes skeleton-shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
   </style>
 </head>
 <body class="h-full bg-surface-50 font-sans text-slate-800" x-data x-init="$store.app.init()">
+  <!-- Skeleton loader: visible before Alpine initializes, removed on x-init -->
+  <div id="skeleton-loader" x-data x-init="$el.remove()" class="fixed inset-0 z-50 bg-surface-50 flex">
+    <div class="w-60 bg-white border-r border-surface-200 p-5 space-y-4 flex-shrink-0">
+      <div class="skeleton-pulse h-9 w-32"></div>
+      <div class="space-y-3 mt-6">
+        <div class="skeleton-pulse h-8 w-full"></div>
+        <div class="skeleton-pulse h-8 w-44"></div>
+        <div class="skeleton-pulse h-8 w-40"></div>
+        <div class="skeleton-pulse h-8 w-36"></div>
+      </div>
+    </div>
+    <div class="flex-1 p-8 space-y-6">
+      <div class="skeleton-pulse h-10 w-64"></div>
+      <div class="grid grid-cols-2 gap-6">
+        <div class="skeleton-pulse h-12 w-full"></div>
+        <div class="skeleton-pulse h-12 w-full"></div>
+      </div>
+      <div class="skeleton-pulse h-32 w-full"></div>
+      <div class="skeleton-pulse h-12 w-48"></div>
+    </div>
+  </div>
   <!-- Skip to content (accessibility) -->
   <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-brand-600 focus:text-white focus:rounded-lg focus:text-sm focus:font-semibold">Skip to content</a>
 

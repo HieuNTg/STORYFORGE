@@ -1,8 +1,7 @@
 """Analytics API routes — onboarding funnel tracking."""
 
 from fastapi import APIRouter
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
 
 from services.onboarding_analytics import tracker
 
@@ -10,14 +9,14 @@ router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 
 class StepBody(BaseModel):
-    session_id: str
-    step: str
-    duration_ms: int
+    session_id: str = Field(..., min_length=1, max_length=64)
+    step: str = Field(..., min_length=1, max_length=128)
+    duration_ms: int = Field(..., ge=0, le=3_600_000)
 
 
 class DropoutBody(BaseModel):
-    session_id: str
-    step: str
+    session_id: str = Field(..., min_length=1, max_length=64)
+    step: str = Field(..., min_length=1, max_length=128)
 
 
 @router.post("/onboarding/step")
