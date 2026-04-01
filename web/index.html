@@ -561,18 +561,18 @@
               <button @click="applyModelPreset('openrouter-free-basic')"
                 class="flex flex-col gap-1 p-3 rounded-xl border-2 border-surface-200 hover:border-brand-400 hover:bg-white transition-all cursor-pointer text-left">
                 <span class="text-sm font-semibold text-slate-700">🦙 Basic</span>
-                <span class="text-xs text-slate-500">DeepSeek V3 for all layers</span>
+                <span class="text-xs text-slate-500">Qwen 3.6 Plus for all layers</span>
               </button>
               <button @click="applyModelPreset('openrouter-free-optimized')"
                 class="flex flex-col gap-1 p-3 rounded-xl border-2 border-brand-300 bg-white ring-1 ring-brand-100 hover:border-brand-500 transition-all cursor-pointer text-left">
                 <span class="text-sm font-semibold text-brand-700">🎯 Optimized</span>
-                <span class="text-xs text-slate-500">DeepSeek V3 + Llama per layer</span>
+                <span class="text-xs text-slate-500">Qwen 3.6 + Nemotron per layer</span>
                 <span class="text-[10px] text-brand-500 font-medium">RECOMMENDED</span>
               </button>
               <button @click="applyModelPreset('openrouter-free-max')"
                 class="flex flex-col gap-1 p-3 rounded-xl border-2 border-surface-200 hover:border-brand-400 hover:bg-white transition-all cursor-pointer text-left">
                 <span class="text-sm font-semibold text-slate-700">🚀 Max Context</span>
-                <span class="text-xs text-slate-500">DeepSeek V3 + Qwen3 30B</span>
+                <span class="text-xs text-slate-500">Qwen 3.6 1M + Nemotron 120B</span>
               </button>
             </div>
             <div x-show="presetApplied" x-transition class="text-sm text-green-600 font-medium flex items-center gap-1">
@@ -1195,9 +1195,10 @@
             keyPlaceholder: 'sk-or-...',
             guide: 'Register at <a href="https://openrouter.ai/keys" target="_blank" class="text-brand-600 underline font-medium">openrouter.ai</a> → Keys → Create Key. 29+ free models available!',
             models: [
-              { id: 'deepseek/deepseek-chat-v3-0324:free', label: 'DeepSeek V3 (free, Vietnamese)' },
-              { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (free, Vietnamese)' },
-              { id: 'qwen/qwen3-30b-a3b:free', label: 'Qwen3 30B (free, Vietnamese)' },
+              { id: 'qwen/qwen3.6-plus-preview:free', label: 'Qwen 3.6 Plus (free, 1M ctx, Vietnamese)' },
+              { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'Nemotron 3 Super 120B (free)' },
+              { id: 'stepfun/step-3.5-flash:free', label: 'Step 3.5 Flash (free, 256K ctx)' },
+              { id: 'minimax/minimax-m2.5:free', label: 'MiniMax M2.5 (free)' },
               { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
               { id: 'deepseek/deepseek-r1', label: 'DeepSeek R1' },
               { id: 'anthropic/claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
