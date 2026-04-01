@@ -128,6 +128,29 @@ Novel Auto Pipeline is a 3-layer system for automated story generation, enhancem
 
 ---
 
+### Sprint 6: Model Routing + Code Splits + Voice & Branch Modes ✓ COMPLETE
+**Completion Date**: 2026-04-01 | **Effort**: 44h | **Status**: Shipped
+
+**Deliverables**:
+- **LR-1**: Per-layer model routing wired into pipeline; `model_for_layer()` now drives L1/L2/L3 model selection
+- **P3-7d**: `pipeline/layer1_story/generator.py` (498L) split into character_builder, chapter_writer, outline_planner modules
+- **P3-7e**: `services/browser_auth.py` (431L) split into browser_manager, auth_flow, token_extractor modules
+- **P3-5**: Voice-first narrative mode with TTS playback; audio player UI (play/pause/skip/speed control); `api/audio_routes.py`; `web/js/audio-player.js`
+- **P3-6**: Interactive branch reader with choose-your-own-adventure flow; branch tree tracking; LLM-driven continuations; `api/branch_routes.py`; `web/js/branch-reader.js`
+
+**Files Added**:
+- `pipeline/layer1_story/character_builder.py`, `chapter_writer.py`, `outline_planner.py` — modular L1 components
+- `services/browser_auth/browser_manager.py`, `auth_flow.py`, `token_extractor.py` — modular auth package
+- `api/audio_routes.py` — TTS audio streaming endpoints
+- `api/branch_routes.py` — branch reader REST API
+- `web/js/audio-player.js` — Alpine.js audio player component
+- `web/js/branch-reader.js` — Alpine.js interactive reader component
+- `services/branch_narrative.py` — BranchManager for branch logic
+
+**Impact**: Flexible per-layer model configuration; improved code maintainability (all modules <200L); new user engagement features (voice mode, branch stories); enhanced storytelling capabilities.
+
+---
+
 ## Metrics & Impact
 
 ### Performance Improvements
@@ -180,6 +203,20 @@ Phase 1 → Phase 2, 3, 4 (independent)
 ---
 
 ## Changelog
+
+### Version 2.5 (2026-04-01)
+**Major Release**: Sprint 6 — per-layer model routing, code modularization, voice-first narrative mode, interactive branch reader
+
+**New Features**:
+- **LR-1**: Per-layer model routing integrated into pipeline (L1/L2/L3 now use `model_for_layer()`)
+- **P3-7d**: generator.py split into 4 focused modules (all <200L); backward compatible re-exports
+- **P3-7e**: browser_auth.py split into 3 focused modules; auth flow isolation
+- **P3-5**: TTS-driven story playback with audio player (play/pause/skip/speed 0.5-2x); chapter-by-chapter streaming
+- **P3-6**: Interactive branch reader with CYOA mode; branch tree tracking; LLM continuations; back/forward navigation
+
+**Files Added**: 10 new files (3 L1 modules, 3 auth modules, 2 route handlers, 2 JS components, 1 service)
+
+**Impact**: Improved modularity (44h sprint delivers 5 major features); enhanced user engagement (2 new storytelling modes); flexible model deployment.
 
 ### Version 2.4 (2026-03-25)
 **Major Release**: Phase 18 (settings presets, adaptive prompts, quality gate) + Phase 19 (onboarding wizard, knowledge graph, E2E tests) + Phase 20 (staging env, progress tracker)
@@ -283,4 +320,4 @@ Phase 1 → Phase 2, 3, 4 (independent)
 
 ---
 
-**Document Owner**: Project Manager | **Review Cadence**: Weekly | **Next Review**: 2026-04-01
+**Document Owner**: Project Manager | **Review Cadence**: Weekly | **Next Review**: 2026-04-08

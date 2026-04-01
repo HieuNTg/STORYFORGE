@@ -4,7 +4,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ Novel Auto: Three-Layer Content Generation Pipeline              │
+│ StoryForge: Three-Layer Content Generation Pipeline (Sprint 6)   │
 └─────────────────────────────────────────────────────────────────┘
 
 Input: Genre + Story Idea + Config
@@ -24,17 +24,27 @@ Input: Genre + Story Idea + Config
 └─────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
+│ PER-LAYER MODEL ROUTING (Sprint 6)                               │
+│ - model_for_layer(1|2|3): cost optimization via layer-specific   │
+│   model selection (e.g., cheaper model for analysis, main for L1) │
+└─────────────────────────────────────────────────────────────────┘
+  ↓
+┌─────────────────────────────────────────────────────────────────┐
 │ ONBOARDING (Phase 19)                                            │
 │ - OnboardingManager: 4-step wizard (genre→chars→style→confirm)  │
 │ - State machine; config pre-populated before pipeline starts    │
 └─────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ LAYER 1: Story Generation (Modular Architecture, Sprint 2)      │
-│ - OrchestrationShell (generator.py): routes to submodules       │
+│ LAYER 1: Story Generation (Refactored Sprint 6)                 │
+│ - OrchestrationShell (generator.py, ~200 LOC): routes to modules │
 │ - CharacterGenerator: character creation + state extraction     │
 │ - OutlineBuilder: title suggestion + world + outline generation │
 │ - ChapterWriter: chapter writing + prompt building + context    │
+│ - PostProcessing: chapter post-write + plot event pruning       │
+│ - ContextHelpers: RAG + long-context integration                │
+│ - StoryContinuation: continuation + context rebuild logic       │
+│ - Per-layer model routing: model_for_layer(1) selection         │
 │ - RAG Knowledge Base: Inject world/character context (Phase 13) │
 │ - Parallel chapter writing with rolling context                  │
 │ - Character State Tracking: mood, arc, knowledge per chapter    │
@@ -71,13 +81,15 @@ Input: Genre + Story Idea + Config
 └─────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ LAYER 2: Drama Enhancement (multi-agent)                         │
+│ LAYER 2: Drama Enhancement (multi-agent, Sprint 6 model routing) │
+│ - Per-layer model routing: model_for_layer(2) selection         │
 │ - 6+ agents: character consistency, continuity, dialogue,       │
 │   drama critic, editor-in-chief (+ more)                        │
 │ - Dependency Graph (Phase 13): 4-tier execution via AgentDAG    │
 │ - Multi-agent debate protocol (Phase 16): 3-round consensus     │
 │   on story decisions via debate_response() callbacks            │
 │ - Context-aware escalation patterns (feedback loop)             │
+│ - use_cheap_model fix: cost optimization via model selection    │
 │ Output: Enhanced StoryDraft + agent feedback metadata           │
 └─────────────────────────────────────────────────────────────────┘
   ↓
@@ -105,23 +117,26 @@ Input: Genre + Story Idea + Config
 └─────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ LAYER 3: Video Storyboarding                                     │
+│ LAYER 3: Video Storyboarding (Sprint 6 model routing)            │
+│ - Per-layer model routing: model_for_layer(3) selection         │
 │ - Scene-level breakdown (shots per chapter)                     │
 │ - Camera directions & visual metadata                           │
 │ Output: Storyboard + VideoScript                                │
 └─────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ INTERACTIVE FEATURES (Layer 2+)                                  │
-│ StoryBrancher   → DAG-based multi-path story exploration         │
-│ WattpadExporter → Direct Wattpad/NovelHD chapter export          │
+│ INTERACTIVE FEATURES (Layer 2+, Sprint 6 branch reader)          │
+│ StoryBrancher    → DAG-based multi-path story exploration        │
+│ BranchManager    → Choose-your-own-adventure tree (NEW Sprint 6) │
+│ WattpadExporter  → Direct Wattpad/NovelHD chapter export         │
 └─────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ EXPORT SERVICES                                                  │
+│ EXPORT SERVICES & VOICE-FIRST MODE (Sprint 6)                    │
 │ VideoExporter  → SRT, voiceover, image prompts, CapCut, CSV, ZIP│
 │ HTMLExporter   → Self-contained HTML reader                      │
-│ TTSGenerator   → Multi-provider (edge-tts, kling, xtts) MP3/WAV │
+│ TTSGenerator   → Voice-first mode: edge-tts (no API key)        │
+│                  Multi-provider (edge-tts, kling, xtts) MP3/WAV │
 │                  XTTS v2 voice cloning per character (Phase 13)  │
 │                  Emotion-aware rate/pitch adjustment (Phase 15)  │
 │ ImageGenerator → DALL-E / SD / Seedream / Replicate IP-Adapter  │
@@ -129,6 +144,8 @@ Input: Genre + Story Idea + Config
 │                  images & frozen visual descriptions (Phase 14)  │
 │ EmotionClassifier→ Rule-based Vietnamese emotion detection       │
 │                  No LLM calls; outputs confidence scores (P15)  │
+│ AudioRoutes    → /audio/generate/{chapter_index} endpoint (NEW) │
+│                  TTS playback via edge-tts (Sprint 6 voice-first)│
 └─────────────────────────────────────────────────────────────────┘
   ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -441,6 +458,28 @@ StoryBrancher
 └─ Constraints: in-memory + local JSON; max 10 branches/story
 ```
 
+### BranchManager (services/branch_narrative.py) — NEW Sprint 6
+
+```
+BranchManager
+├─ start_session(story_text: str, choices: Optional[list]) → dict
+│  └─ Returns: {session_id, node: {id, text, choices, children, parent}}
+├─ choose(session_id: str, choice_index: int) → dict
+│  ├─ LLM continuation via llm.generate_json(_SYSTEM_PROMPT, ...)
+│  ├─ Expected response: {continuation: str, choices: list[str]}
+│  └─ Returns: {node, choices, new_branches_count}
+├─ get_current(session_id: str) → dict
+│  └─ Returns: {node, history: [{id, text_preview, choiceLabel}, ...]}
+├─ _walk_to_current(tree) → node_dict
+│  └─ Traverse tree to current node
+└─ Thread-safe FIFO session manager
+   ├─ max 50 concurrent sessions
+   ├─ Auto-evict oldest on overflow
+   └─ In-memory only (no persistence)
+```
+
+**Purpose**: Choose-your-own-adventure interactivity; API endpoints in `api/branch_routes.py`
+
 ### WattpadExporter (services/wattpad_exporter.py)
 
 ```
@@ -452,19 +491,45 @@ WattpadExporter
 └─ Local export only (Wattpad API deprecated 2023)
 ```
 
-### TTSAudioGenerator (services/tts_audio_generator.py) — Phase 13 XTTS
+### Browser Auth Package (services/browser_auth/) — REFACTORED Sprint 6
+
+```
+services/browser_auth/
+├─ __init__.py         — BrowserAuthManager singleton + public API
+│  ├─ manager: BrowserAuthManager()
+│  └─ authenticate(provider) → {tokens, credentials}
+├─ auth_flow.py        — OAuth/browser auth flow
+│  ├─ start_auth_flow(provider) → {auth_url, challenge}
+│  └─ exchange_auth_code(code, state) → {tokens}
+├─ browser_manager.py   — CDP lifecycle management
+│  ├─ start_browser() → Browser context manager
+│  ├─ stop_browser() → void
+│  └─ cleanup() → void (on exit)
+└─ token_extractor.py   — Session token extraction
+   ├─ extract_cookies(page) → dict
+   ├─ extract_local_storage(page) → dict
+   └─ extract_session_storage(page) → dict
+```
+
+**Purpose**: Modular auth for multi-provider integration (DeepSeek, future OAuth providers)
+**Sprint 6 Change**: Refactored from monolithic `browser_auth.py` to package structure
+
+### TTSAudioGenerator (services/tts_audio_generator.py) — MODIFIED Sprint 6
 
 ```
 TTSAudioGenerator
 ├─ __init__(provider, voice, rate, pitch, character_voice_map)
 │  └─ provider: "edge-tts" | "kling" | "xtts" | "none"
 ├─ generate_chapter_audio(chapter, character_name) → str  # MP3/WAV path
+│  ├─ Default: edge-tts (NO API KEY REQUIRED) [Sprint 6 voice-first]
 │  ├─ XTTS: POST multipart to Coqui/Replicate + reference audio per character
 │  ├─ Emotion-aware: rate (0.8-1.2×) + pitch (-20 to +20 semitones) [Phase 15]
 │  └─ Fallback: XTTS failure → retry edge-tts
 ├─ character_voice_map: { "CharacterName": "voice_key" }
 └─ list_voices(lang="vi") → list[str]
 ```
+
+**Sprint 6 Change**: Voice-first mode — edge-tts default requires no API key
 
 ### ImageGenerator (services/image_generator.py) — Phase 14 Character Consistency
 
@@ -579,6 +644,80 @@ SmartRevisionService
 ```
 
 **Config**: `enable_smart_revision` (default False), `smart_revision_threshold` (default 3.5).
+
+## API Routes — New in Sprint 6
+
+### audio_routes.py — Voice-first TTS
+
+```
+POST /api/audio/generate/{chapter_index}
+├─ Body: { text: str, voice?: str }
+├─ Default voice: "vi-VN-HoaiMyNeural" (Vietnamese)
+├─ Provider: edge-tts (no API key required)
+└─ Response: FileResponse(MP3 audio file)
+
+GET /api/audio/{chapter_index}/stream
+├─ Returns MP3 stream for playback
+└─ Cache: AUDIO_DIR / f"chapter_{index:03d}.mp3"
+```
+
+**Purpose**: Enable voice-first narrative playback via web UI
+
+### branch_routes.py — Choose-Your-Own-Adventure
+
+```
+POST /api/branch/start
+├─ Body: { text: str, genre?: str }
+├─ Returns: { session_id, node, current_state }
+└─ Session persists in-memory; auto-evicts after 50 sessions
+
+POST /api/branch/choose/{session_id}
+├─ Body: { choice_index: int }
+├─ LLM continuation: 200-400 words + 2-3 new choices
+└─ Returns: { node, history, new_branches_count }
+
+GET /api/branch/{session_id}
+├─ Returns: { current_node, history, tree_snapshot }
+└─ For UI state restoration
+```
+
+**Purpose**: Interactive branch reader (CYOA mode)
+
+### auth_routes.py — Browser Authentication (NEW Sprint 6)
+
+```
+POST /api/auth/start
+├─ Body: { provider: str }  # "deepseek" | others
+├─ Returns: { auth_url, challenge_data }
+└─ Initiates browser OAuth flow
+
+POST /api/auth/callback
+├─ Body: { code: str, state: str }
+├─ Exchanges code for tokens
+└─ Returns: { tokens, user_profile, expires_in }
+
+POST /api/auth/logout
+├─ Clears session credentials
+└─ Returns: { status: "ok" }
+```
+
+**Purpose**: Multi-provider browser authentication (modular design)
+
+### dashboard_routes.py — Dashboard Metrics (NEW Sprint 6)
+
+```
+GET /api/dashboard/metrics
+├─ Returns: { total_stories, chapters_written, avg_quality_score }
+├─ Aggregates stats from pipeline history
+└─ Time-based filtering (daily, weekly, monthly)
+
+GET /api/dashboard/recent
+├─ Returns: list of recent pipeline runs
+├─ Limit: 20; includes status, timestamps, layer completions
+└─ For dashboard UI display
+```
+
+**Purpose**: Analytics & monitoring dashboard
 
 ## Frontend Resilience & Persistence Architecture (save-logic-render-audit)
 
@@ -769,13 +908,24 @@ OrchestrationShell (generator.py, ~495 lines)
 - Handles config + error handling
 - Integrates RAG, adaptive prompts, self-review
 
-## LLM Client Architecture (MODIFIED Sprint 1)
+## LLM Client Architecture (REFACTORED Sprint 6)
 
 ```
+services/llm/
+├─ client.py          — LLMClient singleton, dual-backend routing, caching
+├─ generation.py      — GenerationMixin: generate(), generate_json()
+├─ streaming.py       — StreamingMixin: generate_stream()
+└─ retry.py           — Retry logic, error detection, backoff strategy
+
 LLMClient (singleton)
-├─ generate(system, user, temperature, max_tokens, json_mode) → str
+├─ __init__()         — Initialize client + cache
+├─ model_for_layer(layer: 1|2|3) → str  [NEW Sprint 6]
+│  └─ Returns per-layer model for cost optimization
+├─ generate(system, user, temperature, max_tokens, json_mode,
+│           model_tier="default", model=None) → str
 │  ├─ localize_prompt(template, lang) → localized prompt
 │  ├─ Cache hit? → return cached
+│  ├─ model override? → use supplied model or model_for_layer()
 │  ├─ branch backend_type:
 │  │  ├─ "api" → OpenAI-compatible (HTTPS)
 │  │  └─ "web" → DeepSeekWebClient (browser auth + PoW)
@@ -785,11 +935,19 @@ LLMClient (singleton)
 │  │  └─ MAX_RETRIES=3
 │  └─ Cache result
 │
-└─ generate_json(system, user, max_tokens) → dict
-   └─ generate() with json_mode=True → Parse + Pydantic validate
+├─ generate_json(system, user, max_tokens,
+│                model_tier="default", model=None) → dict  [MODIFIED Sprint 6]
+│  └─ generate() with json_mode=True + JSON repair
+│
+└─ generate_stream(path, model_tier="default", model=None)  [MODIFIED Sprint 6]
+   └─ Streaming with model override support
 ```
 
-**Sprint 1 Change**: Added Retry-After header parsing for better rate-limit handling.
+**Sprint 6 Changes**:
+- Module split for testability (client/generation/streaming/retry)
+- Per-layer model routing: `model_for_layer()` method
+- All generation methods now accept `model_tier` + `model` parameters
+- Cost optimization: Layer 1 (primary), Layer 2 (cheap), Layer 3 (primary)
 
 ## Agent Architecture (Layer 2)
 
@@ -895,6 +1053,6 @@ PipelineConfig:
 
 ---
 
-**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Phase 18 adds inline quality gates between layers and genre-adaptive prompts. Phase 19 adds guided onboarding and entity knowledge graph. Phase 20 adds structured progress telemetry, production-parity staging infrastructure, and frontend resilience (sessionStorage persistence, SSE interruption detection, checkpoint resume). Sprint 1 adds security layer (prompt injection detection, secret encryption), app refactoring (thin entry point, extracted Gradio UI), bilingual emotion detection, provider-aware LLM retry, and SSE batch streaming. Sprint 2 adds modular Layer 1 split (character_generator, chapter_writer, outline_builder), error hierarchy + FastAPI middleware, structured logging service, and prompt policy documentation.
+**Architectural Principle**: Modular layers with clear handoffs. Each service is independently testable. Phase 18 adds inline quality gates between layers and genre-adaptive prompts. Phase 19 adds guided onboarding and entity knowledge graph. Phase 20 adds structured progress telemetry, production-parity staging infrastructure, and frontend resilience (sessionStorage persistence, SSE interruption detection, checkpoint resume). Sprint 1 adds security layer (prompt injection detection, secret encryption), app refactoring (thin entry point, extracted Gradio UI), bilingual emotion detection, provider-aware LLM retry, and SSE batch streaming. Sprint 2 adds modular Layer 1 split (character_generator, chapter_writer, outline_builder), error hierarchy + FastAPI middleware, structured logging service, and prompt policy documentation. Sprint 6 adds per-layer model routing (cost optimization), LLM client refactor (modular architecture), generator.py split from 495→200 LOC, interactive branch reader (choose-your-own-adventure), voice-first narrative (edge-tts, no API key), browser auth package split, and new API routes (audio, branch, auth, dashboard).
 
-**Last Updated**: 2026-03-31 | **Version**: 2.7 (Sprint 2: Layer 1 Module Split, Error Hierarchy, Structured Logging)
+**Last Updated**: 2026-04-01 | **Version**: 2.8 (Sprint 6: Per-Layer Model Routing, LLM Refactor, Voice-First Narrative, Interactive Branch Reader)

@@ -20,13 +20,24 @@ novel-auto/
 ├── models/
 │   └── schemas.py                  # Pydantic models for all layers + quality scoring
 ├── services/
-│   ├── llm_client.py               # LLM wrapper: provider-aware retry with Retry-After header parsing
+│   ├── llm/                        # LLM client split into modules (REFACTORED Sprint 6)
+│   │   ├── client.py               #   Singleton with dual-backend routing
+│   │   ├── generation.py           #   generate(), generate_json(), with model param (MODIFIED Sprint 6)
+│   │   ├── streaming.py            #   generate_stream() with model param
+│   │   └── retry.py                #   Backoff + error classification
+│   ├── llm_client.py               # Compat layer (imports from llm/)
 │   ├── llm_cache.py                # SQLite-based prompt result caching
 │   ├── secret_manager.py           # Fernet encryption for secrets at rest (NEW - Sprint 1)
 │   ├── input_sanitizer.py          # Prompt injection detection: 8 regex patterns (NEW - Sprint 1)
 │   ├── emotion_classifier.py       # Bilingual (vi+en) emotion classification with auto-detect (MODIFIED - Sprint 1)
 │   ├── prompts.py                  # Centralized prompt templates (localize_prompt wrapper)
-│   ├── browser_auth.py             # Chrome CDP + Playwright credential capture
+│   ├── browser_auth/               # Browser auth package (REFACTORED Sprint 6)
+│   │   ├── __init__.py             #   Manager + client auth flow
+│   │   ├── auth_flow.py            #   OAuth/browser auth flow
+│   │   ├── browser_manager.py      #   Browser launch + CDP management
+│   │   └── token_extractor.py      #   Token extraction from browser session
+│   ├── branch_narrative.py         # BranchManager for interactive storytelling (NEW Sprint 6)
+│   ├── tts_audio_generator.py      # Multi-provider TTS (edge-tts, kling, xtts), Vietnamese voices (MODIFIED Sprint 6)
 │   ├── deepseek_web_client.py      # DeepSeek web API client with PoW challenge solver
 │   ├── quality_scorer.py           # LLM-as-judge quality metrics (4 dimensions, 1-5 scale)
 │   ├── structured_logger.py        # JSON logging when LOG_FORMAT=json (NEW Sprint 2)
@@ -51,10 +62,13 @@ novel-auto/
 ├── pipeline/
 │   ├── orchestrator.py             # Main workflow coordinator
 │   ├── layer1_story/
-│   │   ├── generator.py            # OrchestrationShell (refactored ~495 lines): routes to submodules
+│   │   ├── generator.py            # OrchestrationShell (~200 lines, MODIFIED Sprint 6): routes to submodules, model routing
 │   │   ├── character_generator.py   # Character generation + state extraction (65 lines, NEW Sprint 2)
 │   │   ├── chapter_writer.py        # Chapter writing + prompt building + context (246 lines, NEW Sprint 2)
 │   │   ├── outline_builder.py       # Title suggestion + world + outline generation (87 lines, NEW Sprint 2)
+│   │   ├── post_processing.py       # Chapter post-processing, plot event pruning (NEW Sprint 6)
+│   │   ├── context_helpers.py       # RAG + long-context helpers (NEW Sprint 6)
+│   │   ├── story_continuation.py    # Story continuation logic (NEW Sprint 6)
 │   │   └── story_bible_manager.py   # Story context + state tracking
 │   ├── layer2_enhance/
 │   │   ├── simulator.py            # Drama simulation with agent loops
@@ -135,12 +149,15 @@ novel-auto/
 
 ## Services Overview
 
-### llm_client.py
-- Singleton with dual-backend routing (`api` → OpenAI-compatible, `web` → DeepSeek browser auth)
+### llm_client.py (MODIFIED Sprint 6)
+- Refactored: client.py (singleton + init), generation.py (mixins), retry.py (backoff), streaming.py (SSE)
+- Per-layer model routing: `model_for_layer(layer: 1|2|3)` → returns layer-specific model (cost optimization)
+- Dual-backend routing (`api` → OpenAI-compatible, `web` → DeepSeek browser auth)
 - Retry logic: MAX_RETRIES=3 with exponential backoff
 - Cache: SQLite with configurable TTL
 - Auto prompt localization via `localize_prompt()` in `generate()` / `generate_stream()`
-- `generate_json(max_tokens)` — compact extraction with token control
+- `generate_json(model_tier, model)` — supports per-layer model override
+- `generate_stream(model_tier, model)` — streaming with model override
 
 ### tts_audio_generator.py
 - Multi-provider TTS: edge-tts (default), kling, xtts (Phase 13), or none
@@ -282,6 +299,49 @@ novel-auto/
 - `emit(event, data)` — logs structured event + calls registered Gradio callback
 - Standard events: `gate_checked`, `revision_done`, `scoring_complete`, `layer_start`, `layer_complete`
 - Injected by orchestrator; services call `tracker.emit()` at milestones
+
+### Per-Layer Model Routing (NEW Sprint 6)
+
+#### LLMClient Methods
+- `model_for_layer(layer: 1|2|3)` → str (returns model per layer for cost optimization)
+- `generate(..., model_tier="default", model=None)` — supports explicit model override
+- `generate_json(..., model_tier="default", model=None)` — JSON extraction with model override
+- `generate_stream(..., model_tier="default", model=None)` — streaming with model override
+- Layer 1: default (writing), Layer 2: default (simulation/analysis), Layer 3: default (storyboard)
+- Config: `model_for_layer_N` in PipelineConfig (optional per-layer override)
+
+#### Service Integration
+- **StoryGenerator** (L1): `self._layer_model = self.llm.model_for_layer(1)` + passes to all submodules
+- **StoryEnhancer** (L2): `self._layer_model = self.llm.model_for_layer(2)` + use_cheap_model fix
+- **Storyboarder** (L3): `self._layer_model = self.llm.model_for_layer(3)` for video script generation
+
+### Interactive Branching & Voice-First Narrative (NEW Sprint 6)
+
+#### BranchManager (services/branch_narrative.py)
+- In-memory choose-your-own-adventure tree; thread-safe FIFO session manager
+- `start_session(story_text, choices)` → session_id + initial node
+- `choose(session_id, choice_index)` → LLM continuation + new choices (200-400 words)
+- `get_current(session_id)` → current node + history breadcrumbs
+- Max 50 concurrent sessions; automatic FIFO eviction
+
+#### API Routes
+- **audio_routes.py** (NEW): POST `/audio/generate/{chapter_index}` — TTS via edge-tts (no API key required)
+- **branch_routes.py** (NEW): POST `/branch/start`, `/branch/choose/{session_id}` — interactive reader
+- **auth_routes.py** (NEW): Browser auth endpoints for credential capture
+- **dashboard_routes.py** (NEW): Dashboard data (metrics, analytics)
+
+#### Frontend Components
+- **audio-player.js**: Alpine.js TTS playback (chapters, speed control, cache)
+- **branch-reader.js**: Alpine.js choose-your-own-adventure UI (choices, history, restart)
+
+### Browser Auth Package Refactor (MODIFIED Sprint 6)
+
+#### services/browser_auth/
+- `__init__.py` — `manager` singleton + public API
+- `auth_flow.py` — OAuth/browser flow + credential exchange
+- `browser_manager.py` — CDP launch + lifecycle (start, stop, cleanup)
+- `token_extractor.py` — Extract tokens from browser session storage/cookies
+- **Purpose**: Modular design for multi-provider auth integration (DeepSeek, web providers)
 
 ### Error Handling Layer (NEW Sprint 2)
 
@@ -486,7 +546,8 @@ Chapter → [parallel] summarize + extract_character_states + extract_plot_event
 | **Phase 20** | COMPLETE | Staging environment (docker-compose.staging.yml, parallel CI), progress tracker (structured events for gate/revision/scoring); +159 tests |
 | **Sprint 1** | COMPLETE | App refactoring (79-line thin entry point, 1160-line extracted Gradio UI), security layer (Fernet encryption, prompt injection detection), bilingual emotion classifier, provider-aware LLM retry, SSE batch streaming, quality gate enabled by default; .env.example documentation |
 | **Sprint 2** | COMPLETE | Layer 1 module split (generator → character_generator, chapter_writer, outline_builder), error hierarchy + FastAPI middleware, structured logging, knowledge graph method additions, prompt policy docs |
+| **Sprint 6** | COMPLETE | Per-layer model routing (model_for_layer), LLM client refactor (client/generation/streaming/retry modules), generator ~495→200 LOC, browser_auth package split, BranchManager + interactive reader, TTS voice-first mode (edge-tts), audio_routes + branch_routes + auth_routes + dashboard_routes |
 
 ---
 
-**Last Updated**: 2026-03-31 | **Doc Version**: 2.7 (Sprint 2: Layer 1 Module Split, Error Hierarchy, Structured Logging) | **Tests**: 1327+
+**Last Updated**: 2026-04-01 | **Doc Version**: 2.8 (Sprint 6: Per-Layer Model Routing, LLM Refactor, Voice-First Narrative) | **Tests**: 1327+
