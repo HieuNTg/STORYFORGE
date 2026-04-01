@@ -129,7 +129,10 @@ def build_chapter_prompt(
         except Exception as e:
             logger.debug(f"Knowledge graph unavailable: {e}")
 
-    sys_prompt = f"Bạn là tiểu thuyết gia tài năng viết truyện {genre} bằng tiếng Việt."
+    sys_prompt = (
+        f"Bạn là tiểu thuyết gia tài năng viết truyện {genre} bằng tiếng Việt. "
+        f"BẮT BUỘC: Toàn bộ output phải viết bằng tiếng Việt, không được dùng ngôn ngữ khác."
+    )
     user_prompt = prompts.WRITE_CHAPTER.format(
         genre=genre, style=style, title=title,
         world=f"{world.name}: {world.description}",
@@ -141,6 +144,9 @@ def build_chapter_prompt(
         word_count=word_count,
     )
     user_prompt = build_adaptive_write_prompt(user_prompt, genre)
+    # Reinforce Vietnamese at end of prompt (after all context) to prevent
+    # language drift in later chapters where context is very long
+    user_prompt += "\n\n[NHẮC LẠI: Viết hoàn toàn bằng tiếng Việt. Không dùng tiếng Anh hay ngôn ngữ khác.]"
     return sys_prompt, user_prompt
 
 
@@ -229,8 +235,9 @@ def write_chapter_stream(
 def summarize_chapter(llm: "LLMClient", content: str) -> str:
     """Summarize a chapter for use as context in the next chapter."""
     return llm.generate(
-        system_prompt="Bạn là trợ lý tóm tắt nội dung. Viết bằng tiếng Việt.",
-        user_prompt=prompts.SUMMARIZE_CHAPTER.format(content=content[:3000]),
+        system_prompt="Bạn là trợ lý tóm tắt nội dung. BẮT BUỘC viết bằng tiếng Việt.",
+        user_prompt=prompts.SUMMARIZE_CHAPTER.format(content=content[:3000])
+        + "\n\n[Tóm tắt bằng tiếng Việt.]",
         temperature=0.3,
         max_tokens=500,
         model_tier="cheap",
@@ -244,7 +251,7 @@ def extract_plot_events(
 ) -> list[PlotEvent]:
     """Extract key plot events from chapter content."""
     result = llm.generate_json(
-        system_prompt="Trích xuất sự kiện cốt truyện. Trả về JSON.",
+        system_prompt="Trích xuất sự kiện cốt truyện. Trả về JSON bằng tiếng Việt.",
         user_prompt=prompts.EXTRACT_PLOT_EVENTS.format(
             content=excerpt(content), chapter_number=chapter_number,
         ),

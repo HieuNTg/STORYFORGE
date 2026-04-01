@@ -63,6 +63,12 @@ class LongContextClient:
         if not self.is_configured:
             raise RuntimeError("LongContextClient is not configured (missing provider/model/api_key)")
 
+        # Apply language localization (same as LLMClient.generate)
+        from services.prompts import localize_prompt
+        lang = ConfigManager().pipeline.language
+        system_prompt = localize_prompt(system_prompt, lang)
+        user_prompt = localize_prompt(user_prompt, lang)
+
         client = self._get_client()
         messages = [
             {"role": "system", "content": system_prompt},

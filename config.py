@@ -195,46 +195,49 @@ PIPELINE_PRESETS = {
 
 _OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
+# Vietnamese-capable models prioritized — models that produce poor Vietnamese
+# (e.g. coder models, tiny models, English-only fine-tunes) cause language
+# drift where summaries/context turn English and later chapters follow suit.
 MODEL_PRESETS = {
     "openrouter-free-basic": {
-        "label": "OpenRouter Free — Basic (Llama 3.3 70B)",
+        "label": "OpenRouter Free — Basic (DeepSeek V3)",
         "base_url": _OPENROUTER_BASE,
-        "model": "meta-llama/llama-3.3-70b-instruct:free",
-        "cheap_model": "google/gemma-3-4b-it:free",
+        "model": "deepseek/deepseek-chat-v3-0324:free",
+        "cheap_model": "google/gemma-3-12b-it:free",
         "cheap_base_url": _OPENROUTER_BASE,
         "layer1_model": "",
         "layer2_model": "",
         "layer3_model": "",
         "fallback_models": [
-            {"model": "google/gemma-3-27b-it:free", "base_url": _OPENROUTER_BASE},
+            {"model": "meta-llama/llama-3.3-70b-instruct:free", "base_url": _OPENROUTER_BASE},
         ],
     },
     "openrouter-free-optimized": {
         "label": "OpenRouter Free — Optimized (per-layer routing)",
         "base_url": _OPENROUTER_BASE,
-        "model": "meta-llama/llama-3.3-70b-instruct:free",
-        "cheap_model": "google/gemma-3-4b-it:free",
+        "model": "deepseek/deepseek-chat-v3-0324:free",
+        "cheap_model": "google/gemma-3-12b-it:free",
         "cheap_base_url": _OPENROUTER_BASE,
-        "layer1_model": "qwen/qwen3-coder:free",
+        "layer1_model": "deepseek/deepseek-chat-v3-0324:free",
         "layer2_model": "meta-llama/llama-3.3-70b-instruct:free",
-        "layer3_model": "google/gemma-3-12b-it:free",
+        "layer3_model": "google/gemma-3-27b-it:free",
         "fallback_models": [
-            {"model": "nousresearch/hermes-3-llama-3.1-405b:free", "base_url": _OPENROUTER_BASE},
-            {"model": "google/gemma-3-27b-it:free", "base_url": _OPENROUTER_BASE},
+            {"model": "qwen/qwen3-30b-a3b:free", "base_url": _OPENROUTER_BASE},
+            {"model": "meta-llama/llama-3.3-70b-instruct:free", "base_url": _OPENROUTER_BASE},
         ],
     },
     "openrouter-free-max": {
         "label": "OpenRouter Free — Max Context (1M tokens)",
         "base_url": _OPENROUTER_BASE,
-        "model": "qwen/qwen3-coder:free",
-        "cheap_model": "google/gemma-3-4b-it:free",
+        "model": "deepseek/deepseek-chat-v3-0324:free",
+        "cheap_model": "qwen/qwen3-30b-a3b:free",
         "cheap_base_url": _OPENROUTER_BASE,
-        "layer1_model": "qwen/qwen3-coder:free",
-        "layer2_model": "nousresearch/hermes-3-llama-3.1-405b:free",
-        "layer3_model": "nvidia/nemotron-nano-12b-v2-vl:free",
+        "layer1_model": "deepseek/deepseek-chat-v3-0324:free",
+        "layer2_model": "meta-llama/llama-3.3-70b-instruct:free",
+        "layer3_model": "google/gemma-3-27b-it:free",
         "fallback_models": [
-            {"model": "meta-llama/llama-3.3-70b-instruct:free", "base_url": _OPENROUTER_BASE},
-            {"model": "stepfun/step-3.5-flash:free", "base_url": _OPENROUTER_BASE},
+            {"model": "qwen/qwen3-30b-a3b:free", "base_url": _OPENROUTER_BASE},
+            {"model": "google/gemma-3-27b-it:free", "base_url": _OPENROUTER_BASE},
         ],
     },
 }
