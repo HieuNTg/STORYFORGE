@@ -422,4 +422,17 @@ class ConfigManager:
             errors.append("smart_revision_threshold phải từ 1.0 đến 5.0")
         if not (1.0 <= self.pipeline.quality_gate_threshold <= 5.0):
             errors.append("quality_gate_threshold phải từ 1.0 đến 5.0")
+        # Warn about likely-invalid OpenRouter model IDs
+        if "openrouter" in self.llm.base_url:
+            model = self.llm.model
+            if model and "/" not in model:
+                errors.append(
+                    f"Model '{model}' không hợp lệ cho OpenRouter. "
+                    f"Cần format 'provider/model-name' (ví dụ: deepseek/deepseek-chat-v3-0324:free)"
+                )
+            elif model and model.startswith("openrouter/"):
+                errors.append(
+                    f"Model '{model}' có thể route random — nên dùng model cụ thể "
+                    f"(ví dụ: deepseek/deepseek-chat-v3-0324:free)"
+                )
         return errors
