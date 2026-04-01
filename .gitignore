@@ -16,9 +16,12 @@ venv/
 # ── Runtime Data ───────────────────────────────────────────────────
 data/config.json
 data/*.db
+data/*.db-shm
+data/*.db-wal
 data/auth_profiles.json
 data/onboarding_state.json
 data/.auth_key
+data/audio/
 data/branches/
 output/
 
@@ -49,10 +52,9 @@ release-manifest.json
 .serena/cache
 
 # ── Claude Code / Gemini ──────────────────────────────────────────
-.claude/settings.bak.json
-.claude/skills/
-.claude/statusline.*
-.gemini/settings.json
+.claude/
+.gemini/
+CLAUDE.md
 prompt.md
 ck.md
 
