@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="web/img/logo.png" alt="StoryForge" width="80" />
-</p>
-
 <h1 align="center">StoryForge</h1>
 
 <p align="center">
