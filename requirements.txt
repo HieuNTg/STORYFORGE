@@ -1,3 +1,4 @@
+aiofiles==24.1.0
 chromadb==0.4.24
 sentence-transformers==2.7.0
 openai==1.51.0

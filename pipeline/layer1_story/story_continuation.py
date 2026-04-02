@@ -79,6 +79,12 @@ def continue_story(
     final_total = len(draft.chapters) + len(new_outlines)
     self_reviewer = generator._get_self_reviewer() if generator.config.pipeline.enable_self_review else None
 
+    # NOTE (async-migration): ThreadPoolExecutor is kept here intentionally.
+    # The executor is passed to process_chapter_post_write which runs three LLM extraction
+    # tasks (summarize, extract_character_states, extract_plot_events) in parallel while the
+    # main loop moves to the next chapter. The pattern requires a long-lived executor shared
+    # across the sequential chapter loop. Migration to asyncio requires an async LLMClient
+    # (future work, see async-migration-plan.md #5).
     with ThreadPoolExecutor(max_workers=3) as executor:
         for outline in new_outlines:
             story_context.current_chapter = outline.chapter_number

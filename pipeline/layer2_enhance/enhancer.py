@@ -1,7 +1,7 @@
 """Tăng cường kịch tính cho truyện dựa trên kết quả mô phỏng."""
 
+import asyncio
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from models.schemas import (
     StoryDraft, SimulationResult, EnhancedStory, Chapter, count_words,
 )
@@ -125,24 +125,34 @@ class StoryEnhancer:
         max_workers = ConfigManager().llm.max_parallel_workers
 
         _log(f"✨ Đang tăng cường kịch tính {total_chapters} chương (parallel, {max_workers} workers)...")
-        results = {}
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(
-                    self.enhance_chapter, chapter, sim_result, word_count, total_chapters, draft.genre
-                ): chapter.chapter_number
-                for chapter in draft.chapters
-            }
-            for future in as_completed(futures):
-                ch_num = futures[future]
+
+        # Migrate from ThreadPoolExecutor + as_completed to asyncio.gather + run_in_executor.
+        # enhance_chapter() wraps a blocking LLM call; run_in_executor offloads each to the
+        # default thread pool while asyncio.gather dispatches all coroutines concurrently,
+        # freeing the event loop between submissions.
+        async def _enhance_all() -> dict[int, Chapter]:
+            loop = asyncio.get_running_loop()
+            chapters_list = list(draft.chapters)
+
+            async def _one(chapter: Chapter) -> tuple[int, Chapter]:
+                ch_num = chapter.chapter_number
                 try:
-                    results[ch_num] = future.result()
+                    result = await loop.run_in_executor(
+                        None, self.enhance_chapter,
+                        chapter, sim_result, word_count, total_chapters, draft.genre,
+                    )
                     _log(f"✨ Chương {ch_num} đã tăng cường xong")
+                    return ch_num, result
                 except Exception as e:
                     logger.warning(f"Lỗi enhance chương {ch_num}: {e}")
                     # Fallback: keep original
-                    orig = next(c for c in draft.chapters if c.chapter_number == ch_num)
-                    results[ch_num] = orig
+                    orig = next(c for c in chapters_list if c.chapter_number == ch_num)
+                    return ch_num, orig
+
+            pairs = await asyncio.gather(*[_one(ch) for ch in chapters_list])
+            return dict(pairs)
+
+        results = asyncio.run(_enhance_all())
 
         # Maintain order
         enhanced.chapters = [results[ch.chapter_number] for ch in draft.chapters]

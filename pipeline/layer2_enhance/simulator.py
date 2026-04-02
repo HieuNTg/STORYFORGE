@@ -5,8 +5,8 @@ MiroFish tạo các agent tự trị trên mạng xã hội giả lập.
 "không gian ảo" để phát hiện xung đột và tình huống kịch tính.
 """
 
+import asyncio
 import logging
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError, as_completed
 
 from models.schemas import (
     Character, Relationship, RelationType, SimulationEvent, AgentPost,
@@ -190,32 +190,39 @@ class DramaSimulator:
             return None, {}
 
     def _generate_reactions(self, posts: list[AgentPost], round_num: int, context: str) -> list[AgentPost]:
-        """Generate reactions from targeted characters (1 reaction layer)."""
-        reactions = []
+        """Generate reactions from targeted characters (1 reaction layer).
+
+        Migrated from ThreadPoolExecutor + as_completed to asyncio.gather +
+        run_in_executor. _run_reaction() calls blocking LLM SDK; run_in_executor
+        offloads each to the default thread pool concurrently.
+        """
         targeted = {p.target: p for p in posts if p.target and p.target in self.agents}
 
-        max_workers = min(ConfigManager().llm.max_parallel_workers, 10)
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {}
-            for target_name, triggering_post in targeted.items():
-                if target_name == triggering_post.agent_name:
-                    continue
-                agent = self.agents[target_name]
-                future = executor.submit(self._run_reaction, agent, triggering_post, round_num, context)
-                futures[future] = target_name
+        async def _gather() -> list[AgentPost]:
+            loop = asyncio.get_running_loop()
 
-            for future in as_completed(futures):
+            async def _one(target_name: str, triggering_post: AgentPost) -> AgentPost | None:
+                if target_name == triggering_post.agent_name:
+                    return None
+                agent = self.agents[target_name]
                 try:
-                    result = future.result(timeout=120)
-                    if result:
-                        reactions.append(result)
-                except FutureTimeoutError:
-                    target_name = futures[future]
+                    return await asyncio.wait_for(
+                        loop.run_in_executor(None, self._run_reaction, agent, triggering_post, round_num, context),
+                        timeout=120,
+                    )
+                except asyncio.TimeoutError:
                     logger.warning(f"Reaction from {target_name} timed out after 120s, skipping")
+                    return None
                 except Exception as e:
-                    target_name = futures[future]
                     logger.warning(f"Reaction from {target_name} raised unexpected error: {e}")
-        return reactions
+                    return None
+
+            results = await asyncio.gather(
+                *[_one(name, post) for name, post in targeted.items()]
+            )
+            return [r for r in results if r is not None]
+
+        return asyncio.run(_gather())
 
     def _run_reaction(self, agent: CharacterAgent, triggering_post: AgentPost, round_num: int, context: str) -> AgentPost | None:
         """Generate a reaction from agent to a triggering post."""
@@ -256,44 +263,61 @@ class DramaSimulator:
         self, round_number: int, context: str, total_rounds: int = 5,
         progress_callback=None,
     ) -> list[AgentPost]:
-        """Chạy một vòng mô phỏng - tất cả agents hành động song song."""
-        round_posts = []
-        max_workers = min(ConfigManager().llm.max_parallel_workers, 10)
+        """Chạy một vòng mô phỏng - tất cả agents hành động song song.
+
+        Migrated from ThreadPoolExecutor + as_completed to asyncio.gather +
+        run_in_executor. _run_single_agent() calls a blocking LLM SDK; each
+        coroutine is offloaded to the default thread pool via run_in_executor
+        so the event loop is free between dispatches.
+
+        NOTE: post-round state mutations (emotion, trust, memory) still happen
+        sequentially after gather completes — they mutate shared agent state and
+        must not be parallelised.
+        """
         genre_hint = get_genre_escalation_prompt(context, round_number, total_rounds)
         round_context = f"{context} {genre_hint}".strip() if genre_hint else context
         agent_names = list(self.agents.keys())
-        completed_count = 0
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(self._run_single_agent, name, round_number, round_context): name
-                for name in self.agents
-            }
-            for future in as_completed(futures):
-                name = futures[future]
+        async def _run_round() -> list[tuple[str, AgentPost | None, dict]]:
+            loop = asyncio.get_running_loop()
+
+            async def _one(name: str) -> tuple[str, AgentPost | None, dict]:
                 try:
-                    post, metadata = future.result(timeout=120)
-                except FutureTimeoutError:
+                    post, metadata = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            None, self._run_single_agent, name, round_number, round_context
+                        ),
+                        timeout=120,
+                    )
+                    return name, post, metadata
+                except asyncio.TimeoutError:
                     logger.warning(f"Agent {name} timed out at round {round_number}, skipping")
-                    continue
+                    return name, None, {}
                 except Exception as e:
                     logger.warning(f"Agent {name} raised unexpected error at round {round_number}: {e}")
-                    continue
-                completed_count += 1
-                if progress_callback:
-                    progress_callback(
-                        f"[Agent {completed_count}/{len(agent_names)}] "
-                        f"{name}: {post.action_type if post else 'skip'}"
-                    )
-                if post is not None:
-                    round_posts.append(post)
-                    # Apply emotional + trust updates immediately
-                    agent = self.agents[post.agent_name]
-                    new_mood = metadata.get("new_mood", "") or self._infer_mood(post.sentiment)
-                    agent.emotion.update(new_mood)
-                    trust_delta = metadata.get("trust_change", 0)
-                    if isinstance(trust_delta, (int, float)) and post.target and post.target in self.agents:
-                        agent.get_trust(post.target).update(trust_delta, post.content[:50])
+                    return name, None, {}
+
+            return await asyncio.gather(*[_one(n) for n in self.agents])  # type: ignore[return-value]
+
+        gathered = asyncio.run(_run_round())
+
+        round_posts = []
+        for idx, (name, post, metadata) in enumerate(gathered):
+            if post is None:
+                continue
+            if progress_callback:
+                progress_callback(
+                    f"[Agent {idx + 1}/{len(agent_names)}] "
+                    f"{name}: {post.action_type if post else 'skip'}"
+                )
+            round_posts.append(post)
+            # Apply emotional + trust updates — sequential, safe (mutates agent state)
+            agent = self.agents[post.agent_name]
+            new_mood = metadata.get("new_mood", "") or self._infer_mood(post.sentiment)
+            agent.emotion.update(new_mood)
+            trust_delta = metadata.get("trust_change", 0)
+            if isinstance(trust_delta, (int, float)) and post.target and post.target in self.agents:
+                agent.get_trust(post.target).update(trust_delta, post.content[:50])
 
         # Post-round updates (sequential, safe) + emotional state + trust network
         for post in round_posts:

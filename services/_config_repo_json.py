@@ -146,17 +146,20 @@ class JsonFileConfigRepository(ConfigRepository):
     # ------------------------------------------------------------------
 
     async def get_config(self, key: str) -> dict:
-        loop = asyncio.get_event_loop()
+        # Sync helpers use threading.Lock; offload to default executor to avoid blocking the event loop.
+        # NOTE: ThreadPoolExecutor kept intentionally — underlying I/O uses threading.Lock which cannot
+        # be replaced with aiofiles without removing the cross-process file lock semantics.
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._sync_get, key)
 
     async def set_config(self, key: str, value: dict) -> bool:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._sync_set, key, value)
 
     async def get_all(self) -> dict:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._sync_get_all)
 
     async def delete_config(self, key: str) -> bool:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._sync_delete, key)

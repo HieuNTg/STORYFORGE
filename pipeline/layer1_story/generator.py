@@ -142,6 +142,12 @@ class StoryGenerator:
         all_chapter_texts: list[str] = []
         self_reviewer = self._get_self_reviewer() if self.config.pipeline.enable_self_review else None
 
+        # NOTE (async-migration): ThreadPoolExecutor is kept here intentionally.
+        # The executor is passed to process_chapter_post_write which uses executor.submit()
+        # to run summarize_chapter, extract_character_states, and extract_plot_events in
+        # parallel while the main loop proceeds to the next chapter sequentially.
+        # These are CPU-light LLM calls sharing the same sync LLMClient; replacing with
+        # asyncio.gather would require an async LLM client (future work, see audit #2/#5).
         with ThreadPoolExecutor(max_workers=3) as executor:
             for outline in outlines:
                 story_context.current_chapter = outline.chapter_number

@@ -1,8 +1,8 @@
 """Registry quản lý và điều phối các agent."""
+import asyncio
 import importlib
 import logging
 import pkgutil
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Optional
 from config import ConfigManager
 from models.schemas import AgentReview, PipelineOutput
@@ -71,31 +71,37 @@ class AgentRegistry:
         prior_reviews: list[AgentReview],
         progress_callback: Optional[Callable[[str], None]],
     ) -> list[AgentReview]:
-        """Run a single tier of agents in parallel; return their reviews."""
-        tier_reviews: list[AgentReview] = []
-        max_workers = min(len(tier_agents), ConfigManager().llm.max_parallel_workers)
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(
-                    agent.review, output, layer, iteration,
-                    prior_reviews if prior_reviews else None
-                ): agent
-                for agent in tier_agents
-            }
-            for future in as_completed(futures):
-                agent = futures[future]
+        """Run a single tier of agents in parallel; return their reviews.
+
+        Uses asyncio.gather + run_in_executor so LLM calls are dispatched
+        concurrently without tying up OS threads beyond the default thread pool.
+        agent.review() is synchronous (wraps blocking LLM SDK); run_in_executor
+        offloads each call so the event loop remains responsive between dispatches.
+        """
+        async def _gather_reviews() -> list[AgentReview]:
+            loop = asyncio.get_running_loop()
+            prior = prior_reviews if prior_reviews else None
+
+            async def _one(agent: BaseAgent) -> AgentReview | None:
                 try:
-                    review = future.result()
-                    tier_reviews.append(review)
+                    review: AgentReview = await loop.run_in_executor(
+                        None, agent.review, output, layer, iteration, prior
+                    )
                     if progress_callback:
                         status = "OK" if review.approved else "WARN"
                         progress_callback(
                             f"[AGENTS] {status} {agent.name}: {review.score:.1f}/1.0 "
                             f"({len(review.issues)} vấn đề)"
                         )
+                    return review
                 except Exception as e:
                     logger.warning(f"Agent {agent.name} lỗi ở iteration {iteration}: {e}")
-        return tier_reviews
+                    return None
+
+            gathered = await asyncio.gather(*[_one(a) for a in tier_agents])
+            return [r for r in gathered if r is not None]
+
+        return asyncio.run(_gather_reviews())
 
     def run_review_cycle(
         self,

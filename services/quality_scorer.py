@@ -1,8 +1,8 @@
 """Quality scoring service - LLM-as-judge for story chapters."""
 
+import asyncio
 import logging
 from statistics import mean
-from concurrent.futures import ThreadPoolExecutor
 
 from models.schemas import Chapter, ChapterScore, StoryScore
 from services.llm_client import LLMClient
@@ -60,8 +60,10 @@ class QualityScorer:
     def score_story(self, chapters: list[Chapter], layer: int = 1) -> StoryScore:
         """Score all chapters with rolling context, return aggregate StoryScore.
 
-        Uses parallel execution but builds context sequentially from previous
-        chapter content for coherence checking.
+        Uses asyncio.gather + run_in_executor for concurrent LLM scoring while
+        keeping the public API synchronous (safe to call from threads or sync code).
+        Context is built sequentially before dispatch so each chapter gets the
+        previous chapter's tail as coherence context.
         """
         if not chapters:
             return StoryScore(scoring_layer=layer, weakest_chapter=0)
@@ -74,22 +76,23 @@ class QualityScorer:
             tasks.append((ch, context))
             context = ch.content[:500]
 
-        # Score in parallel — context is already bound per-chapter
-        scores: list[ChapterScore] = []
-        workers = min(3, len(chapters))
-        with ThreadPoolExecutor(max_workers=workers) as executor:
-            futures = {
-                executor.submit(self.score_chapter, ch, ctx): ch
-                for ch, ctx in tasks
-            }
-            for future in futures:
-                try:
-                    scores.append(future.result())
-                except Exception as e:
-                    ch = futures[future]
-                    logger.warning(f"Scoring chapter {ch.chapter_number} failed: {e}")
-                    scores.append(ChapterScore(chapter_number=ch.chapter_number))
+        # Score in parallel via asyncio.gather — releases the event loop between
+        # LLM calls instead of tying up OS threads per concurrent.futures workers.
+        async def _score_all() -> list[ChapterScore]:
+            loop = asyncio.get_running_loop()
+            results: list[ChapterScore] = []
 
+            async def _score_one(ch: Chapter, ctx: str) -> ChapterScore:
+                try:
+                    return await loop.run_in_executor(None, self.score_chapter, ch, ctx)
+                except Exception as e:
+                    logger.warning(f"Scoring chapter {ch.chapter_number} failed: {e}")
+                    return ChapterScore(chapter_number=ch.chapter_number)
+
+            results = await asyncio.gather(*[_score_one(ch, ctx) for ch, ctx in tasks])
+            return list(results)
+
+        scores: list[ChapterScore] = asyncio.run(_score_all())
         scores.sort(key=lambda s: s.chapter_number)
 
         if not scores:
