@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: storyforge
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: STORYFORGE_API_KEY
+        sync: false
+      - key: STORYFORGE_BASE_URL
+        value: https://api.openai.com/v1
+      - key: STORYFORGE_MODEL
+        value: gpt-4o-mini
+      - key: STORYFORGE_BACKEND
+        value: api

@@ -7,33 +7,42 @@
       "type": "datasource",
       "pluginId": "prometheus",
       "pluginName": "Prometheus"
+    },
+    {
+      "name": "DS_LOKI",
+      "label": "Loki",
+      "description": "StoryForge Loki log datasource",
+      "type": "datasource",
+      "pluginId": "loki",
+      "pluginName": "Loki"
     }
   ],
   "__requires": [
-    { "type": "grafana",    "id": "grafana",    "name": "Grafana",    "version": "10.0.0" },
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
     { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
-    { "type": "panel",      "id": "timeseries", "name": "Time series","version": "" },
-    { "type": "panel",      "id": "stat",       "name": "Stat",       "version": "" },
-    { "type": "panel",      "id": "gauge",      "name": "Gauge",      "version": "" }
+    { "type": "datasource", "id": "loki", "name": "Loki", "version": "1.0.0" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
+    { "type": "panel", "id": "gauge", "name": "Gauge", "version": "" },
+    { "type": "panel", "id": "logs", "name": "Logs", "version": "" }
   ],
   "annotations": { "list": [] },
-  "description": "StoryForge production monitoring — API, pipeline, system metrics, and active connections",
+  "description": "StoryForge production monitoring — API, pipeline, and system metrics",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
   "links": [],
   "panels": [
-
     {
       "id": 1,
-      "title": "Request Rate (req/s)",
+      "title": "API Request Rate (req/sec)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "targets": [
         {
-          "expr": "sum(rate(storyforge_requests_total[$__rate_interval])) by (status)",
+          "expr": "sum(rate(http_requests_total{job=\"storyforge\"}[$__rate_interval])) by (status)",
           "legendFormat": "HTTP {{status}}",
           "refId": "A"
         }
@@ -45,59 +54,25 @@
         }
       }
     },
-
     {
       "id": 2,
-      "title": "Error Rate (5xx %)",
+      "title": "API Response Time (p50 / p95 / p99)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "targets": [
         {
-          "expr": "100 * sum(rate(storyforge_requests_total{status=~\"5..\"}[$__rate_interval])) / sum(rate(storyforge_requests_total[$__rate_interval]))",
-          "legendFormat": "5xx %",
-          "refId": "A"
-        },
-        {
-          "expr": "100 * sum(rate(storyforge_requests_total{status=~\"4..\"}[$__rate_interval])) / sum(rate(storyforge_requests_total[$__rate_interval]))",
-          "legendFormat": "4xx %",
-          "refId": "B"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "custom": { "lineWidth": 2, "fillOpacity": 15 },
-          "thresholds": {
-            "steps": [
-              { "color": "green",  "value": null },
-              { "color": "yellow", "value": 1    },
-              { "color": "red",    "value": 5    }
-            ]
-          }
-        }
-      }
-    },
-
-    {
-      "id": 3,
-      "title": "Response Time Percentiles (p50 / p95 / p99)",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.50, sum(rate(storyforge_request_duration_seconds_bucket[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"storyforge\"}[$__rate_interval])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(storyforge_request_duration_seconds_bucket[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"storyforge\"}[$__rate_interval])) by (le))",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(storyforge_request_duration_seconds_bucket[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"storyforge\"}[$__rate_interval])) by (le))",
           "legendFormat": "p99",
           "refId": "C"
         }
@@ -108,25 +83,74 @@
           "custom": { "lineWidth": 2, "fillOpacity": 5 },
           "thresholds": {
             "steps": [
-              { "color": "green",  "value": null },
-              { "color": "yellow", "value": 2    },
-              { "color": "red",    "value": 5    }
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 2 },
+              { "color": "red", "value": 5 }
             ]
           }
         }
       }
     },
-
+    {
+      "id": 3,
+      "title": "HTTP Error Rate by Status Code",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{job=\"storyforge\", status=~\"4..\"}[$__rate_interval])) by (status)",
+          "legendFormat": "4xx {{status}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(http_requests_total{job=\"storyforge\", status=~\"5..\"}[$__rate_interval])) by (status)",
+          "legendFormat": "5xx {{status}}",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineWidth": 2, "fillOpacity": 15 }
+        }
+      }
+    },
     {
       "id": 4,
+      "title": "Pipeline Execution Time by Layer",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(storyforge_pipeline_layer_duration_seconds_bucket[$__rate_interval])) by (le, layer))",
+          "legendFormat": "p95 {{layer}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(storyforge_pipeline_layer_duration_seconds_bucket[$__rate_interval])) by (le, layer))",
+          "legendFormat": "p50 {{layer}}",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "lineWidth": 2, "fillOpacity": 5 }
+        }
+      }
+    },
+    {
+      "id": 5,
       "title": "Active SSE Connections",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 16 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "targets": [
         {
-          "expr": "storyforge_active_sse_connections",
-          "legendFormat": "SSE connections",
+          "expr": "storyforge_sse_connections_active",
+          "legendFormat": "Active SSE",
           "refId": "A"
         }
       ],
@@ -135,47 +159,19 @@
           "unit": "short",
           "thresholds": {
             "steps": [
-              { "color": "green",  "value": null },
-              { "color": "yellow", "value": 50   },
-              { "color": "red",    "value": 100  }
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red", "value": 100 }
             ]
           }
         }
       }
     },
-
-    {
-      "id": 5,
-      "title": "Active Pipelines",
-      "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 16 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "targets": [
-        {
-          "expr": "active_pipelines",
-          "legendFormat": "Running pipelines",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short",
-          "thresholds": {
-            "steps": [
-              { "color": "green",  "value": null },
-              { "color": "yellow", "value": 10   },
-              { "color": "red",    "value": 25   }
-            ]
-          }
-        }
-      }
-    },
-
     {
       "id": 6,
-      "title": "CPU Usage (%)",
+      "title": "System CPU Usage",
       "type": "gauge",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 16 },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 16 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "targets": [
         {
@@ -191,20 +187,19 @@
           "max": 100,
           "thresholds": {
             "steps": [
-              { "color": "green",  "value": null },
-              { "color": "yellow", "value": 70   },
-              { "color": "red",    "value": 90   }
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 60 },
+              { "color": "red", "value": 85 }
             ]
           }
         }
       }
     },
-
     {
       "id": 7,
-      "title": "Memory Usage (%)",
+      "title": "System Memory Usage",
       "type": "gauge",
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 16 },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 16 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "targets": [
         {
@@ -220,71 +215,23 @@
           "max": 100,
           "thresholds": {
             "steps": [
-              { "color": "green",  "value": null },
-              { "color": "yellow", "value": 70   },
-              { "color": "red",    "value": 85   }
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 85 }
             ]
           }
         }
       }
     },
-
     {
       "id": 8,
-      "title": "Pipeline Execution Duration (p50 / p95 by genre)",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(pipeline_duration_seconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "p95 pipeline duration",
-          "refId": "A"
-        },
-        {
-          "expr": "histogram_quantile(0.50, sum(rate(pipeline_duration_seconds_bucket[$__rate_interval])) by (le))",
-          "legendFormat": "p50 pipeline duration",
-          "refId": "B"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "custom": { "lineWidth": 2, "fillOpacity": 5 }
-        }
-      }
-    },
-
-    {
-      "id": 9,
-      "title": "Pipeline Run Rate by Status",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "targets": [
-        {
-          "expr": "sum(rate(storyforge_pipeline_runs_total[$__rate_interval])) by (status)",
-          "legendFormat": "{{status}}",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps",
-          "custom": { "lineWidth": 2, "fillOpacity": 10 }
-        }
-      }
-    },
-
-    {
-      "id": 10,
-      "title": "Pipeline Failure Rate (%)",
+      "title": "Pipeline Failure Rate",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 28 },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 16 },
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "targets": [
         {
-          "expr": "100 * sum(rate(storyforge_pipeline_runs_total{status=\"failed\"}[$__rate_interval])) / sum(rate(storyforge_pipeline_runs_total[$__rate_interval]))",
+          "expr": "100 * (sum(rate(storyforge_pipeline_runs_total{status=\"failed\"}[$__rate_interval])) / sum(rate(storyforge_pipeline_runs_total[$__rate_interval])))",
           "legendFormat": "Failure %",
           "refId": "A"
         }
@@ -294,43 +241,40 @@
           "unit": "percent",
           "thresholds": {
             "steps": [
-              { "color": "green",  "value": null },
-              { "color": "yellow", "value": 10   },
-              { "color": "red",    "value": 20   }
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 20 }
             ]
           }
         }
       }
     },
-
     {
-      "id": 11,
-      "title": "LLM Errors / s",
-      "type": "timeseries",
-      "gridPos": { "h": 4, "w": 18, "x": 6, "y": 28 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "id": 9,
+      "title": "Application Logs",
+      "type": "logs",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 20 },
+      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
       "targets": [
         {
-          "expr": "sum(rate(llm_errors_total[$__rate_interval])) by (provider, error_type)",
-          "legendFormat": "{{provider}} — {{error_type}}",
-          "refId": "A"
+          "expr": "{job=\"storyforge\"}",
+          "legendFormat": "",
+          "refId": "A",
+          "queryType": "range"
         }
       ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "reqps",
-          "custom": { "lineWidth": 2, "fillOpacity": 10 },
-          "thresholds": {
-            "steps": [
-              { "color": "green",  "value": null },
-              { "color": "yellow", "value": 1    },
-              { "color": "red",    "value": 5    }
-            ]
-          }
-        }
-      }
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "maxDataPoints": 100
     }
-
   ],
   "refresh": "30s",
   "schemaVersion": 38,
@@ -342,6 +286,13 @@
         "type": "datasource",
         "pluginId": "prometheus",
         "label": "Prometheus",
+        "current": {}
+      },
+      {
+        "name": "loki_datasource",
+        "type": "datasource",
+        "pluginId": "loki",
+        "label": "Loki",
         "current": {}
       }
     ]

@@ -1,0 +1,15 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "./Dockerfile"
+
+[deploy]
+startCommand = "python app.py"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[variables]
+STORYFORGE_API_KEY = ""
+STORYFORGE_BASE_URL = "https://api.openai.com/v1"
+STORYFORGE_MODEL = "gpt-4o-mini"

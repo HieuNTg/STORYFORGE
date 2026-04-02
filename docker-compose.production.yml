@@ -13,6 +13,8 @@ volumes:
     driver: local
   storyforge-redis-data:
     driver: local
+  loki-data:
+    driver: local
 
 services:
 
@@ -162,3 +164,57 @@ services:
         reservations:
           cpus: "0.1"
           memory: 32M
+
+  # ── Loki (log aggregation) ─────────────────────────────────────────────────
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: storyforge-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki-data:/loki
+      - ./monitoring/loki-config.yml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - storyforge-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
+  # ── Promtail (log shipper) ─────────────────────────────────────────────────
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: storyforge-promtail
+    volumes:
+      - /var/log:/var/log:ro
+      - ./monitoring/promtail-config.yml:/etc/promtail/config.yml:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - storyforge-network
+    depends_on:
+      - loki
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+
+  # ── Certbot (SSL auto-renewal) ─────────────────────────────────────────────
+  certbot:
+    image: certbot/certbot
+    container_name: storyforge-certbot
+    volumes:
+      - ./nginx/ssl:/etc/letsencrypt
+      - ./nginx/webroot:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet; sleep 12h & wait $${!}; done;'"
+    restart: unless-stopped

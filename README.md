@@ -15,6 +15,10 @@
 </p>
 
 <p align="center">
+  🇻🇳 <a href="README.vi.md">Tiếng Việt</a>
+</p>
+
+<p align="center">
   Turn a one-sentence idea into a complete, drama-rich story with video-ready storyboards.<br />
   Self-hosted. Privacy-first. Works with any OpenAI-compatible LLM.
 </p>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StoryForge — AI-Powered Story Generation Platform</title>
+  <meta name="description" content="Turn a one-sentence idea into a complete, drama-rich story with video-ready storyboards. Self-hosted. Privacy-first. Works with any LLM." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { DEFAULT: '#7C3AED', light: '#A78BFA', dark: '#5B21B6' },
+            surface: { DEFAULT: '#1E1B2E', card: '#252239', border: '#3D3660' }
+          },
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    body { background-color: #1E1B2E; color: #E2E0F0; }
+    .gradient-text { background: linear-gradient(135deg, #A78BFA 0%, #60A5FA 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .card-glow:hover { box-shadow: 0 0 30px rgba(124, 58, 237, 0.15); }
+    .hero-glow { background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(124,58,237,0.25) 0%, transparent 70%); }
+  </style>
+</head>
+<body class="font-sans antialiased">
+
+  <!-- Nav -->
+  <nav class="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-surface/80 border-b border-surface-border">
+    <div class="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+      <span class="font-bold text-lg tracking-tight gradient-text">StoryForge</span>
+      <div class="flex items-center gap-3">
+        <a href="https://github.com/HieuNTg/STORYFORGE" class="text-sm text-purple-300 hover:text-white transition-colors hidden sm:block">Docs</a>
+        <a href="https://github.com/HieuNTg/STORYFORGE" target="_blank" rel="noopener"
+           class="px-3 py-1.5 text-sm bg-surface-card border border-surface-border rounded-lg hover:border-brand transition-colors">
+          GitHub
+        </a>
+        <a href="https://railway.app/new/template?template=https://github.com/HieuNTg/STORYFORGE" target="_blank" rel="noopener"
+           class="px-3 py-1.5 text-sm bg-brand hover:bg-brand-dark rounded-lg font-medium transition-colors">
+          Deploy Free
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="relative pt-28 pb-20 px-4 hero-glow">
+    <div class="max-w-4xl mx-auto text-center">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-card border border-surface-border text-xs text-purple-300 mb-6">
+        <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+        Open source · Self-hosted · Privacy-first
+      </div>
+      <h1 class="text-4xl sm:text-6xl font-extrabold leading-tight mb-6">
+        <span class="gradient-text">StoryForge</span><br />
+        <span class="text-gray-200">AI-Powered Story Generation</span>
+      </h1>
+      <p class="text-lg text-gray-400 max-w-2xl mx-auto mb-10">
+        Turn a one-sentence idea into a complete, drama-rich story with video-ready storyboards.
+        Your characters become autonomous AI agents that argue, form alliances, and betray each other.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-3 justify-center items-center">
+        <a href="https://railway.app/new/template?template=https://github.com/HieuNTg/STORYFORGE" target="_blank" rel="noopener"
+           class="w-full sm:w-auto px-6 py-3 bg-brand hover:bg-brand-dark rounded-xl font-semibold transition-colors flex items-center justify-center gap-2">
+          Deploy on Railway — Free
+        </a>
+        <a href="https://render.com/deploy?repo=https://github.com/HieuNTg/STORYFORGE" target="_blank" rel="noopener"
+           class="w-full sm:w-auto px-6 py-3 bg-surface-card border border-surface-border hover:border-brand rounded-xl font-semibold transition-colors flex items-center justify-center gap-2">
+          Deploy on Render
+        </a>
+        <a href="https://github.com/HieuNTg/STORYFORGE" target="_blank" rel="noopener"
+           class="w-full sm:w-auto px-6 py-3 text-gray-300 hover:text-white transition-colors flex items-center justify-center gap-2">
+          View on GitHub →
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features" class="py-20 px-4">
+    <div class="max-w-6xl mx-auto">
+      <h2 class="text-3xl font-bold text-center mb-3">Why StoryForge?</h2>
+      <p class="text-gray-400 text-center mb-12 max-w-2xl mx-auto">Most AI writing tools produce flat, predictable stories. StoryForge takes a fundamentally different approach.</p>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Feature cards -->
+        <div class="card-glow bg-surface-card border border-surface-border rounded-2xl p-6 transition-all">
+          <div class="text-3xl mb-3">🎭</div>
+          <h3 class="font-semibold mb-2">3-Layer Pipeline</h3>
+          <p class="text-sm text-gray-400">Story Generation → Drama Simulation → Video Storyboarding. Each layer builds on the last with checkpoint &amp; resume.</p>
+        </div>
+        <div class="card-glow bg-surface-card border border-surface-border rounded-2xl p-6 transition-all">
+          <div class="text-3xl mb-3">🤖</div>
+          <h3 class="font-semibold mb-2">13 AI Agents</h3>
+          <p class="text-sm text-gray-400">Autonomous character agents + drama critic, editor-in-chief, pacing analyzer, style checker, and dialogue expert.</p>
+        </div>
+        <div class="card-glow bg-surface-card border border-surface-border rounded-2xl p-6 transition-all">
+          <div class="text-3xl mb-3">🇻🇳</div>
+          <h3 class="font-semibold mb-2">Vietnamese-First</h3>
+          <p class="text-sm text-gray-400">Built for Vietnamese fiction genres: Tiên Hiệp, Kiếm Hiệp, Ngôn Tình, and 17 more. English fully supported too.</p>
+        </div>
+        <div class="card-glow bg-surface-card border border-surface-border rounded-2xl p-6 transition-all">
+          <div class="text-3xl mb-3">🔒</div>
+          <h3 class="font-semibold mb-2">Self-Hosted</h3>
+          <p class="text-sm text-gray-400">Your stories and API keys never leave your infrastructure. Works with OpenAI, Gemini, Anthropic, OpenRouter, or Ollama.</p>
+        </div>
+        <div class="card-glow bg-surface-card border border-surface-border rounded-2xl p-6 transition-all">
+          <div class="text-3xl mb-3">📊</div>
+          <h3 class="font-semibold mb-2">Quality Scoring</h3>
+          <p class="text-sm text-gray-400">4-dimension LLM-as-judge scoring (coherence, character, drama, writing style) with automated re-enhancement loop.</p>
+        </div>
+        <div class="card-glow bg-surface-card border border-surface-border rounded-2xl p-6 transition-all">
+          <div class="text-3xl mb-3">📚</div>
+          <h3 class="font-semibold mb-2">Rich Export</h3>
+          <p class="text-sm text-gray-400">PDF, EPUB, HTML web reader, and full video storyboards with shot-by-shot camera direction and image prompts.</p>
+        </div>
+        <div class="card-glow bg-surface-card border border-surface-border rounded-2xl p-6 transition-all">
+          <div class="text-3xl mb-3">🔀</div>
+          <h3 class="font-semibold mb-2">Branch Reader</h3>
+          <p class="text-sm text-gray-400">Choose-your-own-adventure mode: readers make choices that reshape the story in real-time via LLM-generated branches.</p>
+        </div>
+        <div class="card-glow bg-surface-card border border-surface-border rounded-2xl p-6 transition-all">
+          <div class="text-3xl mb-3">💰</div>
+          <h3 class="font-semibold mb-2">Smart Routing</h3>
+          <p class="text-sm text-gray-400">Assign cheap models to analysis tasks and premium models to writing — ~45% cost savings with per-layer model overrides.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section id="how-it-works" class="py-20 px-4 bg-surface-card/40">
+    <div class="max-w-4xl mx-auto">
+      <h2 class="text-3xl font-bold text-center mb-12">How It Works</h2>
+      <div class="grid sm:grid-cols-3 gap-6">
+        <div class="text-center">
+          <div class="w-12 h-12 rounded-2xl bg-brand/20 border border-brand/40 flex items-center justify-center text-xl font-bold text-brand-light mx-auto mb-4">1</div>
+          <h3 class="font-semibold mb-2">Configure</h3>
+          <p class="text-sm text-gray-400">Choose your AI provider, enter your API key, select a genre and writing style, then describe your story in one sentence.</p>
+        </div>
+        <div class="text-center">
+          <div class="w-12 h-12 rounded-2xl bg-brand/20 border border-brand/40 flex items-center justify-center text-xl font-bold text-brand-light mx-auto mb-4">2</div>
+          <h3 class="font-semibold mb-2">Generate</h3>
+          <p class="text-sm text-gray-400">Watch the 3-layer pipeline stream in real-time — story drafting, drama simulation with AI agents, and storyboard creation.</p>
+        </div>
+        <div class="text-center">
+          <div class="w-12 h-12 rounded-2xl bg-brand/20 border border-brand/40 flex items-center justify-center text-xl font-bold text-brand-light mx-auto mb-4">3</div>
+          <h3 class="font-semibold mb-2">Export</h3>
+          <p class="text-sm text-gray-400">Read in the built-in web reader, launch interactive branch mode, or download as PDF, EPUB, HTML, or storyboard ZIP.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tech Stack -->
+  <section class="py-16 px-4">
+    <div class="max-w-3xl mx-auto text-center">
+      <h2 class="text-2xl font-bold mb-8">Built With</h2>
+      <div class="flex flex-wrap justify-center gap-2">
+        <span class="px-3 py-1.5 bg-surface-card border border-surface-border rounded-full text-sm">Python 3.10+</span>
+        <span class="px-3 py-1.5 bg-surface-card border border-surface-border rounded-full text-sm">FastAPI</span>
+        <span class="px-3 py-1.5 bg-surface-card border border-surface-border rounded-full text-sm">Alpine.js</span>
+        <span class="px-3 py-1.5 bg-surface-card border border-surface-border rounded-full text-sm">Tailwind CSS</span>
+        <span class="px-3 py-1.5 bg-surface-card border border-surface-border rounded-full text-sm">Docker</span>
+        <span class="px-3 py-1.5 bg-surface-card border border-surface-border rounded-full text-sm">SSE Streaming</span>
+        <span class="px-3 py-1.5 bg-surface-card border border-surface-border rounded-full text-sm">edge-tts</span>
+        <span class="px-3 py-1.5 bg-surface-card border border-surface-border rounded-full text-sm">ReportLab PDF</span>
+        <span class="px-3 py-1.5 bg-surface-card border border-surface-border rounded-full text-sm">EPUB</span>
+        <span class="px-3 py-1.5 bg-surface-card border border-surface-border rounded-full text-sm">JWT Auth</span>
+        <span class="px-3 py-1.5 bg-surface-card border border-surface-border rounded-full text-sm">ChromaDB RAG</span>
+        <span class="px-3 py-1.5 bg-surface-card border border-surface-border rounded-full text-sm">GitHub Actions CI</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="py-20 px-4 hero-glow">
+    <div class="max-w-2xl mx-auto text-center">
+      <h2 class="text-3xl font-bold mb-4">Start Writing Today</h2>
+      <p class="text-gray-400 mb-8">Deploy in under 2 minutes. Free tier available on Railway and Render. No credit card required.</p>
+      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <a href="https://railway.app/new/template?template=https://github.com/HieuNTg/STORYFORGE" target="_blank" rel="noopener"
+           class="px-8 py-3 bg-brand hover:bg-brand-dark rounded-xl font-semibold transition-colors">
+          Deploy Now — Railway
+        </a>
+        <a href="https://github.com/HieuNTg/STORYFORGE" target="_blank" rel="noopener"
+           class="px-8 py-3 bg-surface-card border border-surface-border hover:border-brand rounded-xl font-semibold transition-colors">
+          Star on GitHub
+        </a>
+        <a href="https://discord.gg/storyforge" target="_blank" rel="noopener"
+           class="px-8 py-3 text-gray-300 hover:text-white transition-colors flex items-center justify-center">
+          Join Discord
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="border-t border-surface-border py-8 px-4">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <span class="font-semibold gradient-text">StoryForge</span>
+      <div class="flex gap-6 text-sm text-gray-500">
+        <a href="https://github.com/HieuNTg/STORYFORGE" class="hover:text-white transition-colors">GitHub</a>
+        <a href="https://github.com/HieuNTg/STORYFORGE/blob/main/README.vi.md" class="hover:text-white transition-colors">Tiếng Việt</a>
+        <a href="https://github.com/HieuNTg/STORYFORGE/blob/main/docs/self-hosting.md" class="hover:text-white transition-colors">Self-Hosting</a>
+        <a href="https://github.com/HieuNTg/STORYFORGE/blob/main/CONTRIBUTING.md" class="hover:text-white transition-colors">Contribute</a>
+        <a href="https://github.com/HieuNTg/STORYFORGE/blob/main/LICENSE" class="hover:text-white transition-colors">MIT License</a>
+      </div>
+      <span class="text-xs text-gray-600">Copyright 2026 StoryForge Contributors</span>
+    </div>
+  </footer>
+
+</body>
+</html>
