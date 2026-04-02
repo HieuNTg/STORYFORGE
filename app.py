@@ -128,12 +128,25 @@ def main():
     from middleware.rate_limiter import RateLimitMiddleware
     main_app.add_middleware(RateLimitMiddleware)
 
+    # --- Audit logging middleware ---
+    from middleware.audit_middleware import AuditMiddleware
+    main_app.add_middleware(AuditMiddleware)
+
+    # --- Request metrics middleware ---
+    from middleware.metrics_middleware import MetricsMiddleware
+    main_app.add_middleware(MetricsMiddleware)
+
     from errors.exceptions import StoryForgeError
     from errors.handlers import storyforge_error_handler
     main_app.add_exception_handler(StoryForgeError, storyforge_error_handler)
 
     # API routes
     main_app.include_router(api_router)
+
+    # --- API v1 versioned routes (mirrors /api/ with version header) ---
+    from api.v1 import v1_router, DeprecationMiddleware
+    main_app.include_router(v1_router)
+    main_app.add_middleware(DeprecationMiddleware)
 
     # Static files (web/)
     web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")

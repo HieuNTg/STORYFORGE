@@ -1,90 +1,55 @@
-"""API v1 package.
+"""API v1 versioned router.
 
-Exposes:
-  - v1_router:              the assembled /api/v1 APIRouter (lazy-built on first access)
-  - DeprecationMiddleware:  Starlette middleware that adds a Deprecation header to all
-                            requests whose path starts with /api/ but NOT /api/v1/.
-                            Mount this on the FastAPI app alongside v1_router to guide
-                            clients toward the versioned endpoints.
-
-Usage in app.py (when ready to enable versioned routing):
-
-    from api.v1 import v1_router, DeprecationMiddleware
-    main_app.add_middleware(DeprecationMiddleware)
-    main_app.include_router(v1_router)
+Mirrors all /api/* routes under /api/v1/* so clients can pin to a stable version.
+The DeprecationMiddleware adds a Deprecation response header when a v1 path is hit,
+nudging clients to migrate to the unversioned /api/* endpoints.
 """
 
-from __future__ import annotations
-
-import logging
-
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
 
-from api.v1.router import build_v1_router
+from api import api_router as _base_router
 
-logger = logging.getLogger(__name__)
+# Re-export all routes under /api/v1 prefix by including the same sub-routers.
+# We import individual routers rather than re-mounting api_router to avoid
+# duplicate route registration on the shared FastAPI app instance.
+from api.auth_routes import router as _auth
+from api.config_routes import router as _config
+from api.pipeline_routes import router as _pipeline
+from api.export_routes import router as _export
+from api.analytics_routes import router as _analytics
+from api.metrics_routes import router as _metrics
+from api.dashboard_routes import router as _dashboard
+from api.ab_routes import router as _ab
+from api.branch_routes import router as _branch
+from api.audio_routes import router as _audio
 
-# ---------------------------------------------------------------------------
-# Lazy singleton router
-# ---------------------------------------------------------------------------
+v1_router = APIRouter(prefix="/api/v1")
+v1_router.include_router(_auth)
+v1_router.include_router(_config)
+v1_router.include_router(_pipeline)
+v1_router.include_router(_export)
+v1_router.include_router(_analytics)
+v1_router.include_router(_metrics)
+v1_router.include_router(_dashboard)
+v1_router.include_router(_ab)
+v1_router.include_router(_branch)
+v1_router.include_router(_audio)
 
-_v1_router: APIRouter | None = None
-
-
-def _get_v1_router() -> APIRouter:
-    global _v1_router
-    if _v1_router is None:
-        _v1_router = build_v1_router()
-    return _v1_router
-
-
-# Public name — callers do: from api.v1 import v1_router
-v1_router: APIRouter = _get_v1_router()  # type: ignore[assignment]
-# Using property-like lazy initialisation; reassign so the name is importable directly.
-v1_router = _get_v1_router()
-
-
-# ---------------------------------------------------------------------------
-# Deprecation middleware
-# ---------------------------------------------------------------------------
-
-_DEPRECATION_LINK = "https://docs.storyforge.io/api/migration-v1"
+_DEPRECATION_NOTICE = (
+    "The /api/v1/ prefix is provided for backward compatibility. "
+    "Please migrate to /api/ (unversioned) endpoints."
+)
 
 
 class DeprecationMiddleware(BaseHTTPMiddleware):
-    """Add Deprecation + Sunset headers for non-versioned /api/* requests.
+    """Add a Deprecation header on all /api/v1/* responses."""
 
-    Any request to /api/<path> that does NOT start with /api/v1/ is treated
-    as a legacy (non-versioned) call and receives:
-      - Deprecation: true
-      - Link: <docs-url>; rel="deprecation"
-      - Sunset: (informational date set in STORYFORGE_API_SUNSET env var)
-
-    This allows clients to detect the deprecation via standard HTTP headers
-    without breaking existing integrations.
-    """
-
-    EXEMPT_PREFIXES = ("/api/v1/", "/api/health")
-
-    async def dispatch(self, request: Request, call_next) -> Response:
-        path = request.url.path
-        is_legacy_api = (
-            path.startswith("/api/")
-            and not any(path.startswith(p) for p in self.EXEMPT_PREFIXES)
-        )
-
-        response: Response = await call_next(request)
-
-        if is_legacy_api:
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path.startswith("/api/v1/"):
             response.headers["Deprecation"] = "true"
-            response.headers["Link"] = f'<{_DEPRECATION_LINK}>; rel="deprecation"'
-            logger.debug(
-                "deprecation_middleware: legacy path %s — deprecation header added", path
-            )
-
+            response.headers["X-Deprecation-Notice"] = _DEPRECATION_NOTICE
         return response
 
 

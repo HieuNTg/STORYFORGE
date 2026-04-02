@@ -1,96 +1,84 @@
-"""Feedback API routes — collect and query user ratings for story chapters.
+"""User feedback endpoints — collect ratings and comments on generated stories.
 
-Prefix: /api/feedback
+Feedback is stored in-memory (keyed by story_id) and exposed for analytics.
+No auth required to submit; listing requires auth to prevent data harvesting.
 """
 
-from __future__ import annotations
+import logging
+import time
+from typing import List, Optional
 
-from typing import Any, Optional
-
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from services.feedback_collector import FeedbackEntry, RatingScores, collector
+from middleware.auth_middleware import get_current_user
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/feedback", tags=["feedback"])
+
+# In-memory store: story_id -> list of FeedbackEntry dicts
+_store: dict[str, list] = {}
 
 
 # ---------------------------------------------------------------------------
 # Request / Response models
 # ---------------------------------------------------------------------------
 
-class RateRequest(BaseModel):
-    """Body for POST /rate."""
+class FeedbackRequest(BaseModel):
     story_id: str = Field(..., min_length=1, max_length=128)
-    chapter_idx: int = Field(..., ge=0)
-    user_id: str = Field(..., min_length=1, max_length=64)
-    scores: RatingScores
-    comment: str = Field(default="", max_length=2000)
+    rating: int = Field(..., ge=1, le=5, description="1–5 star rating")
+    comment: Optional[str] = Field(None, max_length=2000)
 
 
-class RateResponse(BaseModel):
-    """Confirmation response after submitting a rating."""
-    feedback_id: str
-    overall: float
-    status: str = "ok"
-
-
-class StoryRatingsResponse(BaseModel):
-    """All ratings for a single story."""
+class FeedbackEntry(BaseModel):
     story_id: str
-    total: int
-    ratings: list[dict[str, Any]]
+    rating: int
+    comment: Optional[str]
+    submitted_at: float
 
 
-class StatsResponse(BaseModel):
-    """Aggregate feedback statistics across all stories."""
-    total_ratings: int
-    avg_overall: float
-    avg_coherence: float
-    avg_character: float
-    avg_drama: float
-    avg_writing: float
-    score_distribution: dict[str, int]
-    per_story_count: dict[str, int]
+class FeedbackListResponse(BaseModel):
+    story_id: str
+    entries: List[FeedbackEntry]
+    average_rating: float
+    count: int
 
 
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
 
-@router.post("/rate", response_model=RateResponse, status_code=201)
-def submit_rating(body: RateRequest) -> RateResponse:
-    """Submit a user rating for a specific chapter.
-
-    Scores are 1–5 per dimension: coherence, character, drama, writing.
-    """
-    try:
-        entry: FeedbackEntry = collector.submit_rating(
-            story_id=body.story_id,
-            chapter_idx=body.chapter_idx,
-            user_id=body.user_id,
-            scores=body.scores.model_dump(),
-            comment=body.comment,
-        )
-    except Exception as exc:  # pragma: no cover
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    return RateResponse(feedback_id=entry.feedback_id, overall=entry.overall)
-
-
-@router.get("/story/{story_id}", response_model=StoryRatingsResponse)
-def get_story_ratings(story_id: str) -> StoryRatingsResponse:
-    """Return all ratings submitted for a story, ordered by chapter then time."""
-    entries = collector.get_story_ratings(story_id)
-    return StoryRatingsResponse(
-        story_id=story_id,
-        total=len(entries),
-        ratings=[e.model_dump() for e in entries],
+@router.post("", status_code=201)
+async def submit_feedback(body: FeedbackRequest) -> dict:
+    """Submit a rating and optional comment for a story."""
+    entry = FeedbackEntry(
+        story_id=body.story_id,
+        rating=body.rating,
+        comment=body.comment,
+        submitted_at=time.time(),
     )
+    if body.story_id not in _store:
+        _store[body.story_id] = []
+    _store[body.story_id].append(entry.model_dump())
+    logger.info(f"Feedback submitted: story={body.story_id} rating={body.rating}")
+    return {"status": "ok", "story_id": body.story_id}
 
 
-@router.get("/stats", response_model=StatsResponse)
-def get_stats() -> StatsResponse:
-    """Return aggregate feedback statistics across all rated stories."""
-    stats = collector.get_aggregate_stats()
-    return StatsResponse(**stats)
+@router.get("/{story_id}", response_model=FeedbackListResponse)
+async def get_feedback(
+    story_id: str,
+    _user: dict = Depends(get_current_user),
+) -> FeedbackListResponse:
+    """Return all feedback entries for a story (auth required)."""
+    entries_raw = _store.get(story_id, [])
+    if not entries_raw:
+        raise HTTPException(status_code=404, detail=f"No feedback found for story '{story_id}'")
+
+    entries = [FeedbackEntry(**e) for e in entries_raw]
+    avg = round(sum(e.rating for e in entries) / len(entries), 2)
+    return FeedbackListResponse(
+        story_id=story_id,
+        entries=entries,
+        average_rating=avg,
+        count=len(entries),
+    )
