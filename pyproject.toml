@@ -68,3 +68,15 @@ title = "StoryForge Coverage Report"
 
 [tool.coverage.xml]
 output = "coverage.xml"
+
+[tool.mutmut]
+# Mutation testing configuration — see mutmut_config.py for hooks
+paths_to_mutate = [
+    "services/auth.py",
+    "services/token_cost_tracker.py",
+    "middleware/rbac.py",
+    "pipeline/agents/debate_orchestrator.py",
+]
+tests_dir = "tests"
+# Exclude vendor, data fixtures, and generated artefacts
+runner = "python -m pytest -x -q"
