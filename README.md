@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  🇻🇳 <a href="README.vi.md">Tiếng Việt</a>
+  <a href="README.vi.md">Tiếng Việt</a> · <a href="https://railway.app/new/template?template=https://github.com/HieuNTg/STORYFORGE">Deploy on Railway</a> · <a href="https://render.com/deploy?repo=https://github.com/HieuNTg/STORYFORGE">Deploy on Render</a>
 </p>
 
 <p align="center">
@@ -23,11 +23,27 @@
   Self-hosted. Privacy-first. Works with any OpenAI-compatible LLM.
 </p>
 
+<p align="center">
+  <img src="assets/screenshots/create-story.png" alt="StoryForge — Create Story" width="800" />
+</p>
+
 ---
 
 ## Why StoryForge?
 
 Most AI writing tools produce flat, predictable stories. StoryForge takes a different approach: your characters become **autonomous AI agents** that interact, argue, form alliances, and betray each other in a multi-round drama simulation. The simulation uncovers conflicts the author never planned — then rewrites the story around them, scored and revised automatically until it meets a quality threshold.
+
+---
+
+## Screenshots
+
+| Create Story | Settings |
+|:---:|:---:|
+| ![Create](assets/screenshots/create-story.png) | ![Settings](assets/screenshots/settings.png) |
+
+| Story Library | Light Mode |
+|:---:|:---:|
+| ![Library](assets/screenshots/library.png) | ![Light](assets/screenshots/light-mode.png) |
 
 ---
 
@@ -42,6 +58,7 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 - **Interactive branch reader** — choose-your-own-adventure mode with LLM-generated branching paths
 - **Self-hosted, privacy-first** — your stories and API keys never leave your infrastructure
 - **Smart model routing** — assign cheap models to analysis tasks and premium models to writing (~45% cost savings)
+- **Customizable agent prompts** — edit `data/prompts/agent_prompts.yaml` to tune how AI agents evaluate and enhance stories
 - **Text-to-speech narration** — in-browser audio via `edge-tts`, no extra API key required
 
 ---
@@ -55,6 +72,10 @@ docker compose up
 ```
 
 Open [http://localhost:7860](http://localhost:7860). That's it.
+
+### One-Click Deploy
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/HieuNTg/STORYFORGE)
 
 ### Local
 
@@ -96,6 +117,13 @@ All settings are managed through the **Settings** tab in the web UI and persiste
 Any provider that exposes an OpenAI-compatible `/v1/chat/completions` endpoint works with StoryForge:
 
 **OpenAI** · **Google Gemini** · **Anthropic** · **OpenRouter** · **Ollama** · **Any custom endpoint**
+
+### Customizing Agent Prompts
+
+StoryForge ships with 10 customizable agent prompts in `data/prompts/agent_prompts.yaml`. Edit this file to:
+- Change the language of AI evaluation (default: Vietnamese)
+- Adjust scoring criteria and thresholds
+- Modify agent personalities and review focus areas
 
 ---
 
@@ -165,6 +193,7 @@ flowchart LR
 | Storage | JSON files, SQLite (cache) |
 | Export | ReportLab (PDF), ebooklib (EPUB) |
 | Auth & Security | JWT, rate limiting, audit logging |
+| Monitoring | Prometheus, Grafana, Loki |
 | Containerization | Docker, Docker Compose |
 | CI/CD | GitHub Actions |
 
@@ -196,9 +225,11 @@ storyforge/
 ├── web/                        # Alpine.js frontend (SPA)
 │   ├── index.html
 │   └── js/
-├── middleware/                 # Auth, rate limiting, audit logging
+├── data/prompts/               # Customizable agent prompts (YAML)
+├── middleware/                  # Auth, rate limiting, audit logging
+├── monitoring/                 # Prometheus, Grafana, Loki configs
 ├── models/schemas.py           # Pydantic data models
-└── tests/                      # Test suite
+└── tests/                      # Test suite (73 files, 18K+ LOC)
 ```
 
 ---
