@@ -1,0 +1,56 @@
+# StoryForge Prometheus Configuration
+# Scrapes app metrics and optional node-exporter for system metrics
+# Deploy alongside docker-compose.production.yml
+
+global:
+  scrape_interval:     15s   # How often to scrape targets
+  evaluation_interval: 15s   # How often to evaluate rules
+  scrape_timeout:      10s
+
+  # Labels added to every time series and alert
+  external_labels:
+    environment: production
+    project:     storyforge
+
+# ── Alerting ──────────────────────────────────────────────────────────────────
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093  # Optional: deploy Alertmanager alongside
+
+# ── Rule Files ────────────────────────────────────────────────────────────────
+rule_files:
+  - "alerting-rules.yml"
+
+# ── Scrape Configs ────────────────────────────────────────────────────────────
+scrape_configs:
+
+  # StoryForge application metrics
+  - job_name: storyforge
+    metrics_path: /api/metrics
+    static_configs:
+      - targets:
+          - app:7860
+        labels:
+          service: storyforge-app
+    # Relabel to add useful metadata
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+
+  # Node exporter — host system metrics (optional, deploy separately)
+  - job_name: node-exporter
+    static_configs:
+      - targets:
+          - node-exporter:9100
+        labels:
+          service: node-exporter
+    # Only scrape if reachable; honor_labels keeps host labels intact
+    honor_labels: true
+
+  # Prometheus self-monitoring
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090
