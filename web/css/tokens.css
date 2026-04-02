@@ -92,3 +92,46 @@
     /* Brand colors unchanged — work in both themes */
   }
 }
+
+/* ── Dark mode via .dark class (JS-controlled toggle) ──
+   Mirrors the @media block above so the JS toggle works
+   without requiring the OS-level preference.
+   Priority: .dark class > @media (specificity wins on :root).
+*/
+.dark {
+  /* Surface */
+  --sf-color-surface-50:  #0F172A;
+  --sf-color-surface-100: #1E293B;
+  --sf-color-surface-200: #334155;
+
+  /* Text */
+  --sf-color-text-primary:   #F1F5F9;
+  --sf-color-text-secondary: #CBD5E1;
+  --sf-color-text-muted:     #64748B;
+
+  /* Shadows — subtler in dark mode */
+  --sf-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --sf-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --sf-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+}
+
+/* ── Focus-visible ring — keyboard navigation indicator ──
+   Applies a visible ring to any focusable element navigated
+   via keyboard (not mouse). Works across light and dark themes.
+*/
+:focus-visible {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}
+
+/* Remove the default outline suppression on interactive elements
+   so :focus-visible can take over cleanly. */
+textarea:focus-visible,
+input:focus-visible,
+select:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+}

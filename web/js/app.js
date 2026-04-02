@@ -29,8 +29,25 @@ document.addEventListener('alpine:init', () => {
     sessionId: null,
     pipelineResult: null,
     storageWarning: '',
+    /** Current theme: 'dark' | 'light'. Reflects the <html> .dark class. */
+    darkMode: document.documentElement.classList.contains('dark'),
 
     navItems: NAV_ITEMS,
+
+    /**
+     * Toggle dark mode: flip the .dark class on <html>, persist choice.
+     * Uses localStorage directly for the theme pref so it survives sessions
+     * (storageManager is session-scoped by default).
+     */
+    toggleDarkMode() {
+      this.darkMode = !this.darkMode;
+      if (this.darkMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      try { localStorage.setItem('sf_theme', this.darkMode ? 'dark' : 'light'); } catch (_) {}
+    },
 
     /**
      * Show the global loading overlay.

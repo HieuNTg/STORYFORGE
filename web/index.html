@@ -1,8 +1,24 @@
 <!DOCTYPE html>
+<!-- Dark mode class is applied immediately by the inline script below to
+     avoid a flash of unstyled content (FOUC). Alpine then keeps it in sync. -->
 <html lang="en" class="h-full">
 <head>
+  <!-- Inline dark-mode bootstrap — runs before any CSS/JS to prevent FOUC.
+       Reads localStorage('sf_theme'), falls back to OS preference. -->
+  <script>
+    (function() {
+      var saved = null;
+      try { saved = localStorage.getItem('sf_theme'); } catch (_) {}
+      var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (saved === 'dark' || (!saved && prefersDark)) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Tells browser to respect both light and dark color schemes -->
+  <meta name="color-scheme" content="light dark">
   <title>StoryForge</title>
   <!-- TODO(production): Replace Tailwind CDN with a proper build step (e.g. `npx tailwindcss -o dist/main.css --minify`).
        The CDN version is development-only — it ships the full engine and evaluates
@@ -16,6 +32,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script>
     tailwind.config = {
+      /* Use class-based dark mode so the JS toggle works.
+         The .dark class on <html> triggers dark: variants. */
+      darkMode: 'class',
       theme: {
         extend: {
           fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
@@ -51,6 +70,35 @@
     @keyframes skeleton-shimmer {
       0% { background-position: 200% 0; }
       100% { background-position: -200% 0; }
+    }
+
+    /* ── Dark mode overrides for hard-coded colors ──
+       Tailwind's `dark:` variants handle most utility classes via the .dark
+       strategy configured above. These rules cover the few components that
+       use hardcoded inline styles (e.g. .card, .btn-primary, .sidebar-link).
+    */
+    .dark body { background: #0f172a; color: #e2e8f0; }
+    .dark .card { background: #1e293b; border-color: #334155; }
+    .dark .sidebar-link { color: #cbd5e1; }
+    .dark .sidebar-link:hover { background: #1e293b; }
+    .dark .sidebar-link.active { background: #1e3a5f; color: #60a5fa; }
+    /* Top bar / sidebar background */
+    .dark aside { background: #0f172a; border-color: #334155; }
+    .dark header { background: rgba(15, 23, 42, 0.85); border-color: #334155; }
+    /* Inputs / selects */
+    .dark input:not([type=range]):not([type=checkbox]),
+    .dark select,
+    .dark textarea {
+      background: #0f172a;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    .dark input::placeholder,
+    .dark textarea::placeholder { color: #64748b; }
+    /* Skeleton shimmer in dark mode */
+    .dark .skeleton-pulse {
+      background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+      background-size: 200% 100%;
     }
   </style>
 </head>
@@ -184,7 +232,24 @@
         </svg>
       </button>
       <h1 class="text-lg font-semibold text-slate-700" x-text="$store.app.navItems.find(n => n.id === $store.app.page)?.label || 'StoryForge'"></h1>
-      <div class="ml-auto flex items-center gap-3" aria-live="polite" aria-atomic="true">
+      <!-- Dark mode toggle button -->
+      <button
+        @click="$store.app.toggleDarkMode()"
+        :aria-label="$store.app.darkMode ? 'Switch to light mode' : 'Switch to dark mode'"
+        :title="$store.app.darkMode ? 'Light mode' : 'Dark mode'"
+        class="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-slate-700 cursor-pointer ml-auto"
+      >
+        <!-- Sun icon: shown in dark mode -->
+        <svg x-show="$store.app.darkMode" class="w-5 h-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z"/>
+        </svg>
+        <!-- Moon icon: shown in light mode -->
+        <svg x-show="!$store.app.darkMode" class="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z"/>
+        </svg>
+      </button>
+
+      <div class="flex items-center gap-3" aria-live="polite" aria-atomic="true">
         <!-- Pipeline status badge -->
         <template x-if="$store.pipeline.status === 'running'">
           <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600">
@@ -217,7 +282,7 @@
     <div id="main-content" class="p-4 md:p-6 lg:p-8 max-w-7xl mx-auto">
 
       <!-- ═══ PIPELINE PAGE ═══ -->
-      <div x-show="$store.app.page === 'pipeline'" x-cloak class="page-enter" x-data="pipelinePage()" x-init="$nextTick(() => {})" @keydown.escape.window="branchOpen = false">
+      <div x-show="$store.app.page === 'pipeline'" x-cloak class="page-enter" x-data="pipelinePage()" x-init="init()" @keydown.escape.window="branchOpen = false">
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <!-- Left: Form -->
           <div class="lg:col-span-4 space-y-4">
@@ -275,8 +340,8 @@
                   <input type="range" min="1" max="10" x-model.number="$store.pipeline.form.num_sim_rounds" aria-label="Simulation rounds" class="w-full accent-brand-600">
                 </div>
                 <div>
-                  <label class="block text-sm text-slate-600 mb-1">Drama Level</label>
-                  <select x-model="$store.pipeline.form.drama_level" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm bg-white">
+                  <label for="sf-drama-level" class="block text-sm text-slate-600 mb-1">Drama Level</label>
+                  <select id="sf-drama-level" x-model="$store.pipeline.form.drama_level" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm bg-white">
                     <template x-for="d in $store.pipeline.dramaLevels" :key="d">
                       <option :value="d" x-text="d"></option>
                     </template>
@@ -304,6 +369,7 @@
               :disabled="$store.pipeline.status === 'running'"
               :aria-busy="$store.pipeline.status === 'running'"
               aria-label="Run story generation pipeline"
+              aria-describedby="sf-pipeline-error-msg"
               class="btn-primary w-full py-3 rounded-xl font-semibold text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span x-show="$store.pipeline.status !== 'running'">Run Pipeline</span>
@@ -516,12 +582,12 @@
             </template>
 
             <!-- Error state -->
-            <div x-show="$store.pipeline.status === 'error'" x-cloak role="alert" class="card p-5 border-red-200 bg-red-50">
+            <div x-show="$store.pipeline.status === 'error'" x-cloak role="alert" aria-live="assertive" class="card p-5 border-red-200 bg-red-50">
               <div class="flex items-start gap-3">
-                <svg class="w-6 h-6 text-red-500 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+                <svg class="w-6 h-6 text-red-500 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
                 <div>
                   <h3 class="font-semibold text-sm text-red-700 mb-1">Pipeline Error</h3>
-                  <p class="text-sm text-red-600" x-text="$store.pipeline.error"></p>
+                  <p id="sf-pipeline-error-msg" class="text-sm text-red-600" x-text="$store.pipeline.error"></p>
                   <button @click="$store.pipeline.reset()" class="mt-3 text-xs font-medium text-red-600 hover:text-red-800 underline cursor-pointer">Try Again</button>
                 </div>
               </div>
@@ -932,7 +998,7 @@
                 <button x-show="!submitted" @click="showDetails = !showDetails" class="text-xs text-brand-600 hover:underline cursor-pointer" x-text="showDetails ? 'Simple' : 'Detailed'"></button>
               </div>
               <!-- Overall stars -->
-              <div x-show="!submitted" class="flex items-center gap-1 mb-2">
+              <div x-show="!submitted" class="flex items-center gap-1 mb-2" role="group" aria-label="Overall chapter rating">
                 <template x-for="n in [1,2,3,4,5]" :key="n">
                   <button @click="setRating(n)" @mouseenter="hoverRating = n" @mouseleave="hoverRating = 0"
                     class="text-2xl cursor-pointer transition-colors"
@@ -950,6 +1016,7 @@
                       <button @click="setScore(dim, n)" @mouseenter="hoverScores[dim] = n" @mouseleave="hoverScores[dim] = 0"
                         class="text-lg cursor-pointer transition-colors"
                         :class="dimStarState(dim, n) === 'filled' ? 'text-yellow-400' : 'text-slate-300'"
+                        :aria-label="label + ' ' + n + ' stars'"
                         x-text="'★'"></button>
                     </template>
                   </div>
@@ -1266,6 +1333,58 @@
         activeTab: 'draft',
         branchOpen: false,
         _branchComp: null,
+
+        /**
+         * Form persistence helpers — saves genre, idea, style, num_chapters
+         * to localStorage under 'sf_form_state' as a JSON blob.
+         * Called from _watchFormState() on any of those field changes.
+         */
+        _saveFormState() {
+          try {
+            const f = Alpine.store('pipeline').form;
+            const state = {
+              genre:        f.genre,
+              idea:         f.idea,
+              style:        f.style,
+              num_chapters: f.num_chapters,
+            };
+            localStorage.setItem('sf_form_state', JSON.stringify(state));
+          } catch (_) {}
+        },
+
+        /**
+         * Restore form state from localStorage on page init.
+         * Only restores the four persisted fields; leaves other form values
+         * at their defaults so server-driven values (genres list, etc.) can
+         * fill in without conflict.
+         */
+        async _restoreFormState() {
+          try {
+            const raw = localStorage.getItem('sf_form_state');
+            if (!raw) return;
+            const state = JSON.parse(raw);
+            const f = Alpine.store('pipeline').form;
+            if (state.genre)        f.genre        = state.genre;
+            if (state.idea)         f.idea         = state.idea;
+            if (state.style)        f.style        = state.style;
+            if (state.num_chapters) f.num_chapters = state.num_chapters;
+          } catch (_) {}
+        },
+
+        /** Set up $watch listeners for the four persisted form fields. */
+        _watchFormState() {
+          const save = () => this._saveFormState();
+          this.$watch(() => Alpine.store('pipeline').form.genre,        save);
+          this.$watch(() => Alpine.store('pipeline').form.idea,         save);
+          this.$watch(() => Alpine.store('pipeline').form.style,        save);
+          this.$watch(() => Alpine.store('pipeline').form.num_chapters, save);
+        },
+
+        async init() {
+          // Restore saved form state, then start watching for changes
+          await this._restoreFormState();
+          this._watchFormState();
+        },
 
         async runPipeline() {
           this.activeTab = 'draft';
