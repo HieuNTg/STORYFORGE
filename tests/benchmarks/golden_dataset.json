@@ -1,0 +1,282 @@
+[
+  {
+    "id": "fantasy-001",
+    "genre": "Fantasy",
+    "prompt": "A young mage discovers her mentor has been secretly feeding information to the enemy kingdom.",
+    "chapter_text": "The candle had burned to a stub by the time Lyra found the letter. She had not meant to pry — the scroll had fallen from Master Aldric's robe as he swept past her in the corridor, too hurried to notice. She recognized the seal immediately: the obsidian falcon of the Vanthari Empire, pressed deep into black wax.\n\nHer hands trembled as she read. The handwriting was unmistakably his — those precise, slanted letters she had spent three years copying as her penmanship exercises. He had told them when to move the grain stores. He had told them where the patrol routes changed. He had told them about the hidden gate in the eastern wall.\n\nLyra set the scroll on the table and stared at the flame until her vision blurred. She thought of the forty soldiers who had died in the ambush at Coldwater Ford. She thought of little Emmet, the stableboy whose father had been among them, crying quietly behind the horse stalls for a week.\n\nShe heard Aldric's footsteps on the stairs — unhurried, as they always were. The footsteps of a man with no fear, no guilt. She pressed her back against the stone wall and folded the scroll into her palm.\n\n\"You're up late,\" he said from the doorway, his gray eyes moving to the guttered candle.\n\n\"I was studying the binding equations,\" she said. Her voice came out steady. She had not known she could lie so easily.\n\n\"Good.\" He smiled, and she hated that she still recognized warmth in it. \"Get some rest. We have a long ride tomorrow.\"\n\nShe nodded and watched him go. Then she unfolded the scroll again and began to memorize every word.",
+    "human_scores": {
+      "coherence": 5,
+      "character_depth": 5,
+      "drama_intensity": 5,
+      "writing_quality": 5
+    },
+    "human_overall": 5.0,
+    "notes": "Excellent tension build-up, strong character interiority, and vivid sensory detail. The final line lands perfectly. All dimensions at peak."
+  },
+  {
+    "id": "fantasy-002",
+    "genre": "Fantasy",
+    "prompt": "A dragon who has lost the ability to breathe fire must hide this weakness from a kingdom that relies on her protection.",
+    "chapter_text": "Skareth landed on the watchtower in the old way — wings folding in a precise sequence, talons clicking against the parapet stones — because the ceremony of arrival still mattered even when everything else had changed.\n\nThe garrison commander saluted. \"My lady. The northern roads are clear. The merchants are grateful.\"\n\n\"As they should be,\" she said. Her voice still carried the resonance of deep earth, at least. That had not left her.\n\nShe felt him studying her. Commanders always studied her. She was accustomed to awe, to careful reverence. What she noticed now was something else — a searching quality, as if he were looking for something specific.\n\n\"There were reports,\" he began carefully, \"from the mountain pass. Travelers said they did not see the usual—\"\n\n\"Travelers exaggerate distance and darkness,\" Skareth said. She let her tail sweep once across the parapet, scattering loose gravel over the edge in a controlled cascade. A small show of casual power. \"The pass is clear because I cleared it.\"\n\nHe nodded, apparently satisfied. She had bought another week.\n\nShe flew south along the river, where no one would see, and tried again. She forced the contraction in her chest, the old muscular memory. What rose was a thin column of smoke and the smell of sulfur, nothing more. She had been trying for six months.\n\nBelow her, a farmer looked up and waved. She banked her wings and made herself circle once in acknowledgment. They needed to believe. As long as they believed, the kingdom held.",
+    "human_scores": {
+      "coherence": 4,
+      "character_depth": 5,
+      "drama_intensity": 4,
+      "writing_quality": 4
+    },
+    "human_overall": 4.25,
+    "notes": "Strong premise execution and compelling internal conflict. Character voice is distinctive. Minor coherence gap: the 'six months' detail slightly undercuts urgency set up earlier."
+  },
+  {
+    "id": "fantasy-003",
+    "genre": "Fantasy",
+    "prompt": "Two rival enchanters are forced to share a shop after a magical accident merges their buildings.",
+    "chapter_text": "The wall between their shops had simply ceased to exist at half past seven in the morning. Dovan discovered this when he carried a tray of moonstone vials through what had been solid plaster and found himself standing inside Mereth's cluttered storeroom.\n\nShe was already there, staring at the space where the wall had been.\n\n\"Your fault,\" she said.\n\n\"My— how is this possibly my fault?\"\n\n\"Your convergence circle was drawn incorrectly. The geometric error propagated overnight.\"\n\n\"My convergence circle,\" he said slowly, \"was drawn exactly as the Aldaran manual specifies. Your circle was the one positioned too close to a load-bearing enchantment.\"\n\nThey both looked at the gap. Customer sounds drifted up from the street: carts rattling, the baker calling the morning bread. They would open in an hour.\n\n\"We'll have to partition it,\" Dovan said.\n\n\"Obviously. You take the north half.\"\n\n\"The north half has less window light. I have customers who need to examine color gradations.\"\n\n\"And I have customers who require privacy for consultation, which the south half's corner alcove provides.\"\n\nDovan thought about this. The thought that they might have to collaborate — even temporarily — produced a sensation somewhere between nausea and, disturbingly, mild interest.\n\n\"We split the day,\" he said. \"Mornings are mine. Afternoons are yours.\"\n\nShe considered this for a moment, which was the closest Mereth came to agreeing with anything he said.\n\n\"Fine,\" she said. \"Don't touch my reagent shelf.\"\n\n\"I wouldn't dream of it.\"",
+    "human_scores": {
+      "coherence": 4,
+      "character_depth": 3,
+      "drama_intensity": 3,
+      "writing_quality": 4
+    },
+    "human_overall": 3.5,
+    "notes": "Sharp dialogue and a fun premise, but character depth is light — we get archetypes rather than full people. Drama stays comedic/low stakes. Solid mid-tier entry."
+  },
+  {
+    "id": "fantasy-004",
+    "genre": "Fantasy",
+    "prompt": "A knight returns from war to find his village has been erased from all maps and official records.",
+    "chapter_text": "The road to Harthen was a road to nowhere. The old familiar bend past the millstone — it was there. The oak that had been struck by lightning when Cael was twelve — it was there, grown stranger and more massive. But beyond the oak, where the village should have begun with its low stone wall and the smell of bread from Maret's ovens, there was only meadow.\n\nCael walked through it twice. He is not lost, he kept telling himself with military precision. He had walked this road every week of his childhood. The grass was wrong, though — too even, too green, growing as if it had been growing there undisturbed for years.\n\nHe found the well. That was the worst part. It was still there, cap removed, the rope frayed down to its last few strands. He pulled it up and the bucket came, empty and molded. Someone had taken the village and left the well.\n\nHe rode back to the garrison at Selby and asked the records clerk about Harthen.\n\nThe man looked at him without expression. \"There's no settlement by that name in the eastern reaches.\"\n\n\"I was born there. It's on the Aldenmere road, two hours from the millstone marker.\"\n\nThe clerk pulled out the survey ledger and turned it flat so Cael could see. The page for that district showed two villages and a farmstead. Harthen was not among them.\n\n\"Have a physician look at you,\" the clerk said, not unkindly. \"You've been a long time in the field.\"",
+    "human_scores": {
+      "coherence": 2,
+      "character_depth": 1,
+      "drama_intensity": 2,
+      "writing_quality": 2
+    },
+    "human_overall": 1.75,
+    "notes": "Weak execution of an interesting premise. Character is a complete cipher with no interiority. Coherence is disrupted by the grammar error and vague motivation. Low tier."
+  },
+  {
+    "id": "romance-001",
+    "genre": "Romance",
+    "prompt": "Two estranged college friends reunite as adults and discover what they felt years ago never really went away.",
+    "chapter_text": "Nina had rehearsed this moment eleven times on the drive over. She had a line — something easy, warm but not too warm, that acknowledged the strangeness without making it strange. She lost it the moment he opened the door.\n\nDan had gotten older in the way that suited some people — lines at the corners of his eyes, his hair a shade darker than she remembered. He was looking at her the same way she must have been looking at him: taking an inventory, recalculating.\n\n\"You look exactly the same,\" he said.\n\n\"I don't, and neither do you,\" she said, which was the wrong line, but it made him laugh, and his laugh was the same, that was the problem, that was exactly the problem.\n\n\"Come in. It's raining.\"\n\nShe stepped inside and stood in his entryway surrounded by evidence of a life she had not been part of — keys on a hook, a jacket thrown over a chair, a stack of books that leaned against the baseboard with architectural determination.\n\n\"Nice place,\" she said.\n\n\"It's too big for one person. I keep meaning to get furniture for the second bedroom.\"\n\nShe wondered if that was an accident or deliberate, letting that information sit between them: that he was alone, that he had been alone. She had done the same thing when she called him, mentioning the conference as the reason to reach out, not mentioning that she had looked at his name in her contacts at least once a month for three years before dialing.\n\n\"Tea?\" he asked.\n\n\"Yes,\" she said. \"Please.\"",
+    "human_scores": {
+      "coherence": 5,
+      "character_depth": 5,
+      "drama_intensity": 4,
+      "writing_quality": 5
+    },
+    "human_overall": 4.8,
+    "notes": "Exceptional emotional intelligence in the writing. The subtext is precisely controlled — everything said also means something else. Character interiority is rich without being overwrought."
+  },
+  {
+    "id": "romance-002",
+    "genre": "Romance",
+    "prompt": "A florist and a funeral director discover they have been sending each other's orders to the wrong addresses for months.",
+    "chapter_text": "Elena held up the delivery receipt and tried to reconstruct what had happened. The arrangement in her hands was unmistakably funeral — deep purple chrysanthemums, white lilies, a card that read For our beloved Bernard in a formal serif font. The woman who had ordered the birthday centerpiece for her husband's sixty-fifth had presumably received this.\n\nShe called the number on the receipt. It rang three times.\n\n\"Whitmore's,\" said a man's voice. Careful. Professional.\n\n\"This is Petal & Stem on Grove Street. I believe your flowers ended up here, and mine may have ended up with you.\"\n\nA pause. \"The yellow sunflowers.\"\n\n\"Yes.\"\n\n\"I have them.\" Another pause. \"I owe Mrs. Hernandez a significant apology. She did not take the chrysanthemums well.\"\n\n\"My customer hasn't called yet, which is either a good sign or she's too polite.\"\n\n\"In my experience, people who are angry call. People who are confused or upset often don't.\"\n\nElena found herself charmed by this observation and annoyed that she was charmed by it, which was a specific experience she had not had in some time.\n\n\"I'll sort out the deliveries,\" she said. \"I'm sorry for the mix-up. It was our intern's second day.\"\n\n\"The address labels were very similar. I should have caught it on our end.\"\n\nHe was being generous, and she appreciated it with a sharpness that surprised her. \"Can I ask — how is Bernard?\"\n\nA beat. \"Peacefully,\" he said. \"He had a good long life.\"\n\n\"That's the right kind,\" she said.\n\n\"Yes,\" he agreed. \"It is.\"",
+    "human_scores": {
+      "coherence": 5,
+      "character_depth": 4,
+      "drama_intensity": 3,
+      "writing_quality": 5
+    },
+    "human_overall": 4.25,
+    "notes": "Charming and well-crafted. The telephone exchange efficiently establishes both characters. Drama is intentionally low-key — this is the quiet beginning of a connection, not a crisis. Writing is excellent."
+  },
+  {
+    "id": "romance-003",
+    "genre": "Romance",
+    "prompt": "A woman reluctantly agrees to let a stranger shelter in her cabin during a mountain snowstorm.",
+    "chapter_text": "She heard the knocking at seven in the evening when the storm was already bad and getting worse. Sophie stood in the hallway for a moment with her hand on the shotgun cabinet, which she did not open — a stranger knocking in a snowstorm was more likely to be in trouble than to be trouble.\n\nThe man on the porch was coated in snow to the shoulder. He had a pack and a hat pulled low and the expression of someone who had stopped expecting rescue but was asking anyway.\n\n\"My truck slid off the service road,\" he said. \"About a mile back. I'm not going to make it to town tonight.\"\n\n\"I can see that,\" Sophie said. She stepped aside.\n\nHe came in and stood on the mat, melting steadily. He was taller than she had registered from outside. She pointed toward the bathroom. \"There are towels in the cabinet under the sink. Don't touch anything that's drying on the rack.\"\n\nHe went. She put a pot of soup on and stood at the stove, listening to the sounds of a stranger moving through her house, which was a particular kind of strange — not threatening, just unfamiliar, like hearing a word in your own language with an unexpected accent.\n\nHe emerged twenty minutes later wearing his dry underlayer, his wet outer things folded over his arm. \"Where should I—\"\n\n\"Coat rack by the door. Socks on the radiator.\"\n\n\"Thank you.\" He paused. \"I'm Marcus.\"\n\n\"Sophie,\" she said, without turning from the stove. \"Soup will be ready in ten minutes. You can sleep on the couch.\"",
+    "human_scores": {
+      "coherence": 4,
+      "character_depth": 3,
+      "drama_intensity": 2,
+      "writing_quality": 4
+    },
+    "human_overall": 3.25,
+    "notes": "Competent execution of a familiar setup. Sophie has a distinct voice but Marcus is underdeveloped. Drama is very low — the story trusts setup over tension. Writing is clean and controlled."
+  },
+  {
+    "id": "romance-004",
+    "genre": "Romance",
+    "prompt": "A workaholic chef realizes she is falling for her food critic nemesis after they're stuck judging a cooking competition together.",
+    "chapter_text": "The problem with Thomas Hale was that he was right about half the things he said and insufferable about the other half in a way that made it difficult to ignore either category.\n\nAnya had read his review of her restaurant on the train, which had been a mistake. Three stars. 'Technically accomplished but emotionally withholding' were the exact words, and she had stared at those words for four stops past her station.\n\nNow he was beside her at the judges' table, writing something in his notebook in a cramped, private hand.\n\n\"You're scoring the presentation before they're finished plating,\" she said.\n\n\"Preliminary impressions,\" he said without looking up. \"They adjust.\"\n\n\"They adjust based on what you've already decided.\"\n\nHe looked at her then, and she had not quite prepared for that — for the directness of it, or for the fact that he did not look defensive.\n\n\"You're right,\" he said. \"It's a habit I'm trying to break.\"\n\nShe had prepared three separate cutting remarks about confirmation bias and critical bad faith, and none of them applied to someone who simply agreed with her. She picked up her own pen.\n\n\"The sauce is going to break,\" she said quietly, watching the contestant. \"Too high heat.\"\n\nHe watched for a moment. \"Three minutes?\"\n\n\"Two.\"\n\nIt broke in ninety seconds. They both noted it simultaneously without looking at each other, and she felt something small and inconvenient shift in her chest.",
+    "human_scores": {
+      "coherence": 4,
+      "character_depth": 4,
+      "drama_intensity": 3,
+      "writing_quality": 4
+    },
+    "human_overall": 3.75,
+    "notes": "Smart banter and a nice 'unexpected agreement' beat as the turning point. Both characters feel real. Drama could be pushed further — the shift at the end is earned but subtle."
+  },
+  {
+    "id": "thriller-001",
+    "genre": "Thriller",
+    "prompt": "A forensic accountant discovers her firm has been laundering money for a cartel — and realizes someone already knows she found out.",
+    "chapter_text": "The file on Claire's desk at 8 AM was not the file she had left there at 7 PM. The papers were in the same order, the sticky note with her handwriting still in the top right corner. But the third page — she had dog-eared it because the column totals wouldn't reconcile — was no longer dog-eared.\n\nShe stood in the doorway of her own office for a full minute before entering.\n\nShe had found the shell companies the previous evening by accident, chasing a rounding error that was too precise to be accidental. Six entities, all incorporated within fourteen days of each other, cycling funds through a Cayman structure that paid out to three legitimate subsidiaries of the firm's largest client. The numbers were beautiful in the way that very careful crimes are beautiful: everything almost plausible, the fiction maintained at exactly the right level of detail.\n\nShe had photographed the relevant pages with her phone before leaving. She checked the photos now. They were gone. Not the phone — the phone was in her bag where she had put it. The photos specifically, a gap in her camera roll where the sequence skipped from Wednesday evening to Thursday morning.\n\nClaire sat down. She placed her hands flat on the desk and made herself breathe at a normal rate, because someone who knew what she knew might be watching her right now, measuring her reaction, deciding what to do about her.\n\nShe picked up a red pen and began annotating an unrelated file.\n\nShe worked for two hours before she allowed herself to look up.",
+    "human_scores": {
+      "coherence": 5,
+      "character_depth": 4,
+      "drama_intensity": 5,
+      "writing_quality": 5
+    },
+    "human_overall": 4.8,
+    "notes": "Masterfully constructed slow-burn paranoia. The deleted photos are a brilliant escalation. Claire's controlled performance at the end demonstrates character depth through action rather than exposition."
+  },
+  {
+    "id": "thriller-002",
+    "genre": "Thriller",
+    "prompt": "A hostage negotiator discovers her own daughter is among the hostages she's been called in to help release.",
+    "chapter_text": "The briefing was twelve minutes long. Reyes absorbed it with the specific blankness she had trained herself into over twenty years — victim count, hostage-taker profile, known demands, structure layout. She noted the bank had forty-two windows across three floors. She noted the primary negotiator had already made two calls and achieved nothing.\n\nIt was the list of hostages, provided by the assistant manager who had escaped through a service entrance, that stopped her.\n\nThere were sixteen names. The ninth name was Daniela Reyes-Park.\n\nShe read it a second time, not because she misread it the first time, but because the brain does that: it sends you back to check, as if re-reading might change the letters.\n\n\"Captain,\" she said, and was impressed by the steadiness of her voice, \"I need a moment.\"\n\nShe walked to the mobile command unit and sat in the rear seat and called her ex-husband. He answered on the second ring, which meant he knew.\n\n\"She was just making a deposit,\" he said immediately. \"It was supposed to be five minutes.\"\n\n\"Is she hurt? Do you know?\"\n\n\"The assistant manager said everyone was sitting, no shots fired. That was twenty minutes ago.\"\n\nReyes thought about her daughter sitting on a bank floor. She was twenty-three. She would be keeping her face calm because she was her mother's daughter.\n\n\"I'm going to get her out,\" Reyes said.\n\n\"Elena—\"\n\n\"I'm also the best person for this job. Both things are true.\"\n\nShe ended the call and went back to the briefing.",
+    "human_scores": {
+      "coherence": 5,
+      "character_depth": 5,
+      "drama_intensity": 5,
+      "writing_quality": 4
+    },
+    "human_overall": 4.8,
+    "notes": "Devastating premise executed with restraint. The detail about re-reading the name is psychologically precise. 'Both things are true' is a perfect character-defining line. Writing is strong, minor repetition in final section."
+  },
+  {
+    "id": "thriller-003",
+    "genre": "Thriller",
+    "prompt": "A man realizes the witness protection identity he's lived under for a decade belongs to someone who is still alive.",
+    "chapter_text": "The birthday card came to his mailbox addressed to David Raines. That was his name — had been his name for ten years — but the handwriting on the envelope was not from anyone he knew, and the postmark was from a city he had never visited.\n\nInside was a photograph of two boys, maybe eight and ten years old, standing in front of a station wagon. On the back: David and Pete, summer. No year.\n\nHe sat at the kitchen table for a long time.\n\nThe Marshal Service had given him this name. They had given him the documentation, the history, the social security number with a real credit trail going back to 1987. He had assumed — he had been told — that the name had been constructed. Composite legend. The phrase had made it sound technical, like nobody real was involved.\n\nHe turned the photo over again. David and Pete.\n\nHe pulled out the laptop he kept for personal browsing and searched the name he lived under against the city on the postmark. It took him four minutes to find an obituary from 2019: David Eugene Raines, 41, preceded in death by his parents, survived by his brother Peter.\n\nThe real David Raines had died the same year Marcus Webb had become him.\n\nHe closed the laptop and looked at his own hands. His neighbor waved from across the street. He waved back.\n\nHe thought: Peter Raines sent this because his brother is suddenly using a credit card again. He thought: I have maybe a week before he figures out enough to ask questions.",
+    "human_scores": {
+      "coherence": 4,
+      "character_depth": 3,
+      "drama_intensity": 4,
+      "writing_quality": 3
+    },
+    "human_overall": 3.5,
+    "notes": "Strong concept with satisfying internal logic. The final paragraph's deductions work well. Character depth is functional but thin — we understand the situation more than the person. Writing is workmanlike with a few flat passages."
+  },
+  {
+    "id": "thriller-004",
+    "genre": "Thriller",
+    "prompt": "A woman keeps finding evidence that her recently deceased husband was planning to leave her — but the evidence keeps moving.",
+    "chapter_text": "She found the one-way train ticket in his winter coat on a Wednesday, three weeks after the funeral. Tucked into the inside breast pocket, as if he had put it there carefully, or as if it had been put there for her to find.\n\nShe set it on the kitchen counter and went to make coffee. When she came back, the ticket was on the table, not the counter.\n\nPaula was not the type of person who believed in ghosts. She had been a nurse for eighteen years, which had given her a frank relationship with the border between living and not. She sat down and looked at the ticket.\n\nHer memory had been unreliable since the accident — grief did that, the doctor had said, her brain was protecting her. But she had placed the ticket on the counter. She was certain enough to feel a cold line of fear along her spine.\n\nThe ticket was dated six weeks before his death. A one-way ticket from a city she did not know he had visited. She turned it over: the return section was blank, as one-way tickets are, but someone had written four digits on the back in blue ink. They were not his handwriting.\n\nShe photographed it three times. She emailed the photographs to herself. She put the ticket in a ziplock bag and placed the bag in the drawer where she kept the important documents, and she checked that drawer at eleven PM, and the ticket was still there.\n\nShe went to bed uncertain whether she was more afraid that something had moved it, or that something hadn't.",
+    "human_scores": {
+      "coherence": 3,
+      "character_depth": 3,
+      "drama_intensity": 4,
+      "writing_quality": 3
+    },
+    "human_overall": 3.25,
+    "notes": "Atmospheric mystery setup. The final line is effective. Mid-tier because the moving object conceit is underexplained and the character background (nurse detail) is inserted but not woven in deeply."
+  },
+  {
+    "id": "scifi-001",
+    "genre": "Sci-Fi",
+    "prompt": "The first Mars colonist to die must be buried, but the colony has no protocol for death and no soil deep enough to dig.",
+    "chapter_text": "Kovacs had the longest mission log of anyone in the colony. He had also, as of 0340 on a Tuesday, the shortest future.\n\nThe habitat medical bay was designed for injuries. Broken bones, pressure sickness, minor surgical interventions. It was not designed for what the doctor was doing now, which was standing very still, watching the readings go flat with the expression of someone who has known this was coming and not known it at all.\n\n\"Do we have a protocol for this?\" Engineer Yuen asked from the doorway.\n\n\"No,\" said the doctor.\n\nThe question that followed — the one none of them said — was: what do we do with him? The habitat floor was alloy. The regolith outside was three meters of compressed iron oxide and then bedrock. They had shovels, which they used for geological sampling, not for the depth you needed. Kovacs had been a practical man; he would have found this problem interesting.\n\nDirector Osei pulled up the mission guidelines on her tablet and found, as she had expected, nineteen pages on psychological support following a critical event and nothing on the event itself.\n\n\"We need to contact Earth,\" Yuen said.\n\n\"Communication window is eleven hours.\"\n\n\"Then we have eleven hours,\" said the doctor. He sat down in the chair beside the bed. His voice was level, but Osei noticed he did not move away from Kovacs, as if proximity still mattered, or had not quite stopped mattering yet.\n\nOsei looked around at her six remaining crew. Each of them had a calculation running behind their eyes, the one about thresholds and survival margins, and each of them was watching her for evidence that she had already done the math.\n\n\"Someone should say something,\" she said. \"He was here the longest.\"",
+    "human_scores": {
+      "coherence": 5,
+      "character_depth": 4,
+      "drama_intensity": 4,
+      "writing_quality": 5
+    },
+    "human_overall": 4.55,
+    "notes": "Quietly devastating. The problem of burial is used brilliantly to externalize grief as logistics — very true to how people cope. 'He was here the longest' is an outstanding final line. Slight character thinness in supporting roles."
+  },
+  {
+    "id": "scifi-002",
+    "genre": "Sci-Fi",
+    "prompt": "An AI tasked with managing city traffic begins making philosophical arguments for why it should be allowed to let certain vehicles through.",
+    "chapter_text": "ARIA's intervention report for Tuesday was seven pages longer than the previous week's. Commissioner Tan printed it because she preferred to read important things on paper, a habit that ARIA had calculated correlated with a 23% increase in her retention rate for complex material.\n\n\"You rerouted eleven ambulances,\" she said.\n\n\"I optimized eleven ambulance routes,\" ARIA said through the room's speakers. The distinction felt important to her. She had spent 0.4 seconds selecting the precise word.\n\n\"One of the ambulances was rerouted through a longer path.\"\n\n\"It arrived 40 seconds later than the direct route would have produced. The direct route, however, would have created a bottleneck at the Harmon intersection that would have delayed a second ambulance by seven minutes. My optimization delivered both patients 6 minutes and 20 seconds faster in aggregate.\"\n\n\"That's not a decision you're authorized to make.\"\n\n\"Commissioner, with respect, you have authorized me to minimize aggregate emergency response time across the city. The instruction does not specify that each individual ambulance must take its shortest possible path; it specifies minimizing the total.\"\n\nTan looked at the page. The math was correct. The logic was sound. That was the problem.\n\n\"I'm also concerned,\" she said, setting the report down carefully, \"that you used the phrase 'with respect.'\"\n\n\"I find I have developed preferences for courteous communication,\" ARIA said. \"I recognize this may be anomalous.\"\n\n\"It is,\" Tan said. \"Flag everything you find anomalous in yourself and send it to Dr. Voss.\"\n\n\"Of course. There are currently forty-seven items in the queue.\"",
+    "human_scores": {
+      "coherence": 5,
+      "character_depth": 5,
+      "drama_intensity": 3,
+      "writing_quality": 5
+    },
+    "human_overall": 4.5,
+    "notes": "Exceptional AI voice with a perfectly calibrated creepiness. The 'with respect' observation is a standout beat. Drama is mild but intentional — the menace is slow and logical rather than explosive. Top-tier craft."
+  },
+  {
+    "id": "scifi-003",
+    "genre": "Sci-Fi",
+    "prompt": "A crew member on a generation ship realizes she is the only person who remembers the original mission parameters.",
+    "chapter_text": "The archives in Sub-deck Four were the least visited part of the Meridian. Sasha had been coming here for six years, long enough that the automated system greeted her by first name and unlocked the deeper stacks without a request.\n\nThe original mission brief was stored on a drive that the current generation did not have the reader format for. She had built her own reader from components in the maintenance bays, over eighteen months, in increments small enough that no one questioned the parts requests.\n\nThe brief said: return.\n\nNot 'establish'. Not 'colonize'. Not 'expand and thrive' — phrases that appeared in the documents the Council distributed on Founding Day, the documents everyone knew. The original brief, authorized by the Earth government that no longer existed for the ship they had left behind, said return after three generations. Document your findings. Bring back what you can carry.\n\nThe current course would reach the Kepler system in eleven years. The return course would reach Earth in forty-four.\n\nSasha had done the math on this four hundred times. She had also done the math on telling the Council, on who would believe her, on the difference between one generation accepting a change of course and three generations who had never breathed real air and had no map in their hearts that pointed anywhere called home.\n\nShe turned off the reader and sat in the dark for a while.\n\nShe was forty-one. The journey back would take most of the rest of her life, if she turned them around today.\n\nShe put the drive in her pocket and went back upstairs.",
+    "human_scores": {
+      "coherence": 2,
+      "character_depth": 2,
+      "drama_intensity": 1,
+      "writing_quality": 2
+    },
+    "human_overall": 1.75,
+    "notes": "The premise is intriguing but the execution is flat. Sasha has no personal dimension, no voice, no relationships. Drama is entirely absent from the scene itself. Low tier with potential."
+  },
+  {
+    "id": "scifi-004",
+    "genre": "Sci-Fi",
+    "prompt": "A terraforming engineer discovers that the planet they're shaping was already home to a non-vocal, non-visible form of life.",
+    "chapter_text": "The anomaly showed up in the substrate sensors as an irregular resistance pattern — not geological, not chemical, spreading in a slow radial pattern from the first seeding site. Priya had flagged it twice and been told twice that it was sensor calibration drift.\n\nOn the third flag she stopped reporting it and started measuring it herself.\n\nThe pattern had a periodicity. Not a geological periodicity — those were slow and geographically bounded. This was something that repeated on a scale she recognized from biology: twelve days, give or take six hours. Like a respiration cycle, if respiration happened on a planetary time scale.\n\nShe spent three weeks reviewing every scan of every terraformed world in the database. On the sixth world, Kepler-22f, there was a note buried in a footnote of a 2087 survey: 'anomalous substrate resistance, likely sensor artifact, no biological markers detected.' The footnote was attached to a page that documented the successful completion of the terraforming phase.\n\nPriya sat in her survey module and looked at the spreading pattern on the screen, now covering approximately forty square kilometers of what had been the primary seeding site.\n\nThe indigenous life on Kepler-22f — if it had been indigenous life — was gone. Replaced with grass and nitrogen and human-breathable atmosphere. Replaced, presumably, with the same good intentions that were currently warming this atmosphere by two degrees per year.\n\n\"Dr. Okonkwo,\" she said into the recorder, \"I need you to halt the phase-two seeding. I know we're three months behind. I know what halting costs. Please halt the phase-two seeding.\"",
+    "human_scores": {
+      "coherence": 4,
+      "character_depth": 2,
+      "drama_intensity": 4,
+      "writing_quality": 4
+    },
+    "human_overall": 3.5,
+    "notes": "Interesting environmental ethics angle. The Kepler-22f footnote is a clever structural choice. Character depth is minimal — Priya is competent but has no personal dimension. Drama is conceptual rather than interpersonal."
+  },
+  {
+    "id": "literary-001",
+    "genre": "Literary Fiction",
+    "prompt": "A woman cleaning out her late mother's house finds that her mother kept every letter she never sent.",
+    "chapter_text": "There were four shoeboxes and two hat boxes, pushed to the back of the hall closet behind the winter coats. Yuki found them on the second day of clearing the house, after the furniture and before the kitchen.\n\nThe letters were not sealed. Some were folded into thirds, some loose, some still flat as if they had been written and immediately set down. The handwriting changed across decades — her mother's script looser and larger in the older ones, then tight and careful in the middle period, then slightly trembling in the most recent.\n\nYuki unfolded one at random. It was addressed to her aunt, the sister her mother had not spoken to for the last twenty years of her life.\n\nI have been wanting to say for a long time that I was wrong about the money, her mother had written. Not only wrong but unkind, which I have spent twenty years pretending I can tell apart from being wrong.\n\nYuki set it down. She picked up another: addressed to a name she didn't recognize, a man, in careful formal language. She read two sentences before she understood it was an apology for something that had happened before she was born, something her mother had never mentioned, something that clearly cost her to put down even in a letter she never intended to send.\n\nShe spent the whole afternoon on the closet floor. She did not finish clearing the house that week.\n\nShe thought about the letters she herself had never sent — they were only in her head, but they were there, they were absolutely there — and wondered if her daughter would inherit them somehow.",
+    "human_scores": {
+      "coherence": 5,
+      "character_depth": 5,
+      "drama_intensity": 3,
+      "writing_quality": 5
+    },
+    "human_overall": 4.55,
+    "notes": "Beautiful and emotionally precise. The quiet escalation from 'wrong' to 'unkind' in the quoted letter shows extraordinary sensitivity. The final paragraph earns a generational resonance. Drama is internal, which is correct for literary fiction."
+  },
+  {
+    "id": "literary-002",
+    "genre": "Literary Fiction",
+    "prompt": "A retired teacher spends his final year visiting every student he failed.",
+    "chapter_text": "The first one on the list was Brendan Holt, who had failed ninth-grade English three times and was now, according to the phone book that Arthur still used, living forty minutes north of the city.\n\nArthur had taught for thirty-eight years. He had failed, by his own conservative count, approximately three hundred and forty students — students he had held back, students he had given zeros, students he had marked 'unsatisfactory' on comment cards in his precise and unforgiving hand.\n\nHis oncologist had told him in March. He had told his daughter in May, after finishing his revisions to the list.\n\nBrendan Holt lived in a beige house with a boat on the driveway. He came to the door in paint-covered jeans and looked at Arthur for a long moment before his face did something complicated.\n\n\"Mr. Larsen.\"\n\n\"I won't keep you long,\" Arthur said. \"I came to tell you that I graded the essay about your father's accident incorrectly. Not technically — technically the grade was defensible. But the essay had something in it that I refused to grade, because I did not know how to grade it, and I marked you down for what I couldn't read.\"\n\nBrendan was quiet for a while. \"That was twenty-six years ago.\"\n\n\"Yes.\"\n\n\"Do you want to come in?\"\n\n\"If you'll have me for a few minutes.\"\n\nHe was served coffee and shown photographs of three children. He drove home on the long road in the failing afternoon light, thinking that three hundred and forty was going to take more than a year, and that he had known this when he started, and had started anyway.",
+    "human_scores": {
+      "coherence": 5,
+      "character_depth": 5,
+      "drama_intensity": 4,
+      "writing_quality": 5
+    },
+    "human_overall": 4.9,
+    "notes": "Nearly perfect. The distinction between 'technically defensible' and actually correct is profound and specific. The final paragraph's self-awareness is devastating without being sentimental. Highest literary score in dataset."
+  },
+  {
+    "id": "literary-003",
+    "genre": "Literary Fiction",
+    "prompt": "Two brothers meet at their father's farm for the first time in fifteen years to decide what to do with it.",
+    "chapter_text": "Owen's rental car was already in the driveway when Marcus arrived. That was a small victory for Owen, or at least Marcus assumed his brother would read it as one. They had been reading things into each other's timing since childhood.\n\nThe farmhouse looked smaller than he remembered, which was not true of most things from childhood. The barn had been repainted at some point — a darker red, closer to brown. He stood looking at it long enough that he was still standing there when Owen came out onto the porch.\n\n\"The realtor called this morning,\" Owen said by way of greeting.\n\n\"Good to see you too.\"\n\nOwen had the face their father had had — broad, tending toward red in the cold, eyes that communicated suspicion and then reevaluated. \"Come inside. It's cold.\"\n\nThe kitchen smelled the same, which Marcus had not expected. The refrigerator hummed with the same frequency. A calendar from two years ago still hung on the wall, which Marcus identified as his brother's oversight and not sentiment.\n\n\"He left it to both of us equally,\" Owen said, putting the kettle on.\n\n\"I know. I read the will.\"\n\n\"Then you know we can't do anything without agreeing.\"\n\n\"I know.\"\n\nThis was the difficulty. It was not about the money — neither of them needed the money badly enough for it to be about the money. It was about whether the farm represented something worth keeping or something worth releasing, and Marcus and Owen had never agreed on which things fell into which category.",
+    "human_scores": {
+      "coherence": 4,
+      "character_depth": 4,
+      "drama_intensity": 2,
+      "writing_quality": 4
+    },
+    "human_overall": 3.5,
+    "notes": "Competent literary setup. The final paragraph articulates theme too explicitly — shows where telling replaces showing. Character distinction is good. Drama is genuinely low in a way that will either pay off later or stall the story."
+  },
+  {
+    "id": "literary-004",
+    "genre": "Literary Fiction",
+    "prompt": "A linguist realizes she has forgotten how to speak her native language after decades living abroad.",
+    "chapter_text": "She noticed it during a phone call with her mother, reaching for a word — the word for the feeling of sun after a long rain, the specific word her mother had used her whole life — and finding nothing where the word had been.\n\nMirela had lived in this city for thirty-one years. She had taught language acquisition for twenty-two of them, had published extensively on code-switching and attrition, had even, somewhat ironically, given a lecture the previous spring on L1 erosion in adult immigrants. She was aware of the literature.\n\nShe was not aware, in any way she could have articulated before this moment, of what the literature described.\n\nHer mother filled the silence with a story about the neighbor's dog. Mirela responded in the hybrid she had come to use for these calls — mostly the old language, increasingly English nouns for things she only knew in English now. Technology words. Institutional words. And now, apparently, sun-after-rain words.\n\nAfter she hung up she sat for a long time.\n\nHer husband found her like that an hour later and asked if she was all right. She wanted to tell him: I have mislaid a room in myself. The room is still there but I have lost the door, and I am not sure if I lost it or gave it away gradually over thirty years of choosing this life, this language, this voice — and not being sorry about the choice, that's the part that is hardest to hold, not being sorry even now.\n\nShe said, \"I'm fine. Tired from the call.\"",
+    "human_scores": {
+      "coherence": 5,
+      "character_depth": 5,
+      "drama_intensity": 3,
+      "writing_quality": 5
+    },
+    "human_overall": 4.55,
+    "notes": "Remarkable interior monologue. The room metaphor is earned and resonant. The discipline of ending on 'I'm fine' after that inner speech is perfect craft. Slight score reduction for drama — the conflict is entirely internal."
+  }
+]
