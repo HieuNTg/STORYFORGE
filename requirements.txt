@@ -1,18 +1,31 @@
-aiofiles==24.1.0
+# ── Core framework ──
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+
+# ── AI / LLM ──
+openai==1.51.0
 chromadb==0.4.24
 sentence-transformers==2.7.0
-openai==1.51.0
-pandas==2.2.3
-python-docx==1.1.2
+
+# ── Data & validation ──
 pydantic==2.9.2
 requests==2.32.3
-playwright==1.48.0
+
+# ── Export ──
 fpdf2==2.8.1
-edge-tts==6.1.18
-ffmpeg-python==0.2.0
-pydub==0.25.1
-bcrypt==4.2.0
-cryptography==43.0.3
 ebooklib==0.18
 plotly==5.24.1
+
+# ── Media / TTS ──
+edge-tts==6.1.18
+pydub==0.25.1
+
+# ── Auth & security ──
+bcrypt==4.2.0
+cryptography==43.0.3
+
+# ── Browser auth (optional — needed for SSO flows) ──
+playwright==1.48.0
+
+# ── Testing (dev only — also in requirements-test.txt) ──
 pytest-asyncio==0.24.0
