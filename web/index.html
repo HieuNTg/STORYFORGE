@@ -10,25 +10,27 @@
       var saved = null;
       try { saved = localStorage.getItem('sf_theme'); } catch (_) {}
       var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-      if (saved === 'dark' || (!saved && prefersDark)) {
+      var isDark = saved === 'dark' || (!saved && prefersDark);
+      if (isDark) {
         document.documentElement.classList.add('dark');
       }
+      // Sync color-scheme with theme so native form controls match
+      document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
     })();
   </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Tells browser to respect both light and dark color schemes -->
-  <meta name="color-scheme" content="light dark">
+  <!-- color-scheme is set dynamically by the dark-mode bootstrap script above -->
   <title>StoryForge</title>
   <!-- TODO(production): Replace Tailwind CDN with a proper build step (e.g. `npx tailwindcss -o dist/main.css --minify`).
        The CDN version is development-only — it ships the full engine and evaluates
        class names at runtime, which is ~300 KB and unsuitable for production. -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  <script defer src="web/js/feedback-widget.js"></script>
-  <script defer src="web/js/report-issue.js"></script>
-  <link rel="stylesheet" href="web/css/feedback.css">
-  <link rel="stylesheet" href="web/css/mobile-fixes.css">
+  <script defer src="/static/js/feedback-widget.js"></script>
+  <script defer src="/static/js/report-issue.js"></script>
+  <link rel="stylesheet" href="/static/css/feedback.css">
+  <link rel="stylesheet" href="/static/css/mobile-fixes.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script>
@@ -59,6 +61,10 @@
     .btn-primary { background: linear-gradient(135deg,#2563EB,#3B82F6); color:white; }
     .btn-primary:hover { background: linear-gradient(135deg,#1D4ED8,#2563EB); box-shadow:0 4px 14px rgba(37,99,235,0.35); transform:translateY(-1px); }
     .card { background:white; border:1px solid #E2E8F0; border-radius:12px; }
+    /* Explicit light-mode backgrounds for form controls — prevents OS dark
+       color-scheme from leaking dark native inputs when theme is light */
+    input:not([type=range]):not([type=checkbox]),
+    textarea { background: #fff; color: #1e293b; }
     textarea:focus, input:focus, select:focus { outline:none; border-color:#3B82F6; box-shadow:0 0 0 3px rgba(59,130,246,0.15); }
     ::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-thumb { background:#CBD5E1; border-radius:3px; }
     .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border-width:0; }
@@ -73,19 +79,41 @@
       100% { background-position: -200% 0; }
     }
 
-    /* ── Dark mode overrides for hard-coded colors ──
-       Tailwind's `dark:` variants handle most utility classes via the .dark
-       strategy configured above. These rules cover the few components that
-       use hardcoded inline styles (e.g. .card, .btn-primary, .sidebar-link).
+    /* ── Dark mode overrides ──
+       Flips hardcoded light-mode colors used throughout the UI.
+       Tailwind CDN's dark: variants only cover built-in colors; our custom
+       surface-* palette and Tailwind slate-* utilities on elements need
+       explicit dark overrides here.
     */
+
+    /* Base surfaces */
     .dark body { background: #0f172a; color: #e2e8f0; }
     .dark .card { background: #1e293b; border-color: #334155; }
+
+    /* Slate text colors — flip for dark background readability */
+    .dark .text-slate-800 { color: #e2e8f0; }
+    .dark .text-slate-700 { color: #cbd5e1; }
+    .dark .text-slate-600 { color: #94a3b8; }
+    .dark .text-slate-500 { color: #94a3b8; }
+
+    /* Surface background utilities — light → dark */
+    .dark .bg-surface-50  { background-color: #0f172a; }
+    .dark .bg-surface-100 { background-color: #1e293b; }
+    .dark .bg-surface-200 { background-color: #334155; }
+    .dark .bg-white       { background-color: #1e293b; }
+
+    /* Border utilities */
+    .dark .border-surface-200 { border-color: #334155; }
+    .dark .border-slate-200   { border-color: #334155; }
+    .dark .bg-slate-100       { background-color: #334155; }
+
+    /* Sidebar */
     .dark .sidebar-link { color: #cbd5e1; }
     .dark .sidebar-link:hover { background: #1e293b; }
     .dark .sidebar-link.active { background: #1e3a5f; color: #60a5fa; }
-    /* Top bar / sidebar background */
     .dark aside { background: #0f172a; border-color: #334155; }
     .dark header { background: rgba(15, 23, 42, 0.85); border-color: #334155; }
+
     /* Inputs / selects */
     .dark input:not([type=range]):not([type=checkbox]),
     .dark select,
@@ -96,6 +124,10 @@
     }
     .dark input::placeholder,
     .dark textarea::placeholder { color: #64748b; }
+
+    /* Scrollbar */
+    .dark ::-webkit-scrollbar-thumb { background: #475569; }
+
     /* Skeleton shimmer in dark mode */
     .dark .skeleton-pulse {
       background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);

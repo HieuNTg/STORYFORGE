@@ -1,5 +1,5 @@
 /**
- * web/js/error-boundary.js — StoryForge global error boundary
+ * web/js/error-boundary.ts — StoryForge global error boundary
  *
  * Responsibilities:
  *   - Catch unhandled synchronous errors (window.onerror)
@@ -19,19 +19,19 @@
  * The toast container is injected into <body> lazily on first error.
  */
 
-;(function (window, document) {
+;(function (win: Window & typeof globalThis, doc: Document): void {
   'use strict'
 
   // ── Configuration ──────────────────────────────────────────────────────────
 
   /** Maximum toasts visible simultaneously before oldest is removed. */
-  var MAX_TOASTS = 5
+  const MAX_TOASTS: number = 5
 
   /** Auto-dismiss non-fatal toasts after this many milliseconds. */
-  var TOAST_DURATION_MS = 6000
+  const TOAST_DURATION_MS: number = 6000
 
   /** Errors matching these patterns are treated as fatal (full-screen overlay). */
-  var FATAL_PATTERNS = [
+  const FATAL_PATTERNS: RegExp[] = [
     /ChunkLoadError/i,
     /Loading chunk \d+ failed/i,
     /Failed to fetch dynamically imported module/i,
@@ -40,29 +40,26 @@
 
   // ── Internal state ─────────────────────────────────────────────────────────
 
-  var _toastContainer = null
-  var _toastCount = 0
+  let _toastContainer: HTMLElement | null = null
+  let _toastCount: number = 0
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   /**
    * Determine whether an error should trigger the fatal overlay.
-   * @param {Error|string} err
-   * @returns {boolean}
    */
-  function isFatal(err) {
-    var msg = (err && err.message) ? err.message : String(err)
-    return FATAL_PATTERNS.some(function (re) { return re.test(msg) })
+  function isFatal(err: Error | string | unknown): boolean {
+    const msg = (err && (err as Error).message) ? (err as Error).message : String(err)
+    return FATAL_PATTERNS.some(function (re: RegExp): boolean { return re.test(msg) })
   }
 
   /**
    * Lazy-create and return the toast container element.
-   * @returns {HTMLElement}
    */
-  function getToastContainer() {
+  function getToastContainer(): HTMLElement {
     if (_toastContainer) return _toastContainer
 
-    _toastContainer = document.createElement('div')
+    _toastContainer = doc.createElement('div')
     _toastContainer.id = 'sf-toast-container'
     _toastContainer.setAttribute('aria-live', 'polite')
     _toastContainer.setAttribute('aria-atomic', 'false')
@@ -78,18 +75,16 @@
       'pointer-events:none',
     ].join(';')
 
-    document.body.appendChild(_toastContainer)
+    doc.body.appendChild(_toastContainer)
     return _toastContainer
   }
 
   /**
    * Show a dismissible toast notification.
-   * @param {string} message  Human-readable message.
-   * @param {'error'|'warning'} [level='error']
    */
-  function showToast(message, level) {
-    level = level || 'error'
-    var container = getToastContainer()
+  function showToast(message: string, level?: 'error' | 'warning'): void {
+    const resolvedLevel: 'error' | 'warning' = level || 'error'
+    const container: HTMLElement = getToastContainer()
 
     // Evict oldest toast when limit reached
     while (_toastCount >= MAX_TOASTS && container.firstChild) {
@@ -97,13 +92,13 @@
       _toastCount--
     }
 
-    var isError = level === 'error'
-    var bgColor  = isError ? '#FEF2F2' : '#FFFBEB'
-    var border   = isError ? '#FECACA' : '#FDE68A'
-    var textColor = isError ? '#991B1B' : '#92400E'
-    var iconChar = isError ? '✕' : '⚠'
+    const isError: boolean  = resolvedLevel === 'error'
+    const bgColor: string   = isError ? '#FEF2F2' : '#FFFBEB'
+    const border: string    = isError ? '#FECACA' : '#FDE68A'
+    const textColor: string = isError ? '#991B1B' : '#92400E'
+    const iconChar: string  = isError ? '✕' : '⚠'
 
-    var toast = document.createElement('div')
+    const toast: HTMLDivElement = doc.createElement('div')
     toast.setAttribute('role', 'alert')
     toast.style.cssText = [
       'display:flex',
@@ -124,16 +119,16 @@
       'transition:opacity 200ms ease,transform 200ms ease',
     ].join(';')
 
-    var icon = document.createElement('span')
+    const icon: HTMLSpanElement = doc.createElement('span')
     icon.textContent = iconChar
     icon.setAttribute('aria-hidden', 'true')
     icon.style.cssText = 'flex-shrink:0;font-weight:700;font-size:13px;margin-top:1px'
 
-    var text = document.createElement('span')
+    const text: HTMLSpanElement = doc.createElement('span')
     text.style.cssText = 'flex:1;word-break:break-word'
     text.textContent = message
 
-    var closeBtn = document.createElement('button')
+    const closeBtn: HTMLButtonElement = doc.createElement('button')
     closeBtn.textContent = '×'
     closeBtn.setAttribute('aria-label', 'Dismiss error')
     closeBtn.style.cssText = [
@@ -148,7 +143,7 @@
       'padding:0 2px',
       'opacity:0.7',
     ].join(';')
-    closeBtn.addEventListener('click', function () { removeToast(toast) })
+    closeBtn.addEventListener('click', function (): void { removeToast(toast) })
 
     toast.appendChild(icon)
     toast.appendChild(text)
@@ -157,27 +152,26 @@
     _toastCount++
 
     // Animate in on next frame
-    requestAnimationFrame(function () {
+    requestAnimationFrame(function (): void {
       toast.style.opacity = '1'
       toast.style.transform = 'translateY(0)'
     })
 
     // Auto-dismiss
-    var timer = setTimeout(function () { removeToast(toast) }, TOAST_DURATION_MS)
-    toast.addEventListener('mouseenter', function () { clearTimeout(timer) })
-    toast.addEventListener('mouseleave', function () {
-      timer = setTimeout(function () { removeToast(toast) }, TOAST_DURATION_MS / 2)
+    let timer: ReturnType<typeof setTimeout> = setTimeout(function (): void { removeToast(toast) }, TOAST_DURATION_MS)
+    toast.addEventListener('mouseenter', function (): void { clearTimeout(timer) })
+    toast.addEventListener('mouseleave', function (): void {
+      timer = setTimeout(function (): void { removeToast(toast) }, TOAST_DURATION_MS / 2)
     })
   }
 
   /**
    * Animate-out and remove a toast element.
-   * @param {HTMLElement} toast
    */
-  function removeToast(toast) {
+  function removeToast(toast: HTMLElement): void {
     toast.style.opacity = '0'
     toast.style.transform = 'translateY(0.5rem)'
-    setTimeout(function () {
+    setTimeout(function (): void {
       if (toast.parentNode) {
         toast.parentNode.removeChild(toast)
         _toastCount--
@@ -187,13 +181,12 @@
 
   /**
    * Show a full-screen fatal error overlay.
-   * @param {string} message
    */
-  function showFatalOverlay(message) {
+  function showFatalOverlay(message: string): void {
     // Only one overlay at a time
-    if (document.getElementById('sf-fatal-overlay')) return
+    if (doc.getElementById('sf-fatal-overlay')) return
 
-    var overlay = document.createElement('div')
+    const overlay: HTMLDivElement = doc.createElement('div')
     overlay.id = 'sf-fatal-overlay'
     overlay.setAttribute('role', 'alertdialog')
     overlay.setAttribute('aria-modal', 'true')
@@ -210,7 +203,7 @@
       'padding:1rem',
     ].join(';')
 
-    var card = document.createElement('div')
+    const card: HTMLDivElement = doc.createElement('div')
     card.style.cssText = [
       'background:#fff',
       'border-radius:12px',
@@ -221,15 +214,15 @@
       'box-shadow:0 20px 40px rgb(0 0 0/0.3)',
     ].join(';')
 
-    var heading = document.createElement('h2')
+    const heading: HTMLHeadingElement = doc.createElement('h2')
     heading.style.cssText = 'margin:0 0 0.5rem;font-size:1.25rem;font-weight:700;color:#1e293b'
     heading.textContent = 'Something went wrong'
 
-    var body = document.createElement('p')
+    const body: HTMLParagraphElement = doc.createElement('p')
     body.style.cssText = 'margin:0 0 1.5rem;font-size:14px;color:#64748b;word-break:break-word'
     body.textContent = message || 'An unexpected error occurred. Reloading the page usually fixes this.'
 
-    var reloadBtn = document.createElement('button')
+    const reloadBtn: HTMLButtonElement = doc.createElement('button')
     reloadBtn.textContent = 'Reload page'
     reloadBtn.style.cssText = [
       'display:inline-flex',
@@ -245,34 +238,41 @@
       'cursor:pointer',
       'transition:background 150ms ease',
     ].join(';')
-    reloadBtn.addEventListener('mouseenter', function () { reloadBtn.style.background = '#1d4ed8' })
-    reloadBtn.addEventListener('mouseleave', function () { reloadBtn.style.background = '#2563eb' })
-    reloadBtn.addEventListener('click', function () { window.location.reload() })
+    reloadBtn.addEventListener('mouseenter', function (): void { reloadBtn.style.background = '#1d4ed8' })
+    reloadBtn.addEventListener('mouseleave', function (): void { reloadBtn.style.background = '#2563eb' })
+    reloadBtn.addEventListener('click', function (): void { win.location.reload() })
 
     card.appendChild(heading)
     card.appendChild(body)
     card.appendChild(reloadBtn)
     overlay.appendChild(card)
-    document.body.appendChild(overlay)
+    doc.body.appendChild(overlay)
+  }
+
+  // ── Error context type ──────────────────────────────────────────────────────
+
+  interface ErrorContext {
+    source?: string
+    lineno?: number
+    colno?: number
+    type?: string
   }
 
   /**
    * Central error handler — decides toast vs fatal overlay and logs to console.
-   * @param {Error|string} error
-   * @param {{ source?: string, lineno?: number, colno?: number, type?: string }} [ctx]
    */
-  function handleError(error, ctx) {
-    ctx = ctx || {}
-    var message = (error && error.message) ? error.message : String(error)
+  function handleError(error: Error | string | unknown, ctx?: ErrorContext): void {
+    const resolvedCtx: ErrorContext = ctx || {}
+    const message: string = (error && (error as Error).message) ? (error as Error).message : String(error)
 
     // Structured console log with context
     console.error('[StoryForge] Unhandled error', {
       message: message,
-      stack: (error && error.stack) || null,
-      source: ctx.source || null,
-      lineno: ctx.lineno || null,
-      colno: ctx.colno || null,
-      type: ctx.type || 'error',
+      stack: (error && (error as Error).stack) || null,
+      source: resolvedCtx.source || null,
+      lineno: resolvedCtx.lineno || null,
+      colno: resolvedCtx.colno || null,
+      type: resolvedCtx.type || 'error',
       timestamp: new Date().toISOString(),
     })
 
@@ -289,7 +289,13 @@
    * Catch synchronous runtime errors.
    * Returning true suppresses the browser's default error reporting.
    */
-  window.onerror = function (message, source, lineno, colno, error) {
+  win.onerror = function (
+    message: string | Event,
+    source?: string,
+    lineno?: number,
+    colno?: number,
+    error?: Error
+  ): boolean {
     handleError(error || message, { source: source, lineno: lineno, colno: colno, type: 'onerror' })
     return false // allow default browser reporting to continue
   }
@@ -297,8 +303,8 @@
   /**
    * Catch unhandled Promise rejections.
    */
-  window.addEventListener('unhandledrejection', function (event) {
-    var reason = event.reason
+  win.addEventListener('unhandledrejection', function (event: PromiseRejectionEvent): void {
+    const reason: unknown = event.reason
     handleError(reason, { type: 'unhandledrejection' })
     // Do NOT call event.preventDefault() — allow devtools to still flag these
   })
@@ -307,16 +313,13 @@
 
   /**
    * Manually show a toast — useful from app.js for handled-but-notable errors.
-   * @param {string} message
-   * @param {'error'|'warning'} [level]
    */
-  window.sfShowToast = showToast
+  win.sfShowToast = showToast
 
   /**
    * Manually trigger a fatal overlay — useful for auth failures, etc.
-   * @param {string} message
    */
-  window.sfShowFatal = showFatalOverlay
+  win.sfShowFatal = showFatalOverlay
 
   // ── Alpine.js component export ─────────────────────────────────────────────
 
@@ -326,7 +329,7 @@
    *
    * Exposes showToast() and showFatal() as Alpine reactive methods.
    */
-  window.errorBoundaryComponent = function () {
+  win.errorBoundaryComponent = function (): { showToast: typeof win.sfShowToast; showFatal: typeof win.sfShowFatal } {
     return {
       showToast: showToast,
       showFatal: showFatalOverlay,

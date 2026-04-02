@@ -2,53 +2,70 @@
  * audioPlayer — Alpine.js component for TTS story playback.
  * Register: Alpine.data('audioPlayer', audioPlayer)
  */
+
+interface ChapterData {
+  content: string;
+  title?: string;
+  [key: string]: unknown;
+}
+
+interface AudioStatusResponse {
+  exists: boolean;
+  audio_url: string;
+}
+
+interface AudioGenerateResponse {
+  audio_url: string;
+  error?: string;
+}
+
 function audioPlayer() {
   return {
     // State
-    visible: false,
-    playing: false,
-    loading: false,
-    error: '',
-    currentChapter: 0,
-    progress: 0,
-    duration: 0,
-    playbackRate: 1,
-    audioCache: {}, // chapter_index -> audio_url
+    visible: false as boolean,
+    playing: false as boolean,
+    loading: false as boolean,
+    error: '' as string,
+    currentChapter: 0 as number,
+    progress: 0 as number,
+    duration: 0 as number,
+    playbackRate: 1 as number,
+    audioCache: {} as Record<number, string>, // chapter_index -> audio_url
 
     // Internal
-    _audio: null,
+    _audio: null as HTMLAudioElement | null,
 
-    get chapters() {
+    get chapters(): ChapterData[] {
       const result = Alpine.store('app').pipelineResult;
       if (!result) return [];
       const story = result.enhanced || result.draft || null;
       return story ? (story.chapters || []) : [];
     },
 
-    get currentChapterData() {
+    get currentChapterData(): ChapterData | null {
       return this.chapters[this.currentChapter] || null;
     },
 
-    get progressPercent() {
+    get progressPercent(): number {
       if (!this.duration) return 0;
       return Math.round((this.progress / this.duration) * 100);
     },
 
-    get timeDisplay() {
-      const fmt = (s) => {
+    get timeDisplay(): string {
+      const fmt = (s: number): string => {
         const m = Math.floor(s / 60);
         return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
       };
       return `${fmt(this.progress)} / ${fmt(this.duration)}`;
     },
 
-    _initAudio() {
+    _initAudio(): void {
       if (this._audio) return;
       this._audio = new Audio();
       this._audio.onended = () => this._onEnded();
       this._audio.ontimeupdate = () => {
-        this.progress = this._audio.currentTime;
-        this.duration = this._audio.duration || 0;
+        this.progress = this._audio!.currentTime;
+        this.duration = this._audio!.duration || 0;
       };
       this._audio.onplay = () => { this.playing = true; };
       this._audio.onpause = () => { this.playing = false; };
@@ -59,8 +76,8 @@ function audioPlayer() {
       };
     },
 
-    async generateAudio(chapterIndex) {
-      const ch = this.chapters[chapterIndex];
+    async generateAudio(chapterIndex: number): Promise<string | null> {
+      const ch: ChapterData | undefined = this.chapters[chapterIndex];
       if (!ch) return null;
       if (this.audioCache[chapterIndex]) return this.audioCache[chapterIndex];
 
@@ -72,77 +89,77 @@ function audioPlayer() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: ch.content }),
         });
-        const data = await res.json();
+        const data: AudioGenerateResponse = await res.json();
         if (!res.ok || data.error) throw new Error(data.error || 'Generation failed');
         this.audioCache[chapterIndex] = data.audio_url;
         return data.audio_url;
       } catch (e) {
-        this.error = e.message;
+        this.error = (e as Error).message;
         return null;
       } finally {
         this.loading = false;
       }
     },
 
-    async play(chapterIndex) {
+    async play(chapterIndex?: number): Promise<void> {
       const idx = chapterIndex ?? this.currentChapter;
       this._initAudio();
 
       // Check if already cached
-      let url = this.audioCache[idx];
+      let url: string | undefined = this.audioCache[idx];
       if (!url) {
         // Check server-side status first
         try {
           const res = await fetch(`/api/audio/status/${idx}`);
-          const data = await res.json();
+          const data: AudioStatusResponse = await res.json();
           if (data.exists) url = data.audio_url;
         } catch (_) {}
       }
-      if (!url) url = await this.generateAudio(idx);
+      if (!url) url = await this.generateAudio(idx) ?? undefined;
       if (!url) return;
 
       this.currentChapter = idx;
-      this._audio.src = url;
-      this._audio.playbackRate = this.playbackRate;
-      this._audio.play().catch((e) => { this.error = e.message; });
+      this._audio!.src = url;
+      this._audio!.playbackRate = this.playbackRate;
+      this._audio!.play().catch((e: Error) => { this.error = e.message; });
     },
 
-    pause() {
+    pause(): void {
       this._audio?.pause();
     },
 
-    toggle() {
+    toggle(): void {
       if (!this._audio || !this._audio.src) { this.play(); return; }
       if (this.playing) this.pause(); else this._audio.play();
     },
 
-    async skip(delta) {
+    async skip(delta: number): Promise<void> {
       const next = this.currentChapter + delta;
       if (next < 0 || next >= this.chapters.length) return;
       if (this._audio) this._audio.pause();
       await this.play(next);
     },
 
-    seek(e) {
+    seek(e: MouseEvent): void {
       if (!this._audio || !this.duration) return;
-      const rect = e.currentTarget.getBoundingClientRect();
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       this._audio.currentTime = ratio * this.duration;
     },
 
-    setRate(rate) {
-      this.playbackRate = parseFloat(rate);
+    setRate(rate: number | string): void {
+      this.playbackRate = parseFloat(rate as string);
       if (this._audio) this._audio.playbackRate = this.playbackRate;
     },
 
-    _onEnded() {
+    _onEnded(): void {
       this.playing = false;
       // Auto-advance
       const next = this.currentChapter + 1;
       if (next < this.chapters.length) this.play(next);
     },
 
-    destroy() {
+    destroy(): void {
       if (this._audio) { this._audio.pause(); this._audio = null; }
     },
   };

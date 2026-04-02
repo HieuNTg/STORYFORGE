@@ -40,6 +40,7 @@ Hầu hết công cụ viết AI tạo ra những câu chuyện phẳng, dễ đ
 - **Tiếng Việt & Tiếng Anh** — tạo truyện song ngữ ngay từ đầu
 - **Xuất phong phú** — PDF, EPUB, HTML web reader, storyboard video đầy đủ
 - **Chế độ đọc nhánh tương tác** — chọn-hướng-phiêu-lưu với các nhánh sinh bởi LLM
+- **Giao diện Sáng / Tối** — chuyển đổi theme mượt mà với đồng bộ color-scheme toàn bộ trang
 - **Tự host, bảo mật** — truyện và API key không bao giờ rời khỏi hạ tầng của bạn
 - **Định tuyến model thông minh** — model rẻ cho phân tích, model cao cấp cho viết (~45% tiết kiệm chi phí)
 - **Đọc narration bằng giọng nói** — audio trong trình duyệt qua `edge-tts`, không cần API key
@@ -62,6 +63,7 @@ Mở [http://localhost:7860](http://localhost:7860). Xong.
 git clone https://github.com/HieuNTg/STORYFORGE.git
 cd STORYFORGE
 pip install -r requirements.txt
+npm install && npm run build   # biên dịch TypeScript → JS
 python app.py
 # → http://localhost:7860
 ```
@@ -137,7 +139,7 @@ storyforge/
 │   ├── branch_narrative.py     #   Chế độ đọc nhánh
 │   └── ...                     #   Xuất, xác thực, phân tích...
 ├── api/                        # REST endpoint FastAPI
-├── web/                        # Frontend Alpine.js (SPA)
+├── web/                        # Frontend Alpine.js + TypeScript (SPA)
 ├── middleware/                 # Auth, giới hạn tốc độ, audit log
 ├── models/schemas.py           # Mô hình dữ liệu Pydantic
 └── tests/                      # Bộ kiểm tra

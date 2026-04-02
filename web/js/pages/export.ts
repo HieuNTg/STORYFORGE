@@ -3,23 +3,23 @@
  */
 function exportPage() {
   return {
-    exporting: null,
-    message: '',
+    exporting: null as string | null,
+    message: '' as string,
 
-    get sessionId() {
+    get sessionId(): string | null {
       return Alpine.store('app').sessionId;
     },
 
-    get hasStory() {
+    get hasStory(): boolean {
       return !!this.sessionId;
     },
 
-    init() {
+    init(): void {
       // Clear stale message on page mount
       this.message = '';
     },
 
-    async exportFormat(format) {
+    async exportFormat(format: string): Promise<void> {
       if (!this.sessionId) {
         this.message = 'No story yet. Run the pipeline first.';
         return;
@@ -33,12 +33,12 @@ function exportPage() {
         // Auto-clear success message after 5s
         setTimeout(() => { if (!this.message.startsWith('Error')) this.message = ''; }, 5000);
       } catch (e) {
-        this.message = 'Error: ' + e.message;
+        this.message = 'Error: ' + (e as Error).message;
       }
       this.exporting = null;
     },
 
-    async exportZip() {
+    async exportZip(): Promise<void> {
       if (!this.sessionId) {
         this.message = 'No story yet.';
         return;
@@ -50,7 +50,7 @@ function exportPage() {
         this.message = 'ZIP downloaded successfully!';
         setTimeout(() => { if (!this.message.startsWith('Error')) this.message = ''; }, 5000);
       } catch (e) {
-        this.message = 'Error: ' + e.message;
+        this.message = 'Error: ' + (e as Error).message;
       }
       this.exporting = null;
     },

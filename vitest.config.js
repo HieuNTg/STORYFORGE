@@ -20,8 +20,8 @@ export default defineConfig({
 
     // Glob patterns for test files
     include: [
-      'web/js/__tests__/**/*.test.js',
-      'web/js/__tests__/**/*.spec.js',
+      'web/js/__tests__/**/*.test.{js,ts}',
+      'web/js/__tests__/**/*.spec.{js,ts}',
     ],
 
     // Global test helpers (describe, it, expect, vi) without explicit imports

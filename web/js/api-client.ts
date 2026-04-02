@@ -2,75 +2,9 @@
  * api-client.ts — Typed fetch wrapper for the StoryForge API.
  * All methods return JSON or throw on error.
  *
- * Migrated from api-client.js — types added, logic unchanged.
+ * Loaded as a plain <script> tag — no ES module imports/exports.
+ * Interfaces are declared globally in globals.d.ts.
  */
-
-// ---------------------------------------------------------------------------
-// Public interfaces — import these in other modules for type safety
-// ---------------------------------------------------------------------------
-
-/** Generic envelope for all JSON API responses. */
-export interface ApiResponse<T = unknown> {
-  data: T
-  message?: string
-}
-
-/** Shape of an API error payload returned by FastAPI. */
-export interface ApiError {
-  detail: string
-  status?: number
-}
-
-/** A single Server-Sent Event parsed from the SSE stream. */
-export interface StreamEvent {
-  type: 'progress' | 'chapter' | 'done' | 'error' | 'interrupted'
-  data: string
-  /** Optional structured payload (e.g. chapter JSON). */
-  payload?: unknown
-}
-
-/** Story generation request payload sent to /generate endpoints. */
-export interface StoryConfig {
-  genre: string
-  language: string
-  targetWordCount: number
-  chapterCount: number
-  outline?: string
-  temperature?: number
-  model?: string
-}
-
-/** Full story data returned by the REST API. */
-export interface StoryData {
-  id: string
-  title: string
-  genre: string
-  language: string
-  synopsis: string
-  wordCount: number
-  status: string
-  createdAt: string
-  updatedAt: string
-  chapters?: ChapterData[]
-}
-
-/** Individual chapter data. */
-export interface ChapterData {
-  id: string
-  storyId: string
-  index: number
-  title: string
-  content: string
-  wordCount: number
-}
-
-/** Token usage statistics included in some API responses. */
-export interface TokenUsage {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
-  estimatedCostUsd?: number
-}
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -79,10 +13,11 @@ export interface TokenUsage {
 type RequestBody = Record<string, unknown> | unknown[]
 
 // ---------------------------------------------------------------------------
-// API client object
+// API client object — available as window.API
 // ---------------------------------------------------------------------------
 
-const API = {
+// eslint-disable-next-line no-var
+var API: ApiClient = {
   base: '/api' as string,
 
   async get<T = unknown>(path: string): Promise<T> {
@@ -231,5 +166,3 @@ const API = {
     URL.revokeObjectURL(url)
   },
 }
-
-export default API

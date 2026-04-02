@@ -80,6 +80,8 @@ jobs:
           node-version: '20'
       - name: Install dependencies
         run: npm install
+      - name: TypeScript type check
+        run: npm run typecheck
       - name: Run Vitest frontend tests
         run: npm test
 

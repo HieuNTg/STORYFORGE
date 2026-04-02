@@ -9,6 +9,7 @@
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+" /></a>
   <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI" /></a>
   <a href="https://alpinejs.dev"><img src="https://img.shields.io/badge/Alpine.js-8BC0D0?logo=alpine.js&logoColor=white" alt="Alpine.js" /></a>
+  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
   <a href="https://hub.docker.com"><img src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white" alt="Docker" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" /></a>
   <a href="https://github.com/HieuNTg/STORYFORGE/stargazers"><img src="https://img.shields.io/github/stars/HieuNTg/STORYFORGE?style=social" alt="GitHub Stars" /></a>
@@ -56,6 +57,7 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 - **Vietnamese & English** — bilingual story generation out of the box
 - **Rich export** — PDF, EPUB, HTML web reader, and full video storyboards with shot-by-shot camera direction and image prompts
 - **Interactive branch reader** — choose-your-own-adventure mode with LLM-generated branching paths
+- **Dark / Light mode** — polished theme toggle with full color-scheme sync across all pages
 - **Self-hosted, privacy-first** — your stories and API keys never leave your infrastructure
 - **Smart model routing** — assign cheap models to analysis tasks and premium models to writing (~45% cost savings)
 - **Customizable agent prompts** — edit `data/prompts/agent_prompts.yaml` to tune how AI agents evaluate and enhance stories
@@ -83,6 +85,7 @@ Open [http://localhost:7860](http://localhost:7860). That's it.
 git clone https://github.com/HieuNTg/STORYFORGE.git
 cd STORYFORGE
 pip install -r requirements.txt
+npm install && npm run build   # compile TypeScript → JS
 python app.py
 # → http://localhost:7860
 ```
@@ -186,7 +189,7 @@ flowchart LR
 | Layer | Technology |
 |:------|:-----------|
 | Backend | Python 3.10+, FastAPI, Uvicorn |
-| Frontend | Alpine.js 3, Tailwind CSS |
+| Frontend | Alpine.js 3, TypeScript, Tailwind CSS |
 | Streaming | Server-Sent Events (SSE) |
 | AI / LLM | Any OpenAI-compatible API |
 | Text-to-Speech | edge-tts (no API key required) |
@@ -224,7 +227,7 @@ storyforge/
 │   └── ...
 ├── web/                        # Alpine.js frontend (SPA)
 │   ├── index.html
-│   └── js/
+│   └── js/                     #   TypeScript source → compiled to JS via tsc
 ├── data/prompts/               # Customizable agent prompts (YAML)
 ├── middleware/                  # Auth, rate limiting, audit logging
 ├── monitoring/                 # Prometheus, Grafana, Loki configs

@@ -5,11 +5,13 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc -p tsconfig.build.json",
+    "build:vite": "vite build",
     "preview": "vite preview",
     "test": "vitest",
     "test:coverage": "vitest --coverage",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.15",

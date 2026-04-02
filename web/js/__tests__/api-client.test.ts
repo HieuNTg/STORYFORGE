@@ -5,67 +5,20 @@
  *   - GET / POST / PUT / DELETE fetch wrapper methods
  *   - Error handling when the server returns a non-OK status
  *   - SSE stream() generator: happy path, interrupted stream, error events
- *   - streamBuffered() batching behaviour
  *   - download() anchor-click helper
- *
- * This is the TypeScript counterpart to api-client.test.js.
- * It imports api-client.ts directly as an ES module, so type-level
- * contracts (interfaces, generics) are verified by tsc alongside test logic.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { StreamEvent } from '../api-client'
-
-// Dynamic import used so each beforeEach gets a fresh module reference.
-// Vitest resets module state between test files but not within a file,
-// so we rebuild the API object manually (same pattern as the JS test).
-import { readFileSync } from 'fs'
-import { resolve } from 'path'
+import { createAPI } from './helpers/create-api'
 
 // ---------------------------------------------------------------------------
-// Load module under test
-// We still use the Function-constructor trick here because the source file
-// uses `const API = { ... }` (object literal, not a class), so there is no
-// re-instantiation path via normal imports.  The TS file compiles to the same
-// shape, so the runtime behaviour is identical.
+// Fresh API instance per test
 // ---------------------------------------------------------------------------
-const apiClientSrc = readFileSync(
-  resolve(__dirname, '../api-client.ts'),
-  'utf-8'
-)
-
-// Strip TypeScript-only syntax before eval:
-//   - interface / type declarations
-//   - type annotations (: Type, <T>, as Type)
-//   - export keyword variants
-// We use a minimal regex pass sufficient for this specific file's syntax.
-function stripTypes(src: string): string {
-  return src
-    // Remove export statements that are type-only or re-exports of types
-    .replace(/^export\s+(?:type|interface)\s[\s\S]*?^}/gm, '')
-    // Remove standalone type / interface declarations
-    .replace(/^(?:type|interface)\s+\w[\s\S]*?^}/gm, '')
-    // Remove inline type annotations: `: SomeType` (but not ternaries)
-    .replace(/:\s*(?:string|number|boolean|unknown|void|never|null|undefined|RequestBody|StreamEvent(?:\[\])?|AsyncGenerator<StreamEvent>|Promise<[^>]+>)\b/g, '')
-    // Remove generic type parameters on function calls and declarations
-    .replace(/<\w+>/g, '')
-    // Remove `as Type` casts
-    .replace(/\s+as\s+(?:Promise<\w+>|\w+)/g, '')
-    // Remove type assertion arrays like `as StreamEvent['type'][]`
-    .replace(/\s+as\s+StreamEvent\['type'\]\[\]/g, '')
-    // Remove `export default` → keep `const API`
-    .replace(/^export default API\s*$/m, '')
-    // Remove remaining `export` keywords on const/function/class
-    .replace(/^export\s+/gm, '')
-}
-
-const cleanSrc = stripTypes(apiClientSrc)
-const buildAPI = new Function(`${cleanSrc}\nreturn API;`)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let API: any
 
 beforeEach(() => {
-  API = buildAPI()
+  API = createAPI()
 })
 
 // ---------------------------------------------------------------------------
@@ -86,6 +39,12 @@ function mockResponse({ ok = true, status = 200, body = {}, blob = null }: MockR
     json: vi.fn().mockResolvedValue(body),
     blob: vi.fn().mockResolvedValue(blob ?? new Blob()),
   }
+}
+
+interface TestStreamEvent {
+  type: string
+  data: string
+  payload?: unknown
 }
 
 function sseStream(lines: string[]) {
@@ -226,7 +185,7 @@ describe('API.stream()', () => {
       body: sseStream(events),
     })
 
-    const received: StreamEvent[] = []
+    const received: TestStreamEvent[] = []
     for await (const event of API.stream('/generate', { prompt: 'hi' })) {
       received.push(event)
     }
@@ -244,7 +203,7 @@ describe('API.stream()', () => {
       body: sseStream(events),
     })
 
-    const received: StreamEvent[] = []
+    const received: TestStreamEvent[] = []
     for await (const event of API.stream('/generate', {})) {
       received.push(event)
     }
@@ -274,7 +233,7 @@ describe('API.stream()', () => {
       },
     })
 
-    const received: StreamEvent[] = []
+    const received: TestStreamEvent[] = []
     for await (const event of API.stream('/generate', {})) {
       received.push(event)
     }
@@ -303,7 +262,7 @@ describe('API.stream()', () => {
       body: sseStream(events),
     })
 
-    const received: StreamEvent[] = []
+    const received: TestStreamEvent[] = []
     for await (const event of API.stream('/generate', {})) {
       received.push(event)
     }

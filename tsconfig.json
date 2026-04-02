@@ -19,6 +19,6 @@
     },
     "types": ["vitest/globals"]
   },
-  "include": ["web/js/**/*.ts", "web/js/**/*.js"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["web/js/**/*.ts"],
+  "exclude": ["node_modules", "dist", "web/js/__tests__/**"]
 }

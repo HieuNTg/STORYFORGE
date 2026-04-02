@@ -41,6 +41,13 @@ data/test_timings.json
 
 # ── Node ──────────────────────────────────────────────────────────
 node_modules/
+coverage/
+
+# ── TypeScript build output (generated from .ts source) ──────────
+web/js/**/*.js
+web/js/**/*.js.map
+!web/js/__tests__/setup.js
+web/dist/
 
 # ── IDE & OS ───────────────────────────────────────────────────────
 .DS_Store

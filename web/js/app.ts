@@ -2,33 +2,82 @@
  * StoryForge — Alpine.js app stores and SPA routing.
  */
 
+/* ── Domain interfaces ── */
+
+interface NavItem {
+  id: string;
+  label: string;
+  icon: string;
+  group: 'main' | 'bottom';
+}
+
+type PipelineStatus = 'idle' | 'running' | 'done' | 'error' | 'interrupted';
+
+interface PipelineForm {
+  title: string;
+  genre: string;
+  style: string;
+  idea: string;
+  num_chapters: number;
+  num_characters: number;
+  word_count: number;
+  num_sim_rounds: number;
+  drama_level: string;
+  shots_per_chapter: number;
+  enable_agents: boolean;
+  enable_scoring: boolean;
+  enable_media: boolean;
+}
+
+interface PipelineResult {
+  session_id?: string;
+  livePreview?: string;
+  [key: string]: unknown;
+}
+
+interface CheckpointItem {
+  path: string;
+  [key: string]: unknown;
+}
+
+interface GenreChoicesResponse {
+  genres?: string[];
+  styles?: string[];
+  drama_levels?: string[];
+}
+
+interface ConnectionTestResponse {
+  ok: boolean;
+  message: string;
+}
+
 /* ── Navigation items ── */
-const NAV_ITEMS = [
-  { id: 'pipeline',  label: 'Create Story',  icon: 'pencil-square', group: 'main' },
-  { id: 'library',   label: 'Library',       icon: 'building-library', group: 'main' },
-  { id: 'reader',    label: 'Reader',        icon: 'book-open',     group: 'main' },
-  { id: 'export',    label: 'Export',        icon: 'arrow-down-tray', group: 'main' },
-  { id: 'analytics', label: 'Analytics',    icon: 'chart-bar',     group: 'main' },
-  { id: 'branching', label: 'Branching',    icon: 'arrows-pointing-out', group: 'main' },
-  { id: 'settings',  label: 'Settings',     icon: 'cog-6-tooth',   group: 'bottom' },
-  { id: 'guide',     label: 'Guide',        icon: 'question-mark-circle', group: 'bottom' },
-];
+const NAV_ITEMS: NavItem[] = [
+  { id: 'pipeline',  label: 'Create Story',  icon: 'pencil-square',         group: 'main'   },
+  { id: 'library',   label: 'Library',       icon: 'building-library',       group: 'main'   },
+  { id: 'reader',    label: 'Reader',        icon: 'book-open',              group: 'main'   },
+  { id: 'export',    label: 'Export',        icon: 'arrow-down-tray',        group: 'main'   },
+  { id: 'analytics', label: 'Analytics',    icon: 'chart-bar',              group: 'main'   },
+  { id: 'branching', label: 'Branching',    icon: 'arrows-pointing-out',    group: 'main'   },
+  { id: 'settings',  label: 'Settings',     icon: 'cog-6-tooth',            group: 'bottom' },
+  { id: 'guide',     label: 'Guide',        icon: 'question-mark-circle',   group: 'bottom' },
+] as const;
 
 /* ── Global app store ── */
 document.addEventListener('alpine:init', () => {
 
   Alpine.store('app', {
-    page: 'pipeline',
+    page: 'pipeline' as string,
     sidebarOpen: window.innerWidth > 768,
     /** @deprecated use isLoading instead */
     loading: false,
     /** Global loading overlay flag. Set via setLoading() / clearLoading(). */
     isLoading: false,
     /** Human-readable message shown in the global loading overlay. */
-    loadingMessage: '',
-    sessionId: null,
-    pipelineResult: null,
-    storageWarning: '',
+    loadingMessage: '' as string,
+    sessionId: null as string | null,
+    pipelineResult: null as PipelineResult | null,
+    storageWarning: '' as string,
     /** Current theme: 'dark' | 'light'. Reflects the <html> .dark class. */
     darkMode: document.documentElement.classList.contains('dark'),
 
@@ -39,27 +88,29 @@ document.addEventListener('alpine:init', () => {
      * Uses localStorage directly for the theme pref so it survives sessions
      * (storageManager is session-scoped by default).
      */
-    toggleDarkMode() {
+    toggleDarkMode(): void {
       this.darkMode = !this.darkMode;
       if (this.darkMode) {
         document.documentElement.classList.add('dark');
       } else {
         document.documentElement.classList.remove('dark');
       }
+      // Sync color-scheme so native form controls (inputs, selects) match the theme
+      document.documentElement.style.colorScheme = this.darkMode ? 'dark' : 'light';
       try { localStorage.setItem('sf_theme', this.darkMode ? 'dark' : 'light'); } catch (_) {}
     },
 
     /**
      * Show the global loading overlay.
-     * @param {string} [msg] - Optional message to display.
+     * @param msg - Optional message to display.
      */
-    setLoading(msg) {
+    setLoading(msg?: string): void {
       this.isLoading = true;
       this.loadingMessage = msg || '';
     },
 
     /** Hide the global loading overlay. */
-    clearLoading() {
+    clearLoading(): void {
       this.isLoading = false;
       this.loadingMessage = '';
     },
@@ -67,25 +118,25 @@ document.addEventListener('alpine:init', () => {
     /**
      * Navigate to a page and update the URL hash for bookmarkable URLs.
      * Back/forward browser buttons work via the hashchange listener in init().
-     * @param {string} page - The page id (must be in NAV_ITEMS).
+     * @param page - The page id (must be in NAV_ITEMS).
      */
-    navigate(page) {
+    navigate(page: string): void {
       this.page = page;
       if (window.innerWidth <= 768) this.sidebarOpen = false;
       // Update hash — #pipeline, #library, etc.
       window.location.hash = page;
     },
 
-    toggleSidebar() {
+    toggleSidebar(): void {
       this.sidebarOpen = !this.sidebarOpen;
     },
 
     /** Save pipeline result via StorageManager (sessionStorage + IndexedDB fallback) */
-    async savePipelineResult(data) {
+    async savePipelineResult(data: PipelineResult): Promise<void> {
       this.pipelineResult = data;
       this.storageWarning = '';
       // Strip transient fields before storage
-      const toStore = { ...data };
+      const toStore: PipelineResult = { ...data };
       delete toStore.livePreview;
       const json = JSON.stringify(toStore);
 
@@ -100,17 +151,17 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
-    async init() {
+    async init(): Promise<void> {
       /**
        * F3: Hash-based URL routing.
        * Supported hashes: #pipeline, #library, #reader, #export,
        *   #settings, #analytics, #branching, #guide
        * Back/forward browser buttons work because hashchange re-syncs the store.
        */
-      const resolveHash = (raw) => {
+      const resolveHash = (raw: string): string | null => {
         // Strip leading # and optional leading /
         const id = raw.replace(/^#?\/?/, '');
-        return NAV_ITEMS.some(n => n.id === id) ? id : null;
+        return NAV_ITEMS.some((n: NavItem) => n.id === id) ? id : null;
       };
 
       // Restore page from hash on initial load
@@ -118,12 +169,12 @@ document.addEventListener('alpine:init', () => {
       if (initialPage) this.page = initialPage;
 
       // Sync store when user navigates with back/forward or edits the URL bar
-      window.addEventListener('hashchange', () => {
+      window.addEventListener('hashchange', (_e: Event): void => {
         const page = resolveHash(window.location.hash);
         if (page && page !== this.page) this.page = page;
       });
       // F6: Auto-manage sidebar on resize (open on desktop, close on mobile)
-      window.addEventListener('resize', () => {
+      window.addEventListener('resize', (_e: Event): void => {
         if (window.innerWidth > 768 && !this.sidebarOpen) {
           this.sidebarOpen = true;
         } else if (window.innerWidth <= 768 && this.sidebarOpen) {
@@ -136,16 +187,16 @@ document.addEventListener('alpine:init', () => {
       try {
         const saved = await window.storageManager.getItem('sf_result');
         if (saved) {
-          const parsed = JSON.parse(saved);
+          const parsed: unknown = JSON.parse(saved);
           if (parsed && typeof parsed === 'object') {
-            this.pipelineResult = parsed;
+            this.pipelineResult = parsed as PipelineResult;
             Alpine.store('pipeline').result = parsed;
             Alpine.store('pipeline').status = 'done';
             Alpine.store('pipeline').progress = 4;
           }
         }
       } catch (e) {
-        console.warn('Failed to restore pipeline result:', e.message);
+        console.warn('Failed to restore pipeline result:', (e as Error).message);
         await window.storageManager.removeItem('sf_result');
       }
     },
@@ -153,14 +204,14 @@ document.addEventListener('alpine:init', () => {
 
   /* ── Pipeline store ── */
   Alpine.store('pipeline', {
-    status: 'idle',  // idle | running | done | error | interrupted
-    currentLog: '',
-    logs: [],
-    livePreview: '',
+    status: 'idle' as PipelineStatus,
+    currentLog: '' as string,
+    logs: [] as string[],
+    livePreview: '' as string,
     progress: 0,     // 0-4 (layer number)
-    result: null,
-    error: null,
-    checkpoints: [],
+    result: null as PipelineResult | null,
+    error: null as string | null,
+    checkpoints: [] as CheckpointItem[],
 
     // Form defaults
     form: {
@@ -168,27 +219,27 @@ document.addEventListener('alpine:init', () => {
       idea: '', num_chapters: 5, num_characters: 5, word_count: 2000,
       num_sim_rounds: 3, drama_level: 'cao', shots_per_chapter: 8,
       enable_agents: true, enable_scoring: true, enable_media: false,
-    },
+    } as PipelineForm,
 
-    genres: [], styles: [], dramaLevels: [],
-    templates: {},
+    genres: [] as string[], styles: [] as string[], dramaLevels: [] as string[],
+    templates: {} as Record<string, unknown>,
 
-    async loadChoices() {
+    async loadChoices(): Promise<void> {
       try {
-        const data = await API.get('/pipeline/genres');
+        const data = await API.get<GenreChoicesResponse>('/pipeline/genres');
         this.genres = data.genres || [];
         this.styles = data.styles || [];
         this.dramaLevels = data.drama_levels || [];
       } catch (e) { console.error('Load choices failed:', e); }
     },
 
-    async loadTemplates() {
+    async loadTemplates(): Promise<void> {
       try {
-        this.templates = await API.get('/pipeline/templates');
+        this.templates = await API.get<Record<string, unknown>>('/pipeline/templates');
       } catch (e) { console.error('Load templates failed:', e); }
     },
 
-    async run() {
+    async run(): Promise<void> {
       // Client-side validation
       const idea = (this.form.idea || '').trim();
       if (!idea || idea.length < 10) {
@@ -205,9 +256,9 @@ document.addEventListener('alpine:init', () => {
       this.error = null;
 
       try {
-        for await (const event of API.stream('/pipeline/run', this.form)) {
+        for await (const event of API.stream('/pipeline/run', this.form as unknown as Record<string, unknown>)) {
           if (event.type === 'session') {
-            Alpine.store('app').sessionId = event.session_id;
+            Alpine.store('app').sessionId = event.session_id ?? null;
           } else if (event.type === 'log') {
             this.currentLog = event.data;
             this.logs.push(event.data);
@@ -215,9 +266,10 @@ document.addEventListener('alpine:init', () => {
           } else if (event.type === 'stream') {
             this.livePreview = event.data;
           } else if (event.type === 'done') {
-            this.result = event.data;
-            Alpine.store('app').savePipelineResult(event.data);
-            Alpine.store('app').sessionId = event.data.session_id;
+            const result = event.data as unknown as PipelineResult;
+            this.result = result;
+            Alpine.store('app').savePipelineResult(result);
+            Alpine.store('app').sessionId = result.session_id ?? null;
             this.status = 'done';
             this.progress = 4;
           } else if (event.type === 'error') {
@@ -230,14 +282,14 @@ document.addEventListener('alpine:init', () => {
         }
         if (this.status === 'running') this.status = 'done';
       } catch (e) {
-        this.error = e.message;
+        this.error = (e as Error).message;
         this.status = 'error';
       }
     },
 
-    async loadCheckpoints() {
+    async loadCheckpoints(): Promise<void> {
       try {
-        const data = await API.get('/pipeline/checkpoints');
+        const data = await API.get<{ checkpoints?: CheckpointItem[] }>('/pipeline/checkpoints');
         this.checkpoints = data.checkpoints || [];
       } catch (e) {
         console.error('Load checkpoints failed:', e);
@@ -245,7 +297,7 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
-    async resumeFromCheckpoint(path) {
+    async resumeFromCheckpoint(path: string): Promise<void> {
       this.status = 'running';
       this.logs = [];
       this.livePreview = '';
@@ -254,7 +306,7 @@ document.addEventListener('alpine:init', () => {
       try {
         for await (const event of API.stream('/pipeline/resume', { checkpoint: path })) {
           if (event.type === 'session') {
-            Alpine.store('app').sessionId = event.session_id;
+            Alpine.store('app').sessionId = event.session_id ?? null;
           } else if (event.type === 'log') {
             this.currentLog = event.data;
             this.logs.push(event.data);
@@ -262,9 +314,10 @@ document.addEventListener('alpine:init', () => {
           } else if (event.type === 'stream') {
             this.livePreview = event.data;
           } else if (event.type === 'done') {
-            this.result = event.data;
-            Alpine.store('app').savePipelineResult(event.data);
-            Alpine.store('app').sessionId = event.data.session_id;
+            const result = event.data as unknown as PipelineResult;
+            this.result = result;
+            Alpine.store('app').savePipelineResult(result);
+            Alpine.store('app').sessionId = result.session_id ?? null;
             this.status = 'done';
             this.progress = 4;
           } else if (event.type === 'error') {
@@ -277,12 +330,12 @@ document.addEventListener('alpine:init', () => {
         }
         if (this.status === 'running') this.status = 'done';
       } catch (e) {
-        this.error = e.message;
+        this.error = (e as Error).message;
         this.status = 'error';
       }
     },
 
-    _detectLayer(msg) {
+    _detectLayer(msg: string): number {
       const up = msg.toUpperCase();
       if (up.includes('MEDIA') || up.includes('IMAGE') || up.includes('AUDIO')) return 4;
       if (up.includes('LAYER 3') || up.includes('STORYBOARD') || up.includes('VIDEO')) return 3;
@@ -291,7 +344,7 @@ document.addEventListener('alpine:init', () => {
       return this.progress || 0;
     },
 
-    reset() {
+    reset(): void {
       this.status = 'idle';
       this.logs = [];
       this.livePreview = '';
@@ -304,17 +357,17 @@ document.addEventListener('alpine:init', () => {
 
   /* ── Settings store ── */
   Alpine.store('settings', {
-    config: null,
+    config: null as Record<string, unknown> | null,
     saving: false,
-    message: '',
+    message: '' as string,
 
-    async load() {
+    async load(): Promise<void> {
       try {
-        this.config = await API.get('/config');
+        this.config = await API.get<Record<string, unknown>>('/config');
       } catch (e) { console.error('Load config failed:', e); }
     },
 
-    async save(formData) {
+    async save(formData: Record<string, unknown>): Promise<void> {
       this.saving = true;
       this.message = '';
       try {
@@ -322,16 +375,16 @@ document.addEventListener('alpine:init', () => {
         this.message = 'Settings saved!';
         await this.load();
       } catch (e) {
-        this.message = 'Error: ' + e.message;
+        this.message = 'Error: ' + (e as Error).message;
       }
       this.saving = false;
     },
 
-    async testConnection() {
+    async testConnection(): Promise<string> {
       try {
-        const res = await API.post('/config/test-connection');
+        const res = await API.post<ConnectionTestResponse>('/config/test-connection');
         return res.ok ? 'OK: ' + res.message : 'Error: ' + res.message;
-      } catch (e) { return 'Error: ' + e.message; }
+      } catch (e) { return 'Error: ' + (e as Error).message; }
     },
   });
 
