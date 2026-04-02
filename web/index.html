@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>StoryForge</title>
+  <!-- TODO(production): Replace Tailwind CDN with a proper build step (e.g. `npx tailwindcss -o dist/main.css --minify`).
+       The CDN version is development-only — it ships the full engine and evaluates
+       class names at runtime, which is ~300 KB and unsuitable for production. -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -70,6 +73,26 @@
       <div class="skeleton-pulse h-12 w-48"></div>
     </div>
   </div>
+  <!-- ═══ GLOBAL LOADING OVERLAY ═══
+       Usage: $store.app.setLoading('Optional message') / $store.app.clearLoading()
+       Any page can trigger this for async operations that need a full-screen indicator.
+  -->
+  <div
+    x-show="$store.app.isLoading"
+    x-transition.opacity.duration.200ms
+    x-cloak
+    role="status"
+    aria-live="polite"
+    aria-label="Loading"
+    class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white/70 backdrop-blur-sm"
+  >
+    <svg class="w-10 h-10 animate-spin text-brand-600 mb-3" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+    </svg>
+    <p class="text-sm font-medium text-slate-600" x-text="$store.app.loadingMessage || 'Loading…'"></p>
+  </div>
+
   <!-- Skip to content (accessibility) -->
   <a href="#main-content" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-brand-600 focus:text-white focus:rounded-lg focus:text-sm focus:font-semibold">Skip to content</a>
 
@@ -126,12 +149,20 @@
     </div>
   </aside>
 
-  <!-- ═══ MOBILE OVERLAY ═══ -->
+  <!-- ═══ MOBILE OVERLAY ═══
+       Shows a semi-transparent backdrop behind the sidebar on mobile.
+       Alpine handles open/close; Tailwind's `md:hidden` hides it on larger screens.
+  -->
   <div
-    x-show="$store.app.sidebarOpen && window.innerWidth <= 768"
+    x-show="$store.app.sidebarOpen"
     @click="$store.app.sidebarOpen = false"
     class="fixed inset-0 z-20 bg-black/30 md:hidden"
-    x-transition.opacity
+    x-transition:enter="transition-opacity duration-200"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition-opacity duration-150"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
     x-cloak
   ></div>
 
@@ -764,6 +795,83 @@
         </div>
       </div>
 
+      <!-- ═══ LIBRARY PAGE ═══ -->
+      <div x-show="$store.app.page === 'library'" x-cloak class="page-enter" x-data="libraryPage()">
+        <div class="max-w-4xl mx-auto space-y-4">
+
+          <!-- Error banner -->
+          <template x-if="error">
+            <div class="card p-4 border-red-200 bg-red-50 text-red-700 text-sm" x-text="error"></div>
+          </template>
+
+          <!-- Header with refresh -->
+          <div class="flex items-center justify-between">
+            <p class="text-sm text-slate-500" x-show="stories.length > 0" x-text="stories.length + ' saved ' + (stories.length === 1 ? 'story' : 'stories')"></p>
+            <button @click="loadStories()" :disabled="loading" class="text-sm text-brand-600 hover:text-brand-700 font-medium cursor-pointer disabled:opacity-50">
+              Refresh
+            </button>
+          </div>
+
+          <!-- Loading state -->
+          <template x-if="loading && stories.length === 0">
+            <div class="space-y-3">
+              <template x-for="i in 3" :key="i">
+                <div class="card p-5 skeleton-pulse h-24"></div>
+              </template>
+            </div>
+          </template>
+
+          <!-- Empty state -->
+          <template x-if="!loading && stories.length === 0 && !error">
+            <div class="card p-12 text-center">
+              <svg class="w-16 h-16 mx-auto text-slate-200 mb-4" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z"/></svg>
+              <h3 class="text-lg font-semibold text-slate-400 mb-1">No Saved Stories</h3>
+              <p class="text-sm text-slate-400">Generate a story first — checkpoints are saved automatically</p>
+              <button @click="$store.app.navigate('pipeline')" class="mt-4 btn-primary px-5 py-2 rounded-lg text-sm font-medium cursor-pointer">Create Story</button>
+            </div>
+          </template>
+
+          <!-- Story list -->
+          <template x-if="stories.length > 0">
+            <div class="space-y-3">
+              <template x-for="story in stories" :key="story.path">
+                <div class="card p-5 hover:border-brand-300 hover:shadow-sm transition-all cursor-pointer group" @click="openStory(story.path)">
+                  <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 mb-1">
+                        <h3 class="font-semibold text-slate-700 truncate" x-text="story.title || story.path"></h3>
+                        <span class="flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium" :class="layerColor(story.current_layer)" x-text="layerLabel(story.current_layer)"></span>
+                      </div>
+                      <div class="flex items-center gap-3 text-xs text-slate-400">
+                        <span x-show="story.genre" x-text="story.genre"></span>
+                        <span x-text="story.chapter_count + ' chapters'"></span>
+                        <span x-text="story.modified"></span>
+                        <span x-text="story.size_kb + ' KB'"></span>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                      <!-- Loading spinner for this story -->
+                      <template x-if="loadingStory === story.path">
+                        <svg class="w-5 h-5 animate-spin text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                      </template>
+                      <!-- Delete button -->
+                      <button
+                        @click.stop="confirmDelete === story.path ? deleteStory(story.path) : confirmDelete = story.path"
+                        class="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                        :class="{ 'opacity-100 text-red-500 bg-red-50': confirmDelete === story.path }"
+                        :title="confirmDelete === story.path ? 'Click again to confirm delete' : 'Delete story'"
+                      >
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </div>
+
       <!-- ═══ READER PAGE ═══ -->
       <div x-show="$store.app.page === 'reader'" x-cloak class="page-enter" x-data="readerPage()">
         <template x-if="!story">
@@ -1080,6 +1188,7 @@
   <script src="/static/js/storage-manager.js"></script>
   <script src="/static/js/api-client.js"></script>
   <script src="/static/js/audio-player.js"></script>
+  <script src="/static/js/pages/library.js"></script>
   <script src="/static/js/pages/reader.js"></script>
   <script src="/static/js/pages/export.js"></script>
   <script src="/static/js/pages/analytics.js"></script>
@@ -1091,6 +1200,7 @@
     function getNavIcon(name) {
       const icons = {
         'pencil-square': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"/></svg>',
+        'building-library': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z"/></svg>',
         'book-open': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>',
         'arrow-down-tray': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>',
         'chart-bar': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>',

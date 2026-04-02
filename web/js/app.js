@@ -5,6 +5,7 @@
 /* ── Navigation items ── */
 const NAV_ITEMS = [
   { id: 'pipeline',  label: 'Create Story',  icon: 'pencil-square', group: 'main' },
+  { id: 'library',   label: 'Library',       icon: 'building-library', group: 'main' },
   { id: 'reader',    label: 'Reader',        icon: 'book-open',     group: 'main' },
   { id: 'export',    label: 'Export',        icon: 'arrow-down-tray', group: 'main' },
   { id: 'analytics', label: 'Analytics',    icon: 'chart-bar',     group: 'main' },
@@ -19,16 +20,42 @@ document.addEventListener('alpine:init', () => {
   Alpine.store('app', {
     page: 'pipeline',
     sidebarOpen: window.innerWidth > 768,
+    /** @deprecated use isLoading instead */
     loading: false,
+    /** Global loading overlay flag. Set via setLoading() / clearLoading(). */
+    isLoading: false,
+    /** Human-readable message shown in the global loading overlay. */
+    loadingMessage: '',
     sessionId: null,
     pipelineResult: null,
     storageWarning: '',
 
     navItems: NAV_ITEMS,
 
+    /**
+     * Show the global loading overlay.
+     * @param {string} [msg] - Optional message to display.
+     */
+    setLoading(msg) {
+      this.isLoading = true;
+      this.loadingMessage = msg || '';
+    },
+
+    /** Hide the global loading overlay. */
+    clearLoading() {
+      this.isLoading = false;
+      this.loadingMessage = '';
+    },
+
+    /**
+     * Navigate to a page and update the URL hash for bookmarkable URLs.
+     * Back/forward browser buttons work via the hashchange listener in init().
+     * @param {string} page - The page id (must be in NAV_ITEMS).
+     */
     navigate(page) {
       this.page = page;
       if (window.innerWidth <= 768) this.sidebarOpen = false;
+      // Update hash — #pipeline, #library, etc.
       window.location.hash = page;
     },
 
@@ -57,17 +84,36 @@ document.addEventListener('alpine:init', () => {
     },
 
     async init() {
-      // Restore page from hash
-      const hash = window.location.hash.slice(1);
-      if (hash && NAV_ITEMS.some(n => n.id === hash)) {
-        this.page = hash;
-      }
+      /**
+       * F3: Hash-based URL routing.
+       * Supported hashes: #pipeline, #library, #reader, #export,
+       *   #settings, #analytics, #branching, #guide
+       * Back/forward browser buttons work because hashchange re-syncs the store.
+       */
+      const resolveHash = (raw) => {
+        // Strip leading # and optional leading /
+        const id = raw.replace(/^#?\/?/, '');
+        return NAV_ITEMS.some(n => n.id === id) ? id : null;
+      };
+
+      // Restore page from hash on initial load
+      const initialPage = resolveHash(window.location.hash);
+      if (initialPage) this.page = initialPage;
+
+      // Sync store when user navigates with back/forward or edits the URL bar
       window.addEventListener('hashchange', () => {
-        const h = window.location.hash.slice(1);
-        if (h && NAV_ITEMS.some(n => n.id === h)) {
-          this.page = h;
+        const page = resolveHash(window.location.hash);
+        if (page && page !== this.page) this.page = page;
+      });
+      // F6: Auto-manage sidebar on resize (open on desktop, close on mobile)
+      window.addEventListener('resize', () => {
+        if (window.innerWidth > 768 && !this.sidebarOpen) {
+          this.sidebarOpen = true;
+        } else if (window.innerWidth <= 768 && this.sidebarOpen) {
+          this.sidebarOpen = false;
         }
       });
+
       // Restore pipeline result via StorageManager
       await window.storageManager.init();
       try {
