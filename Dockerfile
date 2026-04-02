@@ -20,7 +20,20 @@ RUN mkdir -p /build/fonts && curl -fsSL \
     -o /build/fonts/NotoSans-Regular.ttf \
     || echo "WARNING: Font download failed"
 
-# ── Stage 2: Runtime ──
+# ── Stage 2: Frontend build ──
+FROM node:22-slim AS frontend
+
+WORKDIR /frontend
+
+COPY package.json package-lock.json* ./
+RUN npm ci --production=false
+
+COPY vite.config.js tailwind.config.js postcss.config.js ./
+COPY web/ ./web/
+
+RUN npm run build
+
+# ── Stage 3: Runtime ──
 FROM python:3.10-slim
 
 WORKDIR /app
@@ -38,6 +51,9 @@ COPY --from=builder /build/fonts/ /app/assets/fonts/
 
 # Copy application code (respects .dockerignore)
 COPY . .
+
+# Copy built frontend assets
+COPY --from=frontend /frontend/web/dist/ /app/web/dist/
 
 # Create required runtime directories
 RUN mkdir -p data output assets/fonts data/users data/shares data/templates
