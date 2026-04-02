@@ -1,0 +1,173 @@
+/*
+ * mobile-fixes.css — StoryForge Sprint 15
+ * Responsive layout fixes for 375px (iPhone SE / small Android) and up.
+ * Breakpoint: max-width: 639px (below Tailwind sm:)
+ */
+
+/* ── Tap target baseline ──────────────────────────────────────────────────── */
+/*
+ * All interactive elements must be at least 44×44px per WCAG 2.5.5.
+ * Tailwind's default button sizes are often smaller; these rules enforce minimum.
+ */
+button,
+[role="button"],
+a,
+input[type="checkbox"],
+input[type="radio"],
+select {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Icon-only buttons (no text) should still fill the tap target */
+button.p-1,
+button.p-1\.5,
+button.p-2 {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Story Form (375px) ───────────────────────────────────────────────────── */
+@media (max-width: 639px) {
+  /* Stack two-column grid layouts to single column */
+  .grid.grid-cols-2,
+  .grid.sm\:grid-cols-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Full-width inputs and selects */
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  input[type="url"],
+  textarea,
+  select {
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  /* Story form container: remove horizontal padding compression */
+  form,
+  .story-form,
+  [id="page-setup"],
+  [id="page-config"] {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  /* Reduce label/description font size for small screens */
+  .text-xs {
+    font-size: 0.7rem;
+  }
+
+  /* Ensure submit/primary buttons are full width on mobile */
+  .btn-primary,
+  button[type="submit"] {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ── Branch Reader ────────────────────────────────────────────────────────── */
+@media (max-width: 639px) {
+  /* Prevent horizontal overflow in reader panels */
+  [id="page-reader"],
+  .branch-reader,
+  .reader-container {
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
+  }
+
+  /* Chapter text: break long words to prevent overflow */
+  .prose,
+  .chapter-content,
+  [id="page-reader"] p {
+    word-break: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+  }
+
+  /* Branch choice buttons: stack vertically on small screens */
+  .branch-choices,
+  .flex.gap-3.mt-4 {
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+  }
+
+  /* Scrollable content area with visible scroll indicator */
+  .reader-scroll-area {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    max-height: calc(100vh - 120px);
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
+  }
+}
+
+/* ── Audio Player ─────────────────────────────────────────────────────────── */
+@media (max-width: 639px) {
+  /* Compact audio player: stack controls vertically */
+  .audio-player,
+  [id="audio-controls"],
+  .tts-player {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.5rem !important;
+    padding: 0.75rem !important;
+  }
+
+  /* Audio scrubber: full width */
+  .audio-player input[type="range"],
+  .tts-player input[type="range"] {
+    width: 100% !important;
+    min-height: 44px;
+  }
+
+  /* Play/pause, prev/next buttons: equal width in a row */
+  .audio-controls-row {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+
+  /* Volume control: hide on very small screens to save space */
+  @media (max-width: 374px) {
+    .audio-volume-control {
+      display: none;
+    }
+  }
+}
+
+/* ── Sidebar overlay on mobile ────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  /* Ensure main content takes full width when sidebar is closed */
+  main {
+    margin-left: 0 !important;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  /* Top bar: shrink title to prevent overflow */
+  header h1 {
+    font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+  }
+}
+
+/* ── Safe area (iOS notch / Android gesture bar) ─────────────────────────── */
+@supports (padding: env(safe-area-inset-bottom)) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  aside {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

@@ -26,6 +26,9 @@ class LLMConfig:
     max_parallel_workers: int = 3
     fallback_models: list = field(default_factory=list)
     # Each entry: {"base_url": "...", "model": "...", "api_key": "..."}
+    # Fallback thresholds — used by ModelFallbackManager
+    fallback_max_latency_ms: int = 5000   # Switch model if avg latency exceeds this
+    fallback_max_cost_per_1k: float = 0.01  # Skip fallback models above this cost/1k tokens
     # Per-layer model routing (optional, falls back to primary model)
     layer1_model: str = ""  # Story generation
     layer2_model: str = ""  # Drama analysis

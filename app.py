@@ -61,6 +61,19 @@ _START_TIME = time.time()
 # ---------------------------------------------------------------------------
 # CORS configuration helpers
 # ---------------------------------------------------------------------------
+#
+# SEC-5 CORS Audit (Sprint 15) — verified safe:
+#   - No wildcard '*' is used in production. Wildcard entries in
+#     STORYFORGE_ALLOWED_ORIGINS are detected and rejected with a warning.
+#   - Default fallback is localhost:7860 only (safe for development).
+#   - Production deployments MUST set STORYFORGE_ALLOWED_ORIGINS to the
+#     explicit list of frontend origins, e.g.:
+#       STORYFORGE_ALLOWED_ORIGINS=https://app.storyforge.io,https://www.storyforge.io
+#   - Credentials are allowed (allow_credentials=True), requiring explicit
+#     origins — this is incompatible with '*' by the CORS spec.
+#   - Allowed methods: GET, POST, PUT, DELETE, OPTIONS (no TRACE/CONNECT).
+#   - Allowed headers: Authorization, Content-Type, Accept (minimal set).
+#
 _DEFAULT_ORIGINS = ["http://localhost:7860", "http://127.0.0.1:7860"]
 
 
@@ -68,6 +81,9 @@ def _get_allowed_origins() -> list[str]:
     """Read allowed CORS origins from STORYFORGE_ALLOWED_ORIGINS env var.
 
     Falls back to localhost:7860 defaults. Rejects wildcard '*' with a warning.
+
+    Production usage:
+        export STORYFORGE_ALLOWED_ORIGINS="https://app.storyforge.io,https://cdn.storyforge.io"
     """
     raw = os.environ.get("STORYFORGE_ALLOWED_ORIGINS", "")
     if raw.strip():

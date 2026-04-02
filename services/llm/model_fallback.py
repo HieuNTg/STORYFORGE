@@ -1,0 +1,159 @@
+"""Intelligent model fallback manager.
+
+Selects the best available model based on health checks, latency thresholds,
+and cost constraints. Falls back through configured fallback_models list.
+"""
+
+import logging
+import time
+import threading
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+# Health cache TTL in seconds
+_HEALTH_TTL_SECONDS = 30
+
+
+class ModelFallbackManager:
+    """Select the optimal model, falling back when primary is unhealthy or slow.
+
+    Health checks are cached with a 30-second TTL to avoid hammering endpoints.
+    Latency is tracked as a rolling average (last 10 samples).
+    """
+
+    def __init__(self, max_latency_ms: int = 5000, max_cost_per_1k: float = 0.01):
+        self._max_latency_ms = max_latency_ms
+        self._max_cost_per_1k = max_cost_per_1k
+        self._lock = threading.Lock()
+
+        # health cache: model_id -> {"healthy": bool, "checked_at": float}
+        self._health_cache: dict[str, dict] = {}
+
+        # latency rolling window: model_id -> list of float (ms)
+        self._latency_samples: dict[str, list[float]] = {}
+        self._latency_window = 10
+
+        # track why fallback was triggered
+        self._last_fallback_reason: str = ""
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def select_model(
+        self,
+        primary_model: str,
+        fallback_models: list[dict],
+        context: Optional[dict] = None,
+    ) -> dict:
+        """Choose the best model from primary + fallback list.
+
+        Args:
+            primary_model: primary model identifier string
+            fallback_models: list of dicts with keys: model, base_url, api_key (optional),
+                             cost_per_1k (optional float)
+            context: optional dict with extra hints (e.g. {"required_tokens": 2000})
+
+        Returns:
+            dict with selected model info: {"model": str, "is_fallback": bool,
+                                            "reason": str}
+        """
+        # Try primary first
+        if self._is_model_acceptable(primary_model, context):
+            return {"model": primary_model, "is_fallback": False, "reason": "primary_ok"}
+
+        # Walk fallback list
+        for fb in fallback_models:
+            fb_model = fb.get("model", "")
+            if not fb_model:
+                continue
+            cost = fb.get("cost_per_1k", 0.0)
+            if cost > self._max_cost_per_1k:
+                logger.debug(f"Skipping {fb_model}: cost {cost} > threshold {self._max_cost_per_1k}")
+                continue
+            if self._is_model_acceptable(fb_model, context):
+                reason = self._last_fallback_reason or "primary_unhealthy"
+                logger.info(f"Falling back to {fb_model}: {reason}")
+                return {"model": fb_model, "is_fallback": True, "reason": reason, **fb}
+
+        # Nothing passed — return primary and hope for the best
+        self._last_fallback_reason = "all_fallbacks_failed"
+        logger.warning("All fallback models failed checks; returning primary as last resort")
+        return {"model": primary_model, "is_fallback": False, "reason": "all_fallbacks_failed"}
+
+    def record_latency(self, model: str, latency_ms: float) -> None:
+        """Update rolling latency average for a model.
+
+        Args:
+            model: model identifier
+            latency_ms: measured latency in milliseconds
+        """
+        with self._lock:
+            samples = self._latency_samples.setdefault(model, [])
+            samples.append(latency_ms)
+            if len(samples) > self._latency_window:
+                self._latency_samples[model] = samples[-self._latency_window:]
+        logger.debug(f"Latency recorded: {model} = {latency_ms:.1f}ms (avg={self.get_avg_latency(model):.1f}ms)")
+
+    def get_avg_latency(self, model: str) -> float:
+        """Return rolling average latency for model in ms. Returns 0 if unknown."""
+        with self._lock:
+            samples = self._latency_samples.get(model, [])
+        if not samples:
+            return 0.0
+        return sum(samples) / len(samples)
+
+    def mark_unhealthy(self, model: str) -> None:
+        """Explicitly mark a model as unhealthy (e.g. after a hard failure)."""
+        with self._lock:
+            self._health_cache[model] = {
+                "healthy": False,
+                "checked_at": time.monotonic(),
+            }
+        logger.warning(f"Model marked unhealthy: {model}")
+
+    def mark_healthy(self, model: str) -> None:
+        """Explicitly mark a model as healthy."""
+        with self._lock:
+            self._health_cache[model] = {
+                "healthy": True,
+                "checked_at": time.monotonic(),
+            }
+
+    def get_fallback_reason(self) -> str:
+        """Return reason why fallback was triggered on last select_model call."""
+        return self._last_fallback_reason
+
+    # ------------------------------------------------------------------
+    # Internal
+    # ------------------------------------------------------------------
+
+    def _is_model_acceptable(self, model: str, context: Optional[dict]) -> bool:
+        """Check health cache and latency threshold for a model."""
+        # Health check (cached, 30s TTL)
+        if not self._check_health(model):
+            self._last_fallback_reason = f"unhealthy:{model}"
+            return False
+
+        # Latency check
+        avg_lat = self.get_avg_latency(model)
+        if avg_lat > 0 and avg_lat > self._max_latency_ms:
+            self._last_fallback_reason = f"latency_exceeded:{model}:{avg_lat:.0f}ms"
+            logger.debug(f"Model {model} avg latency {avg_lat:.0f}ms > threshold {self._max_latency_ms}ms")
+            return False
+
+        return True
+
+    def _check_health(self, model: str) -> bool:
+        """Return cached health status; assume healthy if never checked (optimistic)."""
+        with self._lock:
+            entry = self._health_cache.get(model)
+        if entry is None:
+            # Never checked — assume healthy (lazy evaluation)
+            return True
+        age = time.monotonic() - entry["checked_at"]
+        if age > _HEALTH_TTL_SECONDS:
+            # Cache expired — assume healthy until next explicit check
+            return True
+        return entry["healthy"]
