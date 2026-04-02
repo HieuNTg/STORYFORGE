@@ -8,6 +8,19 @@ logger = logging.getLogger(__name__)
 # Review threshold: chapters scoring below this get revised
 DEFAULT_THRESHOLD = 3.0  # out of 5.0
 
+
+def get_genre_threshold(genre: str, fallback: float = DEFAULT_THRESHOLD) -> float:
+    """Return genre-aware self-review threshold via ConfigManager.
+
+    Delegates to ConfigManager.get_review_threshold() so the mapping stays
+    in one place (config.py).  Falls back to `fallback` if config unavailable.
+    """
+    try:
+        from config import ConfigManager
+        return ConfigManager().get_review_threshold(genre)
+    except Exception:
+        return fallback
+
 CRITIC_PROMPT = """Ban la nha phe binh van hoc nghiem khac. Danh gia chuong truyen sau:
 
 Chuong {chapter_number}: {title}
@@ -53,11 +66,17 @@ Bat dau viet lai:"""
 
 
 class SelfReviewer:
-    """Single-pass CoT critic + optional revision for chapter quality."""
+    """Single-pass CoT critic + optional revision for chapter quality.
+
+    The effective threshold is resolved per-call from the genre via
+    get_genre_threshold(), so a single SelfReviewer instance handles
+    mixed-genre pipelines correctly.  The constructor `threshold` acts
+    as a global override (used in tests or when caller has its own value).
+    """
 
     def __init__(self, threshold: float = DEFAULT_THRESHOLD):
         self.llm = LLMClient()
-        self.threshold = threshold
+        self.threshold = threshold  # override; 0.0 means "use genre-aware lookup"
 
     def review(self, content: str, chapter_number: int,
                title: str, genre: str) -> dict:
@@ -105,10 +124,15 @@ class SelfReviewer:
     def review_and_revise(self, content: str, chapter_number: int,
                           title: str, genre: str,
                           word_count: int = 2000) -> tuple[str, dict]:
-        """Full review+revise cycle. Returns (final_content, review_scores)."""
-        scores = self.review(content, chapter_number, title, genre)
+        """Full review+revise cycle. Returns (final_content, review_scores).
 
-        if scores["overall"] >= self.threshold:
+        The pass/fail threshold is resolved from the genre so action/thriller
+        chapters use 2.8 and literary chapters use 3.5 automatically.
+        """
+        scores = self.review(content, chapter_number, title, genre)
+        effective_threshold = get_genre_threshold(genre, fallback=self.threshold)
+
+        if scores["overall"] >= effective_threshold:
             logger.info(f"Ch {chapter_number} passed review: {scores['overall']:.1f}/5")
             return content, scores
 
@@ -116,6 +140,9 @@ class SelfReviewer:
         if not weaknesses:
             return content, scores
 
-        logger.info(f"Ch {chapter_number} below threshold ({scores['overall']:.1f}), revising...")
+        logger.info(
+            f"Ch {chapter_number} below threshold ({scores['overall']:.1f} < "
+            f"{effective_threshold:.1f} for genre '{genre}'), revising..."
+        )
         revised = self.revise(content, weaknesses, word_count)
         return revised, scores
