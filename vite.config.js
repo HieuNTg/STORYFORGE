@@ -15,9 +15,21 @@
 import { defineConfig } from 'vite'
 import { resolve } from 'path'
 
+// TypeScript files are supported natively by Vite/esbuild — no extra plugin needed.
+// This config adds explicit .ts extension resolution so bare imports like
+// `import API from '@/api-client'` resolve to api-client.ts before api-client.js.
+
 export default defineConfig({
   // Treat web/ as the project root so imports resolve from there
   root: 'web',
+
+  resolve: {
+    // Prefer .ts over .js when both exist (enables incremental migration)
+    extensions: ['.ts', '.js', '.json'],
+    alias: {
+      '@': resolve(__dirname, 'web/js'),
+    },
+  },
 
   build: {
     // Output to web/dist/ (gitignored, served by FastAPI's StaticFiles)

@@ -18,10 +18,12 @@ export default defineConfig({
     // jsdom gives us window, document, fetch stubs, and localStorage
     environment: 'jsdom',
 
-    // Glob patterns for test files
+    // Glob patterns for test files — covers both JS originals and migrated TS files
     include: [
       'web/js/__tests__/**/*.test.js',
       'web/js/__tests__/**/*.spec.js',
+      'web/js/__tests__/**/*.test.ts',
+      'web/js/__tests__/**/*.spec.ts',
     ],
 
     // Global test helpers (describe, it, expect, vi) without explicit imports
@@ -36,13 +38,14 @@ export default defineConfig({
       reporter: ['text', 'lcov', 'html'],
       reportsDirectory: 'coverage',
 
-      // Source files to measure coverage against
-      include: ['web/js/**/*.js'],
+      // Source files to measure coverage against (JS originals + migrated TS)
+      include: ['web/js/**/*.js', 'web/js/**/*.ts'],
 
-      // Exclude test files and vendor/CDN shims from the report
+      // Exclude test files, type-only files, and vendor/CDN shims from the report
       exclude: [
         'web/js/__tests__/**',
         'web/js/vendor/**',
+        'web/js/types/**',
       ],
 
       // Minimum coverage thresholds — CI fails if these are not met
