@@ -103,13 +103,34 @@ class PDFExporter:
 
     @staticmethod
     def _register_font(pdf, font_name: str) -> bool:
-        """Đăng ký font hỗ trợ tiếng Việt. Trả False nếu thiếu file font."""
+        """Đăng ký font hỗ trợ tiếng Việt. Auto-download nếu thiếu file."""
         font_path = os.path.join(FONT_DIR, "NotoSans-Regular.ttf")
         if not os.path.exists(font_path):
-            return False
+            # Auto-download font nếu thiếu
+            font_path = PDFExporter._download_font(font_path)
+            if not font_path:
+                return False
         try:
-            pdf.add_font(font_name, "", font_path, uni=True)
+            pdf.add_font(font_name, "", font_path)
             return True
         except Exception as e:
             logger.warning(f"Font registration failed: {e}")
             return False
+
+    @staticmethod
+    def _download_font(dest_path: str) -> str:
+        """Download NotoSans font từ Google Fonts. Trả path hoặc empty string."""
+        import urllib.request
+        url = (
+            "https://raw.githubusercontent.com/google/fonts/main/"
+            "ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf"
+        )
+        try:
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+            logger.info("Downloading NotoSans font for Vietnamese PDF support...")
+            urllib.request.urlretrieve(url, dest_path)
+            logger.info(f"Font downloaded: {dest_path}")
+            return dest_path
+        except Exception as e:
+            logger.warning(f"Font download failed: {e}")
+            return ""
