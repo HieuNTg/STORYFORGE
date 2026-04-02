@@ -31,14 +31,20 @@ logs.txt
 
 # ── Testing & Coverage ────────────────────────────────────────────
 .coverage
+coverage.xml
 coverage_html/
 htmlcov/
 .pytest_cache/
+.mutmut-cache/
 test_output.txt
 data/test_timings.json
 
+# ── Node ──────────────────────────────────────────────────────────
+node_modules/
+
 # ── IDE & OS ───────────────────────────────────────────────────────
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
 *.swp

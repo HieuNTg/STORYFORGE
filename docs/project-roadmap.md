@@ -1,6 +1,6 @@
 # Novel Auto Project Roadmap
 
-**Last Updated**: 2026-04-01 | **Version**: 2.5 | **Overall Progress**: 100%
+**Last Updated**: 2026-04-02 | **Version**: 3.0 | **Overall Progress**: 100%
 
 ---
 
@@ -13,7 +13,7 @@ Novel Auto Pipeline is a 3-layer system for automated story generation, enhancem
 - **In Progress**: None
 - **Planned**: None (all phases complete)
 - **Timeline**: All phases delivered on schedule
-- **Latest Additions**: Sprint 6 (model routing, code splits, voice mode, branch reader); 1327 tests
+- **Latest Additions**: Sprint 13-16 + Backlog (production hardening, testing, go-to-market, RBAC, TypeScript, async migration); 1400+ tests
 
 ---
 
@@ -278,20 +278,43 @@ Phase 1 → Phase 2, 3, 4 (independent)
 
 ## Next Steps & Recommendations
 
-### Immediate
-1. **Validate quality gate thresholds** in production with real story runs
-2. **User testing for onboarding wizard** — collect completion rate data
-3. **Staging deploy smoke test** — run full E2E suite in staging environment
+### Sprint 13: Production Hardening ✓ DONE
+**Completion Date**: 2026-04-02
+- Removed Gradio dependency (~50 transitive deps eliminated)
+- Pinned all dependencies (==), JWT rotation policy, deep health checks
+- Prometheus alerts (9 rules), Grafana dashboard, PostgreSQL backup script
+- Token cost tracker, ChromaDB persistent storage, agent debate budget cap
+- Vitest frontend testing (18 tests), Vite optimization, test data factory
 
-### Short-term (Next Sprint)
-1. **Knowledge graph integration with prompts** — inject entity relationships into chapter prompts
-2. **Progress tracker UI** — surface structured events in Gradio progress display
-3. **Adaptive prompts A/B testing** — measure genre-prompt impact on quality scores
+### Sprint 14: Quality & Testing ✓ DONE
+**Completion Date**: 2026-04-02
+- Eval pipeline specification, token usage API endpoints
+- Async migration audit (17 call sites documented)
+- DB integration tests (10), auth coverage tests (15), export tests (18)
 
-### Medium-term (Q3 2026)
-1. **Async refactor** — consider async/await for debate orchestration and quality gate
-2. **Analytics dashboard** — track quality gate pass rates, revision rates, preset usage
-3. **Cloud staging** — promote docker-compose staging to cloud deployment
+### Sprint 15: AI Quality & UX Polish ✓ DONE
+**Completion Date**: 2026-04-02
+- Eval pipeline v1 (auto_score, human eval, aggregate scoring)
+- Intelligent model fallback (health cache, latency, cost thresholds)
+- Mobile responsiveness fixes, WCAG accessibility verified
+- RBAC matrix design, prompt injection test corpus (24 entries)
+- TypeScript migration ROI report, emotion classifier research
+
+### Sprint 16: Go-to-Market & Community ✓ DONE
+**Completion Date**: 2026-04-02
+- Landing page (dark theme, responsive), sample story gallery
+- One-click deploy configs (Railway, Render, Vercel)
+- Vietnamese README, MCP server POC, Loki centralized logging
+- Certbot auto-renewal, GitHub Actions CI for frontend tests
+- WebSocket analysis, long-context RAG optimization research
+
+### Backlog Items ✓ DONE
+**Completion Date**: 2026-04-02
+- BE-5: Async migration (6 ThreadPoolExecutor call sites migrated)
+- SEC-6: RBAC implementation (4 roles, 9 permissions, 25 tests/97% coverage)
+- FE-6: TypeScript migration Phase 1 (api-client.ts + shared types)
+- MKT-3/4/7: Story gallery, community docs, Product Hunt checklist
+- QA-6: Mutation testing setup (mutmut)
 
 ---
 
