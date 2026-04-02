@@ -14,7 +14,7 @@ Post-evaluation roadmap: Alpha → Production-ready → Public Release (Open Sou
 | 9 | Quality & Testing | 1 week | Coverage, load testing, AI benchmarks | DONE |
 | 10 | Community & Docs | 1 week | README, setup scripts, user guide, feedback UI | DONE |
 | 11 | AI & UX Polish | 1 week | Scoring calibration, dark mode, plugin arch | DONE |
-| 12 | Public Release | 1 week | v1.0.0, community launch, demo instance | TODO |
+| 12 | Public Release | 1 week | v1.0.0, community launch, demo instance | DONE |
 
 ## Plans
 - [Sprint 7: Critical Infrastructure](./sprint-7-critical-infrastructure.md) — DONE
@@ -22,7 +22,7 @@ Post-evaluation roadmap: Alpha → Production-ready → Public Release (Open Sou
 - [Sprint 9: Quality & Testing](./sprint-9-quality-and-testing.md) — DONE
 - [Sprint 10: Community & Documentation](./sprint-10-business-layer.md) — DONE
 - [Sprint 11: AI & UX Polish](./sprint-11-ai-ux-polish.md) — DONE
-- [Sprint 12: Public Release](./sprint-12-launch-prep.md) — TODO
+- [Sprint 12: Public Release](./sprint-12-launch-prep.md) — DONE
 
 ## Team Assignments (Open Source Focus)
 | Member | Sprint 7 | Sprint 8 | Sprint 9 | Sprint 10 | Sprint 11 | Sprint 12 |
