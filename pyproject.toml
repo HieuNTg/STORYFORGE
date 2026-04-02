@@ -1,0 +1,70 @@
+# pyproject.toml — StoryForge project configuration
+# Coverage config for Q1: Code Coverage Reporting
+
+[tool.pytest.ini_options]
+# Directories pytest discovers tests in
+testpaths = ["tests"]
+# Default options: coverage plugin with source dirs
+addopts = [
+    "--cov=pipeline",
+    "--cov=services",
+    "--cov=api",
+    "--cov=middleware",
+    "--cov=errors",
+    "--cov=models",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+    "--cov-report=xml:coverage.xml",
+    "--cov-fail-under=60",
+]
+# asyncio mode for async tests
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+# Source directories to measure
+source = [
+    "pipeline",
+    "services",
+    "api",
+    "middleware",
+    "errors",
+    "models",
+]
+# Patterns to omit from measurement
+omit = [
+    "tests/*",
+    "scripts/*",
+    "**/__pycache__/*",
+    "*.pyc",
+    "setup.py",
+    "conftest.py",
+]
+# Include branch coverage for more thorough reporting
+branch = true
+
+[tool.coverage.report]
+# Fail the build if total coverage drops below this threshold
+fail_under = 60
+# Show lines that are not covered
+show_missing = true
+# Skip files with 100% coverage in the detailed report (reduces noise)
+skip_covered = false
+# Exclude lines matching these patterns from coverage counts
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "pass",
+    "@(abc\\.)?abstractmethod",
+]
+# Minimum coverage per file (optional — comment out if too strict)
+# precision = 2
+
+[tool.coverage.html]
+directory = "htmlcov"
+title = "StoryForge Coverage Report"
+
+[tool.coverage.xml]
+output = "coverage.xml"

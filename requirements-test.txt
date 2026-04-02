@@ -1,0 +1,38 @@
+# requirements-test.txt — StoryForge test-only dependencies
+# Keep separate from requirements.txt (no test tooling in production images)
+#
+# Install:
+#   pip install -r requirements-test.txt
+#
+# These packages are used by:
+#   Q1 (coverage): pytest-cov
+#   Q3+Q7 (load):  locust
+#   Q7 (perf):     pytest-benchmark
+
+# ---------------------------------------------------------------------------
+# Core test runner (already in requirements.txt — listed here for completeness)
+# ---------------------------------------------------------------------------
+pytest>=7.4.0
+pytest-asyncio>=0.23.0
+
+# ---------------------------------------------------------------------------
+# Q1: Code coverage
+# ---------------------------------------------------------------------------
+pytest-cov>=4.1.0
+coverage[toml]>=7.3.0          # [toml] extra enables pyproject.toml config
+
+# ---------------------------------------------------------------------------
+# Q3+Q7: Load & performance testing
+# ---------------------------------------------------------------------------
+locust>=2.20.0                 # Headless HTTP load testing
+
+# ---------------------------------------------------------------------------
+# Q7: Micro-benchmarks
+# ---------------------------------------------------------------------------
+pytest-benchmark>=4.0.0        # Stable statistical benchmarks inside pytest
+
+# ---------------------------------------------------------------------------
+# Useful test utilities
+# ---------------------------------------------------------------------------
+httpx>=0.25.0                  # Async HTTP client for FastAPI TestClient
+anyio>=4.0.0                   # Async backend for pytest-asyncio

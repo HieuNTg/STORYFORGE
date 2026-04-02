@@ -1,0 +1,54 @@
+# .coveragerc — StoryForge coverage backup configuration
+# Mirrors pyproject.toml [tool.coverage.*] for tools that only read .coveragerc
+# Q1: Code Coverage Reporting
+
+[run]
+# Source directories to instrument
+source =
+    pipeline
+    services
+    api
+    middleware
+    errors
+    models
+
+# Enable branch coverage (catches partial if/else)
+branch = True
+
+# Omit test helpers, cache artefacts, and build scripts
+omit =
+    tests/*
+    scripts/*
+    */__pycache__/*
+    *.pyc
+    setup.py
+    conftest.py
+
+[report]
+# Hard fail if total coverage drops below threshold
+fail_under = 60
+
+# Print lines that have no coverage next to each file
+show_missing = True
+
+# Do not skip fully-covered files — keep them visible
+skip_covered = False
+
+# Lines/decorators that are intentionally excluded from coverage counts
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if TYPE_CHECKING:
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    pass
+    @(abc\.)?abstractmethod
+
+[html]
+# Output directory for the HTML report
+directory = htmlcov
+title = StoryForge Coverage Report
+
+[xml]
+# Path for the Cobertura-format XML report (used by CI/codecov)
+output = coverage.xml
