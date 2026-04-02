@@ -13,7 +13,6 @@ Route groups:
   /api/v1/branch     — story branching
   /api/v1/dashboard  — dashboard summary
   /api/v1/feedback   — user feedback (placeholder)
-  /api/v1/billing    — billing / credits (placeholder)
 """
 
 from __future__ import annotations
@@ -48,7 +47,7 @@ class _VersionedRoute(APIRoute):
 
 
 # ---------------------------------------------------------------------------
-# Placeholder routers (feedback, billing — Sprint N+1)
+# Placeholder routers (feedback — Sprint N+1)
 # ---------------------------------------------------------------------------
 
 _feedback_router = APIRouter(prefix="/feedback", tags=["feedback"])
@@ -65,20 +64,6 @@ async def list_feedback():
     """Placeholder — list feedback entries (not yet implemented)."""
     return {"message": "Feedback listing coming soon.", "version": _API_VERSION}
 
-
-_billing_router = APIRouter(prefix="/billing", tags=["billing"])
-
-
-@_billing_router.get("/plan")
-async def get_plan():
-    """Placeholder — current subscription plan (not yet implemented)."""
-    return {"message": "Billing endpoint coming soon.", "version": _API_VERSION}
-
-
-@_billing_router.post("/credits/topup")
-async def topup_credits():
-    """Placeholder — credits top-up (not yet implemented)."""
-    return {"message": "Credits top-up coming soon.", "version": _API_VERSION}
 
 
 # ---------------------------------------------------------------------------
@@ -111,7 +96,6 @@ def build_v1_router() -> APIRouter:
     v1.include_router(branch_router)
     v1.include_router(dashboard_router)
     v1.include_router(_feedback_router)
-    v1.include_router(_billing_router)
 
     logger.info("api/v1: router built with %d routes", len(v1.routes))
     return v1

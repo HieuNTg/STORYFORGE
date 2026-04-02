@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: Ask a Question / Start a Discussion
+    url: https://github.com/HieuNTg/STORYFORGE/discussions
+    about: For usage questions, ideas, and general discussion, please use GitHub Discussions rather than opening an issue.
+  - name: Contributing Guide
+    url: https://github.com/HieuNTg/STORYFORGE/blob/master/CONTRIBUTING.md
+    about: Read the contributing guide before opening a PR.

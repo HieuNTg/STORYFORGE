@@ -1,0 +1,80 @@
+/**
+ * StoryForge — Feedback widget styles
+ * Handles star-specific interactions Tailwind can't express cleanly.
+ * All other layout uses Tailwind utility classes on the elements directly.
+ */
+
+/* ── Star container ────────────────────────────────────────────────── */
+.star-rating {
+  display: inline-flex;
+  gap: 2px;
+  line-height: 1;
+}
+
+/* ── Individual star ───────────────────────────────────────────────── */
+.star {
+  cursor: pointer;
+  font-size: 1.5rem;        /* 24px — override with .star-sm / .star-lg */
+  color: var(--sf-color-text-muted, #94A3B8);
+  transition: color var(--sf-duration-fast, 150ms) var(--sf-ease-default, ease),
+              transform var(--sf-duration-fast, 150ms) var(--sf-ease-default, ease);
+  user-select: none;
+  line-height: 1;
+}
+
+.star-sm .star,
+.star.star-sm {
+  font-size: 1rem;          /* 16px — compact dimension rows */
+}
+
+.star-lg .star,
+.star.star-lg {
+  font-size: 2rem;          /* 32px — prominent main rating */
+}
+
+/* Filled state — amber/gold matching --sf-color-status-warning */
+.star.filled {
+  color: #f59e0b;
+}
+
+/* Hover: scale up the hovered star slightly */
+.star:hover {
+  transform: scale(1.15);
+  color: #f59e0b;
+}
+
+/* Active (click) micro-bounce */
+.star:active {
+  transform: scale(0.9);
+}
+
+/* ── Read-only stars (no interaction, e.g. display rating) ─────────── */
+.star-rating.readonly .star {
+  cursor: default;
+  pointer-events: none;
+}
+
+.star-rating.readonly .star:hover {
+  transform: none;
+}
+
+/* ── Success animation ─────────────────────────────────────────────── */
+@keyframes sf-feedback-pop {
+  0%   { transform: scale(0.8); opacity: 0; }
+  60%  { transform: scale(1.05); }
+  100% { transform: scale(1);   opacity: 1; }
+}
+
+.feedback-success {
+  animation: sf-feedback-pop var(--sf-duration-slow, 400ms) var(--sf-ease-spring, cubic-bezier(0.4, 0, 0.2, 1)) forwards;
+}
+
+/* ── Slide-down for detail expansion ───────────────────────────────── */
+@keyframes sf-slide-down {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.feedback-details-enter {
+  animation: sf-slide-down var(--sf-duration-base, 250ms) var(--sf-ease-out, ease-out) forwards;
+}

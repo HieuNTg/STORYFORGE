@@ -9,6 +9,9 @@
        class names at runtime, which is ~300 KB and unsuitable for production. -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script defer src="web/js/feedback-widget.js"></script>
+  <script defer src="web/js/report-issue.js"></script>
+  <link rel="stylesheet" href="web/css/feedback.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script>
@@ -920,6 +923,51 @@
               <button @click="prev()" :disabled="chapter === 0" aria-label="Previous chapter" class="px-4 py-2 rounded-lg text-sm font-medium border border-surface-200 hover:border-brand-500 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">Previous</button>
               <span class="text-sm text-slate-400 self-center" aria-live="polite" x-text="(chapter+1) + '/' + chapters.length"></span>
               <button @click="next()" :disabled="chapter >= chapters.length - 1" aria-label="Next chapter" class="px-4 py-2 rounded-lg text-sm font-medium border border-surface-200 hover:border-brand-500 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">Next</button>
+            </div>
+
+            <!-- ═══ FEEDBACK WIDGET ═══ -->
+            <div class="card p-5 mt-4" x-data="feedbackWidget(story?.id || '', chapter)">
+              <div class="flex items-center justify-between mb-3">
+                <h4 class="text-sm font-semibold text-slate-700">Rate this chapter</h4>
+                <button x-show="!submitted" @click="showDetails = !showDetails" class="text-xs text-brand-600 hover:underline cursor-pointer" x-text="showDetails ? 'Simple' : 'Detailed'"></button>
+              </div>
+              <!-- Overall stars -->
+              <div x-show="!submitted" class="flex items-center gap-1 mb-2">
+                <template x-for="n in [1,2,3,4,5]" :key="n">
+                  <button @click="setRating(n)" @mouseenter="hoverRating = n" @mouseleave="hoverRating = 0"
+                    class="text-2xl cursor-pointer transition-colors"
+                    :class="starState(n) === 'filled' ? 'text-yellow-400' : 'text-slate-300'"
+                    x-text="'★'" :aria-label="n + ' stars'"></button>
+                </template>
+                <span class="ml-2 text-xs text-slate-400" x-show="rating > 0" x-text="rating + '/5'"></span>
+              </div>
+              <!-- Dimension breakdown -->
+              <div x-show="showDetails && !submitted" class="space-y-1 mb-3">
+                <template x-for="(label, dim) in dimensionLabels" :key="dim">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-500 w-20" x-text="label"></span>
+                    <template x-for="n in [1,2,3,4,5]" :key="dim+n">
+                      <button @click="setScore(dim, n)" @mouseenter="hoverScores[dim] = n" @mouseleave="hoverScores[dim] = 0"
+                        class="text-lg cursor-pointer transition-colors"
+                        :class="dimStarState(dim, n) === 'filled' ? 'text-yellow-400' : 'text-slate-300'"
+                        x-text="'★'"></button>
+                    </template>
+                  </div>
+                </template>
+              </div>
+              <!-- Comment -->
+              <div x-show="!submitted">
+                <textarea x-model="comment" placeholder="Optional comment..." rows="2" class="w-full px-3 py-2 text-sm border border-surface-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none mb-2"></textarea>
+                <div class="flex items-center gap-2">
+                  <button @click="submit()" :disabled="!canSubmit" class="px-4 py-1.5 text-sm font-medium rounded-lg btn-primary disabled:opacity-40 cursor-pointer">Submit</button>
+                  <span x-show="error" class="text-xs text-red-500" x-text="error"></span>
+                </div>
+              </div>
+              <!-- Success -->
+              <div x-show="submitted" class="text-center py-2">
+                <p class="text-sm text-green-600 font-medium">Thanks for your feedback!</p>
+                <button @click="reset()" class="text-xs text-brand-600 hover:underline mt-1 cursor-pointer">Rate again</button>
+              </div>
             </div>
 
             <!-- ═══ AUDIO PLAYER ═══ -->

@@ -1,11 +1,11 @@
-# Sprint 11: AI & UX Polish
+# Sprint 11: AI & UX Polish (Open Source)
 **Duration:** 1 week | **Owner:** AI/ML + Frontend | **Priority:** MEDIUM
 
 ## Objectives
 - AI scoring calibration with user feedback
-- Provider-level prompt caching
-- Structured outputs migration
-- UX polish and accessibility
+- LLM cost optimization (prompt caching, structured outputs)
+- UX accessibility & polish
+- Plugin/extension architecture for community contributions
 
 ## Tasks
 
@@ -22,46 +22,50 @@
   - Add LLM-based secondary check for flagged inputs
   - Reduce false positive rate
 
-### 11.2 LLM Cost Optimization [Backend + Tech R&D] — 2 days
+### 11.2 LLM Optimization [Backend] — 2 days
 - [ ] Implement provider prompt caching:
   - OpenAI: system prompt caching
   - Anthropic: prompt caching beta
   - Measure cache hit rates and cost savings
 - [ ] Migrate to Structured Outputs:
   - Replace `generate_json()` regex parsing
-  - Use OpenAI `response_format={"type": "json_schema"}`
+  - Use native JSON mode where supported
   - Fallback for providers without structured output
 - [ ] Optimize prompt templates:
   - Reduce token count in system prompts
   - Share common prefixes across layers
-  - Measure token savings
 
 ### 11.3 UX Polish [Frontend] — 2 days
 - [ ] Accessibility audit (WCAG 2.1 AA):
   - Add aria labels to interactive elements
   - Keyboard navigation support
   - Color contrast verification
-  - Screen reader testing
 - [ ] State persistence:
   - Save form state to localStorage
   - Restore on page refresh
-  - Clear on successful submission
-- [ ] Error boundary improvements:
-  - Graceful degradation for JS errors
-  - Retry buttons for failed API calls
-  - Offline detection and notification
-- [ ] i18n expansion prep:
+- [ ] Dark mode support:
+  - CSS variables for theme colors
+  - Toggle in UI header
+  - Persist preference to localStorage
+- [ ] i18n improvements:
   - Extract any hardcoded strings
   - Verify locale switching works
+  - Community translation guide
 
-### 11.4 Character Consistency [AI/ML] — 1 day
-- [ ] Improve rolling context window:
-  - Increase character detail retention
-  - Add character summary refresh every N chapters
-  - Track character appearance descriptions for image consistency
+### 11.4 Plugin Architecture [Backend] — 1 day
+- [ ] Create `plugins/` directory with README:
+  - Plugin interface definition
+  - Example plugin (custom genre rules)
+  - Loading mechanism in orchestrator
+- [ ] Document how to add:
+  - Custom LLM providers
+  - Custom export formats
+  - Custom genre drama rules
+  - Custom TTS providers
 
 ## Success Criteria
 - [ ] Scoring calibration improves correlation to r > 0.7
 - [ ] Prompt caching reduces cost by > 20%
-- [ ] Structured outputs reduce JSON parse errors by > 90%
 - [ ] WCAG 2.1 AA compliance on core flows
+- [ ] Dark mode toggle works
+- [ ] Plugin example works end-to-end

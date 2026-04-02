@@ -1,7 +1,7 @@
 <h1 align="center">StoryForge</h1>
 
 <p align="center">
-  <strong>AI-powered story generation pipeline with autonomous character agents</strong>
+  <strong>AI-powered story generation with multi-agent drama simulation</strong>
 </p>
 
 <p align="center">
@@ -9,104 +9,143 @@
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+" /></a>
   <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI" /></a>
   <a href="https://alpinejs.dev"><img src="https://img.shields.io/badge/Alpine.js-8BC0D0?logo=alpine.js&logoColor=white" alt="Alpine.js" /></a>
-  <img src="https://img.shields.io/badge/tests-1362%20passed-brightgreen" alt="Tests" />
+  <a href="https://hub.docker.com"><img src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white" alt="Docker" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" /></a>
+  <a href="https://github.com/HieuNTg/STORYFORGE/stargazers"><img src="https://img.shields.io/github/stars/HieuNTg/STORYFORGE?style=social" alt="GitHub Stars" /></a>
 </p>
 
 <p align="center">
-  Turn a one-sentence idea into a complete, drama-enhanced story with video-ready storyboards.<br />
-  Powered by any OpenAI-compatible LLM.
+  Turn a one-sentence idea into a complete, drama-rich story with video-ready storyboards.<br />
+  Self-hosted. Privacy-first. Works with any OpenAI-compatible LLM.
 </p>
 
 ---
 
 ## Why StoryForge?
 
-Most AI writing tools produce flat, predictable stories. StoryForge takes a different approach: characters become **autonomous AI agents** that interact, confront, and betray each other in a drama simulation. The simulation discovers conflicts the author never planned — then rewrites the story around them.
-
-```
-Idea ─→ Layer 1: Generate ─→ Layer 2: Simulate ─→ Layer 3: Storyboard ─→ Export
-         Characters            Agent Conflicts       Camera Angles           PDF
-         World-building         Drama Rewrite         Image Prompts          EPUB
-         Full Chapters          Quality Score         Voice Scripts          ZIP
-```
+Most AI writing tools produce flat, predictable stories. StoryForge takes a different approach: your characters become **autonomous AI agents** that interact, argue, form alliances, and betray each other in a multi-round drama simulation. The simulation uncovers conflicts the author never planned — then rewrites the story around them, scored and revised automatically until it meets a quality threshold.
 
 ---
 
 ## Features
 
-| Category | Capabilities |
-|:---------|:-------------|
-| **Pipeline** | 3-layer automation (write → simulate → storyboard), checkpoint & resume, real-time SSE streaming |
-| **AI Agents** | Autonomous character agents with personality-driven behavior; 5-critic review board |
-| **Drama Engine** | Multi-round agent simulation, conflict/alliance emergence, iterative drama scoring |
-| **Voice Mode** | Text-to-speech narration via edge-tts (no API key), in-browser audio player |
-| **Branch Reader** | Choose-your-own-adventure mode with LLM-generated branching paths |
-| **Smart Routing** | Per-layer model selection, cheap model for analysis / premium for writing (~45% cost savings) |
-| **Quality** | 4-dimension scoring (coherence, character, drama, writing), automated re-enhancement loop |
-| **Export** | PDF, EPUB, ZIP with all assets |
-| **Analytics** | Pipeline metrics, A/B testing, performance dashboards |
+- **3-layer pipeline** — Story Generation → Drama Simulation → Video Storyboarding, with checkpoint & resume and real-time SSE streaming
+- **13 specialized AI agents** — autonomous character agents plus a drama critic, editor-in-chief, pacing analyzer, style consistency checker, dialogue expert, and more
+- **Quality scoring & auto-revision** — 4-dimension LLM-as-judge (coherence, character, drama, writing style) with an automated re-enhancement loop
+- **Multi-provider LLM support** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ models), Ollama (local), or any custom OpenAI-compatible endpoint
+- **Vietnamese & English** — bilingual story generation out of the box
+- **Rich export** — PDF, EPUB, HTML web reader, and full video storyboards with shot-by-shot camera direction and image prompts
+- **Interactive branch reader** — choose-your-own-adventure mode with LLM-generated branching paths
+- **Self-hosted, privacy-first** — your stories and API keys never leave your infrastructure
+- **Smart model routing** — assign cheap models to analysis tasks and premium models to writing (~45% cost savings)
+- **Text-to-speech narration** — in-browser audio via `edge-tts`, no extra API key required
 
 ---
 
 ## Quick Start
 
+### Docker (recommended)
+
 ```bash
-# Clone & install
+docker compose up
+```
+
+Open [http://localhost:7860](http://localhost:7860). That's it.
+
+### Local
+
+```bash
 git clone https://github.com/HieuNTg/STORYFORGE.git
 cd STORYFORGE
 pip install -r requirements.txt
-
-# Run
 python app.py
 # → http://localhost:7860
 ```
 
 ### First Run
 
-1. **Settings** → choose AI provider, enter API key, select model
-2. **Create Story** → pick genre, style, describe your idea
-3. **Run Pipeline** → watch generation, simulation, storyboarding in real-time
-4. **Reader** → read the finished story or try Branch Mode
-5. **Export** → download as PDF, EPUB, or ZIP
-
----
-
-## The Pipeline
-
-### Layer 1 — Story Generation
-
-Characters with personality, backstory, and motivations. World-building. Chapter outlines. Full chapters written with rolling context that tracks character states and plot events across the entire story. Optional long-context mode for models with 1M+ token windows.
-
-### Layer 2 — Drama Enhancement
-
-Each character becomes an autonomous AI agent. Agents interact across simulation rounds — forming alliances, confronting rivals, discovering secrets. The system extracts dramatic situations and rewrites the story with higher drama scores. Iterative feedback re-enhances weak chapters until they pass the drama threshold.
-
-### Layer 3 — Video Storyboard
-
-Shot-by-shot storyboards with camera angles, movement, and mood. AI image generation prompts for each shot. Voice-over scripts with emotional cues. Location descriptions and sound design.
+1. **Settings** → choose your AI provider, enter API key, select model
+2. **Create Story** → pick genre, style, describe your idea in one sentence
+3. **Run Pipeline** → watch generation, simulation, and storyboarding stream in real-time
+4. **Reader** → read the finished story or launch Branch Mode for interactive paths
+5. **Export** → download as PDF, EPUB, HTML, or storyboard ZIP
 
 ---
 
 ## Configuration
 
-All settings managed through the web UI (**Settings** tab):
+All settings are managed through the **Settings** tab in the web UI and persisted to `data/config.json`. Key environment variables for Docker deployments:
 
-| Setting | Description | Default |
-|:--------|:------------|:--------|
-| AI Provider | OpenAI, Gemini, Anthropic, OpenRouter, Ollama, Custom | OpenAI |
-| Model | Primary model for writing | `gpt-4o` |
-| Secondary Model | Budget model for summaries & analysis | _(same as primary)_ |
-| Layer Models | Per-layer model override (Layer 1/2/3) | _(primary)_ |
-| Temperature | Creativity level (0.0 – 1.0) | `0.8` |
+| Variable | Description | Default |
+|:---------|:------------|:--------|
+| `LLM_PROVIDER` | `openai` \| `gemini` \| `anthropic` \| `openrouter` \| `ollama` | `openai` |
+| `LLM_API_KEY` | API key for the selected provider | _(none)_ |
+| `LLM_MODEL` | Primary model for writing (e.g. `gpt-4o`) | `gpt-4o` |
+| `LLM_BASE_URL` | Custom endpoint URL (OpenAI-compatible) | _(provider default)_ |
+| `SECRET_KEY` | Session secret for JWT auth | _(auto-generated)_ |
+| `PORT` | Server port | `7860` |
 
-Config persisted to `data/config.json`.
+**Per-layer model overrides** and a secondary budget model for analysis tasks can be configured in the UI under Settings → Advanced.
 
 ### Compatible Providers
 
-Any provider exposing an OpenAI-compatible `/v1/chat/completions` endpoint:
+Any provider that exposes an OpenAI-compatible `/v1/chat/completions` endpoint works with StoryForge:
 
-**OpenAI** · **Google Gemini** · **Anthropic** · **OpenRouter** (290+ models) · **Ollama** (local) · **Any custom endpoint**
+**OpenAI** · **Google Gemini** · **Anthropic** · **OpenRouter** · **Ollama** · **Any custom endpoint**
+
+---
+
+## Architecture
+
+```
+                        ┌─────────────────────────────────────────┐
+  User Prompt  ────────▶│         Layer 1 — Story Generation      │
+                        │  Characters · World · Chapters · Context │
+                        └──────────────────┬──────────────────────┘
+                                           │
+                        ┌──────────────────▼──────────────────────┐
+                        │       Layer 2 — Drama Simulation         │
+                        │  13 AI Agents · Conflict Emergence       │
+                        │  Drama Scoring · Auto-Revision Loop      │
+                        └──────────────────┬──────────────────────┘
+                                           │
+                        ┌──────────────────▼──────────────────────┐
+                        │       Layer 3 — Video Storyboard         │
+                        │  Shot Plans · Camera · Image Prompts     │
+                        │  Voice Scripts · Sound Design            │
+                        └──────────────────┬──────────────────────┘
+                                           │
+                              PDF · EPUB · HTML · ZIP
+```
+
+```mermaid
+flowchart LR
+    idea([User Idea]) --> L1
+
+    subgraph L1 [Layer 1 — Story Generation]
+        direction TB
+        chars[Characters & World] --> chapters[Full Chapters]
+    end
+
+    L1 --> L2
+
+    subgraph L2 [Layer 2 — Drama Simulation]
+        direction TB
+        agents[13 AI Agents] --> conflicts[Conflict & Alliance]
+        conflicts --> score[Quality Score]
+        score -- below threshold --> agents
+    end
+
+    L2 --> L3
+
+    subgraph L3 [Layer 3 — Video Storyboard]
+        direction TB
+        shots[Shot Plans] --> prompts[Image Prompts]
+        prompts --> voice[Voice Scripts]
+    end
+
+    L3 --> export([PDF / EPUB / HTML / ZIP])
+```
 
 ---
 
@@ -117,9 +156,13 @@ Any provider exposing an OpenAI-compatible `/v1/chat/completions` endpoint:
 | Backend | Python 3.10+, FastAPI, Uvicorn |
 | Frontend | Alpine.js 3, Tailwind CSS |
 | Streaming | Server-Sent Events (SSE) |
-| AI | Any OpenAI-compatible API, edge-tts |
+| AI / LLM | Any OpenAI-compatible API |
+| Text-to-Speech | edge-tts (no API key required) |
 | Storage | JSON files, SQLite (cache) |
 | Export | ReportLab (PDF), ebooklib (EPUB) |
+| Auth & Security | JWT, rate limiting, audit logging |
+| Containerization | Docker, Docker Compose |
+| CI/CD | GitHub Actions |
 
 ---
 
@@ -127,39 +170,55 @@ Any provider exposing an OpenAI-compatible `/v1/chat/completions` endpoint:
 
 ```
 storyforge/
-├── app.py                          # FastAPI entry point
-├── config.py                       # Configuration (singleton)
-├── api/                            # REST API routes
-│   ├── pipeline_routes.py          #   Pipeline SSE streaming + resume
-│   ├── config_routes.py            #   Settings CRUD + connection test
-│   ├── export_routes.py            #   PDF, EPUB, ZIP export
-│   ├── audio_routes.py             #   TTS generation + streaming
-│   ├── branch_routes.py            #   Interactive branch reader
-│   ├── analytics_routes.py         #   Pipeline analytics
-│   └── ab_routes.py                #   A/B testing
-├── web/                            # Frontend (Alpine.js + Tailwind)
-│   ├── index.html                  #   Single-page application
-│   └── js/                         #   JS modules (audio, branch, etc.)
-├── models/schemas.py               # Pydantic data models
-├── services/
-│   ├── llm/                        #   LLM client (singleton, fallback chain)
-│   ├── browser_auth/               #   Browser-based auth
-│   ├── branch_narrative.py         #   Branch reader engine
-│   ├── tts_audio_generator.py      #   Text-to-speech
-│   ├── quality_scorer.py           #   4-dimension scoring
-│   └── prompts.py                  #   Prompt templates
-├── pipeline/
-│   ├── orchestrator.py             #   3-layer pipeline orchestrator
-│   ├── layer1_story/               #   Story generation
-│   ├── layer2_enhance/             #   Drama simulation & enhancement
-│   ├── layer3_video/               #   Storyboard & script
-│   └── agents/                     #   AI review board (5 critics)
-├── tests/                          # 1362 tests
-└── docs/                           # Technical documentation
+├── app.py                      # FastAPI entry point
+├── config.py                   # Configuration singleton
+├── pipeline/                   # 3-layer generation engine
+│   ├── orchestrator.py         #   Pipeline orchestrator with checkpointing
+│   ├── layer1_story/           #   Story generation (characters, world, chapters)
+│   ├── layer2_enhance/         #   Drama simulation & enhancement
+│   ├── layer3_video/           #   Storyboard & voice scripts
+│   └── agents/                 #   13 specialized AI agents
+├── services/                   # Reusable business logic
+│   ├── llm/                    #   LLM client with fallback chain
+│   ├── quality_scorer.py       #   4-dimension scoring
+│   ├── branch_narrative.py     #   Interactive branch reader
+│   ├── tts_audio_generator.py  #   Text-to-speech
+│   └── ...                     #   Export, auth, analytics, etc.
+├── api/                        # FastAPI REST endpoints
+│   ├── pipeline_routes.py      #   Pipeline SSE streaming + resume
+│   ├── config_routes.py        #   Settings CRUD + connection test
+│   ├── export_routes.py        #   PDF, EPUB, ZIP export
+│   └── ...
+├── web/                        # Alpine.js frontend (SPA)
+│   ├── index.html
+│   └── js/
+├── middleware/                 # Auth, rate limiting, audit logging
+├── models/schemas.py           # Pydantic data models
+└── tests/                      # Test suite
 ```
+
+---
+
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) to get started — it covers development setup, code style, the PR process, and how to find good first issues.
 
 ---
 
 ## License
 
 [MIT](LICENSE) — Copyright 2026 StoryForge Contributors
+
+---
+
+## Acknowledgments
+
+StoryForge is built on the shoulders of excellent open source work:
+
+- [FastAPI](https://fastapi.tiangolo.com) — modern Python web framework
+- [Alpine.js](https://alpinejs.dev) — lightweight reactive frontend
+- [Tailwind CSS](https://tailwindcss.com) — utility-first CSS
+- [ReportLab](https://www.reportlab.com) — PDF generation
+- [ebooklib](https://github.com/aerkalov/ebooklib) — EPUB generation
+- [edge-tts](https://github.com/rany2/edge-tts) — free text-to-speech
+- All LLM providers — OpenAI, Google, Anthropic, OpenRouter, and the Ollama community
