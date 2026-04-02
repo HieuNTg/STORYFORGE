@@ -12,16 +12,16 @@ Post-evaluation roadmap: Alpha → Production-ready → Public Release (Open Sou
 | 7 | Critical Infrastructure | 1 week | Production deployment + DB migration | DONE |
 | 8 | Security & Build | 1 week | HTTPS, audit logs, frontend build | DONE |
 | 9 | Quality & Testing | 1 week | Coverage, load testing, AI benchmarks | DONE |
-| 10 | Community & Docs | 1 week | README, setup scripts, user guide, feedback UI | TODO |
-| 11 | AI & UX Polish | 1 week | Scoring calibration, dark mode, plugin arch | TODO |
+| 10 | Community & Docs | 1 week | README, setup scripts, user guide, feedback UI | DONE |
+| 11 | AI & UX Polish | 1 week | Scoring calibration, dark mode, plugin arch | DONE |
 | 12 | Public Release | 1 week | v1.0.0, community launch, demo instance | TODO |
 
 ## Plans
 - [Sprint 7: Critical Infrastructure](./sprint-7-critical-infrastructure.md) — DONE
 - [Sprint 8: Security & Build](./sprint-8-security-and-build.md) — DONE
 - [Sprint 9: Quality & Testing](./sprint-9-quality-and-testing.md) — DONE
-- [Sprint 10: Community & Documentation](./sprint-10-business-layer.md) — TODO
-- [Sprint 11: AI & UX Polish](./sprint-11-ai-ux-polish.md) — TODO
+- [Sprint 10: Community & Documentation](./sprint-10-business-layer.md) — DONE
+- [Sprint 11: AI & UX Polish](./sprint-11-ai-ux-polish.md) — DONE
 - [Sprint 12: Public Release](./sprint-12-launch-prep.md) — TODO
 
 ## Team Assignments (Open Source Focus)
