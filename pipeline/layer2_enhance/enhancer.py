@@ -147,11 +147,12 @@ class StoryEnhancer:
         # Maintain order
         enhanced.chapters = [results[ch.chapter_number] for ch in draft.chapters]
 
-        # Tính điểm kịch tính tổng thể
+        # Tính điểm kịch tính tổng thể (chuyển từ 0-1 sang 1-5)
         if sim_result.events:
-            enhanced.drama_score = sum(
+            raw = sum(
                 e.drama_score for e in sim_result.events
             ) / len(sim_result.events)
+            enhanced.drama_score = round(1.0 + raw * 4.0, 2)  # Map 0-1 → 1-5
         enhanced.enhancement_notes = sim_result.drama_suggestions
 
         _log(

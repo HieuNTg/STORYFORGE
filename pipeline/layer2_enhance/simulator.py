@@ -151,6 +151,7 @@ class DramaSimulator:
                 system_prompt=(
                     f"Bạn đang nhập vai {name} trong một mô phỏng tương tác. "
                     f"Hãy hành động theo tính cách và TÂM TRẠNG hiện tại. "
+                    f"LUÔN viết nội dung bằng tiếng Việt. "
                     f"Trả về JSON với: content, action_type, target, sentiment, "
                     f"new_mood (tâm trạng mới), trust_change (số từ -30 đến +10 cho target)."
                 ),
@@ -222,7 +223,7 @@ class DramaSimulator:
             result = self.llm.generate_json(
                 system_prompt=(
                     f"Bạn là {agent.character.name}. Phản ứng với hành động của {triggering_post.agent_name}. "
-                    f"Trạng thái: {agent.get_emotional_context()}. Trả về JSON."
+                    f"Trạng thái: {agent.get_emotional_context()}. LUÔN viết bằng tiếng Việt. Trả về JSON."
                 ),
                 user_prompt=(
                     f"Hành động gây ra: [{triggering_post.agent_name}] {triggering_post.action_type}: "
@@ -340,7 +341,7 @@ class DramaSimulator:
         )
 
         return self.llm.generate_json(
-            system_prompt="Bạn là đạo diễn kịch tính. Trả về JSON.",
+            system_prompt="Bạn là đạo diễn kịch tính. LUÔN viết bằng tiếng Việt. Trả về JSON.",
             user_prompt=prompts.EVALUATE_DRAMA.format(
                 actions=actions_text,
                 relationships=rel_text,
@@ -373,7 +374,7 @@ class DramaSimulator:
         chars = pattern.description.split(" vs ")
         try:
             result = self.llm.generate_json(
-                system_prompt="Bạn là đạo diễn kịch tính. Trả về JSON.",
+                system_prompt="Bạn là đạo diễn kịch tính. LUÔN viết bằng tiếng Việt. Trả về JSON.",
                 user_prompt=prompts.ESCALATION_EVENT.format(
                     pattern_type=pattern.pattern_type,
                     characters=pattern.description,
@@ -523,7 +524,7 @@ class DramaSimulator:
         )
 
         return self.llm.generate_json(
-            system_prompt="Bạn là cố vấn kịch bản. Trả về JSON.",
+            system_prompt="Bạn là cố vấn kịch bản. LUÔN viết bằng tiếng Việt. Trả về JSON.",
             user_prompt=prompts.DRAMA_SUGGESTIONS.format(
                 simulation_summary=sim_summary,
                 story_summary=story_summary,

@@ -370,8 +370,8 @@
                           </div>
                           <template x-if="$store.pipeline.result.draft.chapters[chapter]">
                             <div>
-                              <h4 class="font-semibold mb-2" x-text="'Chapter ' + $store.pipeline.result.draft.chapters[chapter].number + ': ' + $store.pipeline.result.draft.chapters[chapter].title"></h4>
-                              <div class="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap" x-text="$store.pipeline.result.draft.chapters[chapter].content"></div>
+                              <h4 class="font-semibold mb-2" x-text="'Chapter ' + $store.pipeline.result.draft.chapters[chapter].number + ': ' + $store.pipeline.result.draft.chapters[chapter].title.replace(/\*\*/g, '').replace(/^#+\s*/gm, '')"></h4>
+                              <div class="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap" x-html="$store.pipeline.result.draft.chapters[chapter].content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
                             </div>
                           </template>
                         </div>
@@ -382,14 +382,14 @@
                       <template x-if="$store.pipeline.result.enhanced">
                         <div>
                           <h3 class="text-xl font-bold mb-1" x-text="$store.pipeline.result.enhanced.title"></h3>
-                          <p class="text-sm text-slate-500 mb-4">Drama Score: <span class="font-semibold text-orange-500" x-text="($store.pipeline.result.enhanced.drama_score || 0).toFixed(2)"></span></p>
+                          <p class="text-sm text-slate-500 mb-4">Drama Score: <span class="font-semibold text-orange-500" x-text="($store.pipeline.result.enhanced.drama_score || 0).toFixed(1) + '/5'"></span></p>
                           <div class="flex gap-2 flex-wrap mb-4">
                             <template x-for="(ch, idx) in $store.pipeline.result.enhanced.chapters" :key="idx">
                               <button @click="chapter = idx" class="px-2.5 py-1 rounded text-xs font-medium cursor-pointer" :class="chapter === idx ? 'bg-brand-600 text-white' : 'bg-surface-100 text-slate-600'" x-text="'Ch.' + ch.number"></button>
                             </template>
                           </div>
                           <template x-if="$store.pipeline.result.enhanced.chapters[chapter]">
-                            <div class="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap" x-text="$store.pipeline.result.enhanced.chapters[chapter].content"></div>
+                            <div class="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap" x-html="$store.pipeline.result.enhanced.chapters[chapter].content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
                           </template>
                         </div>
                       </template>
@@ -910,8 +910,8 @@
             <div class="card p-6 md:p-10">
               <template x-if="currentChapter">
                 <div>
-                  <h3 class="text-xl font-bold text-slate-800 mb-4" x-text="'Chapter ' + currentChapter.number + ': ' + currentChapter.title"></h3>
-                  <div class="text-slate-700 whitespace-pre-wrap leading-[1.9]" :style="'font-size:' + fontSize + 'px'" x-text="currentChapter.content"></div>
+                  <h3 class="text-xl font-bold text-slate-800 mb-4" x-text="'Chapter ' + currentChapter.number + ': ' + currentChapter.title.replace(/\*\*/g, '').replace(/^#+\s*/gm, '')"></h3>
+                  <div class="text-slate-700 whitespace-pre-wrap leading-[1.9]" :style="'font-size:' + fontSize + 'px'" x-html="currentChapter.content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
                 </div>
               </template>
             </div>
