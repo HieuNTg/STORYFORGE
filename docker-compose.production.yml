@@ -209,6 +209,58 @@ services:
           cpus: "0.05"
           memory: 32M
 
+  # ── Prometheus (metrics) ───────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: storyforge-prometheus
+    restart: unless-stopped
+    networks:
+      - storyforge-network
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+    command: --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.retention.time=15d
+    depends_on:
+      app:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
+  # ── Grafana (dashboards) ─────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: storyforge-grafana
+    restart: unless-stopped
+    networks:
+      - storyforge-network
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/storyforge.json:ro
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-storyforge}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    depends_on:
+      - prometheus
+      - loki
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
   # ── Certbot (SSL auto-renewal) ─────────────────────────────────────────────
   certbot:
     image: certbot/certbot
