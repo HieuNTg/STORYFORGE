@@ -6,7 +6,7 @@ import os
 import queue
 import threading
 import time
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
@@ -90,17 +90,83 @@ def get_templates():
 
 @router.get("/checkpoints")
 def get_checkpoints():
-    """List available checkpoints with label and path."""
+    """List available checkpoints with metadata for library."""
     from pipeline.orchestrator import PipelineOrchestrator
     ckpts = PipelineOrchestrator.list_checkpoints()
     return {"checkpoints": [
-        {"label": f"{c['file']} ({c['modified']}, {c['size_kb']}KB)", "path": c['file']}
+        {
+            "label": f"{c['file']} ({c['modified']}, {c['size_kb']}KB)",
+            "path": c['file'],
+            "title": c.get('title', ''),
+            "genre": c.get('genre', ''),
+            "chapter_count": c.get('chapter_count', 0),
+            "current_layer": c.get('current_layer', 0),
+            "size_kb": c['size_kb'],
+            "modified": c['modified'],
+        }
         for c in ckpts
     ]}
 
 
+@router.get("/checkpoints/{filename}")
+def get_checkpoint(filename: str):
+    """Load a single checkpoint and return formatted data for the reader."""
+    import pathlib
+    checkpoint_dir = pathlib.Path(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    ).resolve() / "output" / "checkpoints"
+    safe_name = pathlib.Path(filename).name  # strips directory components
+    if not safe_name or ".." in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    checkpoint_path = (checkpoint_dir / safe_name).resolve()
+    # Verify resolved path is strictly inside checkpoint_dir (defence-in-depth)
+    if not str(checkpoint_path).startswith(str(checkpoint_dir)):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    if not checkpoint_path.exists():
+        raise HTTPException(status_code=404, detail="Checkpoint not found")
+
+    try:
+        with open(str(checkpoint_path), "r", encoding="utf-8") as f:
+            data = json.load(f)
+        from models.schemas import PipelineOutput
+        output = PipelineOutput(**data)
+        from api.pipeline_output_builder import build_output_summary
+        summary = build_output_summary(output)
+        summary["source"] = "library"
+        summary["filename"] = safe_name
+        return summary
+    except Exception as e:
+        logger.error(f"Failed to load checkpoint {safe_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/checkpoints/{filename}")
+def delete_checkpoint(filename: str):
+    """Delete a checkpoint file."""
+    import pathlib
+    checkpoint_dir = pathlib.Path(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    ).resolve() / "output" / "checkpoints"
+    safe_name = pathlib.Path(filename).name
+    if not safe_name or ".." in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    checkpoint_path = (checkpoint_dir / safe_name).resolve()
+    if not str(checkpoint_path).startswith(str(checkpoint_dir)):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    if not checkpoint_path.exists():
+        raise HTTPException(status_code=404, detail="Checkpoint not found")
+
+    try:
+        os.remove(str(checkpoint_path))
+        logger.info(f"Deleted checkpoint: {safe_name}")
+        return {"ok": True, "deleted": safe_name}
+    except Exception as e:
+        logger.error(f"Failed to delete checkpoint {safe_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/run")
-async def run_pipeline(body: PipelineRequest):
+async def run_pipeline(request: Request, body: PipelineRequest):
     """Run the full pipeline, streaming progress via SSE."""
     # Validate input
     idea = (body.idea or "").strip()
@@ -113,10 +179,11 @@ async def run_pipeline(body: PipelineRequest):
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    def event_generator():
+    async def event_generator():
         orch = PipelineOrchestrator()
         session_id = str(id(orch))
         _orchestrators[session_id] = orch
+        disconnected = threading.Event()
 
         logs = []
         progress_queue = queue.Queue()
@@ -159,44 +226,59 @@ async def run_pipeline(body: PipelineRequest):
                 logger.error(f"Pipeline error: {e}")
                 progress_queue.put(("error", str(e)))
 
-        thread = threading.Thread(target=_run)
+        thread = threading.Thread(target=_run, daemon=True)
         thread.start()
 
-        # Send session_id first
-        yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
+        try:
+            # Send session_id first
+            yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
 
-        while thread.is_alive():
-            try:
-                msg_type, msg_data = progress_queue.get(timeout=0.2)
-                # Drain queue for latest stream
-                while not progress_queue.empty():
-                    try:
-                        t, d = progress_queue.get_nowait()
-                        if t == "stream":
-                            msg_type, msg_data = t, d
-                        elif t == "error":
-                            msg_type, msg_data = t, d
-                    except queue.Empty:
-                        break
-                event = {"type": msg_type, "data": msg_data}
-                if msg_type == "log":
-                    event["logs_count"] = len(logs)
-                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-            except queue.Empty:
-                continue
+            while thread.is_alive():
+                # Check for client disconnect
+                if await request.is_disconnected():
+                    logger.info(f"Client disconnected from /run stream (session={session_id})")
+                    disconnected.set()
+                    break
+                try:
+                    msg_type, msg_data = progress_queue.get(timeout=0.2)
+                    # Drain queue for latest stream
+                    while not progress_queue.empty():
+                        try:
+                            t, d = progress_queue.get_nowait()
+                            if t == "stream":
+                                msg_type, msg_data = t, d
+                            elif t == "error":
+                                msg_type, msg_data = t, d
+                        except queue.Empty:
+                            break
+                    event = {"type": msg_type, "data": msg_data}
+                    if msg_type == "log":
+                        event["logs_count"] = len(logs)
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                except queue.Empty:
+                    continue
 
-        thread.join()
+            if disconnected.is_set():
+                return
 
-        # Send final result
-        output = result[0]
-        if output:
-            from api.pipeline_output_builder import build_output_summary
-            summary = build_output_summary(output)
-            summary["session_id"] = session_id
-            summary["logs"] = logs
-            yield f"data: {json.dumps({'type': 'done', 'data': summary}, ensure_ascii=False, default=str)}\n\n"
-        else:
-            yield f"data: {json.dumps({'type': 'error', 'data': 'Pipeline thất bại'})}\n\n"
+            thread.join()
+
+            # Send final result
+            output = result[0]
+            if output:
+                from api.pipeline_output_builder import build_output_summary
+                summary = build_output_summary(output)
+                summary["session_id"] = session_id
+                summary["logs"] = logs
+                yield f"data: {json.dumps({'type': 'done', 'data': summary}, ensure_ascii=False, default=str)}\n\n"
+            else:
+                yield f"data: {json.dumps({'type': 'error', 'data': 'Pipeline thất bại'})}\n\n"
+        except Exception as e:
+            logger.error(f"SSE stream error (session={session_id}): {e}")
+            disconnected.set()
+        finally:
+            _orchestrators.pop(session_id, None)
+            logger.debug(f"SSE /run stream closed (session={session_id})")
 
     return StreamingResponse(
         event_generator(),
@@ -206,14 +288,22 @@ async def run_pipeline(body: PipelineRequest):
 
 
 @router.post("/resume")
-async def resume_pipeline(body: ResumeRequest):
+async def resume_pipeline(request: Request, body: ResumeRequest):
     """Resume pipeline from a checkpoint, streaming progress via SSE."""
     # Resolve checkpoint safely — accept filename only, prevent path traversal
     import pathlib
-    checkpoint_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "output", "checkpoints")
+    checkpoint_dir = pathlib.Path(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    ).resolve() / "output" / "checkpoints"
     safe_name = pathlib.Path(body.checkpoint).name  # strips any directory components
-    checkpoint_path = os.path.join(checkpoint_dir, safe_name)
-    if not safe_name or not os.path.exists(checkpoint_path):
+    checkpoint_path = (checkpoint_dir / safe_name).resolve() if safe_name else None
+    # Verify resolved path stays inside checkpoint_dir
+    if (
+        not safe_name
+        or checkpoint_path is None
+        or not str(checkpoint_path).startswith(str(checkpoint_dir))
+        or not checkpoint_path.exists()
+    ):
         def _error_stream():
             yield f"data: {json.dumps({'type': 'error', 'data': 'Checkpoint not found.'})}\n\n"
         return StreamingResponse(
@@ -222,10 +312,11 @@ async def resume_pipeline(body: ResumeRequest):
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    def event_generator():
+    async def event_generator():
         orch = PipelineOrchestrator()
         session_id = str(id(orch))
         _orchestrators[session_id] = orch
+        disconnected = threading.Event()
 
         logs = []
         progress_queue = queue.Queue()
@@ -239,46 +330,61 @@ async def resume_pipeline(body: ResumeRequest):
         def _run():
             try:
                 result[0] = orch.resume_from_checkpoint(
-                    checkpoint_path=checkpoint_path,
+                    checkpoint_path=str(checkpoint_path),
                     progress_callback=on_progress,
                 )
             except Exception as e:
                 logger.error(f"Resume error: {e}")
                 progress_queue.put(("error", str(e)))
 
-        thread = threading.Thread(target=_run)
+        thread = threading.Thread(target=_run, daemon=True)
         thread.start()
 
-        yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
+        try:
+            yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
 
-        while thread.is_alive():
-            try:
-                msg_type, msg_data = progress_queue.get(timeout=0.2)
-                while not progress_queue.empty():
-                    try:
-                        t, d = progress_queue.get_nowait()
-                        if t == "error":
-                            msg_type, msg_data = t, d
-                    except queue.Empty:
-                        break
-                event = {"type": msg_type, "data": msg_data}
-                if msg_type == "log":
-                    event["logs_count"] = len(logs)
-                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-            except queue.Empty:
-                continue
+            while thread.is_alive():
+                # Check for client disconnect
+                if await request.is_disconnected():
+                    logger.info(f"Client disconnected from /resume stream (session={session_id})")
+                    disconnected.set()
+                    break
+                try:
+                    msg_type, msg_data = progress_queue.get(timeout=0.2)
+                    while not progress_queue.empty():
+                        try:
+                            t, d = progress_queue.get_nowait()
+                            if t == "error":
+                                msg_type, msg_data = t, d
+                        except queue.Empty:
+                            break
+                    event = {"type": msg_type, "data": msg_data}
+                    if msg_type == "log":
+                        event["logs_count"] = len(logs)
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                except queue.Empty:
+                    continue
 
-        thread.join()
+            if disconnected.is_set():
+                return
 
-        output = result[0]
-        if output:
-            from api.pipeline_output_builder import build_output_summary
-            summary = build_output_summary(output)
-            summary["session_id"] = session_id
-            summary["logs"] = logs
-            yield f"data: {json.dumps({'type': 'done', 'data': summary}, ensure_ascii=False, default=str)}\n\n"
-        else:
-            yield f"data: {json.dumps({'type': 'error', 'data': 'Resume failed'})}\n\n"
+            thread.join()
+
+            output = result[0]
+            if output:
+                from api.pipeline_output_builder import build_output_summary
+                summary = build_output_summary(output)
+                summary["session_id"] = session_id
+                summary["logs"] = logs
+                yield f"data: {json.dumps({'type': 'done', 'data': summary}, ensure_ascii=False, default=str)}\n\n"
+            else:
+                yield f"data: {json.dumps({'type': 'error', 'data': 'Resume failed'})}\n\n"
+        except Exception as e:
+            logger.error(f"SSE stream error (session={session_id}): {e}")
+            disconnected.set()
+        finally:
+            _orchestrators.pop(session_id, None)
+            logger.debug(f"SSE /resume stream closed (session={session_id})")
 
     return StreamingResponse(
         event_generator(),

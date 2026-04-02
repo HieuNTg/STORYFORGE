@@ -2,14 +2,22 @@
 
 Starts FastAPI, mounts API routes, static files, and Gradio UI.
 All UI logic lives in ui/gradio_app.py.
+
+CORS policy:
+  Allowed origins are read from the STORYFORGE_ALLOWED_ORIGINS env var
+  (comma-separated list). Defaults to localhost:7860 only.
+  Wildcard "*" is intentionally NOT used — set explicit origins for production.
 """
 
 import logging
+import logging.handlers
 import os
+import shutil
 import time
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -18,10 +26,60 @@ from config import ConfigManager
 # Logging
 from services.structured_logger import configure_logging
 configure_logging()
+
+# Replace the plain FileHandler with a RotatingFileHandler
+# so log files never grow unbounded (D4: log rotation).
+_root_logger = logging.getLogger()
+for _h in list(_root_logger.handlers):
+    if isinstance(_h, logging.FileHandler) and not isinstance(
+        _h, logging.handlers.RotatingFileHandler
+    ):
+        _fmt = _h.formatter
+        _root_logger.removeHandler(_h)
+        _h.close()
+        _rotating = logging.handlers.RotatingFileHandler(
+            "storyforge.log",
+            maxBytes=10 * 1024 * 1024,  # 10 MB per file
+            backupCount=5,
+            encoding="utf-8",
+        )
+        _rotating.setFormatter(_fmt)
+        _root_logger.addHandler(_rotating)
+        break
+
+# FFmpeg availability check (D6: clear dependency status)
+_FFMPEG_AVAILABLE: bool = shutil.which("ffmpeg") is not None
+
 logger = logging.getLogger(__name__)
+
+if not _FFMPEG_AVAILABLE:
+    logger.warning("FFmpeg not found — video features disabled")
 
 # Uptime tracking
 _START_TIME = time.time()
+
+# ---------------------------------------------------------------------------
+# CORS configuration helpers
+# ---------------------------------------------------------------------------
+_DEFAULT_ORIGINS = ["http://localhost:7860", "http://127.0.0.1:7860"]
+
+
+def _get_allowed_origins() -> list[str]:
+    """Read allowed CORS origins from STORYFORGE_ALLOWED_ORIGINS env var.
+
+    Falls back to localhost:7860 defaults. Rejects wildcard '*' with a warning.
+    """
+    raw = os.environ.get("STORYFORGE_ALLOWED_ORIGINS", "")
+    if raw.strip():
+        origins = [o.strip() for o in raw.split(",") if o.strip()]
+        if "*" in origins:
+            logger.warning(
+                "STORYFORGE_ALLOWED_ORIGINS contains '*' — ignoring and using "
+                "safe defaults instead. Set explicit origins for production."
+            )
+            return _DEFAULT_ORIGINS
+        return origins
+    return _DEFAULT_ORIGINS
 
 
 def main():
@@ -31,7 +89,44 @@ def main():
 
     set_start_time(_START_TIME)
 
-    main_app = FastAPI(title="StoryForge")
+    main_app = FastAPI(
+        title="StoryForge",
+        description=(
+            "AI-powered story generation platform. "
+            "Generate long-form Vietnamese stories with multi-layer pipeline: "
+            "story generation, drama simulation, and video storyboarding."
+        ),
+        version="3.0.0",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_tags=[
+            {"name": "pipeline", "description": "Run and manage story generation pipelines"},
+            {"name": "config", "description": "Manage application configuration and model presets"},
+            {"name": "export", "description": "Export stories to PDF, EPUB, and other formats"},
+            {"name": "analytics", "description": "Usage analytics and story statistics"},
+            {"name": "metrics", "description": "System performance metrics"},
+            {"name": "dashboard", "description": "Dashboard summary data"},
+            {"name": "auth", "description": "Authentication and user management"},
+            {"name": "ab", "description": "A/B testing for pipeline variants"},
+            {"name": "branch", "description": "Story branching and alternate paths"},
+            {"name": "audio", "description": "Text-to-speech and audio generation"},
+        ],
+    )
+
+    # --- CORS middleware (restrictive: explicit origins only, no wildcard) ---
+    allowed_origins = _get_allowed_origins()
+    logger.info(f"CORS allowed origins: {allowed_origins}")
+    main_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "Accept"],
+    )
+
+    # --- Rate limiting middleware (in-memory, per-IP) ---
+    from middleware.rate_limiter import RateLimitMiddleware
+    main_app.add_middleware(RateLimitMiddleware)
 
     from errors.exceptions import StoryForgeError
     from errors.handlers import storyforge_error_handler
@@ -63,7 +158,10 @@ def main():
             "status": "ok",
             "version": "3.0",
             "uptime_seconds": round(time.time() - _START_TIME, 1),
-            "services": {"llm": llm_ok},
+            "services": {
+                "llm": llm_ok,
+                "ffmpeg": _FFMPEG_AVAILABLE,
+            },
         }
 
     logger.info(

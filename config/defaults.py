@@ -1,0 +1,141 @@
+"""Default values, dataclass configs, and preset constants for StoryForge."""
+
+from dataclasses import dataclass, field
+
+
+@dataclass
+class LLMConfig:
+    """Cấu hình kết nối LLM API."""
+    api_key: str = ""
+    base_url: str = "https://api.openai.com/v1"
+    model: str = "gpt-4o-mini"
+    temperature: float = 0.8
+    max_tokens: int = 4096
+    # Backend: "api" (OpenAI-compatible) hoặc "web" (browser auth, free)
+    backend_type: str = "api"
+    web_auth_provider: str = "deepseek-web"  # Provider cho web auth
+    # Model routing: cheap model for summaries/analysis
+    cheap_model: str = ""  # empty = use primary model
+    cheap_base_url: str = ""  # empty = use primary base_url
+    cache_enabled: bool = True
+    cache_ttl_days: int = 7
+    max_parallel_workers: int = 3
+    fallback_models: list = field(default_factory=list)
+    # Each entry: {"base_url": "...", "model": "...", "api_key": "..."}
+    # Per-layer model routing (optional, falls back to primary model)
+    layer1_model: str = ""  # Story generation
+    layer2_model: str = ""  # Drama analysis
+    layer3_model: str = ""  # Video/storyboard
+
+
+@dataclass
+class PipelineConfig:
+    """Cấu hình pipeline tổng thể."""
+    # Layer 1 - Tạo truyện
+    num_chapters: int = 100
+    words_per_chapter: int = 3000
+    genre: str = "Tiên Hiệp"
+    sub_genres: list = field(default_factory=list)
+    writing_style: str = "Miêu tả chi tiết"
+
+    # Layer 2 - Mô phỏng tăng kịch tính
+    num_simulation_rounds: int = 5
+    num_agents: int = 10
+    drama_intensity: str = "cao"  # thấp, trung bình, cao
+
+    # Layer 3 - Video
+    shots_per_chapter: int = 8
+    video_style: str = "Phim ngắn drama"
+
+    # Context tracking
+    context_window_chapters: int = 5
+
+    # Story Bible — bộ nhớ dài hạn cho truyện 100+ chương
+    arc_size: int = 30
+    story_bible_enabled: bool = True
+
+    # Ngôn ngữ
+    language: str = "vi"
+
+    # Features: user system, image gen, share, PDF
+    user_storage_path: str = "data/users"
+    image_prompt_style: str = "cinematic"
+    share_base_url: str = ""
+    pdf_font: str = "NotoSansVN"
+
+    # Image generation provider
+    image_provider: str = "none"  # none / dalle / sd-api / seedream
+    image_api_key: str = ""
+    image_api_url: str = ""
+
+    # Seedream (ByteDance) image generation
+    seedream_api_key: str = ""
+    seedream_api_url: str = ""
+
+    # Video quality
+    video_quality: str = "draft"  # "draft" or "final"
+
+    # Self-review (CoT quality check)
+    enable_self_review: bool = False  # Opt-in CoT self-review
+    self_review_threshold: float = 3.0  # Score threshold (1.0-5.0)
+
+    # TTS provider
+    tts_provider: str = "edge-tts"  # edge-tts / kling / none
+    kling_tts_api_key: str = ""
+    kling_tts_api_url: str = ""
+
+    # RAG world-building
+    rag_enabled: bool = False
+    rag_persist_dir: str = "data/rag"
+
+    # XTTS v2 voice cloning
+    xtts_api_url: str = ""  # http://localhost:8020 or Replicate URL
+    xtts_reference_audio: str = ""  # default reference audio path
+    character_voice_map: dict = field(default_factory=dict)  # {"CharName": "data/voices/char.wav"}
+
+    # Character-consistent images
+    enable_character_consistency: bool = False
+    replicate_api_key: str = ""
+    character_consistency_provider: str = "seedream"  # seedream | replicate
+
+    # Long-context mode (e.g. Gemini 1.5 Pro, Claude 3, GPT-4o-128k)
+    use_long_context: bool = False
+    long_context_provider: str = ""
+    long_context_model: str = ""
+    long_context_api_key: str = ""
+    long_context_base_url: str = ""
+    long_context_max_tokens: int = 1000000
+
+    # Voice emotion synthesis
+    enable_voice_emotion: bool = False
+
+    # Prompt injection defense mode: False = log-only, True = block and raise error
+    block_on_injection: bool = False
+
+    # Multi-agent debate prototype
+    enable_agent_debate: bool = False
+    max_debate_rounds: int = 3
+
+    # Smart chapter revision (auto-fix weak chapters using agent reviews)
+    enable_smart_revision: bool = False
+    smart_revision_threshold: float = 3.5  # 1.0-5.0 scale
+
+    # Quality gate (inline scoring between layers)
+    # Recommended thresholds by genre: romance/comedy=2.3, mystery/thriller=2.5,
+    # fantasy/sci-fi=2.5, literary/historical=2.8, action=2.2
+    enable_quality_gate: bool = True
+    quality_gate_threshold: float = 2.5  # 1.0-5.0 scale, P50 across genres
+    quality_gate_chapter_threshold: float = 2.0  # Per-chapter floor
+    quality_gate_max_retries: int = 1
+
+
+# Presets live in config/presets.py — imported here for convenience.
+from .presets import VIDEO_QUALITY_PRESETS, PIPELINE_PRESETS, MODEL_PRESETS
+
+__all__ = [
+    "LLMConfig",
+    "PipelineConfig",
+    "VIDEO_QUALITY_PRESETS",
+    "PIPELINE_PRESETS",
+    "MODEL_PRESETS",
+]

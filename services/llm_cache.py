@@ -12,7 +12,19 @@ logger = logging.getLogger(__name__)
 
 
 class LLMCache:
-    """Cache LLM responses trong SQLite. Thread-safe via thread-local connections + WAL mode."""
+    """Cache LLM responses trong SQLite. Thread-safe via thread-local connections + WAL mode.
+
+    CONCURRENCY LIMITATION (multi-user / multi-process):
+    WAL (Write-Ahead Logging) mode allows concurrent reads alongside one writer,
+    but SQLite still serializes all writes. In a single-process, multi-threaded
+    setup this is acceptable. However, in a multi-process deployment (e.g. multiple
+    uvicorn workers or gunicorn workers), each process maintains its own WAL reader
+    state and write lock contention increases significantly. SQLite is NOT suitable
+    as a shared cache across multiple processes at high concurrency.
+
+    For multi-user production deployments, replace this cache with Redis or another
+    shared in-memory store that supports true concurrent multi-process access.
+    """
 
     def __init__(self, db_path="data/llm_cache.db", ttl_days=7):
         # Issue #4: validate TTL

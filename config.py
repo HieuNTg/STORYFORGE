@@ -81,7 +81,20 @@ class PipelineConfig:
 
     # Self-review (CoT quality check)
     enable_self_review: bool = False  # Opt-in CoT self-review
-    self_review_threshold: float = 3.0  # Score threshold (1.0-5.0)
+    self_review_threshold: float = 3.0  # Score threshold (1.0-5.0); genre override via get_review_threshold()
+    # Genre-aware thresholds (keyed by genre display name, lowercase)
+    # action/thriller = 2.8 (fast-paced — prose precision matters less than plot momentum)
+    # literary/historical = 3.5 (prose quality paramount)
+    # romance = 3.0 (default baseline)
+    self_review_genre_thresholds: dict = field(default_factory=lambda: {
+        "action": 2.8,
+        "thriller": 2.8,
+        "kiếm hiệp": 2.8,
+        "literary": 3.5,
+        "historical": 3.5,
+        "romance": 3.0,
+        "ngôn tình": 3.0,
+    })
 
     # TTS provider
     tts_provider: str = "edge-tts"  # edge-tts / kling / none
@@ -119,6 +132,8 @@ class PipelineConfig:
     # Multi-agent debate prototype
     enable_agent_debate: bool = False
     max_debate_rounds: int = 3
+    # Debate mode: "full" = all agents, 3 rounds; "lite" = 3 key agents, 1 round (~85% cheaper)
+    debate_mode: str = "full"  # "full" | "lite"
 
     # Smart chapter revision (auto-fix weak chapters using agent reviews)
     enable_smart_revision: bool = False
@@ -158,6 +173,7 @@ PIPELINE_PRESETS = {
         "self_review_threshold": 3.0,
         "enable_agent_debate": True,
         "max_debate_rounds": 3,
+        "debate_mode": "lite",
         "enable_smart_revision": True,
         "smart_revision_threshold": 3.5,
         "enable_quality_gate": True,
@@ -177,6 +193,7 @@ PIPELINE_PRESETS = {
         "self_review_threshold": 2.5,
         "enable_agent_debate": True,
         "max_debate_rounds": 3,
+        "debate_mode": "full",
         "enable_smart_revision": True,
         "smart_revision_threshold": 3.0,
         "enable_quality_gate": True,
@@ -269,7 +286,12 @@ class ConfigManager:
         if os.path.exists(self.CONFIG_FILE):
             try:
                 with open(self.CONFIG_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+                    raw = json.load(f)
+                # Decrypt sensitive fields transparently.
+                # Migration: if plaintext keys exist they pass through unchanged;
+                # on next save() they will be encrypted automatically.
+                from services.secret_manager import decrypt_sensitive_fields
+                data = decrypt_sensitive_fields(raw)
                 for k, v in data.get("llm", {}).items():
                     if hasattr(self.llm, k):
                         setattr(self.llm, k, v)
@@ -388,6 +410,9 @@ class ConfigManager:
                 "enable_character_consistency": self.pipeline.enable_character_consistency,
                 # replicate_api_key excluded — use REPLICATE_API_KEY env var
                 "character_consistency_provider": self.pipeline.character_consistency_provider,
+                "enable_agent_debate": self.pipeline.enable_agent_debate,
+                "max_debate_rounds": self.pipeline.max_debate_rounds,
+                "debate_mode": self.pipeline.debate_mode,
                 "enable_smart_revision": self.pipeline.enable_smart_revision,
                 "smart_revision_threshold": self.pipeline.smart_revision_threshold,
                 "enable_quality_gate": self.pipeline.enable_quality_gate,
@@ -401,6 +426,9 @@ class ConfigManager:
             import logging
             for w in warnings:
                 logging.getLogger(__name__).warning(f"Config: {w}")
+        # Encrypt sensitive fields before persisting (no-op when no secret key set)
+        from services.secret_manager import encrypt_sensitive_fields
+        data = encrypt_sensitive_fields(data)
         with open(self.CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         return warnings
@@ -418,6 +446,8 @@ class ConfigManager:
             errors.append("video_quality phải là 'draft' hoặc 'final'")
         if not (1.0 <= self.pipeline.self_review_threshold <= 5.0):
             errors.append("self_review_threshold phải từ 1.0 đến 5.0")
+        if self.pipeline.debate_mode not in ("full", "lite"):
+            errors.append("debate_mode phải là 'full' hoặc 'lite'")
         if not (1.0 <= self.pipeline.smart_revision_threshold <= 5.0):
             errors.append("smart_revision_threshold phải từ 1.0 đến 5.0")
         if not (1.0 <= self.pipeline.quality_gate_threshold <= 5.0):
@@ -436,3 +466,18 @@ class ConfigManager:
                     f"(ví dụ: deepseek/deepseek-chat-v3-0324:free)"
                 )
         return errors
+
+    def get_review_threshold(self, genre: str = "") -> float:
+        """Return genre-aware self-review threshold.
+
+        Looks up genre (case-insensitive) in self_review_genre_thresholds.
+        Falls back to self_review_threshold if not found.
+        """
+        if not genre:
+            return self.pipeline.self_review_threshold
+        genre_lower = genre.lower().strip()
+        table = self.pipeline.self_review_genre_thresholds or {}
+        for key, val in table.items():
+            if key.lower() in genre_lower or genre_lower in key.lower():
+                return float(val)
+        return self.pipeline.self_review_threshold
