@@ -4,6 +4,40 @@ Thread-safe JWT signing with key rotation (default 30-day interval).
 Keys stored encrypted at data/jwt_keys.enc via secret_manager.
 Backward-compatible: initialises a new key store if none exists.
 
+# Token Rotation Policy
+# ----------------------
+# StoryForge uses a two-key sliding window for zero-downtime key rotation.
+#
+# TOKEN_ROTATION_INTERVAL (default: 24 h, env: JWT_KEY_ROTATION_DAYS)
+#   How often the active signing key is automatically replaced.  After each
+#   rotation the previous key is retained for one additional interval so that
+#   tokens signed just before the rotation remain valid.  Set
+#   JWT_KEY_ROTATION_DAYS=30 (the production default) to rotate monthly.
+#
+# TOKEN_REVOCATION_CHECK (default: True)
+#   When True, callers should cross-reference the token `jti` claim against a
+#   revocation store (e.g. Redis set) before trusting the payload.  This
+#   module does NOT perform the check itself — it is the responsibility of
+#   verify_token callers (see api/auth_routes.py).
+#
+# MAX_TOKEN_AGE (default: 7 days = 604800 s)
+#   Hard upper bound on token lifetime regardless of the `exp` claim.  Any
+#   token whose `iat` is older than MAX_TOKEN_AGE_SECONDS is rejected.
+#   Enforced by verify_token.
+#
+# Rotation algorithm:
+#   1. On sign_token(), maybe_rotate() checks whether the active key has
+#      exceeded TOKEN_ROTATION_INTERVAL.  If so it archives the current key
+#      as `previous_key` and generates a new `current_key`.
+#   2. verify_token() tries `current_key` first, then `previous_key` if
+#      present and within one rotation window (overlap period).
+#   3. Both keys are persisted encrypted via secret_manager.
+#
+# Environment overrides:
+#   JWT_KEY_ROTATION_DAYS   — sets TOKEN_ROTATION_INTERVAL (integer days)
+#   JWT_MAX_TOKEN_AGE_DAYS  — sets MAX_TOKEN_AGE (integer days)
+#   JWT_REVOCATION_CHECK    — "false" disables TOKEN_REVOCATION_CHECK
+
 Usage:
     from services.jwt_manager import sign_token, verify_token, rotate_key
 """
@@ -23,8 +57,25 @@ from services._jwt_helpers import b64url_encode, b64url_decode, sign_input
 logger = logging.getLogger(__name__)
 
 _KEY_STORE_PATH = os.path.join("data", "jwt_keys.enc")
-_ROTATION_INTERVAL_SEC = int(os.environ.get("JWT_KEY_ROTATION_DAYS", "30")) * 86_400
 _ALGORITHM = "HS256"
+
+# ---------------------------------------------------------------------------
+# Rotation policy configuration constants
+# Override via environment variables documented in the module docstring.
+# ---------------------------------------------------------------------------
+
+# How frequently the active signing key is replaced (seconds).
+TOKEN_ROTATION_INTERVAL: int = int(os.environ.get("JWT_KEY_ROTATION_DAYS", "1")) * 86_400
+
+# Whether verify_token callers should check a revocation store for `jti`.
+TOKEN_REVOCATION_CHECK: bool = os.environ.get("JWT_REVOCATION_CHECK", "true").lower() != "false"
+
+# Hard upper bound on accepted token age (seconds). Tokens older than this
+# are rejected even if the `exp` claim has not yet elapsed.
+MAX_TOKEN_AGE: int = int(os.environ.get("JWT_MAX_TOKEN_AGE_DAYS", "7")) * 86_400
+
+# Internal alias kept for backward compat (used by _JWTKeyStore).
+_ROTATION_INTERVAL_SEC = TOKEN_ROTATION_INTERVAL
 
 
 class _JWTKeyStore:
@@ -193,6 +244,9 @@ def verify_token(token: str) -> dict:
                 raise ValueError("Malformed token payload")
             if payload.get("exp", 0) < int(time.time()):
                 raise ValueError("Token expired")
+            iat = payload.get("iat", 0)
+            if iat and (int(time.time()) - iat) > MAX_TOKEN_AGE:
+                raise ValueError("Token exceeds maximum age")
             return payload
 
     raise ValueError("Invalid token signature")

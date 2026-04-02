@@ -2,6 +2,20 @@
 
 Graceful degradation: if chromadb or sentence-transformers are not installed,
 all operations silently no-op and query() returns [].
+
+ChromaDB persistence configuration
+-----------------------------------
+CHROMA_PERSIST_DIR   (env var, default: "data/chromadb")
+    Directory where ChromaDB stores its on-disk data.  Overrides the
+    persist_dir constructor argument when set.
+
+CHROMA_COLLECTION_NAME   (env var, default: "storyforge_world")
+    Name of the default ChromaDB collection used for world-building context.
+    Overrides the collection_name constructor argument when set.
+
+These can also be set in config.py (pipeline.rag_persist_dir) and will be
+picked up automatically when RAGKnowledgeBase is instantiated via
+get_rag_kb() in pipeline/layer1_story/context_helpers.py.
 """
 
 import hashlib
@@ -9,6 +23,12 @@ import logging
 import os
 import re
 from typing import Optional
+
+# ---------------------------------------------------------------------------
+# ChromaDB persistence defaults (can be overridden via env vars)
+# ---------------------------------------------------------------------------
+CHROMA_PERSIST_DIR: str = os.environ.get("CHROMA_PERSIST_DIR", "data/chromadb")
+CHROMA_COLLECTION_NAME: str = os.environ.get("CHROMA_COLLECTION_NAME", "storyforge_world")
 
 logger = logging.getLogger(__name__)
 
@@ -128,8 +148,8 @@ class RAGKnowledgeBase:
 
     def __init__(
         self,
-        collection_name: str = "storyforge",
-        persist_dir: str = "data/rag",
+        collection_name: str = CHROMA_COLLECTION_NAME,
+        persist_dir: str = CHROMA_PERSIST_DIR,
     ):
         self._available = _RAG_AVAILABLE
         self._collection_name = collection_name
@@ -142,9 +162,21 @@ class RAGKnowledgeBase:
             self._init_client()
 
     def _init_client(self) -> None:
-        """Initialize ChromaDB client and embedding function."""
+        """Initialize ChromaDB persistent client and embedding function.
+
+        Storage location is determined by (in priority order):
+          1. Constructor argument persist_dir (set from context_helpers.get_rag_kb)
+          2. CHROMA_PERSIST_DIR environment variable
+          3. Module-level default "data/chromadb"
+
+        Collection name follows the same priority via CHROMA_COLLECTION_NAME.
+        Using chromadb.PersistentClient ensures data survives process restarts.
+        """
         try:
             os.makedirs(self._persist_dir, exist_ok=True)
+            # PersistentClient stores SQLite + binary index under persist_dir.
+            # To switch to an ephemeral in-memory client for testing, set
+            # CHROMA_PERSIST_DIR="" and the caller should use chromadb.EphemeralClient.
             self._client = chromadb.PersistentClient(path=self._persist_dir)
             self._ef = embedding_functions.SentenceTransformerEmbeddingFunction(
                 model_name="all-MiniLM-L6-v2"
@@ -155,7 +187,7 @@ class RAGKnowledgeBase:
             )
             logger.info(
                 f"RAGKnowledgeBase initialized: collection='{self._collection_name}', "
-                f"persist_dir='{self._persist_dir}'"
+                f"persist_dir='{self._persist_dir}' (persistent)"
             )
         except Exception as e:
             logger.error(

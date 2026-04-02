@@ -397,9 +397,10 @@ class TestAppIntegration:
     """Test app.py integration with export functions."""
 
     def test_gr_file_import(self):
-        """Verify gradio gr.File can be imported."""
-        import gradio as gr
-        assert hasattr(gr, 'File')
+        """Previously verified gradio gr.File; gradio removed — app uses Alpine.js UI."""
+        # Gradio dependency was removed (BE-1). This test is retained as a
+        # placeholder so the test class structure is preserved.
+        pass
 
     def test_export_handlers_exist(self):
         """Verify export handlers can be defined."""

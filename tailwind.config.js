@@ -10,9 +10,16 @@
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  // Paths Tailwind scans to detect used class names for PurgeCSS/JIT tree-shaking.
+  // Must cover every file that references Tailwind utilities — missing paths cause
+  // classes to be purged in production builds.
   content: [
     'web/**/*.html',
     'web/**/*.js',
+    // Include any Jinja/HTML templates served by FastAPI (if present)
+    'templates/**/*.html',
+    // Alpine.js x-bind / :class expressions inside inline scripts
+    'web/**/*.ts',
   ],
 
   theme: {

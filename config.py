@@ -105,6 +105,11 @@ class PipelineConfig:
     rag_enabled: bool = False
     rag_persist_dir: str = "data/rag"
 
+    # ChromaDB persistent storage (used by RAGKnowledgeBase)
+    # CHROMA_PERSIST_DIR env var takes precedence; these fields are the config-file fallback.
+    chroma_persist_dir: str = "data/chromadb"
+    chroma_collection_name: str = "storyforge_world"
+
     # XTTS v2 voice cloning
     xtts_api_url: str = ""  # http://localhost:8020 or Replicate URL
     xtts_reference_audio: str = ""  # default reference audio path
@@ -319,6 +324,8 @@ class ConfigManager:
             "KLING_TTS_API_URL": ("pipeline", "kling_tts_api_url"),
             "STORYFORGE_RAG_ENABLED": ("pipeline", "rag_enabled"),
             "STORYFORGE_RAG_DIR": ("pipeline", "rag_persist_dir"),
+            "CHROMA_PERSIST_DIR": ("pipeline", "chroma_persist_dir"),
+            "CHROMA_COLLECTION_NAME": ("pipeline", "chroma_collection_name"),
             "XTTS_API_URL": ("pipeline", "xtts_api_url"),
             "XTTS_REFERENCE_AUDIO": ("pipeline", "xtts_reference_audio"),
             "REPLICATE_API_KEY": ("pipeline", "replicate_api_key"),
@@ -404,6 +411,8 @@ class ConfigManager:
                 "kling_tts_api_url": self.pipeline.kling_tts_api_url,
                 "rag_enabled": self.pipeline.rag_enabled,
                 "rag_persist_dir": self.pipeline.rag_persist_dir,
+                "chroma_persist_dir": self.pipeline.chroma_persist_dir,
+                "chroma_collection_name": self.pipeline.chroma_collection_name,
                 "xtts_api_url": self.pipeline.xtts_api_url,
                 "xtts_reference_audio": self.pipeline.xtts_reference_audio,
                 "character_voice_map": self.pipeline.character_voice_map,

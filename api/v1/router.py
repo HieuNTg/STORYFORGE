@@ -1,5 +1,21 @@
 """Central v1 router — aggregates all versioned route groups.
 
+# API Versioning Strategy
+#
+# StoryForge uses URL-path versioning (/api/v1/, /api/v2/, …).
+# Each version is assembled by a `build_vN_router()` factory that mounts
+# sub-routers under a versioned prefix and injects an X-API-Version header
+# on every response via a custom APIRoute subclass (_VersionedRoute).
+#
+# v1 currently mirrors the unversioned /api/ routes — it re-uses the same
+# route handler modules (api.*_routes) to avoid duplication until a breaking
+# change necessitates a dedicated v1 implementation.
+#
+# TODO: When v2 is introduced, freeze v1 by copying the current handler
+#       modules to api/v1/ and stopping further changes to those copies.
+#       The /api/v1/ prefix should then never change behaviour, guaranteeing
+#       backward compatibility for existing clients.
+
 Every response from this router carries the X-API-Version: v1 header,
 injected via a lightweight route_class override.
 

@@ -21,7 +21,8 @@ alerting:
 
 # ── Rule Files ────────────────────────────────────────────────────────────────
 rule_files:
-  - "alerting-rules.yml"
+  - "alerting-rules.yml"   # legacy rules (kept for reference)
+  - "alert-rules.yml"      # canonical rules (OPS-2)
 
 # ── Scrape Configs ────────────────────────────────────────────────────────────
 scrape_configs:

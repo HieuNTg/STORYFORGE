@@ -1,7 +1,7 @@
 """StoryForge — thin entry point.
 
-Starts FastAPI, mounts API routes, static files, and Gradio UI.
-All UI logic lives in ui/gradio_app.py.
+Starts FastAPI, mounts API routes and static files.
+The UI is served from web/ as a static Alpine.js SPA.
 
 CORS policy:
   Allowed origins are read from the STORYFORGE_ALLOWED_ORIGINS env var
@@ -83,11 +83,8 @@ def _get_allowed_origins() -> list[str]:
 
 
 def main():
-    """Launch StoryForge — Web UI at / | Gradio fallback at /gradio."""
+    """Launch StoryForge — Alpine.js Web UI at /."""
     from api import api_router
-    from ui.gradio_app import create_ui, set_start_time
-
-    set_start_time(_START_TIME)
 
     main_app = FastAPI(
         title="StoryForge",
@@ -152,11 +149,6 @@ def main():
     web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
     main_app.mount("/static", StaticFiles(directory=web_dir), name="static")
 
-    # Gradio UI at /gradio
-    gradio_app = create_ui()
-    gradio_app = gradio_app.queue()
-    main_app.mount("/gradio", gradio_app.app)
-
     # Serve index.html at root
     @main_app.get("/")
     async def serve_index():
@@ -177,10 +169,7 @@ def main():
             },
         }
 
-    logger.info(
-        "StoryForge starting — Web UI at http://localhost:7860 "
-        "| Gradio at http://localhost:7860/gradio"
-    )
+    logger.info("StoryForge starting — Web UI at http://localhost:7860")
     uvicorn.run(main_app, host="0.0.0.0", port=7860, log_level="info")
 
 

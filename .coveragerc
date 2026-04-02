@@ -1,6 +1,20 @@
-# .coveragerc — StoryForge coverage backup configuration
+# .coveragerc — StoryForge coverage configuration
 # Mirrors pyproject.toml [tool.coverage.*] for tools that only read .coveragerc
 # Q1: Code Coverage Reporting
+#
+# Coverage tiers
+# ──────────────
+# Critical modules (auth, credits, export, middleware): minimum 80 %
+# All other modules:                                    minimum 60 %
+# Global hard floor (fail_under):                               60 %
+#
+# To enforce per-module thresholds use pytest-cov with --cov-fail-under
+# or add per-path assertions in your CI script, e.g.:
+#
+#   coverage report --include="api/auth*"    --fail-under=80
+#   coverage report --include="services/credit*" --fail-under=80
+#   coverage report --include="pipeline/export*" --fail-under=80
+#   coverage report --include="middleware/*"     --fail-under=80
 
 [run]
 # Source directories to instrument
@@ -25,7 +39,7 @@ omit =
     conftest.py
 
 [report]
-# Hard fail if total coverage drops below threshold
+# Hard fail if TOTAL coverage drops below 60 %
 fail_under = 60
 
 # Print lines that have no coverage next to each file
@@ -43,6 +57,20 @@ exclude_lines =
     if __name__ == .__main__.:
     pass
     @(abc\.)?abstractmethod
+
+# ── Per-module minimum coverage targets (informational) ──────────────────────
+# The following modules must maintain ≥ 80 % line+branch coverage.
+# Enforced separately in CI via `coverage report --include=<path> --fail-under=80`.
+#
+# Module                          Min   Rationale
+# ──────────────────────────────  ────  ────────────────────────────────────────
+# api/auth*                        80%  Security-critical: token validation, login
+# api/credits*                     80%  Business-critical: credit deduction logic
+# services/credit*                 80%  Business-critical: credit management service
+# pipeline/export*                 80%  User-facing: EPUB/PDF export correctness
+# middleware/*                     80%  Request lifecycle: auth checks, rate limits
+#
+# All other modules                60%  General quality floor
 
 [html]
 # Output directory for the HTML report
