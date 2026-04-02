@@ -1,11 +1,8 @@
 """Tests for services/html_exporter.py — HTMLExporter and helper functions."""
 import os
-import tempfile
-import pytest
-from unittest.mock import patch, MagicMock
 
 from models.schemas import (
-    Chapter, Character, StoryDraft, EnhancedStory, WorldSetting, ShotType,
+    Chapter, Character, StoryDraft, EnhancedStory,
 )
 from services.html_exporter import (
     HTMLExporter,

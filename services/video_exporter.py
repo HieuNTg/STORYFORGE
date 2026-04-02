@@ -12,7 +12,7 @@ import os
 import zipfile
 from typing import Optional
 
-from models.schemas import VideoScript, StoryboardPanel
+from models.schemas import VideoScript
 
 logger = logging.getLogger(__name__)
 

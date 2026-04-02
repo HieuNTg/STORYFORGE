@@ -5,7 +5,6 @@ import os
 import platform
 import subprocess
 import time
-import urllib.error
 from typing import Optional
 
 logger = logging.getLogger(__name__)

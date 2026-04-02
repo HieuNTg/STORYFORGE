@@ -23,7 +23,6 @@ import logging
 import os
 import queue
 import threading
-import time
 from datetime import datetime, timezone
 from typing import Optional
 

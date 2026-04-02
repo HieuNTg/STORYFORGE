@@ -1,5 +1,4 @@
 """Tests for media producer error recovery paths."""
-import pytest
 from unittest.mock import MagicMock, patch
 
 

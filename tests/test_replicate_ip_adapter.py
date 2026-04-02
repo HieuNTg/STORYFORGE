@@ -1,8 +1,7 @@
 """Tests for ReplicateIPAdapter client."""
 import os
-import base64
 import pytest
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 from services.replicate_ip_adapter import ReplicateIPAdapter
 
 

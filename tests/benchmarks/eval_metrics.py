@@ -5,9 +5,7 @@ Imported by eval_runner.py — not intended for direct CLI use.
 
 from __future__ import annotations
 
-import json
 import math
-from pathlib import Path
 from typing import Any
 
 # Dimension mapping: golden dataset keys → quality scorer output keys
@@ -49,7 +47,7 @@ def mean_val(values: list[float]) -> float:
 
 def bias(llm: list[float], human: list[float]) -> float:
     """Mean signed difference LLM − human. Positive = LLM over-scores."""
-    diffs = [l - h for l, h in zip(llm, human)]
+    diffs = [lv - h for lv, h in zip(llm, human)]
     return round(sum(diffs) / len(diffs), 4) if diffs else 0.0
 
 

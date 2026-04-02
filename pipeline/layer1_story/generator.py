@@ -14,7 +14,7 @@ from pipeline.layer1_story.chapter_writer import (
     summarize_chapter, extract_plot_events,
 )
 from pipeline.layer1_story.outline_builder import suggest_titles, generate_world, generate_outline
-from pipeline.layer1_story.post_processing import process_chapter_post_write, _prune_plot_events
+from pipeline.layer1_story.post_processing import process_chapter_post_write
 from pipeline.layer1_story.context_helpers import (
     get_rag_kb as _get_rag_kb_fn,
     write_chapter_with_long_context as _write_chapter_lc_fn,
@@ -82,7 +82,8 @@ class StoryGenerator:
         return summarize_chapter(self.llm, content)
 
     def _format_context(self, context, bible_context="", full_chapter_texts=None):
-        from pipeline.layer1_story.chapter_writer import format_context; return format_context(context, bible_context, full_chapter_texts)
+        from pipeline.layer1_story.chapter_writer import format_context
+        return format_context(context, bible_context, full_chapter_texts)
 
     def _build_chapter_prompt(self, title, genre, style, characters, world, outline,
                                word_count, context=None, previous_summary="", bible_context="",
@@ -93,11 +94,13 @@ class StoryGenerator:
 
     @staticmethod
     def _excerpt(content: str, max_chars: int = 4000) -> str:
-        from pipeline.layer1_story.chapter_writer import excerpt; return excerpt(content, max_chars)
+        from pipeline.layer1_story.chapter_writer import excerpt
+        return excerpt(content, max_chars)
 
     def _get_self_reviewer(self):
         if not hasattr(self, '_self_reviewer'):
-            from services.self_review import SelfReviewer; self._self_reviewer = SelfReviewer(threshold=self.config.pipeline.self_review_threshold)
+            from services.self_review import SelfReviewer
+            self._self_reviewer = SelfReviewer(threshold=self.config.pipeline.self_review_threshold)
         return self._self_reviewer
 
     def _write_chapter_with_long_context(self, title, genre, style, characters, world, outline,

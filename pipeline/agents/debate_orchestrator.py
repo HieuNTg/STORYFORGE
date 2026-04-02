@@ -1,6 +1,6 @@
 """Multi-agent debate orchestrator for Layer 2 enhancement."""
 import logging
-from models.schemas import AgentReview, DebateEntry, DebateResult, DebateStance
+from models.schemas import DebateResult, DebateStance
 
 logger = logging.getLogger(__name__)
 
@@ -374,7 +374,7 @@ def _estimate_agent_tokens(agent) -> int:
 def _estimate_agent_cost(tokens: int, agent) -> float:
     """Estimate USD cost for given token count using the agent's model pricing."""
     try:
-        from services.token_cost_tracker import TokenCostTracker, DEFAULT_PRICING
+        from services.token_cost_tracker import TokenCostTracker
         model = _get_agent_model(agent)
         # TokenCostTracker is a singleton — use its pricing table
         tracker = TokenCostTracker()

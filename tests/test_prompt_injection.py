@@ -1,7 +1,6 @@
 """Tests for visual_profiles injection in ImagePromptGenerator."""
 
-from unittest.mock import MagicMock, patch
-import pytest
+from unittest.mock import patch
 
 from models.schemas import StoryboardPanel, Chapter, Character
 from services.image_prompt_generator import ImagePromptGenerator

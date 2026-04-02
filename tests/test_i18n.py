@@ -1,6 +1,5 @@
 """Tests for services/i18n.py — I18n singleton, t(), set_language(), fallback chain."""
-import pytest
-from unittest.mock import patch, mock_open, MagicMock
+from unittest.mock import patch, mock_open
 import json
 import threading
 from services.i18n import I18n, SUPPORTED_LANGUAGES
@@ -30,8 +29,8 @@ EN_STRINGS = {
 def _make_i18n_with_mocked_locales(vi_data=None, en_data=None):
     """Return a fresh I18n instance with mocked locale files."""
     _reset_singleton()
-    vi_content = json.dumps(vi_data or VI_STRINGS)
-    en_content = json.dumps(en_data or EN_STRINGS)
+    json.dumps(vi_data or VI_STRINGS)
+    json.dumps(en_data or EN_STRINGS)
 
     def _fake_read_locale(self, lang):
         if lang == "vi":
@@ -62,7 +61,7 @@ class TestI18nSingleton:
             mock_fallback.side_effect = lambda: setattr(
                 I18n._instance or I18n(), "_fallback", {}
             )
-            i1 = I18n()
+            I18n()
             call_count = mock_fallback.call_count
             _i2 = I18n()
             # _load_fallback should not be called again on second instantiation

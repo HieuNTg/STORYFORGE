@@ -1,6 +1,5 @@
 """Tests for services/progress_tracker.py"""
 
-import pytest
 from services.progress_tracker import ProgressEvent, ProgressTracker
 
 

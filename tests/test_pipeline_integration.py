@@ -8,8 +8,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from models.schemas import (
-    Chapter, EnhancedStory, PipelineOutput, SimulationResult, SimulationEvent,
-    StoryDraft, VideoScript, StoryboardPanel, VoiceLine, WorldSetting, ShotType,
+    EnhancedStory, PipelineOutput, SimulationResult, SimulationEvent,
+    StoryDraft, VideoScript, StoryboardPanel, VoiceLine, ShotType,
 )
 from api.pipeline_routes import router
 
@@ -79,7 +79,7 @@ def test_layer2_receives_draft_from_layer1(minimal_draft, minimal_enhanced, mini
     sim = mock_simulator.run_simulation(characters=minimal_draft.characters,
                                         relationships=analysis["relationships"],
                                         genre=minimal_draft.genre, num_rounds=3)
-    enhanced = mock_enhancer.enhance_with_feedback(draft=minimal_draft, sim_result=sim)
+    mock_enhancer.enhance_with_feedback(draft=minimal_draft, sim_result=sim)
 
     mock_analyzer.analyze.assert_called_once_with(minimal_draft)
     assert mock_enhancer.enhance_with_feedback.call_args.kwargs["draft"] is minimal_draft
@@ -185,7 +185,7 @@ def test_resume_from_layer2_skips_layer2(tmp_path, minimal_draft, minimal_enhanc
         mgr = CheckpointManager(output=PipelineOutput(), analyzer=mock_analyzer,
                                 simulator=MagicMock(), enhancer=MagicMock(),
                                 storyboard_gen=mock_sb)
-        result = mgr.resume(str(ckpt_file), enable_agents=False, enable_scoring=False)
+        mgr.resume(str(ckpt_file), enable_agents=False, enable_scoring=False)
     finally:
         ckpt_mod.CHECKPOINT_DIR = orig
 

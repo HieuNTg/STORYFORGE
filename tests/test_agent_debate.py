@@ -1,7 +1,6 @@
 """Tests for Phase 16 agent debate_response overrides."""
-import pytest
 from unittest.mock import patch, MagicMock
-from models.schemas import AgentReview, DebateEntry, DebateStance
+from models.schemas import AgentReview, DebateStance
 
 
 def _make_review(agent_name, score=0.7, issues=None, suggestions=None):

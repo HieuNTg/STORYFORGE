@@ -5,12 +5,12 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from services.rag_knowledge_base import _chunk_text, _read_file, RAGKnowledgeBase
+from services.rag_knowledge_base import _chunk_text, _read_file, RAGKnowledgeBase  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -252,7 +252,7 @@ class TestGeneratorRAGIntegration(unittest.TestCase):
     def test_generate_world_injects_rag_context(self, mock_get_rag_kb):
         """generate_world() prepends RAG context when rag_enabled=True."""
         from pipeline.layer1_story.generator import StoryGenerator
-        from models.schemas import Character, WorldSetting
+        from models.schemas import Character
 
         mock_rag = MagicMock()
         mock_rag.is_available = True
@@ -280,7 +280,7 @@ class TestGeneratorRAGIntegration(unittest.TestCase):
     def test_generate_world_no_rag_when_disabled(self, mock_get_rag_kb):
         """generate_world() does NOT call RAG when rag_enabled=False."""
         from pipeline.layer1_story.generator import StoryGenerator
-        from models.schemas import Character, WorldSetting
+        from models.schemas import Character
 
         generator = StoryGenerator.__new__(StoryGenerator)
         generator.llm = MagicMock()

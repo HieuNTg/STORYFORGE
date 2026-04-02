@@ -42,7 +42,7 @@ import logging
 import os
 from enum import Enum
 
-from fastapi import Depends, Request
+from fastapi import Request
 from fastapi.exceptions import HTTPException
 
 from middleware.auth_middleware import get_current_user

@@ -2,7 +2,7 @@
 import logging
 import os
 from typing import Union
-from models.schemas import StoryDraft, EnhancedStory, Chapter, Character, ReadingStats
+from models.schemas import StoryDraft, EnhancedStory, Character, ReadingStats
 
 logger = logging.getLogger(__name__)
 

@@ -5,7 +5,6 @@ import logging
 import re
 from typing import Optional
 
-from services.llm.retry import MAX_RETRIES, WebBackendExhausted, _redact
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +148,7 @@ class GenerationMixin:
 
         try:
             client = self._get_client()
-            response = client.chat.completions.create(
+            client.chat.completions.create(
                 model=self._current_model or _config_manager()().llm.model,
                 messages=[{"role": "user", "content": "test"}],
                 max_tokens=5,

@@ -1,7 +1,6 @@
 """Credit management for StoryForge usage tracking."""
 
 import logging
-from typing import Optional
 from models.schemas import UserProfile
 
 logger = logging.getLogger(__name__)

@@ -1,7 +1,6 @@
 """Test ShareManager service."""
 import os
 import pytest
-from unittest.mock import patch
 from models.schemas import StoryDraft, Chapter
 from services.share_manager import ShareManager
 

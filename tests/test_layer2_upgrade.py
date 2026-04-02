@@ -5,12 +5,12 @@ genre drama rules, and targeted rewriting enhancements.
 """
 
 import pytest
-from unittest.mock import Mock, MagicMock, patch
-from models.schemas import Character, Relationship, RelationType, Chapter, StoryDraft, SimulationResult, AgentPost, SimulationEvent
+from unittest.mock import Mock, patch
+from models.schemas import Character, Relationship, RelationType, Chapter
 from pipeline.layer2_enhance._agent import EmotionalState, CharacterAgent, TrustEdge, MOOD_DRAMA, MOOD_TRIGGERS, TENSION_DELTAS
 from pipeline.layer2_enhance.simulator import TrustNetworkEdge, DramaSimulator
 from pipeline.layer2_enhance.genre_drama_rules import get_genre_rules, get_genre_enhancement_hints, GENRE_DRAMA_RULES
-from pipeline.layer2_enhance.enhancer import StoryEnhancer, MIN_DRAMA_SCORE
+from pipeline.layer2_enhance.enhancer import StoryEnhancer
 
 
 # ============================================================================
@@ -598,7 +598,7 @@ class TestIntegration:
     def test_trust_network_with_character_agents(self):
         """Test trust network syncs with character agent trust edges."""
         char_a = Character(name="A", role="chính", personality="p", background="b", motivation="m")
-        char_b = Character(name="B", role="phụ", personality="p", background="b", motivation="m")
+        Character(name="B", role="phụ", personality="p", background="b", motivation="m")
 
         agent_a = CharacterAgent(char_a)
         agent_a_trust_to_b = agent_a.get_trust("B")
@@ -612,7 +612,7 @@ class TestIntegration:
 
     def test_genre_rules_applied_to_enhancer(self):
         """Test genre rules can be applied during enhancement."""
-        enhancer = StoryEnhancer()
+        StoryEnhancer()
         genre = "Tiên Hiệp"
         chapter_num = 5
         total = 20

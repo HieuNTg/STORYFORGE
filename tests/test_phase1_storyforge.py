@@ -12,10 +12,10 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from config import LLMConfig, ConfigManager, PipelineConfig
-from services.browser_auth import BrowserAuth, _find_chrome_path
-from services.deepseek_web_client import DeepSeekWebClient, _solve_pow
-from services.llm_client import LLMClient
+from config import LLMConfig, ConfigManager  # noqa: E402
+from services.browser_auth import BrowserAuth, _find_chrome_path  # noqa: E402
+from services.deepseek_web_client import DeepSeekWebClient, _solve_pow  # noqa: E402
+from services.llm_client import LLMClient  # noqa: E402
 
 
 class TestConfigPhase1(unittest.TestCase):

@@ -3,7 +3,7 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
-from models.schemas import ChapterOutline, StoryDraft, StoryContext
+from models.schemas import ChapterOutline, StoryDraft
 from services import prompts
 from pipeline.layer1_story.post_processing import process_chapter_post_write
 

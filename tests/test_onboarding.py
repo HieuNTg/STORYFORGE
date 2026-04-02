@@ -1,9 +1,6 @@
 """Tests for OnboardingManager and STEPS structure."""
 
 import json
-import os
-import tempfile
-import pytest
 
 import services.onboarding as onboarding_module
 from services.onboarding import OnboardingManager, STEPS

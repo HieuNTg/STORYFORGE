@@ -1,9 +1,7 @@
 """Tests for Feature A: Long-Context LLM Mode."""
 
-import copy
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
 
 from config import ConfigManager, PipelineConfig
 from services.token_counter import estimate_tokens, fits_in_context
@@ -157,7 +155,7 @@ class TestLongContextIntegration:
         """When use_long_context=True and client is_configured, second chapter uses LC client."""
         from pipeline.layer1_story.generator import StoryGenerator
         from models.schemas import (
-            Character, WorldSetting, ChapterOutline, StoryDraft, StoryContext,
+            Character, WorldSetting, ChapterOutline,
         )
 
         gen = StoryGenerator.__new__(StoryGenerator)

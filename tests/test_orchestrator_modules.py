@@ -4,7 +4,7 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 
 # ---------------------------------------------------------------------------
@@ -372,7 +372,7 @@ class TestCheckpointManagerResume(unittest.TestCase):
                 # Mock the save method to avoid file I/O
                 with patch.object(CheckpointManager, "save", return_value="path/ckpt.json"):
                     mgr = CheckpointManager(po, analyzer, simulator, enhancer, storyboard_gen)
-                    result = mgr.resume(path, enable_agents=False, enable_scoring=False)
+                    mgr.resume(path, enable_agents=False, enable_scoring=False)
                     analyzer.analyze.assert_called_once()
                     simulator.run_simulation.assert_called_once()
 
@@ -430,7 +430,7 @@ class TestStoryContinuationContinueStory(unittest.TestCase):
         cm = MagicMock()
         cm.save.return_value = "path.json"
         sc = StoryContinuation(po, story_gen, MagicMock(), MagicMock(), MagicMock(), cm)
-        result = sc.continue_story(additional_chapters=3)
+        sc.continue_story(additional_chapters=3)
         story_gen.continue_story.assert_called_once()
         self.assertEqual(po.story_draft, new_draft)
         cm.save.assert_called_once_with(1)
@@ -467,7 +467,7 @@ class TestStoryContinuationRemoveChapters(unittest.TestCase):
         MockSG.remove_chapters.return_value = new_draft
         cm = MagicMock()
         sc = StoryContinuation(po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), cm)
-        result = sc.remove_chapters(5)
+        sc.remove_chapters(5)
         self.assertIsNone(po.enhanced_story)
         self.assertIsNone(po.video_script)
         cm.save.assert_called_with(1)

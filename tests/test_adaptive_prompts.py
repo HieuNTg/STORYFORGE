@@ -1,6 +1,5 @@
 """Tests for services/adaptive_prompts.py."""
 
-import pytest
 from services.adaptive_prompts import (
     GENRE_EMPHASIS,
     SCORE_BOOSTERS,

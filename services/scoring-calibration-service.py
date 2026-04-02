@@ -19,7 +19,6 @@ from tests.benchmarks.scoring_calibration import (
     create_calibration_map,
     apply_calibration,
     export_calibration_params,
-    load_calibration_params,
     CalibrationMap,
 )
 from services.feedback_collector import FeedbackCollector

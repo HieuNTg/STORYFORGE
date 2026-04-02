@@ -1,12 +1,8 @@
 """Tests for services/quality_gate.py"""
 
-import pytest
 
 from models.schemas import ChapterScore, StoryScore
 from services.quality_gate import (
-    DEFAULT_CHAPTER_THRESHOLD,
-    DEFAULT_GATE_THRESHOLD,
-    MAX_RETRIES,
     QualityGate,
     QualityGateResult,
 )

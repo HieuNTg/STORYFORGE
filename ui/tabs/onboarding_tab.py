@@ -1,7 +1,7 @@
 """Onboarding wizard tab — guided first-time user experience."""
 
 import gradio as gr
-from services.onboarding import OnboardingManager, STEPS
+from services.onboarding import OnboardingManager
 
 
 def build_onboarding_banner(_t):

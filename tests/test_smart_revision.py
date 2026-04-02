@@ -1,8 +1,7 @@
 """Tests for SmartRevisionService — auto-detect and fix weak chapters."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-import pytest
 
 from models.schemas import (
     AgentReview,

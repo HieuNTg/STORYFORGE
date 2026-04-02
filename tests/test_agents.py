@@ -1,5 +1,4 @@
 """Tests for pipeline agent system — all 5 agent types + registry."""
-import pytest
 from unittest.mock import patch, MagicMock
 from pipeline.agents.base_agent import BaseAgent
 from pipeline.agents.agent_registry import AgentRegistry
@@ -284,7 +283,7 @@ class TestContinuityChecker:
 
     def test_extract_data_no_world_uses_default(self, sample_story_draft):
         agent = self._make_agent()
-        from models.schemas import PipelineOutput, StoryDraft
+        from models.schemas import PipelineOutput
         sample_story_draft.world = None
         output = PipelineOutput(story_draft=sample_story_draft)
         world_info, _ = agent._extract_data(output, layer=1)

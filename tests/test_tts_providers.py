@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from services.tts_audio_generator import VIETNAMESE_VOICES, TTSAudioGenerator
+from services.tts_audio_generator import TTSAudioGenerator
 
 
 # ── Provider dispatch ─────────────────────────────────────────────────────────

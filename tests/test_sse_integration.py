@@ -176,7 +176,6 @@ async def test_sse_event_ordering_with_progress():
     """Progress callbacks should produce SSE log events between session and done."""
     app = _make_app()
 
-    progress_messages = []
 
     def _mock_pipeline(**kwargs):
         cb = kwargs.get("progress_callback")

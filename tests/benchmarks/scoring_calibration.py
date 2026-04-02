@@ -30,7 +30,7 @@ def calculate_bias(
         return {"mean_bias": 0.0, "std_bias": 0.0,
                 "over_count": 0, "under_count": 0, "exact_count": 0}
 
-    diffs = [l - h for l, h in zip(llm_scores, human_scores)]
+    diffs = [lv - h for lv, h in zip(llm_scores, human_scores)]
     mean_bias = sum(diffs) / len(diffs)
     std_bias = math.sqrt(sum((d - mean_bias) ** 2 for d in diffs) / len(diffs))
     return {

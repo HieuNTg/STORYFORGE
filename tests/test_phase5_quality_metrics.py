@@ -9,8 +9,7 @@ from pydantic import ValidationError
 # ============================================================
 
 from models.schemas import (
-    Chapter, ChapterScore, StoryScore, PipelineOutput,
-    Character, WorldSetting, ChapterOutline, StoryDraft
+    Chapter, ChapterScore, StoryScore, PipelineOutput
 )
 from services.quality_scorer import QualityScorer
 from services import prompts
@@ -143,7 +142,7 @@ class TestStoryScoreModel:
             avg_writing=3.6,
         )
         # Manually calculate overall
-        expected_overall = (3.5 + 3.75 + 3.25 + 3.6) / 4
+        (3.5 + 3.75 + 3.25 + 3.6) / 4
         assert abs(score.avg_coherence - 3.5) < 0.01
         assert abs(score.avg_character - 3.75) < 0.01
 
@@ -258,7 +257,7 @@ class TestQualityScorerScoreChapter:
     def test_score_chapter_returns_chapter_score(self):
         """score_chapter should return ChapterScore instance."""
         scorer = QualityScorer()
-        chapter = Chapter(
+        Chapter(
             chapter_number=1,
             title="First Chapter",
             content="This is a test chapter with some content about adventure.",
@@ -271,7 +270,7 @@ class TestQualityScorerScoreChapter:
     def test_score_chapter_accepts_context(self):
         """score_chapter should accept optional context parameter."""
         scorer = QualityScorer()
-        chapter = Chapter(
+        Chapter(
             chapter_number=1,
             title="Test",
             content="Content.",
@@ -283,7 +282,7 @@ class TestQualityScorerScoreChapter:
         """score_chapter should truncate long chapters to head+tail."""
         scorer = QualityScorer()
         long_content = "A" * 5000  # > 4000 char limit
-        chapter = Chapter(
+        Chapter(
             chapter_number=1,
             title="Long Chapter",
             content=long_content,
@@ -389,7 +388,6 @@ class TestAppYieldTuples:
         """_format_output function should exist in app.py."""
         # Read app.py and check for _format_output
         import os
-        import ast
         app_path = os.path.join(os.path.dirname(__file__), '..', 'ui', 'gradio_app.py')
         with open(app_path, 'r', encoding='utf-8') as f:
             content = f.read()
@@ -637,7 +635,7 @@ class TestAggregationLogic:
 
     def test_average_calculation_simple(self):
         """Test simple average of chapter scores."""
-        chapters = [
+        [
             Chapter(chapter_number=1, title="C1", content="A"),
             Chapter(chapter_number=2, title="C2", content="B"),
             Chapter(chapter_number=3, title="C3", content="C"),
@@ -671,7 +669,7 @@ class TestAggregationLogic:
 
     def test_overall_score_calculation(self):
         """Test overall score as average of 4 metrics."""
-        ch_scores = [
+        [
             ChapterScore(chapter_number=1, coherence=2.0, character_consistency=4.0,
                         drama=3.0, writing_quality=3.0),
         ]

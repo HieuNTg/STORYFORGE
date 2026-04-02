@@ -1,7 +1,6 @@
 """Settings tab — API config, web auth, cache management, language, compact mode."""
 
 import threading
-import time
 import gradio as gr
 from config import ConfigManager, PIPELINE_PRESETS
 

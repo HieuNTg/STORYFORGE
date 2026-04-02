@@ -1,7 +1,7 @@
 """Tests for services/llm_client.py — fallback chain, retry, transient errors."""
 
 import unittest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +238,7 @@ class TestTryProvider(unittest.TestCase):
         mock_openai.chat.completions.create.return_value = response
 
         provider = {"client": mock_openai, "model": "gpt-4", "label": "primary"}
-        result = client._try_provider(provider, [], 0.5, 500, json_mode=True)
+        client._try_provider(provider, [], 0.5, 500, json_mode=True)
         call_kwargs = mock_openai.chat.completions.create.call_args[1]
         self.assertIn("response_format", call_kwargs)
         self.assertEqual(call_kwargs["response_format"]["type"], "json_object")
@@ -322,7 +322,7 @@ class TestGenerateFallback(unittest.TestCase):
             {"client": primary, "model": "gpt-4", "label": "primary"}
         ])
 
-        with patch("services.prompts.localize_prompt", side_effect=lambda p, l: p):
+        with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
             result = client.generate("system", "user", temperature=0.5)
         self.assertEqual(result, "Primary result")
 
@@ -347,7 +347,7 @@ class TestGenerateFallback(unittest.TestCase):
             {"client": fallback, "model": "gpt-3.5", "label": "cheap:gpt-3.5"},
         ])
 
-        with patch("services.prompts.localize_prompt", side_effect=lambda p, l: p):
+        with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
             with patch("services.llm_client.time"):
                 result = client.generate("system", "user")
         self.assertEqual(result, "Fallback result")
@@ -368,7 +368,7 @@ class TestGenerateFallback(unittest.TestCase):
             {"client": failing, "model": "gpt-4", "label": "primary"},
         ])
 
-        with patch("services.prompts.localize_prompt", side_effect=lambda p, l: p):
+        with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
             with patch("services.llm_client.time"):
                 with self.assertRaises(RuntimeError):
                     client.generate("system", "user")
@@ -384,7 +384,7 @@ class TestGenerateFallback(unittest.TestCase):
         client = LLMClient()
         client._is_web_backend = MagicMock(return_value=False)
 
-        with patch("services.prompts.localize_prompt", side_effect=lambda p, l: p):
+        with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
             result = client.generate("system", "user", temperature=0.5)
         self.assertEqual(result, "cached response")
 
@@ -410,7 +410,7 @@ class TestGenerateFallback(unittest.TestCase):
             {"client": fallback, "model": "gpt-3.5", "label": "cheap"},
         ])
 
-        with patch("services.prompts.localize_prompt", side_effect=lambda p, l: p):
+        with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
             with self.assertRaises(Exception):
                 client.generate("system", "user")
         # Fallback should NOT be tried for non-transient errors
@@ -433,7 +433,7 @@ class TestRepairJson(unittest.TestCase):
     def test_removes_trailing_comma_in_object(self, MockCM):
         from services.llm_client import LLMClient
         MockCM.return_value = _make_llm_config()
-        client = LLMClient()
+        LLMClient()
         result = LLMClient._repair_json('{"key": "value",}')
         self.assertNotIn(",}", result)
 

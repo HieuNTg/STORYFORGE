@@ -1,6 +1,5 @@
 """Test PDFExporter service."""
 import os
-import pytest
 from models.schemas import StoryDraft, Chapter, Character
 from services.pdf_exporter import PDFExporter
 

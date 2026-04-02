@@ -1,7 +1,7 @@
 """Tests for Phase 16 debate orchestrator."""
 import pytest
 from unittest.mock import MagicMock
-from models.schemas import AgentReview, DebateEntry, DebateResult, DebateStance
+from models.schemas import AgentReview, DebateEntry, DebateStance
 from pipeline.agents.debate_orchestrator import (
     DebateOrchestrator,
     _find_review,
@@ -178,7 +178,7 @@ class TestDebateOrchestrator:
         agents = [_make_agent("AgentA"), _make_agent("AgentB")]
         story_draft = MagicMock()
 
-        result = orchestrator.run_debate(agents, story_draft, layer=2, round1_reviews=reviews)
+        orchestrator.run_debate(agents, story_draft, layer=2, round1_reviews=reviews)
 
         # AgentB had no own_review, so debate_response not called for AgentB
         agents[1].debate_response.assert_not_called()

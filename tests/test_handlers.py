@@ -1,9 +1,10 @@
 """Tests for ui/handlers.py — pure handler functions."""
 
 import unittest
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
-_t = lambda k, **kw: k  # dummy translation callable
+def _t(k, **kw):
+    return k  # dummy translation callable
 
 
 # ---------------------------------------------------------------------------

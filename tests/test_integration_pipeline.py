@@ -1,9 +1,8 @@
 """Integration tests for pipeline layer transitions."""
-import pytest
 from unittest.mock import MagicMock, patch
 from models.schemas import (
     StoryDraft, EnhancedStory, Chapter, Character,
-    VideoScript, StoryboardPanel, ShotType,
+    VideoScript,
 )
 
 

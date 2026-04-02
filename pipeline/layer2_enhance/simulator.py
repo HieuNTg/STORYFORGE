@@ -14,7 +14,6 @@ from models.schemas import (
 )
 from services.llm_client import LLMClient
 from services import prompts
-from config import ConfigManager
 from pipeline.layer2_enhance._agent import CharacterAgent, TENSION_DELTAS
 from pipeline.layer2_enhance.drama_patterns import get_genre_escalation_prompt
 

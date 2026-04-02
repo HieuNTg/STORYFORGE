@@ -8,7 +8,7 @@ nudging clients to migrate to the unversioned /api/* endpoints.
 from fastapi import APIRouter, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from api import api_router as _base_router
+from api import api_router as _base_router  # noqa: F401
 
 # Re-export all routes under /api/v1 prefix by including the same sub-routers.
 # We import individual routers rather than re-mounting api_router to avoid

@@ -4,7 +4,6 @@ import os
 import json
 import threading
 from dataclasses import dataclass, field
-from typing import Optional
 
 
 @dataclass
@@ -344,20 +343,20 @@ class ConfigManager:
             "STORYFORGE_GATE_THRESHOLD": ("pipeline", "quality_gate_threshold"),
             "STORYFORGE_BLOCK_INJECTION": ("pipeline", "block_on_injection"),
         }
-        for env_key, (section, field) in env_map.items():
+        for env_key, (section, field_name) in env_map.items():
             val = os.environ.get(env_key)
             if val:
                 target = self.llm if section == "llm" else self.pipeline
                 # Convert to float for float fields
-                if field in ("temperature", "quality_gate_threshold"):
+                if field_name in ("temperature", "quality_gate_threshold"):
                     try:
                         val = float(val)
                     except ValueError:
                         continue
                 # Convert to bool for boolean fields
-                elif field in ("rag_enabled", "enable_character_consistency", "use_long_context", "enable_agent_debate", "enable_smart_revision", "enable_quality_gate", "block_on_injection"):
+                elif field_name in ("rag_enabled", "enable_character_consistency", "use_long_context", "enable_agent_debate", "enable_smart_revision", "enable_quality_gate", "block_on_injection"):
                     val = val.lower() in ("1", "true", "yes")
-                setattr(target, field, val)
+                setattr(target, field_name, val)
 
     def save(self) -> list[str]:
         """Save config. Returns warnings. Raises ValueError on critical errors."""

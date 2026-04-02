@@ -2,7 +2,6 @@
 
 import logging
 import time
-from typing import TYPE_CHECKING
 
 from .browser_manager import is_cdp_available, CDP_PORT
 from .token_extractor import CredentialStore

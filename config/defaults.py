@@ -133,7 +133,7 @@ class PipelineConfig:
 
 
 # Presets live in config/presets.py — imported here for convenience.
-from .presets import VIDEO_QUALITY_PRESETS, PIPELINE_PRESETS, MODEL_PRESETS
+from .presets import VIDEO_QUALITY_PRESETS, PIPELINE_PRESETS, MODEL_PRESETS  # noqa: E402
 
 __all__ = [
     "LLMConfig",

@@ -1,5 +1,4 @@
 """Tests for Wattpad export ZIP bundle, character appendix, and reading time."""
-import json
 import os
 import zipfile
 from models.schemas import StoryDraft, Chapter, Character, WorldSetting, ChapterOutline
@@ -44,7 +43,7 @@ class TestWattpadExport:
 
     def test_character_appendix_included(self, tmp_path):
         story = self._make_story(with_characters=True)
-        result = PlatformExporter.export_wattpad(story, output_dir=str(tmp_path))
+        PlatformExporter.export_wattpad(story, output_dir=str(tmp_path))
         char_path = os.path.join(str(tmp_path), "characters.txt")
         assert os.path.exists(char_path)
         content = open(char_path, encoding="utf-8").read()
@@ -52,7 +51,7 @@ class TestWattpadExport:
 
     def test_no_character_appendix_without_characters(self, tmp_path):
         story = self._make_story(with_characters=False)
-        result = PlatformExporter.export_wattpad(story, output_dir=str(tmp_path))
+        PlatformExporter.export_wattpad(story, output_dir=str(tmp_path))
         char_path = os.path.join(str(tmp_path), "characters.txt")
         assert not os.path.exists(char_path)
 

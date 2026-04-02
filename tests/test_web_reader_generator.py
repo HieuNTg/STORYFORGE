@@ -1,7 +1,5 @@
 """Tests for web reader generator — XSS prevention and content limits."""
-import pytest
-from unittest.mock import MagicMock
-from models.schemas import StoryDraft, EnhancedStory, Chapter, Character
+from models.schemas import StoryDraft, Chapter
 
 
 def _make_story(title="Test", genre="fantasy", chapters=None):

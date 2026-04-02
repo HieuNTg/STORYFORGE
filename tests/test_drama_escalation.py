@@ -1,7 +1,6 @@
 """Test drama escalation and feedback loop."""
-import pytest
-from models.schemas import Relationship, RelationType, EscalationPattern
-from pipeline.layer2_enhance.simulator import DramaSimulator, ESCALATION_PATTERNS, ESCALATION_VALID_RELATIONS
+from models.schemas import Relationship, RelationType
+from pipeline.layer2_enhance.simulator import DramaSimulator, ESCALATION_PATTERNS
 
 
 def test_escalation_patterns_exist():

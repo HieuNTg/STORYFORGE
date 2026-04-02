@@ -1,9 +1,8 @@
 """Error path tests — retries exhausted, bad directories, corrupted checkpoints, invalid config."""
 import json
 import os
-import tempfile
 import pytest
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch
 
 
 # ---------------------------------------------------------------------------
@@ -65,7 +64,7 @@ class TestLLMAllRetriesExhausted:
         ])
 
         with patch("services.llm_client.time"):
-            with patch("services.prompts.localize_prompt", side_effect=lambda p, l: p):
+            with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
                 with pytest.raises(RuntimeError):
                     client.generate("system", "user prompt")
 
@@ -88,7 +87,7 @@ class TestLLMAllRetriesExhausted:
         ])
 
         with patch("services.llm_client.time"):
-            with patch("services.prompts.localize_prompt", side_effect=lambda p, l: p):
+            with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
                 with pytest.raises((RuntimeError, Exception)):
                     client.generate("system", "user")
 
@@ -118,7 +117,7 @@ class TestLLMAllRetriesExhausted:
         ])
 
         with patch("services.llm_client.time"):
-            with patch("services.prompts.localize_prompt", side_effect=lambda p, l: p):
+            with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
                 with pytest.raises(RuntimeError):
                     client.generate("sys", "usr")
 
@@ -257,7 +256,6 @@ class TestCheckpointCorruptedJSON:
 
     def test_save_checkpoint_creates_file(self, tmp_path):
         """Save checkpoint writes a readable JSON file without crashing."""
-        from pipeline.orchestrator_checkpoint import CheckpointManager
         mgr = self._make_checkpoint_manager()
         with patch("pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", str(tmp_path)):
             path = mgr.save(layer=1, background=False)
@@ -322,7 +320,7 @@ class TestPipelineInvalidConfig:
             {"client": fallback, "model": "gpt-3.5", "label": "cheap"},
         ])
 
-        with patch("services.prompts.localize_prompt", side_effect=lambda p, l: p):
+        with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
             with pytest.raises(Exception):
                 client.generate("sys", "usr")
 

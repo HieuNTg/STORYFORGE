@@ -19,7 +19,7 @@ def build_reader_tab(_t, orchestrator_state):
 
     with gr.Row():
         load_btn = gr.Button(_t("reader.open_btn"), variant="primary")
-        open_window_btn = gr.Button(_t("reader.new_window_btn"), variant="secondary")
+        gr.Button(_t("reader.new_window_btn"), variant="secondary")
 
     reader_html = gr.HTML(
         value=f"<div style='text-align:center;padding:60px;color:#888'>{_t('reader.placeholder')}</div>",

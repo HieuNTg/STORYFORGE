@@ -13,14 +13,13 @@ import os
 import sys
 import re
 import unittest
-from unittest import mock
 from pathlib import Path
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from ui.gradio_app import _progress_html, _detect_layer
+from ui.gradio_app import _progress_html, _detect_layer  # noqa: E402
 
 
 class TestProgressHtmlGeneration(unittest.TestCase):
@@ -266,7 +265,6 @@ class TestFormatOutput(unittest.TestCase):
 
     def test_format_output_returns_tuple(self):
         """Verify _format_output returns a tuple."""
-        from ui.gradio_app import create_ui
         # We need to extract _format_output from create_ui
         # For now, we'll test the tuple structure via mocking
         pass

@@ -1,6 +1,6 @@
 """Generate AI image prompts from story content."""
 import logging
-from models.schemas import ImagePrompt, StoryboardPanel, Chapter, Character
+from models.schemas import ImagePrompt, StoryboardPanel, Chapter
 from services.llm_client import LLMClient
 from config import ConfigManager
 

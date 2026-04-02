@@ -7,12 +7,12 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from models.schemas import (
-    StoryBible, PlotThread, StoryArc, StoryDraft,
+from models.schemas import (  # noqa: E402
+    StoryBible, StoryDraft,
     Chapter, CharacterState, PlotEvent, WorldSetting, Character,
 )
-from pipeline.layer1_story.story_bible_manager import StoryBibleManager
-from services.genre_library import get_genre, get_genre_by_name, list_genres, GENRE_LIBRARY
+from pipeline.layer1_story.story_bible_manager import StoryBibleManager  # noqa: E402
+from services.genre_library import get_genre, get_genre_by_name, list_genres, GENRE_LIBRARY  # noqa: E402
 
 
 def _make_draft(num_outlines: int = 60) -> StoryDraft:

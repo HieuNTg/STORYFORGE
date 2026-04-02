@@ -7,8 +7,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from models.schemas import (
     Character, Chapter, ChapterOutline, WorldSetting,
-    StoryDraft, EnhancedStory, PipelineOutput, AgentReview,
-    SimulationResult, SimulationEvent, VideoScript, StoryboardPanel, VoiceLine,
+    StoryDraft, EnhancedStory, PipelineOutput, SimulationResult, SimulationEvent, VideoScript, StoryboardPanel, VoiceLine,
     ShotType,
 )
 

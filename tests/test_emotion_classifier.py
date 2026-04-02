@@ -1,9 +1,7 @@
 """Tests for rule-based Vietnamese emotion classifier."""
 
-import pytest
 
 from services.emotion_classifier import (
-    EMOTION_KEYWORDS,
     EMOTION_VOICE_PARAMS,
     classify_emotion,
     get_voice_params,

@@ -1,7 +1,6 @@
 """Tests for PIPELINE_PRESETS and preset apply logic."""
 
-import pytest
-from config import PIPELINE_PRESETS, PipelineConfig, ConfigManager
+from config import PIPELINE_PRESETS, PipelineConfig
 
 
 # ── Preset data validity ──

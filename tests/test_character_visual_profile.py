@@ -1,6 +1,5 @@
 """Tests for CharacterVisualProfileStore."""
 import os
-import json
 import pytest
 from services.character_visual_profile import CharacterVisualProfileStore
 

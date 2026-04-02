@@ -1,6 +1,6 @@
 """Security tests — XSS prevention, input length limits, HTML escaping."""
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 # ---------------------------------------------------------------------------
@@ -199,7 +199,6 @@ class TestShareManagerHTMLEscaping:
 
     def test_fallback_html_escapes_angle_brackets_in_title(self, tmp_path, monkeypatch):
         """Fallback HTML escapes < > in story title."""
-        from services.share_manager import ShareManager
         mgr = self._make_share_mgr(tmp_path, monkeypatch)
         story = _make_story(title="<Evil> & 'Story'")
 
@@ -212,7 +211,6 @@ class TestShareManagerHTMLEscaping:
 
     def test_fallback_html_escapes_ampersand_in_title(self, tmp_path, monkeypatch):
         """Fallback HTML escapes & in story title."""
-        from services.share_manager import ShareManager
         mgr = self._make_share_mgr(tmp_path, monkeypatch)
         story = _make_story(title="Hero & Villain")
 
@@ -224,7 +222,6 @@ class TestShareManagerHTMLEscaping:
 
     def test_fallback_html_escapes_script_tag_in_title(self, tmp_path, monkeypatch):
         """Fallback HTML escapes XSS script tag in story title."""
-        from services.share_manager import ShareManager
         mgr = self._make_share_mgr(tmp_path, monkeypatch)
         story = _make_story(title=XSS_SCRIPT)
 
@@ -237,7 +234,6 @@ class TestShareManagerHTMLEscaping:
 
     def test_normal_share_creation_produces_valid_html(self, tmp_path, monkeypatch):
         """Normal (non-fallback) share produces valid HTML with title escaped."""
-        from services.share_manager import ShareManager
         mgr = self._make_share_mgr(tmp_path, monkeypatch)
         story = _make_story(title="Safe Title & More")
         share = mgr.create_share(story)
@@ -246,7 +242,6 @@ class TestShareManagerHTMLEscaping:
 
     def test_fallback_html_is_valid_minimal_page(self, tmp_path, monkeypatch):
         """Fallback HTML is a minimal but valid HTML page structure."""
-        from services.share_manager import ShareManager
         mgr = self._make_share_mgr(tmp_path, monkeypatch)
         story = _make_story(title="Test Story")
 

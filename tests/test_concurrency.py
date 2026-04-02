@@ -2,10 +2,8 @@
 import os
 import threading
 import time
-import tempfile
 import pytest
-from concurrent.futures import ThreadPoolExecutor, Future, TimeoutError as FuturesTimeoutError
-from unittest.mock import MagicMock, patch
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 
 # ---------------------------------------------------------------------------

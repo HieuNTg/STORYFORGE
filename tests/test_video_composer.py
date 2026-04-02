@@ -1,9 +1,6 @@
 """Tests for VideoComposer service."""
-import os
-import subprocess
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
-import pytest
 
 from services.video_composer import VideoComposer
 
@@ -64,13 +61,13 @@ def test_compose_writes_concat_file(tmp_path):
 
     with patch.object(composer, '_write_concat_file', side_effect=_capture_write), \
          patch("services.video_composer.subprocess.run", return_value=mock_result):
-        result = composer.compose(panels=panels, output_filename="test.mp4")
+        composer.compose(panels=panels, output_filename="test.mp4")
 
     content = captured_content["text"]
     assert "duration 3.0" in content
     assert "duration 7.0" in content
     # Last entry repeated without duration (FFmpeg requirement)
-    lines = [l for l in content.splitlines() if l.startswith("file")]
+    lines = [line for line in content.splitlines() if line.startswith("file")]
     assert len(lines) == 3  # 2 panels + repeat of last
 
 

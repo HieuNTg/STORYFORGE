@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, patch
 import base64
 import os
 
-import pytest
 
 from services.image_generator import ImageGenerator
 from models.schemas import ImagePrompt

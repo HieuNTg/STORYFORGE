@@ -1,9 +1,8 @@
 """Tests for SeedreamClient service."""
 import base64
 import os
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch
 
-import pytest
 
 from services.seedream_client import SeedreamClient
 

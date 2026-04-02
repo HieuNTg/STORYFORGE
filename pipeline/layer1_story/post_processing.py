@@ -3,7 +3,7 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
-from models.schemas import Character, ChapterOutline, Chapter, StoryDraft, StoryContext, count_words
+from models.schemas import ChapterOutline, Chapter, StoryDraft, StoryContext, count_words
 
 if __name__ == "__main__":
     pass  # not a script

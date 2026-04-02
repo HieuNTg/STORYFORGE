@@ -3,7 +3,7 @@ import html as _html
 import logging
 import re
 from typing import Union, Optional
-from models.schemas import StoryDraft, EnhancedStory, Character
+from models.schemas import StoryDraft, EnhancedStory
 
 logger = logging.getLogger(__name__)
 

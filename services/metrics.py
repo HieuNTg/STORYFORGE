@@ -5,7 +5,6 @@ Call format_metrics() to get a Prometheus text exposition format string.
 """
 
 import threading
-import time
 from typing import Dict, List, Optional
 
 # ---------------------------------------------------------------------------

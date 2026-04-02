@@ -1,7 +1,6 @@
 """Tests for ImageGenerator.generate_with_reference() and related helpers."""
 
 from unittest.mock import MagicMock, patch
-import pytest
 
 from services.image_generator import ImageGenerator
 

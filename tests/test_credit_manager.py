@@ -1,8 +1,7 @@
 """Tests for CreditManager."""
 
-import pytest
 from models.schemas import UserProfile
-from services.credit_manager import CreditManager, CREDIT_COSTS, TIER_LIMITS
+from services.credit_manager import CreditManager, TIER_LIMITS
 
 
 def make_profile(**kwargs) -> UserProfile:

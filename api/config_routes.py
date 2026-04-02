@@ -33,7 +33,6 @@ Import the helpers from middleware.rbac and add them as Depends():
     # @router.get("/analytics", dependencies=[Depends(require_permission(Permission.ACCESS_ANALYTICS))])
 """
 
-import json
 import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel

@@ -1,9 +1,7 @@
 """Tests for XTTS v2 voice cloning provider in TTSAudioGenerator."""
 
 import os
-import tempfile
-import time
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch
 
 import pytest
 

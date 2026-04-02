@@ -3,7 +3,6 @@
 import logging
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/account", tags=["account"])

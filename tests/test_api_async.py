@@ -4,7 +4,6 @@ P1-7: Migrates endpoint testing to async pattern with pytest-asyncio.
 Covers config, pipeline, export, and health routes.
 """
 
-import json
 import pytest
 import pytest_asyncio
 from unittest.mock import patch, MagicMock

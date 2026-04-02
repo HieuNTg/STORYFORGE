@@ -12,11 +12,9 @@ Tests:
 
 import os
 import sys
-import json
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Optional
 
 import pytest
 
@@ -28,7 +26,6 @@ from models.schemas import (
     PipelineOutput,
     StoryDraft,
     Chapter,
-    Character,
     EnhancedStory,
 )
 
@@ -375,11 +372,7 @@ class TestImportChain:
     def test_import_schemas(self):
         """Verify can import all required schemas."""
         from models.schemas import (
-            PipelineOutput,
             StoryDraft,
-            Chapter,
-            Character,
-            EnhancedStory,
         )
         assert PipelineOutput is not None
         assert StoryDraft is not None
@@ -449,7 +442,7 @@ class TestTypeAnnotations:
         import inspect
         sig = inspect.signature(orch.export_zip)
         return_annotation = sig.return_annotation
-        assert return_annotation == str, f"Expected str, got {return_annotation}"
+        assert return_annotation is str, f"Expected str, got {return_annotation}"
 
 
 if __name__ == '__main__':

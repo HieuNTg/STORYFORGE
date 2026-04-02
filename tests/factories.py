@@ -27,7 +27,6 @@ Design principles
 
 from __future__ import annotations
 
-from dataclasses import replace
 from typing import Optional
 from unittest.mock import MagicMock
 
@@ -39,7 +38,6 @@ from models.schemas import (
     Character,
     ChapterOutline,
     EnhancedStory,
-    PipelineOutput,
     StoryDraft,
     WorldSetting,
 )

@@ -135,7 +135,7 @@ class TestResolveRole:
 def _make_request(role: str) -> object:
     """Build a minimal fake Request whose get_current_user returns the given role."""
     import services.auth as auth_svc
-    from unittest.mock import MagicMock, patch
+    from unittest.mock import MagicMock
 
     token = auth_svc.create_token("test-uid", "testuser")
 

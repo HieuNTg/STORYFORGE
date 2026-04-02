@@ -16,7 +16,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from eval_metrics import DIMENSIONS, evaluate, mock_score
+from eval_metrics import evaluate, mock_score
 
 _THIS_DIR = Path(__file__).parent
 _DATASET_PATH = _THIS_DIR / "golden_dataset.json"
@@ -83,7 +83,7 @@ def run_evaluation(
 def print_summary(report: dict[str, Any]) -> None:
     """Print human-readable evaluation summary to stdout."""
     print(f"\n{'='*60}")
-    print(f"  StoryForge Quality Scorer — Benchmark Report")
+    print("  StoryForge Quality Scorer — Benchmark Report")
     print(f"  Mode: {report['mode'].upper()} | Examples: {report['n_examples']}")
     print(f"{'='*60}")
 
@@ -101,7 +101,7 @@ def print_summary(report: dict[str, Any]) -> None:
 
     ld = report["score_distributions"]["llm_overall"]
     hd = report["score_distributions"]["human_overall"]
-    print(f"\nScore Distribution (LLM vs Human):")
+    print("\nScore Distribution (LLM vs Human):")
     print(f"  Low  (1-2):  LLM={ld['low_1_2']:3d}  Human={hd['low_1_2']:3d}")
     print(f"  Mid  (2-4):  LLM={ld['mid_2_4']:3d}  Human={hd['mid_2_4']:3d}")
     print(f"  High (4-5):  LLM={ld['high_4_5']:3d}  Human={hd['high_4_5']:3d}")

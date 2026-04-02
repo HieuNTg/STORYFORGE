@@ -1,7 +1,6 @@
 """Tests for staging environment configuration files."""
 import os
 import yaml
-import pytest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STAGING_COMPOSE = os.path.join(REPO_ROOT, "docker-compose.staging.yml")

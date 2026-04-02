@@ -3,7 +3,7 @@
 import logging
 import re
 
-from models.schemas import AgentReview, Chapter, ChapterScore, EnhancedStory, StoryScore
+from models.schemas import AgentReview, Chapter, EnhancedStory, StoryScore
 from services.llm_client import LLMClient
 from services.quality_scorer import QualityScorer
 from services import prompts

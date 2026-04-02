@@ -9,7 +9,6 @@ import time
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional
 
 from services.i18n import I18n
 from pipeline.orchestrator import PipelineOrchestrator

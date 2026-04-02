@@ -1,5 +1,4 @@
 """Agent Phân Tích Nhịp Truyện - đánh giá nhịp điệu, tốc độ hành động, cân bằng hành động/đối thoại."""
-import json
 from models.schemas import AgentReview, PipelineOutput
 from pipeline.agents.base_agent import BaseAgent
 from pipeline.agents import agent_prompts

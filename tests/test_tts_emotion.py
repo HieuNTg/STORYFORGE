@@ -1,6 +1,5 @@
 """Tests for TTS emotion modulation integration."""
 
-import os
 from unittest.mock import MagicMock, patch
 
 import pytest

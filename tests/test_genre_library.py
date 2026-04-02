@@ -1,5 +1,4 @@
 """Tests for genre library service."""
-import pytest
 from services.genre_library import get_genre, get_genre_by_name, list_genres, GENRE_LIBRARY
 
 

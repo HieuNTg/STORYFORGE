@@ -2,7 +2,7 @@
 
 import time
 from threading import Lock
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 
 MAX_EVENTS = 10_000

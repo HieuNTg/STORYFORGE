@@ -4,7 +4,7 @@ import os
 import sys
 import pytest
 from unittest.mock import MagicMock, patch
-from models.schemas import StoryDraft, EnhancedStory, Character, Chapter
+from models.schemas import StoryDraft, Chapter
 
 
 # ---------------------------------------------------------------------------

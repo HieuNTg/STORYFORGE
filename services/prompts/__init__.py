@@ -18,22 +18,22 @@ def localize_prompt(prompt: str, language: str = "vi") -> str:
     )
 
 
-from services.prompts.story_prompts import (
+from services.prompts.story_prompts import (  # noqa: E402
     SUGGEST_TITLE, GENERATE_CHARACTERS, GENERATE_WORLD,
     GENERATE_OUTLINE, CONTINUE_OUTLINE, WRITE_CHAPTER,
     SUMMARIZE_CHAPTER, EXTRACT_CHARACTER_STATE,
     EXTRACT_PLOT_EVENTS, SCORE_CHAPTER,
 )
-from services.prompts.analysis_prompts import (
+from services.prompts.analysis_prompts import (  # noqa: E402
     ANALYZE_STORY, AGENT_PERSONA, EVALUATE_DRAMA,
     ENHANCE_CHAPTER, DRAMA_SUGGESTIONS,
 )
-from services.prompts.revision_prompts import (
+from services.prompts.revision_prompts import (  # noqa: E402
     ESCALATION_EVENT, QUICK_DRAMA_CHECK, REENHANCE_CHAPTER,
     RAG_CONTEXT_SECTION, EXTRACT_CHAPTER_EMOTIONS,
     SMART_REVISE_CHAPTER,
 )
-from services.prompts.system_prompts import (
+from services.prompts.system_prompts import (  # noqa: E402
     GENERATE_STORYBOARD, GENERATE_VOICE_SCRIPT,
     CHARACTER_IMAGE_PROMPT, LOCATION_IMAGE_PROMPT,
 )
