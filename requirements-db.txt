@@ -1,0 +1,20 @@
+# Database dependencies for PostgreSQL support (optional — not required for
+# the default JSON-file / SQLite storage mode).
+#
+# Install with:
+#   pip install -r requirements-db.txt
+#
+# Then set DATABASE_URL=postgresql+asyncpg://user:pass@host/dbname
+# and run:  alembic upgrade head
+
+# Async SQLAlchemy 2.0+ with asyncio extras
+sqlalchemy[asyncio]>=2.0.0
+
+# Async PostgreSQL driver (used at runtime)
+asyncpg>=0.29.0
+
+# Alembic migration tool
+alembic>=1.13.0
+
+# Sync PostgreSQL driver (used by Alembic offline / shell migrations)
+psycopg2-binary>=2.9.0
