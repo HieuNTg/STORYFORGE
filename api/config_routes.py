@@ -1,4 +1,37 @@
-"""Config API routes — settings CRUD, connection test, cache management."""
+"""Config API routes — settings CRUD, connection test, cache management.
+
+RBAC examples
+-------------
+These routes touch pipeline configuration and should be protected in production.
+Import the helpers from middleware.rbac and add them as Depends():
+
+    from fastapi import Depends
+    from middleware.rbac import require_permission, require_role, Permission, Role
+
+    # Require CONFIGURE_PIPELINE permission (admin + superadmin):
+    # @router.put("", dependencies=[Depends(require_permission(Permission.CONFIGURE_PIPELINE))])
+
+    # Require at least ADMIN role (coarser check):
+    # @router.put("", dependencies=[Depends(require_role(Role.ADMIN))])
+
+    # Inject user for handler-level logic (e.g., audit who changed config):
+    # @router.put("")
+    # def save_config(body: ConfigUpdate, user=Depends(require_permission(Permission.CONFIGURE_PIPELINE))):
+    #     logger.info("Config updated by %r", user["user_id"])
+    #     ...
+
+    # Restrict API key management to SUPERADMIN only:
+    # @router.get("/api-keys", dependencies=[Depends(require_permission(Permission.MANAGE_API_KEYS))])
+
+    # Restrict audit log access to SUPERADMIN only:
+    # @router.get("/audit", dependencies=[Depends(require_permission(Permission.VIEW_AUDIT_LOGS))])
+
+    # Restrict user management endpoints to ADMIN+:
+    # @router.get("/admin/users", dependencies=[Depends(require_permission(Permission.MANAGE_USERS))])
+
+    # Restrict analytics to ADMIN+:
+    # @router.get("/analytics", dependencies=[Depends(require_permission(Permission.ACCESS_ANALYTICS))])
+"""
 
 import json
 import logging

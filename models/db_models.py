@@ -57,7 +57,8 @@ class User(Base):
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     credits: Mapped[int] = mapped_column(Integer, nullable=False, default=20)
-    role: Mapped[str] = mapped_column(String(50), nullable=False, default="user")
+    # Valid values: viewer | creator | admin | superadmin  (see middleware/rbac.py)
+    role: Mapped[str] = mapped_column(String(50), nullable=False, default="creator")
     created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now(), onupdate=func.now()

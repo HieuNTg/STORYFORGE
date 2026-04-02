@@ -44,10 +44,16 @@ class UserStore:
                     username  TEXT UNIQUE NOT NULL,
                     pw_hash   TEXT NOT NULL,
                     pw_salt   TEXT NOT NULL,
+                    role      TEXT NOT NULL DEFAULT 'creator',
                     created_at TEXT NOT NULL DEFAULT (datetime('now'))
                 )
                 """
             )
+            # Migrate existing databases that predate the role column.
+            try:
+                conn.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'creator'")
+            except Exception:
+                pass  # Column already exists — ignore.
             conn.commit()
 
     @staticmethod
@@ -65,7 +71,7 @@ class UserStore:
     # Public API
     # ------------------------------------------------------------------
 
-    def create_user(self, username: str, password: str) -> str:
+    def create_user(self, username: str, password: str, role: str = "creator") -> str:
         """Create a new user. Returns user_id. Raises ValueError if username taken."""
         user_id = str(uuid.uuid4())
         salt = uuid.uuid4().hex
@@ -73,13 +79,13 @@ class UserStore:
         with _LOCK:
             try:
                 self._conn().execute(
-                    "INSERT INTO users (user_id, username, pw_hash, pw_salt) VALUES (?,?,?,?)",
-                    (user_id, username, pw_hash, salt),
+                    "INSERT INTO users (user_id, username, pw_hash, pw_salt, role) VALUES (?,?,?,?,?)",
+                    (user_id, username, pw_hash, salt, role),
                 )
                 self._conn().commit()
             except sqlite3.IntegrityError:
                 raise ValueError(f"Username '{username}' already exists")
-        logger.info(f"User created: {username} ({user_id})")
+        logger.info(f"User created: {username} ({user_id}) role={role}")
         return user_id
 
     def authenticate(self, username: str, password: str) -> "str | None":
@@ -95,11 +101,20 @@ class UserStore:
         return None
 
     def get_user(self, user_id: str) -> "dict | None":
-        """Return user dict {user_id, username, created_at} or None."""
+        """Return user dict {user_id, username, role, created_at} or None."""
         row = self._conn().execute(
-            "SELECT user_id, username, created_at FROM users WHERE user_id=?", (user_id,)
+            "SELECT user_id, username, role, created_at FROM users WHERE user_id=?", (user_id,)
         ).fetchone()
         return dict(row) if row else None
+
+    def set_role(self, user_id: str, role: str) -> bool:
+        """Update the role for a user. Returns True if a row was updated."""
+        with _LOCK:
+            cursor = self._conn().execute(
+                "UPDATE users SET role=? WHERE user_id=?", (role, user_id)
+            )
+            self._conn().commit()
+        return cursor.rowcount > 0
 
 
 def get_user_store() -> UserStore:
