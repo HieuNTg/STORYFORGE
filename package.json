@@ -1,0 +1,18 @@
+{
+  "name": "storyforge-frontend",
+  "version": "1.0.0",
+  "description": "StoryForge AI-powered story generation platform — frontend build pipeline",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.15",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.17",
+    "vite": "^6.3.1"
+  }
+}
