@@ -57,7 +57,7 @@ class CheckpointManager:
 
     @staticmethod
     def list_checkpoints() -> list:
-        """List available checkpoints sorted newest-first."""
+        """List available checkpoints sorted newest-first with metadata."""
         if not os.path.exists(CHECKPOINT_DIR):
             return []
         checkpoints = []
@@ -65,12 +65,30 @@ class CheckpointManager:
             if f.endswith(".json"):
                 path = os.path.join(CHECKPOINT_DIR, f)
                 stat = os.stat(path)
-                checkpoints.append({
+                entry = {
                     "file": f,
                     "path": path,
                     "size_kb": stat.st_size // 1024,
                     "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
-                })
+                    "title": "",
+                    "genre": "",
+                    "chapter_count": 0,
+                    "current_layer": 0,
+                }
+                # Extract metadata from checkpoint JSON (partial read)
+                try:
+                    with open(path, "r", encoding="utf-8") as fh:
+                        data = json.load(fh)
+                    draft = data.get("story_draft") or {}
+                    enhanced = data.get("enhanced_story") or {}
+                    entry["title"] = draft.get("title", "") or enhanced.get("title", "")
+                    entry["genre"] = draft.get("genre", "")
+                    chapters = enhanced.get("chapters") or draft.get("chapters") or []
+                    entry["chapter_count"] = len(chapters)
+                    entry["current_layer"] = data.get("current_layer", 0)
+                except Exception:
+                    pass
+                checkpoints.append(entry)
         return checkpoints
 
     def resume(

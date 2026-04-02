@@ -36,3 +36,21 @@ coverage_html/
 !.env.example
 *.log
 storyforge.log
+
+# IDE artifacts
+.vscode/
+.idea/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Python distribution
+*.egg-info/
+dist/
+build/
