@@ -21,7 +21,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
-from services.auth_revocation import is_revoked
+from services.auth.auth_revocation import is_revoked
 
 logger = logging.getLogger(__name__)
 

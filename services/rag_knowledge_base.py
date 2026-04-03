@@ -290,3 +290,50 @@ class RAGKnowledgeBase:
     @property
     def is_available(self) -> bool:
         return self._available
+
+    def backup(self, backup_dir: Optional[str] = None) -> Optional[str]:
+        """Copy ChromaDB persist directory to a timestamped backup.
+
+        Returns the backup path on success, None on failure.
+        Default backup location: data/chromadb_backup_YYYYMMDD_HHMMSS/
+        """
+        import shutil
+        from datetime import datetime
+
+        if not os.path.isdir(self._persist_dir):
+            logger.warning(f"RAG backup: persist_dir '{self._persist_dir}' does not exist")
+            return None
+
+        if backup_dir is None:
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_dir = f"{self._persist_dir}_backup_{ts}"
+
+        try:
+            shutil.copytree(self._persist_dir, backup_dir)
+            logger.info(f"RAG backup created at '{backup_dir}'")
+            return backup_dir
+        except Exception as e:
+            logger.error(f"RAG backup failed: {e}")
+            return None
+
+    def restore(self, backup_dir: str) -> bool:
+        """Restore ChromaDB from a backup directory. Requires restart after.
+
+        Returns True on success. The caller should re-instantiate
+        RAGKnowledgeBase after restore to pick up the restored data.
+        """
+        import shutil
+
+        if not os.path.isdir(backup_dir):
+            logger.error(f"RAG restore: backup '{backup_dir}' not found")
+            return False
+
+        try:
+            if os.path.isdir(self._persist_dir):
+                shutil.rmtree(self._persist_dir)
+            shutil.copytree(backup_dir, self._persist_dir)
+            logger.info(f"RAG restored from '{backup_dir}' — restart required")
+            return True
+        except Exception as e:
+            logger.error(f"RAG restore failed: {e}")
+            return False
