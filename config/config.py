@@ -37,12 +37,13 @@ class ConfigManager:
 
     def save(self) -> list[str]:
         """Save config. Returns warnings. Raises ValueError on critical errors."""
-        warnings = self.validate()
-        critical = [w for w in warnings if "bắt buộc" in w or "phải" in w]
-        if critical:
-            raise ValueError(f"Config invalid: {'; '.join(critical)}")
-        if warnings:
-            for w in warnings:
-                logger.warning(f"Config: {w}")
-        save_config(self.llm, self.pipeline)
-        return warnings
+        with self._lock:
+            warnings = self.validate()
+            critical = [w for w in warnings if "bắt buộc" in w or "phải" in w]
+            if critical:
+                raise ValueError(f"Config invalid: {'; '.join(critical)}")
+            if warnings:
+                for w in warnings:
+                    logger.warning(f"Config: {w}")
+            save_config(self.llm, self.pipeline)
+            return warnings

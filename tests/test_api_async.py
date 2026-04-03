@@ -39,10 +39,10 @@ def _make_app() -> FastAPI:
 @pytest_asyncio.fixture
 async def client():
     app = _make_app()
-    # Set backend_type to "web" so save() doesn't require api_key
+    # Provide a dummy api_key so validation passes
     from config import ConfigManager
     cfg = ConfigManager()
-    cfg.llm.backend_type = "web"
+    cfg.llm.api_key = "test-key"
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c

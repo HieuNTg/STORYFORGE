@@ -55,7 +55,7 @@ def export_files(session_id: str, formats: list[str] = ["TXT", "Markdown", "JSON
     if not orch:
         return JSONResponse({"error": "Chưa có truyện"}, status_code=404)
     try:
-        from ui.handlers import handle_export_files
+        from services.handlers import handle_export_files
         files = handle_export_files(orch, formats)
         if not files:
             return {"files": []}
@@ -82,7 +82,7 @@ def export_zip(session_id: str):
     try:
         from services.i18n import I18n
         _t = I18n().t
-        from ui.handlers import handle_export_zip
+        from services.handlers import handle_export_zip
         files = handle_export_zip(orch, ["TXT", "Markdown", "JSON", "HTML"], _t)
         if files and len(files) > 0:
             return _safe_file_response(files[0], "storyforge_export.zip")
@@ -102,7 +102,7 @@ def export_pdf(session_id: str):
         return JSONResponse({"error": "Chưa có truyện"}, status_code=404)
     try:
         from services.i18n import I18n
-        from ui.handlers import handle_export_pdf
+        from services.handlers import handle_export_pdf
         files, stats = handle_export_pdf(orch, I18n().t)
         if files:
             return _safe_file_response(files[0], "storyforge.pdf")
@@ -121,7 +121,7 @@ def export_epub(session_id: str):
         return JSONResponse({"error": "Chưa có truyện"}, status_code=404)
     try:
         from services.i18n import I18n
-        from ui.handlers import handle_export_epub
+        from services.handlers import handle_export_epub
         files, stats = handle_export_epub(orch, I18n().t)
         if files:
             return _safe_file_response(files[0], "storyforge.epub")

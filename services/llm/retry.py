@@ -21,11 +21,6 @@ def _redact(message: str) -> str:
     return _REDACT_PATTERNS.sub(r'\1[REDACTED]', str(message))
 
 
-class WebBackendExhausted(Exception):
-    """All web backend attempts failed."""
-    pass
-
-
 # Transient error indicators
 _TRANSIENT_CODES = {429, 500, 502, 503, 504}
 

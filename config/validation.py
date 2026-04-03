@@ -11,8 +11,8 @@ def validate_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> list[str]:
     """Validate config fields. Returns list of warning/error messages."""
     errors = []
 
-    if not llm.api_key and llm.backend_type == "api":
-        errors.append("API key bắt buộc cho backend API")
+    if not llm.api_key:
+        errors.append("API key bắt buộc")
 
     if pipeline.num_chapters < 1:
         errors.append("Số chương phải >= 1")

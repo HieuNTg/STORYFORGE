@@ -189,7 +189,7 @@ def main():
     @main_app.get("/api/health")
     async def health():
         cfg = ConfigManager()
-        llm_ok = bool(cfg.llm.api_key) or cfg.llm.backend_type != "api"
+        llm_ok = bool(cfg.llm.api_key)
         return {
             "status": "ok",
             "version": "3.0",

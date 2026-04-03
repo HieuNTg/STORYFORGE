@@ -86,6 +86,7 @@ git clone https://github.com/HieuNTg/STORYFORGE.git
 cd STORYFORGE
 pip install -r requirements.txt
 npm install && npm run build   # compile TypeScript → JS
+npm run build:css              # compile Tailwind CSS
 python app.py
 # → http://localhost:7860
 ```

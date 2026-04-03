@@ -14,9 +14,6 @@ class LLMConfig:
     model: str = "gpt-4o-mini"
     temperature: float = 0.8
     max_tokens: int = 4096
-    # Backend: "api" (OpenAI-compatible) hoặc "web" (browser auth, free)
-    backend_type: str = "api"
-    web_auth_provider: str = "deepseek-web"  # Provider cho web auth
     # Model routing: cheap model for summaries/analysis
     cheap_model: str = ""  # empty = use primary model
     cheap_base_url: str = ""  # empty = use primary base_url
@@ -70,9 +67,13 @@ class PipelineConfig:
     pdf_font: str = "NotoSansVN"
 
     # Image generation provider
-    image_provider: str = "none"  # none / dalle / sd-api / seedream
+    image_provider: str = "none"  # none / dalle / sd-api / seedream / huggingface
     image_api_key: str = ""
     image_api_url: str = ""
+
+    # HuggingFace Inference API (free tier)
+    hf_token: str = ""
+    hf_image_model: str = "black-forest-labs/FLUX.1-schnell"
 
     # Seedream (ByteDance) image generation
     seedream_api_key: str = ""
@@ -161,6 +162,21 @@ VIDEO_QUALITY_PRESETS = {
 }
 
 PIPELINE_PRESETS = {
+    "quick-demo": {
+        "label": "Demo nhanh — 5 chương, tiết kiệm token",
+        "num_chapters": 5,
+        "words_per_chapter": 1500,
+        "num_simulation_rounds": 2,
+        "num_agents": 5,
+        "drama_intensity": "trung bình",
+        "enable_self_review": False,
+        "enable_agent_debate": False,
+        "enable_smart_revision": False,
+        "enable_quality_gate": True,
+        "quality_gate_threshold": 2.5,
+        "quality_gate_max_retries": 1,
+        "context_window_chapters": 3,
+    },
     "beginner": {
         "label": "Người mới — Cơ bản, dễ dùng",
         "enable_self_review": False,
@@ -314,13 +330,14 @@ class ConfigManager:
             "STORYFORGE_API_KEY": ("llm", "api_key"),
             "STORYFORGE_BASE_URL": ("llm", "base_url"),
             "STORYFORGE_MODEL": ("llm", "model"),
-            "STORYFORGE_BACKEND": ("llm", "backend_type"),
             "STORYFORGE_TEMPERATURE": ("llm", "temperature"),
             "STORYFORGE_IMAGE_PROVIDER": ("pipeline", "image_provider"),
             "IMAGE_API_KEY": ("pipeline", "image_api_key"),
             "IMAGE_API_URL": ("pipeline", "image_api_url"),
             "SEEDREAM_API_KEY": ("pipeline", "seedream_api_key"),
             "SEEDREAM_API_URL": ("pipeline", "seedream_api_url"),
+            "HF_TOKEN": ("pipeline", "hf_token"),
+            "HF_IMAGE_MODEL": ("pipeline", "hf_image_model"),
             "STORYFORGE_TTS_PROVIDER": ("pipeline", "tts_provider"),
             "KLING_TTS_API_KEY": ("pipeline", "kling_tts_api_key"),
             "KLING_TTS_API_URL": ("pipeline", "kling_tts_api_url"),
@@ -372,8 +389,6 @@ class ConfigManager:
                 "model": self.llm.model,
                 "temperature": self.llm.temperature,
                 "max_tokens": self.llm.max_tokens,
-                "backend_type": self.llm.backend_type,
-                "web_auth_provider": self.llm.web_auth_provider,
                 "cheap_model": self.llm.cheap_model,
                 "cheap_base_url": self.llm.cheap_base_url,
                 "cache_enabled": self.llm.cache_enabled,
@@ -404,6 +419,8 @@ class ConfigManager:
                 "image_api_url": self.pipeline.image_api_url,
                 # seedream_api_key excluded — use SEEDREAM_API_KEY env var
                 "seedream_api_url": self.pipeline.seedream_api_url,
+                # hf_token excluded — use HF_TOKEN env var
+                "hf_image_model": self.pipeline.hf_image_model,
                 "arc_size": self.pipeline.arc_size,
                 "story_bible_enabled": self.pipeline.story_bible_enabled,
                 "enable_self_review": self.pipeline.enable_self_review,
@@ -447,8 +464,8 @@ class ConfigManager:
     def validate(self) -> list[str]:
         """Validate config, return list of warning messages."""
         errors = []
-        if not self.llm.api_key and self.llm.backend_type == "api":
-            errors.append("API key bắt buộc cho backend API")
+        if not self.llm.api_key:
+            errors.append("API key bắt buộc")
         if self.pipeline.num_chapters < 1:
             errors.append("Số chương phải >= 1")
         if self.pipeline.words_per_chapter < 100:

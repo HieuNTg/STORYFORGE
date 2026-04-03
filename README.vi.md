@@ -64,6 +64,7 @@ git clone https://github.com/HieuNTg/STORYFORGE.git
 cd STORYFORGE
 pip install -r requirements.txt
 npm install && npm run build   # biên dịch TypeScript → JS
+npm run build:css              # biên dịch Tailwind CSS
 python app.py
 # → http://localhost:7860
 ```

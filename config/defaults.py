@@ -11,9 +11,6 @@ class LLMConfig:
     model: str = "gpt-4o-mini"
     temperature: float = 0.8
     max_tokens: int = 4096
-    # Backend: "api" (OpenAI-compatible) hoặc "web" (browser auth, free)
-    backend_type: str = "api"
-    web_auth_provider: str = "deepseek-web"  # Provider cho web auth
     # Model routing: cheap model for summaries/analysis
     cheap_model: str = ""  # empty = use primary model
     cheap_base_url: str = ""  # empty = use primary base_url
@@ -67,9 +64,13 @@ class PipelineConfig:
     pdf_font: str = "NotoSansVN"
 
     # Image generation provider
-    image_provider: str = "none"  # none / dalle / sd-api / seedream
+    image_provider: str = "none"  # none / dalle / sd-api / seedream / huggingface
     image_api_key: str = ""
     image_api_url: str = ""
+
+    # HuggingFace Inference API (free tier)
+    hf_token: str = ""
+    hf_image_model: str = "black-forest-labs/FLUX.1-schnell"
 
     # Seedream (ByteDance) image generation
     seedream_api_key: str = ""

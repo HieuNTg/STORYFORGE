@@ -86,7 +86,7 @@ class GenerationMixin:
         model_tier: str = "default",
         model: Optional[str] = None,
     ):
-        """Call LLM with streaming. Supports API and web backend."""
+        """Call LLM with streaming."""
         config = _config_manager()()
         effective_temp = temperature if temperature is not None else config.llm.temperature
 
@@ -100,19 +100,6 @@ class GenerationMixin:
             {"role": "user", "content": user_prompt},
         ]
 
-        # Web backend streaming
-        if self._is_web_backend():
-            def _web_gen():
-                web_client = self._get_web_client()
-                yield from web_client.chat_completion(
-                    messages=messages, temperature=effective_temp, stream=True,
-                )
-            yield from self._stream_with_chunk_timeout(
-                self._stream_with_retry(_web_gen, "Web stream"), chunk_timeout=60
-            )
-            return
-
-        # API backend streaming
         if model_tier == "cheap" and config.llm.cheap_model:
             client, effective_model = self._get_cheap_client()
         else:
@@ -138,14 +125,7 @@ class GenerationMixin:
         )
 
     def check_connection(self) -> tuple[bool, str]:
-        """Check backend connection (API or web)."""
-        if self._is_web_backend():
-            try:
-                web_client = self._get_web_client()
-                return web_client.check_connection()
-            except Exception as e:
-                return False, f"Lỗi web backend: {e}"
-
+        """Check API backend connection."""
         try:
             client = self._get_client()
             client.chat.completions.create(
