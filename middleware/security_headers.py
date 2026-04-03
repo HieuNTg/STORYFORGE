@@ -23,6 +23,8 @@ _CSP_DIRECTIVES = "; ".join([
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob:",
     "connect-src 'self'",
+    "object-src 'none'",
+    "worker-src 'self'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -45,5 +47,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
+
+        is_https = (
+            request.url.scheme == "https"
+            or request.headers.get("x-forwarded-proto") == "https"
+        )
+        if is_https:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=63072000; includeSubDomains; preload"
+            )
 
         return response
