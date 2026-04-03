@@ -12,6 +12,31 @@
 
 type RequestBody = Record<string, unknown> | unknown[]
 
+/** Default timeout for regular requests (30 s). */
+const DEFAULT_TIMEOUT_MS = 30_000
+/** Extended timeout for SSE/streaming requests (5 min). */
+const STREAM_TIMEOUT_MS = 300_000
+/** Max retries for GET network errors (not HTTP errors). */
+const GET_MAX_RETRIES = 2
+
+/**
+ * Wraps a fetch call with an AbortController timeout.
+ * Returns the Response; cleans up the timer in all cases.
+ */
+async function fetchWithTimeout(
+  url: string,
+  opts: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...opts, signal: controller.signal })
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // API client object — available as window.API
 // ---------------------------------------------------------------------------
@@ -21,33 +46,58 @@ var API: ApiClient = {
   base: '/api' as string,
 
   async get<T = unknown>(path: string): Promise<T> {
-    const res = await fetch(this.base + path)
-    if (!res.ok) throw new Error(`GET ${path}: ${res.status}`)
-    return res.json() as Promise<T>
+    let lastError: unknown
+    for (let attempt = 0; attempt <= GET_MAX_RETRIES; attempt++) {
+      try {
+        const res = await fetchWithTimeout(this.base + path, {}, DEFAULT_TIMEOUT_MS)
+        if (!res.ok) throw new Error(`GET ${path}: ${res.status}`)
+        return res.json() as Promise<T>
+      } catch (err) {
+        // Don't retry HTTP errors (res.ok was false) — only network/timeout errors.
+        if (err instanceof Error && err.message.startsWith('GET ')) throw err
+        lastError = err
+        if (attempt === GET_MAX_RETRIES) break
+        // brief back-off between retries
+        await new Promise<void>((resolve) => setTimeout(resolve, 200 * (attempt + 1)))
+      }
+    }
+    throw lastError
   },
 
   async post<T = unknown>(path: string, body: RequestBody = {}): Promise<T> {
-    const res = await fetch(this.base + path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
+    const res = await fetchWithTimeout(
+      this.base + path,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      DEFAULT_TIMEOUT_MS,
+    )
     if (!res.ok) throw new Error(`POST ${path}: ${res.status}`)
     return res.json() as Promise<T>
   },
 
   async put<T = unknown>(path: string, body: RequestBody = {}): Promise<T> {
-    const res = await fetch(this.base + path, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
+    const res = await fetchWithTimeout(
+      this.base + path,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      DEFAULT_TIMEOUT_MS,
+    )
     if (!res.ok) throw new Error(`PUT ${path}: ${res.status}`)
     return res.json() as Promise<T>
   },
 
   async del<T = unknown>(path: string): Promise<T> {
-    const res = await fetch(this.base + path, { method: 'DELETE' })
+    const res = await fetchWithTimeout(
+      this.base + path,
+      { method: 'DELETE' },
+      DEFAULT_TIMEOUT_MS,
+    )
     if (!res.ok) throw new Error(`DELETE ${path}: ${res.status}`)
     return res.json() as Promise<T>
   },
@@ -58,11 +108,15 @@ var API: ApiClient = {
    * yields `{ type: 'interrupted' }` so callers can handle gracefully.
    */
   async *stream(path: string, body: RequestBody): AsyncGenerator<StreamEvent> {
-    const res = await fetch(this.base + path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
+    const res = await fetchWithTimeout(
+      this.base + path,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      STREAM_TIMEOUT_MS,
+    )
     if (!res.ok) throw new Error(`SSE ${path}: ${res.status}`)
 
     // ReadableStream is guaranteed non-null for successful fetch responses
@@ -88,7 +142,7 @@ var API: ApiClient = {
               if (event.type === 'done' || event.type === 'error') receivedDone = true
               yield event
             } catch {
-              console.warn('SSE parse error:', line)
+              console.warn('[SSE] JSON parse failed:', line)
             }
           }
         }
@@ -107,7 +161,9 @@ var API: ApiClient = {
         const event = JSON.parse(buffer.trim().slice(6)) as StreamEvent
         if (event.type === 'done' || event.type === 'error') receivedDone = true
         yield event
-      } catch { /* ignore partial */ }
+      } catch {
+        console.warn('[SSE] JSON parse failed (flush):', buffer.trim())
+      }
     }
 
     // Stream ended without a done/error event — likely server crash
@@ -155,7 +211,11 @@ var API: ApiClient = {
 
   /** Download a file from an export endpoint via anchor-click trick. */
   async download(path: string, filename: string): Promise<void> {
-    const res = await fetch(this.base + path, { method: 'POST' })
+    const res = await fetchWithTimeout(
+      this.base + path,
+      { method: 'POST' },
+      DEFAULT_TIMEOUT_MS,
+    )
     if (!res.ok) throw new Error(`Download ${path}: ${res.status}`)
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)

@@ -75,7 +75,10 @@ describe('API.get()', () => {
     const result = await API.get('/stories/1')
 
     expect(fetch).toHaveBeenCalledOnce()
-    expect(fetch).toHaveBeenCalledWith('/api/stories/1')
+    // fetch is called with a signal (AbortController timeout)
+    const [url, opts] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(url).toBe('/api/stories/1')
+    expect(opts).toMatchObject({ signal: expect.any(AbortSignal) })
     expect(result).toEqual(payload)
   })
 
@@ -85,10 +88,25 @@ describe('API.get()', () => {
     await expect(API.get('/stories/999')).rejects.toThrow('GET /stories/999: 404')
   })
 
-  it('propagates network-level errors (fetch rejects)', async () => {
-    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('Network failure'))
+  it('propagates network-level errors after retries (fetch rejects)', async () => {
+    // Use an implementation that rejects lazily to avoid unhandled-rejection warnings
+    globalThis.fetch = vi.fn().mockImplementation(
+      () => Promise.reject(new TypeError('Network failure')),
+    )
 
-    await expect(API.get('/stories')).rejects.toThrow('Network failure')
+    // The retry loop (max 2 retries) should exhaust and rethrow the error.
+    // We override setTimeout so back-off delays don't slow down the test.
+    const origTimeout = globalThis.setTimeout
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    globalThis.setTimeout = ((fn: () => void) => { fn(); return 0 }) as any
+
+    try {
+      await expect(API.get('/stories')).rejects.toThrow('Network failure')
+      // fetch was called 3 times: initial + 2 retries
+      expect(fetch).toHaveBeenCalledTimes(3)
+    } finally {
+      globalThis.setTimeout = origTimeout
+    }
   })
 })
 
@@ -101,11 +119,13 @@ describe('API.post()', () => {
 
     const result = await API.post('/stories', { title: 'My Story' })
 
-    expect(fetch).toHaveBeenCalledWith('/api/stories', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'My Story' }),
-    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [url, init] = (fetch as any).mock.calls[0]
+    expect(url).toBe('/api/stories')
+    expect(init.method).toBe('POST')
+    expect(init.headers).toEqual({ 'Content-Type': 'application/json' })
+    expect(JSON.parse(init.body)).toEqual({ title: 'My Story' })
+    expect(init.signal).toBeInstanceOf(AbortSignal)
     expect(result).toEqual({ id: 42 })
   })
 
@@ -159,7 +179,11 @@ describe('API.del()', () => {
 
     const result = await API.del('/stories/1')
 
-    expect(fetch).toHaveBeenCalledWith('/api/stories/1', { method: 'DELETE' })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [url, init] = (fetch as any).mock.calls[0]
+    expect(url).toBe('/api/stories/1')
+    expect(init.method).toBe('DELETE')
+    expect(init.signal).toBeInstanceOf(AbortSignal)
     expect(result).toEqual({ deleted: true })
   })
 

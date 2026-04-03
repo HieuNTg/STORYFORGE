@@ -64,9 +64,19 @@ class ModelFallbackManager:
             return {"model": primary_model, "is_fallback": False, "reason": "primary_ok"}
 
         # Walk fallback list
-        for fb in fallback_models:
+        for idx, fb in enumerate(fallback_models):
+            if not isinstance(fb, dict):
+                logger.warning(
+                    "Fallback config entry at index %d is not a dict (got %s); skipping.",
+                    idx, type(fb).__name__,
+                )
+                continue
             fb_model = fb.get("model", "")
             if not fb_model:
+                logger.warning(
+                    "Fallback config entry at index %d is missing or has empty 'model' key; skipping.",
+                    idx,
+                )
                 continue
             cost = fb.get("cost_per_1k", 0.0)
             if cost > self._max_cost_per_1k:

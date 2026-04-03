@@ -185,6 +185,7 @@ services:
     image: grafana/loki:2.9.0
     container_name: storyforge-loki
     ports:
+      # Security: monitoring ports bound to localhost only — Loki auth_enabled is false
       - "127.0.0.1:3100:3100"
     volumes:
       - loki-data:/loki
@@ -232,6 +233,7 @@ services:
     networks:
       - storyforge-network
     ports:
+      # Security: monitoring ports bound to localhost only
       - "127.0.0.1:9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -257,6 +259,8 @@ services:
     networks:
       - storyforge-network
     ports:
+      # Grafana is intentionally public-facing (login required — anonymous access disabled)
+      # Consider restricting to localhost and proxying through nginx for extra hardening
       - "3000:3000"
     volumes:
       - ./monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/storyforge.json:ro
@@ -264,8 +268,9 @@ services:
       - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-storyforge}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?GRAFANA_PASSWORD is required}
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
     depends_on:
       - prometheus
       - loki

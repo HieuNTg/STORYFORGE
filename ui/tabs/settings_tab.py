@@ -137,17 +137,10 @@ def build_settings_tab(_t, i18n, app_block):
     with gr.Accordion(_t("settings.backend"), open=False):
         backend_type = gr.Radio(choices=["api", "web"], value=config.llm.backend_type, label=_t("settings.backend_label"), info=_t("settings.backend_info"))
 
-        # Web auth
-        gr.Markdown(_t("settings.web_auth"))
-        web_auth_status = gr.Textbox(label=_t("settings.auth_status"), interactive=False, value=_t("settings.not_logged_in"))
-        with gr.Row():
-            launch_chrome_btn = gr.Button(_t("btn.launch_chrome"), size="sm")
-            capture_btn = gr.Button(_t("btn.capture_creds"), variant="primary", size="sm")
-        clear_auth_btn = gr.Button(_t("btn.clear_creds"), variant="stop", size="sm")
-        launch_chrome_btn.click(fn=lambda: _launch_chrome(_t), outputs=[web_auth_status])
-        capture_btn.click(fn=lambda: _capture_credentials(_t), outputs=[web_auth_status])
-        clear_auth_btn.click(fn=lambda: _clear_credentials(_t), outputs=[web_auth_status])
-        app_block.load(fn=lambda: _check_auth_status(_t), outputs=[web_auth_status])
+        # Web auth — deprecated, show notice only
+        gr.Markdown(
+            "> **Browser authentication đã ngừng hỗ trợ. Sử dụng API key authentication.**"
+        )
 
     # ── Connection Test ──
     with gr.Row():

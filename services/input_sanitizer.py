@@ -3,11 +3,17 @@
 Detects common injection patterns in user-provided story ideas,
 character descriptions, and other text inputs before they're
 used in LLM prompt construction.
+
+Blocking behavior is ON by default. Set STORYFORGE_BLOCK_INJECTION=false to disable.
 """
+import os
 import re
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Secure by default: block when threat detected unless explicitly disabled
+_BLOCK_ON_DETECT = os.environ.get("STORYFORGE_BLOCK_INJECTION", "true").lower() != "false"
 
 # Patterns that indicate prompt injection attempts
 _INJECTION_PATTERNS = [
@@ -36,10 +42,15 @@ class SanitizationResult:
         self.threats_found = threats_found
 
 
+class InjectionBlockedError(ValueError):
+    """Raised when prompt injection is detected and blocking is enabled."""
+
+
 def sanitize_input(text: str) -> SanitizationResult:
     """Check text for injection patterns. Returns sanitization result.
 
-    Does NOT modify text — just flags threats. Caller decides action.
+    When _BLOCK_ON_DETECT is True (default), raises InjectionBlockedError on threat.
+    Set STORYFORGE_BLOCK_INJECTION=false env var to disable blocking (log-only mode).
     """
     if not text or not text.strip():
         return SanitizationResult(True, text, [])
@@ -49,6 +60,11 @@ def sanitize_input(text: str) -> SanitizationResult:
         if pattern.search(text):
             threats.append(threat_type)
             logger.warning(f"Prompt injection detected: {threat_type}")
+
+    if threats and _BLOCK_ON_DETECT:
+        raise InjectionBlockedError(
+            f"Input blocked: prompt injection detected ({', '.join(threats)})"
+        )
 
     return SanitizationResult(
         is_safe=len(threats) == 0,

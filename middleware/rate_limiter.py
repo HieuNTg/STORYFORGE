@@ -44,6 +44,11 @@ _TRUSTED_PROXIES: set[str] = set()
 _raw_proxies = os.environ.get("TRUSTED_PROXY_IPS", "")
 if _raw_proxies.strip():
     _TRUSTED_PROXIES = {ip.strip() for ip in _raw_proxies.split(",") if ip.strip()}
+else:
+    logger.warning(
+        "TRUSTED_PROXY_IPS not configured. X-Forwarded-For headers will be ignored. "
+        "Set TRUSTED_PROXY_IPS for proper client IP detection behind a proxy."
+    )
 
 # Max entries in in-memory state before eviction sweep
 _MAX_MEMORY_ENTRIES = 10_000

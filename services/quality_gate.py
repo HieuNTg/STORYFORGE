@@ -5,6 +5,7 @@ Can auto-retry the layer or halt with user feedback.
 """
 
 import logging
+import os
 from typing import Optional
 
 from models.schemas import StoryScore
@@ -46,6 +47,14 @@ class QualityGate:
         self.gate_threshold = gate_threshold
         self.chapter_threshold = chapter_threshold
         self.max_retries = max_retries
+        # Circuit breaker: limit total retries across all chapters to prevent cost explosion.
+        # Configurable via STORYFORGE_MAX_TOTAL_RETRIES; defaults to max_retries * 3.
+        self._max_total_retries: int = int(
+            os.environ.get("STORYFORGE_MAX_TOTAL_RETRIES", max_retries * 3)
+        )
+        self._total_retries: int = 0
+        self._best_score: Optional[StoryScore] = None
+        self._best_overall: float = -1.0
 
     def check(self, score: Optional[StoryScore], retry_count: int = 0) -> QualityGateResult:
         """Check if quality score passes the gate.
@@ -65,6 +74,11 @@ class QualityGate:
 
         overall = score.overall
 
+        # Track best score seen for circuit breaker fallback
+        if overall > self._best_overall:
+            self._best_overall = overall
+            self._best_score = score
+
         # Find chapters below chapter threshold
         weak_chapters = []
         for cs in score.chapter_scores:
@@ -82,8 +96,26 @@ class QualityGate:
                 message=f"Quality gate PASSED: {overall:.1f}/5.0 (threshold: {self.gate_threshold})"
             )
 
+        # Circuit breaker: stop retrying if total retries across all chapters is too high
+        if self._total_retries >= self._max_total_retries:
+            logger.warning(
+                "Quality gate circuit breaker triggered after %d total retries. "
+                "Proceeding with best available chapters.",
+                self._total_retries,
+            )
+            best_overall = self._best_overall if self._best_overall >= 0 else overall
+            return QualityGateResult(
+                passed=True, overall_score=best_overall, weak_chapters=weak_chapters,
+                message=(
+                    f"Quality gate circuit breaker triggered after {self._total_retries} total retries. "
+                    f"Proceeding with best available chapters (score: {best_overall:.1f}/5.0)."
+                ),
+                should_retry=False,
+            )
+
         # Can retry?
         if retry_count < self.max_retries:
+            self._total_retries += 1
             weak_info = f", {len(weak_chapters)} chương yếu" if weak_chapters else ""
             return QualityGateResult(
                 passed=False, overall_score=overall, weak_chapters=weak_chapters,

@@ -157,6 +157,13 @@ def main():
     from errors.handlers import storyforge_error_handler
     main_app.add_exception_handler(StoryForgeError, storyforge_error_handler)
 
+    from fastapi.responses import JSONResponse
+    from services.input_sanitizer import InjectionBlockedError
+
+    @main_app.exception_handler(InjectionBlockedError)
+    async def injection_blocked_handler(request, exc):
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
+
     # API routes
     main_app.include_router(api_router)
 
