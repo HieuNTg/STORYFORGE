@@ -135,3 +135,91 @@ def test_unknown_provider_returns_none():
     gen = ImageGenerator(provider="unknown-provider")
     result = gen.generate("test prompt")
     assert result is None
+
+
+# ── HuggingFace provider (mocked) ────────────────────────────────────────────
+
+def _make_hf_config(hf_token="hf_test_token", hf_image_model="test/model"):
+    """Return a mock ConfigManager whose .pipeline has HuggingFace fields set."""
+    mock_cfg = MagicMock()
+    mock_cfg.pipeline.image_provider = "huggingface"
+    mock_cfg.pipeline.image_api_key = ""
+    mock_cfg.pipeline.image_api_url = ""
+    mock_cfg.pipeline.hf_token = hf_token
+    mock_cfg.pipeline.hf_image_model = hf_image_model
+    return mock_cfg
+
+
+def test_generate_huggingface_saves_file(tmp_path):
+    """_generate_huggingface writes raw response content to file on 200 OK."""
+    fake_image_data = b"fake_image_data"
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.content = fake_image_data
+    mock_resp.raise_for_status.return_value = None
+
+    with patch("services.image_generator.ConfigManager", return_value=_make_hf_config()):
+        gen = ImageGenerator(provider="huggingface")
+    gen.output_dir = str(tmp_path)
+
+    with patch("services.image_generator.requests.post", return_value=mock_resp):
+        result = gen.generate("test prompt", filename="test.png")
+
+    assert result is not None
+    assert result.endswith("test.png")
+    assert os.path.exists(result)
+    with open(result, "rb") as f:
+        assert f.read() == fake_image_data
+
+
+def test_generate_huggingface_retries_on_503(tmp_path):
+    """_generate_huggingface retries once when the model returns 503 (loading)."""
+    fake_image_data = b"fake_image_data"
+
+    mock_503 = MagicMock()
+    mock_503.status_code = 503
+    mock_503.content = b""
+
+    mock_200 = MagicMock()
+    mock_200.status_code = 200
+    mock_200.content = fake_image_data
+    mock_200.raise_for_status.return_value = None
+
+    with patch("services.image_generator.ConfigManager", return_value=_make_hf_config()):
+        gen = ImageGenerator(provider="huggingface")
+    gen.output_dir = str(tmp_path)
+
+    with patch("services.image_generator.requests.post", side_effect=[mock_503, mock_200]) as mock_post, \
+         patch("services.image_generator.time.sleep", return_value=None):
+        result = gen.generate("test prompt", filename="test.png")
+
+    assert mock_post.call_count == 2
+    assert result is not None
+    assert os.path.exists(result)
+    with open(result, "rb") as f:
+        assert f.read() == fake_image_data
+
+
+def test_generate_huggingface_returns_none_without_token():
+    """_generate_huggingface returns None immediately when hf_token is empty."""
+    with patch("services.image_generator.ConfigManager", return_value=_make_hf_config(hf_token="")):
+        gen = ImageGenerator(provider="huggingface")
+    gen.hf_token = ""
+
+    with patch("services.image_generator.requests.post") as mock_post:
+        result = gen.generate("test prompt", filename="test.png")
+
+    assert result is None
+    mock_post.assert_not_called()
+
+
+def test_generate_huggingface_returns_none_on_exception():
+    """_generate_huggingface swallows exceptions and returns None."""
+    with patch("services.image_generator.ConfigManager", return_value=_make_hf_config()):
+        gen = ImageGenerator(provider="huggingface")
+
+    with patch("services.image_generator.requests.post", side_effect=ConnectionError("test error")):
+        result = gen.generate("test prompt", filename="test.png")
+
+    assert result is None

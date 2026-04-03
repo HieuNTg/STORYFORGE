@@ -309,32 +309,16 @@ class TestAppModule(unittest.TestCase):
             self.fail(f"app.py import failed: {e}")
 
     def test_load_templates_returns_dict(self):
-        """Verify _load_templates returns a dict."""
-        from ui.gradio_app import _load_templates
-        result = _load_templates()
-        self.assertIsInstance(result, dict)
+        """Verify _load_templates returns a dict. Skipped — Gradio UI archived."""
+        self.skipTest("ui.gradio_app archived — Gradio UI removed")
 
     def test_load_templates_has_content(self):
-        """Verify _load_templates returns non-empty dict."""
-        from ui.gradio_app import _load_templates
-        result = _load_templates()
-        self.assertGreater(len(result), 0, "Templates should not be empty")
+        """Verify _load_templates returns non-empty dict. Skipped — Gradio UI archived."""
+        self.skipTest("ui.gradio_app archived — Gradio UI removed")
 
     def test_create_ui_returns_gradio_blocks(self):
-        """Verify create_ui returns a Gradio Blocks object."""
-        from ui.gradio_app import create_ui
-        with mock.patch("config.ConfigManager") as mock_config:
-            mock_cfg = mock.MagicMock()
-            mock_cfg.llm.backend_type = "api"
-            mock_cfg.llm.api_key = "test"
-            mock_config.return_value = mock_cfg
-
-            try:
-                ui = create_ui()
-                # Check it's a Gradio Blocks-like object
-                self.assertIsNotNone(ui)
-            except Exception as e:
-                self.fail(f"create_ui failed: {e}")
+        """Verify create_ui returns a Gradio Blocks object. Skipped — Gradio UI archived."""
+        self.skipTest("ui.gradio_app archived — Gradio UI removed")
 
 
 class TestFilesCompile(unittest.TestCase):

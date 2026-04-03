@@ -61,14 +61,20 @@ class ConfigUpdate(BaseModel):
     layer3_model: Optional[str] = None
     enable_self_review: Optional[bool] = None
     self_review_threshold: Optional[float] = None
+    image_provider: Optional[str] = None
+    hf_token: Optional[str] = None
+    hf_image_model: Optional[str] = None
+    image_prompt_style: Optional[str] = None
 
 
 @router.get("")
 def get_config():
-    """Return current config (API key masked)."""
+    """Return current config (API key and HF token masked)."""
     cfg = ConfigManager()
     key = cfg.llm.api_key or ""
     masked_key = key[:4] + "***" + key[-4:] if len(key) > 8 else "***"
+    hf_tok = cfg.pipeline.hf_token or ""
+    masked_hf_token = "***" + hf_tok[-4:] if len(hf_tok) > 4 else ("***" if hf_tok else "")
     return {
         "llm": {
             "api_key_masked": masked_key,
@@ -87,6 +93,10 @@ def get_config():
             "language": cfg.pipeline.language,
             "enable_self_review": cfg.pipeline.enable_self_review,
             "self_review_threshold": cfg.pipeline.self_review_threshold,
+            "image_provider": cfg.pipeline.image_provider,
+            "hf_token_masked": masked_hf_token,
+            "hf_image_model": cfg.pipeline.hf_image_model,
+            "image_prompt_style": cfg.pipeline.image_prompt_style,
         },
     }
 
@@ -124,6 +134,14 @@ def save_config(body: ConfigUpdate):
         cfg.pipeline.enable_self_review = body.enable_self_review
     if body.self_review_threshold is not None:
         cfg.pipeline.self_review_threshold = body.self_review_threshold
+    if body.image_provider is not None:
+        cfg.pipeline.image_provider = body.image_provider
+    if body.hf_token is not None:
+        cfg.pipeline.hf_token = body.hf_token
+    if body.hf_image_model is not None:
+        cfg.pipeline.hf_image_model = body.hf_image_model
+    if body.image_prompt_style is not None:
+        cfg.pipeline.image_prompt_style = body.image_prompt_style
     cfg.save()
     # Reset LLM client singleton
     from services.llm_client import LLMClient

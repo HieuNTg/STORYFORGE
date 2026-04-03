@@ -67,9 +67,13 @@ class PipelineConfig:
     pdf_font: str = "NotoSansVN"
 
     # Image generation provider
-    image_provider: str = "none"  # none / dalle / sd-api / seedream
+    image_provider: str = "none"  # none / dalle / sd-api / seedream / huggingface
     image_api_key: str = ""
     image_api_url: str = ""
+
+    # HuggingFace Inference API (free tier)
+    hf_token: str = ""
+    hf_image_model: str = "black-forest-labs/FLUX.1-schnell"
 
     # Seedream (ByteDance) image generation
     seedream_api_key: str = ""

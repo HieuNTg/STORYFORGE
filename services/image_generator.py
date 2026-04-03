@@ -3,6 +3,7 @@
 import os
 import logging
 import base64
+import time
 from typing import Optional
 
 import requests
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 class ImageGenerator:
     """Generate images from prompts using various AI providers."""
 
-    PROVIDERS = ["dalle", "sd-api", "seedream", "replicate", "none"]  # none = prompt-only mode
+    PROVIDERS = ["dalle", "sd-api", "seedream", "replicate", "huggingface", "none"]
 
     def __init__(self, provider: str = "none", api_key: str = "", base_url: str = ""):
         cfg = ConfigManager().pipeline
@@ -26,6 +27,8 @@ class ImageGenerator:
             or cfg.image_api_url
             or os.environ.get("IMAGE_API_URL", "https://api.openai.com/v1")
         )
+        self.hf_token = cfg.hf_token or os.environ.get("HF_TOKEN", "")
+        self.hf_model = cfg.hf_image_model
         self.output_dir = "output/images"
         os.makedirs(self.output_dir, exist_ok=True)
 
@@ -45,6 +48,8 @@ class ImageGenerator:
             return self._generate_sd(prompt, filename)
         if self.provider == "seedream":
             return self._generate_seedream(prompt, filename)
+        if self.provider == "huggingface":
+            return self._generate_huggingface(prompt, filename)
 
         logger.warning("Unknown image provider: %s", self.provider)
         return None
@@ -151,6 +156,38 @@ class ImageGenerator:
             return filepath
         except Exception as e:
             logger.error("SD generation failed: %s", e)
+            return None
+
+    def _generate_huggingface(self, prompt: str, filename: str) -> Optional[str]:
+        """Generate via HuggingFace Inference API (free tier, FLUX.1 Schnell default)."""
+        if not self.hf_token:
+            logger.error("HuggingFace generation skipped: no HF_TOKEN configured.")
+            return None
+        try:
+            headers = {"Authorization": f"Bearer {self.hf_token}"}
+            payload = {"inputs": prompt}
+            api_url = f"https://api-inference.huggingface.co/models/{self.hf_model}"
+
+            max_retries = 2
+            for attempt in range(max_retries + 1):
+                resp = requests.post(api_url, headers=headers, json=payload, timeout=120)
+                if resp.status_code == 503 and attempt < max_retries:
+                    delay = 5 * (3 ** attempt)  # 5s, 15s
+                    logger.warning("HuggingFace model loading, retry %d/%d in %ds...", attempt + 1, max_retries, delay)
+                    time.sleep(delay)
+                    continue
+                break
+
+            resp.raise_for_status()
+
+            filepath = os.path.join(self.output_dir, filename)
+            with open(filepath, "wb") as f:
+                f.write(resp.content)
+
+            logger.info("Generated HuggingFace image: %s (%s)", filepath, self.hf_model)
+            return filepath
+        except Exception as e:
+            logger.error("HuggingFace generation failed: %s", e)
             return None
 
     def _generate_seedream(self, prompt: str, filename: str) -> Optional[str]:

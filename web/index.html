@@ -743,6 +743,63 @@
             </div>
           </div>
 
+          <!-- Image Generation Settings -->
+          <div class="card p-5 space-y-4">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-xl">🎨</span>
+              <h2 class="font-semibold text-base text-slate-700">Image Generation</h2>
+            </div>
+            <p class="text-sm text-slate-500">Configure AI image generation for story illustrations and video panels.</p>
+
+            <!-- Image Provider -->
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">Image Provider</label>
+              <select x-model="form.image_provider"
+                class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all bg-white">
+                <option value="none">None (disabled)</option>
+                <option value="huggingface">HuggingFace Inference</option>
+                <option value="dalle">DALL-E (OpenAI)</option>
+                <option value="sd-api">Stable Diffusion API</option>
+                <option value="seedream">SeeDream</option>
+              </select>
+            </div>
+
+            <!-- HF Token (only when provider = huggingface) -->
+            <div x-show="form.image_provider === 'huggingface'" x-transition class="space-y-3">
+              <div>
+                <label class="block text-xs text-slate-500 mb-1 flex items-center gap-2">
+                  HuggingFace Token
+                  <span x-show="maskedHfToken && maskedHfToken !== '***'" class="text-green-600 font-medium text-xs">Saved</span>
+                </label>
+                <input type="password" x-model="form.hf_token"
+                  class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all"
+                  placeholder="hf_... (leave blank to keep saved token)">
+                <p class="text-xs text-slate-400 mt-1">Get a free token at <a href="https://huggingface.co/settings/tokens" target="_blank" class="text-brand-600 underline">huggingface.co/settings/tokens</a></p>
+              </div>
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">HuggingFace Model</label>
+                <input type="text" x-model="form.hf_image_model"
+                  class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all"
+                  placeholder="black-forest-labs/FLUX.1-schnell">
+              </div>
+            </div>
+
+            <!-- Image Style -->
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">Image Style</label>
+              <select x-model="form.image_prompt_style"
+                class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all bg-white">
+                <option value="cinematic">Cinematic</option>
+                <option value="anime">Anime</option>
+                <option value="realistic">Realistic</option>
+                <option value="watercolor">Watercolor</option>
+                <option value="comic">Comic</option>
+                <option value="fantasy">Fantasy</option>
+                <option value="oil painting">Oil Painting</option>
+              </select>
+            </div>
+          </div>
+
           <!-- Save + Test -->
           <div class="flex flex-wrap items-center gap-3">
             <button @click="save()" :disabled="saving" class="btn-primary px-6 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer disabled:opacity-50">
@@ -1408,8 +1465,11 @@
         form: {
           api_key: '', base_url: 'https://api.openai.com/v1', model: 'gpt-4o-mini',
           temperature: 0.8, max_tokens: 4096, cheap_model: '', cheap_base_url: '',
+          image_provider: 'none', hf_token: '', hf_image_model: 'black-forest-labs/FLUX.1-schnell',
+          image_prompt_style: 'cinematic',
         },
         maskedKey: '',
+        maskedHfToken: '',
         saving: false,
         testing: false,
         message: '',
@@ -1535,6 +1595,12 @@
             this.form.cheap_model = cfg.llm.cheap_model || '';
             this.form.cheap_base_url = cfg.llm.cheap_base_url || '';
             this.maskedKey = cfg.llm.api_key_masked || '';
+            if (cfg.pipeline) {
+              this.form.image_provider = cfg.pipeline.image_provider || 'none';
+              this.form.hf_image_model = cfg.pipeline.hf_image_model || 'black-forest-labs/FLUX.1-schnell';
+              this.form.image_prompt_style = cfg.pipeline.image_prompt_style || 'cinematic';
+              this.maskedHfToken = cfg.pipeline.hf_token_masked || '';
+            }
             // Auto-detect provider from base_url
             const url = (cfg.llm.base_url || '').toLowerCase();
             if (url.includes('openai.com')) this.selectedProvider = 'openai';
@@ -1553,9 +1619,10 @@
           this.saving = true;
           this.message = '';
           try {
-            // Don't send empty api_key — it would overwrite the saved key
+            // Don't send empty secrets — they would overwrite saved values
             const data = { ...this.form };
             if (!data.api_key) delete data.api_key;
+            if (!data.hf_token) delete data.hf_token;
             // Auto-set backend_type based on provider selection
             data.backend_type = 'api';
             await API.put('/config', data);

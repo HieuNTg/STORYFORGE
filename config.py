@@ -70,9 +70,13 @@ class PipelineConfig:
     pdf_font: str = "NotoSansVN"
 
     # Image generation provider
-    image_provider: str = "none"  # none / dalle / sd-api / seedream
+    image_provider: str = "none"  # none / dalle / sd-api / seedream / huggingface
     image_api_key: str = ""
     image_api_url: str = ""
+
+    # HuggingFace Inference API (free tier)
+    hf_token: str = ""
+    hf_image_model: str = "black-forest-labs/FLUX.1-schnell"
 
     # Seedream (ByteDance) image generation
     seedream_api_key: str = ""
@@ -161,6 +165,21 @@ VIDEO_QUALITY_PRESETS = {
 }
 
 PIPELINE_PRESETS = {
+    "quick-demo": {
+        "label": "Demo nhanh — 5 chương, tiết kiệm token",
+        "num_chapters": 5,
+        "words_per_chapter": 1500,
+        "num_simulation_rounds": 2,
+        "num_agents": 5,
+        "drama_intensity": "trung bình",
+        "enable_self_review": False,
+        "enable_agent_debate": False,
+        "enable_smart_revision": False,
+        "enable_quality_gate": True,
+        "quality_gate_threshold": 2.5,
+        "quality_gate_max_retries": 1,
+        "context_window_chapters": 3,
+    },
     "beginner": {
         "label": "Người mới — Cơ bản, dễ dùng",
         "enable_self_review": False,
@@ -321,6 +340,8 @@ class ConfigManager:
             "IMAGE_API_URL": ("pipeline", "image_api_url"),
             "SEEDREAM_API_KEY": ("pipeline", "seedream_api_key"),
             "SEEDREAM_API_URL": ("pipeline", "seedream_api_url"),
+            "HF_TOKEN": ("pipeline", "hf_token"),
+            "HF_IMAGE_MODEL": ("pipeline", "hf_image_model"),
             "STORYFORGE_TTS_PROVIDER": ("pipeline", "tts_provider"),
             "KLING_TTS_API_KEY": ("pipeline", "kling_tts_api_key"),
             "KLING_TTS_API_URL": ("pipeline", "kling_tts_api_url"),
@@ -404,6 +425,8 @@ class ConfigManager:
                 "image_api_url": self.pipeline.image_api_url,
                 # seedream_api_key excluded — use SEEDREAM_API_KEY env var
                 "seedream_api_url": self.pipeline.seedream_api_url,
+                # hf_token excluded — use HF_TOKEN env var
+                "hf_image_model": self.pipeline.hf_image_model,
                 "arc_size": self.pipeline.arc_size,
                 "story_bible_enabled": self.pipeline.story_bible_enabled,
                 "enable_self_review": self.pipeline.enable_self_review,
