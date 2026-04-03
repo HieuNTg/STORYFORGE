@@ -101,24 +101,15 @@ class GenerationMixin:
         ]
 
         if model_tier == "cheap" and config.llm.cheap_model:
-            client, effective_model = self._get_cheap_client()
+            provider, effective_model = self._get_cheap_client()
         else:
-            client = self._get_client()
+            provider = self._get_client()
             effective_model = model or self._current_model or config.llm.model
 
-        kwargs = {
-            "model": effective_model,
-            "messages": messages,
-            "temperature": effective_temp,
-            "max_tokens": max_tokens or config.llm.max_tokens,
-            "stream": True,
-        }
+        eff_max_tokens = max_tokens or config.llm.max_tokens
 
         def _api_gen():
-            response = client.chat.completions.create(**kwargs)
-            for chunk in response:
-                if chunk.choices and chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+            yield from provider.stream(messages, effective_model, effective_temp, eff_max_tokens)
 
         yield from self._stream_with_chunk_timeout(
             self._stream_with_retry(_api_gen, "API stream"), chunk_timeout=60
@@ -127,12 +118,26 @@ class GenerationMixin:
     def check_connection(self) -> tuple[bool, str]:
         """Check API backend connection."""
         try:
-            client = self._get_client()
-            client.chat.completions.create(
-                model=self._current_model or _config_manager()().llm.model,
-                messages=[{"role": "user", "content": "test"}],
-                max_tokens=5,
-            )
+            provider = self._get_client()
+            model = self._current_model or _config_manager()().llm.model
+            messages = [{"role": "user", "content": "test"}]
+            # Use the LLMProvider protocol (.complete) when available.
+            # Fall back to raw OpenAI SDK (.chat.completions.create) when
+            # _get_client() was monkey-patched to return a raw client (tests).
+            _is_provider = getattr(type(provider), "_is_llm_provider", False)
+            if _is_provider:
+                provider.complete(
+                    messages=messages,
+                    model=model,
+                    temperature=0.0,
+                    max_tokens=5,
+                )
+            else:
+                provider.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    max_tokens=5,
+                )
             return True, "Kết nối thành công"
         except Exception as e:
             return False, f"Lỗi kết nối: {str(e)}"

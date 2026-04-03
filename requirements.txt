@@ -34,3 +34,7 @@ pytest-asyncio==0.24.0
 redis==5.2.1
 # ── Security ──
 nh3==0.2.18
+
+# ── Optional LLM provider SDKs (install for native support) ──
+# anthropic>=0.39.0
+# google-genai>=1.0.0
