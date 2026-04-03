@@ -1,6 +1,11 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
 .venv/
 venv/
 
@@ -9,7 +14,7 @@ venv/
 .gitignore
 .gitmodules
 
-# Dev tools
+# Dev tools & CI
 .claude/
 .github/
 plans/
@@ -17,19 +22,28 @@ docs/
 tests/
 scripts/
 vendor/
+_archive/
 
-# Docs (keep requirements.txt)
+# Node (frontend is built in Docker stage)
+node_modules/
+
+# Docs & reports
 *.md
 !requirements.txt
+repomix-output.xml
 
-# Runtime data
+# Runtime data & caches
 output/*
 data/cache.db
 data/auth_profiles.json
 data/.auth_key
 .coverage
+.coveragerc
+coverage.xml
 htmlcov/
 coverage_html/
+.pytest_cache/
+.ruff_cache/
 
 # Env & logs
 .env*
@@ -37,20 +51,19 @@ coverage_html/
 *.log
 storyforge.log
 
-# IDE artifacts
+# IDE
 .vscode/
 .idea/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-.ruff_cache/
 
-# OS artifacts
+# OS
 .DS_Store
 Thumbs.db
 
-# Python distribution
-*.egg-info/
-dist/
-build/
+# Media & screenshots (not needed in production)
+screenshots/
+landing/
+assets/screenshots/
+
+# Large generated files
+*.xml
+!alembic.ini

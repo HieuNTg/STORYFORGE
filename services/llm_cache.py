@@ -1,26 +1,36 @@
-"""SQLite cache cho LLM responses."""
+"""LLM response cache — dual-backend: Redis (production) or SQLite (local)."""
 
 import hashlib
 import json
-import sqlite3
-import time
 import os
 import logging
 import threading
+import time
 import warnings
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Graceful redis import
+# ---------------------------------------------------------------------------
+try:
+    import redis as _redis_lib
+    _REDIS_AVAILABLE = True
+except ImportError:
+    _redis_lib = None  # type: ignore[assignment]
+    _REDIS_AVAILABLE = False
+
+
+# ---------------------------------------------------------------------------
+# Deployment safety check
+# ---------------------------------------------------------------------------
 
 def _check_deployment_safety() -> None:
-    """Emit warnings when the cache configuration is unsafe for the deployment context.
+    """Emit warnings/errors when cache config is unsafe for the deployment context.
 
-    Called once at module import time so operators see the warnings in startup logs
-    before any request is served.
-
-    Checks performed:
-    1. NUM_WORKERS > 1 with SQLite backend → CRITICAL (data corruption risk).
-    2. STORYFORGE_ENV=production with no REDIS_URL → WARNING (Redis recommended).
+    Checks:
+    1. production + NUM_WORKERS > 1 + no REDIS_URL → RuntimeError (data corruption risk).
+    2. production + no REDIS_URL (any workers) → WARNING.
     """
     num_workers_raw = os.environ.get("NUM_WORKERS", "").strip()
     try:
@@ -31,24 +41,31 @@ def _check_deployment_safety() -> None:
     redis_url = os.environ.get("REDIS_URL", "").strip()
     storyforge_env = os.environ.get("STORYFORGE_ENV", "").strip().lower()
 
-    # Check 1: multi-process + SQLite = corruption / cost explosion risk
-    if num_workers > 1:
+    # Check 1: production + multi-process + SQLite = hard failure
+    if storyforge_env == "production" and num_workers > 1 and not redis_url:
         msg = (
-            f"STORYFORGE CACHE SAFETY: NUM_WORKERS={num_workers} but the LLM cache "
-            "backend is SQLite. SQLite does NOT support safe concurrent multi-process "
-            "writes — you will experience database lock errors, duplicate LLM calls, "
-            "and potential data corruption. Set REDIS_URL to switch to Redis, or "
+            f"STORYFORGE CACHE SAFETY: STORYFORGE_ENV=production with NUM_WORKERS={num_workers} "
+            "but no REDIS_URL. SQLite does NOT support safe concurrent multi-process writes — "
+            "set REDIS_URL to switch to Redis."
+        )
+        logger.critical(msg)
+        raise RuntimeError(msg)
+
+    # Check 2: multi-process + SQLite (non-production) = critical warning
+    if num_workers > 1 and not redis_url:
+        msg = (
+            f"STORYFORGE CACHE SAFETY: NUM_WORKERS={num_workers} but cache backend is SQLite. "
+            "SQLite does NOT support safe concurrent multi-process writes — set REDIS_URL or "
             "run with NUM_WORKERS=1."
         )
         logger.critical(msg)
         warnings.warn(msg, RuntimeWarning, stacklevel=2)
 
-    # Check 2: production environment without Redis
+    # Check 3: production without Redis (single worker is still risky across restarts)
     if storyforge_env == "production" and not redis_url:
         msg = (
             "STORYFORGE CACHE: Running in production (STORYFORGE_ENV=production) "
-            "without a Redis cache backend. Set REDIS_URL to a Redis instance for "
-            "reliable shared caching across workers and restarts."
+            "without a Redis cache backend. Set REDIS_URL for reliable shared caching."
         )
         logger.warning(msg)
 
@@ -56,44 +73,38 @@ def _check_deployment_safety() -> None:
 _check_deployment_safety()
 
 
+# ---------------------------------------------------------------------------
+# SQLite backend
+# ---------------------------------------------------------------------------
+
 class LLMCache:
-    """Cache LLM responses trong SQLite. Thread-safe via thread-local connections + WAL mode.
+    """Cache LLM responses in SQLite. Thread-safe via thread-local connections + WAL mode.
 
-    CONCURRENCY LIMITATION (multi-user / multi-process):
-    WAL (Write-Ahead Logging) mode allows concurrent reads alongside one writer,
-    but SQLite still serializes all writes. In a single-process, multi-threaded
-    setup this is acceptable. However, in a multi-process deployment (e.g. multiple
-    uvicorn workers or gunicorn workers), each process maintains its own WAL reader
-    state and write lock contention increases significantly. SQLite is NOT suitable
-    as a shared cache across multiple processes at high concurrency.
-
-    For multi-user production deployments, replace this cache with Redis or another
-    shared in-memory store that supports true concurrent multi-process access.
+    Suitable for local/single-process use only. For multi-process production
+    deployments use RedisCache (or create_cache() factory which auto-selects).
     """
 
-    def __init__(self, db_path="data/llm_cache.db", ttl_days=7):
-        # Issue #4: validate TTL
+    def __init__(self, db_path: str = "data/llm_cache.db", ttl_days: int = 7):
+        import sqlite3
+        self._sqlite3 = sqlite3
         if ttl_days < 1:
             logger.warning(f"Cache TTL {ttl_days} days invalid, defaulting to 7")
             ttl_days = 7
         self._local = threading.local()
         self.db_path = db_path
         self.ttl = ttl_days * 86400
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
         self._init_db()
         self._hits = 0
         self._misses = 0
-        # Issue #7: lock for counter increments
         self._counter_lock = threading.Lock()
-        # Issue #6: call counter for periodic eviction
         self._call_count = 0
 
-    def _get_conn(self) -> sqlite3.Connection:
-        """Issue #5: thread-local connection with WAL mode."""
-        if not hasattr(self._local, 'conn') or self._local.conn is None:
-            self._local.conn = sqlite3.connect(self.db_path, timeout=5.0)
-            self._local.conn.execute('PRAGMA journal_mode=WAL')
-            self._local.conn.execute('PRAGMA synchronous=NORMAL')
+    def _get_conn(self):
+        if not hasattr(self._local, "conn") or self._local.conn is None:
+            self._local.conn = self._sqlite3.connect(self.db_path, timeout=5.0)
+            self._local.conn.execute("PRAGMA journal_mode=WAL")
+            self._local.conn.execute("PRAGMA synchronous=NORMAL")
         return self._local.conn
 
     def _init_db(self):
@@ -111,8 +122,7 @@ class LLMCache:
         raw = json.dumps(params, sort_keys=True, ensure_ascii=False)
         return hashlib.sha256(raw.encode()).hexdigest()
 
-    def get(self, **params) -> str | None:
-        # Issue #6: periodic eviction every 100 calls
+    def get(self, **params) -> "str | None":
         with self._counter_lock:
             self._call_count += 1
             should_evict = self._call_count % 100 == 0
@@ -127,20 +137,17 @@ class LLMCache:
         row = conn.execute(
             "SELECT response, created_at FROM cache WHERE key=?", (key,)
         ).fetchone()
-
         if row and (time.time() - row[1]) < self.ttl:
-            logger.debug("Cache hit")
-            # Issue #7: thread-safe counter increment
+            logger.debug("Cache hit (sqlite)")
             with self._counter_lock:
                 self._hits += 1
             return row[0]
-
-        # Issue #7: thread-safe counter increment
         with self._counter_lock:
             self._misses += 1
         return None
 
-    def put(self, response: str, **params):
+    def put(self, response: str, **params) -> None:
+        import sqlite3
         key = self._make_key(**params)
         conn = self._get_conn()
         try:
@@ -150,13 +157,11 @@ class LLMCache:
             )
             conn.commit()
         except sqlite3.OperationalError as e:
-            # Handle concurrent write contention (database locked)
             logger.warning(f"Cache put failed (concurrent write): {e}")
         except sqlite3.Error as e:
             logger.warning(f"Cache put failed: {e}")
 
     def evict_expired(self) -> int:
-        """Remove expired entries. Returns number of entries removed."""
         cutoff = time.time() - self.ttl
         conn = self._get_conn()
         cursor = conn.execute("DELETE FROM cache WHERE created_at < ?", (cutoff,))
@@ -167,14 +172,16 @@ class LLMCache:
         return removed
 
     def stats(self) -> dict:
-        """Return cache statistics including hit rate."""
         conn = self._get_conn()
         total = conn.execute("SELECT COUNT(*) FROM cache").fetchone()[0]
         cutoff = time.time() - self.ttl
-        valid = conn.execute("SELECT COUNT(*) FROM cache WHERE created_at >= ?", (cutoff,)).fetchone()[0]
-        total_requests = self._hits + self._misses
-        hit_rate = (self._hits / total_requests * 100) if total_requests > 0 else 0.0
+        valid = conn.execute(
+            "SELECT COUNT(*) FROM cache WHERE created_at >= ?", (cutoff,)
+        ).fetchone()[0]
+        total_req = self._hits + self._misses
+        hit_rate = (self._hits / total_req * 100) if total_req > 0 else 0.0
         return {
+            "backend": "sqlite",
             "total_entries": total,
             "valid_entries": valid,
             "expired": total - valid,
@@ -183,9 +190,144 @@ class LLMCache:
             "hit_rate_pct": round(hit_rate, 1),
         }
 
-    def clear(self):
-        """Remove all cache entries."""
+    def clear(self) -> None:
         conn = self._get_conn()
         conn.execute("DELETE FROM cache")
         conn.commit()
         logger.info("Cache cleared")
+
+
+# ---------------------------------------------------------------------------
+# Redis backend
+# ---------------------------------------------------------------------------
+
+class RedisCache:
+    """Cache LLM responses in Redis. Same interface as LLMCache.
+
+    Falls back gracefully on connection errors — get() returns None,
+    put() silently skips.  Requires redis>=4.0 (redis-py).
+    """
+
+    _KEY_PREFIX = "llm_cache:"
+
+    def __init__(self, redis_url: str, ttl_days: int = 7):
+        if not _REDIS_AVAILABLE:
+            raise RuntimeError(
+                "redis package is not installed. Run: pip install redis"
+            )
+        if ttl_days < 1:
+            logger.warning(f"Cache TTL {ttl_days} days invalid, defaulting to 7")
+            ttl_days = 7
+        self.ttl_seconds = ttl_days * 86400
+        self._hits = 0
+        self._misses = 0
+        self._counter_lock = threading.Lock()
+        try:
+            self._client = _redis_lib.from_url(redis_url, decode_responses=True)
+            # Ping to verify connectivity at init time
+            self._client.ping()
+            logger.info("RedisCache connected: %s", redis_url.split("@")[-1])
+        except Exception as e:
+            logger.warning("RedisCache init failed (will retry per-call): %s", e)
+            self._client = _redis_lib.from_url(redis_url, decode_responses=True)
+
+    def _make_key(self, **params) -> str:
+        raw = json.dumps(params, sort_keys=True, ensure_ascii=False)
+        h = hashlib.sha256(raw.encode()).hexdigest()
+        return f"{self._KEY_PREFIX}{h}"
+
+    def get(self, **params) -> "str | None":
+        try:
+            val = self._client.get(self._make_key(**params))
+            if val is not None:
+                logger.debug("Cache hit (redis)")
+                with self._counter_lock:
+                    self._hits += 1
+                return val
+            with self._counter_lock:
+                self._misses += 1
+            return None
+        except Exception as e:
+            logger.warning("RedisCache get error: %s", e)
+            with self._counter_lock:
+                self._misses += 1
+            return None
+
+    def put(self, response: str, **params) -> None:
+        try:
+            self._client.setex(self._make_key(**params), self.ttl_seconds, response)
+        except Exception as e:
+            logger.warning("RedisCache put error: %s", e)
+
+    def evict_expired(self) -> int:
+        # Redis handles TTL-based eviction natively; nothing to do here.
+        return 0
+
+    def stats(self) -> dict:
+        total_req = self._hits + self._misses
+        hit_rate = (self._hits / total_req * 100) if total_req > 0 else 0.0
+        try:
+            info = self._client.info("memory")
+            used_mb = round(info.get("used_memory", 0) / 1024 / 1024, 2)
+        except Exception:
+            used_mb = None
+        return {
+            "backend": "redis",
+            "hits": self._hits,
+            "misses": self._misses,
+            "hit_rate_pct": round(hit_rate, 1),
+            "redis_used_memory_mb": used_mb,
+        }
+
+    def clear(self) -> None:
+        try:
+            keys = self._client.keys(f"{self._KEY_PREFIX}*")
+            if keys:
+                self._client.delete(*keys)
+            logger.info("RedisCache cleared %d keys", len(keys))
+        except Exception as e:
+            logger.warning("RedisCache clear error: %s", e)
+
+
+# ---------------------------------------------------------------------------
+# Factory
+# ---------------------------------------------------------------------------
+
+def create_cache(
+    redis_url: str = "",
+    db_path: str = "data/llm_cache.db",
+    ttl_days: int = 7,
+) -> "LLMCache | RedisCache":
+    """Return a RedisCache if redis_url is set, otherwise an LLMCache (SQLite).
+
+    Falls back to SQLite if redis package is unavailable or connection fails.
+    """
+    url = redis_url or os.environ.get("REDIS_URL", "").strip()
+    if url:
+        if not _REDIS_AVAILABLE:
+            logger.warning(
+                "REDIS_URL is set but redis package is not installed. Falling back to SQLite."
+            )
+        else:
+            try:
+                return RedisCache(redis_url=url, ttl_days=ttl_days)
+            except Exception as e:
+                logger.warning("RedisCache creation failed (%s). Falling back to SQLite.", e)
+    return LLMCache(db_path=db_path, ttl_days=ttl_days)
+
+
+# ---------------------------------------------------------------------------
+# Module-level singleton (used by existing callers)
+# ---------------------------------------------------------------------------
+_cache_instance: "LLMCache | RedisCache | None" = None
+_cache_lock = threading.Lock()
+
+
+def get_cache() -> "LLMCache | RedisCache":
+    """Return the module-level singleton cache, creating it on first call."""
+    global _cache_instance
+    if _cache_instance is None:
+        with _cache_lock:
+            if _cache_instance is None:
+                _cache_instance = create_cache()
+    return _cache_instance
