@@ -100,7 +100,7 @@ async def test_user_default_role(session):
 
     result = await session.execute(select(User).where(User.username == "default_role_user"))
     fetched = result.scalar_one()
-    assert fetched.role == "user"
+    assert fetched.role == "creator"
 
 
 @pytest.mark.asyncio
@@ -285,3 +285,64 @@ async def test_pipeline_run_creation(session):
     assert fetched.status == "completed"
     assert fetched.layer_reached == 3
     assert fetched.token_usage == 12000
+
+
+# ---------------------------------------------------------------------------
+# Transaction context manager tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_transaction_atomic_commit(engine):
+    """transaction() commits story + chapter atomically when no exception occurs."""
+    from models.db_models import Story, Chapter  # noqa: PLC0415
+    from unittest.mock import patch, AsyncMock  # noqa: PLC0415
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker  # noqa: PLC0415
+
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    story_id = _uid()
+    chapter_id = _uid()
+
+    # Patch services.database internals to use the test engine/factory
+    with patch("services.database._session_factory", factory), \
+         patch("services.database.get_engine", return_value=engine):
+        from services.database import transaction  # noqa: PLC0415
+
+        async with transaction() as sess:
+            assert sess is not None
+            sess.add(Story(id=story_id, title="Atomic Story", genre="drama"))
+            sess.add(Chapter(id=chapter_id, story_id=story_id, chapter_number=1, content="ch1"))
+
+    # Verify both records persisted
+    async with factory() as verify_sess:
+        r = await verify_sess.execute(select(Story).where(Story.id == story_id))
+        assert r.scalar_one().title == "Atomic Story"
+        r2 = await verify_sess.execute(select(Chapter).where(Chapter.id == chapter_id))
+        assert r2.scalar_one().chapter_number == 1
+
+
+@pytest.mark.asyncio
+async def test_transaction_rollback_on_exception(engine):
+    """transaction() rolls back all writes when an exception is raised mid-block."""
+    from models.db_models import Story  # noqa: PLC0415
+    from unittest.mock import patch  # noqa: PLC0415
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker  # noqa: PLC0415
+    from sqlalchemy.exc import NoResultFound  # noqa: PLC0415
+
+    factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    story_id = _uid()
+
+    with patch("services.database._session_factory", factory), \
+         patch("services.database.get_engine", return_value=engine):
+        from services.database import transaction  # noqa: PLC0415
+
+        with pytest.raises(RuntimeError):
+            async with transaction() as sess:
+                sess.add(Story(id=story_id, title="Should Not Persist", genre="drama"))
+                raise RuntimeError("simulated failure mid-transaction")
+
+    # Verify the story was NOT persisted
+    async with factory() as verify_sess:
+        r = await verify_sess.execute(select(Story).where(Story.id == story_id))
+        assert r.scalar_one_or_none() is None

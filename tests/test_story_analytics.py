@@ -69,7 +69,7 @@ class TestAnalyzeChapter:
 
     def test_chapter_number_in_result(self):
         from services.story_analytics import StoryAnalytics
-        ch = make_chapter(7, "Noi dung chuong 7.")
+        ch = make_chapter(7, "Nội dung chương 7.")
         stats = StoryAnalytics.analyze_chapter(ch)
         assert stats["chapter_number"] == 7
 

@@ -147,6 +147,39 @@ async def get_session() -> AsyncIterator[Optional["AsyncSession"]]:  # noqa: F82
             raise
 
 
+@asynccontextmanager
+async def transaction() -> AsyncIterator[Optional["AsyncSession"]]:  # noqa: F821
+    """Async context manager yielding an AsyncSession with an explicit transaction.
+
+    Guarantees atomicity for multi-step write operations: all statements either
+    commit together or roll back entirely on any exception, preventing orphaned
+    records from partial writes (e.g. story creation followed by chapter inserts).
+
+    Yields None if DATABASE_URL is not configured or the engine is unavailable,
+    so callers can gracefully degrade without extra guards.
+
+    Usage::
+
+        async with transaction() as session:
+            if session is None:
+                return  # DB not available
+            session.add(story)
+            session.add(chapter)   # both commit or both roll back
+    """
+    engine = get_engine()
+    if engine is None or _session_factory is None:
+        yield None
+        return
+
+    async with _session_factory() as session:
+        async with session.begin():
+            try:
+                yield session
+            except Exception:
+                # session.begin() rolls back automatically on __aexit__ with exc
+                raise
+
+
 async def init_db() -> bool:
     """Create all tables defined in db_models if they don't exist.
 

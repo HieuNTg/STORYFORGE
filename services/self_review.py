@@ -21,7 +21,7 @@ def get_genre_threshold(genre: str, fallback: float = DEFAULT_THRESHOLD) -> floa
     except Exception:
         return fallback
 
-CRITIC_PROMPT = """Ban la nha phe binh van hoc nghiem khac. Danh gia chuong truyen sau:
+CRITIC_PROMPT = """Bạn là nhà phê bình văn học nghiêm khắc. Đánh giá chương truyện sau:
 
 Chuong {chapter_number}: {title}
 The loai: {genre}
@@ -31,7 +31,7 @@ The loai: {genre}
 
 Suy nghi tung buoc (chain-of-thought):
 1. Tinh lien ket cua cot truyen co logic khong?
-2. Nhan vat hanh dong co nhat quan khong?
+2. Nhân vật hành động có nhất quán không?
 3. Nhip do co phu hop khong? Co doan nao nham khong?
 4. Van phong co hap dan khong?
 
@@ -46,8 +46,8 @@ Tra ve JSON:
   "strengths": ["<diem manh 1>"]
 }}"""
 
-REVISE_PROMPT = """Viet lai chuong truyen sau, chi sua cac diem yeu da chi ra.
-GIU NGUYEN cot truyen, nhan vat, va cac diem manh.
+REVISE_PROMPT = """Viết lại chương truyện sau, chỉ sửa các điểm yếu đã chỉ ra.
+GIỮ NGUYÊN cốt truyện, nhân vật, và các điểm mạnh.
 
 Diem yeu can sua:
 {weaknesses}

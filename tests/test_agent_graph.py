@@ -121,15 +121,15 @@ class TestTopologicalSort:
         dag.add_node("Kiem Soat Vien",   depends_on=["Chuyen Gia Nhan Vat"])  # tier 1
         dag.add_node("Chuyen Gia Doi Thoai", depends_on=["Chuyen Gia Nhan Vat"])  # tier 1
         dag.add_node("Kiem Tra Van Phong",   depends_on=["Chuyen Gia Nhan Vat"])  # tier 1
-        dag.add_node("Phan Tich Nhip Truyen", depends_on=["Chuyen Gia Nhan Vat"])  # tier 1
-        dag.add_node("Nha Phe Binh Kich Tinh", depends_on=["Kiem Soat Vien", "Chuyen Gia Doi Thoai", "Kiem Tra Van Phong"])  # tier 2
-        dag.add_node("Can Bang Doi Thoai", depends_on=["Chuyen Gia Doi Thoai"])  # tier 2
-        dag.add_node("Bien Tap Truong",    depends_on=["Nha Phe Binh Kich Tinh", "Can Bang Doi Thoai", "Phan Tich Nhip Truyen"])  # tier 3
+        dag.add_node("Phân Tích Nhịp Truyện", depends_on=["Chuyen Gia Nhan Vat"])  # tier 1
+        dag.add_node("Nhà Phê Bình Kịch Tính", depends_on=["Kiem Soat Vien", "Chuyen Gia Doi Thoai", "Kiem Tra Van Phong"])  # tier 2
+        dag.add_node("Cân Bằng Đối Thoại", depends_on=["Chuyen Gia Doi Thoai"])  # tier 2
+        dag.add_node("Biên Tập Trưởng",    depends_on=["Nhà Phê Bình Kịch Tính", "Cân Bằng Đối Thoại", "Phân Tích Nhịp Truyện"])  # tier 3
 
         tiers = dag._topological_sort()
         assert len(tiers) == 4
         assert tiers[0] == ["Chuyen Gia Nhan Vat"]
-        assert "Bien Tap Truong" in tiers[3]
+        assert "Biên Tập Trưởng" in tiers[3]
 
     def test_no_deps_all_agents_in_single_tier(self):
         """When no agent has deps, all run flat-parallel in one tier."""

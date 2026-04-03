@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import threading
 import time
 from typing import Any
 
@@ -32,7 +33,10 @@ router = APIRouter(tags=["health"])
 # Helpers
 # ---------------------------------------------------------------------------
 
+# Lock required: concurrent deep-health requests may race on lazy engine init,
+# causing duplicate create_engine() calls or partial reads of _health_engine.
 _health_engine = None
+_health_engine_lock = threading.Lock()
 
 
 def _check_database() -> dict[str, Any]:
@@ -41,12 +45,14 @@ def _check_database() -> dict[str, Any]:
     try:
         from sqlalchemy import create_engine, text
 
-        if _health_engine is None:
-            db_url = os.environ.get(
-                "DATABASE_URL", "sqlite:///data/storyforge.db"
-            )
-            _health_engine = create_engine(db_url, pool_pre_ping=True, connect_args={"check_same_thread": False} if "sqlite" in db_url else {})
-        with _health_engine.connect() as conn:
+        with _health_engine_lock:
+            if _health_engine is None:
+                db_url = os.environ.get(
+                    "DATABASE_URL", "sqlite:///data/storyforge.db"
+                )
+                _health_engine = create_engine(db_url, pool_pre_ping=True, connect_args={"check_same_thread": False} if "sqlite" in db_url else {})
+            engine = _health_engine
+        with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         return {"status": "ok"}
     except Exception as exc:

@@ -5,11 +5,11 @@ from pipeline.agents import agent_prompts
 
 
 class EditorInChiefAgent(BaseAgent):
-    name = "Bien Tap Truong"
+    name = "Biên Tập Trưởng"
     role = "editor_in_chief"
     goal = "Đánh giá chất lượng tổng thể và tổng hợp phản hồi từ các chuyên gia"
     layers = [1, 2, 3]
-    depends_on: list[str] = ["Nha Phe Binh Kich Tinh", "Can Bang Doi Thoai", "Phan Tich Nhip Truyen"]
+    depends_on: list[str] = ["Nhà Phê Bình Kịch Tính", "Cân Bằng Đối Thoại", "Phân Tích Nhịp Truyện"]
 
     def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
         # Tổng hợp reviews từ các agent khác cùng layer (trừ chính mình)

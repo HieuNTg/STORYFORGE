@@ -230,7 +230,7 @@ class TestCharacterSpecialist:
         agent = self._make_agent()
         chars_info, chapters_content = agent._extract_data(sample_pipeline_output, layer=1)
         assert "Ly Huyen" in chars_info
-        assert chars_info != "Khong co thong tin nhan vat."
+        assert chars_info != "Không có thông tin nhân vật."
 
     def test_extract_data_no_story_draft_returns_defaults(self):
         agent = self._make_agent()

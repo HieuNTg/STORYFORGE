@@ -16,8 +16,11 @@ from pipeline.orchestrator import PipelineOrchestrator
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
-# Shared orchestrator instance per session (simple global for now)
+# Shared orchestrator instance per session.
+# Lock required: concurrent SSE requests (different sessions) may read/write
+# this dict simultaneously from separate threads/event-loop tasks.
 _orchestrators: dict[str, PipelineOrchestrator] = {}
+_orchestrators_lock = threading.Lock()
 
 i18n = I18n()
 
@@ -182,7 +185,8 @@ async def run_pipeline(request: Request, body: PipelineRequest):
     async def event_generator():
         orch = PipelineOrchestrator()
         session_id = str(id(orch))
-        _orchestrators[session_id] = orch
+        with _orchestrators_lock:
+            _orchestrators[session_id] = orch
         disconnected = threading.Event()
 
         logs = []
@@ -282,7 +286,8 @@ async def run_pipeline(request: Request, body: PipelineRequest):
             logger.error(f"SSE stream error (session={session_id}): {e}")
             disconnected.set()
         finally:
-            _orchestrators.pop(session_id, None)
+            with _orchestrators_lock:
+                _orchestrators.pop(session_id, None)
             logger.debug(f"SSE /run stream closed (session={session_id})")
 
     return StreamingResponse(
@@ -320,7 +325,8 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
     async def event_generator():
         orch = PipelineOrchestrator()
         session_id = str(id(orch))
-        _orchestrators[session_id] = orch
+        with _orchestrators_lock:
+            _orchestrators[session_id] = orch
         disconnected = threading.Event()
 
         logs = []
@@ -388,7 +394,8 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
             logger.error(f"SSE stream error (session={session_id}): {e}")
             disconnected.set()
         finally:
-            _orchestrators.pop(session_id, None)
+            with _orchestrators_lock:
+                _orchestrators.pop(session_id, None)
             logger.debug(f"SSE /resume stream closed (session={session_id})")
 
     return StreamingResponse(

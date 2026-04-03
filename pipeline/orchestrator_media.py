@@ -32,7 +32,7 @@ class MediaProducer:
         # Step 1: Character reference images (Seedream)
         seedream = SeedreamClient(api_key=cfg.seedream_api_key, base_url=cfg.seedream_api_url)
         if seedream.is_configured() and draft.characters:
-            _log("[MEDIA] Tao anh tham chieu nhan vat...")
+            _log("[MEDIA] Tạo ảnh tham chiếu nhân vật...")
             for char in draft.characters:
                 desc = char.appearance or char.personality or char.name
                 ref_path = seedream.generate_character_reference(char.name, desc)
@@ -76,7 +76,7 @@ class MediaProducer:
 
         if (use_consistency or seedream.is_configured()) and video_script and video_script.panels:
             panels = video_script.panels
-            _log(f"[MEDIA] Tao {len(panels)} anh canh (song song)...")
+            _log(f"[MEDIA] Tạo {len(panels)} ảnh cảnh (song song)...")
 
             # Prepare panel data before parallel execution
             prepared = []
@@ -132,7 +132,7 @@ class MediaProducer:
 
         # Step 3: TTS audio — multi-voice when characters available
         if enhanced and enhanced.chapters:
-            _log("[MEDIA] Tao audio giong doc...")
+            _log("[MEDIA] Tạo audio giọng đọc...")
             tts = TTSAudioGenerator(voice="female")
             audio_dir = "output/audiobook"
 
@@ -170,11 +170,11 @@ class MediaProducer:
                     _distribute_panel_durations(video_script.panels, chapter_durations)
 
             except Exception as e:
-                _log(f"[MEDIA] TTS loi: {e}")
+                _log(f"[MEDIA] TTS lỗi: {e}")
 
         # Step 4: Video composition
         if result["scene_images"] and video_script:
-            _log("[MEDIA] Dang ghep video...")
+            _log("[MEDIA] Đang ghép video...")
             composer = VideoComposer()
             audio_path = ""
             if result["audio_paths"]:
@@ -186,7 +186,7 @@ class MediaProducer:
                 result["video_path"] = video_path
                 _log(f"[MEDIA] + Video: {video_path}")
             else:
-                _log("[MEDIA] Khong tao duoc video")
+                _log("[MEDIA] Không tạo được video")
 
         return result
 

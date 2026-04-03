@@ -7,10 +7,10 @@ from models.schemas import Chapter, StoryDraft, EnhancedStory
 logger = logging.getLogger(__name__)
 
 # Prompt tạo kịch bản voice-over
-_TTS_PROMPT = """Chuyen chuong truyen sau thanh kich ban doc voice-over.
+_TTS_PROMPT = """Chuyển chương truyện sau thành kịch bản đọc voice-over.
 Format:
 [Nguoi ke] (giong binh thuong) "loi ke"
-[Ten nhan vat] (cam xuc) "loi thoai"
+[Tên nhân vật] (cam xuc) "loi thoai"
 [PAUSE 2s]
 
 NOI DUNG CHUONG {chapter_number} - {title}:

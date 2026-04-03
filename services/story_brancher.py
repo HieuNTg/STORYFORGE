@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 BRANCHES_DIR = "data/branches"
 
-BRANCH_POINT_PROMPT = """Dua tren noi dung chuong sau, tao 2-3 lua chon
+BRANCH_POINT_PROMPT = """Dựa trên nội dung chương sau, tạo 2-3 lựa chọn
 cho nguoi doc de tiep tuc cau truyen theo huong khac nhau.
 
 Chuong {chapter_number}: {title}
@@ -30,7 +30,7 @@ Tra ve JSON:
   ]
 }}"""
 
-BRANCH_CONTENT_PROMPT = """Viet tiep chuong truyen theo huong da chon.
+BRANCH_CONTENT_PROMPT = """Viết tiếp chương truyện theo hướng đã chọn.
 
 Boi canh truoc do:
 {previous_content_excerpt}

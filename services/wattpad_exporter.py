@@ -49,7 +49,7 @@ class PlatformExporter:
             "language": "vi",
             "chapters": len(story.chapters),
             "total_words": sum(cd["word_count"] for cd in chapter_details),
-            "platform_notes": "Copy-paste moi chuong vao Wattpad editor",
+            "platform_notes": "Copy-paste mỗi chương vào Wattpad editor",
             "chapter_details": [
                 {k: v for k, v in cd.items() if k != "content"}
                 for cd in chapter_details

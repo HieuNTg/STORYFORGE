@@ -7,8 +7,53 @@ import time
 import os
 import logging
 import threading
+import warnings
 
 logger = logging.getLogger(__name__)
+
+
+def _check_deployment_safety() -> None:
+    """Emit warnings when the cache configuration is unsafe for the deployment context.
+
+    Called once at module import time so operators see the warnings in startup logs
+    before any request is served.
+
+    Checks performed:
+    1. NUM_WORKERS > 1 with SQLite backend → CRITICAL (data corruption risk).
+    2. STORYFORGE_ENV=production with no REDIS_URL → WARNING (Redis recommended).
+    """
+    num_workers_raw = os.environ.get("NUM_WORKERS", "").strip()
+    try:
+        num_workers = int(num_workers_raw) if num_workers_raw else 1
+    except ValueError:
+        num_workers = 1
+
+    redis_url = os.environ.get("REDIS_URL", "").strip()
+    storyforge_env = os.environ.get("STORYFORGE_ENV", "").strip().lower()
+
+    # Check 1: multi-process + SQLite = corruption / cost explosion risk
+    if num_workers > 1:
+        msg = (
+            f"STORYFORGE CACHE SAFETY: NUM_WORKERS={num_workers} but the LLM cache "
+            "backend is SQLite. SQLite does NOT support safe concurrent multi-process "
+            "writes — you will experience database lock errors, duplicate LLM calls, "
+            "and potential data corruption. Set REDIS_URL to switch to Redis, or "
+            "run with NUM_WORKERS=1."
+        )
+        logger.critical(msg)
+        warnings.warn(msg, RuntimeWarning, stacklevel=2)
+
+    # Check 2: production environment without Redis
+    if storyforge_env == "production" and not redis_url:
+        msg = (
+            "STORYFORGE CACHE: Running in production (STORYFORGE_ENV=production) "
+            "without a Redis cache backend. Set REDIS_URL to a Redis instance for "
+            "reliable shared caching across workers and restarts."
+        )
+        logger.warning(msg)
+
+
+_check_deployment_safety()
 
 
 class LLMCache:

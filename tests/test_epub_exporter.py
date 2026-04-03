@@ -69,7 +69,7 @@ def single_chapter_story():
             Chapter(
                 chapter_number=1,
                 title="Chuong Duy Nhat",
-                content="Day la noi dung duy nhat cua chuong nay.",
+                content="Đây là nội dung duy nhất của chương này.",
                 summary="Chuong cuoi",
             )
         ],
@@ -82,7 +82,7 @@ def multi_chapter_story():
         Chapter(
             chapter_number=i,
             title=f"Chuong {i}",
-            content=f"Noi dung chuong {i}.",
+            content=f"Nội dung chương {i}.",
             summary=f"Tom tat {i}",
         )
         for i in range(1, 6)

@@ -1,4 +1,4 @@
-"""Dieu phoi pipeline 3 lop: Tao truyen -> Mo phong kich tinh -> Video."""
+"""Điều phối pipeline 3 lớp: Tạo truyện -> Mô phỏng kịch tính -> Video."""
 
 import logging
 import time
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class PipelineOrchestrator:
-    """Dieu phoi toan bo pipeline tu input den output."""
+    """Điều phối toàn bộ pipeline từ input đến output."""
 
     CHECKPOINT_DIR = CHECKPOINT_DIR
 
@@ -56,7 +56,7 @@ class PipelineOrchestrator:
         title: str,
         genre: str,
         idea: str,
-        style: str = "Mieu ta chi tiet",
+        style: str = "Miêu tả chi tiết",
         num_chapters: int = 10,
         num_characters: int = 5,
         word_count: int = 2000,
@@ -68,7 +68,7 @@ class PipelineOrchestrator:
         enable_scoring: bool = True,
         enable_media: bool = False,
     ) -> PipelineOutput:
-        """Chay toan bo pipeline 3 lop."""
+        """Chạy toàn bộ pipeline 3 lớp."""
 
         def _log(msg):
             self.output.logs.append(msg)
@@ -89,7 +89,7 @@ class PipelineOrchestrator:
         ok, msg = LLMClient().check_connection()
         if not ok:
             self.output.status = "error"
-            _log(f"Khong ket noi duoc LLM: {msg}")
+            _log(f"Không kết nối được LLM: {msg}")
             return self.output
 
         if enable_agents:
@@ -97,12 +97,12 @@ class PipelineOrchestrator:
                 from pipeline.agents import register_all_agents
                 from pipeline.agents.agent_registry import AgentRegistry
                 register_all_agents()
-                _log("[AGENTS] Da khoi tao phong ban danh gia.")
+                _log("[AGENTS] Đã khởi tạo phòng ban đánh giá.")
             except Exception as e:
-                logger.warning(f"Khong the khoi tao agents: {e}")
+                logger.warning(f"Không thể khởi tạo agents: {e}")
                 enable_agents = False
 
-        _log("══════ LAYER 1: TAO TRUYEN ══════")
+        _log("══════ LAYER 1: TẠO TRUYỆN ══════")
         self.output.current_layer = 1
         layer_start = time.time()
         try:
@@ -115,7 +115,7 @@ class PipelineOrchestrator:
             )
             self.output.story_draft = draft
             self.output.progress = 0.33
-            _log(f"Layer 1 hoan tat trong {time.time() - layer_start:.1f}s")
+            _log(f"Layer 1 hoàn tất trong {time.time() - layer_start:.1f}s")
             self.checkpoint.save(1)
 
             if enable_scoring:
@@ -127,7 +127,7 @@ class PipelineOrchestrator:
                     self.output.quality_scores.append(l1_score)
                     tracker.scoring_done(1, l1_score.overall)
                     _log(f"[METRICS] Layer 1: {l1_score.overall:.1f}/5 | "
-                         f"Chuong yeu nhat: {l1_score.weakest_chapter}")
+                         f"Chương yếu nhất: {l1_score.weakest_chapter}")
                 except Exception as e:
                     logger.warning(f"Quality scoring Layer 1 failed: {e}")
                     l1_score = None
@@ -147,7 +147,7 @@ class PipelineOrchestrator:
                         tracker.gate_passed(1, l1_score.overall if l1_score else 0.0)
                     elif gate_result.should_retry:
                         tracker.gate_retry(1, l1_score.overall if l1_score else 0.0, attempt=1)
-                        _log("[GATE] Dang thu tao lai Layer 1...")
+                        _log("[GATE] Đang thử tạo lại Layer 1...")
                         draft = self.story_gen.generate_full_story(
                             title=title, genre=genre, idea=idea, style=style,
                             num_chapters=num_chapters, num_characters=num_characters,
@@ -197,7 +197,7 @@ class PipelineOrchestrator:
                 logger.warning(f"Knowledge graph build failed: {e}")
 
             if enable_agents:
-                _log("[AGENTS] Phong ban dang danh gia Layer 1...")
+                _log("[AGENTS] Phòng ban đang đánh giá Layer 1...")
                 try:
                     reviews = AgentRegistry().run_review_cycle(
                         self.output, layer=1, max_iterations=3,
@@ -205,10 +205,10 @@ class PipelineOrchestrator:
                     )
                     self.output.reviews.extend(reviews)
                 except Exception as e:
-                    logger.warning(f"Agent review Layer 1 loi: {e}")
+                    logger.warning(f"Agent review Layer 1 lỗi: {e}")
         except Exception as e:
             self.output.status = "error"
-            _log(f"Layer 1 that bai: {str(e)}")
+            _log(f"Layer 1 thất bại: {str(e)}")
             logger.exception("Layer 1 error")
             return self.output
 
@@ -217,14 +217,14 @@ class PipelineOrchestrator:
             self.output.status = "error"
             return self.output
 
-        _log("══════ LAYER 2: MO PHONG TANG KICH TINH ══════")
+        _log("══════ LAYER 2: MÔ PHỎNG TĂNG KỊCH TÍNH ══════")
         self.output.current_layer = 2
         layer_start = time.time()
         try:
-            _log("[L2] Dang phan tich cau truc truyen...")
+            _log("[L2] Đang phân tích cấu trúc truyện...")
             analysis = self.analyzer.analyze(draft)
 
-            _log(f"[L2] Bat dau mo phong {num_sim_rounds} vong...")
+            _log(f"[L2] Bắt đầu mô phỏng {num_sim_rounds} vòng...")
             sim_result = self.simulator.run_simulation(
                 characters=draft.characters,
                 relationships=analysis["relationships"],
@@ -234,7 +234,7 @@ class PipelineOrchestrator:
             )
             self.output.simulation_result = sim_result
 
-            _log("[L2] Dang viet lai truyen voi kich tinh cao hon...")
+            _log("[L2] Đang viết lại truyện với kịch tính cao hơn...")
             enhanced = self.enhancer.enhance_with_feedback(
                 draft=draft, sim_result=sim_result,
                 word_count=word_count,
@@ -242,7 +242,7 @@ class PipelineOrchestrator:
             )
             self.output.enhanced_story = enhanced
             self.output.progress = 0.66
-            _log(f"Layer 2 hoan tat trong {time.time() - layer_start:.1f}s")
+            _log(f"Layer 2 hoàn tất trong {time.time() - layer_start:.1f}s")
             self.checkpoint.save(2)
 
             if enable_scoring:
@@ -258,7 +258,7 @@ class PipelineOrchestrator:
                         diff = l2_score.overall - self.output.quality_scores[0].overall
                         delta = f" | Delta: {diff:+.1f}"
                     _log(f"[METRICS] Layer 2: {l2_score.overall:.1f}/5 | "
-                         f"Chuong yeu nhat: {l2_score.weakest_chapter}{delta}")
+                         f"Chương yếu nhất: {l2_score.weakest_chapter}{delta}")
                 except Exception as e:
                     logger.warning(f"Quality scoring Layer 2 failed: {e}")
                     l2_score = None
@@ -280,7 +280,7 @@ class PipelineOrchestrator:
                         tracker.gate_passed(2, l2_check_score.overall if l2_check_score else 0.0)
                     elif gate_result.should_retry:
                         tracker.gate_retry(2, l2_check_score.overall if l2_check_score else 0.0, attempt=1)
-                        _log("[GATE] Dang thu tao lai Layer 2...")
+                        _log("[GATE] Đang thử tạo lại Layer 2...")
                         enhanced = self.enhancer.enhance_with_feedback(
                             draft=draft, sim_result=sim_result,
                             word_count=word_count,
@@ -319,7 +319,7 @@ class PipelineOrchestrator:
                 logger.warning(f"Analytics Layer 2 failed: {e}")
 
             if enable_agents:
-                _log("[AGENTS] Phong ban dang danh gia Layer 2...")
+                _log("[AGENTS] Phòng ban đang đánh giá Layer 2...")
                 try:
                     reviews = AgentRegistry().run_review_cycle(
                         self.output, layer=2, max_iterations=3,
@@ -327,11 +327,11 @@ class PipelineOrchestrator:
                     )
                     self.output.reviews.extend(reviews)
                 except Exception as e:
-                    logger.warning(f"Agent review Layer 2 loi: {e}")
+                    logger.warning(f"Agent review Layer 2 lỗi: {e}")
 
             # Smart chapter revision: auto-fix weak chapters using agent reviews
             if enable_scoring and self.config.pipeline.enable_smart_revision:
-                _log("[REVISION] Kiem tra chuong yeu...")
+                _log("[REVISION] Kiểm tra chương yếu...")
                 try:
                     from services.smart_revision import SmartRevisionService
                     revisor = SmartRevisionService(
@@ -354,12 +354,12 @@ class PipelineOrchestrator:
                         tracker.revision_started(total_weak)
                     if revised_count > 0:
                         tracker.revision_done(revised_count, total_weak)
-                        _log(f"[REVISION] Da sua {revised_count}/{total_weak} chuong yeu")
+                        _log(f"[REVISION] Đã sửa {revised_count}/{total_weak} chương yếu")
                 except Exception as e:
                     logger.warning(f"Smart revision failed: {e}")
         except Exception as e:
-            logger.warning(f"Layer 2 that bai, dung ban thao goc: {e}")
-            _log(f"Layer 2 loi ({str(e)}), tiep tuc voi ban thao goc.")
+            logger.warning(f"Layer 2 thất bại, dùng bản thảo gốc: {e}")
+            _log(f"Layer 2 lỗi ({str(e)}), tiếp tục với bản thảo gốc.")
             enhanced = EnhancedStory(
                 title=draft.title,
                 genre=draft.genre,
@@ -381,7 +381,7 @@ class PipelineOrchestrator:
             self.output.status = "error"
             return self.output
 
-        _log("══════ LAYER 3: TAO KICH BAN VIDEO ══════")
+        _log("══════ LAYER 3: TẠO KỊCH BẢN VIDEO ══════")
         self.output.current_layer = 3
         layer_start = time.time()
         try:
@@ -398,7 +398,7 @@ class PipelineOrchestrator:
             self.checkpoint.save(3)
 
             if enable_agents:
-                _log("[AGENTS] Phong ban dang danh gia Layer 3...")
+                _log("[AGENTS] Phòng ban đang đánh giá Layer 3...")
                 try:
                     reviews = AgentRegistry().run_review_cycle(
                         self.output, layer=3, max_iterations=3,
@@ -406,18 +406,18 @@ class PipelineOrchestrator:
                     )
                     self.output.reviews.extend(reviews)
                 except Exception as e:
-                    logger.warning(f"Agent review Layer 3 loi: {e}")
+                    logger.warning(f"Agent review Layer 3 lỗi: {e}")
 
-            _log(f"Layer 3 hoan tat trong {time.time() - layer_start:.1f}s")
-            _log("PIPELINE HOAN TAT!")
+            _log(f"Layer 3 hoàn tất trong {time.time() - layer_start:.1f}s")
+            _log("PIPELINE HOÀN TẤT!")
             total_time = time.time() - pipeline_start
-            _log(f"Tong ket: {len(enhanced.chapters)} chuong, "
+            _log(f"Tổng kết: {len(enhanced.chapters)} chương, "
                  f"{len(video_script.panels)} panels video, "
-                 f"~{video_script.total_duration_seconds / 60:.1f} phut, "
-                 f"tong thoi gian: {total_time:.0f}s")
+                 f"~{video_script.total_duration_seconds / 60:.1f} phút, "
+                 f"tổng thời gian: {total_time:.0f}s")
         except Exception as e:
-            logger.warning(f"Layer 3 that bai: {e}")
-            _log(f"Layer 3 loi ({str(e)}), pipeline dung sau Layer 2.")
+            logger.warning(f"Layer 3 thất bại: {e}")
+            _log(f"Layer 3 lỗi ({str(e)}), pipeline dừng sau Layer 2.")
             self.output.status = "partial"
 
         should_run_media = (
@@ -429,7 +429,7 @@ class PipelineOrchestrator:
             if not self.output.video_script or not self.output.video_script.panels:
                 _log("[WARN] No video panels. Skipping Layer 3.5.")
             else:
-                _log("══════ LAYER 3.5: SAN XUAT ANH + AUDIO + VIDEO ══════")
+                _log("══════ LAYER 3.5: SẢN XUẤT ẢNH + AUDIO + VIDEO ══════")
                 layer_start = time.time()
                 try:
                     media = self.media_producer.run(
@@ -438,10 +438,10 @@ class PipelineOrchestrator:
                     )
                     if media.get("video_path"):
                         _log(f"Video: {media['video_path']}")
-                    _log(f"Layer 3.5 hoan tat trong {time.time() - layer_start:.1f}s")
+                    _log(f"Layer 3.5 hoàn tất trong {time.time() - layer_start:.1f}s")
                 except Exception as e:
                     logger.warning(f"Media production failed: {e}")
-                    _log(f"Media production loi: {e}")
+                    _log(f"Media production lỗi: {e}")
 
         self.output.progress_events = [e.__dict__ for e in tracker.events]
         return self.output
@@ -450,7 +450,7 @@ class PipelineOrchestrator:
         self, title, genre, idea, style, num_chapters, num_characters,
         word_count, progress_callback=None,
     ) -> StoryDraft:
-        """Chi chay Layer 1."""
+        """Chỉ chạy Layer 1."""
         return self.story_gen.generate_full_story(
             title=title, genre=genre, idea=idea, style=style,
             num_chapters=num_chapters, num_characters=num_characters,
@@ -461,7 +461,7 @@ class PipelineOrchestrator:
         self, draft: StoryDraft, num_sim_rounds: int = 5,
         word_count: int = 2000, progress_callback=None,
     ) -> EnhancedStory:
-        """Chi chay Layer 2 tren ban thao co san."""
+        """Chỉ chạy Layer 2 trên bản thảo có sẵn."""
         analysis = self.analyzer.analyze(draft)
         sim_result = self.simulator.run_simulation(
             characters=draft.characters,

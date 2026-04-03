@@ -2,6 +2,7 @@
 
 import json
 import re
+import threading
 import time
 from pathlib import Path
 
@@ -14,7 +15,10 @@ from services.onboarding_analytics import tracker
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 _DASHBOARD_PATH = Path(__file__).parent.parent / "web" / "dashboard.html"
+# Lock required: multiple concurrent requests may race on the first read of
+# _DASHBOARD_CACHE before it is populated, causing redundant file reads.
 _DASHBOARD_CACHE: str | None = None
+_DASHBOARD_CACHE_LOCK = threading.Lock()
 _TIMINGS_PATH = Path(__file__).parent.parent / "data" / "test_timings.json"
 
 # ---------------------------------------------------------------------------
@@ -122,6 +126,7 @@ def get_test_timings():
 async def serve_dashboard():
     """Serve the analytics dashboard HTML."""
     global _DASHBOARD_CACHE
-    if _DASHBOARD_CACHE is None:
-        _DASHBOARD_CACHE = _DASHBOARD_PATH.read_text(encoding="utf-8")
+    with _DASHBOARD_CACHE_LOCK:
+        if _DASHBOARD_CACHE is None:
+            _DASHBOARD_CACHE = _DASHBOARD_PATH.read_text(encoding="utf-8")
     return HTMLResponse(_DASHBOARD_CACHE)

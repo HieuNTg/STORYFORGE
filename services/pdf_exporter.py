@@ -91,7 +91,7 @@ class PDFExporter:
         pdf.cell(0, 10, "Thong ke", new_x="LMARGIN", new_y="NEXT")
         pdf.set_font_size(11)
         pdf.cell(0, 8, f"Tong so tu: {stats.total_words:,}", new_x="LMARGIN", new_y="NEXT")
-        pdf.cell(0, 8, f"So chuong: {stats.total_chapters}", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 8, f"Số chương: {stats.total_chapters}", new_x="LMARGIN", new_y="NEXT")
         pdf.cell(0, 8, f"Thoi gian doc: ~{stats.estimated_reading_minutes} phut", new_x="LMARGIN", new_y="NEXT")
 
         out_dir = os.path.dirname(output_path)
