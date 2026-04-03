@@ -9,6 +9,7 @@ import hashlib
 import json
 import logging
 import time
+import warnings
 from typing import Generator, Optional
 
 import requests
@@ -73,6 +74,11 @@ class DeepSeekWebClient:
     """
 
     def __init__(self):
+        warnings.warn(
+            "DeepSeekWebClient is deprecated. Use standard API key authentication instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._session = requests.Session()
         self._chat_session_id: Optional[str] = None
         self._credentials: Optional[dict] = None

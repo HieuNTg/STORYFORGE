@@ -10,6 +10,7 @@ import os
 import sys
 import threading
 import time
+import warnings
 from typing import Optional
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -49,6 +50,12 @@ class BrowserAuth:
     def __init__(self):
         if self._initialized:
             return
+        warnings.warn(
+            "BrowserAuth is deprecated and will be removed in v4.0. "
+            "Use API key authentication instead (STORYFORGE_API_KEY env var).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._initialized = True
         self._mgr = BrowserManager()
         self._flow_obj = AuthFlow(CredentialStore())

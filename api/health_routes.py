@@ -32,16 +32,21 @@ router = APIRouter(tags=["health"])
 # Helpers
 # ---------------------------------------------------------------------------
 
+_health_engine = None
+
+
 def _check_database() -> dict[str, Any]:
     """Try a SELECT 1 via SQLAlchemy synchronous engine."""
+    global _health_engine
     try:
         from sqlalchemy import create_engine, text
 
-        db_url = os.environ.get(
-            "DATABASE_URL", "sqlite:///data/storyforge.db"
-        )
-        engine = create_engine(db_url, pool_pre_ping=True, connect_args={"check_same_thread": False} if "sqlite" in db_url else {})
-        with engine.connect() as conn:
+        if _health_engine is None:
+            db_url = os.environ.get(
+                "DATABASE_URL", "sqlite:///data/storyforge.db"
+            )
+            _health_engine = create_engine(db_url, pool_pre_ping=True, connect_args={"check_same_thread": False} if "sqlite" in db_url else {})
+        with _health_engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         return {"status": "ok"}
     except Exception as exc:
@@ -171,12 +176,18 @@ async def deep_health() -> JSONResponse:
     overall = "degraded" if critical_failed else "ok"
     status_code = 503 if critical_failed else 200
 
+    # Scaling readiness: Redis required for multi-instance shared state
+    redis_ok = checks["redis"]["status"] == "ok"
+    db_ok = checks["database"]["status"] == "ok"
+    scale_ready = redis_ok and db_ok
+
     return JSONResponse(
         status_code=status_code,
         content={
             "status": overall,
             "checked_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "duration_ms": round((time.monotonic() - start) * 1000, 1),
+            "scale_ready": scale_ready,
             "components": checks,
         },
     )

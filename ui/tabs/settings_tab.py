@@ -1,21 +1,43 @@
 """Settings tab — API config, web auth, cache management, language, compact mode."""
 
+import logging
 import threading
 import gradio as gr
 from config import ConfigManager, PIPELINE_PRESETS
 
+_log = logging.getLogger(__name__)
+
+_DEPRECATION_MSG = (
+    "BrowserAuth (browser-based credential capture) is deprecated and will be "
+    "removed in v4.0. Use API key authentication (STORYFORGE_API_KEY) instead."
+)
+
+
+def _get_browser_auth():
+    """Import BrowserAuth with deprecation warning. Raises on failure."""
+    _log.warning(_DEPRECATION_MSG)
+    from services.browser_auth import BrowserAuth
+    return BrowserAuth()
+
 
 # ── Web auth helpers (thin wrappers, kept here to avoid circular deps) ──
+# NOTE: BrowserAuth is deprecated. These helpers remain for backward compatibility
+# but emit a deprecation warning. Use STORYFORGE_API_KEY env var instead.
 
 def _launch_chrome(_t):
-    from services.browser_auth import BrowserAuth
-    _, msg = BrowserAuth().launch_chrome()
+    try:
+        _, msg = _get_browser_auth().launch_chrome()
+    except Exception as exc:
+        return f"Browser auth unavailable: {exc}"
     return msg
 
 
 def _capture_credentials(_t):
-    from services.browser_auth import BrowserAuth
-    auth = BrowserAuth()
+    try:
+        auth = _get_browser_auth()
+    except Exception as exc:
+        yield f"Browser auth unavailable: {exc}"
+        return
     result = [None]
     threading.Thread(target=lambda: result.__setitem__(0, auth.capture_deepseek_credentials(timeout=300))).start()
     yield _t("settings.waiting_login")
@@ -33,14 +55,18 @@ def _capture_credentials(_t):
 
 
 def _clear_credentials(_t):
-    from services.browser_auth import BrowserAuth
-    BrowserAuth().clear_credentials()
+    try:
+        _get_browser_auth().clear_credentials()
+    except Exception as exc:
+        return f"Browser auth unavailable: {exc}"
     return _t("settings.creds_cleared")
 
 
 def _check_auth_status(_t):
-    from services.browser_auth import BrowserAuth
-    auth = BrowserAuth()
+    try:
+        auth = _get_browser_auth()
+    except Exception:
+        return _t("settings.not_logged_in")
     if auth.is_authenticated():
         creds = auth.get_credentials()
         return _t("settings.logged_in", time=(creds or {}).get("updated_at", "?"))

@@ -1,6 +1,16 @@
 # StoryForge Production Docker Compose
 # Usage: docker compose -f docker-compose.production.yml up -d
 # Required env file: .env.production (copy from .env.production.example)
+#
+# HORIZONTAL SCALING:
+#   docker compose -f docker-compose.production.yml up -d --scale app=3
+#
+# Prerequisites for multi-instance:
+#   - REDIS_URL must be set (shared rate limiting, token revocation, session state)
+#   - DATABASE_URL must be set (shared persistent storage)
+#   - LLM cache remains per-instance (SQLite) — acceptable for cache (not shared state)
+#   - ChromaDB (RAG) runs embedded per-instance — mount shared volume or use external
+#   - Pipeline orchestrators are per-instance — use sticky sessions (nginx ip_hash)
 
 version: "3.8"
 
@@ -56,10 +66,10 @@ services:
       - storyforge-network
     volumes:
       - storyforge-redis-data:/data
-    # Append-only persistence for durability
-    command: redis-server --appendonly yes --appendfsync everysec
+    # Append-only persistence + password auth for production security
+    command: redis-server --appendonly yes --appendfsync everysec --requirepass ${REDIS_PASSWORD}
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -74,11 +84,13 @@ services:
           memory: 64M
 
   # ── StoryForge App ─────────────────────────────────────────────────────────
+  # Horizontally scalable: `docker compose up -d --scale app=N`
+  # Requires: REDIS_URL for shared state, sticky sessions in nginx for SSE
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: storyforge-app
+    # No container_name — allows --scale app=N
     restart: unless-stopped
     networks:
       - storyforge-network
@@ -92,11 +104,13 @@ services:
     environment:
       # Database
       DATABASE_URL: postgresql://storyforge:${DB_PASSWORD}@postgres:5432/storyforge
-      # Cache
-      REDIS_URL: redis://redis:6379/0
+      # Redis — REQUIRED for multi-instance (rate limiting, token revocation)
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       # Security
       STORYFORGE_SECRET_KEY: ${SECRET_KEY}
       STORYFORGE_ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      STORYFORGE_JWT_KEY_DIR: /app/data/jwt_keys
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-172.16.0.0/12}
       # LLM backend
       STORYFORGE_API_KEY: ${STORYFORGE_API_KEY}
       STORYFORGE_BASE_URL: ${STORYFORGE_BASE_URL:-https://api.openai.com/v1}
@@ -107,6 +121,7 @@ services:
       STORYFORGE_QUALITY_GATE: ${STORYFORGE_QUALITY_GATE:-true}
       STORYFORGE_SMART_REVISION: ${STORYFORGE_SMART_REVISION:-true}
       STORYFORGE_AGENT_DEBATE: ${STORYFORGE_AGENT_DEBATE:-false}
+      STORYFORGE_LITE_MODE: ${STORYFORGE_LITE_MODE:-false}
       # Runtime
       PYTHONUNBUFFERED: "1"
       ENVIRONMENT: production
@@ -170,7 +185,7 @@ services:
     image: grafana/loki:2.9.0
     container_name: storyforge-loki
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     volumes:
       - loki-data:/loki
       - ./monitoring/loki-config.yml:/etc/loki/local-config.yaml:ro
@@ -217,7 +232,7 @@ services:
     networks:
       - storyforge-network
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
