@@ -144,13 +144,13 @@ class TestFilesCompile(unittest.TestCase):
     """Verify all key Python files compile without errors."""
 
     def test_config_compiles(self):
-        """Verify config.py compiles."""
-        config_path = os.path.join(project_root, "config.py")
+        """Verify config package compiles (config.py replaced by config/ package)."""
+        config_path = os.path.join(project_root, "config", "__init__.py")
         import py_compile
         try:
             py_compile.compile(config_path, doraise=True)
         except py_compile.PyCompileError as e:
-            self.fail(f"config.py compile failed: {e}")
+            self.fail(f"config/__init__.py compile failed: {e}")
 
     def test_llm_client_compiles(self):
         """Verify llm_client.py compiles."""
@@ -186,8 +186,8 @@ class TestNoOpenClawReferences(unittest.TestCase):
     """Verify no remaining openclaw functional code."""
 
     def test_config_no_openclaw_functional_code(self):
-        """Verify config.py has no openclaw functional code."""
-        config_path = os.path.join(project_root, "config.py")
+        """Verify config package has no openclaw functional code."""
+        config_path = os.path.join(project_root, "config", "__init__.py")
         with open(config_path, encoding="utf-8") as f:
             content = f.read()
 

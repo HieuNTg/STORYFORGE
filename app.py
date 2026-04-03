@@ -134,8 +134,12 @@ def main():
         allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "Accept"],
+        allow_headers=["Authorization", "Content-Type", "Accept", "X-CSRF-Token"],
     )
+
+    # --- CSRF protection middleware (double-submit cookie) ---
+    from middleware.csrf import CSRFMiddleware
+    main_app.add_middleware(CSRFMiddleware)
 
     # --- Request trace ID middleware (must be outermost so all downstream layers see it) ---
     from middleware.trace_id import TraceIDMiddleware

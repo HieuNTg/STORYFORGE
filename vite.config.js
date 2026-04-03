@@ -62,10 +62,13 @@ export default defineConfig({
          */
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            // Split @tailwindcss/typography into its own chunk (large, rarely changes)
             if (id.includes('@tailwindcss')) return 'tailwind-vendor'
-            // All other node_modules go into a single vendor chunk
             return 'vendor'
+          }
+          // Page-level code splitting — each page gets its own cached chunk
+          if (id.includes('/web/js/pages/')) {
+            const match = id.match(/pages\/(\w+)/)
+            if (match) return 'page-' + match[1]
           }
         },
 

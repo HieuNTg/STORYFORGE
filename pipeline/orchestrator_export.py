@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Optional
 
 from models.schemas import PipelineOutput
+from plugins import plugin_manager
 
 logger = logging.getLogger(__name__)
 
@@ -29,18 +30,28 @@ class PipelineExporter:
         if "TXT" in formats:
             if self.output.story_draft:
                 path = os.path.join(output_dir, f"{timestamp}_draft.txt")
+                try:
+                    draft_data = plugin_manager.apply_export("txt", self.output.story_draft)
+                except Exception as _e:
+                    logger.warning(f"Plugin apply_export txt failed: {_e}")
+                    draft_data = self.output.story_draft
                 with open(path, "w", encoding="utf-8") as f:
-                    f.write(f"# {self.output.story_draft.title}\n\n")
-                    for ch in self.output.story_draft.chapters:
+                    f.write(f"# {draft_data.title}\n\n")
+                    for ch in draft_data.chapters:
                         f.write(f"\n## Chuong {ch.chapter_number}: {ch.title}\n\n")
                         f.write(ch.content + "\n")
                 files.append(path)
 
             if self.output.enhanced_story:
                 path = os.path.join(output_dir, f"{timestamp}_enhanced.txt")
+                try:
+                    enhanced_data = plugin_manager.apply_export("txt", self.output.enhanced_story)
+                except Exception as _e:
+                    logger.warning(f"Plugin apply_export txt (enhanced) failed: {_e}")
+                    enhanced_data = self.output.enhanced_story
                 with open(path, "w", encoding="utf-8") as f:
-                    f.write(f"# {self.output.enhanced_story.title} (Phien ban kich tinh)\n\n")
-                    for ch in self.output.enhanced_story.chapters:
+                    f.write(f"# {enhanced_data.title} (Phien ban kich tinh)\n\n")
+                    for ch in enhanced_data.chapters:
                         f.write(f"\n## Chuong {ch.chapter_number}: {ch.title}\n\n")
                         f.write(ch.content + "\n")
                 files.append(path)
@@ -48,20 +59,24 @@ class PipelineExporter:
         if "JSON" in formats:
             if self.output.video_script:
                 path = os.path.join(output_dir, f"{timestamp}_video_script.json")
+                try:
+                    script_data = plugin_manager.apply_export("json", self.output.video_script.model_dump())
+                except Exception as _e:
+                    logger.warning(f"Plugin apply_export json failed: {_e}")
+                    script_data = self.output.video_script.model_dump()
                 with open(path, "w", encoding="utf-8") as f:
-                    json.dump(
-                        self.output.video_script.model_dump(),
-                        f, ensure_ascii=False, indent=2,
-                    )
+                    json.dump(script_data, f, ensure_ascii=False, indent=2)
                 files.append(path)
 
             if self.output.simulation_result:
                 path = os.path.join(output_dir, f"{timestamp}_simulation.json")
+                try:
+                    sim_data = plugin_manager.apply_export("json", self.output.simulation_result.model_dump())
+                except Exception as _e:
+                    logger.warning(f"Plugin apply_export json (simulation) failed: {_e}")
+                    sim_data = self.output.simulation_result.model_dump()
                 with open(path, "w", encoding="utf-8") as f:
-                    json.dump(
-                        self.output.simulation_result.model_dump(),
-                        f, ensure_ascii=False, indent=2,
-                    )
+                    json.dump(sim_data, f, ensure_ascii=False, indent=2)
                 files.append(path)
 
         if "Markdown" in formats:
@@ -98,6 +113,10 @@ class PipelineExporter:
         story = self.output.enhanced_story or self.output.story_draft
         if not story:
             return None
+        try:
+            story = plugin_manager.apply_export("html", story) or story
+        except Exception as _e:
+            logger.warning(f"Plugin apply_export html failed: {_e}")
         from services.html_exporter import HTMLExporter
         path = os.path.join(output_dir, f"{timestamp}_story.html")
         chars = self.output.story_draft.characters if self.output.story_draft else []
@@ -108,6 +127,10 @@ class PipelineExporter:
         story = self.output.enhanced_story or self.output.story_draft
         if not story:
             return None
+        try:
+            story = plugin_manager.apply_export("epub", story) or story
+        except Exception as _e:
+            logger.warning(f"Plugin apply_export epub failed: {_e}")
         from services.epub_exporter import EPUBExporter
         path = os.path.join(output_dir, f"{timestamp}_story.epub")
         chars = self.output.story_draft.characters if self.output.story_draft else []
@@ -129,6 +152,10 @@ class PipelineExporter:
         story = self.output.enhanced_story or self.output.story_draft
         if not story:
             return None
+        try:
+            story = plugin_manager.apply_export("markdown", story) or story
+        except Exception as _e:
+            logger.warning(f"Plugin apply_export markdown failed: {_e}")
         path = os.path.join(output_dir, f"{timestamp}_story.md")
         with open(path, "w", encoding="utf-8") as f:
             f.write(f"# {story.title}\n\n")

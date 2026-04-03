@@ -12,6 +12,20 @@
 
 type RequestBody = Record<string, unknown> | unknown[]
 
+/** Read a cookie value by name. Used for CSRF double-submit pattern. */
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'))
+  return match ? decodeURIComponent(match[1]) : null
+}
+
+/** Build headers for state-changing requests (POST/PUT/DELETE). */
+function mutationHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const csrf = getCookie('csrf_token')
+  if (csrf) headers['X-CSRF-Token'] = csrf
+  return headers
+}
+
 /** Default timeout for regular requests (30 s). */
 const DEFAULT_TIMEOUT_MS = 30_000
 /** Extended timeout for SSE/streaming requests (5 min). */
@@ -69,7 +83,7 @@ var API: ApiClient = {
       this.base + path,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: mutationHeaders(),
         body: JSON.stringify(body),
       },
       DEFAULT_TIMEOUT_MS,
@@ -83,7 +97,7 @@ var API: ApiClient = {
       this.base + path,
       {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: mutationHeaders(),
         body: JSON.stringify(body),
       },
       DEFAULT_TIMEOUT_MS,
@@ -95,7 +109,7 @@ var API: ApiClient = {
   async del<T = unknown>(path: string): Promise<T> {
     const res = await fetchWithTimeout(
       this.base + path,
-      { method: 'DELETE' },
+      { method: 'DELETE', headers: mutationHeaders() },
       DEFAULT_TIMEOUT_MS,
     )
     if (!res.ok) throw new Error(`DELETE ${path}: ${res.status}`)
@@ -112,7 +126,7 @@ var API: ApiClient = {
       this.base + path,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: mutationHeaders(),
         body: JSON.stringify(body),
       },
       STREAM_TIMEOUT_MS,
@@ -213,7 +227,7 @@ var API: ApiClient = {
   async download(path: string, filename: string): Promise<void> {
     const res = await fetchWithTimeout(
       this.base + path,
-      { method: 'POST' },
+      { method: 'POST', headers: mutationHeaders() },
       DEFAULT_TIMEOUT_MS,
     )
     if (!res.ok) throw new Error(`Download ${path}: ${res.status}`)
