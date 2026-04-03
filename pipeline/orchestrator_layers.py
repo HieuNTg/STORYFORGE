@@ -10,6 +10,7 @@ import time
 from typing import TYPE_CHECKING
 
 from models.schemas import EnhancedStory, PipelineOutput, StoryDraft
+from plugins import plugin_manager
 
 if TYPE_CHECKING:
     from pipeline.orchestrator import PipelineOrchestrator
@@ -101,6 +102,23 @@ def run_full_pipeline(
                 from services.quality_scorer import QualityScorer
                 scorer = QualityScorer()
                 l1_score = scorer.score_story(draft.chapters, layer=1)
+                # Plugin hook: let plugins observe/modify quality scores
+                try:
+                    score_dict = {
+                        "coherence": l1_score.avg_coherence,
+                        "character_consistency": l1_score.avg_character,
+                        "drama": l1_score.avg_drama,
+                        "writing_quality": l1_score.avg_writing,
+                        "overall": l1_score.overall,
+                    }
+                    updated = plugin_manager.apply_score(score_dict)
+                    l1_score.avg_coherence = updated.get("coherence", l1_score.avg_coherence)
+                    l1_score.avg_character = updated.get("character_consistency", l1_score.avg_character)
+                    l1_score.avg_drama = updated.get("drama", l1_score.avg_drama)
+                    l1_score.avg_writing = updated.get("writing_quality", l1_score.avg_writing)
+                    l1_score.overall = updated.get("overall", l1_score.overall)
+                except Exception as _e:
+                    logger.warning(f"Plugin apply_score Layer 1 failed: {_e}")
                 self.output.quality_scores.append(l1_score)
                 tracker.scoring_done(1, l1_score.overall)
                 _log(f"[METRICS] Layer 1: {l1_score.overall:.1f}/5 | "
@@ -204,6 +222,14 @@ def run_full_pipeline(
         _log("[L2] Đang phân tích cấu trúc truyện...")
         analysis = self.analyzer.analyze(draft)
 
+        # Plugin hook: allow plugins to observe/override genre drama rules
+        try:
+            from pipeline.layer2_enhance.drama_patterns import get_genre_rules
+            base_rules = get_genre_rules(genre)
+            plugin_manager.apply_genre_rules(genre, base_rules)
+        except Exception as _e:
+            logger.warning(f"Plugin apply_genre_rules failed: {_e}")
+
         _log(f"[L2] Bắt đầu mô phỏng {num_sim_rounds} vòng...")
         sim_result = self.simulator.run_simulation(
             characters=draft.characters,
@@ -233,6 +259,23 @@ def run_full_pipeline(
                 from services.quality_scorer import QualityScorer
                 scorer = QualityScorer()
                 l2_score = scorer.score_story(enhanced.chapters, layer=2)
+                # Plugin hook: let plugins observe/modify Layer 2 quality scores
+                try:
+                    score_dict = {
+                        "coherence": l2_score.avg_coherence,
+                        "character_consistency": l2_score.avg_character,
+                        "drama": l2_score.avg_drama,
+                        "writing_quality": l2_score.avg_writing,
+                        "overall": l2_score.overall,
+                    }
+                    updated = plugin_manager.apply_score(score_dict)
+                    l2_score.avg_coherence = updated.get("coherence", l2_score.avg_coherence)
+                    l2_score.avg_character = updated.get("character_consistency", l2_score.avg_character)
+                    l2_score.avg_drama = updated.get("drama", l2_score.avg_drama)
+                    l2_score.avg_writing = updated.get("writing_quality", l2_score.avg_writing)
+                    l2_score.overall = updated.get("overall", l2_score.overall)
+                except Exception as _e:
+                    logger.warning(f"Plugin apply_score Layer 2 failed: {_e}")
                 self.output.quality_scores.append(l2_score)
                 tracker.scoring_done(2, l2_score.overall)
                 delta = ""
