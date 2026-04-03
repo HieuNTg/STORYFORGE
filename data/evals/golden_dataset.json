@@ -1,0 +1,100 @@
+{
+  "_schema": {
+    "version": "1.0.0",
+    "description": "Golden evaluation dataset for automated prompt quality regression testing",
+    "fields": {
+      "id": "Unique story identifier",
+      "title": "Story title",
+      "genre": "Story genre",
+      "chapters": "Array of chapter objects with title, content, characters",
+      "character_names": "Expected character names for consistency check",
+      "expected_scores": "Baseline quality scores (auto + human reference)",
+      "tags": "Quality tags for filtering (e.g., 'high-quality', 'edge-case')"
+    }
+  },
+  "entries": [
+    {
+      "id": "golden-001",
+      "title": "Thiên Kiếm Vô Song",
+      "genre": "Tiên Hiệp",
+      "tags": ["high-quality", "baseline"],
+      "character_names": ["Lý Hạo Thiên", "Mộ Dung Tuyết", "Hắc Phong Đại Sư"],
+      "chapters": [
+        {
+          "title": "Chương 1: Vận Mệnh Khởi Đầu",
+          "content": "Lý Hạo Thiên đứng trên đỉnh Cửu Long Sơn, nhìn xuống thung lũng sương mù. Mười sáu năm trước, anh được một vị tiên nhân cứu từ đống đổ nát của Lý gia. Giờ đây, anh đã đạt đến Luyện Khí tầng chín, chỉ còn một bước nữa là đột phá Trúc Cơ. Mộ Dung Tuyết, sư tỷ của anh, đã cảnh báo: 'Đừng vội đột phá. Tâm ma chưa trừ, linh lực không ổn.' Nhưng Hạo Thiên không thể chờ. Hắc Phong Đại Sư sắp quay lại, và chỉ có Trúc Cơ mới đủ sức đối đầu.",
+          "characters": ["Lý Hạo Thiên", "Mộ Dung Tuyết", "Hắc Phong Đại Sư"]
+        },
+        {
+          "title": "Chương 2: Đột Phá Trúc Cơ",
+          "content": "Đêm đó, Hạo Thiên ngồi thiền trong Hàn Băng Động, nơi linh khí đậm đặc nhất của Thanh Vân Tông. Linh lực cuồn cuộn chảy qua kinh mạch, từng đợt sóng đánh vào rào cản Trúc Cơ. Đau đớn xé nát thân thể, nhưng anh cắn răng chịu đựng. Bỗng nhiên, một bóng đen xuất hiện — đó là tâm ma, mang hình dáng của cha anh, Lý Thiên Vũ. 'Con không thể cứu ta. Con cũng không thể cứu ai.' Hạo Thiên gầm lên: 'Ta không cần cứu quá khứ. Ta chỉ cần bảo vệ hiện tại!' Rào cản vỡ tan. Ánh sáng vàng kim bao phủ toàn thân — Trúc Cơ thành công.",
+          "characters": ["Lý Hạo Thiên"]
+        }
+      ],
+      "expected_scores": {
+        "character_name_consistency": 1.0,
+        "language_purity": 0.30,
+        "auto_score_overall": 0.77,
+        "human_reference": {
+          "coherence": 4.5,
+          "character_consistency": 4.8,
+          "drama": 4.2,
+          "writing_quality": 4.0,
+          "overall": 4.3
+        }
+      }
+    },
+    {
+      "id": "golden-002",
+      "title": "Đô Thị Siêu Cấp Y Tiên",
+      "genre": "Đô Thị",
+      "tags": ["high-quality", "modern-setting"],
+      "character_names": ["Trần Minh", "Lâm Thi Hoa", "Vương Đại Phú"],
+      "chapters": [
+        {
+          "title": "Chương 1: Bí Mật Của Bác Sĩ Trẻ",
+          "content": "Trần Minh bước ra khỏi bệnh viện Nhân Dân, ánh nắng chiều chiếu vào mắt. Ba năm tu luyện trên Côn Lôn Sơn, giờ anh quay lại thành phố với y thuật siêu phàm. Nhưng không ai biết bí mật của anh. Lâm Thi Hoa, y tá trưởng khoa cấp cứu, nhìn anh nghi ngờ: 'Anh mới 25 tuổi mà xin vào khoa cấp cứu? Kinh nghiệm ở đâu?' Minh mỉm cười: 'Cô sẽ thấy.' Ngay lúc đó, xe cấp cứu ào tới — Vương Đại Phú, doanh nhân giàu nhất thành phố, bị nhồi máu cơ tim.",
+          "characters": ["Trần Minh", "Lâm Thi Hoa", "Vương Đại Phú"]
+        }
+      ],
+      "expected_scores": {
+        "character_name_consistency": 1.0,
+        "language_purity": 0.25,
+        "auto_score_overall": 0.75,
+        "human_reference": {
+          "coherence": 4.0,
+          "character_consistency": 4.5,
+          "drama": 3.8,
+          "writing_quality": 3.5,
+          "overall": 3.9
+        }
+      }
+    },
+    {
+      "id": "golden-003",
+      "title": "Test Case — Missing Characters",
+      "genre": "Kiếm Hiệp",
+      "tags": ["edge-case", "character-error"],
+      "character_names": ["Trương Vô Kỵ", "Triệu Mẫn", "Chu Chỉ Nhược"],
+      "chapters": [
+        {
+          "title": "Chương 1: Lỗi Nhân Vật",
+          "content": "Trương Vô Kỵ luyện Cửu Dương Thần Công trên đỉnh Quang Minh. Triệu Mẫn đứng bên cạnh, lo lắng nhìn chàng. Nhưng trong suốt câu chuyện, Chu Chỉ Nhược không hề xuất hiện dù được giới thiệu là nhân vật quan trọng. Đây là lỗi continuity điển hình mà hệ thống đánh giá cần phát hiện.",
+          "characters": ["Trương Vô Kỵ", "Triệu Mẫn"]
+        }
+      ],
+      "expected_scores": {
+        "character_name_consistency": 1.0,
+        "language_purity": 0.27,
+        "auto_score_overall": 0.76,
+        "human_reference": {
+          "coherence": 3.0,
+          "character_consistency": 2.5,
+          "drama": 2.0,
+          "writing_quality": 3.0,
+          "overall": 2.6
+        }
+      }
+    }
+  ]
+}

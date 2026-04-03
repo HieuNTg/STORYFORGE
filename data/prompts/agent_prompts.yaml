@@ -1,10 +1,22 @@
-# StoryForge Agent Prompts — Customizable
+# StoryForge Agent Prompts — Customizable & Versioned
 #
 # Edit these prompts to change how AI agents evaluate your stories.
 # Each prompt uses Python format placeholders like {content}, {characters}, etc.
 # The default language is Vietnamese. You can translate or modify freely.
 #
 # To reset to defaults, delete this file — StoryForge will recreate it on next run.
+#
+# Version metadata — tracked by prompt registry for rollback + A/B testing.
+# Increment version when making prompt changes. Git tracks full history.
+
+_meta:
+  version: "1.0.0"
+  updated_at: "2026-04-03"
+  description: "Initial versioned prompts — Vietnamese defaults for 8 evaluation agents + 2 debate agents"
+  changelog:
+    - version: "1.0.0"
+      date: "2026-04-03"
+      changes: "Initial version tracking. All prompts from v3.0.0 baseline."
 
 # ── Agent 1: Editor-in-Chief ──
 EDITOR_REVIEW: |

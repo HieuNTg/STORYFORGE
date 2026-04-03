@@ -326,6 +326,7 @@ class ShareableStory(BaseModel):
     created_at: str = ""
     html_path: str = ""
     expires_at: str = ""
+    is_public: bool = False
 
 
 # === Story Branching ===

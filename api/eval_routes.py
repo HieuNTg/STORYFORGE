@@ -1,7 +1,9 @@
 """Evaluation API routes — submit human evals and retrieve aggregate reports."""
 
+import re
+
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from services.eval_pipeline import EvalPipeline
 
@@ -9,11 +11,30 @@ router = APIRouter(prefix="/v1/eval", tags=["eval"])
 
 _pipeline = EvalPipeline()
 
+# Safe ID pattern: alphanumeric + hyphens, 1-64 chars
+_SAFE_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,64}$")
+
+
+def _validate_safe_id(value: str, field_name: str) -> None:
+    """Raise 400 if ID contains path-traversal or special characters."""
+    if not _SAFE_ID_RE.match(value):
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}")
+
 
 class HumanEvalRequest(BaseModel):
     story_id: str
     evaluator_id: str
-    scores: dict  # metric_name -> float (0-5 scale)
+    scores: dict[str, float]  # metric_name -> float (0-5 scale)
+
+    @field_validator("scores")
+    @classmethod
+    def validate_scores(cls, v: dict[str, float]) -> dict[str, float]:
+        if not v:
+            raise ValueError("scores must not be empty")
+        for key, val in v.items():
+            if not isinstance(val, (int, float)) or val < 0 or val > 5:
+                raise ValueError(f"Score '{key}' must be between 0 and 5")
+        return v
 
 
 @router.post("/submit", summary="Submit a human evaluation for a story")
@@ -22,12 +43,8 @@ def submit_eval(body: HumanEvalRequest):
 
     Scores should be a dict of metric names to float values (0-5 scale).
     """
-    if not body.story_id.strip():
-        raise HTTPException(status_code=422, detail="story_id required")
-    if not body.evaluator_id.strip():
-        raise HTTPException(status_code=422, detail="evaluator_id required")
-    if not body.scores:
-        raise HTTPException(status_code=422, detail="scores dict must not be empty")
+    _validate_safe_id(body.story_id, "story_id")
+    _validate_safe_id(body.evaluator_id, "evaluator_id")
 
     record = _pipeline.submit_human_eval(
         story_id=body.story_id,
@@ -37,8 +54,19 @@ def submit_eval(body: HumanEvalRequest):
     return {"status": "ok", "record": record}
 
 
+@router.get("/golden", summary="Run golden dataset regression test")
+def run_golden_eval():
+    """Run automated scoring against the golden evaluation dataset.
+
+    Compares actual scores against baseline expectations to detect
+    prompt quality regressions.
+    """
+    return _pipeline.run_golden_eval()
+
+
 @router.get("/{story_id}", summary="Get aggregate evaluation report for a story")
 def get_eval_report(story_id: str):
     """Return the full evaluation report: auto metrics + human evals + aggregate score."""
+    _validate_safe_id(story_id, "story_id")
     report = _pipeline.generate_report(story_id=story_id)
     return report

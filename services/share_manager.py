@@ -5,17 +5,21 @@ import logging
 import os
 import uuid
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional, Union
+
 from models.schemas import ShareableStory, StoryDraft, EnhancedStory, Character
 
 logger = logging.getLogger(__name__)
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 class ShareManager:
     """Manage shareable story links."""
 
-    SHARES_DIR = "data/shares"
-    SHARES_INDEX = "data/shares/index.json"
+    SHARES_DIR = str(_PROJECT_ROOT / "data" / "shares")
+    SHARES_INDEX = str(_PROJECT_ROOT / "data" / "shares" / "index.json")
 
     def __init__(self):
         os.makedirs(self.SHARES_DIR, exist_ok=True)
@@ -26,6 +30,7 @@ class ShareManager:
         story: Union[StoryDraft, EnhancedStory],
         characters: list[Character] = None,
         expires_days: int = 30,
+        is_public: bool = False,
     ) -> ShareableStory:
         """Tạo HTML chia sẻ với ID duy nhất."""
         from services.html_exporter import HTMLExporter
@@ -51,6 +56,7 @@ class ShareManager:
             created_at=now.isoformat(),
             html_path=html_path,
             expires_at=expires.isoformat(),
+            is_public=is_public,
         )
         self.shares.append(share.model_dump())
         self._save_index()
@@ -84,6 +90,22 @@ class ShareManager:
             except (ValueError, Exception):
                 active.append(ShareableStory(**s))
         return active
+
+    def list_public_shares(self) -> list[ShareableStory]:
+        """Return active public shares (is_public=True and not expired)."""
+        now = datetime.now()
+        result = []
+        for s in self.shares:
+            if not s.get("is_public"):
+                continue
+            try:
+                exp = datetime.fromisoformat(s.get("expires_at", ""))
+                if now > exp:
+                    continue
+            except ValueError:
+                pass
+            result.append(ShareableStory(**s))
+        return result
 
     def delete_share(self, share_id: str) -> bool:
         """Xóa share và file HTML liên quan."""

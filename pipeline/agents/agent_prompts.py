@@ -236,8 +236,13 @@ def _load_custom_prompts() -> dict:
 
 
 def _get_prompt(name: str) -> str:
-    """Get prompt by name: custom YAML > built-in default."""
+    """Get prompt by name: custom YAML > built-in default.
+
+    Skips '_meta' key (version metadata) from YAML file.
+    """
     custom = _load_custom_prompts()
+    if name == "_meta":
+        return _DEFAULTS.get(name, "")
     prompt = custom.get(name)
     if prompt and isinstance(prompt, str):
         return prompt.strip()

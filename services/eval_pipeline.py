@@ -27,6 +27,9 @@ _VIET_PATTERN = re.compile(
 )
 
 
+_GOLDEN_DATASET = os.path.join(_EVALS_DIR, "golden_dataset.json")
+
+
 class EvalPipeline:
     """Compute automated + human evaluation metrics for stories."""
 
@@ -264,4 +267,72 @@ class EvalPipeline:
             "auto_metrics": auto_metrics,
             "human_evals": evals,
             "aggregate": aggregate,
+        }
+
+    # ------------------------------------------------------------------
+    # Golden dataset regression testing
+    # ------------------------------------------------------------------
+
+    def run_golden_eval(self, dataset_path: str = _GOLDEN_DATASET) -> dict:
+        """Run automated scoring against the golden dataset.
+
+        Compares actual auto_score results against expected baselines.
+        Returns pass/fail for each entry with deviation details.
+        """
+        if not os.path.exists(dataset_path):
+            return {"error": "Golden dataset not found", "path": dataset_path}
+
+        try:
+            with open(dataset_path, "r", encoding="utf-8") as f:
+                dataset = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            return {"error": f"Failed to load dataset: {e}"}
+
+        entries = dataset.get("entries", [])
+        results = []
+        passed = 0
+        tolerance = 0.15  # 15% deviation tolerance
+
+        for entry in entries:
+            story_data = {
+                "chapters": entry.get("chapters", []),
+                "character_names": entry.get("character_names", []),
+            }
+            actual = self.auto_score(story_data)
+            expected = entry.get("expected_scores", {})
+
+            deviations = {}
+            entry_passed = True
+            for metric in ["character_name_consistency", "language_purity", "auto_score_overall"]:
+                exp_val = expected.get(metric, 0)
+                act_val = actual.get(metric, 0)
+                dev = abs(act_val - exp_val)
+                deviations[metric] = {
+                    "expected": exp_val,
+                    "actual": act_val,
+                    "deviation": round(dev, 4),
+                    "within_tolerance": dev <= tolerance,
+                }
+                if dev > tolerance:
+                    entry_passed = False
+
+            if entry_passed:
+                passed += 1
+
+            results.append({
+                "id": entry.get("id"),
+                "title": entry.get("title"),
+                "tags": entry.get("tags", []),
+                "passed": entry_passed,
+                "deviations": deviations,
+            })
+
+        return {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "dataset": os.path.basename(dataset_path),
+            "total": len(entries),
+            "passed": passed,
+            "failed": len(entries) - passed,
+            "pass_rate": round(passed / max(len(entries), 1), 4),
+            "results": results,
         }
