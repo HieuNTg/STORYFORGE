@@ -14,9 +14,6 @@ class LLMConfig:
     model: str = "gpt-4o-mini"
     temperature: float = 0.8
     max_tokens: int = 4096
-    # Backend: "api" (OpenAI-compatible) hoặc "web" (browser auth, free)
-    backend_type: str = "api"
-    web_auth_provider: str = "deepseek-web"  # Provider cho web auth
     # Model routing: cheap model for summaries/analysis
     cheap_model: str = ""  # empty = use primary model
     cheap_base_url: str = ""  # empty = use primary base_url
@@ -333,7 +330,6 @@ class ConfigManager:
             "STORYFORGE_API_KEY": ("llm", "api_key"),
             "STORYFORGE_BASE_URL": ("llm", "base_url"),
             "STORYFORGE_MODEL": ("llm", "model"),
-            "STORYFORGE_BACKEND": ("llm", "backend_type"),
             "STORYFORGE_TEMPERATURE": ("llm", "temperature"),
             "STORYFORGE_IMAGE_PROVIDER": ("pipeline", "image_provider"),
             "IMAGE_API_KEY": ("pipeline", "image_api_key"),
@@ -393,8 +389,6 @@ class ConfigManager:
                 "model": self.llm.model,
                 "temperature": self.llm.temperature,
                 "max_tokens": self.llm.max_tokens,
-                "backend_type": self.llm.backend_type,
-                "web_auth_provider": self.llm.web_auth_provider,
                 "cheap_model": self.llm.cheap_model,
                 "cheap_base_url": self.llm.cheap_base_url,
                 "cache_enabled": self.llm.cache_enabled,
@@ -470,8 +464,8 @@ class ConfigManager:
     def validate(self) -> list[str]:
         """Validate config, return list of warning messages."""
         errors = []
-        if not self.llm.api_key and self.llm.backend_type == "api":
-            errors.append("API key bắt buộc cho backend API")
+        if not self.llm.api_key:
+            errors.append("API key bắt buộc")
         if self.pipeline.num_chapters < 1:
             errors.append("Số chương phải >= 1")
         if self.pipeline.words_per_chapter < 100:

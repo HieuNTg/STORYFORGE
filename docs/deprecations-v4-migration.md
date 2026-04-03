@@ -2,34 +2,40 @@
 
 ## Overview
 
-StoryForge v4.0 (planned) will remove browser-based authentication and focus on API key auth for simplicity and security.
+StoryForge v4.0 removed browser-based authentication. Only API key auth is supported.
 
-## Deprecated: Browser-Based Authentication
+## REMOVED in v4.0: Browser-Based Authentication
 
-**Status**: Deprecated in v3.x, **will be removed in v4.0**
+**Status**: REMOVED as of v4.0
 
-### What's Deprecated
+### What Was Removed
 
+- `services.browser_auth` package (entire directory)
 - `services.browser_auth.BrowserAuth` class
 - `services.deepseek_web_client.DeepSeekWebClient` class
+- `LLMConfig.backend_type` field
+- `LLMConfig.web_auth_provider` field
+- `LLMClient._is_web_backend()` method
+- `LLMClient._get_web_client()` method
+- `LLMClient._generate_web()` method
 - Web UI tabs for browser login (Chrome automation)
 - DeepSeek web API credential capture
 
 ### Migration Path
 
-Replace browser auth with standard API key authentication:
+Use standard API key authentication:
 
-**Before (deprecated)**:
+**Before (removed)**:
 ```python
 from services.browser_auth import BrowserAuth
 
-auth = BrowserAuth()  # DeprecationWarning
+auth = BrowserAuth()
 auth.launch_chrome()
 auth.capture_deepseek_credentials()
 creds = auth.get_credentials()
 ```
 
-**After (v4.0 compatible)**:
+**After (v4.0)**:
 ```python
 import os
 
@@ -54,6 +60,7 @@ api_key = cfg.llm.api_key
 2. **Remove BrowserAuth Calls**:
    - Delete calls to `BrowserAuth().launch_chrome()`
    - Delete calls to `BrowserAuth().capture_deepseek_credentials()`
+   - Remove `backend_type = "web"` config entries
    - Remove browser login UI tabs
 
 3. **Test API Key Auth**:
@@ -64,68 +71,23 @@ api_key = cfg.llm.api_key
      -d '{"model":"gpt-4o","messages":[{"role":"user","content":"test"}]}'
    ```
 
-## Deprecation Warnings
+## Supported Auth Methods (v4.0+)
 
-When using deprecated features, you'll see:
-
-```
-DeprecationWarning: BrowserAuth is deprecated and will be removed in v4.0.
-Use API key authentication instead (STORYFORGE_API_KEY env var).
-```
-
-```
-DeprecationWarning: DeepSeekWebClient is deprecated.
-Use standard API key authentication instead.
-```
-
-### In Settings Tab (ui/tabs/settings_tab.py)
-
-The settings UI still supports browser auth but emits a deprecation warning via the helper function `_get_browser_auth()`:
-
-```python
-def _get_browser_auth():
-    """Import BrowserAuth with deprecation warning. Raises on failure."""
-    _log.warning(_DEPRECATION_MSG)
-    from services.browser_auth import BrowserAuth
-    return BrowserAuth()
-```
-
-The warning appears in logs whenever users attempt to use browser login.
-
-## Timeline
-
-| Version | Status | Details |
-|---------|--------|---------|
-| v3.0-3.x | Available | Browser auth works but emits DeprecationWarning |
-| v4.0 | **Removal** | Browser auth code completely removed |
-
-## Supported Auth Methods
-
-**Currently supported** (v3.0+):
-1. **API Key Auth** (recommended) — OpenAI, Gemini, Anthropic, OpenRouter, Ollama, custom endpoints
-2. **Browser Auth** (deprecated in v3.x, removed in v4.0)
-
-**v4.0 onwards**:
-- API Key Auth only
+- **API Key Auth** (required) — OpenAI, Gemini, Anthropic, OpenRouter, Ollama, custom endpoints
 
 ## FAQ
 
-**Q: Can I keep using browser auth in v4.0?**
-No. The code will be removed. Plan migration now.
+**Q: Can I keep using browser auth?**
+No. The code has been removed. Migrate to API key auth.
 
 **Q: What if I don't have an API key?**
 - Use free APIs: Ollama (local), LM Studio
 - Use free tiers: Google Gemini, OpenRouter, Anthropic
 - Or request a cloud API key from your provider
 
-**Q: How do I suppress the deprecation warning?**
-Python warnings can be filtered (not recommended for production):
-```python
-import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-```
+## Timeline
 
-But you should migrate instead.
-
-**Q: When exactly is v4.0 released?**
-Check [GitHub Releases](https://github.com/HieuNTg/STORYFORGE/releases) for the v4.0 release date.
+| Version | Status | Details |
+|---------|--------|---------|
+| v3.0-3.x | Deprecated | Browser auth worked but emitted DeprecationWarning |
+| v4.0 | **REMOVED** | Browser auth code completely removed |

@@ -86,7 +86,6 @@ def _make_llm_config(
     max_tokens=2000,
     cache_enabled=False,
     cache_ttl_days=7,
-    backend_type="api",
     language="vi",
 ):
     cfg = MagicMock()
@@ -100,7 +99,6 @@ def _make_llm_config(
     cfg.llm.max_tokens = max_tokens
     cfg.llm.cache_enabled = cache_enabled
     cfg.llm.cache_ttl_days = cache_ttl_days
-    cfg.llm.backend_type = backend_type
     cfg.pipeline.language = language
     cfg.pipeline.share_base_url = ""
     return cfg
@@ -313,7 +311,6 @@ class TestGenerateFallback(unittest.TestCase):
         MockCache.return_value.get.return_value = None
 
         client = LLMClient()
-        client._is_web_backend = MagicMock(return_value=False)
         primary = MagicMock()
         response = MagicMock()
         response.choices[0].message.content = "Primary result"
@@ -335,7 +332,6 @@ class TestGenerateFallback(unittest.TestCase):
         MockCache.return_value.get.return_value = None
 
         client = LLMClient()
-        client._is_web_backend = MagicMock(return_value=False)
         primary = MagicMock()
         primary.chat.completions.create.side_effect = Exception("timeout")
         fallback = MagicMock()
@@ -361,7 +357,6 @@ class TestGenerateFallback(unittest.TestCase):
         MockCache.return_value.get.return_value = None
 
         client = LLMClient()
-        client._is_web_backend = MagicMock(return_value=False)
         failing = MagicMock()
         failing.chat.completions.create.side_effect = Exception("timeout")
         client._build_fallback_chain = MagicMock(return_value=[
@@ -382,7 +377,6 @@ class TestGenerateFallback(unittest.TestCase):
         MockCache.return_value.get.return_value = "cached response"
 
         client = LLMClient()
-        client._is_web_backend = MagicMock(return_value=False)
 
         with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
             result = client.generate("system", "user", temperature=0.5)
@@ -397,7 +391,6 @@ class TestGenerateFallback(unittest.TestCase):
         MockCache.return_value.get.return_value = None
 
         client = LLMClient()
-        client._is_web_backend = MagicMock(return_value=False)
         primary = MagicMock()
         # 401 Unauthorized — not transient, should NOT try fallback
         primary.chat.completions.create.side_effect = Exception("401 unauthorized")
@@ -527,7 +520,6 @@ class TestCheckConnection(unittest.TestCase):
         from services.llm_client import LLMClient
         MockCM.return_value = _make_llm_config()
         client = LLMClient()
-        client._is_web_backend = MagicMock(return_value=False)
         mock_openai = MagicMock()
         response = MagicMock()
         mock_openai.chat.completions.create.return_value = response
@@ -542,27 +534,12 @@ class TestCheckConnection(unittest.TestCase):
         from services.llm_client import LLMClient
         MockCM.return_value = _make_llm_config()
         client = LLMClient()
-        client._is_web_backend = MagicMock(return_value=False)
         mock_openai = MagicMock()
         mock_openai.chat.completions.create.side_effect = Exception("connection refused")
         client._get_client = MagicMock(return_value=mock_openai)
         ok, msg = client.check_connection()
         self.assertFalse(ok)
         self.assertIn("Lỗi", msg)
-
-    @patch("services.llm_client.ConfigManager")
-    def test_check_connection_web_backend(self, MockCM):
-        from services.llm_client import LLMClient
-        MockCM.return_value = _make_llm_config()
-        client = LLMClient()
-        client._is_web_backend = MagicMock(return_value=True)
-        web_client = MagicMock()
-        web_client.check_connection.return_value = (True, "Web OK")
-        client._get_web_client = MagicMock(return_value=web_client)
-        ok, msg = client.check_connection()
-        self.assertTrue(ok)
-        self.assertEqual(msg, "Web OK")
-
 
 if __name__ == "__main__":
     unittest.main()

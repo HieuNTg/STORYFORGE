@@ -135,9 +135,6 @@ def _check_llm() -> dict[str, Any]:
         from config import ConfigManager
 
         cfg = ConfigManager()
-        if cfg.llm.backend_type != "api":
-            return {"status": "not_applicable", "backend": cfg.llm.backend_type}
-
         base_url = getattr(cfg.llm, "base_url", None) or "https://api.openai.com"
         import urllib.request
 

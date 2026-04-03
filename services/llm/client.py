@@ -1,4 +1,4 @@
-"""LLMClient — singleton LLM caller with dual-backend routing, retry, and cache."""
+"""LLMClient — singleton LLM caller with retry and cache."""
 
 import logging
 import random
@@ -8,7 +8,6 @@ import threading
 from typing import Optional
 from services.llm.retry import (
     MAX_RETRIES, BASE_DELAY,
-    WebBackendExhausted,
     _redact, _is_transient, _detect_provider, _should_retry,
 )
 from services.llm.streaming import StreamingMixin
@@ -90,16 +89,6 @@ class LLMClient(StreamingMixin, GenerationMixin):
         layer_model = layer_map.get(layer, "")
         return layer_model or self._current_model or config.llm.model
 
-    def _is_web_backend(self) -> bool:
-        ConfigManager, _, _ = _imports()
-        return ConfigManager().llm.backend_type == "web"
-
-    def _get_web_client(self):
-        from services.deepseek_web_client import DeepSeekWebClient
-        if not hasattr(self, "_web_client") or self._web_client is None:
-            self._web_client = DeepSeekWebClient()
-        return self._web_client
-
     def _get_cheap_client(self):
         ConfigManager, OpenAI, _ = _imports()
         config = ConfigManager()
@@ -150,7 +139,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
         model_tier: str = "default",
         model: Optional[str] = None,
     ) -> str:
-        """Call LLM with retry, cache. Supports API and web (browser auth) backend.
+        """Call LLM with retry, cache.
 
         Args:
             model: Optional model override (e.g. from model_for_layer). Takes
@@ -170,7 +159,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
             {"role": "user", "content": user_prompt},
         ]
 
-        effective_model = config.llm.model if not self._is_web_backend() else "deepseek-web"
+        effective_model = config.llm.model
         use_cache = config.llm.cache_enabled and effective_temp <= 1.0
         cache = None
         cache_params = None
@@ -184,13 +173,6 @@ class LLMClient(StreamingMixin, GenerationMixin):
             cached = cache.get(**cache_params)
             if cached is not None:
                 return cached
-
-        if self._is_web_backend():
-            try:
-                result = self._generate_web(messages, effective_temp, use_cache, cache, cache_params)
-                return result
-            except WebBackendExhausted as e:
-                logger.warning(f"Web backend exhausted, falling back to API chain: {e}")
 
         chain = self._build_fallback_chain(config, model_tier, model_override=model)
         eff_max_tokens = max_tokens or config.llm.max_tokens
@@ -267,20 +249,6 @@ class LLMClient(StreamingMixin, GenerationMixin):
         return self._retry_with_backoff(
             _call, label=f"Provider {provider['label']}", provider=provider_type
         )
-
-    def _generate_web(self, messages, temperature, use_cache, cache, cache_params) -> str:
-        def _call():
-            web_client = self._get_web_client()
-            return web_client.chat_completion_sync(messages=messages, temperature=temperature)
-
-        try:
-            result = self._retry_with_backoff(_call, label="Web LLM")
-            if use_cache and cache is not None and cache_params is not None:
-                cache.put(result, **cache_params)
-            return result
-        except Exception as e:
-            logger.error(f"Web LLM failed after {MAX_RETRIES} attempts: {_redact(e)}")
-            raise WebBackendExhausted(str(e)) from e
 
     @staticmethod
     def _repair_json(text: str) -> str:

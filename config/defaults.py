@@ -11,9 +11,6 @@ class LLMConfig:
     model: str = "gpt-4o-mini"
     temperature: float = 0.8
     max_tokens: int = 4096
-    # Backend: "api" (OpenAI-compatible) hoặc "web" (browser auth, free)
-    backend_type: str = "api"
-    web_auth_provider: str = "deepseek-web"  # Provider cho web auth
     # Model routing: cheap model for summaries/analysis
     cheap_model: str = ""  # empty = use primary model
     cheap_base_url: str = ""  # empty = use primary base_url

@@ -21,7 +21,6 @@ def _make_llm_config(api_key="valid-key"):
     cfg.llm.max_tokens = 2000
     cfg.llm.cache_enabled = False
     cfg.llm.cache_ttl_days = 7
-    cfg.llm.backend_type = "api"
     cfg.pipeline.language = "vi"
     cfg.pipeline.share_base_url = ""
     return cfg
@@ -54,7 +53,6 @@ class TestLLMAllRetriesExhausted:
         MockCache.return_value.get.return_value = None
 
         client = LLMClient()
-        client._is_web_backend = MagicMock(return_value=False)
 
         failing = MagicMock()
         # Always raises transient error — _try_provider retries MAX_RETRIES times then re-raises
@@ -78,7 +76,6 @@ class TestLLMAllRetriesExhausted:
         MockCache.return_value.get.return_value = None
 
         client = LLMClient()
-        client._is_web_backend = MagicMock(return_value=False)
 
         failing = MagicMock()
         failing.chat.completions.create.side_effect = Exception("timeout")
@@ -103,7 +100,6 @@ class TestLLMAllRetriesExhausted:
         MockCache.return_value.get.return_value = None
 
         client = LLMClient()
-        client._is_web_backend = MagicMock(return_value=False)
 
         def _make_failing():
             m = MagicMock()
@@ -285,7 +281,6 @@ class TestPipelineInvalidConfig:
         cfg = _make_llm_config(api_key="")
         MockCM.return_value = cfg
         client = LLMClient()
-        client._is_web_backend = MagicMock(return_value=False)
 
         mock_openai = MagicMock()
         mock_openai.chat.completions.create.side_effect = Exception("401 unauthorized invalid api key")
@@ -306,7 +301,6 @@ class TestPipelineInvalidConfig:
         MockCache.return_value.get.return_value = None
 
         client = LLMClient()
-        client._is_web_backend = MagicMock(return_value=False)
 
         primary = MagicMock()
         primary.chat.completions.create.side_effect = Exception("401 unauthorized")

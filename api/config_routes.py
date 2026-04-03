@@ -54,7 +54,6 @@ class ConfigUpdate(BaseModel):
     max_tokens: Optional[int] = None
     cheap_model: Optional[str] = None
     cheap_base_url: Optional[str] = None
-    backend_type: Optional[str] = None
     language: Optional[str] = None
     layer1_model: Optional[str] = None
     layer2_model: Optional[str] = None
@@ -84,7 +83,6 @@ def get_config():
             "max_tokens": cfg.llm.max_tokens,
             "cheap_model": cfg.llm.cheap_model,
             "cheap_base_url": cfg.llm.cheap_base_url,
-            "backend_type": cfg.llm.backend_type,
             "layer1_model": cfg.llm.layer1_model,
             "layer2_model": cfg.llm.layer2_model,
             "layer3_model": cfg.llm.layer3_model,
@@ -119,8 +117,6 @@ def save_config(body: ConfigUpdate):
         cfg.llm.cheap_model = body.cheap_model
     if body.cheap_base_url is not None:
         cfg.llm.cheap_base_url = body.cheap_base_url
-    if body.backend_type is not None:
-        cfg.llm.backend_type = body.backend_type
     if body.layer1_model is not None:
         cfg.llm.layer1_model = body.layer1_model
     if body.layer2_model is not None:
