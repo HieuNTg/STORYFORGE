@@ -39,6 +39,8 @@ jobs:
   unit-tests:
     runs-on: ubuntu-latest
     needs: lint
+    env:
+      STORYFORGE_SECRET_KEY: ci-test-secret-not-for-production
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -88,6 +90,8 @@ jobs:
   e2e-tests:
     runs-on: ubuntu-latest
     needs: lint
+    env:
+      STORYFORGE_SECRET_KEY: ci-test-secret-not-for-production
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -97,7 +101,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Install test dependencies
-        run: pip install pytest pytest-cov pytest-asyncio
+        run: pip install pytest pytest-cov pytest-asyncio numpy==1.26.4
       - name: Run E2E tests
         run: python -m pytest tests/test_e2e_pipeline.py -v --tb=short --no-cov
 

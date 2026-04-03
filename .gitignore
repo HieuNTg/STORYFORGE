@@ -23,6 +23,7 @@ data/onboarding_state.json
 data/.auth_key
 data/audio/
 data/branches/
+data/jwt_keys/
 output/
 
 # ── Logs ───────────────────────────────────────────────────────────

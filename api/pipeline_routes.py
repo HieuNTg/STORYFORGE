@@ -41,6 +41,7 @@ class PipelineRequest(BaseModel):
     enable_agents: bool = True
     enable_scoring: bool = True
     enable_media: bool = False
+    lite_mode: bool = False
 
 
 class ResumeRequest(BaseModel):
@@ -136,7 +137,7 @@ def get_checkpoint(filename: str):
         return summary
     except Exception as e:
         logger.error(f"Failed to load checkpoint {safe_name}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to load checkpoint")
 
 
 @router.delete("/checkpoints/{filename}")
@@ -161,7 +162,7 @@ def delete_checkpoint(filename: str):
         return {"ok": True, "deleted": safe_name}
     except Exception as e:
         logger.error(f"Failed to delete checkpoint {safe_name}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Failed to delete checkpoint")
 
 
 @router.post("/run")
@@ -200,6 +201,11 @@ async def run_pipeline(request: Request, body: PipelineRequest):
             if now - last_stream_time[0] > 0.3:
                 progress_queue.put(("stream", partial_text))
                 last_stream_time[0] = now
+
+        # Apply lite mode: switch debate to 3-agent fast path (~85% fewer API calls).
+        # Enabled per-request via body.lite_mode, or globally via STORYFORGE_LITE_MODE=true.
+        if body.lite_mode or os.environ.get("STORYFORGE_LITE_MODE", "").lower() in ("1", "true"):
+            orch.config.pipeline.debate_mode = "lite"
 
         result = [None]
 
