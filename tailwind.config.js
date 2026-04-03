@@ -10,6 +10,10 @@
 
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  // Class-based dark mode — the .dark class on <html> triggers dark: variants.
+  // Toggled by the inline bootstrap script in index.html + Alpine store.
+  darkMode: 'class',
+
   // Paths Tailwind scans to detect used class names for PurgeCSS/JIT tree-shaking.
   // Must cover every file that references Tailwind utilities — missing paths cause
   // classes to be purged in production builds.

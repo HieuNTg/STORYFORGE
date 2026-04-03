@@ -22,34 +22,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- color-scheme is set dynamically by the dark-mode bootstrap script above -->
   <title>StoryForge</title>
-  <!-- TODO(production): Replace Tailwind CDN with a proper build step (e.g. `npx tailwindcss -o dist/main.css --minify`).
-       The CDN version is development-only — it ships the full engine and evaluates
-       class names at runtime, which is ~300 KB and unsuitable for production. -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tailwind CSS — built via PostCSS (see tailwind.config.js + postcss.config.js).
+       Run `npm run build:vite` to produce production bundle, or `npm run dev` for HMR. -->
+  <!-- Tailwind CSS + tokens + supplementary styles — all bundled via PostCSS -->
+  <link rel="stylesheet" href="./css/main.css">
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <script defer src="/static/js/feedback-widget.js"></script>
   <script defer src="/static/js/report-issue.js"></script>
-  <link rel="stylesheet" href="/static/css/feedback.css">
-  <link rel="stylesheet" href="/static/css/mobile-fixes.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <script>
-    tailwind.config = {
-      /* Use class-based dark mode so the JS toggle works.
-         The .dark class on <html> triggers dark: variants. */
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
-          colors: {
-            brand: { 50:'#EFF6FF', 100:'#DBEAFE', 200:'#BFDBFE', 500:'#3B82F6', 600:'#2563EB', 700:'#1D4ED8', 800:'#1E40AF' },
-            surface: { 50:'#F8FAFC', 100:'#F1F5F9', 200:'#E2E8F0' },
-          },
-        },
-      },
-    }
-  </script>
-  <link rel="stylesheet" href="/static/css/tokens.css">
   <style>
     [x-cloak] { display: none !important; }
     .page-enter { animation: fadeSlideIn 0.25s ease-out; }

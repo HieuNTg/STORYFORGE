@@ -137,7 +137,11 @@ def main():
         allow_headers=["Authorization", "Content-Type", "Accept"],
     )
 
-    # --- Rate limiting middleware (in-memory, per-IP) ---
+    # --- Security headers middleware (CSP, X-Frame-Options, etc.) ---
+    from middleware.security_headers import SecurityHeadersMiddleware
+    main_app.add_middleware(SecurityHeadersMiddleware)
+
+    # --- Rate limiting middleware (Redis or in-memory, per-IP) ---
     from middleware.rate_limiter import RateLimitMiddleware
     main_app.add_middleware(RateLimitMiddleware)
 

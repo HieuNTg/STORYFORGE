@@ -1,25 +1,19 @@
 /**
  * web/css/main.css — StoryForge production CSS entry point
  *
- * Used by the Vite build pipeline (NOT loaded in CDN fallback mode).
- * Processing order:
- *   1. Tailwind base reset + defaults
- *   2. Tailwind component classes
- *   3. StoryForge design tokens (CSS custom properties)
- *   4. Tailwind utility classes (generated from scanned class names)
- *
- * In CDN mode the tokens are loaded via <link rel="stylesheet" href="/static/css/tokens.css">
- * in index.html, so functionality is identical in both modes.
+ * Used by the Vite build pipeline.
+ * Run `npm run build:vite` to produce a production bundle,
+ * or `npm run dev` for local development with HMR.
  */
+
+/* ── Imports (must precede all other statements per CSS spec) ────────────── */
+@import './tokens.css';
+@import './feedback.css';
+@import './mobile-fixes.css';
 
 /* ── Tailwind layers ──────────────────────────────────────────────────────── */
 @tailwind base;
 @tailwind components;
-
-/* ── Design tokens ────────────────────────────────────────────────────────── */
-@import './tokens.css';
-
-/* ── Tailwind utilities (must follow components + token imports) ─────────── */
 @tailwind utilities;
 
 /* ── Global Alpine.js utilities ──────────────────────────────────────────── */

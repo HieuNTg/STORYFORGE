@@ -245,6 +245,8 @@ services:
       - "3000:3000"
     volumes:
       - ./monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/storyforge.json:ro
+      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-storyforge}

@@ -39,7 +39,7 @@
       "title": "API Request Rate (req/sec)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "storyforge-prometheus" },
       "targets": [
         {
           "expr": "sum(rate(http_requests_total{job=\"storyforge\"}[$__rate_interval])) by (status)",
@@ -59,7 +59,7 @@
       "title": "API Response Time (p50 / p95 / p99)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "storyforge-prometheus" },
       "targets": [
         {
           "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"storyforge\"}[$__rate_interval])) by (le))",
@@ -96,7 +96,7 @@
       "title": "HTTP Error Rate by Status Code",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "storyforge-prometheus" },
       "targets": [
         {
           "expr": "sum(rate(http_requests_total{job=\"storyforge\", status=~\"4..\"}[$__rate_interval])) by (status)",
@@ -121,7 +121,7 @@
       "title": "Pipeline Execution Time by Layer",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "storyforge-prometheus" },
       "targets": [
         {
           "expr": "histogram_quantile(0.95, sum(rate(storyforge_pipeline_layer_duration_seconds_bucket[$__rate_interval])) by (le, layer))",
@@ -146,7 +146,7 @@
       "title": "Active SSE Connections",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 16 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "storyforge-prometheus" },
       "targets": [
         {
           "expr": "storyforge_sse_connections_active",
@@ -172,7 +172,7 @@
       "title": "System CPU Usage",
       "type": "gauge",
       "gridPos": { "h": 4, "w": 6, "x": 6, "y": 16 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "storyforge-prometheus" },
       "targets": [
         {
           "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[$__rate_interval])) * 100)",
@@ -200,7 +200,7 @@
       "title": "System Memory Usage",
       "type": "gauge",
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 16 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "storyforge-prometheus" },
       "targets": [
         {
           "expr": "100 * (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes))",
@@ -228,7 +228,7 @@
       "title": "Pipeline Failure Rate",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 18, "y": 16 },
-      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "datasource": { "type": "prometheus", "uid": "storyforge-prometheus" },
       "targets": [
         {
           "expr": "100 * (sum(rate(storyforge_pipeline_runs_total{status=\"failed\"}[$__rate_interval])) / sum(rate(storyforge_pipeline_runs_total[$__rate_interval])))",
@@ -254,7 +254,7 @@
       "title": "Application Logs",
       "type": "logs",
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 20 },
-      "datasource": { "type": "loki", "uid": "${DS_LOKI}" },
+      "datasource": { "type": "loki", "uid": "storyforge-loki" },
       "targets": [
         {
           "expr": "{job=\"storyforge\"}",

@@ -44,6 +44,33 @@ def _get_database_url() -> Optional[str]:
     return os.environ.get("DATABASE_URL") or None
 
 
+def _setup_pool_metrics(engine: "AsyncEngine") -> None:  # noqa: F821
+    """Attach SQLAlchemy pool event listeners for observability.
+
+    Logs pool checkout/checkin events at DEBUG level so pool exhaustion
+    issues can be diagnosed from structured logs.
+    """
+    from sqlalchemy import event
+
+    sync_engine = engine.sync_engine
+
+    @event.listens_for(sync_engine, "checkout")
+    def _on_checkout(dbapi_conn, connection_record, connection_proxy):
+        pool = sync_engine.pool
+        logger.debug(
+            "DB pool checkout: size=%d, checked_in=%d, overflow=%d",
+            pool.size(), pool.checkedin(), pool.overflow(),
+        )
+
+    @event.listens_for(sync_engine, "checkin")
+    def _on_checkin(dbapi_conn, connection_record):
+        pool = sync_engine.pool
+        logger.debug(
+            "DB pool checkin: size=%d, checked_in=%d, overflow=%d",
+            pool.size(), pool.checkedin(), pool.overflow(),
+        )
+
+
 def _warn_no_db() -> None:
     warnings.warn(
         "DATABASE_URL is not set — database operations are no-ops.",
@@ -84,6 +111,7 @@ def get_engine() -> Optional["AsyncEngine"]:  # noqa: F821
                     max_overflow=int(os.environ.get("DB_MAX_OVERFLOW", "10")),
                     pool_pre_ping=True,
                 )
+                _setup_pool_metrics(_engine)
                 _session_factory = async_sessionmaker(
                     _engine,
                     class_=AsyncSession,
