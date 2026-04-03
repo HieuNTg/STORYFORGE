@@ -113,6 +113,14 @@
   --sf-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
   --sf-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
   --sf-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.4), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+
+  /* ── Semantic dark mode tokens (consumed by index.html dark overrides) ── */
+  --dm-bg:            #0f172a;
+  --dm-surface:       #1e293b;
+  --dm-border:        #334155;
+  --dm-text:          #e2e8f0;
+  --dm-text-secondary:#cbd5e1;
+  --dm-text-muted:    #64748b;
 }
 
 /* ── Focus-visible ring — keyboard navigation indicator ──

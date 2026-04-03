@@ -134,9 +134,11 @@ const _StorageManager = ((): StorageManagerInterface => {
           _usingFallback = true;
         } catch (e) {
           console.warn('[StorageManager] IndexedDB setItem failed:', (e as Error).message);
+          window.dispatchEvent(new CustomEvent('storage-error', { detail: { key, error: e } }));
         }
       } else {
         console.warn('[StorageManager] No storage backend available for key:', key);
+        window.dispatchEvent(new CustomEvent('storage-error', { detail: { key, error: new Error('No storage backend available') } }));
       }
     },
 

@@ -24,7 +24,26 @@ from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from services.auth_revocation import is_revoked
 
 logger = logging.getLogger(__name__)
-_TOKEN_TTL = 86_400  # 24 hours
+
+# JWT token TTL — configurable via env var, defaults to 24 hours.
+# Valid range: 300s (5 min) to 604800s (7 days). Out-of-range values are
+# clamped with a warning so misconfiguration doesn't silently break auth.
+_TOKEN_TTL_MIN = 300       # 5 minutes
+_TOKEN_TTL_MAX = 604_800   # 7 days
+_TOKEN_TTL = int(os.environ.get("STORYFORGE_JWT_TTL_SECONDS", "86400"))
+if _TOKEN_TTL < _TOKEN_TTL_MIN:
+    logger.warning(
+        "STORYFORGE_JWT_TTL_SECONDS=%d is below minimum %d — clamping to %d",
+        _TOKEN_TTL, _TOKEN_TTL_MIN, _TOKEN_TTL_MIN,
+    )
+    _TOKEN_TTL = _TOKEN_TTL_MIN
+elif _TOKEN_TTL > _TOKEN_TTL_MAX:
+    logger.warning(
+        "STORYFORGE_JWT_TTL_SECONDS=%d exceeds maximum %d — clamping to %d",
+        _TOKEN_TTL, _TOKEN_TTL_MAX, _TOKEN_TTL_MAX,
+    )
+    _TOKEN_TTL = _TOKEN_TTL_MAX
+
 _MAX_OLD_KEYS = 3  # Max previous rotation keys to load for verification
 
 # Cached RSA keys — avoids disk I/O on every token operation

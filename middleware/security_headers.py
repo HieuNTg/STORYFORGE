@@ -7,7 +7,15 @@ Protects the app even when accessed directly (bypassing Nginx).
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request
 
-# CSP directives — restrictive but allows Alpine.js CDN + Google Fonts
+# CSP is the single source of truth — nginx.conf intentionally omits CSP so
+# this policy is never overridden or duplicated. Update only here.
+#
+# 'unsafe-inline' in script-src: required by Alpine.js (v3), which evaluates
+# inline expressions in x-data / x-on attributes at runtime. Removing it
+# breaks all Alpine.js interactivity. Tracked for removal if Alpine adds a
+# CSP-compatible mode in a future release.
+#
+# 'unsafe-eval' in script-src: required by Alpine.js expression evaluation.
 _CSP_DIRECTIVES = "; ".join([
     "default-src 'self'",
     "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net",

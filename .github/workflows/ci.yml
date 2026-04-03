@@ -119,6 +119,16 @@ jobs:
           tags: storyforge:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # TODO: Add image vulnerability scanning here after the build step.
+      # Recommended: use aquasecurity/trivy-action@master
+      # Example:
+      #   - name: Scan image for vulnerabilities
+      #     uses: aquasecurity/trivy-action@master
+      #     with:
+      #       image-ref: storyforge:latest
+      #       format: table
+      #       exit-code: 1
+      #       severity: CRITICAL,HIGH
 
   staging-deploy:
     runs-on: ubuntu-latest

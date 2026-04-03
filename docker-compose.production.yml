@@ -68,8 +68,11 @@ services:
       - storyforge-redis-data:/data
     # Append-only persistence + password auth for production security
     command: redis-server --appendonly yes --appendfsync everysec --requirepass ${REDIS_PASSWORD}
+    environment:
+      # REDISCLI_AUTH avoids exposing the password in `docker inspect` healthcheck args
+      - REDISCLI_AUTH=${REDIS_PASSWORD}
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5

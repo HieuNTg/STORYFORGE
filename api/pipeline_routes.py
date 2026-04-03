@@ -168,6 +168,35 @@ def delete_checkpoint(filename: str):
         raise HTTPException(status_code=500, detail="Failed to delete checkpoint")
 
 
+@router.get("/stories")
+def list_stories(limit: int = 20, offset: int = 0):
+    """List saved stories (checkpoints) with pagination.
+
+    Args:
+        limit: Maximum number of items to return (default 20).
+        offset: Number of items to skip (default 0).
+
+    Returns paginated story list with total count for client-side pagination.
+    """
+    from pipeline.orchestrator import PipelineOrchestrator
+    all_checkpoints = PipelineOrchestrator.list_checkpoints()
+    total = len(all_checkpoints)
+    page = all_checkpoints[offset: offset + limit]
+    items = [
+        {
+            "filename": c["file"],
+            "title": c.get("title", ""),
+            "genre": c.get("genre", ""),
+            "chapter_count": c.get("chapter_count", 0),
+            "current_layer": c.get("current_layer", 0),
+            "size_kb": c["size_kb"],
+            "modified": c["modified"],
+        }
+        for c in page
+    ]
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
 @router.post("/run")
 async def run_pipeline(request: Request, body: PipelineRequest):
     """Run the full pipeline, streaming progress via SSE."""

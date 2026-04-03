@@ -58,6 +58,11 @@ COPY --from=frontend /frontend/web/dist/ /app/web/dist/
 # Create required runtime directories
 RUN mkdir -p data output assets/fonts data/users data/shares data/templates
 
+# Create non-root user for security
+RUN groupadd -r storyforge && useradd -r -g storyforge -d /app -s /sbin/nologin storyforge
+RUN chown -R storyforge:storyforge /app
+USER storyforge
+
 EXPOSE 7860
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \

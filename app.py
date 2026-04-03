@@ -137,6 +137,10 @@ def main():
         allow_headers=["Authorization", "Content-Type", "Accept"],
     )
 
+    # --- Request trace ID middleware (must be outermost so all downstream layers see it) ---
+    from middleware.trace_id import TraceIDMiddleware
+    main_app.add_middleware(TraceIDMiddleware)
+
     # --- Security headers middleware (CSP, X-Frame-Options, etc.) ---
     from middleware.security_headers import SecurityHeadersMiddleware
     main_app.add_middleware(SecurityHeadersMiddleware)

@@ -61,57 +61,31 @@
     }
 
     /* ── Dark mode overrides ──
-       Flips hardcoded light-mode colors used throughout the UI.
-       Tailwind CDN's dark: variants only cover built-in colors; our custom
-       surface-* palette and Tailwind slate-* utilities on elements need
-       explicit dark overrides here.
+       Uses CSS custom properties defined in tokens.css (.dark class block).
+       Raw hex values removed — single source of truth is tokens.css.
     */
-
-    /* Base surfaces */
-    .dark body { background: #0f172a; color: #e2e8f0; }
-    .dark .card { background: #1e293b; border-color: #334155; }
-
-    /* Slate text colors — flip for dark background readability */
-    .dark .text-slate-800 { color: #e2e8f0; }
-    .dark .text-slate-700 { color: #cbd5e1; }
-    .dark .text-slate-600 { color: #94a3b8; }
-    .dark .text-slate-500 { color: #94a3b8; }
-
-    /* Surface background utilities — light → dark */
-    .dark .bg-surface-50  { background-color: #0f172a; }
-    .dark .bg-surface-100 { background-color: #1e293b; }
-    .dark .bg-surface-200 { background-color: #334155; }
-    .dark .bg-white       { background-color: #1e293b; }
-
-    /* Border utilities */
-    .dark .border-surface-200 { border-color: #334155; }
-    .dark .border-slate-200   { border-color: #334155; }
-    .dark .bg-slate-100       { background-color: #334155; }
-
-    /* Sidebar */
-    .dark .sidebar-link { color: #cbd5e1; }
-    .dark .sidebar-link:hover { background: #1e293b; }
+    .dark body { background: var(--dm-bg); color: var(--dm-text); }
+    .dark .card { background: var(--dm-surface); border-color: var(--dm-border); }
+    .dark .text-slate-800 { color: var(--dm-text); }
+    .dark .text-slate-700 { color: var(--dm-text-secondary); }
+    .dark .text-slate-600, .dark .text-slate-500 { color: var(--dm-text-muted); }
+    .dark .bg-surface-50  { background-color: var(--dm-bg); }
+    .dark .bg-surface-100 { background-color: var(--dm-surface); }
+    .dark .bg-surface-200, .dark .bg-slate-100 { background-color: var(--dm-border); }
+    .dark .bg-white       { background-color: var(--dm-surface); }
+    .dark .border-surface-200, .dark .border-slate-200 { border-color: var(--dm-border); }
+    .dark .sidebar-link { color: var(--dm-text-secondary); }
+    .dark .sidebar-link:hover { background: var(--dm-surface); }
     .dark .sidebar-link.active { background: #1e3a5f; color: #60a5fa; }
-    .dark aside { background: #0f172a; border-color: #334155; }
-    .dark header { background: rgba(15, 23, 42, 0.85); border-color: #334155; }
-
-    /* Inputs / selects */
-    .dark input:not([type=range]):not([type=checkbox]),
-    .dark select,
-    .dark textarea {
-      background: #0f172a;
-      border-color: #334155;
-      color: #e2e8f0;
+    .dark aside { background: var(--dm-bg); border-color: var(--dm-border); }
+    .dark header { background: rgba(15,23,42,0.85); border-color: var(--dm-border); }
+    .dark input:not([type=range]):not([type=checkbox]), .dark select, .dark textarea {
+      background: var(--dm-bg); border-color: var(--dm-border); color: var(--dm-text);
     }
-    .dark input::placeholder,
-    .dark textarea::placeholder { color: #64748b; }
-
-    /* Scrollbar */
+    .dark input::placeholder, .dark textarea::placeholder { color: var(--dm-text-muted); }
     .dark ::-webkit-scrollbar-thumb { background: #475569; }
-
-    /* Skeleton shimmer in dark mode */
     .dark .skeleton-pulse {
-      background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+      background: linear-gradient(90deg, var(--dm-surface) 25%, var(--dm-border) 50%, var(--dm-surface) 75%);
       background-size: 200% 100%;
     }
   </style>
@@ -188,6 +162,7 @@
         <button
           class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-600 cursor-pointer"
           :class="{ 'active': $store.app.page === item.id }"
+          :aria-current="$store.app.page === item.id ? 'page' : undefined"
           @click="$store.app.navigate(item.id)"
         >
           <span class="w-5 h-5 flex-shrink-0" x-html="getNavIcon(item.icon)"></span>
@@ -200,6 +175,7 @@
         <button
           class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-600 cursor-pointer"
           :class="{ 'active': $store.app.page === item.id }"
+          :aria-current="$store.app.page === item.id ? 'page' : undefined"
           @click="$store.app.navigate(item.id)"
         >
           <span class="w-5 h-5 flex-shrink-0" x-html="getNavIcon(item.icon)"></span>

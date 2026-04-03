@@ -182,6 +182,16 @@ document.addEventListener('alpine:init', () => {
         }
       });
 
+      // Issue #6: Notify user once per session when all storage backends fail
+      let _storageErrorShown = false;
+      window.addEventListener('storage-error', (_e: Event): void => {
+        if (_storageErrorShown) return;
+        _storageErrorShown = true;
+        if (typeof window.sfShowToast === 'function') {
+          window.sfShowToast('Storage unavailable — progress may not be saved', 'warning');
+        }
+      });
+
       // Restore pipeline result via StorageManager
       await window.storageManager.init();
       try {

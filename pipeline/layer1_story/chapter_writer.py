@@ -9,6 +9,7 @@ from models.schemas import (
 )
 from services import prompts
 from services.adaptive_prompts import build_adaptive_write_prompt
+from services.text_utils import excerpt_text
 
 if TYPE_CHECKING:
     from services.llm_client import LLMClient
@@ -18,11 +19,7 @@ logger = logging.getLogger(__name__)
 
 def excerpt(content: str, max_chars: int = 4000) -> str:
     """Extract beginning + end of content for extraction prompts."""
-    if len(content) <= max_chars:
-        return content
-    head = max_chars * 2 // 3
-    tail = max_chars - head
-    return content[:head] + "\n...\n" + content[-tail:]
+    return excerpt_text(content, max_chars=max_chars)
 
 
 def format_context(

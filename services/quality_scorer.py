@@ -7,6 +7,7 @@ from statistics import mean
 from models.schemas import Chapter, ChapterScore, StoryScore
 from services.llm_client import LLMClient
 from services import prompts
+from services.text_utils import excerpt_text
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +20,7 @@ class QualityScorer:
 
     def score_chapter(self, chapter: Chapter, context: str = "") -> ChapterScore:
         """Score a single chapter using cheap model."""
-        # Use head+tail excerpt for long chapters
-        content = chapter.content
-        if len(content) > 4000:
-            head = 2600
-            tail = 1400
-            content = content[:head] + "\n...\n" + content[-tail:]
+        content = excerpt_text(chapter.content)
 
         result = self.llm.generate_json(
             system_prompt="Bạn là chuyên gia đánh giá văn học. Trả về JSON.",
