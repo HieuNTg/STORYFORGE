@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.build.json",
+    "build:css": "tailwindcss -i web/css/main.css -o web/css/main.built.css --minify",
     "build:vite": "vite build",
     "preview": "vite preview",
     "test": "vitest",
