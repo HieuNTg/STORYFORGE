@@ -156,6 +156,11 @@ class PipelineConfig:
     quality_gate_max_retries: int = 1
 
 
+# ── Cache / Redis ──
+REDIS_URL = os.environ.get("REDIS_URL", "").strip()
+CACHE_BACKEND = "redis" if REDIS_URL else "sqlite"
+CACHE_TTL_DAYS = int(os.environ.get("CACHE_TTL_DAYS", "7"))
+
 VIDEO_QUALITY_PRESETS = {
     "draft": {"resolution": "512x512", "fps": 24, "crf": "28", "preset": "fast"},
     "final": {"resolution": "1024x1024", "fps": 30, "crf": "23", "preset": "medium"},

@@ -1,5 +1,25 @@
 """Shared text utility functions."""
 
+try:
+    import nh3 as _nh3
+    _HAS_NH3 = True
+except ImportError:
+    _nh3 = None  # type: ignore[assignment]
+    _HAS_NH3 = False
+
+_ALLOWED_TAGS = {"strong", "em", "br", "p", "h1", "h2", "h3", "h4",
+                 "ul", "ol", "li", "a", "code", "pre", "blockquote"}
+_ALLOWED_ATTRS = {"a": {"href", "target", "rel"}}
+
+
+def sanitize_story_html(content: str) -> str:
+    """Sanitize HTML content to prevent XSS. Strips all non-allowlisted tags."""
+    if not content:
+        return ""
+    if not _HAS_NH3:
+        return content
+    return _nh3.clean(content, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS)
+
 
 def excerpt_text(text: str, max_chars: int = 4000, head_ratio: float = 0.67) -> str:
     """Return a head+tail excerpt of text for use in prompts.

@@ -11,10 +11,22 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from services.i18n import I18n
+from services.text_utils import sanitize_story_html
 from pipeline.orchestrator import PipelineOrchestrator
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
+
+
+def _sanitize_summary(summary: dict) -> dict:
+    """Sanitize story chapter content fields in pipeline output summary."""
+    for key in ("draft", "enhanced"):
+        section = summary.get(key)
+        if section and isinstance(section.get("chapters"), list):
+            for ch in section["chapters"]:
+                if isinstance(ch.get("content"), str):
+                    ch["content"] = sanitize_story_html(ch["content"])
+    return summary
 
 # Shared orchestrator instance per session.
 # Lock required: concurrent SSE requests (different sessions) may read/write
@@ -308,6 +320,7 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                 summary = build_output_summary(output)
                 summary["session_id"] = session_id
                 summary["logs"] = logs
+                _sanitize_summary(summary)
                 yield f"data: {json.dumps({'type': 'done', 'data': summary}, ensure_ascii=False, default=str)}\n\n"
             else:
                 yield f"data: {json.dumps({'type': 'error', 'data': 'Pipeline thất bại'})}\n\n"
@@ -416,6 +429,7 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
                 summary = build_output_summary(output)
                 summary["session_id"] = session_id
                 summary["logs"] = logs
+                _sanitize_summary(summary)
                 yield f"data: {json.dumps({'type': 'done', 'data': summary}, ensure_ascii=False, default=str)}\n\n"
             else:
                 yield f"data: {json.dumps({'type': 'error', 'data': 'Resume failed'})}\n\n"

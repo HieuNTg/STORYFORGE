@@ -28,6 +28,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 """
 
 import json
+import os
 import sys
 import uuid
 import logging
@@ -41,9 +42,60 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# In-memory job store (POC — replace with Redis/DB for production)
+# Graceful redis import
 # ---------------------------------------------------------------------------
-_jobs: dict[str, dict] = {}
+try:
+    import redis as _redis_lib
+    _REDIS_AVAILABLE = True
+except ImportError:
+    _redis_lib = None  # type: ignore[assignment]
+    _REDIS_AVAILABLE = False
+
+# ---------------------------------------------------------------------------
+# Job store — Redis-backed when REDIS_URL is set, else in-memory dict
+# ---------------------------------------------------------------------------
+_REDIS_URL = os.environ.get("REDIS_URL", "").strip()
+_JOB_TTL = 86400  # 24 hours
+_JOB_PREFIX = "mcp_job:"
+
+_jobs: dict[str, dict] = {}  # fallback in-memory store
+_redis_client = None
+
+if _REDIS_URL and _REDIS_AVAILABLE:
+    try:
+        _redis_client = _redis_lib.from_url(_REDIS_URL, decode_responses=True)
+        _redis_client.ping()
+        logger.warning("MCP job store: Redis connected (%s)", _REDIS_URL.split("@")[-1])
+    except Exception as _e:
+        logger.warning("MCP job store: Redis unavailable (%s), using in-memory fallback.", _e)
+        _redis_client = None
+
+
+def _get_job(job_id: str) -> "dict | None":
+    """Retrieve job data by id."""
+    if _redis_client is not None:
+        try:
+            raw = _redis_client.get(f"{_JOB_PREFIX}{job_id}")
+            if raw:
+                return json.loads(raw)
+            return None
+        except Exception as e:
+            logger.warning("Redis get_job error: %s", e)
+            return _jobs.get(job_id)
+    return _jobs.get(job_id)
+
+
+def _set_job(job_id: str, data: dict) -> None:
+    """Persist job data."""
+    if _redis_client is not None:
+        try:
+            _redis_client.setex(
+                f"{_JOB_PREFIX}{job_id}", _JOB_TTL, json.dumps(data, ensure_ascii=False)
+            )
+            return
+        except Exception as e:
+            logger.warning("Redis set_job error: %s", e)
+    _jobs[job_id] = data
 
 # ---------------------------------------------------------------------------
 # Genre list (mirrors pipeline_routes._genre_keys without i18n dependency)
@@ -134,7 +186,7 @@ def _handle_generate_story(args: dict) -> dict:
     title = args.get("title", "")
 
     story_id = str(uuid.uuid4())
-    _jobs[story_id] = {
+    initial_data = {
         "story_id": story_id,
         "status": "queued",
         "progress": 0.0,
@@ -143,6 +195,7 @@ def _handle_generate_story(args: dict) -> dict:
         "language": language,
         "logs": [],
     }
+    _set_job(story_id, initial_data)
 
     # NOTE: Full pipeline runs are blocking and take minutes.
     # In production, spawn a background thread/worker here.
@@ -154,19 +207,24 @@ def _handle_generate_story(args: dict) -> dict:
 
         def _run():
             try:
-                _jobs[story_id]["status"] = "running"
+                job = _get_job(story_id) or {}
+                job["status"] = "running"
+                _set_job(story_id, job)
+
                 cfg = ConfigManager()
                 cfg.pipeline.language = language
                 orch = PipelineOrchestrator()
 
                 def _progress(msg):
-                    _jobs[story_id]["logs"].append(msg)
+                    j = _get_job(story_id) or {}
+                    j.setdefault("logs", []).append(msg)
                     if "Layer 1 hoan tat" in msg or "Layer 1 hoàn tất" in msg:
-                        _jobs[story_id]["progress"] = 0.33
+                        j["progress"] = 0.33
                     elif "Layer 2 hoan tat" in msg or "Layer 2 hoàn tất" in msg:
-                        _jobs[story_id]["progress"] = 0.66
+                        j["progress"] = 0.66
                     elif "PIPELINE HOAN TAT" in msg or "PIPELINE HOÀN TẤT" in msg:
-                        _jobs[story_id]["progress"] = 1.0
+                        j["progress"] = 1.0
+                    _set_job(story_id, j)
 
                 out = orch.run_full_pipeline(
                     title=title or f"{genre} Story",
@@ -176,34 +234,42 @@ def _handle_generate_story(args: dict) -> dict:
                     progress_callback=_progress,
                     enable_media=False,
                 )
-                _jobs[story_id]["status"] = out.status
-                _jobs[story_id]["progress"] = 1.0
+                job = _get_job(story_id) or {}
+                job["status"] = out.status
+                job["progress"] = 1.0
                 if out.enhanced_story:
-                    _jobs[story_id]["chapter_count"] = len(out.enhanced_story.chapters)
+                    job["chapter_count"] = len(out.enhanced_story.chapters)
+                _set_job(story_id, job)
             except Exception as e:
-                _jobs[story_id]["status"] = "error"
-                _jobs[story_id]["error"] = str(e)
+                job = _get_job(story_id) or {}
+                job["status"] = "error"
+                job["error"] = str(e)
+                _set_job(story_id, job)
                 logger.exception("Pipeline error in MCP job %s", story_id)
 
         t = threading.Thread(target=_run, daemon=True)
         t.start()
     except ImportError as e:
-        _jobs[story_id]["status"] = "error"
-        _jobs[story_id]["error"] = f"Pipeline unavailable: {e}"
+        job = _get_job(story_id) or {}
+        job["status"] = "error"
+        job["error"] = f"Pipeline unavailable: {e}"
+        _set_job(story_id, job)
 
+    current = _get_job(story_id) or initial_data
     return {
         "story_id": story_id,
-        "status": _jobs[story_id]["status"],
+        "status": current.get("status", "queued"),
         "message": "Job queued. Call get_story_status(story_id) to track progress.",
     }
 
 
 def _handle_get_story_status(args: dict) -> dict:
     story_id = args.get("story_id", "")
-    if story_id not in _jobs:
+    job = _get_job(story_id)
+    if job is None:
         return {"error": f"Unknown story_id: {story_id}"}
-    job = dict(_jobs[story_id])
-    job["logs"] = job["logs"][-10:]  # last 10 log lines
+    job = dict(job)
+    job["logs"] = job.get("logs", [])[-10:]  # last 10 log lines
     return job
 
 

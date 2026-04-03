@@ -1,66 +1,91 @@
-# ── Stage 1: Builder ──
-FROM python:3.10-slim AS builder
+# ── Stage 1: Python dependency builder ──
+FROM python:3.10-slim AS py-builder
 
 WORKDIR /build
 
-# Install build deps needed for binary wheels (cryptography, bcrypt, chromadb)
+# Build deps for binary wheels (cryptography, bcrypt, nh3)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libffi-dev \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python deps into /build/deps
+# Install Python deps into isolated prefix — exclude dev/test packages
 COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/build/deps -r requirements.txt
+RUN grep -v -E '^(pytest|playwright)' requirements.txt > requirements-prod.txt \
+    && pip install --no-cache-dir --no-compile --prefix=/build/deps -r requirements-prod.txt \
+    && find /build/deps -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null; \
+    find /build/deps -name '*.pyc' -delete 2>/dev/null; \
+    find /build/deps -name '*.pyo' -delete 2>/dev/null; \
+    find /build/deps -name '*.dist-info' -exec rm -rf {} + 2>/dev/null; \
+    # Remove test directories from installed packages
+    find /build/deps -type d -name 'tests' -exec rm -rf {} + 2>/dev/null; \
+    find /build/deps -type d -name 'test' -exec rm -rf {} + 2>/dev/null; \
+    true
 
 # Download font (non-fatal)
-RUN mkdir -p /build/fonts && curl -fsSL \
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && mkdir -p /build/fonts && curl -fsSL \
     "https://raw.githubusercontent.com/google/fonts/main/ofl/notosans/NotoSans%5Bwdth%2Cwght%5D.ttf" \
     -o /build/fonts/NotoSans-Regular.ttf \
-    || echo "WARNING: Font download failed"
+    || echo "WARNING: Font download failed" \
+    && rm -rf /var/lib/apt/lists/*
 
 # ── Stage 2: Frontend build ──
-FROM node:22-slim AS frontend
+FROM node:22-alpine AS frontend
 
 WORKDIR /frontend
 
 COPY package.json package-lock.json* ./
-RUN npm ci --production=false
+RUN npm ci --production=false && npm cache clean --force
 
 COPY vite.config.js tailwind.config.js postcss.config.js ./
 COPY web/ ./web/
 
 RUN npm run build
 
-# ── Stage 3: Runtime ──
-FROM python:3.10-slim
+# ── Stage 3: Final runtime image ──
+FROM python:3.10-slim AS runtime
 
 WORKDIR /app
 
-# Runtime-only system deps — keep ffmpeg, drop everything else
+# Runtime system deps only
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /tmp/* /var/tmp/*
 
-# Copy Python packages from builder
-COPY --from=builder /build/deps /usr/local
+# Copy only compiled Python packages from builder
+COPY --from=py-builder /build/deps /usr/local
 
 # Copy fonts
-COPY --from=builder /build/fonts/ /app/assets/fonts/
+COPY --from=py-builder /build/fonts/ /app/assets/fonts/
 
-# Copy application code (respects .dockerignore)
-COPY . .
+# Copy application code — selective COPY instead of bulk COPY . .
+# This avoids pulling in node_modules, tests, docs, screenshots, etc.
+COPY app.py config.py mcp_server.py ./
+COPY api/ ./api/
+COPY config/ ./config/
+COPY errors/ ./errors/
+COPY middleware/ ./middleware/
+COPY models/ ./models/
+COPY pipeline/ ./pipeline/
+COPY plugins/ ./plugins/
+COPY services/ ./services/
+COPY locales/ ./locales/
+COPY data/prompts/ ./data/prompts/
 
-# Copy built frontend assets
+# Copy frontend source (HTML, CSS, JS) + built assets overlay
+COPY web/index.html web/dashboard.html ./web/
+COPY web/css/ ./web/css/
+COPY web/js/ ./web/js/
 COPY --from=frontend /frontend/web/dist/ /app/web/dist/
 
-# Create required runtime directories
+# Create runtime directories
 RUN mkdir -p data output assets/fonts data/users data/shares data/templates
 
-# Create non-root user for security
-RUN groupadd -r storyforge && useradd -r -g storyforge -d /app -s /sbin/nologin storyforge
-RUN chown -R storyforge:storyforge /app
+# Non-root user
+RUN groupadd -r storyforge && useradd -r -g storyforge -d /app -s /sbin/nologin storyforge \
+    && chown -R storyforge:storyforge /app
 USER storyforge
 
 EXPOSE 7860

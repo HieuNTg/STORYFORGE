@@ -42,6 +42,7 @@ Hầu hết công cụ viết AI tạo ra những câu chuyện phẳng, dễ đ
 - **Chế độ đọc nhánh tương tác** — chọn-hướng-phiêu-lưu với các nhánh sinh bởi LLM
 - **Giao diện Sáng / Tối** — chuyển đổi theme mượt mà với đồng bộ color-scheme toàn bộ trang
 - **Tự host, bảo mật** — truyện và API key không bao giờ rời khỏi hạ tầng của bạn
+- **Cache sẵn sàng production** — cache LLM bằng Redis cho triển khai đa worker, tự động fallback SQLite cho phát triển
 - **Định tuyến model thông minh** — model rẻ cho phân tích, model cao cấp cho viết (~45% tiết kiệm chi phí)
 - **Đọc narration bằng giọng nói** — audio trong trình duyệt qua `edge-tts`, không cần API key
 
@@ -90,6 +91,7 @@ Mọi cài đặt được quản lý qua tab **Cài đặt** trong giao diện 
 | `LLM_MODEL` | Model chính để viết (vd. `gpt-4o`) | `gpt-4o` |
 | `LLM_BASE_URL` | URL endpoint tùy chỉnh (tương thích OpenAI) | _(mặc định nhà cung cấp)_ |
 | `SECRET_KEY` | Bí mật session cho JWT auth | _(tự tạo)_ |
+| `REDIS_URL` | Kết nối Redis cho cache production | _(fallback SQLite)_ |
 | `PORT` | Cổng server | `7860` |
 
 **Ghi đè model theo lớp** và model ngân sách thứ hai cho phân tích có thể cấu hình trong UI tại Cài đặt → Nâng cao.
@@ -136,8 +138,9 @@ storyforge/
 │   └── agents/                 #   13 tác nhân AI chuyên biệt
 ├── services/                   # Logic nghiệp vụ tái sử dụng
 │   ├── llm/                    #   LLM client với chuỗi dự phòng
+│   ├── llm_cache.py            #   Cache hai backend (Redis / SQLite)
 │   ├── quality_scorer.py       #   Chấm điểm 4 chiều
-│   ├── branch_narrative.py     #   Chế độ đọc nhánh
+│   ├── tts/                    #   Chuyển văn bản thành giọng nói (edge-tts)
 │   └── ...                     #   Xuất, xác thực, phân tích...
 ├── api/                        # REST endpoint FastAPI
 ├── web/                        # Frontend Alpine.js + TypeScript (SPA)

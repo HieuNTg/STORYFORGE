@@ -59,6 +59,7 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 - **Interactive branch reader** — choose-your-own-adventure mode with LLM-generated branching paths
 - **Dark / Light mode** — polished theme toggle with full color-scheme sync across all pages
 - **Self-hosted, privacy-first** — your stories and API keys never leave your infrastructure
+- **Production-ready caching** — Redis-backed LLM cache for multi-worker deployments, with SQLite fallback for development
 - **Smart model routing** — assign cheap models to analysis tasks and premium models to writing (~45% cost savings)
 - **Customizable agent prompts** — edit `data/prompts/agent_prompts.yaml` to tune how AI agents evaluate and enhance stories
 - **Text-to-speech narration** — in-browser audio via `edge-tts`, no extra API key required
@@ -112,6 +113,7 @@ All settings are managed through the **Settings** tab in the web UI and persiste
 | `LLM_MODEL` | Primary model for writing (e.g. `gpt-4o`) | `gpt-4o` |
 | `LLM_BASE_URL` | Custom endpoint URL (OpenAI-compatible) | _(provider default)_ |
 | `SECRET_KEY` | Session secret for JWT auth | _(auto-generated)_ |
+| `REDIS_URL` | Redis connection for production cache | _(SQLite fallback)_ |
 | `PORT` | Server port | `7860` |
 
 **Per-layer model overrides** and a secondary budget model for analysis tasks can be configured in the UI under Settings → Advanced.
@@ -194,9 +196,9 @@ flowchart LR
 | Streaming | Server-Sent Events (SSE) |
 | AI / LLM | Any OpenAI-compatible API |
 | Text-to-Speech | edge-tts (no API key required) |
-| Storage | JSON files, SQLite (cache) |
+| Storage | JSON files, SQLite (dev cache), Redis (production cache) |
 | Export | ReportLab (PDF), ebooklib (EPUB) |
-| Auth & Security | JWT, rate limiting, audit logging |
+| Auth & Security | JWT, rate limiting, audit logging, XSS sanitization (nh3) |
 | Monitoring | Prometheus, Grafana, Loki |
 | Containerization | Docker, Docker Compose |
 | CI/CD | GitHub Actions |
@@ -217,9 +219,10 @@ storyforge/
 │   └── agents/                 #   13 specialized AI agents
 ├── services/                   # Reusable business logic
 │   ├── llm/                    #   LLM client with fallback chain
+│   ├── llm_cache.py            #   Dual-backend cache (Redis / SQLite)
 │   ├── quality_scorer.py       #   4-dimension scoring
 │   ├── branch_narrative.py     #   Interactive branch reader
-│   ├── tts_audio_generator.py  #   Text-to-speech
+│   ├── tts/                    #   Text-to-speech (edge-tts)
 │   └── ...                     #   Export, auth, analytics, etc.
 ├── api/                        # FastAPI REST endpoints
 │   ├── pipeline_routes.py      #   Pipeline SSE streaming + resume

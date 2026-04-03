@@ -1,6 +1,6 @@
 # ── Core framework ──
-fastapi>=0.109.0
-uvicorn[standard]>=0.27.0
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
 
 # ── AI / LLM ──
 openai==1.51.0
@@ -29,3 +29,8 @@ playwright==1.48.0
 
 # ── Testing (dev only — also in requirements-test.txt) ──
 pytest-asyncio==0.24.0
+
+# ── Cache ──
+redis==5.2.1
+# ── Security ──
+nh3==0.2.18
