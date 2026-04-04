@@ -106,6 +106,20 @@ var API: ApiClient = {
     return res.json() as Promise<T>
   },
 
+  async patch<T = unknown>(path: string, body?: RequestBody): Promise<T> {
+    const res = await fetchWithTimeout(
+      this.base + path,
+      {
+        method: 'PATCH',
+        headers: mutationHeaders(),
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      },
+      DEFAULT_TIMEOUT_MS,
+    )
+    if (!res.ok) throw new Error(`PATCH ${path}: ${res.status}`)
+    return res.json() as Promise<T>
+  },
+
   async del<T = unknown>(path: string): Promise<T> {
     const res = await fetchWithTimeout(
       this.base + path,

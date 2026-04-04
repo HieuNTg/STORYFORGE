@@ -22,6 +22,10 @@ function settingsPage() {
   return {
     showAddKey: false as boolean,
     newKeyInput: '' as string,
+    showAddProfile: false as boolean,
+    editingProfile: null as number | null,
+    profileForm: { name: '', base_url: '', api_key: '', model: '', enabled: true },
+    profiles: [] as { name: string; provider: string; base_url: string; api_key_masked: string; model: string; enabled: boolean }[],
     form: {
       api_key: '' as string,
       base_url: 'https://api.openai.com/v1' as string,
@@ -156,6 +160,59 @@ function settingsPage() {
       } catch (e) { this.message = 'Preset error: ' + (e as Error).message; }
     },
 
+    providerIcons: { openai: '🤖', gemini: '💎', anthropic: '🧠', openrouter: '🔀', local: '💻', custom: '⚙️' } as Record<string, string>,
+
+    openAddProfile(): void {
+      this.profileForm = { name: '', base_url: '', api_key: '', model: '', enabled: true };
+      this.editingProfile = null;
+      this.showAddProfile = true;
+    },
+
+    openEditProfile(index: number): void {
+      const p = this.profiles[index];
+      this.profileForm = { name: p.name, base_url: p.base_url, api_key: '', model: p.model, enabled: p.enabled };
+      this.editingProfile = index;
+      this.showAddProfile = true;
+    },
+
+    async saveProfile(): Promise<void> {
+      if (!this.profileForm.name || !this.profileForm.base_url) return;
+      try {
+        if (this.editingProfile !== null) {
+          await API.put(`/config/profiles/${this.editingProfile}`, this.profileForm);
+        } else {
+          await API.post('/config/profiles', this.profileForm);
+        }
+        this.showAddProfile = false;
+        this.editingProfile = null;
+        await Alpine.store('settings').load();
+        this.message = this.editingProfile !== null ? 'Profile updated.' : 'Profile added.';
+        setTimeout(() => { this.message = ''; }, 2000);
+      } catch (e) { this.message = 'Error: ' + (e as Error).message; }
+    },
+
+    async deleteProfile(index: number): Promise<void> {
+      try {
+        await API.del(`/config/profiles/${index}`);
+        await Alpine.store('settings').load();
+        this.message = 'Profile removed.';
+        setTimeout(() => { this.message = ''; }, 2000);
+      } catch (e) { this.message = 'Error: ' + (e as Error).message; }
+    },
+
+    async toggleProfile(index: number): Promise<void> {
+      try {
+        const res = await API.patch<{ enabled: boolean }>(`/config/profiles/${index}/toggle`);
+        this.profiles[index].enabled = res.enabled;
+      } catch (e) { this.message = 'Error: ' + (e as Error).message; }
+    },
+
+    setProfileProvider(providerId: string): void {
+      const p = this.providers.find(x => x.id === providerId);
+      if (p?.url) this.profileForm.base_url = p.url;
+      if (p?.models?.length) this.profileForm.model = p.models[0].id;
+    },
+
     async addKey(): Promise<void> {
       const key = this.newKeyInput.trim();
       if (!key) return;
@@ -198,6 +255,7 @@ function settingsPage() {
         this.form.cheap_base_url = cfg.llm.cheap_base_url || '';
         this.maskedKey = cfg.llm.api_key_masked || '';
         this.savedKeysMasked = cfg.llm.api_keys_masked || [];
+        this.profiles = cfg.llm.profiles || [];
         if (cfg.pipeline) {
           this.form.image_provider = cfg.pipeline.image_provider || 'none';
           this.form.hf_image_model = cfg.pipeline.hf_image_model || 'black-forest-labs/FLUX.1-schnell';

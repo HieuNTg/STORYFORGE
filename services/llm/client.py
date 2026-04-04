@@ -318,7 +318,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
             chain.append({"provider": provider, "model": model, "label": f"cheap:{model}"})
         for fb in getattr(config.llm, 'fallback_models', []):
             fb_model = fb.get("model", "")
-            if not fb_model:
+            if not fb_model or fb.get("enabled") is False:
                 continue
             fb_base = fb.get("base_url", config.llm.base_url)
             fb_key = fb.get("api_key", config.llm.api_key)

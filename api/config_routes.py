@@ -45,6 +45,38 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/config", tags=["config"])
 
 
+def _mask_key(k: str) -> str:
+    """Mask an API key for display — show first 6 and last 4 chars."""
+    if not k:
+        return ""
+    return k[:6] + "***" + k[-4:] if len(k) > 10 else "***"
+
+
+def _detect_provider_name(base_url: str) -> str:
+    """Auto-detect provider name from base_url."""
+    url = (base_url or "").lower()
+    if "openai.com" in url:
+        return "openai"
+    if "googleapis.com" in url or "generativelanguage" in url:
+        return "gemini"
+    if "anthropic.com" in url:
+        return "anthropic"
+    if "openrouter.ai" in url:
+        return "openrouter"
+    if "localhost" in url or "127.0.0.1" in url:
+        return "local"
+    return "custom"
+
+
+class ProfileCreate(BaseModel):
+    """Request body for creating/updating an API profile."""
+    name: str
+    base_url: str
+    api_key: str = ""
+    model: str = ""
+    enabled: bool = True
+
+
 class ConfigUpdate(BaseModel):
     """Request body for saving settings."""
     api_key: Optional[str] = None
@@ -75,6 +107,16 @@ def get_config():
     masked_key = key[:4] + "***" + key[-4:] if len(key) > 8 else "***"
     hf_tok = cfg.pipeline.hf_token or ""
     masked_hf_token = "***" + hf_tok[-4:] if len(hf_tok) > 4 else ("***" if hf_tok else "")
+    profiles_masked = []
+    for fb in cfg.llm.fallback_models:
+        profiles_masked.append({
+            "name": fb.get("name", fb.get("model", "Unknown")),
+            "provider": _detect_provider_name(fb.get("base_url", "")),
+            "base_url": fb.get("base_url", ""),
+            "api_key_masked": _mask_key(fb.get("api_key", "")),
+            "model": fb.get("model", ""),
+            "enabled": fb.get("enabled", True),
+        })
     return {
         "llm": {
             "api_key_masked": masked_key,
@@ -85,12 +127,13 @@ def get_config():
             "cheap_model": cfg.llm.cheap_model,
             "cheap_base_url": cfg.llm.cheap_base_url,
             "api_keys_masked": [
-                (k[:6] + "***" + k[-4:] if len(k) > 10 else "***")
+                _mask_key(k)
                 for raw in cfg.llm.api_keys
                 for k in [raw if isinstance(raw, str) else (raw.get("key") or raw.get("api_key") or "")]
                 if k
             ],
             "api_keys_count": len(cfg.llm.api_keys),
+            "profiles": profiles_masked,
             "layer1_model": cfg.llm.layer1_model,
             "layer2_model": cfg.llm.layer2_model,
         },
@@ -214,6 +257,76 @@ def apply_model_preset(key: str):
     from services.llm_client import LLMClient
     LLMClient.reset()
     return {"status": "ok", "label": preset.get("label", key)}
+
+
+@router.post("/profiles")
+def add_profile(body: ProfileCreate):
+    """Add an API provider profile to the fallback chain."""
+    cfg = ConfigManager()
+    profile = {
+        "name": body.name,
+        "base_url": body.base_url,
+        "api_key": body.api_key,
+        "model": body.model,
+        "enabled": body.enabled,
+    }
+    cfg.llm.fallback_models = list(cfg.llm.fallback_models) + [profile]
+    cfg.save()
+    from services.llm_client import LLMClient
+    LLMClient.reset()
+    return {"status": "ok", "index": len(cfg.llm.fallback_models) - 1}
+
+
+@router.put("/profiles/{index}")
+def update_profile(index: int, body: ProfileCreate):
+    """Update an API provider profile."""
+    cfg = ConfigManager()
+    profiles = list(cfg.llm.fallback_models)
+    if index < 0 or index >= len(profiles):
+        raise HTTPException(status_code=404, detail="Profile index out of range")
+    existing_key = profiles[index].get("api_key", "")
+    profiles[index] = {
+        "name": body.name,
+        "base_url": body.base_url,
+        "api_key": body.api_key if body.api_key else existing_key,
+        "model": body.model,
+        "enabled": body.enabled,
+    }
+    cfg.llm.fallback_models = profiles
+    cfg.save()
+    from services.llm_client import LLMClient
+    LLMClient.reset()
+    return {"status": "ok"}
+
+
+@router.delete("/profiles/{index}")
+def delete_profile(index: int):
+    """Remove an API provider profile."""
+    cfg = ConfigManager()
+    profiles = list(cfg.llm.fallback_models)
+    if index < 0 or index >= len(profiles):
+        raise HTTPException(status_code=404, detail="Profile index out of range")
+    profiles.pop(index)
+    cfg.llm.fallback_models = profiles
+    cfg.save()
+    from services.llm_client import LLMClient
+    LLMClient.reset()
+    return {"status": "ok", "remaining": len(profiles)}
+
+
+@router.patch("/profiles/{index}/toggle")
+def toggle_profile(index: int):
+    """Toggle enabled state of a profile."""
+    cfg = ConfigManager()
+    profiles = list(cfg.llm.fallback_models)
+    if index < 0 or index >= len(profiles):
+        raise HTTPException(status_code=404, detail="Profile index out of range")
+    profiles[index]["enabled"] = not profiles[index].get("enabled", True)
+    cfg.llm.fallback_models = profiles
+    cfg.save()
+    from services.llm_client import LLMClient
+    LLMClient.reset()
+    return {"status": "ok", "enabled": profiles[index]["enabled"]}
 
 
 @router.get("/cache-stats")

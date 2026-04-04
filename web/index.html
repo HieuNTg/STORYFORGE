@@ -778,6 +778,109 @@
             </details>
           </div>
 
+          <!-- Fallback Providers -->
+          <div class="card p-5 space-y-4">
+            <div class="flex items-center gap-2 mb-1">
+              <svg class="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+              <h2 class="font-semibold text-base text-slate-700">Fallback Providers</h2>
+              <span class="text-xs text-slate-400" x-text="profiles.length + ' configured'"></span>
+              <button @click="openAddProfile()" type="button"
+                class="ml-auto text-xs font-medium text-brand-600 hover:text-brand-700 flex items-center gap-1 cursor-pointer transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                Add
+              </button>
+            </div>
+            <p class="text-xs text-slate-500">When the primary provider hits a rate limit or error, these providers are tried in order.</p>
+
+            <!-- Profile cards -->
+            <div x-show="profiles.length" class="divide-y divide-surface-100 border border-surface-200 rounded-lg overflow-hidden">
+              <template x-for="(p, i) in profiles" :key="i">
+                <div class="flex items-center gap-3 px-3 py-3 bg-white group" :class="!p.enabled && 'opacity-50'">
+                  <span class="flex-shrink-0 text-lg" x-text="providerIcons[p.provider] || '⚙️'"></span>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="text-sm font-medium text-slate-700 truncate" x-text="p.name"></span>
+                      <span class="flex-shrink-0 w-2 h-2 rounded-full" :class="p.enabled ? 'bg-green-500' : 'bg-slate-300'"></span>
+                    </div>
+                    <div class="text-xs text-slate-400 truncate" x-text="p.model + ' · ' + p.api_key_masked"></div>
+                  </div>
+                  <span class="flex-shrink-0 text-[10px] text-slate-400 font-medium" x-text="'#' + (i + 1)"></span>
+                  <!-- Toggle -->
+                  <button @click="toggleProfile(i)" type="button" class="flex-shrink-0 cursor-pointer" :title="p.enabled ? 'Disable' : 'Enable'">
+                    <div class="w-8 h-4.5 rounded-full transition-colors relative" :class="p.enabled ? 'bg-green-500' : 'bg-slate-300'">
+                      <div class="absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full shadow transition-transform" :class="p.enabled ? 'left-[calc(100%-0.95rem)]' : 'left-0.5'"></div>
+                    </div>
+                  </button>
+                  <!-- Edit -->
+                  <button @click="openEditProfile(i)" type="button"
+                    class="flex-shrink-0 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-brand-600 transition-all cursor-pointer" title="Edit">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>
+                  </button>
+                  <!-- Delete -->
+                  <button @click="deleteProfile(i)" type="button"
+                    class="flex-shrink-0 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all cursor-pointer" title="Remove">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                </div>
+              </template>
+            </div>
+
+            <!-- Empty state -->
+            <div x-show="!profiles.length" class="border border-dashed border-surface-200 rounded-lg px-4 py-6 text-center">
+              <p class="text-sm text-slate-400">No fallback providers. Add one to auto-switch when rate limited.</p>
+              <button @click="openAddProfile()" type="button"
+                class="mt-2 text-xs font-medium text-brand-600 hover:text-brand-700 cursor-pointer">
+                + Add your first fallback provider
+              </button>
+            </div>
+
+            <!-- Add/Edit profile form -->
+            <div x-show="showAddProfile" x-transition class="border border-surface-200 rounded-lg p-4 space-y-3 bg-slate-50">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-medium text-slate-700" x-text="editingProfile !== null ? 'Edit Profile' : 'Add Fallback Provider'"></span>
+                <button @click="showAddProfile = false" type="button" class="text-slate-400 hover:text-slate-600 cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+              <!-- Quick provider picker -->
+              <div class="flex flex-wrap gap-1.5">
+                <template x-for="prov in providers.filter(p => p.id !== 'custom')" :key="prov.id">
+                  <button @click="profileForm.name = prov.name; setProfileProvider(prov.id)" type="button"
+                    :class="profileForm.base_url === prov.url ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-slate-600 border-surface-200 hover:border-brand-400'"
+                    class="px-2.5 py-1 rounded-md text-xs font-medium border transition-all cursor-pointer flex items-center gap-1">
+                    <span x-text="prov.icon"></span>
+                    <span x-text="prov.name"></span>
+                  </button>
+                </template>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1">Name</label>
+                  <input type="text" x-model="profileForm.name" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none" placeholder="e.g. Google Gemini">
+                </div>
+                <div>
+                  <label class="block text-xs text-slate-500 mb-1">Model</label>
+                  <input type="text" x-model="profileForm.model" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none" placeholder="e.g. gemini-2.5-flash">
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">Base URL</label>
+                <input type="text" x-model="profileForm.base_url" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none" placeholder="https://...">
+              </div>
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">API Key</label>
+                <input type="password" x-model="profileForm.api_key" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none"
+                  :placeholder="editingProfile !== null ? 'Leave blank to keep current key' : 'Paste API key...'">
+              </div>
+              <div class="flex justify-end gap-2">
+                <button @click="showAddProfile = false" type="button" class="px-3 py-2 text-sm text-slate-500 hover:text-slate-700 cursor-pointer">Cancel</button>
+                <button @click="saveProfile()" type="button" class="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition-colors cursor-pointer">
+                  <span x-text="editingProfile !== null ? 'Update' : 'Add Provider'"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- Step 3: Model -->
           <div class="card p-5 space-y-4">
             <div class="flex items-center gap-2 mb-1">

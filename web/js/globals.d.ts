@@ -34,6 +34,7 @@ interface ApiClient {
   get<T = unknown>(path: string): Promise<T>
   post<T = unknown>(path: string, body?: Record<string, unknown> | unknown[]): Promise<T>
   put<T = unknown>(path: string, body?: Record<string, unknown> | unknown[]): Promise<T>
+  patch<T = unknown>(path: string, body?: Record<string, unknown> | unknown[]): Promise<T>
   del<T = unknown>(path: string): Promise<T>
   stream(path: string, body: Record<string, unknown> | unknown[]): AsyncGenerator<StreamEvent>
   streamBuffered(path: string, body: Record<string, unknown> | unknown[], bufferMs?: number): AsyncGenerator<StreamEvent>
