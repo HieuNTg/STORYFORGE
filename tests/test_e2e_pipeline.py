@@ -436,7 +436,7 @@ def pipeline(mock_llm):
     return PipelineOrchestrator()
 
 
-def _run_minimal_pipeline(pipeline, **overrides):
+async def _run_minimal_pipeline(pipeline, **overrides):
     """Helper: run pipeline with minimal settings."""
     defaults = dict(
         title="Thiên Linh Kiếm Khách",
@@ -452,67 +452,61 @@ def _run_minimal_pipeline(pipeline, **overrides):
         enable_media=False,
     )
     defaults.update(overrides)
-    return pipeline.run_full_pipeline(**defaults)
+    return await pipeline.run_full_pipeline(**defaults)
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
 class TestFullPipelineFlow:
-    """E2E tests for the full 3-layer pipeline."""
+    """E2E tests for the full 2-layer pipeline."""
 
-    def test_full_pipeline_completes(self, pipeline):
+    async def test_full_pipeline_completes(self, pipeline):
         """Pipeline should complete with status 'completed' or 'partial'."""
-        output = _run_minimal_pipeline(pipeline)
+        output = await _run_minimal_pipeline(pipeline)
         assert output.status in ("completed", "partial"), (
             f"Expected completed/partial, got: {output.status}"
         )
 
-    def test_pipeline_output_has_story_draft(self, pipeline):
+    async def test_pipeline_output_has_story_draft(self, pipeline):
         """story_draft must be populated with chapters."""
-        output = _run_minimal_pipeline(pipeline)
+        output = await _run_minimal_pipeline(pipeline)
         assert output.story_draft is not None, "story_draft is None"
         assert len(output.story_draft.chapters) > 0, "No chapters in story_draft"
 
-    def test_pipeline_output_has_enhanced_story(self, pipeline):
+    async def test_pipeline_output_has_enhanced_story(self, pipeline):
         """enhanced_story must be populated with chapters."""
-        output = _run_minimal_pipeline(pipeline)
+        output = await _run_minimal_pipeline(pipeline)
         assert output.enhanced_story is not None, "enhanced_story is None"
         assert len(output.enhanced_story.chapters) > 0, "No chapters in enhanced_story"
 
-    def test_pipeline_output_has_video_script(self, pipeline):
-        """video_script must contain panels."""
-        output = _run_minimal_pipeline(pipeline)
-        assert output.video_script is not None, "video_script is None"
-        assert len(output.video_script.panels) > 0, "No panels in video_script"
-
-    def test_pipeline_output_logs_populated(self, pipeline):
+    async def test_pipeline_output_logs_populated(self, pipeline):
         """logs list must have entries after pipeline run."""
-        output = _run_minimal_pipeline(pipeline)
+        output = await _run_minimal_pipeline(pipeline)
         assert len(output.logs) > 0, "logs list is empty"
         # Verify layer markers appear in logs
         all_logs = " ".join(output.logs)
         assert "LAYER 1" in all_logs or "Layer 1" in all_logs
 
-    def test_pipeline_draft_chapters_have_content(self, pipeline):
+    async def test_pipeline_draft_chapters_have_content(self, pipeline):
         """Each chapter in story_draft must have non-empty content."""
-        output = _run_minimal_pipeline(pipeline)
+        output = await _run_minimal_pipeline(pipeline)
         for ch in output.story_draft.chapters:
             assert ch.content, f"Chapter {ch.chapter_number} has empty content"
             assert ch.chapter_number > 0
 
-    def test_pipeline_draft_has_characters(self, pipeline):
+    async def test_pipeline_draft_has_characters(self, pipeline):
         """story_draft must have characters populated."""
-        output = _run_minimal_pipeline(pipeline)
+        output = await _run_minimal_pipeline(pipeline)
         assert len(output.story_draft.characters) > 0, "No characters in story_draft"
 
-    def test_pipeline_draft_has_world(self, pipeline):
+    async def test_pipeline_draft_has_world(self, pipeline):
         """story_draft must have world setting."""
-        output = _run_minimal_pipeline(pipeline)
+        output = await _run_minimal_pipeline(pipeline)
         assert output.story_draft.world is not None, "world is None in story_draft"
 
-    def test_pipeline_progress_reaches_1(self, pipeline):
+    async def test_pipeline_progress_reaches_1(self, pipeline):
         """progress should reach 1.0 on successful pipeline."""
-        output = _run_minimal_pipeline(pipeline)
+        output = await _run_minimal_pipeline(pipeline)
         if output.status == "completed":
             assert output.progress == 1.0, f"Expected progress=1.0, got {output.progress}"
 
@@ -520,14 +514,14 @@ class TestFullPipelineFlow:
 class TestPipelineWithScoring:
     """Tests for pipeline with scoring enabled."""
 
-    def test_pipeline_output_has_quality_scores(self, pipeline):
+    async def test_pipeline_output_has_quality_scores(self, pipeline):
         """quality_scores list must be non-empty when enable_scoring=True."""
-        output = _run_minimal_pipeline(pipeline, enable_scoring=True)
+        output = await _run_minimal_pipeline(pipeline, enable_scoring=True)
         assert len(output.quality_scores) > 0, "quality_scores is empty"
 
-    def test_quality_scores_have_valid_range(self, pipeline):
+    async def test_quality_scores_have_valid_range(self, pipeline):
         """Each StoryScore.overall must be in 1-5 range."""
-        output = _run_minimal_pipeline(pipeline, enable_scoring=True)
+        output = await _run_minimal_pipeline(pipeline, enable_scoring=True)
         for score in output.quality_scores:
             assert 1.0 <= score.overall <= 5.0, (
                 f"overall score {score.overall} out of range [1, 5]"
@@ -537,9 +531,9 @@ class TestPipelineWithScoring:
 class TestPipelineWithScoringDisabled:
     """Tests for pipeline with scoring disabled."""
 
-    def test_pipeline_with_scoring_disabled(self, pipeline):
+    async def test_pipeline_with_scoring_disabled(self, pipeline):
         """Pipeline should complete without quality scores when disabled."""
-        output = _run_minimal_pipeline(pipeline, enable_scoring=False)
+        output = await _run_minimal_pipeline(pipeline, enable_scoring=False)
         assert output.status in ("completed", "partial")
         assert output.story_draft is not None
         # quality_scores may be empty
@@ -549,9 +543,9 @@ class TestPipelineWithScoringDisabled:
 class TestPipelineWithAgentsDisabled:
     """Tests for pipeline with agents disabled."""
 
-    def test_pipeline_with_agents_disabled(self, pipeline):
+    async def test_pipeline_with_agents_disabled(self, pipeline):
         """Pipeline should complete without agent reviews."""
-        output = _run_minimal_pipeline(pipeline, enable_agents=False)
+        output = await _run_minimal_pipeline(pipeline, enable_agents=False)
         assert output.status in ("completed", "partial")
         assert output.story_draft is not None
         assert output.enhanced_story is not None
@@ -560,7 +554,7 @@ class TestPipelineWithAgentsDisabled:
 class TestPipelineGracefulFallbacks:
     """Tests for graceful handling of layer failures."""
 
-    def test_pipeline_handles_layer2_failure(self, mock_llm):
+    async def test_pipeline_handles_layer2_failure(self, mock_llm):
         """Layer 2 failure should result in partial output using original draft."""
         from pipeline.orchestrator import PipelineOrchestrator
 
@@ -569,25 +563,25 @@ class TestPipelineGracefulFallbacks:
             side_effect=RuntimeError("Simulated Layer 2 failure"),
         ):
             orch = PipelineOrchestrator()
-            output = _run_minimal_pipeline(orch)
+            output = await _run_minimal_pipeline(orch)
 
         # Should fall back gracefully — Layer 2 failure is caught
         assert output.enhanced_story is not None, "enhanced_story should fall back to draft chapters"
         # Status may be 'partial' or 'completed' (Layer 3 can still run)
         assert output.status in ("completed", "partial")
 
-    def test_pipeline_connection_failure_returns_error(self, mock_llm):
+    async def test_pipeline_connection_failure_returns_error(self, mock_llm):
         """Connection check failure should abort pipeline with error status."""
         from pipeline.orchestrator import PipelineOrchestrator
 
         mock_llm["check_connection"].return_value = (False, "Connection refused")
         orch = PipelineOrchestrator()
-        output = _run_minimal_pipeline(orch)
+        output = await _run_minimal_pipeline(orch)
 
         assert output.status == "error"
         assert any("LLM" in log or "ket noi" in log.lower() or "kết nối" in log for log in output.logs)
 
-    def test_pipeline_layer1_failure_returns_error(self, mock_llm):
+    async def test_pipeline_layer1_failure_returns_error(self, mock_llm):
         """Layer 1 hard failure should abort with error status."""
         from pipeline.orchestrator import PipelineOrchestrator
 
@@ -596,7 +590,7 @@ class TestPipelineGracefulFallbacks:
             side_effect=RuntimeError("Simulated Layer 1 failure"),
         ):
             orch = PipelineOrchestrator()
-            output = _run_minimal_pipeline(orch)
+            output = await _run_minimal_pipeline(orch)
 
         assert output.status == "error"
 
@@ -604,25 +598,25 @@ class TestPipelineGracefulFallbacks:
 class TestPipelineOutputStructure:
     """Tests for output schema integrity."""
 
-    def test_pipeline_output_is_pipeline_output_type(self, pipeline):
+    async def test_pipeline_output_is_pipeline_output_type(self, pipeline):
         """Output must be a PipelineOutput instance."""
         from models.schemas import PipelineOutput
-        output = _run_minimal_pipeline(pipeline)
+        output = await _run_minimal_pipeline(pipeline)
         assert isinstance(output, PipelineOutput)
 
-    def test_pipeline_chapters_match_requested_count(self, pipeline):
+    async def test_pipeline_chapters_match_requested_count(self, pipeline):
         """story_draft should have chapters matching num_chapters."""
-        output = _run_minimal_pipeline(pipeline, num_chapters=2)
+        output = await _run_minimal_pipeline(pipeline, num_chapters=2)
         assert len(output.story_draft.chapters) == 2, (
             f"Expected 2 chapters, got {len(output.story_draft.chapters)}"
         )
 
-    def test_pipeline_simulation_result_set(self, pipeline):
+    async def test_pipeline_simulation_result_set(self, pipeline):
         """simulation_result should be populated after Layer 2."""
-        output = _run_minimal_pipeline(pipeline)
+        output = await _run_minimal_pipeline(pipeline)
         assert output.simulation_result is not None, "simulation_result is None"
 
-    def test_pipeline_current_layer_advanced(self, pipeline):
+    async def test_pipeline_current_layer_advanced(self, pipeline):
         """current_layer should be at least 2 after successful run."""
-        output = _run_minimal_pipeline(pipeline)
+        output = await _run_minimal_pipeline(pipeline)
         assert output.current_layer >= 2, f"current_layer={output.current_layer}, expected >=2"

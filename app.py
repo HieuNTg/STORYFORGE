@@ -12,7 +12,6 @@ CORS policy:
 import logging
 import logging.handlers
 import os
-import shutil
 import sys
 import time
 
@@ -48,13 +47,7 @@ for _h in list(_root_logger.handlers):
         _root_logger.addHandler(_rotating)
         break
 
-# FFmpeg availability check (D6: clear dependency status)
-_FFMPEG_AVAILABLE: bool = shutil.which("ffmpeg") is not None
-
 logger = logging.getLogger(__name__)
-
-if not _FFMPEG_AVAILABLE:
-    logger.warning("FFmpeg not found — video features disabled")
 
 # Uptime tracking
 _START_TIME = time.time()

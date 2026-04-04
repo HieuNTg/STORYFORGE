@@ -55,7 +55,7 @@ _MODEL_ALIASES: dict[str, str] = {
 class UsageRecord:
     """Single LLM call record."""
     story_id: str
-    layer: int          # 1 = story gen, 2 = drama analysis, 3 = video/storyboard
+    layer: int          # 1 = story gen, 2 = drama/enhance
     agent_name: str
     model_name: str
     prompt_tokens: int

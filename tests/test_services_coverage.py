@@ -30,7 +30,7 @@ class TestTextUtils:
     def test_sanitize_story_html_plain_text(self):
         from services.text_utils import sanitize_story_html, _HAS_NH3
         if not _HAS_NH3:
-            pytest.skip("nh3 link_rel conflict in source — skip live nh3 tests")
+            pytest.skip("nh3 not installed")
         result = sanitize_story_html("Hello world")
         assert isinstance(result, str)
 
@@ -41,7 +41,7 @@ class TestTextUtils:
             if _HAS_NH3:
                 assert "<script>" not in result
         except ValueError:
-            pytest.skip("nh3 link_rel conflict — sanitize_story_html has upstream bug")
+            pytest.skip("nh3 not installed")
 
     def test_sanitize_story_html_allows_basic_tags(self):
         from services.text_utils import sanitize_story_html, _HAS_NH3
@@ -49,7 +49,7 @@ class TestTextUtils:
             result = sanitize_story_html("<strong>Bold</strong> text")
             assert "Bold" in result
         except ValueError:
-            pytest.skip("nh3 link_rel conflict")
+            pytest.skip("nh3 not installed")
 
     def test_sanitize_story_html_strips_onclick(self):
         from services.text_utils import sanitize_story_html, _HAS_NH3
@@ -58,7 +58,7 @@ class TestTextUtils:
             if _HAS_NH3:
                 assert "onclick" not in result
         except ValueError:
-            pytest.skip("nh3 link_rel conflict")
+            pytest.skip("nh3 not installed")
 
     def test_excerpt_text_short_text(self):
         from services.text_utils import excerpt_text

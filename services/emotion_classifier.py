@@ -1,4 +1,4 @@
-"""Rule-based bilingual (Vietnamese/English) emotion classifier for TTS voice modulation."""
+"""Rule-based bilingual (Vietnamese/English) emotion classifier."""
 
 EMOTION_KEYWORDS = {
     "sad": ["buồn", "khóc", "nước mắt", "đau", "thương", "mất", "chia ly", "cô đơn", "tuyệt vọng", "tang", "tiếc", "sầu", "lệ"],
