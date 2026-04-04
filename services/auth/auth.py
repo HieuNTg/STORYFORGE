@@ -1,4 +1,4 @@
-"""JWT auth: RS256 primary, HS256 fallback for legacy tokens.
+"""JWT auth: RS256 only.
 
 Keys auto-generated in STORYFORGE_JWT_KEY_DIR (default: data/jwt_keys/).
 Rotation: set STORYFORGE_JWT_KEY_ID to a new value; old public keys stay
@@ -7,8 +7,6 @@ for verification. Revocation via jti claim + services.auth_revocation.
 from __future__ import annotations
 
 import base64
-import hashlib
-import hmac
 import json
 import logging
 import os
@@ -61,19 +59,6 @@ def _b64url_decode(s: str) -> bytes:
     if p != 4:
         s += "=" * p
     return base64.urlsafe_b64decode(s)
-
-
-# HS256 fallback — required by tests and legacy token verification
-def _get_secret() -> bytes:
-    """Derive HS256 signing key from STORYFORGE_SECRET_KEY.
-
-    Raises:
-        RuntimeError: If STORYFORGE_SECRET_KEY is not set.
-    """
-    raw = os.environ.get("STORYFORGE_SECRET_KEY", "")
-    if not raw:
-        raise RuntimeError("STORYFORGE_SECRET_KEY env var is required")
-    return hashlib.sha256(raw.encode()).digest()
 
 
 # RSA key management
@@ -158,10 +143,10 @@ def create_token(user_id: str, username: str) -> str:
 
 
 def verify_token(token: str) -> dict:
-    """Verify a JWT. RS256 primary; HS256 fallback for pre-migration tokens.
+    """Verify a JWT. Only RS256 algorithm is accepted.
 
     Raises:
-        ValueError: Malformed, invalid signature, expired, or revoked token.
+        ValueError: Malformed, invalid signature, expired, revoked, or wrong algorithm.
     """
     try:
         header_b64, payload_b64, sig_b64 = token.split(".")
@@ -172,9 +157,10 @@ def verify_token(token: str) -> dict:
     except Exception:
         raise ValueError("Malformed token header")
 
-    if header.get("alg") == "RS256":
-        return _verify_rs256(header_b64, payload_b64, sig_b64)
-    return _verify_hs256(header_b64, payload_b64, sig_b64)
+    alg = header.get("alg", "")
+    if alg != "RS256":
+        raise ValueError(f"Unsupported token algorithm: {alg!r} (only RS256 is accepted)")
+    return _verify_rs256(header_b64, payload_b64, sig_b64)
 
 
 def _verify_rs256(header_b64: str, payload_b64: str, sig_b64: str) -> dict:
@@ -192,18 +178,6 @@ def _verify_rs256(header_b64: str, payload_b64: str, sig_b64: str) -> dict:
         except Exception as exc:
             last_exc = exc
     raise ValueError(f"Invalid token signature: {last_exc}")
-
-
-def _verify_hs256(header_b64: str, payload_b64: str, sig_b64: str) -> dict:
-    signing_input = f"{header_b64}.{payload_b64}"
-    expected = hmac.new(_get_secret(), signing_input.encode(), hashlib.sha256).digest()
-    try:
-        provided = _b64url_decode(sig_b64)
-    except Exception:
-        raise ValueError("Invalid token signature encoding")
-    if not hmac.compare_digest(expected, provided):
-        raise ValueError("Invalid token signature")
-    return _decode_and_validate(payload_b64)
 
 
 def _decode_and_validate(payload_b64: str) -> dict:

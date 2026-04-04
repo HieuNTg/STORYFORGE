@@ -75,6 +75,11 @@ class PipelineOrchestrator:
 
     CHECKPOINT_DIR = CHECKPOINT_DIR
 
+    # In-memory fallback when Redis unavailable (class-level, shared across instances)
+    _memory_store: dict[str, str] = {}
+    _memory_store_lock = threading.Lock()
+    _MEMORY_STORE_MAX = 100
+
     def __init__(self, session_id: str = ""):
         self.config = ConfigManager()
         self.story_gen = StoryGenerator()
@@ -89,8 +94,12 @@ class PipelineOrchestrator:
             self._redis = _make_redis_client()
             logger.debug("PipelineOrchestrator: Redis connected for session %s", self.session_id)
         except Exception as exc:
-            logger.error("PipelineOrchestrator: Redis init failed: %s", exc)
-            raise
+            if os.environ.get("STORYFORGE_REDIS_REQUIRED", "").lower() in ("1", "true"):
+                raise
+            logger.warning(
+                "PipelineOrchestrator: Redis unavailable, using in-memory fallback "
+                "(session state will not survive restarts): %s", exc
+            )
 
         # Load persisted output or start fresh
         self.output = self._load_output() or PipelineOutput()
@@ -111,26 +120,50 @@ class PipelineOrchestrator:
     def _output_key(self) -> str:
         return _session_key(self.session_id, "output")
 
+    def _store_set(self, key: str, value: str, ttl: int = _SESSION_TTL) -> None:
+        """Store a value in Redis or in-memory fallback."""
+        if self._redis:
+            try:
+                self._redis.set(key, value)
+                self._redis.expire(key, ttl)
+                return
+            except Exception as exc:
+                logger.warning("Redis store_set failed, using memory: %s", exc)
+        with self._memory_store_lock:
+            if len(self._memory_store) >= self._MEMORY_STORE_MAX:
+                oldest = next(iter(self._memory_store))
+                del self._memory_store[oldest]
+            self._memory_store[key] = value
+
+    def _store_get(self, key: str) -> Optional[str]:
+        """Get a value from Redis or in-memory fallback."""
+        if self._redis:
+            try:
+                val = self._redis.get(key)
+                if val is not None:
+                    self._redis.expire(key, _SESSION_TTL)
+                return val
+            except Exception as exc:
+                logger.warning("Redis store_get failed, using memory: %s", exc)
+        with self._memory_store_lock:
+            return self._memory_store.get(key)
+
     def _save_output(self) -> None:
-        """Persist self.output to Redis (JSON, 24h TTL)."""
+        """Persist self.output to Redis or in-memory fallback."""
         try:
-            key = self._output_key()
-            self._redis.set(key, self.output.model_dump_json())
-            self._redis.expire(key, _SESSION_TTL)
+            self._store_set(self._output_key(), self.output.model_dump_json())
         except Exception as exc:
-            logger.warning("PipelineOrchestrator: Redis save error: %s", exc)
+            logger.warning("PipelineOrchestrator: save output error: %s", exc)
 
     def _load_output(self) -> Optional[PipelineOutput]:
-        """Load output from Redis. Returns None if key missing or expired."""
+        """Load output from Redis or in-memory fallback."""
         try:
-            key = self._output_key()
-            raw = self._redis.get(key)
+            raw = self._store_get(self._output_key())
             if raw is None:
                 return None
-            self._redis.expire(key, _SESSION_TTL)
             return PipelineOutput.model_validate_json(raw)
         except Exception as exc:
-            logger.warning("PipelineOrchestrator: Redis load error: %s", exc)
+            logger.warning("PipelineOrchestrator: load output error: %s", exc)
             return None
 
     # ── Standard orchestrator API ─────────────────────────────────────────────

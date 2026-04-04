@@ -200,20 +200,54 @@ def main():
     async def serve_index():
         return FileResponse(os.path.join(web_dir, "index.html"))
 
-    # Health check
+    # Health check — lightweight with cached DB/Redis probes (30s TTL)
+    from fastapi.responses import JSONResponse as _JSONResponse
+    _health_cache: dict = {}
+    _HEALTH_CACHE_TTL = 30
+
+    def _cached_check(name: str, check_fn) -> dict:
+        cached = _health_cache.get(name)
+        now = time.time()
+        if cached and now - cached["ts"] < _HEALTH_CACHE_TTL:
+            return cached["result"]
+        result = check_fn()
+        _health_cache[name] = {"result": result, "ts": now}
+        return result
+
     @main_app.get("/api/health")
     async def health():
+        from api.health_routes import _check_database, _check_redis
         cfg = ConfigManager()
         llm_ok = bool(cfg.llm.api_key)
-        return {
-            "status": "ok",
-            "version": "3.0",
-            "uptime_seconds": round(time.time() - _START_TIME, 1),
-            "services": {
-                "llm": llm_ok,
-                "ffmpeg": _FFMPEG_AVAILABLE,
+
+        db_status = _cached_check("database", _check_database)
+        redis_status = _cached_check("redis", _check_redis)
+
+        db_ok = db_status.get("status") == "ok"
+        redis_str = redis_status.get("status", "unknown")
+        # Redis is optional (Phase 3) — report "fallback" not "error" when not required
+        if redis_str == "error" and os.environ.get(
+            "STORYFORGE_REDIS_REQUIRED", ""
+        ).lower() not in ("1", "true"):
+            redis_str = "fallback"
+
+        degraded = not db_ok and db_status.get("status") != "not_configured"
+        status = "degraded" if degraded else "ok"
+
+        return _JSONResponse(
+            status_code=503 if degraded else 200,
+            content={
+                "status": status,
+                "version": "3.0",
+                "uptime_seconds": round(time.time() - _START_TIME, 1),
+                "services": {
+                    "llm": llm_ok,
+                    "ffmpeg": _FFMPEG_AVAILABLE,
+                    "database": db_status.get("status", "unknown"),
+                    "redis": redis_str,
+                },
             },
-        }
+        )
 
     logger.info("StoryForge starting — Web UI at http://localhost:7860")
     uvicorn.run(main_app, host="0.0.0.0", port=7860, log_level="info")
