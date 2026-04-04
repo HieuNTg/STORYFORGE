@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import queue as _queue
 import os
 import time
 from fastapi import APIRouter, HTTPException, Request
@@ -240,7 +241,7 @@ async def run_pipeline(request: Request, body: PipelineRequest):
             _orchestrators[session_id] = orch
 
         logs = []
-        progress_queue: asyncio.Queue = asyncio.Queue()
+        progress_queue: _queue.Queue = _queue.Queue()
         stream_text = [""]
 
         def on_progress(msg):
@@ -255,7 +256,7 @@ async def run_pipeline(request: Request, body: PipelineRequest):
             stream_text[0] = partial_text
             now = time.time()
             if now - last_stream_time[0] > 0.3:
-                progress_queue.put_nowait(("stream", partial_text))
+                progress_queue.put_nowait(("stream", sanitize_story_html(partial_text)))
                 last_stream_time[0] = now
 
         # Apply lite mode: switch debate to 3-agent fast path (~85% fewer API calls).
@@ -304,35 +305,33 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                     task.cancel()
                     return
                 try:
-                    msg_type, msg_data = await asyncio.wait_for(
-                        progress_queue.get(), timeout=0.2
-                    )
+                    msg_type, msg_data = await asyncio.to_thread(progress_queue.get, timeout=0.2)
                     # Drain queue for latest stream event
-                    while not progress_queue.empty():
+                    while True:
                         try:
                             t, d = progress_queue.get_nowait()
                             if t == "stream":
                                 msg_type, msg_data = t, d
                             elif t == "error":
                                 msg_type, msg_data = t, d
-                        except asyncio.QueueEmpty:
+                        except _queue.Empty:
                             break
                     event = {"type": msg_type, "data": msg_data}
                     if msg_type == "log":
                         event["logs_count"] = len(logs)
                     yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                except asyncio.TimeoutError:
+                except _queue.Empty:
                     continue
 
             # Drain any remaining messages after task completion
-            while not progress_queue.empty():
+            while True:
                 try:
                     msg_type, msg_data = progress_queue.get_nowait()
                     event = {"type": msg_type, "data": msg_data}
                     if msg_type == "log":
                         event["logs_count"] = len(logs)
                     yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                except asyncio.QueueEmpty:
+                except _queue.Empty:
                     break
 
             # Send final result
@@ -395,7 +394,7 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
             _orchestrators[session_id] = orch
 
         logs = []
-        progress_queue: asyncio.Queue = asyncio.Queue()
+        progress_queue: _queue.Queue = _queue.Queue()
 
         def on_progress(msg):
             logs.append(msg)
@@ -431,32 +430,30 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
                     task.cancel()
                     return
                 try:
-                    msg_type, msg_data = await asyncio.wait_for(
-                        progress_queue.get(), timeout=0.2
-                    )
-                    while not progress_queue.empty():
+                    msg_type, msg_data = await asyncio.to_thread(progress_queue.get, timeout=0.2)
+                    while True:
                         try:
                             t, d = progress_queue.get_nowait()
                             if t == "error":
                                 msg_type, msg_data = t, d
-                        except asyncio.QueueEmpty:
+                        except _queue.Empty:
                             break
                     event = {"type": msg_type, "data": msg_data}
                     if msg_type == "log":
                         event["logs_count"] = len(logs)
                     yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                except asyncio.TimeoutError:
+                except _queue.Empty:
                     continue
 
             # Drain remaining messages after task completion
-            while not progress_queue.empty():
+            while True:
                 try:
                     msg_type, msg_data = progress_queue.get_nowait()
                     event = {"type": msg_type, "data": msg_data}
                     if msg_type == "log":
                         event["logs_count"] = len(logs)
                     yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                except asyncio.QueueEmpty:
+                except _queue.Empty:
                     break
 
             output = result[0]
