@@ -113,3 +113,75 @@ export interface PipelineConfig {
   characters?: Pick<Character, 'name' | 'role' | 'description'>[]
   streamBufferMs?: number   // batching window for streamBuffered(), default 500
 }
+
+// ---------------------------------------------------------------------------
+// API response types
+// ---------------------------------------------------------------------------
+
+/** Generic API envelope */
+export interface ApiResponse<T> {
+  data: T;
+  error?: string;
+}
+
+/** GET /api/dashboard/summary */
+export interface DashboardSummary {
+  total_stories: number;
+  total_generations: number;
+  avg_quality_score: number;
+  recent_stories: Story[];
+}
+
+/** POST /api/pipeline/run request */
+export interface PipelineRunRequest {
+  idea: string;
+  genre?: string;
+  num_chapters?: number;
+  num_characters?: number;
+  words_per_chapter?: number;
+  num_sim_rounds?: number;
+  language?: string;
+  enable_quality_gate?: boolean;
+  enable_smart_revision?: boolean;
+  lite_mode?: boolean;
+}
+
+/** Shape of a completed pipeline result */
+export interface PipelineOutput {
+  story_id: string;
+  title: string;
+  chapters: Chapter[];
+  characters: Character[];
+  [key: string]: unknown;
+}
+
+/** SSE event from /api/pipeline/run */
+export interface PipelineStreamEvent {
+  type: 'progress' | 'log' | 'result' | 'error';
+  data: string | number | PipelineOutput;
+}
+
+/** GET /api/config */
+export interface StoryForgeConfig {
+  provider: string;
+  model: string;
+  api_key_set: boolean;
+  language: string;
+  image_provider?: string;
+  cheap_model?: string;
+  base_url?: string;
+  temperature?: number;
+  max_tokens?: number;
+}
+
+/** POST /api/export/{format} */
+export interface ExportRequest {
+  story_id: string;
+  format: 'pdf' | 'epub' | 'html' | 'txt';
+}
+
+export interface ExportResponse {
+  url: string;
+  filename: string;
+  format: string;
+}

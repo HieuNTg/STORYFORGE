@@ -6,12 +6,12 @@
 
 ## Project Overview
 
-StoryForge is an AI-powered story generation engine with multi-agent drama simulation. It takes a one-sentence idea and produces a complete, drama-rich story with video-ready storyboards.
+StoryForge is an AI-powered story generation engine with multi-agent drama simulation. It takes a one-sentence idea and produces a complete, drama-rich story with character-consistent images and cinematic scene backgrounds.
 
-**3-Layer Pipeline**:
+**2-Layer Pipeline**:
 1. Story Generation (characters, world, chapters)
 2. Drama Simulation (13 AI agents, conflict analysis)
-3. Video Storyboarding (shots, scripts, image prompts)
+3. Image Generation (character consistency + scene backgrounds, runs after Layer 2)
 
 ## Technology Stack
 
@@ -33,7 +33,7 @@ StoryForge is an AI-powered story generation engine with multi-agent drama simul
 STORYFORGE/
 ├── api/                          → FastAPI REST endpoints
 ├── services/                      → Business logic (LLM, scoring, auth)
-├── pipeline/                      → 3-layer generation engine + 13 agents
+├── pipeline/                      → 2-layer generation engine + 13 agents
 ├── middleware/                    → Auth, rate limiting, audit logging
 ├── models/                        → Pydantic data schemas
 ├── config.py                      → Configuration manager singleton
@@ -57,10 +57,10 @@ STORYFORGE/
 
 ### 1. Pipeline Orchestrator (`pipeline/orchestrator.py`)
 
-**Purpose**: 3-layer generation with checkpoint & resume
+**Purpose**: 2-layer generation with checkpoint & resume
 
 **Key Features**:
-- Layer-by-layer execution (story → drama → storyboard)
+- Layer-by-layer execution (story → drama → image generation)
 - Checkpoint save/load for crash recovery
 - Real-time SSE streaming of progress
 - Quality gate checks before export

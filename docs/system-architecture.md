@@ -2,7 +2,7 @@
 
 ## Overview
 
-StoryForge is a 3-layer AI story generation pipeline with a FastAPI backend, Alpine.js frontend, and production-ready monitoring stack.
+StoryForge is a 2-layer AI story generation pipeline with a FastAPI backend, Alpine.js frontend, and production-ready monitoring stack.
 
 ```
 User Input
@@ -18,8 +18,8 @@ User Input
 └────────────┬────────────────────────┘
              ↓
 ┌─────────────────────────────────────┐
-│   Layer 3: Video Storyboarding      │
-│   (Shots, Scripts, Image Prompts)   │
+│   Image Generation                  │
+│   (Character Consistency + Scenes)  │
 └────────────┬────────────────────────┘
              ↓
         Export (PDF/EPUB/HTML/ZIP)
@@ -45,11 +45,10 @@ services/               → Business logic
   ├── browser_auth/         → DEPRECATED in v3.x, removed in v4.0
   └── deepseek_web_client.py → DEPRECATED in v3.x, removed in v4.0
 
-pipeline/               → 3-layer generation engine
+pipeline/               → 2-layer generation engine
   ├── orchestrator.py       → Checkpoint & resume logic
   ├── layer1_story/         → Story generation agents
   ├── layer2_enhance/       → Drama simulation (13 agents)
-  ├── layer3_video/         → Storyboard generation
   └── agents/               → Stateless AI agent implementations
 
 middleware/             → Cross-cutting concerns

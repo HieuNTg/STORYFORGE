@@ -85,7 +85,7 @@ class PipelineOrchestrator:
 
     # ── Layer execution (implemented in orchestrator_layers.py) ─────────────
 
-    def run_full_pipeline(
+    async def run_full_pipeline(
         self,
         title: str,
         genre: str,
@@ -101,8 +101,8 @@ class PipelineOrchestrator:
         enable_scoring: bool = True,
         enable_media: bool = False,
     ) -> PipelineOutput:
-        """Chạy toàn bộ pipeline 2 lớp."""
-        return _run_full_pipeline(
+        """Chạy toàn bộ pipeline 2 lớp (async — blocking LLM calls run in thread pool)."""
+        return await _run_full_pipeline(
             self, title=title, genre=genre, idea=idea, style=style,
             num_chapters=num_chapters, num_characters=num_characters,
             word_count=word_count, num_sim_rounds=num_sim_rounds,

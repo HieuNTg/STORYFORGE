@@ -5,6 +5,7 @@ PipelineOrchestrator to keep the main class focused on orchestration
 rather than implementation details.
 """
 
+import asyncio
 import logging
 import time
 from typing import TYPE_CHECKING
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def run_full_pipeline(
+async def run_full_pipeline(
     self: "PipelineOrchestrator",
     title: str,
     genre: str,
@@ -35,6 +36,10 @@ def run_full_pipeline(
     enable_media: bool = False,
 ) -> PipelineOutput:
     """Chạy toàn bộ pipeline 2 lớp (story gen → drama sim).
+
+    Async: all blocking LLM/IO calls are offloaded via asyncio.to_thread()
+    so the event loop is never blocked. The RLock is kept for safety since
+    to_thread workers run in a thread pool and can interleave.
 
     Delegates to _run_layer1, _run_layer2 in sequence.
     Each layer saves a checkpoint on success. Layer 2 failures are
@@ -60,7 +65,7 @@ def run_full_pipeline(
 
     # Verify LLM connectivity before spending compute
     from services.llm_client import LLMClient
-    ok, msg = LLMClient().check_connection()
+    ok, msg = await asyncio.to_thread(LLMClient().check_connection)
     if not ok:
         self.output.status = "error"
         _log(f"Không kết nối được LLM: {msg}")
@@ -84,7 +89,8 @@ def run_full_pipeline(
         self.output.current_layer = 1
     layer_start = time.time()
     try:
-        draft = self.story_gen.generate_full_story(
+        draft = await asyncio.to_thread(
+            self.story_gen.generate_full_story,
             title=title, genre=genre, idea=idea, style=style,
             num_chapters=num_chapters, num_characters=num_characters,
             word_count=word_count,
@@ -95,7 +101,7 @@ def run_full_pipeline(
             self.output.story_draft = draft
             self.output.progress = 0.33
         _log(f"Layer 1 hoàn tất trong {time.time() - layer_start:.1f}s")
-        self.checkpoint.save(1)
+        await asyncio.to_thread(self.checkpoint.save, 1)
 
         # Optional quality scoring
         l1_score = None
@@ -104,7 +110,7 @@ def run_full_pipeline(
             try:
                 from services.quality_scorer import QualityScorer
                 scorer = QualityScorer()
-                l1_score = scorer.score_story(draft.chapters, layer=1)
+                l1_score = await asyncio.to_thread(scorer.score_story, draft.chapters, layer=1)
                 # Plugin hook: let plugins observe/modify quality scores
                 try:
                     score_dict = {
@@ -147,7 +153,8 @@ def run_full_pipeline(
                 elif gate_result.should_retry:
                     tracker.gate_retry(1, l1_score.overall if l1_score else 0.0, attempt=1)
                     _log("[GATE] Đang thử tạo lại Layer 1...")
-                    draft = self.story_gen.generate_full_story(
+                    draft = await asyncio.to_thread(
+                        self.story_gen.generate_full_story,
                         title=title, genre=genre, idea=idea, style=style,
                         num_chapters=num_chapters, num_characters=num_characters,
                         word_count=word_count,
@@ -159,7 +166,7 @@ def run_full_pipeline(
                     try:
                         from services.quality_scorer import QualityScorer
                         scorer = QualityScorer()
-                        l1_score = scorer.score_story(draft.chapters, layer=1)
+                        l1_score = await asyncio.to_thread(scorer.score_story, draft.chapters, layer=1)
                         self.output.quality_scores[-1] = l1_score
                     except Exception as e:
                         logger.warning(f"Quality scoring L1-retry failed: {e}")
@@ -178,7 +185,7 @@ def run_full_pipeline(
         # Auto analytics: word count, reading time, dialogue ratio
         try:
             from services.story_analytics import StoryAnalytics
-            analytics = StoryAnalytics.analyze_story(draft)
+            analytics = await asyncio.to_thread(StoryAnalytics.analyze_story, draft)
             self.output.analytics = {"layer1": analytics}
             _log(f"[ANALYTICS] Layer 1: {analytics['total_words']} từ, "
                  f"{analytics['reading_time_minutes']} phút đọc, "
@@ -189,7 +196,7 @@ def run_full_pipeline(
         # Build knowledge graph to track character/location relationships
         try:
             from services.knowledge_graph import StoryKnowledgeGraph
-            kg = StoryKnowledgeGraph().build_from_story_draft(draft)
+            kg = await asyncio.to_thread(StoryKnowledgeGraph().build_from_story_draft, draft)
             self.output.knowledge_graph_summary = kg.to_summary()
             _log(f"[KG] Knowledge graph: {kg.node_count()} nodes, {kg.edge_count()} edges")
         except Exception as e:
@@ -199,7 +206,8 @@ def run_full_pipeline(
         if enable_agents:
             _log("[AGENTS] Phòng ban đang đánh giá Layer 1...")
             try:
-                reviews = AgentRegistry().run_review_cycle(
+                reviews = await asyncio.to_thread(
+                    AgentRegistry().run_review_cycle,
                     self.output, layer=1, max_iterations=3,
                     progress_callback=lambda m: _log(m),
                 )
@@ -224,7 +232,7 @@ def run_full_pipeline(
     layer_start = time.time()
     try:
         _log("[L2] Đang phân tích cấu trúc truyện...")
-        analysis = self.analyzer.analyze(draft)
+        analysis = await asyncio.to_thread(self.analyzer.analyze, draft)
 
         # Plugin hook: allow plugins to observe/override genre drama rules
         try:
@@ -235,7 +243,8 @@ def run_full_pipeline(
             logger.warning(f"Plugin apply_genre_rules failed: {_e}")
 
         _log(f"[L2] Bắt đầu mô phỏng {num_sim_rounds} vòng...")
-        sim_result = self.simulator.run_simulation(
+        sim_result = await asyncio.to_thread(
+            self.simulator.run_simulation,
             characters=draft.characters,
             relationships=analysis["relationships"],
             genre=genre,
@@ -245,7 +254,8 @@ def run_full_pipeline(
         self.output.simulation_result = sim_result
 
         _log("[L2] Đang viết lại truyện với kịch tính cao hơn...")
-        enhanced = self.enhancer.enhance_with_feedback(
+        enhanced = await asyncio.to_thread(
+            self.enhancer.enhance_with_feedback,
             draft=draft, sim_result=sim_result,
             word_count=word_count,
             progress_callback=lambda m: _log(f"[L2] {m}"),
@@ -254,7 +264,7 @@ def run_full_pipeline(
             self.output.enhanced_story = enhanced
             self.output.progress = 0.66
         _log(f"Layer 2 hoàn tất trong {time.time() - layer_start:.1f}s")
-        self.checkpoint.save(2)
+        await asyncio.to_thread(self.checkpoint.save, 2)
 
         # Optional quality scoring for Layer 2
         l2_score = None
@@ -263,7 +273,7 @@ def run_full_pipeline(
             try:
                 from services.quality_scorer import QualityScorer
                 scorer = QualityScorer()
-                l2_score = scorer.score_story(enhanced.chapters, layer=2)
+                l2_score = await asyncio.to_thread(scorer.score_story, enhanced.chapters, layer=2)
                 # Plugin hook: let plugins observe/modify Layer 2 quality scores
                 try:
                     score_dict = {
@@ -312,7 +322,8 @@ def run_full_pipeline(
                 elif gate_result.should_retry:
                     tracker.gate_retry(2, l2_check_score.overall if l2_check_score else 0.0, attempt=1)
                     _log("[GATE] Đang thử tạo lại Layer 2...")
-                    enhanced = self.enhancer.enhance_with_feedback(
+                    enhanced = await asyncio.to_thread(
+                        self.enhancer.enhance_with_feedback,
                         draft=draft, sim_result=sim_result,
                         word_count=word_count,
                         progress_callback=lambda m: _log(f"[L2-RETRY] {m}"),
@@ -322,7 +333,7 @@ def run_full_pipeline(
                     try:
                         from services.quality_scorer import QualityScorer
                         scorer = QualityScorer()
-                        l2_score = scorer.score_story(enhanced.chapters, layer=2)
+                        l2_score = await asyncio.to_thread(scorer.score_story, enhanced.chapters, layer=2)
                         self.output.quality_scores[-1] = l2_score
                     except Exception as e:
                         logger.warning(f"Quality scoring L2-retry failed: {e}")
@@ -341,7 +352,7 @@ def run_full_pipeline(
         # Auto analytics for enhanced story
         try:
             from services.story_analytics import StoryAnalytics
-            analytics = StoryAnalytics.analyze_story(enhanced)
+            analytics = await asyncio.to_thread(StoryAnalytics.analyze_story, enhanced)
             self.output.analytics["layer2"] = analytics
             _log(f"[ANALYTICS] Layer 2: {analytics['total_words']} từ, "
                  f"{analytics['reading_time_minutes']} phút đọc, "
@@ -353,7 +364,8 @@ def run_full_pipeline(
         if enable_agents:
             _log("[AGENTS] Phòng ban đang đánh giá Layer 2...")
             try:
-                reviews = AgentRegistry().run_review_cycle(
+                reviews = await asyncio.to_thread(
+                    AgentRegistry().run_review_cycle,
                     self.output, layer=2, max_iterations=3,
                     progress_callback=lambda m: _log(m),
                 )
@@ -373,7 +385,8 @@ def run_full_pipeline(
                 def _revision_progress(m: str):
                     _log(f"[REVISION] {m}")
 
-                revision_result = revisor.revise_weak_chapters(
+                revision_result = await asyncio.to_thread(
+                    revisor.revise_weak_chapters,
                     enhanced_story=enhanced,
                     quality_scores=self.output.quality_scores,
                     reviews=self.output.reviews,
@@ -431,7 +444,8 @@ def run_full_pipeline(
         _log("══════ SẢN XUẤT ẢNH ══════")
         layer_start = time.time()
         try:
-            media = self.media_producer.run(
+            await asyncio.to_thread(
+                self.media_producer.run,
                 draft, enhanced,
                 progress_callback=lambda m: _log(m),
             )

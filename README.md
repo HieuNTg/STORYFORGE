@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  Turn a one-sentence idea into a complete, drama-rich story with video-ready storyboards.<br />
+  Turn a one-sentence idea into a complete, drama-rich story with character-consistent images and cinematic scene backgrounds.<br />
   Self-hosted. Privacy-first. Works with any OpenAI-compatible LLM.
 </p>
 
@@ -50,19 +50,19 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 
 ## Features
 
-- **3-layer pipeline** — Story Generation → Drama Simulation → Video Storyboarding, with checkpoint & resume and real-time SSE streaming
+- **2-layer pipeline** — Story Generation → Drama Simulation, with checkpoint & resume and real-time SSE streaming
 - **13 specialized AI agents** — autonomous character agents plus a drama critic, editor-in-chief, pacing analyzer, style consistency checker, dialogue expert, and more
 - **Quality scoring & auto-revision** — 4-dimension LLM-as-judge (coherence, character, drama, writing style) with an automated re-enhancement loop
+- **Image generation** — character-consistent portraits (IP-Adapter) and cinematic scene backgrounds, generated after drama simulation
 - **Multi-provider LLM support** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ models), Ollama (local), or any custom OpenAI-compatible endpoint
 - **Vietnamese & English** — bilingual story generation out of the box
-- **Rich export** — PDF, EPUB, HTML web reader, and full video storyboards with shot-by-shot camera direction and image prompts
+- **Rich export** — PDF, EPUB, HTML web reader, and ZIP with chapters and image prompts
 - **Interactive branch reader** — choose-your-own-adventure mode with LLM-generated branching paths
 - **Dark / Light mode** — polished theme toggle with full color-scheme sync across all pages
 - **Self-hosted, privacy-first** — your stories and API keys never leave your infrastructure
 - **Production-ready caching** — Redis-backed LLM cache for multi-worker deployments, with SQLite fallback for development
 - **Smart model routing** — assign cheap models to analysis tasks and premium models to writing (~45% cost savings)
 - **Customizable agent prompts** — edit `data/prompts/agent_prompts.yaml` to tune how AI agents evaluate and enhance stories
-- **Text-to-speech narration** — in-browser audio via `edge-tts`, no extra API key required
 
 ---
 
@@ -96,7 +96,7 @@ python app.py
 
 1. **Settings** → choose your AI provider, enter API key, select model
 2. **Create Story** → pick genre, style, describe your idea in one sentence
-3. **Run Pipeline** → watch generation, simulation, and storyboarding stream in real-time
+3. **Run Pipeline** → watch generation, simulation, and image generation stream in real-time
 4. **Reader** → read the finished story or launch Branch Mode for interactive paths
 5. **Export** → download as PDF, EPUB, HTML, or storyboard ZIP
 
@@ -148,9 +148,8 @@ StoryForge ships with 10 customizable agent prompts in `data/prompts/agent_promp
                         └──────────────────┬──────────────────────┘
                                            │
                         ┌──────────────────▼──────────────────────┐
-                        │       Layer 3 — Video Storyboard         │
-                        │  Shot Plans · Camera · Image Prompts     │
-                        │  Voice Scripts · Sound Design            │
+                        │         Image Generation                  │
+                        │  Character Consistency · Scene Backgrounds│
                         └──────────────────┬──────────────────────┘
                                            │
                               PDF · EPUB · HTML · ZIP
@@ -174,15 +173,14 @@ flowchart LR
         score -- below threshold --> agents
     end
 
-    L2 --> L3
+    L2 --> IMG
 
-    subgraph L3 [Layer 3 — Video Storyboard]
+    subgraph IMG [Image Generation]
         direction TB
-        shots[Shot Plans] --> prompts[Image Prompts]
-        prompts --> voice[Voice Scripts]
+        chars[Character Consistency] --> scenes[Scene Backgrounds]
     end
 
-    L3 --> export([PDF / EPUB / HTML / ZIP])
+    IMG --> export([PDF / EPUB / HTML / ZIP])
 ```
 
 ---
@@ -195,7 +193,7 @@ flowchart LR
 | Frontend | Alpine.js 3, TypeScript, Tailwind CSS |
 | Streaming | Server-Sent Events (SSE) |
 | AI / LLM | Any OpenAI-compatible API |
-| Text-to-Speech | edge-tts (no API key required) |
+| Image Generation | IP-Adapter (character consistency), diffusion models (scene backgrounds) |
 | Storage | JSON files, SQLite (dev cache), Redis (production cache) |
 | Export | ReportLab (PDF), ebooklib (EPUB) |
 | Auth & Security | JWT, rate limiting, audit logging, XSS sanitization (nh3) |
@@ -211,19 +209,17 @@ flowchart LR
 storyforge/
 ├── app.py                      # FastAPI entry point
 ├── config.py                   # Configuration singleton
-├── pipeline/                   # 3-layer generation engine
+├── pipeline/                   # 2-layer generation engine
 │   ├── orchestrator.py         #   Pipeline orchestrator with checkpointing
 │   ├── layer1_story/           #   Story generation (characters, world, chapters)
 │   ├── layer2_enhance/         #   Drama simulation & enhancement
-│   ├── layer3_video/           #   Storyboard & voice scripts
 │   └── agents/                 #   13 specialized AI agents
 ├── services/                   # Reusable business logic
 │   ├── llm/                    #   LLM client with fallback chain
 │   ├── llm_cache.py            #   Dual-backend cache (Redis / SQLite)
 │   ├── quality_scorer.py       #   4-dimension scoring
 │   ├── branch_narrative.py     #   Interactive branch reader
-│   ├── tts/                    #   Text-to-speech (edge-tts)
-│   └── ...                     #   Export, auth, analytics, etc.
+│   └── ...                     #   Export, auth, analytics, image generation, etc.
 ├── api/                        # FastAPI REST endpoints
 │   ├── pipeline_routes.py      #   Pipeline SSE streaming + resume
 │   ├── config_routes.py        #   Settings CRUD + connection test
@@ -262,5 +258,4 @@ StoryForge is built on the shoulders of excellent open source work:
 - [Tailwind CSS](https://tailwindcss.com) — utility-first CSS
 - [ReportLab](https://www.reportlab.com) — PDF generation
 - [ebooklib](https://github.com/aerkalov/ebooklib) — EPUB generation
-- [edge-tts](https://github.com/rany2/edge-tts) — free text-to-speech
 - All LLM providers — OpenAI, Google, Anthropic, OpenRouter, and the Ollama community

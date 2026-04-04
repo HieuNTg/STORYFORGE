@@ -41,7 +41,6 @@ class TestLLMConfigDefaults:
         cfg = LLMConfig()
         assert cfg.layer1_model == ""
         assert cfg.layer2_model == ""
-        assert cfg.layer3_model == ""
 
 
 class TestPipelineConfigDefaults:

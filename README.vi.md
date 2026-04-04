@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  Biến một ý tưởng một câu thành câu chuyện hoàn chỉnh, giàu kịch tính với storyboard sẵn sàng làm video.<br />
+  Biến một ý tưởng một câu thành câu chuyện hoàn chỉnh, giàu kịch tính với hình ảnh nhất quán nhân vật và phông cảnh điện ảnh.<br />
   Tự host. Bảo mật riêng tư. Hoạt động với mọi LLM tương thích OpenAI.
 </p>
 
@@ -33,18 +33,18 @@ Hầu hết công cụ viết AI tạo ra những câu chuyện phẳng, dễ đ
 
 ## Tính năng chính
 
-- **Pipeline 3 lớp** — Tạo truyện → Mô phỏng kịch tính → Storyboard video, có checkpoint & tiếp tục, streaming SSE thời gian thực
+- **Pipeline 2 lớp** — Tạo truyện → Mô phỏng kịch tính, có checkpoint & tiếp tục, streaming SSE thời gian thực
 - **13 tác nhân AI chuyên biệt** — nhân vật tự trị + nhà phê bình kịch tính, tổng biên tập, phân tích nhịp điệu, kiểm tra phong cách, chuyên gia hội thoại...
 - **Chấm điểm & tự sửa** — đánh giá LLM theo 4 chiều (mạch lạc, nhân vật, kịch tính, văn phong) với vòng lặp tự động nâng chất
+- **Tạo hình ảnh** — chân dung nhân vật nhất quán (IP-Adapter) và phông cảnh điện ảnh, tạo sau mô phỏng kịch tính
 - **Hỗ trợ đa nhà cung cấp LLM** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ model), Ollama (local), hoặc endpoint tùy chỉnh
 - **Tiếng Việt & Tiếng Anh** — tạo truyện song ngữ ngay từ đầu
-- **Xuất phong phú** — PDF, EPUB, HTML web reader, storyboard video đầy đủ
+- **Xuất phong phú** — PDF, EPUB, HTML web reader, ZIP với các chương và gợi ý hình ảnh
 - **Chế độ đọc nhánh tương tác** — chọn-hướng-phiêu-lưu với các nhánh sinh bởi LLM
 - **Giao diện Sáng / Tối** — chuyển đổi theme mượt mà với đồng bộ color-scheme toàn bộ trang
 - **Tự host, bảo mật** — truyện và API key không bao giờ rời khỏi hạ tầng của bạn
 - **Cache sẵn sàng production** — cache LLM bằng Redis cho triển khai đa worker, tự động fallback SQLite cho phát triển
 - **Định tuyến model thông minh** — model rẻ cho phân tích, model cao cấp cho viết (~45% tiết kiệm chi phí)
-- **Đọc narration bằng giọng nói** — audio trong trình duyệt qua `edge-tts`, không cần API key
 
 ---
 
@@ -74,7 +74,7 @@ python app.py
 
 1. **Cài đặt** → chọn nhà cung cấp AI, nhập API key, chọn model
 2. **Tạo truyện** → chọn thể loại, phong cách, mô tả ý tưởng một câu
-3. **Chạy Pipeline** → xem quá trình tạo, mô phỏng, storyboard stream thời gian thực
+3. **Chạy Pipeline** → xem quá trình tạo, mô phỏng và tạo hình ảnh stream thời gian thực
 4. **Đọc** → đọc truyện hoàn chỉnh hoặc khởi động Chế độ Nhánh tương tác
 5. **Xuất** → tải xuống PDF, EPUB, HTML, hoặc ZIP storyboard
 
@@ -130,18 +130,16 @@ railway up
 storyforge/
 ├── app.py                      # Điểm vào FastAPI
 ├── config.py                   # Singleton cấu hình
-├── pipeline/                   # Engine tạo 3 lớp
+├── pipeline/                   # Engine tạo 2 lớp
 │   ├── orchestrator.py         #   Orchestrator với checkpoint
 │   ├── layer1_story/           #   Tạo truyện (nhân vật, thế giới, chương)
 │   ├── layer2_enhance/         #   Mô phỏng kịch tính & nâng chất
-│   ├── layer3_video/           #   Storyboard & kịch bản giọng đọc
 │   └── agents/                 #   13 tác nhân AI chuyên biệt
 ├── services/                   # Logic nghiệp vụ tái sử dụng
 │   ├── llm/                    #   LLM client với chuỗi dự phòng
 │   ├── llm_cache.py            #   Cache hai backend (Redis / SQLite)
 │   ├── quality_scorer.py       #   Chấm điểm 4 chiều
-│   ├── tts/                    #   Chuyển văn bản thành giọng nói (edge-tts)
-│   └── ...                     #   Xuất, xác thực, phân tích...
+│   └── ...                     #   Xuất, xác thực, phân tích, tạo hình ảnh...
 ├── api/                        # REST endpoint FastAPI
 ├── web/                        # Frontend Alpine.js + TypeScript (SPA)
 ├── middleware/                 # Auth, giới hạn tốc độ, audit log

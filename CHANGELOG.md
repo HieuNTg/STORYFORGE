@@ -92,6 +92,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-_Changes staged for the next release will appear here._
+### Removed
+- Layer 3 video storyboarding pipeline
+- TTS/voice narration (edge-tts)
+- Audio player component
+- Video composer and exporter
+
+### Added
+- Thread-safe SSE streaming (RLock + snapshot pattern)
+- 98 RBAC + rate limiter middleware tests
+- Graceful pipeline shutdown handler
+- Form label accessibility (16 inputs)
+- PostgreSQL streaming replication standby
+- Redis Sentinel failover configuration
+- Real staging deployment in CI
+
+### Changed
+- Pipeline is now 2-layer: Story Generation → Drama Simulation
+- Image generation focuses on character consistency + scene backgrounds
+- Dependency pins relaxed to allow patch updates
+- Dashboard uses production CSS build instead of Tailwind CDN
+- CI security scanning now blocks pipeline on CVE findings
 
 [1.0.0]: https://github.com/your-org/storyforge/releases/tag/v1.0.0
