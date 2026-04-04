@@ -96,12 +96,13 @@ class MediaProducer:
                 filename = f"ch{ch.chapter_number:02d}_scene.png"
                 prepared.append((ch, image_prompt, refs, filename))
 
-            completed = 0
             total = len(prepared)
-            max_workers = min(5, total)
 
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                if use_consistency and image_gen is not None:
+            if use_consistency and image_gen is not None:
+                # ImageGenerator path — use ThreadPoolExecutor directly
+                max_workers = min(5, total)
+                completed = 0
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
                     futures = {
                         executor.submit(
                             image_gen.generate_with_reference if refs else image_gen.generate,
@@ -113,21 +114,36 @@ class MediaProducer:
                         ): ch
                         for ch, prompt, refs, filename in prepared
                     }
-                else:
-                    futures = {
-                        executor.submit(seedream.generate_scene, prompt, refs, filename): ch
-                        for ch, prompt, refs, filename in prepared
-                    }
-                for future in as_completed(futures):
-                    ch = futures[future]
-                    completed += 1
-                    try:
-                        path = future.result()
-                        if path:
-                            result["scene_images"].append(path)
-                    except Exception as e:
-                        logger.warning(f"Image gen failed for chapter {ch.chapter_number}: {e}")
-                    if completed % 3 == 0 or completed == total:
-                        _log(f"[MEDIA] Ảnh: {completed}/{total}")
+                    for future in as_completed(futures):
+                        ch = futures[future]
+                        completed += 1
+                        try:
+                            path = future.result()
+                            if path:
+                                result["scene_images"].append(path)
+                        except Exception as e:
+                            logger.warning(
+                                "Image gen failed for chapter %s: %s",
+                                ch.chapter_number, e,
+                            )
+                        if completed % 3 == 0 or completed == total:
+                            _log(f"[MEDIA] Ảnh: {completed}/{total}")
+            else:
+                # Seedream path — use batch_generate()
+                batch_requests = [
+                    {"scene_prompt": prompt, "reference_images": refs, "filename": filename}
+                    for _ch, prompt, refs, filename in prepared
+                ]
+                batch_results = seedream.batch_generate(batch_requests)
+                for i, img_result in enumerate(batch_results):
+                    if img_result.success and img_result.image_url:
+                        result["scene_images"].append(img_result.image_url)
+                    else:
+                        logger.warning(
+                            "Image failed for %r: %s", img_result.prompt, img_result.error
+                        )
+                    completed_count = i + 1
+                    if completed_count % 3 == 0 or completed_count == total:
+                        _log(f"[MEDIA] Ảnh: {completed_count}/{total}")
 
         return result

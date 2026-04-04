@@ -6,7 +6,6 @@ import os
 import logging
 import threading
 import time
-import warnings
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +25,11 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 def _check_deployment_safety() -> None:
-    """Emit warnings/errors when cache config is unsafe for the deployment context.
+    """Fail fast when cache config is unsafe for the deployment context.
 
     Checks:
-    1. production + NUM_WORKERS > 1 + no REDIS_URL → RuntimeError (data corruption risk).
-    2. production + no REDIS_URL (any workers) → WARNING.
+    1. NUM_WORKERS > 1 + no REDIS_URL → hard RuntimeError (data corruption risk).
+       Applies to ALL environments — not just production.
     """
     num_workers_raw = os.environ.get("NUM_WORKERS", "").strip()
     try:
@@ -38,36 +37,26 @@ def _check_deployment_safety() -> None:
     except ValueError:
         num_workers = 1
 
-    redis_url = os.environ.get("REDIS_URL", "").strip()
-    storyforge_env = os.environ.get("STORYFORGE_ENV", "").strip().lower()
+    # Also check WEB_CONCURRENCY (uvicorn/gunicorn standard var)
+    if num_workers <= 1:
+        web_concurrency_raw = os.environ.get("WEB_CONCURRENCY", "").strip()
+        try:
+            num_workers = int(web_concurrency_raw) if web_concurrency_raw else num_workers
+        except ValueError:
+            pass
 
-    # Check 1: production + multi-process + SQLite = hard failure
-    if storyforge_env == "production" and num_workers > 1 and not redis_url:
+    redis_url = os.environ.get("REDIS_URL", "").strip()
+
+    # Hard fail for multi-process without Redis — applies regardless of environment.
+    # SQLite WAL mode is thread-safe but NOT process-safe; gunicorn workers are processes.
+    if num_workers > 1 and not redis_url:
         msg = (
-            f"STORYFORGE CACHE SAFETY: STORYFORGE_ENV=production with NUM_WORKERS={num_workers} "
+            f"STORYFORGE CACHE SAFETY: NUM_WORKERS={num_workers} (or WEB_CONCURRENCY) "
             "but no REDIS_URL. SQLite does NOT support safe concurrent multi-process writes — "
             "set REDIS_URL to switch to Redis."
         )
         logger.critical(msg)
         raise RuntimeError(msg)
-
-    # Check 2: multi-process + SQLite (non-production) = critical warning
-    if num_workers > 1 and not redis_url:
-        msg = (
-            f"STORYFORGE CACHE SAFETY: NUM_WORKERS={num_workers} but cache backend is SQLite. "
-            "SQLite does NOT support safe concurrent multi-process writes — set REDIS_URL or "
-            "run with NUM_WORKERS=1."
-        )
-        logger.critical(msg)
-        warnings.warn(msg, RuntimeWarning, stacklevel=2)
-
-    # Check 3: production without Redis (single worker is still risky across restarts)
-    if storyforge_env == "production" and not redis_url:
-        msg = (
-            "STORYFORGE CACHE: Running in production (STORYFORGE_ENV=production) "
-            "without a Redis cache backend. Set REDIS_URL for reliable shared caching."
-        )
-        logger.warning(msg)
 
 
 _check_deployment_safety()
@@ -157,9 +146,11 @@ class LLMCache:
             )
             conn.commit()
         except sqlite3.OperationalError as e:
-            logger.warning(f"Cache put failed (concurrent write): {e}")
+            logger.error("Cache put failed (OperationalError — possible DB corruption): %s", e)
+            raise
         except sqlite3.Error as e:
-            logger.warning(f"Cache put failed: {e}")
+            logger.error("Cache put failed: %s", e)
+            raise
 
     def evict_expired(self) -> int:
         cutoff = time.time() - self.ttl
@@ -222,14 +213,21 @@ class RedisCache:
         self._hits = 0
         self._misses = 0
         self._counter_lock = threading.Lock()
+        self._client = _redis_lib.from_url(redis_url, decode_responses=True)
+        # Fail fast: verify connectivity at startup — do not silently degrade.
+        # A Redis URL that cannot be reached at boot will corrupt data silently.
         try:
-            self._client = _redis_lib.from_url(redis_url, decode_responses=True)
-            # Ping to verify connectivity at init time
             self._client.ping()
-            logger.info("RedisCache connected: %s", redis_url.split("@")[-1])
         except Exception as e:
-            logger.warning("RedisCache init failed (will retry per-call): %s", e)
-            self._client = _redis_lib.from_url(redis_url, decode_responses=True)
+            logger.error(
+                "RedisCache startup ping failed for %s: %s",
+                redis_url.split("@")[-1],
+                e,
+            )
+            raise RuntimeError(
+                f"Redis unreachable at startup ({redis_url.split('@')[-1]}): {e}"
+            ) from e
+        logger.info("RedisCache connected: %s", redis_url.split("@")[-1])
 
     def _make_key(self, **params) -> str:
         raw = json.dumps(params, sort_keys=True, ensure_ascii=False)
@@ -305,14 +303,12 @@ def create_cache(
     url = redis_url or os.environ.get("REDIS_URL", "").strip()
     if url:
         if not _REDIS_AVAILABLE:
-            logger.warning(
-                "REDIS_URL is set but redis package is not installed. Falling back to SQLite."
+            raise RuntimeError(
+                "REDIS_URL is set but redis package is not installed. Run: pip install redis"
             )
-        else:
-            try:
-                return RedisCache(redis_url=url, ttl_days=ttl_days)
-            except Exception as e:
-                logger.warning("RedisCache creation failed (%s). Falling back to SQLite.", e)
+        # Let RedisCache.__init__ raise on connectivity failure — no silent SQLite fallback
+        # when Redis was explicitly configured.
+        return RedisCache(redis_url=url, ttl_days=ttl_days)
     return LLMCache(db_path=db_path, ttl_days=ttl_days)
 
 

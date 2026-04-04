@@ -54,8 +54,6 @@ jobs:
         run: |
           python -m pytest tests/ \
             --ignore=tests/test_e2e_pipeline.py \
-            --ignore=tests/test_db_integration.py \
-            --ignore=tests/test_mutation_smoke.py \
             --ignore=tests/test_phase1_storyforge.py \
             --ignore=tests/test_phase2_ui.py \
             --ignore=tests/test_xtts_provider.py \
@@ -64,6 +62,15 @@ jobs:
             --cov=pipeline --cov=services --cov=api --cov=middleware --cov=errors --cov=models \
             --cov-report=term-missing --cov-report=html \
             --cov-fail-under=60
+      - name: Enforce per-module coverage
+        # Ratchet approach: warn now, hard-fail once overall coverage reaches targets.
+        # Target thresholds: services/llm=80%, pipeline=75%, api=70%
+        # See .coveragerc for per-module documentation.
+        run: |
+          echo "=== Per-module coverage gates ==="
+          coverage report --include="services/llm/*" --fail-under=80 || echo "WARNING: services/llm coverage below 80%"
+          coverage report --include="pipeline/*" --fail-under=75 || echo "WARNING: pipeline coverage below 75%"
+          coverage report --include="api/*" --fail-under=70 || echo "WARNING: api coverage below 70%"
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v4
@@ -86,23 +93,68 @@ jobs:
       - name: Run Vitest frontend tests
         run: npm test
 
+  db-tests:
+    runs-on: ubuntu-latest
+    needs: [unit-tests]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: storyforge
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: storyforge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://storyforge:test@localhost:5432/storyforge_test
+      REDIS_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: pip
+      - run: pip install -r requirements.txt -r requirements-test.txt
+      - run: pytest tests/test_db_integration.py -v --tb=short
+
   e2e-tests:
     runs-on: ubuntu-latest
-    needs: lint
+    needs: [db-tests]
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
+      REDIS_URL: redis://localhost:6379/0
       STORYFORGE_SECRET_KEY: ci-test-secret-not-for-production
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-          cache: 'pip'
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-      - name: Install test dependencies
-        run: pip install pytest pytest-cov pytest-asyncio numpy==1.26.4
-      - name: Run E2E tests
-        run: python -m pytest tests/test_e2e_pipeline.py -v --tb=short --no-cov
+          cache: pip
+      - run: pip install -r requirements.txt -r requirements-test.txt
+      - run: pytest tests/test_e2e_pipeline.py -v --tb=short
 
   docker:
     runs-on: ubuntu-latest

@@ -266,24 +266,24 @@ document.addEventListener('alpine:init', () => {
       this.error = null;
 
       try {
-        for await (const event of API.stream('/pipeline/run', this.form as unknown as Record<string, unknown>)) {
+        for await (const event of API.stream('/pipeline/run', this.form as PipelineForm & Record<string, unknown>)) {
           if (event.type === 'session') {
             Alpine.store('app').sessionId = event.session_id ?? null;
           } else if (event.type === 'log') {
-            this.currentLog = event.data;
-            this.logs.push(event.data);
-            this.progress = this._detectLayer(event.data);
+            this.currentLog = event.data as string;
+            this.logs.push(event.data as string);
+            this.progress = this._detectLayer(event.data as string);
           } else if (event.type === 'stream') {
-            this.livePreview = event.data;
+            this.livePreview = event.data as string;
           } else if (event.type === 'done') {
-            const result = event.data as unknown as PipelineResult;
+            const result = event.data as PipelineResult;
             this.result = result;
             Alpine.store('app').savePipelineResult(result);
             Alpine.store('app').sessionId = result.session_id ?? null;
             this.status = 'done';
             this.progress = 4;
           } else if (event.type === 'error') {
-            this.error = event.data;
+            this.error = event.data as string;
             this.status = 'error';
           } else if (event.type === 'interrupted') {
             this.error = 'Connection lost. You can resume from the last checkpoint.';
@@ -318,20 +318,20 @@ document.addEventListener('alpine:init', () => {
           if (event.type === 'session') {
             Alpine.store('app').sessionId = event.session_id ?? null;
           } else if (event.type === 'log') {
-            this.currentLog = event.data;
-            this.logs.push(event.data);
-            this.progress = this._detectLayer(event.data);
+            this.currentLog = event.data as string;
+            this.logs.push(event.data as string);
+            this.progress = this._detectLayer(event.data as string);
           } else if (event.type === 'stream') {
-            this.livePreview = event.data;
+            this.livePreview = event.data as string;
           } else if (event.type === 'done') {
-            const result = event.data as unknown as PipelineResult;
+            const result = event.data as PipelineResult;
             this.result = result;
             Alpine.store('app').savePipelineResult(result);
             Alpine.store('app').sessionId = result.session_id ?? null;
             this.status = 'done';
             this.progress = 4;
           } else if (event.type === 'error') {
-            this.error = event.data;
+            this.error = event.data as string;
             this.status = 'error';
           } else if (event.type === 'interrupted') {
             this.error = 'Connection lost during resume.';

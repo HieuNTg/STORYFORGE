@@ -113,13 +113,29 @@ class DebateOrchestrator:
             own_review = _find_review(round1_reviews, agent.name)
             if own_review is None:
                 continue
+
+            # Pre-call budget check: estimate tokens before making the LLM call
+            prompt_text = f"{getattr(own_review, 'content', '')} {getattr(own_review, 'suggestions', '')}"
+            estimated = self._estimate_tokens(prompt_text)
+            if round2_tokens + estimated > self._max_tokens_per_round:
+                msg = (
+                    f"[DEBATE] Round 2 token budget would be exceeded by agent {agent.name} "
+                    f"(used={round2_tokens}, estimated={estimated}, limit={self._max_tokens_per_round})"
+                )
+                if self._budget_action == "abort":
+                    raise BudgetExceededError(msg)
+                logger.info("[DEBATE] Budget exhausted, skipping remaining Round 2 agents")
+                if progress_callback:
+                    progress_callback(msg)
+                break
+            if self._session_tokens + estimated > self._max_total_tokens:
+                logger.info("[DEBATE] Total budget exhausted, skipping remaining Round 2 agents")
+                break
+
             entries = agent.debate_response(story_draft, layer, own_review, round1_reviews)
             round2_entries.extend(entries)
 
-            # Estimate token usage for this agent's debate response calls.
-            # Agents don't expose token counts directly, so we approximate via
-            # the system/user prompts used (rough estimate: 200 tokens per call).
-            # This is replaced by exact counts when agents expose llm.last_usage.
+            # Post-call: update actual token counts (prefer exact if available, else estimate)
             agent_tokens = _estimate_agent_tokens(agent)
             round2_tokens += agent_tokens
             agent_cost = _estimate_agent_cost(agent_tokens, agent)
@@ -142,21 +158,6 @@ class DebateOrchestrator:
                     )
                 except Exception as exc:
                     logger.debug("TokenCostTracker.track_usage failed: %s", exc)
-
-            # Per-round token budget check mid-round
-            if round2_tokens > self._max_tokens_per_round:
-                msg = (
-                    f"[DEBATE] Round 2 token budget exceeded "
-                    f"({round2_tokens} > {self._max_tokens_per_round})"
-                )
-                if self._budget_action == "abort":
-                    raise BudgetExceededError(msg)
-                logger.warning(msg)
-                if progress_callback:
-                    progress_callback(msg)
-                if self._budget_action == "skip":
-                    logger.info("[DEBATE] Skipping remaining Round 2 agents due to budget cap")
-                    break
 
         challenges = [e for e in round2_entries if e.stance == DebateStance.CHALLENGE]
 
@@ -219,12 +220,32 @@ class DebateOrchestrator:
             own_review = _find_review(round1_reviews, agent.name)
             if own_review is None:
                 continue
+
+            # Pre-call budget check: estimate tokens before making the LLM call
+            prompt_text = f"{getattr(own_review, 'content', '')} {getattr(own_review, 'suggestions', '')}"
+            estimated = self._estimate_tokens(prompt_text)
+            if round3_tokens + estimated > self._max_tokens_per_round:
+                msg = (
+                    f"[DEBATE] Round 3 token budget would be exceeded by agent {agent.name} "
+                    f"(used={round3_tokens}, estimated={estimated}, limit={self._max_tokens_per_round})"
+                )
+                if self._budget_action == "abort":
+                    raise BudgetExceededError(msg)
+                logger.info("[DEBATE] Budget exhausted, skipping remaining Round 3 agents")
+                if progress_callback:
+                    progress_callback(msg)
+                break
+            if self._session_tokens + estimated > self._max_total_tokens:
+                logger.info("[DEBATE] Total budget exhausted, skipping remaining Round 3 agents")
+                break
+
             # Pass round 2 entries as context for rebuttal
             entries = agent.debate_response(story_draft, layer, own_review, round1_reviews)
             for entry in entries:
                 entry.round_number = 3
             round3_entries.extend(entries)
 
+            # Post-call: update actual token counts
             agent_tokens = _estimate_agent_tokens(agent)
             round3_tokens += agent_tokens
             agent_cost = _estimate_agent_cost(agent_tokens, agent)
@@ -247,35 +268,6 @@ class DebateOrchestrator:
                     )
                 except Exception as exc:
                     logger.debug("TokenCostTracker.track_usage failed: %s", exc)
-
-            # Per-round and total budget checks mid-round
-            if round3_tokens > self._max_tokens_per_round:
-                msg = (
-                    f"[DEBATE] Round 3 token budget exceeded "
-                    f"({round3_tokens} > {self._max_tokens_per_round})"
-                )
-                if self._budget_action == "abort":
-                    raise BudgetExceededError(msg)
-                logger.warning(msg)
-                if progress_callback:
-                    progress_callback(msg)
-                if self._budget_action == "skip":
-                    logger.info("[DEBATE] Stopping Round 3 early due to per-round budget cap")
-                    break
-
-            if self._session_tokens > self._max_total_tokens:
-                msg = (
-                    f"[DEBATE] Total token budget exceeded "
-                    f"({self._session_tokens} > {self._max_total_tokens})"
-                )
-                if self._budget_action == "abort":
-                    raise BudgetExceededError(msg)
-                logger.warning(msg)
-                if progress_callback:
-                    progress_callback(msg)
-                if self._budget_action == "skip":
-                    logger.info("[DEBATE] Stopping Round 3 early due to total token budget cap")
-                    break
 
         # Synthesize final reviews: merge scores from debate entries with original reviews
         final_reviews = _merge_debate_into_reviews(
@@ -304,6 +296,10 @@ class DebateOrchestrator:
     # ------------------------------------------------------------------
     # Budget helpers
     # ------------------------------------------------------------------
+
+    def _estimate_tokens(self, text: str) -> int:
+        """Estimate token count for text using chars/4 heuristic (fast, no extra dependency)."""
+        return len(text) // 4
 
     def _budget_exceeded(self, round_label: str, progress_callback=None) -> bool:
         """Check cumulative budget before starting a new round.

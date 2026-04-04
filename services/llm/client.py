@@ -186,12 +186,15 @@ class LLMClient(StreamingMixin, GenerationMixin):
         json_mode: bool = False,
         model_tier: str = "default",
         model: Optional[str] = None,
+        budget_remaining: Optional[int] = None,
     ) -> str:
         """Call LLM with retry, cache.
 
         Args:
             model: Optional model override (e.g. from model_for_layer). Takes
                    precedence over config model in fallback chain.
+            budget_remaining: If set, clamps effective max_tokens to this value,
+                              preventing overspend on per-chapter token budgets.
         """
         ConfigManager, _, LLMCache = _imports()
         config = ConfigManager()
@@ -224,6 +227,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
 
         chain = self._build_fallback_chain(config, model_tier, model_override=model)
         eff_max_tokens = max_tokens or config.llm.max_tokens
+        if budget_remaining is not None:
+            eff_max_tokens = min(eff_max_tokens, budget_remaining)
+            logger.debug("budget_remaining=%d → effective max_tokens=%d", budget_remaining, eff_max_tokens)
 
         all_errors = []
         for entry in chain:
@@ -285,7 +291,6 @@ class LLMClient(StreamingMixin, GenerationMixin):
                       max_tokens: int, json_mode: bool) -> str:
         # Support legacy {"client": ..., "model": ...} entries (test mocks use this form)
         if "client" in entry and "provider" not in entry:
-            from services.llm.providers.openai_provider import OpenAIProvider
             raw_client = entry["client"]
             # Wrap raw OpenAI client in a thin adapter so existing mock tests pass
             provider = _LegacyClientAdapter(raw_client)

@@ -54,23 +54,19 @@ def export_files(session_id: str, formats: list[str] = ["TXT", "Markdown", "JSON
     orch = _get_orch(session_id)
     if not orch:
         return JSONResponse({"error": "Chưa có truyện"}, status_code=404)
-    try:
-        from services.handlers import handle_export_files
-        files = handle_export_files(orch, formats)
-        if not files:
-            return {"files": []}
-        # Validate each returned path stays within allowed dirs
-        safe_files = []
-        for f in files:
-            resolved = pathlib.Path(f).resolve()
-            if any(str(resolved).startswith(str(d)) for d in _ALLOWED_EXPORT_DIRS):
-                safe_files.append(str(resolved))
-            else:
-                logger.warning(f"Skipping disallowed export path: {resolved}")
-        return {"files": safe_files}
-    except Exception as e:
-        logger.error(f"Export error: {e}")
-        return JSONResponse({"error": str(e)}, status_code=500)
+    from services.handlers import handle_export_files
+    files = handle_export_files(orch, formats)
+    if not files:
+        return {"files": []}
+    # Validate each returned path stays within allowed dirs
+    safe_files = []
+    for f in files:
+        resolved = pathlib.Path(f).resolve()
+        if any(str(resolved).startswith(str(d)) for d in _ALLOWED_EXPORT_DIRS):
+            safe_files.append(str(resolved))
+        else:
+            logger.warning(f"Skipping disallowed export path: {resolved}")
+    return {"files": safe_files}
 
 
 @router.post("/zip/{session_id}")
@@ -79,19 +75,13 @@ def export_zip(session_id: str):
     orch = _get_orch(session_id)
     if not orch:
         return JSONResponse({"error": "Chưa có truyện"}, status_code=404)
-    try:
-        from services.i18n import I18n
-        _t = I18n().t
-        from services.handlers import handle_export_zip
-        files = handle_export_zip(orch, ["TXT", "Markdown", "JSON", "HTML"], _t)
-        if files and len(files) > 0:
-            return _safe_file_response(files[0], "storyforge_export.zip")
-        return JSONResponse({"error": "Không có file"}, status_code=500)
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"ZIP export error: {e}")
-        return JSONResponse({"error": str(e)}, status_code=500)
+    from services.i18n import I18n
+    _t = I18n().t
+    from services.handlers import handle_export_zip
+    files = handle_export_zip(orch, ["TXT", "Markdown", "JSON", "HTML"], _t)
+    if files and len(files) > 0:
+        return _safe_file_response(files[0], "storyforge_export.zip")
+    return JSONResponse({"error": "Không có file"}, status_code=500)
 
 
 @router.post("/pdf/{session_id}")
@@ -100,17 +90,12 @@ def export_pdf(session_id: str):
     orch = _get_orch(session_id)
     if not orch:
         return JSONResponse({"error": "Chưa có truyện"}, status_code=404)
-    try:
-        from services.i18n import I18n
-        from services.handlers import handle_export_pdf
-        files, stats = handle_export_pdf(orch, I18n().t)
-        if files:
-            return _safe_file_response(files[0], "storyforge.pdf")
-        return JSONResponse({"error": "Xuất PDF thất bại"}, status_code=500)
-    except HTTPException:
-        raise
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+    from services.i18n import I18n
+    from services.handlers import handle_export_pdf
+    files, stats = handle_export_pdf(orch, I18n().t)
+    if files:
+        return _safe_file_response(files[0], "storyforge.pdf")
+    return JSONResponse({"error": "Xuất PDF thất bại"}, status_code=500)
 
 
 @router.post("/epub/{session_id}")
@@ -119,14 +104,9 @@ def export_epub(session_id: str):
     orch = _get_orch(session_id)
     if not orch:
         return JSONResponse({"error": "Chưa có truyện"}, status_code=404)
-    try:
-        from services.i18n import I18n
-        from services.handlers import handle_export_epub
-        files, stats = handle_export_epub(orch, I18n().t)
-        if files:
-            return _safe_file_response(files[0], "storyforge.epub")
-        return JSONResponse({"error": "Xuất EPUB thất bại"}, status_code=500)
-    except HTTPException:
-        raise
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+    from services.i18n import I18n
+    from services.handlers import handle_export_epub
+    files, stats = handle_export_epub(orch, I18n().t)
+    if files:
+        return _safe_file_response(files[0], "storyforge.epub")
+    return JSONResponse({"error": "Xuất EPUB thất bại"}, status_code=500)

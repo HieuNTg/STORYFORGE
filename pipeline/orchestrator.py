@@ -11,7 +11,9 @@ for all pipeline operations.  Heavy layer-execution logic lives in:
 """
 
 import logging
+import os
 import threading
+import uuid
 from typing import Optional
 
 from models.schemas import EnhancedStory, PipelineOutput, StoryDraft
@@ -34,6 +36,31 @@ from pipeline.orchestrator_layers import (
 
 logger = logging.getLogger(__name__)
 
+_SESSION_TTL = 86400  # 24 hours
+
+
+def _session_key(session_id: str, namespace: str) -> str:
+    return f"storyforge:session:{session_id}:{namespace}"
+
+
+def _make_redis_client():
+    """Create Redis client from REDIS_URL. Raises RuntimeError if unavailable."""
+    redis_url = os.environ.get("REDIS_URL", "").strip()
+    if not redis_url:
+        raise RuntimeError(
+            "REDIS_URL is not set. Redis is required for session state. "
+            "Start Redis via docker-compose and set REDIS_URL."
+        )
+    try:
+        import redis as _redis_lib
+    except ImportError as exc:
+        raise RuntimeError(
+            "redis package is not installed. Run: pip install redis"
+        ) from exc
+    client = _redis_lib.from_url(redis_url, decode_responses=True)
+    client.ping()
+    return client
+
 
 class PipelineOrchestrator:
     """Điều phối toàn bộ pipeline từ input đến output.
@@ -43,18 +70,30 @@ class PipelineOrchestrator:
     - Keep sub-components pointing at the current self.output via _sync_output.
     - Delegate all heavy work to orchestrator_layers / sub-component modules.
     - Expose a stable public API so callers never need to import sub-modules.
+    - Persist pipeline output in Redis under session-scoped keys (24h TTL).
     """
 
     CHECKPOINT_DIR = CHECKPOINT_DIR
 
-    def __init__(self):
+    def __init__(self, session_id: str = ""):
         self.config = ConfigManager()
         self.story_gen = StoryGenerator()
         self.analyzer = StoryAnalyzer()
         self.simulator = DramaSimulator()
         self.enhancer = StoryEnhancer()
         self._lock = threading.RLock()
-        self.output = PipelineOutput()
+        self.session_id = session_id or str(uuid.uuid4())
+
+        self._redis = None
+        try:
+            self._redis = _make_redis_client()
+            logger.debug("PipelineOrchestrator: Redis connected for session %s", self.session_id)
+        except Exception as exc:
+            logger.error("PipelineOrchestrator: Redis init failed: %s", exc)
+            raise
+
+        # Load persisted output or start fresh
+        self.output = self._load_output() or PipelineOutput()
 
         self.media_producer = MediaProducer(self.config)
         self.exporter = PipelineExporter(self.output)
@@ -67,6 +106,35 @@ class PipelineOrchestrator:
             self.simulator, self.enhancer, self.checkpoint,
         )
 
+    # ── Redis output persistence ─────────────────────────────────────────────
+
+    def _output_key(self) -> str:
+        return _session_key(self.session_id, "output")
+
+    def _save_output(self) -> None:
+        """Persist self.output to Redis (JSON, 24h TTL)."""
+        try:
+            key = self._output_key()
+            self._redis.set(key, self.output.model_dump_json())
+            self._redis.expire(key, _SESSION_TTL)
+        except Exception as exc:
+            logger.warning("PipelineOrchestrator: Redis save error: %s", exc)
+
+    def _load_output(self) -> Optional[PipelineOutput]:
+        """Load output from Redis. Returns None if key missing or expired."""
+        try:
+            key = self._output_key()
+            raw = self._redis.get(key)
+            if raw is None:
+                return None
+            self._redis.expire(key, _SESSION_TTL)
+            return PipelineOutput.model_validate_json(raw)
+        except Exception as exc:
+            logger.warning("PipelineOrchestrator: Redis load error: %s", exc)
+            return None
+
+    # ── Standard orchestrator API ─────────────────────────────────────────────
+
     def snapshot(self) -> "PipelineOutput":
         """Thread-safe deep copy of current output."""
         with self._lock:
@@ -77,11 +145,13 @@ class PipelineOrchestrator:
 
         Called after any operation that replaces self.output so that
         exporter, checkpoint, and continuation stay consistent.
+        Also persists the updated output to Redis.
         """
         self.exporter.output = self.output
         self.checkpoint.output = self.output
         self.continuation.output = self.output
         self.continuation.checkpoint_manager.output = self.output
+        self._save_output()
 
     # ── Layer execution (implemented in orchestrator_layers.py) ─────────────
 

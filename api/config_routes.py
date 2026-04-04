@@ -144,13 +144,10 @@ def save_config(body: ConfigUpdate):
 @router.post("/test-connection")
 def test_connection():
     """Test LLM connection with current settings."""
-    try:
-        from services.llm_client import LLMClient
-        LLMClient.reset()
-        ok, msg = LLMClient().check_connection()
-        return {"ok": ok, "message": msg}
-    except Exception as e:
-        return {"ok": False, "message": str(e)}
+    from services.llm_client import LLMClient
+    LLMClient.reset()
+    ok, msg = LLMClient().check_connection()
+    return {"ok": ok, "message": msg}
 
 
 @router.get("/languages")
@@ -209,20 +206,13 @@ def apply_model_preset(key: str):
 @router.get("/cache-stats")
 def cache_stats():
     """Return LLM cache statistics."""
-    try:
-        from services.llm_cache import LLMCache
-        s = LLMCache(ttl_days=ConfigManager().llm.cache_ttl_days).stats()
-        return s
-    except Exception as e:
-        return {"error": str(e)}
+    from services.llm_cache import LLMCache
+    return LLMCache(ttl_days=ConfigManager().llm.cache_ttl_days).stats()
 
 
 @router.delete("/cache")
 def clear_cache():
     """Clear LLM cache."""
-    try:
-        from services.llm_cache import LLMCache
-        LLMCache().clear()
-        return {"status": "ok"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+    from services.llm_cache import LLMCache
+    LLMCache().clear()
+    return {"status": "ok"}
