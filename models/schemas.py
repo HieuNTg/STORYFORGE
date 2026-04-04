@@ -1,7 +1,7 @@
 """Mô hình dữ liệu cho toàn bộ pipeline."""
 
 import re
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional
 from enum import Enum
 
@@ -18,11 +18,19 @@ class Character(BaseModel):
     name: str = Field(description="Tên nhân vật")
     role: str = Field(description="Vai trò: chính/phụ/phản diện")
     personality: str = Field(description="Tính cách")
-    background: str = Field(description="Tiểu sử")
-    motivation: str = Field(description="Động lực")
+    background: str = Field(default="", description="Tiểu sử")
+    motivation: str = Field(default="", description="Động lực")
     appearance: str = Field(default="", description="Ngoại hình")
     relationships: list[str] = Field(default_factory=list, description="Mối quan hệ")
     reference_image: str = Field(default="", description="Ảnh tham chiếu nhân vật")
+
+    @field_validator("relationships", mode="before")
+    @classmethod
+    def _coerce_relationships(cls, v):
+        """LLM sometimes returns '' instead of [] — coerce to list."""
+        if isinstance(v, str):
+            return [s.strip() for s in v.split(",") if s.strip()] if v.strip() else []
+        return v
 
 
 class WorldSetting(BaseModel):

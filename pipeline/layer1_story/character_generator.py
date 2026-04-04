@@ -38,7 +38,13 @@ def generate_characters(
         ),
         model=model,
     )
-    return [Character(**c) for c in result.get("characters", [])]
+    characters = []
+    for c in result.get("characters", []):
+        if isinstance(c, dict):
+            characters.append(Character(**c))
+        else:
+            logger.warning("Skipping non-dict character entry: %s", type(c).__name__)
+    return characters
 
 
 def extract_character_states(
