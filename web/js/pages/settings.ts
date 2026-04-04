@@ -20,9 +20,10 @@ interface SettingsProvider {
 
 function settingsPage() {
   return {
+    showAddKey: false as boolean,
+    newKeyInput: '' as string,
     form: {
       api_key: '' as string,
-      api_keys_text: '' as string,
       base_url: 'https://api.openai.com/v1' as string,
       model: 'gpt-4o-mini' as string,
       temperature: 0.8 as number,
@@ -155,6 +156,19 @@ function settingsPage() {
       } catch (e) { this.message = 'Preset error: ' + (e as Error).message; }
     },
 
+    async addKey(): Promise<void> {
+      const key = this.newKeyInput.trim();
+      if (!key) return;
+      try {
+        await API.put('/config', { append_api_keys: [key] });
+        this.newKeyInput = '';
+        this.showAddKey = false;
+        await Alpine.store('settings').load();
+        this.message = 'API key added.';
+        setTimeout(() => { this.message = ''; }, 2000);
+      } catch (e) { this.message = 'Error: ' + (e as Error).message; }
+    },
+
     async removeKey(index: number): Promise<void> {
       try {
         await API.del(`/config/api-keys/${index}`);
@@ -184,7 +198,6 @@ function settingsPage() {
         this.form.cheap_base_url = cfg.llm.cheap_base_url || '';
         this.maskedKey = cfg.llm.api_key_masked || '';
         this.savedKeysMasked = cfg.llm.api_keys_masked || [];
-        this.form.api_keys_text = '';
         if (cfg.pipeline) {
           this.form.image_provider = cfg.pipeline.image_provider || 'none';
           this.form.hf_image_model = cfg.pipeline.hf_image_model || 'black-forest-labs/FLUX.1-schnell';
@@ -213,16 +226,11 @@ function settingsPage() {
         const data: Record<string, unknown> = { ...this.form };
         if (!data['api_key']) delete data['api_key'];
         if (!data['hf_token']) delete data['hf_token'];
-        const keysText = (data['api_keys_text'] as string || '').trim();
-        const newKeys = keysText ? keysText.split('\n').map(k => (k as string).trim()).filter(Boolean) : [];
-        if (newKeys.length) data['append_api_keys'] = newKeys;
         delete data['api_keys'];
-        delete data['api_keys_text'];
         // Auto-set backend_type based on provider selection
         data['backend_type'] = 'api';
         await API.put('/config', data);
         this.message = 'Settings saved successfully!';
-        this.form.api_keys_text = '';
         // Reload config to refresh masked keys
         await Alpine.store('settings').load();
       } catch (e) { this.message = 'Error: ' + (e as Error).message; }
