@@ -15,6 +15,7 @@ venv/
 
 # ── Runtime Data ───────────────────────────────────────────────────
 data/config.json
+data/secrets.json
 data/*.db
 data/*.db-shm
 data/*.db-wal

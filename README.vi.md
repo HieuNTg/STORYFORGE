@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> · <a href="https://railway.app/new/template?template=https://github.com/HieuNTg/STORYFORGE">Deploy trên Railway</a> · <a href="https://render.com/deploy?repo=https://github.com/HieuNTg/STORYFORGE">Deploy trên Render</a>
+  <a href="README.md">English</a>
 </p>
 
 <p align="center">
@@ -62,7 +62,7 @@ Hầu hết công cụ viết AI tạo ra những câu chuyện phẳng, dễ đ
 - **Chế độ đọc nhánh tương tác** — chọn-hướng-phiêu-lưu với các nhánh sinh bởi LLM
 - **Giao diện Sáng / Tối** — chuyển đổi theme mượt mà với đồng bộ color-scheme toàn bộ trang
 - **Tự host, bảo mật** — truyện và API key không bao giờ rời khỏi hạ tầng của bạn
-- **Cache sẵn sàng production** — cache LLM bằng Redis cho triển khai đa worker, tự động fallback SQLite cho phát triển
+- **Cache LLM tích hợp** — cache SQLite tránh gọi API lặp lại
 - **Định tuyến model thông minh** — model rẻ cho phân tích, model cao cấp cho viết (~45% tiết kiệm chi phí)
 - **Tùy chỉnh prompt tác nhân** — chỉnh sửa `data/prompts/agent_prompts.yaml` để điều chỉnh cách tác nhân AI đánh giá và nâng chất truyện
 
@@ -77,10 +77,6 @@ docker compose up
 ```
 
 Mở [http://localhost:7860](http://localhost:7860). Xong.
-
-### Deploy một cú nhấp
-
-[![Deploy trên Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/HieuNTg/STORYFORGE)
 
 ### Cài đặt thủ công
 
@@ -114,8 +110,6 @@ Mọi cài đặt được quản lý qua tab **Cài đặt** trong giao diện 
 | `LLM_API_KEY` | API key của nhà cung cấp | _(không có)_ |
 | `LLM_MODEL` | Model chính để viết (vd. `gpt-4o`) | `gpt-4o` |
 | `LLM_BASE_URL` | URL endpoint tùy chỉnh (tương thích OpenAI) | _(mặc định nhà cung cấp)_ |
-| `SECRET_KEY` | Bí mật session cho JWT auth | _(tự tạo)_ |
-| `REDIS_URL` | Kết nối Redis cho cache production | _(fallback SQLite)_ |
 | `PORT` | Cổng server | `7860` |
 
 **Ghi đè model theo lớp** và model ngân sách thứ hai cho phân tích có thể cấu hình trong UI tại Cài đặt → Nâng cao.
@@ -148,15 +142,6 @@ docker compose logs -f
 
 # Dừng
 docker compose down
-```
-
-### Deploy một lệnh
-
-```bash
-# Railway
-railway up
-
-# Render — kết nối repo GitHub và triển khai tự động
 ```
 
 ---
@@ -224,8 +209,6 @@ flowchart LR
 | Tạo hình ảnh | IP-Adapter (nhất quán nhân vật), diffusion models (phông cảnh) |
 | Lưu trữ | JSON files, SQLite (cache dev), Redis (cache production) |
 | Xuất | fpdf2 (PDF), ebooklib (EPUB) |
-| Auth & Bảo mật | JWT, rate limiting, RBAC, CSRF, audit logging, XSS sanitization (nh3) |
-| Giám sát | Prometheus, Grafana, Loki |
 | Container | Docker, Docker Compose |
 | CI/CD | GitHub Actions |
 
@@ -248,8 +231,7 @@ storyforge/
 │   ├── pipeline/               #   Chấm điểm, đọc nhánh, sửa thông minh
 │   ├── media/                  #   Tạo hình ảnh (chân dung, phông cảnh)
 │   ├── export/                 #   Xuất PDF, EPUB, HTML, Wattpad
-│   ├── auth/                   #   JWT, quản lý người dùng, thu hồi token
-│   ├── infra/                  #   Database, i18n, metrics, structured logging
+│   ├── infra/                  #   Database, i18n, structured logging
 │   └── ...                     #   Analytics, feedback, onboarding, v.v.
 ├── api/                        # REST endpoint FastAPI
 │   ├── pipeline_routes.py      #   Pipeline SSE streaming + tiếp tục
@@ -262,9 +244,7 @@ storyforge/
 │   └── css/                    #   Tailwind CSS + style tùy chỉnh
 ├── config/                     # Package cấu hình
 ├── data/prompts/               # Prompt tác nhân có thể tùy chỉnh (YAML)
-├── middleware/                  # Auth, RBAC, rate limiting, CSRF, audit logging
 ├── models/                     # Mô hình dữ liệu Pydantic
-├── monitoring/                 # Prometheus, Grafana, Loki configs
 ├── plugins/                    # Hệ thống plugin
 ├── tests/                      # Bộ kiểm tra (unit, integration, security, load)
 └── scripts/                    # Script tiện ích

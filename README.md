@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <a href="README.vi.md">Tiếng Việt</a> · <a href="https://railway.app/new/template?template=https://github.com/HieuNTg/STORYFORGE">Deploy on Railway</a> · <a href="https://render.com/deploy?repo=https://github.com/HieuNTg/STORYFORGE">Deploy on Render</a>
+  <a href="README.vi.md">Tiếng Việt</a>
 </p>
 
 <p align="center">
@@ -62,7 +62,7 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 - **Interactive branch reader** — choose-your-own-adventure mode with LLM-generated branching paths
 - **Dark / Light mode** — polished theme toggle with full color-scheme sync across all pages
 - **Self-hosted, privacy-first** — your stories and API keys never leave your infrastructure
-- **Production-ready caching** — Redis-backed LLM cache for multi-worker deployments, with SQLite fallback for development
+- **Built-in LLM cache** — SQLite-backed cache to avoid redundant API calls
 - **Smart model routing** — assign cheap models to analysis tasks and premium models to writing (~45% cost savings)
 - **Customizable agent prompts** — edit `data/prompts/agent_prompts.yaml` to tune how AI agents evaluate and enhance stories
 
@@ -77,10 +77,6 @@ docker compose up
 ```
 
 Open [http://localhost:7860](http://localhost:7860). That's it.
-
-### One-Click Deploy
-
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/HieuNTg/STORYFORGE)
 
 ### Local
 
@@ -114,8 +110,6 @@ All settings are managed through the **Settings** tab in the web UI and persiste
 | `LLM_API_KEY` | API key for the selected provider | _(none)_ |
 | `LLM_MODEL` | Primary model for writing (e.g. `gpt-4o`) | `gpt-4o` |
 | `LLM_BASE_URL` | Custom endpoint URL (OpenAI-compatible) | _(provider default)_ |
-| `SECRET_KEY` | Session secret for JWT auth | _(auto-generated)_ |
-| `REDIS_URL` | Redis connection for production cache | _(SQLite fallback)_ |
 | `PORT` | Server port | `7860` |
 
 **Per-layer model overrides** and a secondary budget model for analysis tasks can be configured in the UI under Settings → Advanced.
@@ -148,15 +142,6 @@ docker compose logs -f
 
 # Stop
 docker compose down
-```
-
-### One-Command Deploy
-
-```bash
-# Railway
-railway up
-
-# Render — connect GitHub repo and deploy automatically
 ```
 
 ---
@@ -224,8 +209,6 @@ flowchart LR
 | Image Generation | IP-Adapter (character consistency), diffusion models (scene backgrounds) |
 | Storage | JSON files, SQLite (dev cache), Redis (production cache) |
 | Export | fpdf2 (PDF), ebooklib (EPUB) |
-| Auth & Security | JWT, rate limiting, RBAC, CSRF, audit logging, XSS sanitization (nh3) |
-| Monitoring | Prometheus, Grafana, Loki |
 | Containerization | Docker, Docker Compose |
 | CI/CD | GitHub Actions |
 
@@ -248,8 +231,7 @@ storyforge/
 │   ├── pipeline/               #   Quality scoring, branch narrative, smart revision
 │   ├── media/                  #   Image generation (character portraits, scenes)
 │   ├── export/                 #   PDF, EPUB, HTML, Wattpad exporters
-│   ├── auth/                   #   JWT, user management, token revocation
-│   ├── infra/                  #   Database, i18n, metrics, structured logging
+│   ├── infra/                  #   Database, i18n, structured logging
 │   └── ...                     #   Analytics, feedback, onboarding, etc.
 ├── api/                        # FastAPI REST endpoints
 │   ├── pipeline_routes.py      #   Pipeline SSE streaming + resume
@@ -262,9 +244,7 @@ storyforge/
 │   └── css/                    #   Tailwind CSS + custom styles
 ├── config/                     # Configuration package
 ├── data/prompts/               # Customizable agent prompts (YAML)
-├── middleware/                  # Auth, RBAC, rate limiting, CSRF, audit logging
 ├── models/                     # Pydantic data models
-├── monitoring/                 # Prometheus, Grafana, Loki configs
 ├── plugins/                    # Plugin system
 ├── tests/                      # Test suite (unit, integration, security, load)
 └── scripts/                    # Utility scripts
