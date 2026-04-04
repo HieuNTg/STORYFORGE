@@ -133,6 +133,32 @@ StoryForge ships with 10 customizable agent prompts in `data/prompts/agent_promp
 
 ---
 
+## Running
+
+### Docker Compose
+
+```bash
+# Start
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
+
+### One-Command Deploy
+
+```bash
+# Railway
+railway up
+
+# Render — connect GitHub repo and deploy automatically
+```
+
+---
+
 ## Architecture
 
 ```
@@ -177,7 +203,7 @@ flowchart LR
 
     subgraph IMG [Image Generation]
         direction TB
-        chars[Character Consistency] --> scenes[Scene Backgrounds]
+        portraits[Character Portraits] --> scenes[Scene Backgrounds]
     end
 
     IMG --> export([PDF / EPUB / HTML / ZIP])
@@ -195,8 +221,8 @@ flowchart LR
 | AI / LLM | Any OpenAI-compatible API |
 | Image Generation | IP-Adapter (character consistency), diffusion models (scene backgrounds) |
 | Storage | JSON files, SQLite (dev cache), Redis (production cache) |
-| Export | ReportLab (PDF), ebooklib (EPUB) |
-| Auth & Security | JWT, rate limiting, audit logging, XSS sanitization (nh3) |
+| Export | fpdf2 (PDF), ebooklib (EPUB) |
+| Auth & Security | JWT, rate limiting, RBAC, CSRF, audit logging, XSS sanitization (nh3) |
 | Monitoring | Prometheus, Grafana, Loki |
 | Containerization | Docker, Docker Compose |
 | CI/CD | GitHub Actions |
@@ -208,31 +234,38 @@ flowchart LR
 ```
 storyforge/
 ├── app.py                      # FastAPI entry point
-├── config.py                   # Configuration singleton
+├── mcp_server.py               # MCP tool server
 ├── pipeline/                   # 2-layer generation engine
 │   ├── orchestrator.py         #   Pipeline orchestrator with checkpointing
 │   ├── layer1_story/           #   Story generation (characters, world, chapters)
 │   ├── layer2_enhance/         #   Drama simulation & enhancement
 │   └── agents/                 #   13 specialized AI agents
 ├── services/                   # Reusable business logic
-│   ├── llm/                    #   LLM client with fallback chain
+│   ├── llm/                    #   LLM client with provider abstraction & fallback
 │   ├── llm_cache.py            #   Dual-backend cache (Redis / SQLite)
-│   ├── quality_scorer.py       #   4-dimension scoring
-│   ├── branch_narrative.py     #   Interactive branch reader
-│   └── ...                     #   Export, auth, analytics, image generation, etc.
+│   ├── pipeline/               #   Quality scoring, branch narrative, smart revision
+│   ├── media/                  #   Image generation (character portraits, scenes)
+│   ├── export/                 #   PDF, EPUB, HTML, Wattpad exporters
+│   ├── auth/                   #   JWT, user management, token revocation
+│   ├── infra/                  #   Database, i18n, metrics, structured logging
+│   └── ...                     #   Analytics, feedback, onboarding, etc.
 ├── api/                        # FastAPI REST endpoints
 │   ├── pipeline_routes.py      #   Pipeline SSE streaming + resume
 │   ├── config_routes.py        #   Settings CRUD + connection test
 │   ├── export_routes.py        #   PDF, EPUB, ZIP export
-│   └── ...
+│   └── ...                     #   Auth, analytics, health, metrics, etc.
 ├── web/                        # Alpine.js frontend (SPA)
-│   ├── index.html
-│   └── js/                     #   TypeScript source → compiled to JS via tsc
+│   ├── index.html              #   Main application
+│   ├── js/                     #   TypeScript source → compiled to JS via tsc
+│   └── css/                    #   Tailwind CSS + custom styles
+├── config/                     # Configuration package
 ├── data/prompts/               # Customizable agent prompts (YAML)
-├── middleware/                  # Auth, rate limiting, audit logging
+├── middleware/                  # Auth, RBAC, rate limiting, CSRF, audit logging
+├── models/                     # Pydantic data models
 ├── monitoring/                 # Prometheus, Grafana, Loki configs
-├── models/schemas.py           # Pydantic data models
-└── tests/                      # Test suite (73 files, 18K+ LOC)
+├── plugins/                    # Plugin system
+├── tests/                      # Test suite (unit, integration, security, load)
+└── scripts/                    # Utility scripts
 ```
 
 ---
@@ -256,6 +289,6 @@ StoryForge is built on the shoulders of excellent open source work:
 - [FastAPI](https://fastapi.tiangolo.com) — modern Python web framework
 - [Alpine.js](https://alpinejs.dev) — lightweight reactive frontend
 - [Tailwind CSS](https://tailwindcss.com) — utility-first CSS
-- [ReportLab](https://www.reportlab.com) — PDF generation
+- [fpdf2](https://py-pdf.github.io/fpdf2/) — PDF generation
 - [ebooklib](https://github.com/aerkalov/ebooklib) — EPUB generation
 - All LLM providers — OpenAI, Google, Anthropic, OpenRouter, and the Ollama community
