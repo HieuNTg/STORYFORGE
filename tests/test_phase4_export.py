@@ -225,24 +225,9 @@ class TestExportOutput:
         md_files = [p for p in result if p.endswith('.md')]
         assert len(md_files) > 0, "Should have Markdown files"
 
-    def test_export_output_json_format_with_video_script(self):
-        """Verify JSON format export includes video script."""
-        # Setup: Create video script
-        from models.schemas import VideoScript
-        video_script = VideoScript(
-            title="Test",
-            total_duration_seconds=60.0,
-            panels=[],
-            voice_lines=[],
-            character_descriptions={},
-            location_descriptions={}
-        )
-        self.orch.output.video_script = video_script
-
-        # Act
+    def test_export_output_json_format(self):
+        """Verify JSON format export works."""
         result = self.orch.export_output(self.temp_dir, formats=["JSON"])
-
-        # Assert
         json_files = [p for p in result if p.endswith('.json')]
         assert len(json_files) > 0, "Should have JSON files"
 

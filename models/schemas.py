@@ -188,53 +188,6 @@ class EnhancedStory(BaseModel):
     drama_score: float = Field(default=0.0, description="Điểm kịch tính tổng thể")
 
 
-# === Layer 3: Video ===
-
-class ShotType(str, Enum):
-    WIDE = "toàn_cảnh"
-    MEDIUM = "trung_cảnh"
-    CLOSE_UP = "cận_cảnh"
-    EXTREME_CLOSE_UP = "đặc_tả"
-    OVER_SHOULDER = "qua_vai"
-    POV = "góc_nhìn_nhân_vật"
-    AERIAL = "từ_trên_cao"
-
-
-class StoryboardPanel(BaseModel):
-    """Một panel trong storyboard."""
-    panel_number: int
-    chapter_number: int
-    shot_type: ShotType
-    description: str = Field(description="Mô tả hình ảnh")
-    camera_movement: str = Field(default="tĩnh", description="Di chuyển camera")
-    dialogue: str = Field(default="", description="Lời thoại")
-    narration: str = Field(default="", description="Lời kể")
-    mood: str = Field(default="", description="Tâm trạng/không khí")
-    characters_in_frame: list[str] = Field(default_factory=list)
-    duration_seconds: float = Field(default=5.0)
-    image_prompt: str = Field(default="", description="Prompt tạo hình ảnh")
-    sound_effect: str = Field(default="", description="Hiệu ứng âm thanh")
-    image_path: str = Field(default="", description="Đường dẫn ảnh đã tạo")
-
-
-class VoiceLine(BaseModel):
-    """Lời thoại cho voice-over."""
-    character: str
-    text: str
-    emotion: str = ""
-    panel_number: int = 0
-
-
-class VideoScript(BaseModel):
-    """Kịch bản video hoàn chỉnh."""
-    title: str
-    total_duration_seconds: float = 0
-    panels: list[StoryboardPanel] = Field(default_factory=list)
-    voice_lines: list[VoiceLine] = Field(default_factory=list)
-    character_descriptions: dict[str, str] = Field(default_factory=dict)
-    location_descriptions: dict[str, str] = Field(default_factory=dict)
-
-
 # === Quality Metrics ===
 
 class ChapterScore(BaseModel):
@@ -394,7 +347,6 @@ class PipelineOutput(BaseModel):
     story_draft: Optional[StoryDraft] = None
     simulation_result: Optional[SimulationResult] = None
     enhanced_story: Optional[EnhancedStory] = None
-    video_script: Optional[VideoScript] = None
     status: str = "pending"
     current_layer: int = 0
     progress: float = 0.0

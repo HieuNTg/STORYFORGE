@@ -20,9 +20,6 @@ def validate_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> list[str]:
     if pipeline.words_per_chapter < 100:
         errors.append("Số từ/chương phải >= 100")
 
-    if pipeline.video_quality not in ("draft", "final"):
-        errors.append("video_quality phải là 'draft' hoặc 'final'")
-
     if not (1.0 <= pipeline.self_review_threshold <= 5.0):
         errors.append("self_review_threshold phải từ 1.0 đến 5.0")
 

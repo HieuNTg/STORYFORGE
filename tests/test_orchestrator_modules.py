@@ -87,138 +87,35 @@ class TestMediaProducerRun(unittest.TestCase):
         cfg = MagicMock()
         cfg.pipeline.seedream_api_key = seedream_key
         cfg.pipeline.seedream_api_url = seedream_url
+        cfg.pipeline.enable_character_consistency = False
         return cfg
 
     @patch("pipeline.orchestrator_media.SeedreamClient")
-    @patch("pipeline.orchestrator_media.TTSAudioGenerator")
-    @patch("pipeline.orchestrator_media.VideoComposer")
-    def test_run_returns_dict_structure(self, MockVC, MockTTS, MockSeed):
+    def test_run_returns_dict_structure(self, MockSeed):
         from pipeline.orchestrator_media import MediaProducer
         MockSeed.return_value.is_configured.return_value = False
-        MockTTS.return_value.assign_voices.return_value = {}
-        MockTTS.return_value.generate_chapter_audio.return_value = "ch1.mp3"
-        MockTTS.return_value.generate_full_audiobook.return_value = ["ch1.mp3"]
 
         config = self._make_config()
         producer = MediaProducer(config)
         draft = _make_story_draft()
         enhanced = _make_enhanced_story()
-        result = producer.run(draft, enhanced, None)
+        result = producer.run(draft, enhanced)
 
         self.assertIn("character_refs", result)
         self.assertIn("scene_images", result)
-        self.assertIn("audio_paths", result)
-        self.assertIn("video_path", result)
 
     @patch("pipeline.orchestrator_media.SeedreamClient")
-    @patch("pipeline.orchestrator_media.TTSAudioGenerator")
-    @patch("pipeline.orchestrator_media.VideoComposer")
-    def test_run_calls_progress_callback(self, MockVC, MockTTS, MockSeed):
-        from pipeline.orchestrator_media import MediaProducer
-        MockSeed.return_value.is_configured.return_value = False
-        MockTTS.return_value.generate_chapter_audio.return_value = "ch1.mp3"
-
-        config = self._make_config()
-        producer = MediaProducer(config)
-        logs = []
-        draft = _make_story_draft()
-        enhanced = _make_enhanced_story()
-        producer.run(draft, enhanced, None, progress_callback=lambda m: logs.append(m))
-        self.assertTrue(any("audio" in s.lower() or "MEDIA" in s for s in logs))
-
-    @patch("pipeline.orchestrator_media.SeedreamClient")
-    @patch("pipeline.orchestrator_media.TTSAudioGenerator")
-    @patch("pipeline.orchestrator_media.VideoComposer")
-    def test_run_no_enhanced_skips_tts(self, MockVC, MockTTS, MockSeed):
-        from pipeline.orchestrator_media import MediaProducer
-        MockSeed.return_value.is_configured.return_value = False
-
-        config = self._make_config()
-        producer = MediaProducer(config)
-        result = producer.run(_make_story_draft(), None, None)
-        self.assertEqual(result["audio_paths"], [])
-
-    @patch("pipeline.orchestrator_media.SeedreamClient")
-    @patch("pipeline.orchestrator_media.TTSAudioGenerator")
-    @patch("pipeline.orchestrator_media.VideoComposer")
-    def test_run_with_seedream_generates_char_refs(self, MockVC, MockTTS, MockSeed):
+    def test_run_with_seedream_generates_char_refs(self, MockSeed):
         from pipeline.orchestrator_media import MediaProducer
         seedream = MockSeed.return_value
         seedream.is_configured.return_value = True
         seedream.generate_character_reference.return_value = "ref/alice.png"
-        MockTTS.return_value.generate_chapter_audio.return_value = "ch1.mp3"
-        MockTTS.return_value.assign_voices.return_value = {}
 
         config = self._make_config(seedream_key="key123")
         producer = MediaProducer(config)
         draft = _make_story_draft(characters=[_make_character("Alice")])
-        result = producer.run(draft, _make_enhanced_story(), None)
+        result = producer.run(draft, _make_enhanced_story())
         self.assertIn("Alice", result["character_refs"])
-
-    @patch("pipeline.orchestrator_media.SeedreamClient")
-    @patch("pipeline.orchestrator_media.TTSAudioGenerator")
-    @patch("pipeline.orchestrator_media.VideoComposer")
-    def test_run_with_scene_images_and_audio_composes_video(self, MockVC, MockTTS, MockSeed):
-        from pipeline.orchestrator_media import MediaProducer
-        seedream = MockSeed.return_value
-        seedream.is_configured.return_value = True
-        seedream.generate_character_reference.return_value = None
-        seedream.generate_scene.return_value = "scene1.png"
-        tts = MockTTS.return_value
-        tts.assign_voices.return_value = {}
-        tts.generate_chapter_audio.return_value = "ch1.mp3"
-        # measure_duration as static
-        with patch("pipeline.orchestrator_media.TTSAudioGenerator.measure_duration", return_value=10.0):
-            composer = MockVC.return_value
-            composer.merge_chapter_audios.return_value = "merged.mp3"
-            composer.compose.return_value = "output/video.mp4"
-
-            config = self._make_config(seedream_key="k")
-            producer = MediaProducer(config)
-            panel = _make_panel()
-            vs = _make_video_script(panels=[panel])
-            result = producer.run(_make_story_draft(), _make_enhanced_story(), vs)
-            # scene_images populated from future result
-            self.assertIsNotNone(result)
-
-    @patch("pipeline.orchestrator_media.SeedreamClient")
-    @patch("pipeline.orchestrator_media.TTSAudioGenerator")
-    @patch("pipeline.orchestrator_media.VideoComposer")
-    def test_tts_exception_skipped_gracefully(self, MockVC, MockTTS, MockSeed):
-        from pipeline.orchestrator_media import MediaProducer
-        MockSeed.return_value.is_configured.return_value = False
-        MockTTS.return_value.generate_chapter_audio.side_effect = Exception("tts fail")
-        MockTTS.return_value.assign_voices.return_value = {}
-
-        config = self._make_config()
-        producer = MediaProducer(config)
-        result = producer.run(_make_story_draft(), _make_enhanced_story(), None)
-        self.assertEqual(result["audio_paths"], [])
-
-
-class TestDistributePanelDurations(unittest.TestCase):
-
-    def test_distributes_evenly(self):
-        from pipeline.orchestrator_media import _distribute_panel_durations
-        panels = [_make_panel(1, 1), _make_panel(2, 1)]
-        _distribute_panel_durations(panels, {1: 10.0})
-        for p in panels:
-            self.assertEqual(p.duration_seconds, 5.0)
-
-    def test_skips_chapters_without_duration(self):
-        from pipeline.orchestrator_media import _distribute_panel_durations
-        panels = [_make_panel(1, 2)]
-        _distribute_panel_durations(panels, {1: 10.0})
-        # Chapter 2 has no duration entry — should not modify
-        self.assertEqual(panels[0].duration_seconds, 5.0)  # unchanged from MagicMock default
-
-    def test_zero_duration_skipped(self):
-        from pipeline.orchestrator_media import _distribute_panel_durations
-        panel = _make_panel(1, 1)
-        panel.duration_seconds = 5.0
-        _distribute_panel_durations([panel], {1: 0.0})
-        # zero duration — should not update
-        self.assertEqual(panel.duration_seconds, 5.0)
 
 
 # ===========================================================================
@@ -234,7 +131,7 @@ class TestCheckpointManagerSave(unittest.TestCase):
                 output = MagicMock()
                 output.story_draft.title = "TestTitle"
                 output.model_dump_json.return_value = '{"title": "test"}'
-                mgr = CheckpointManager(output, None, None, None, None)
+                mgr = CheckpointManager(output, None, None, None)
                 path = mgr.save(1, background=False)
                 self.assertTrue(os.path.exists(path))
                 self.assertIn("layer1", path)
@@ -246,7 +143,7 @@ class TestCheckpointManagerSave(unittest.TestCase):
                 output = MagicMock()
                 output.story_draft.title = "My Story: Part 1"
                 output.model_dump_json.return_value = "{}"
-                mgr = CheckpointManager(output, None, None, None, None)
+                mgr = CheckpointManager(output, None, None, None)
                 path = mgr.save(2, background=False)
                 filename = os.path.basename(path)
                 self.assertNotIn(":", filename)
@@ -258,7 +155,7 @@ class TestCheckpointManagerSave(unittest.TestCase):
                 output = MagicMock()
                 output.story_draft = None
                 output.model_dump_json.return_value = "{}"
-                mgr = CheckpointManager(output, None, None, None, None)
+                mgr = CheckpointManager(output, None, None, None)
                 path = mgr.save(1, background=False)
                 self.assertIn("untitled", path)
 
@@ -320,7 +217,7 @@ class TestCheckpointManagerResume(unittest.TestCase):
             po.status = "completed"
             MockPO.return_value = po
 
-            mgr = CheckpointManager(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+            mgr = CheckpointManager(MagicMock(), MagicMock(), MagicMock(), MagicMock())
             result = mgr.resume(path, enable_agents=False, enable_scoring=False)
             self.assertEqual(result, po)
 
@@ -337,7 +234,7 @@ class TestCheckpointManagerResume(unittest.TestCase):
             po.status = "completed"
             MockPO.return_value = po
 
-            mgr = CheckpointManager(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+            mgr = CheckpointManager(MagicMock(), MagicMock(), MagicMock(), MagicMock())
             result = mgr.resume(path, enable_agents=False, enable_scoring=False)
             # Since last_layer=3, neither layer 2 nor 3 resume should run
             self.assertEqual(result.current_layer, 3)
@@ -366,12 +263,10 @@ class TestCheckpointManagerResume(unittest.TestCase):
                 enhancer = MagicMock()
                 enhanced = _make_enhanced_story()
                 enhancer.enhance_story.return_value = enhanced
-                storyboard_gen = MagicMock()
-                storyboard_gen.generate_full_video_script.return_value = _make_video_script()
 
                 # Mock the save method to avoid file I/O
                 with patch.object(CheckpointManager, "save", return_value="path/ckpt.json"):
-                    mgr = CheckpointManager(po, analyzer, simulator, enhancer, storyboard_gen)
+                    mgr = CheckpointManager(po, analyzer, simulator, enhancer)
                     mgr.resume(path, enable_agents=False, enable_scoring=False)
                     analyzer.analyze.assert_called_once()
                     simulator.run_simulation.assert_called_once()

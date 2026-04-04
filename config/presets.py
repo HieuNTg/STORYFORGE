@@ -1,10 +1,5 @@
 """Pipeline presets and model presets for StoryForge."""
 
-VIDEO_QUALITY_PRESETS = {
-    "draft": {"resolution": "512x512", "fps": 24, "crf": "28", "preset": "fast"},
-    "final": {"resolution": "1024x1024", "fps": 30, "crf": "23", "preset": "medium"},
-}
-
 PIPELINE_PRESETS = {
     "beginner": {
         "label": "Người mới — Cơ bản, dễ dùng",
@@ -12,7 +7,6 @@ PIPELINE_PRESETS = {
         "enable_agent_debate": False,
         "enable_smart_revision": False,
         "use_long_context": False,
-        "enable_voice_emotion": False,
         "enable_character_consistency": False,
         "rag_enabled": False,
         "context_window_chapters": 2,
@@ -31,7 +25,6 @@ PIPELINE_PRESETS = {
         "quality_gate_threshold": 2.5,
         "quality_gate_max_retries": 1,
         "use_long_context": False,
-        "enable_voice_emotion": False,
         "enable_character_consistency": False,
         "rag_enabled": False,
         "context_window_chapters": 5,
@@ -50,7 +43,6 @@ PIPELINE_PRESETS = {
         "quality_gate_threshold": 2.5,
         "quality_gate_max_retries": 1,
         "use_long_context": True,
-        "enable_voice_emotion": True,
         "enable_character_consistency": True,
         "rag_enabled": True,
         "context_window_chapters": 5,
@@ -73,7 +65,6 @@ MODEL_PRESETS = {
         "cheap_base_url": _OPENROUTER_BASE,
         "layer1_model": "",
         "layer2_model": "",
-        "layer3_model": "",
         "fallback_models": [
             {"model": "nvidia/nemotron-3-super-120b-a12b:free", "base_url": _OPENROUTER_BASE},
         ],
@@ -86,7 +77,6 @@ MODEL_PRESETS = {
         "cheap_base_url": _OPENROUTER_BASE,
         "layer1_model": "qwen/qwen3.6-plus-preview:free",
         "layer2_model": "nvidia/nemotron-3-super-120b-a12b:free",
-        "layer3_model": "stepfun/step-3.5-flash:free",
         "fallback_models": [
             {"model": "nvidia/nemotron-3-super-120b-a12b:free", "base_url": _OPENROUTER_BASE},
             {"model": "stepfun/step-3.5-flash:free", "base_url": _OPENROUTER_BASE},
@@ -100,7 +90,6 @@ MODEL_PRESETS = {
         "cheap_base_url": _OPENROUTER_BASE,
         "layer1_model": "qwen/qwen3.6-plus-preview:free",
         "layer2_model": "nvidia/nemotron-3-super-120b-a12b:free",
-        "layer3_model": "stepfun/step-3.5-flash:free",
         "fallback_models": [
             {"model": "minimax/minimax-m2.5:free", "base_url": _OPENROUTER_BASE},
             {"model": "stepfun/step-3.5-flash:free", "base_url": _OPENROUTER_BASE},

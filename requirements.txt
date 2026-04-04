@@ -16,10 +16,6 @@ fpdf2==2.8.1
 ebooklib==0.18
 plotly==5.24.1
 
-# ── Media / TTS ──
-edge-tts==6.1.18
-pydub==0.25.1
-
 # ── Auth & security ──
 bcrypt==4.2.0
 cryptography==43.0.3

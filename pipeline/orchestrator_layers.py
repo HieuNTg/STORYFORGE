@@ -1,4 +1,4 @@
-"""Layer execution methods for the 3-layer pipeline.
+"""Layer execution methods for the 2-layer pipeline.
 
 This module contains the concrete layer-running logic extracted from
 PipelineOrchestrator to keep the main class focused on orchestration
@@ -28,27 +28,28 @@ def run_full_pipeline(
     num_characters: int = 5,
     word_count: int = 2000,
     num_sim_rounds: int = 5,
-    shots_per_chapter: int = 8,
     progress_callback=None,
     stream_callback=None,
     enable_agents: bool = True,
     enable_scoring: bool = True,
     enable_media: bool = False,
 ) -> PipelineOutput:
-    """Chạy toàn bộ pipeline 3 lớp (story gen → drama sim → storyboard).
+    """Chạy toàn bộ pipeline 2 lớp (story gen → drama sim).
 
-    Delegates to _run_layer1, _run_layer2, _run_layer3 in sequence.
+    Delegates to _run_layer1, _run_layer2 in sequence.
     Each layer saves a checkpoint on success. Layer 2 failures are
     non-fatal — the pipeline continues with the original draft.
     """
 
     def _log(msg):
-        self.output.logs.append(msg)
+        with self._lock:
+            self.output.logs.append(msg)
         logger.info(msg)
         if progress_callback:
             progress_callback(msg)
 
-    self.output = PipelineOutput(status="running", current_layer=1)
+    with self._lock:
+        self.output = PipelineOutput(status="running", current_layer=1)
     self._sync_output()
     draft = None
     enhanced = None
@@ -79,7 +80,8 @@ def run_full_pipeline(
 
     # ── Layer 1: Story generation ────────────────────────────────────────────
     _log("══════ LAYER 1: TẠO TRUYỆN ══════")
-    self.output.current_layer = 1
+    with self._lock:
+        self.output.current_layer = 1
     layer_start = time.time()
     try:
         draft = self.story_gen.generate_full_story(
@@ -89,8 +91,9 @@ def run_full_pipeline(
             progress_callback=lambda m: _log(f"[L1] {m}"),
             stream_callback=stream_callback,
         )
-        self.output.story_draft = draft
-        self.output.progress = 0.33
+        with self._lock:
+            self.output.story_draft = draft
+            self.output.progress = 0.33
         _log(f"Layer 1 hoàn tất trong {time.time() - layer_start:.1f}s")
         self.checkpoint.save(1)
 
@@ -216,7 +219,8 @@ def run_full_pipeline(
 
     # ── Layer 2: Drama simulation & story enhancement ────────────────────────
     _log("══════ LAYER 2: MÔ PHỎNG TĂNG KỊCH TÍNH ══════")
-    self.output.current_layer = 2
+    with self._lock:
+        self.output.current_layer = 2
     layer_start = time.time()
     try:
         _log("[L2] Đang phân tích cấu trúc truyện...")
@@ -246,8 +250,9 @@ def run_full_pipeline(
             word_count=word_count,
             progress_callback=lambda m: _log(f"[L2] {m}"),
         )
-        self.output.enhanced_story = enhanced
-        self.output.progress = 0.66
+        with self._lock:
+            self.output.enhanced_story = enhanced
+            self.output.progress = 0.66
         _log(f"Layer 2 hoàn tất trong {time.time() - layer_start:.1f}s")
         self.checkpoint.save(2)
 
@@ -399,80 +404,41 @@ def run_full_pipeline(
             ],
             drama_score=0.0,
         )
-        self.output.enhanced_story = enhanced
-        self.output.progress = 0.66
-        self.output.status = "partial"
-        _log("[WARN] Layer 3 will use unenhanced chapters. Video quality may be lower.")
+        with self._lock:
+            self.output.enhanced_story = enhanced
+            self.output.progress = 0.66
+            self.output.status = "partial"
 
     if not enhanced or not enhanced.chapters:
-        _log("[ERROR] No chapters available for Layer 3. Pipeline stopping.")
+        _log("[ERROR] No chapters available after Layer 2. Pipeline stopping.")
         self.output.status = "error"
         return self.output
 
-    # ── Layer 3: Video storyboard generation ────────────────────────────────
-    _log("══════ LAYER 3: TẠO KỊCH BẢN VIDEO ══════")
-    self.output.current_layer = 3
-    layer_start = time.time()
-    try:
-        video_script = self.storyboard_gen.generate_full_video_script(
-            story=enhanced,
-            characters=draft.characters,
-            shots_per_chapter=shots_per_chapter,
-            progress_callback=lambda m: _log(f"[L3] {m}"),
-        )
-        self.output.video_script = video_script
+    with self._lock:
         self.output.progress = 1.0
         if self.output.status != "partial":
             self.output.status = "completed"
-        self.checkpoint.save(3)
+    _log("PIPELINE HOÀN TẤT!")
+    total_time = time.time() - pipeline_start
+    _log(f"Tổng kết: {len(enhanced.chapters)} chương, tổng thời gian: {total_time:.0f}s")
 
-        # Multi-agent review panel for Layer 3
-        if enable_agents:
-            _log("[AGENTS] Phòng ban đang đánh giá Layer 3...")
-            try:
-                reviews = AgentRegistry().run_review_cycle(
-                    self.output, layer=3, max_iterations=3,
-                    progress_callback=lambda m: _log(m),
-                )
-                self.output.reviews.extend(reviews)
-            except Exception as e:
-                logger.warning(f"Agent review Layer 3 lỗi: {e}")
-
-        _log(f"Layer 3 hoàn tất trong {time.time() - layer_start:.1f}s")
-        _log("PIPELINE HOÀN TẤT!")
-        total_time = time.time() - pipeline_start
-        _log(f"Tổng kết: {len(enhanced.chapters)} chương, "
-             f"{len(video_script.panels)} panels video, "
-             f"~{video_script.total_duration_seconds / 60:.1f} phút, "
-             f"tổng thời gian: {total_time:.0f}s")
-    except Exception as e:
-        logger.warning(f"Layer 3 thất bại: {e}")
-        _log(f"Layer 3 lỗi ({str(e)}), pipeline dừng sau Layer 2.")
-        self.output.status = "partial"
-
-    # ── Layer 3.5: Optional media production (images, audio, video) ─────────
+    # ── Optional media production (images) ──────────────────────────────────
     should_run_media = (
         enable_media
-        and self.output.video_script
         and self.config.pipeline.image_provider != "none"
     )
     if should_run_media:
-        if not self.output.video_script or not self.output.video_script.panels:
-            _log("[WARN] No video panels. Skipping Layer 3.5.")
-        else:
-            _log("══════ LAYER 3.5: SẢN XUẤT ẢNH + AUDIO + VIDEO ══════")
-            layer_start = time.time()
-            try:
-                media = self.media_producer.run(
-                    draft, enhanced, self.output.video_script,
-                    progress_callback=lambda m: _log(m),
-                )
-                if media.get("video_path"):
-                    _log(f"Video: {media['video_path']}")
-                _log(f"Layer 3.5 hoàn tất trong {time.time() - layer_start:.1f}s")
-            except Exception as e:
-                logger.warning(f"Media production failed: {e}")
-                _log(f"Media production lỗi: {e}")
+        _log("══════ SẢN XUẤT ẢNH ══════")
+        layer_start = time.time()
+        try:
+            media = self.media_producer.run(
+                draft, enhanced,
+                progress_callback=lambda m: _log(m),
+            )
+            _log(f"Media hoàn tất trong {time.time() - layer_start:.1f}s")
+        except Exception as e:
+            logger.warning(f"Media production failed: {e}")
+            _log(f"Media production lỗi: {e}")
 
     # Attach raw progress events to output for API consumers
     self.output.progress_events = [e.__dict__ for e in tracker.events]

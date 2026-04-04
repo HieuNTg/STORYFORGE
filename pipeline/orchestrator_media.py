@@ -1,28 +1,26 @@
-"""Layer 3.5 media production: images, TTS audio, video composition."""
+"""Media production: character reference images and scene images."""
 
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from config import ConfigManager
 from services.seedream_client import SeedreamClient
-from services.tts_audio_generator import TTSAudioGenerator
-from services.video_composer import VideoComposer
 
 logger = logging.getLogger(__name__)
 
 
 class MediaProducer:
-    """Handles Layer 3.5: character images, scene images, TTS audio, video."""
+    """Handles media production: character images and scene images."""
 
     def __init__(self, config: ConfigManager):
         self.config = config
 
-    def run(self, draft, enhanced, video_script, progress_callback=None) -> dict:
-        """Generate images, TTS audio, compose video.
+    def run(self, draft, enhanced, progress_callback=None) -> dict:
+        """Generate character reference images and scene images.
 
-        Returns dict with paths: {character_refs, scene_images, audio_paths, video_path}
+        Returns dict with paths: {character_refs, scene_images}
         """
-        result = {"character_refs": {}, "scene_images": [], "audio_paths": [], "video_path": ""}
+        result = {"character_refs": {}, "scene_images": []}
         cfg = self.config.pipeline
 
         def _log(msg):
@@ -54,17 +52,16 @@ class MediaProducer:
                 profile = profile_store.load_profile(char.name)
                 if profile:
                     visual_profiles[char.name] = profile.get("description", "")
-                    # Use stored reference image if character doesn't have one yet
                     if not char.reference_image and profile.get("reference_image"):
                         ref = profile["reference_image"]
                         if os.path.exists(ref):
                             char.reference_image = ref
                             result["character_refs"][char.name] = ref
 
-        # Step 2: Scene images — parallel with ThreadPoolExecutor
+        # Step 2: Scene images from enhanced story chapters (parallel)
         char_refs = result["character_refs"]
         use_consistency = cfg.enable_character_consistency
-        # Determine image generator provider when consistency is enabled
+
         if use_consistency:
             provider = getattr(cfg, "character_consistency_provider", "seedream")
             if provider == "seedream" and not seedream.is_configured():
@@ -72,28 +69,32 @@ class MediaProducer:
             from services.image_generator import ImageGenerator
             image_gen = ImageGenerator(provider=provider)
         else:
-            image_gen = None  # use seedream directly (unchanged behavior)
+            image_gen = None
 
-        if (use_consistency or seedream.is_configured()) and video_script and video_script.panels:
-            panels = video_script.panels
-            _log(f"[MEDIA] Tạo {len(panels)} ảnh cảnh (song song)...")
+        if (use_consistency or seedream.is_configured()) and enhanced and enhanced.chapters:
+            from services.image_prompt_generator import ImagePromptGenerator
+            prompt_gen = ImagePromptGenerator()
 
-            # Prepare panel data before parallel execution
+            # Generate one scene image per chapter
+            chapters = enhanced.chapters
+            _log(f"[MEDIA] Tạo {len(chapters)} ảnh cảnh (song song)...")
+
             prepared = []
-            for panel in panels:
-                refs = [char_refs[n] for n in panel.characters_in_frame if n in char_refs]
-                prompt = panel.image_prompt or panel.description
-                # Inject visual descriptions into prompt for text-only providers
-                if use_consistency and visual_profiles and panel.characters_in_frame:
+            for ch in chapters:
+                try:
+                    image_prompt = prompt_gen.generate_scene_prompt(ch)
+                except Exception:
+                    image_prompt = ch.summary or ch.title or f"Chapter {ch.chapter_number}"
+                refs = list(char_refs.values())[:2]
+                if use_consistency and visual_profiles:
                     char_descs = "; ".join(
                         f"[{n}: {visual_profiles[n]}]"
-                        for n in panel.characters_in_frame
-                        if n in visual_profiles
+                        for n in visual_profiles
                     )
                     if char_descs:
-                        prompt = f"{char_descs} {prompt}"
-                filename = f"ch{panel.chapter_number:02d}_p{panel.panel_number:02d}.png"
-                prepared.append((panel, prompt, refs, filename))
+                        image_prompt = f"{char_descs} {image_prompt}"
+                filename = f"ch{ch.chapter_number:02d}_scene.png"
+                prepared.append((ch, image_prompt, refs, filename))
 
             completed = 0
             total = len(prepared)
@@ -109,98 +110,24 @@ class MediaProducer:
                                 if refs
                                 else (prompt, filename)
                             ),
-                        ): panel
-                        for panel, prompt, refs, filename in prepared
+                        ): ch
+                        for ch, prompt, refs, filename in prepared
                     }
                 else:
                     futures = {
-                        executor.submit(seedream.generate_scene, prompt, refs, filename): panel
-                        for panel, prompt, refs, filename in prepared
+                        executor.submit(seedream.generate_scene, prompt, refs, filename): ch
+                        for ch, prompt, refs, filename in prepared
                     }
                 for future in as_completed(futures):
-                    panel = futures[future]
+                    ch = futures[future]
                     completed += 1
                     try:
                         path = future.result()
                         if path:
-                            panel.image_path = path
                             result["scene_images"].append(path)
                     except Exception as e:
-                        logger.warning(f"Image gen failed for panel {panel.panel_number}: {e}")
+                        logger.warning(f"Image gen failed for chapter {ch.chapter_number}: {e}")
                     if completed % 3 == 0 or completed == total:
-                        _log(f"[MEDIA] Anh: {completed}/{total}")
-
-        # Step 3: TTS audio — multi-voice when characters available
-        if enhanced and enhanced.chapters:
-            _log("[MEDIA] Tạo audio giọng đọc...")
-            tts = TTSAudioGenerator(voice="female")
-            audio_dir = "output/audiobook"
-
-            try:
-                use_multivoice = bool(draft.characters)
-                voice_map = tts.assign_voices(draft.characters) if use_multivoice else {}
-
-                audio_paths = []
-                chapter_durations = {}  # chapter_num -> duration_seconds
-
-                for ch in enhanced.chapters:
-                    try:
-                        if use_multivoice and voice_map:
-                            path, duration = tts.generate_chapter_multivoice(
-                                ch.content, ch.chapter_number, voice_map, audio_dir
-                            )
-                        else:
-                            path = tts.generate_chapter_audio(
-                                ch.content, ch.chapter_number, audio_dir
-                            )
-                            duration = TTSAudioGenerator.measure_duration(path) if path else 0.0
-
-                        if path:
-                            audio_paths.append(path)
-                            chapter_durations[ch.chapter_number] = duration
-                            logger.info(f"Audio ch{ch.chapter_number}: {duration:.1f}s")
-                    except Exception as e:
-                        logger.warning(f"TTS chapter {ch.chapter_number} failed: {e}")
-
-                result["audio_paths"] = audio_paths
-                _log(f"[MEDIA] + {len(audio_paths)} file audio")
-
-                # Distribute audio duration across panels per chapter
-                if video_script and video_script.panels and chapter_durations:
-                    _distribute_panel_durations(video_script.panels, chapter_durations)
-
-            except Exception as e:
-                _log(f"[MEDIA] TTS lỗi: {e}")
-
-        # Step 4: Video composition
-        if result["scene_images"] and video_script:
-            _log("[MEDIA] Đang ghép video...")
-            composer = VideoComposer()
-            audio_path = ""
-            if result["audio_paths"]:
-                merged = composer.merge_chapter_audios(result["audio_paths"])
-                if merged:
-                    audio_path = merged
-            video_path = composer.compose(video_script.panels, audio_path)
-            if video_path:
-                result["video_path"] = video_path
-                _log(f"[MEDIA] + Video: {video_path}")
-            else:
-                _log("[MEDIA] Không tạo được video")
+                        _log(f"[MEDIA] Ảnh: {completed}/{total}")
 
         return result
-
-
-def _distribute_panel_durations(panels: list, chapter_durations: dict) -> None:
-    """Distribute chapter audio duration evenly across its panels."""
-    from collections import defaultdict
-    chapter_panels = defaultdict(list)
-    for panel in panels:
-        chapter_panels[panel.chapter_number].append(panel)
-
-    for ch_num, ch_panels in chapter_panels.items():
-        duration = chapter_durations.get(ch_num)
-        if duration and duration > 0 and ch_panels:
-            per_panel = round(duration / len(ch_panels), 2)
-            for panel in ch_panels:
-                panel.duration_seconds = per_panel

@@ -22,15 +22,11 @@ _alias("services.user_manager", "services.auth.user_manager")
 # Note: services.epub_exporter kept as flat file (test_epub_exporter.py uses importlib.reload)
 _alias("services.html_exporter", "services.export.html_exporter")
 _alias("services.pdf_exporter", "services.export.pdf_exporter")
-_alias("services.video_exporter", "services.export.video_exporter")
 _alias("services.wattpad_exporter", "services.export.wattpad_exporter")
 
 # media domain
 _alias("services.image_generator", "services.media.image_generator")
 _alias("services.image_prompt_generator", "services.media.image_prompt_generator")
-_alias("services.tts_audio_generator", "services.media.tts_audio_generator")
-_alias("services.tts_script_generator", "services.media.tts_script_generator")
-_alias("services.video_composer", "services.media.video_composer")
 
 # pipeline domain
 _alias("services.quality_scorer", "services.pipeline.quality_scorer")

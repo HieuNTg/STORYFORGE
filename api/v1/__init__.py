@@ -22,7 +22,6 @@ from api.metrics_routes import router as _metrics
 from api.dashboard_routes import router as _dashboard
 from api.ab_routes import router as _ab
 from api.branch_routes import router as _branch
-from api.audio_routes import router as _audio
 
 v1_router = APIRouter(prefix="/api/v1")
 v1_router.include_router(_auth)
@@ -34,7 +33,6 @@ v1_router.include_router(_metrics)
 v1_router.include_router(_dashboard)
 v1_router.include_router(_ab)
 v1_router.include_router(_branch)
-v1_router.include_router(_audio)
 
 _DEPRECATION_NOTICE = (
     "The /api/v1/ prefix is provided for backward compatibility. "

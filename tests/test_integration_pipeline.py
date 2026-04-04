@@ -2,7 +2,6 @@
 from unittest.mock import MagicMock, patch
 from models.schemas import (
     StoryDraft, EnhancedStory, Chapter, Character,
-    VideoScript,
 )
 
 
@@ -45,11 +44,7 @@ class TestLayerTransitions:
 
         with patch('services.llm_client.LLMClient.check_connection', return_value=(True, "ok")), \
              patch.object(orch.story_gen, 'generate_full_story', return_value=draft), \
-             patch.object(orch.analyzer, 'analyze', side_effect=Exception("Analysis failed")), \
-             patch.object(orch.storyboard_gen, 'generate_full_video_script') as mock_sb:
-            mock_sb.return_value = VideoScript(
-                title="Test", panels=[], total_duration_seconds=0
-            )
+             patch.object(orch.analyzer, 'analyze', side_effect=Exception("Analysis failed")):
             result = orch.run_full_pipeline(
                 title="Test", genre="test", idea="test",
                 enable_agents=False, enable_scoring=False,
@@ -66,11 +61,7 @@ class TestLayerTransitions:
 
         with patch('services.llm_client.LLMClient.check_connection', return_value=(True, "ok")), \
              patch.object(orch.story_gen, 'generate_full_story', return_value=draft), \
-             patch.object(orch.analyzer, 'analyze', side_effect=Exception("Test error")), \
-             patch.object(orch.storyboard_gen, 'generate_full_video_script') as mock_sb:
-            mock_sb.return_value = VideoScript(
-                title="Test", panels=[], total_duration_seconds=0
-            )
+             patch.object(orch.analyzer, 'analyze', side_effect=Exception("Test error")):
             result = orch.run_full_pipeline(
                 title="Test", genre="test", idea="test",
                 enable_agents=False, enable_scoring=False,
@@ -93,11 +84,7 @@ class TestLayerTransitions:
              patch.object(orch.analyzer, 'analyze', return_value={"relationships": []}), \
              patch.object(orch.simulator, 'run_simulation', return_value=MagicMock()), \
              patch.object(orch.enhancer, 'enhance_with_feedback', return_value=enhanced), \
-             patch.object(orch.storyboard_gen, 'generate_full_video_script') as mock_sb, \
              patch.object(orch.media_producer, 'run') as mock_media:
-            mock_sb.return_value = VideoScript(
-                title="Test", panels=[], total_duration_seconds=0
-            )
             orch.run_full_pipeline(
                 title="Test", genre="test", idea="test",
                 enable_agents=False, enable_scoring=False,

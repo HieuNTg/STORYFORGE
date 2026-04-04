@@ -23,7 +23,6 @@ Route groups:
   /api/v1/pipeline   — story generation pipeline
   /api/v1/config     — settings management
   /api/v1/export     — export to PDF / EPUB / etc.
-  /api/v1/audio      — text-to-speech
   /api/v1/analytics  — usage analytics
   /api/v1/auth       — authentication
   /api/v1/branch     — story branching
@@ -95,7 +94,6 @@ def build_v1_router() -> APIRouter:
     from api.pipeline_routes import router as pipeline_router
     from api.config_routes import router as config_router
     from api.export_routes import router as export_router
-    from api.audio_routes import router as audio_router
     from api.analytics_routes import router as analytics_router
     from api.auth_routes import router as auth_router
     from api.branch_routes import router as branch_router
@@ -106,7 +104,6 @@ def build_v1_router() -> APIRouter:
     v1.include_router(pipeline_router)
     v1.include_router(config_router)
     v1.include_router(export_router)
-    v1.include_router(audio_router)
     v1.include_router(analytics_router)
     v1.include_router(auth_router)
     v1.include_router(branch_router)

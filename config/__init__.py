@@ -9,13 +9,12 @@ continue to work unchanged.
 
 from .config import ConfigManager
 from .defaults import LLMConfig, PipelineConfig
-from .presets import VIDEO_QUALITY_PRESETS, PIPELINE_PRESETS, MODEL_PRESETS
+from .presets import PIPELINE_PRESETS, MODEL_PRESETS
 
 __all__ = [
     "ConfigManager",
     "LLMConfig",
     "PipelineConfig",
-    "VIDEO_QUALITY_PRESETS",
     "PIPELINE_PRESETS",
     "MODEL_PRESETS",
 ]

@@ -1,4 +1,4 @@
-"""Điều phối pipeline 3 lớp: Tạo truyện -> Mô phỏng kịch tính -> Video.
+"""Điều phối pipeline 2 lớp: Tạo truyện -> Mô phỏng kịch tính.
 
 This module exposes PipelineOrchestrator — the single public entry point
 for all pipeline operations.  Heavy layer-execution logic lives in:
@@ -7,10 +7,11 @@ for all pipeline operations.  Heavy layer-execution logic lives in:
   - orchestrator_checkpoint.py   — CheckpointManager (save / list / resume)
   - orchestrator_continuation.py — StoryContinuation (continue / edit story)
   - orchestrator_export.py       — PipelineExporter (markdown / HTML / zip)
-  - orchestrator_media.py        — MediaProducer (images / audio / video)
+  - orchestrator_media.py        — MediaProducer (images)
 """
 
 import logging
+import threading
 from typing import Optional
 
 from models.schemas import EnhancedStory, PipelineOutput, StoryDraft
@@ -18,7 +19,6 @@ from pipeline.layer1_story.generator import StoryGenerator
 from pipeline.layer2_enhance.analyzer import StoryAnalyzer
 from pipeline.layer2_enhance.simulator import DramaSimulator
 from pipeline.layer2_enhance.enhancer import StoryEnhancer
-from pipeline.layer3_video.storyboard import StoryboardGenerator
 from config import ConfigManager
 from pipeline.orchestrator_media import MediaProducer
 from pipeline.orchestrator_export import PipelineExporter
@@ -53,19 +53,24 @@ class PipelineOrchestrator:
         self.analyzer = StoryAnalyzer()
         self.simulator = DramaSimulator()
         self.enhancer = StoryEnhancer()
-        self.storyboard_gen = StoryboardGenerator()
+        self._lock = threading.RLock()
         self.output = PipelineOutput()
 
         self.media_producer = MediaProducer(self.config)
         self.exporter = PipelineExporter(self.output)
         self.checkpoint = CheckpointManager(
             self.output, self.analyzer, self.simulator,
-            self.enhancer, self.storyboard_gen,
+            self.enhancer,
         )
         self.continuation = StoryContinuation(
             self.output, self.story_gen, self.analyzer,
             self.simulator, self.enhancer, self.checkpoint,
         )
+
+    def snapshot(self) -> "PipelineOutput":
+        """Thread-safe deep copy of current output."""
+        with self._lock:
+            return self.output.model_copy(deep=True)
 
     def _sync_output(self):
         """Propagate the current self.output reference to all sub-components.
@@ -90,19 +95,17 @@ class PipelineOrchestrator:
         num_characters: int = 5,
         word_count: int = 2000,
         num_sim_rounds: int = 5,
-        shots_per_chapter: int = 8,
         progress_callback=None,
         stream_callback=None,
         enable_agents: bool = True,
         enable_scoring: bool = True,
         enable_media: bool = False,
     ) -> PipelineOutput:
-        """Chạy toàn bộ pipeline 3 lớp."""
+        """Chạy toàn bộ pipeline 2 lớp."""
         return _run_full_pipeline(
             self, title=title, genre=genre, idea=idea, style=style,
             num_chapters=num_chapters, num_characters=num_characters,
             word_count=word_count, num_sim_rounds=num_sim_rounds,
-            shots_per_chapter=shots_per_chapter,
             progress_callback=progress_callback, stream_callback=stream_callback,
             enable_agents=enable_agents, enable_scoring=enable_scoring,
             enable_media=enable_media,
@@ -152,10 +155,6 @@ class PipelineOrchestrator:
     def _export_html(self, output_dir: str, timestamp: str) -> Optional[str]:
         self._sync_output()
         return self.exporter._export_html(output_dir, timestamp)
-
-    def export_video_assets(self, output_dir: str = "output") -> Optional[str]:
-        self._sync_output()
-        return self.exporter.export_video_assets(output_dir)
 
     def _export_markdown(self, output_dir: str, timestamp: str) -> Optional[str]:
         self._sync_output()

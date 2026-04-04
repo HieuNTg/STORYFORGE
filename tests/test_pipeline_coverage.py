@@ -113,7 +113,7 @@ class TestOrchestratorInit:
             patch("pipeline.layer2_enhance.analyzer.LLMClient"),
             patch("pipeline.layer2_enhance.simulator.LLMClient"),
             patch("pipeline.layer2_enhance.enhancer.LLMClient"),
-            patch("pipeline.layer3_video.storyboard.LLMClient"),
+            patch("pipeline.layer2_enhance.enhancer.LLMClient"),
         ]
 
     def test_orchestrator_creates_components(self):
@@ -163,7 +163,6 @@ class TestCheckpointManager:
             analyzer=MagicMock(),
             simulator=MagicMock(),
             enhancer=MagicMock(),
-            storyboard_gen=MagicMock(),
         )
 
     def test_list_checkpoints_empty_dir(self):

@@ -225,17 +225,6 @@ class TestConfigPresets:
         for key, preset in PIPELINE_PRESETS.items():
             assert "label" in preset, f"Preset {key} missing label"
 
-    def test_video_quality_presets(self):
-        from config.presets import VIDEO_QUALITY_PRESETS
-        assert "draft" in VIDEO_QUALITY_PRESETS
-        assert "final" in VIDEO_QUALITY_PRESETS
-
-    def test_video_quality_preset_has_fields(self):
-        from config.presets import VIDEO_QUALITY_PRESETS
-        for key, preset in VIDEO_QUALITY_PRESETS.items():
-            assert "resolution" in preset
-            assert "fps" in preset
-
 
 class TestConfigManagerSingleton:
     """Tests for ConfigManager singleton behavior."""

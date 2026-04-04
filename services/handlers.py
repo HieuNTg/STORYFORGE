@@ -11,7 +11,6 @@ from typing import Optional
 from config import ConfigManager
 from pipeline.orchestrator import PipelineOrchestrator
 from services.pdf_exporter import PDFExporter
-from services.tts_script_generator import TTSScriptGenerator
 from services.share_manager import ShareManager
 from services.user_manager import UserManager
 
@@ -133,44 +132,6 @@ def handle_export_epub(orch_state, t) -> tuple:
         return None, {"error": _friendly_error(e, t, "error.export_fail")}
 
 
-def handle_export_tts(orch_state, t) -> Optional[list]:
-    """Export TTS script and return file list."""
-    if orch_state is None:
-        return None
-    try:
-        story = orch_state.output.enhanced_story or orch_state.output.story_draft
-        if not story:
-            return None
-        gen = TTSScriptGenerator()
-        script = gen.generate_full_script(story)
-        path = gen.export_script(script, "output/tts_script.txt")
-        return [path] if path else None
-    except Exception as e:
-        logger.error(f"TTS export error: {e}")
-        return None
-
-
-def handle_export_tts_audio(orch_state, voice: str = "female") -> tuple:
-    """Export story as audio files using edge-tts. Returns (file_paths, status_msg)."""
-    if orch_state is None:
-        return None, "Chưa có truyện để xuất audio."
-    try:
-        from services.tts_audio_generator import TTSAudioGenerator
-
-        story = orch_state.output.enhanced_story or orch_state.output.story_draft
-        if not story or not story.chapters:
-            return None, "Chưa có truyện để xuất audio."
-        tts = TTSAudioGenerator(voice=voice)
-        output_dir = os.path.join("output", "audiobook")
-        paths = tts.generate_full_audiobook(story.chapters, output_dir)
-        if paths:
-            return paths, f"Đã tạo {len(paths)} file audio."
-        return None, "Lỗi tạo audio."
-    except Exception as e:
-        logger.error(f"TTS audio export error: {e}")
-        return None, f"Lỗi tạo audio: {e}"
-
-
 def handle_share_story(orch_state, t) -> tuple:
     """Create shareable HTML link and return (link, None)."""
     if orch_state is None:
@@ -216,16 +177,6 @@ def handle_export_zip(orch_state, formats, t) -> Optional[list]:
         return None
 
 
-def handle_export_video_assets(orch_state, t) -> Optional[str]:
-    """Export video assets ZIP and return path."""
-    if orch_state is None:
-        return None
-    try:
-        zip_path = orch_state.export_video_assets()
-        return zip_path if zip_path else None
-    except Exception as e:
-        logger.error(f"Video asset export failed: {e}")
-        return None
 
 
 # ── Checkpoint helpers ─────────────────────────────────────────────────────────
@@ -303,7 +254,7 @@ def handle_update_character(orch, name: str, personality: str, motivation: str, 
 
 
 def handle_generate_images(orch_state, provider: str = "none", t=None) -> tuple:
-    """Generate images from story video script panels.
+    """Generate scene images from story chapters.
 
     Returns (image_paths_list, status_msg).
     """
@@ -311,27 +262,24 @@ def handle_generate_images(orch_state, provider: str = "none", t=None) -> tuple:
         msg = t("msg.no_story") if t else "No story loaded."
         return [], msg
     try:
+        story = orch_state.output.enhanced_story or orch_state.output.story_draft if orch_state.output else None
+        if not story or not story.chapters:
+            msg = t("msg.no_story") if t else "No story loaded."
+            return [], msg
+
         from services.image_generator import ImageGenerator
         from services.image_prompt_generator import ImagePromptGenerator
-
-        video_script = orch_state.output.video_script if orch_state.output else None
-        if not video_script or not video_script.panels:
-            msg = t("info.no_video_script") if t else "No video script panels found."
-            return [], msg
 
         prompt_gen = ImagePromptGenerator()
         image_gen = ImageGenerator(provider=provider)
 
-        char_map: dict[str, str] = video_script.character_descriptions or {}
         image_prompts = [
-            prompt_gen.generate_from_panel(panel, characters=char_map)
-            for panel in video_script.panels
+            prompt_gen.generate_from_chapter(ch, num_images=1)
+            for ch in story.chapters
         ]
+        flat_prompts = [p for prompts in image_prompts for p in prompts]
 
-        # Group prompts by chapter for nicer filenames
-        chapter_number = video_script.panels[0].chapter_number if video_script.panels else 0
-        paths = image_gen.generate_story_images(image_prompts, chapter_number=chapter_number)
-
+        paths = image_gen.generate_story_images(flat_prompts)
         msg = t("msg_images_generated") if t else f"Generated {len(paths)} image(s)."
         return paths, msg
     except Exception as e:
@@ -351,51 +299,6 @@ def handle_enhance(orch, n_sim: int, w_count: int, t) -> tuple:
         progress_callback=lambda m: logs.append(m),
     )
     return "\n".join(logs) + "\n" + t("continue.enhanced"), orch
-
-
-def handle_compose_video(orch_state, voice: str = "female") -> tuple:
-    """Generate TTS audio + compose video from storyboard panels.
-    Returns (audio_files, video_file, status_msg).
-    """
-    if orch_state is None:
-        return None, None, "Chưa có truyện."
-    try:
-        from services.tts_audio_generator import TTSAudioGenerator
-        from services.video_composer import VideoComposer
-
-        story = orch_state.output.enhanced_story or orch_state.output.story_draft
-        video_script = orch_state.output.video_script if orch_state.output else None
-
-        if not story or not story.chapters:
-            return None, None, "Chưa có truyện để tạo video."
-
-        # Step 1: TTS audio
-        tts = TTSAudioGenerator(voice=voice)
-        audio_dir = os.path.join("output", "audiobook")
-        audio_paths = tts.generate_full_audiobook(story.chapters, audio_dir)
-
-        # Step 2: Compose video if panels have images
-        video_path = None
-        if video_script and video_script.panels:
-            has_images = any(
-                getattr(p, "image_path", "") and os.path.exists(getattr(p, "image_path", ""))
-                for p in video_script.panels
-            )
-            if has_images and audio_paths:
-                composer = VideoComposer()
-                merged_audio = composer.merge_chapter_audios(audio_paths)
-                video_path = composer.compose(video_script.panels, merged_audio or "")
-
-        status = f"✓ {len(audio_paths)} audio files"
-        if video_path:
-            status += f"\n✓ Video: {video_path}"
-        else:
-            status += "\n⚠️ Chưa có ảnh để ghép video (cần tạo ảnh trước)"
-
-        return audio_paths or None, video_path, status
-    except Exception as e:
-        logger.error(f"Video compose error: {e}")
-        return None, None, f"Lỗi: {e}"
 
 
 # ── Genre presets ──────────────────────────────────────────────────────────────

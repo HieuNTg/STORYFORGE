@@ -34,6 +34,18 @@ def _sanitize_summary(summary: dict) -> dict:
 _orchestrators: dict[str, PipelineOrchestrator] = {}
 _orchestrators_lock = threading.Lock()
 
+# Active pipeline threads — tracked for graceful shutdown.
+_active_threads: set = set()
+_threads_lock = threading.Lock()
+
+
+def shutdown_pipeline_threads(timeout: int = 30):
+    """Wait for active pipeline threads to complete."""
+    with _threads_lock:
+        threads = list(_active_threads)
+    for t in threads:
+        t.join(timeout=timeout)
+
 i18n = I18n()
 
 
@@ -52,7 +64,6 @@ class PipelineRequest(BaseModel):
     word_count: int = 2000
     num_sim_rounds: int = 3
     drama_level: str = "cao"
-    shots_per_chapter: int = 8
     enable_agents: bool = True
     enable_scoring: bool = True
     enable_media: bool = False
@@ -265,7 +276,6 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                     num_characters=body.num_characters,
                     word_count=body.word_count,
                     num_sim_rounds=body.num_sim_rounds,
-                    shots_per_chapter=body.shots_per_chapter,
                     progress_callback=on_progress,
                     stream_callback=on_stream,
                     enable_agents=body.enable_agents,
@@ -277,6 +287,8 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                 progress_queue.put(("error", str(e)))
 
         thread = threading.Thread(target=_run, daemon=True)
+        with _threads_lock:
+            _active_threads.add(thread)
         thread.start()
 
         try:
@@ -317,7 +329,8 @@ async def run_pipeline(request: Request, body: PipelineRequest):
             output = result[0]
             if output:
                 from api.pipeline_output_builder import build_output_summary
-                summary = build_output_summary(output)
+                safe_output = output.model_copy(deep=True)
+                summary = build_output_summary(safe_output)
                 summary["session_id"] = session_id
                 summary["logs"] = logs
                 _sanitize_summary(summary)
@@ -328,6 +341,8 @@ async def run_pipeline(request: Request, body: PipelineRequest):
             logger.error(f"SSE stream error (session={session_id}): {e}")
             disconnected.set()
         finally:
+            with _threads_lock:
+                _active_threads.discard(thread)
             with _orchestrators_lock:
                 _orchestrators.pop(session_id, None)
             logger.debug(f"SSE /run stream closed (session={session_id})")
@@ -391,6 +406,8 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
                 progress_queue.put(("error", str(e)))
 
         thread = threading.Thread(target=_run, daemon=True)
+        with _threads_lock:
+            _active_threads.add(thread)
         thread.start()
 
         try:
@@ -426,7 +443,8 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
             output = result[0]
             if output:
                 from api.pipeline_output_builder import build_output_summary
-                summary = build_output_summary(output)
+                safe_output = output.model_copy(deep=True)
+                summary = build_output_summary(safe_output)
                 summary["session_id"] = session_id
                 summary["logs"] = logs
                 _sanitize_summary(summary)
@@ -437,6 +455,8 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
             logger.error(f"SSE stream error (session={session_id}): {e}")
             disconnected.set()
         finally:
+            with _threads_lock:
+                _active_threads.discard(thread)
             with _orchestrators_lock:
                 _orchestrators.pop(session_id, None)
             logger.debug(f"SSE /resume stream closed (session={session_id})")

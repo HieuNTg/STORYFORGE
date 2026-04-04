@@ -213,8 +213,7 @@ class TestCheckpointCorruptedJSON:
         analyzer = MagicMock()
         simulator = MagicMock()
         enhancer = MagicMock()
-        storyboard_gen = MagicMock()
-        return CheckpointManager(output, analyzer, simulator, enhancer, storyboard_gen)
+        return CheckpointManager(output, analyzer, simulator, enhancer)
 
     def test_corrupted_json_raises_value_error(self, tmp_path):
         """Checkpoint with broken JSON raises ValueError, not a bare crash."""
