@@ -12,7 +12,7 @@ import threading
 logger = logging.getLogger(__name__)
 
 LOCALES_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     "locales",
 )
 

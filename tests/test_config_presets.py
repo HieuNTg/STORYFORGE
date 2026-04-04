@@ -33,7 +33,6 @@ def test_beginner_disables_all_advanced_features():
     assert p["enable_agent_debate"] is False
     assert p["enable_smart_revision"] is False
     assert p["use_long_context"] is False
-    assert p["enable_voice_emotion"] is False
     assert p["enable_character_consistency"] is False
     assert p["rag_enabled"] is False
 
@@ -45,7 +44,6 @@ def test_advanced_enables_core_features():
     assert p["enable_smart_revision"] is True
     # advanced keeps heavy features off
     assert p["use_long_context"] is False
-    assert p["enable_voice_emotion"] is False
     assert p["rag_enabled"] is False
 
 
@@ -55,7 +53,6 @@ def test_pro_enables_all_features():
     assert p["enable_agent_debate"] is True
     assert p["enable_smart_revision"] is True
     assert p["use_long_context"] is True
-    assert p["enable_voice_emotion"] is True
     assert p["enable_character_consistency"] is True
     assert p["rag_enabled"] is True
 
@@ -157,7 +154,6 @@ def test_pro_preset_applies_correctly():
     assert p2.enable_self_review is True
     assert p2.self_review_threshold == 2.5
     assert p2.use_long_context is True
-    assert p2.enable_voice_emotion is True
     assert p2.enable_character_consistency is True
     assert p2.rag_enabled is True
 

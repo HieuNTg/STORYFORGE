@@ -338,21 +338,12 @@ class TestStoryAnalyticsExtended:
 # ============================================================
 
 class TestVoiceManager:
-    """Tests for TTS voice manager mixin."""
+    """Tests for TTS voice manager mixin — removed after product pivot (video/TTS dropped)."""
 
-    def test_import(self):
-        from services.tts.voice_manager import TTSVoiceMixin
-        assert TTSVoiceMixin is not None
-
-    def test_voice_mixin_is_class(self):
-        from services.tts.voice_manager import TTSVoiceMixin
-        assert isinstance(TTSVoiceMixin, type)
-
-    def test_voice_mixin_methods(self):
-        from services.tts.voice_manager import TTSVoiceMixin
-        import inspect
-        methods = [name for name, _ in inspect.getmembers(TTSVoiceMixin, predicate=inspect.isfunction)]
-        assert len(methods) > 0
+    def test_tts_removed(self):
+        """TTS module was removed in sprint 8 product pivot."""
+        import importlib
+        assert importlib.util.find_spec("services.tts") is None
 
 
 # ============================================================

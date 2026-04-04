@@ -22,6 +22,7 @@ function settingsPage() {
   return {
     form: {
       api_key: '' as string,
+      api_keys_text: '' as string,
       base_url: 'https://api.openai.com/v1' as string,
       model: 'gpt-4o-mini' as string,
       temperature: 0.8 as number,
@@ -73,6 +74,8 @@ function settingsPage() {
           { id: 'gemini-3-flash-preview', label: 'Gemini 3 Flash (preview)' },
           { id: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (latest)' },
           { id: 'gemini-3.1-flash-lite-preview', label: 'Gemini 3.1 Flash Lite (preview)' },
+          { id: 'gemma-4-31b-it', label: 'Gemma 4 31B (free, 262K ctx)' },
+          { id: 'gemma-4-26b-a4b-it', label: 'Gemma 4 26B MoE (free, 262K ctx)' },
         ],
       },
       {
@@ -92,10 +95,15 @@ function settingsPage() {
         keyPlaceholder: 'sk-or-...',
         guide: 'Register at <a href="https://openrouter.ai/keys" target="_blank" class="text-brand-600 underline font-medium">openrouter.ai</a> → Keys → Create Key. 29+ free models available!',
         models: [
-          { id: 'qwen/qwen3.6-plus-preview:free', label: 'Qwen 3.6 Plus (free, 1M ctx, Vietnamese)' },
+          { id: 'qwen/qwen3.6-plus:free', label: 'Qwen 3.6 Plus (free, 1M ctx)' },
+          { id: 'qwen/qwen3-next-80b-a3b-instruct:free', label: 'Qwen3 Next 80B (free, 262K ctx)' },
+          { id: 'nousresearch/hermes-3-llama-3.1-405b:free', label: 'Hermes 3 405B (free, 131K ctx)' },
           { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'Nemotron 3 Super 120B (free)' },
-          { id: 'stepfun/step-3.5-flash:free', label: 'Step 3.5 Flash (free, 256K ctx)' },
-          { id: 'minimax/minimax-m2.5:free', label: 'MiniMax M2.5 (free)' },
+          { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (free, 65K ctx)' },
+          { id: 'google/gemma-4-31b-it', label: 'Gemma 4 31B (262K ctx, cheap)' },
+          { id: 'google/gemma-4-26b-a4b-it', label: 'Gemma 4 26B MoE (262K ctx, cheap)' },
+          { id: 'google/gemma-3-27b-it:free', label: 'Gemma 3 27B (free, 131K ctx)' },
+          { id: 'z-ai/glm-4.5-air:free', label: 'GLM 4.5 Air (free, 131K ctx)' },
           { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
           { id: 'deepseek/deepseek-r1', label: 'DeepSeek R1' },
           { id: 'anthropic/claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
@@ -165,6 +173,10 @@ function settingsPage() {
         this.form.cheap_model = cfg.llm.cheap_model || '';
         this.form.cheap_base_url = cfg.llm.cheap_base_url || '';
         this.maskedKey = cfg.llm.api_key_masked || '';
+        const keys = cfg.llm.api_keys || [];
+        this.form.api_keys_text = keys.map((k: string | {key?: string}) =>
+          typeof k === 'string' ? k : (k.key || '')
+        ).filter(Boolean).join('\n');
         if (cfg.pipeline) {
           this.form.image_provider = cfg.pipeline.image_provider || 'none';
           this.form.hf_image_model = cfg.pipeline.hf_image_model || 'black-forest-labs/FLUX.1-schnell';
@@ -193,6 +205,9 @@ function settingsPage() {
         const data: Record<string, unknown> = { ...this.form };
         if (!data['api_key']) delete data['api_key'];
         if (!data['hf_token']) delete data['hf_token'];
+        const keysText = (data['api_keys_text'] as string || '').trim();
+        data['api_keys'] = keysText ? keysText.split('\n').map(k => (k as string).trim()).filter(Boolean) : [];
+        delete data['api_keys_text'];
         // Auto-set backend_type based on provider selection
         data['backend_type'] = 'api';
         await API.put('/config', data);

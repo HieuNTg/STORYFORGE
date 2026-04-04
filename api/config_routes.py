@@ -48,6 +48,7 @@ router = APIRouter(prefix="/config", tags=["config"])
 class ConfigUpdate(BaseModel):
     """Request body for saving settings."""
     api_key: Optional[str] = None
+    api_keys: Optional[list] = None
     base_url: Optional[str] = None
     model: Optional[str] = None
     temperature: Optional[float] = None
@@ -82,6 +83,7 @@ def get_config():
             "max_tokens": cfg.llm.max_tokens,
             "cheap_model": cfg.llm.cheap_model,
             "cheap_base_url": cfg.llm.cheap_base_url,
+            "api_keys": cfg.llm.api_keys,
             "layer1_model": cfg.llm.layer1_model,
             "layer2_model": cfg.llm.layer2_model,
         },
@@ -103,6 +105,8 @@ def save_config(body: ConfigUpdate):
     cfg = ConfigManager()
     if body.api_key is not None:
         cfg.llm.api_key = body.api_key
+    if body.api_keys is not None:
+        cfg.llm.api_keys = body.api_keys
     if body.base_url is not None:
         cfg.llm.base_url = body.base_url
     if body.model is not None:

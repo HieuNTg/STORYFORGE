@@ -93,6 +93,8 @@ class LLMClient(StreamingMixin, GenerationMixin):
         self._current_model = ""
         self._client_lock = threading.Lock()
         self._providers_cache: dict = {}
+        self._key_index = 0
+        self._rate_limited_keys: dict[str, float] = {}
         ConfigManager, _, LLMCache = _imports()
         try:
             config = ConfigManager()
@@ -242,11 +244,12 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 return result
             except Exception as e:
                 all_errors.append(f"{entry['label']}: {_redact(e)}")
-                # Support both new "provider" key and legacy "client" key (test mocks)
                 pobj = entry.get("provider") or entry.get("client")
                 provider_url = getattr(pobj, "base_url", None)
                 provider_type = _detect_provider(str(provider_url) if provider_url else "")
-                should_try_next, _ = _should_retry(e, provider_type)
+                should_try_next, suggested_delay = _should_retry(e, provider_type)
+                if "429" in str(e) and "_api_key" in entry:
+                    self._mark_rate_limited(entry["_api_key"], suggested_delay or 60.0)
                 if not should_try_next and not _is_transient(e):
                     raise
                 logger.warning(f"Provider {entry['label']} failed, trying next...")
@@ -255,6 +258,37 @@ class LLMClient(StreamingMixin, GenerationMixin):
         logger.error(f"All LLM providers failed: {error_msg}")
         raise RuntimeError(f"All LLM providers failed: {error_msg}")
 
+    def _resolve_api_keys(self, config) -> list[dict]:
+        """Build ordered list of {base_url, api_key} from primary + api_keys pool.
+
+        Skips keys that are currently rate-limited (cooldown not expired).
+        """
+        now = time.time()
+        entries = [{"base_url": config.llm.base_url, "api_key": config.llm.api_key}]
+        for item in getattr(config.llm, "api_keys", []):
+            if isinstance(item, str):
+                entries.append({"base_url": config.llm.base_url, "api_key": item})
+            elif isinstance(item, dict):
+                entries.append({
+                    "base_url": item.get("base_url", config.llm.base_url),
+                    "api_key": item.get("key", item.get("api_key", "")),
+                })
+        result = []
+        for e in entries:
+            cooldown_until = self._rate_limited_keys.get(e["api_key"], 0)
+            if now >= cooldown_until:
+                result.append(e)
+        if not result:
+            self._rate_limited_keys.clear()
+            result = entries
+        return result
+
+    def _mark_rate_limited(self, api_key: str, cooldown: float = 60.0):
+        """Mark an API key as rate-limited for `cooldown` seconds."""
+        self._rate_limited_keys[api_key] = time.time() + cooldown
+        logger.warning("API key %s...%s rate-limited, cooldown %.0fs",
+                       api_key[:8], api_key[-4:] if len(api_key) > 8 else "", cooldown)
+
     def _build_fallback_chain(self, config, model_tier: str, model_override: Optional[str] = None) -> list[dict]:
         chain = []
         if model_tier == "cheap" and config.llm.cheap_model:
@@ -262,11 +296,23 @@ class LLMClient(StreamingMixin, GenerationMixin):
             chain.append({"provider": provider, "model": model, "label": f"cheap:{model}"})
         else:
             primary_model = model_override or self._current_model or config.llm.model
-            chain.append({
-                "provider": self._get_client(),
-                "model": primary_model,
-                "label": f"primary:{primary_model}" if model_override else "primary",
-            })
+            api_key_entries = self._resolve_api_keys(config)
+            for i, entry in enumerate(api_key_entries):
+                cache_key = f"{entry['base_url']}:{entry['api_key']}"
+                with self._client_lock:
+                    if cache_key not in self._providers_cache:
+                        self._providers_cache[cache_key] = _get_provider(
+                            entry["base_url"], entry["api_key"]
+                        )
+                label = "primary" if i == 0 else f"key-{i+1}"
+                if model_override:
+                    label = f"{label}:{primary_model}"
+                chain.append({
+                    "provider": self._providers_cache[cache_key],
+                    "model": primary_model,
+                    "label": label,
+                    "_api_key": entry["api_key"],
+                })
         if model_tier != "cheap" and config.llm.cheap_model:
             provider, model = self._get_cheap_client()
             chain.append({"provider": provider, "model": model, "label": f"cheap:{model}"})

@@ -14,6 +14,9 @@ class LLMConfig:
     # Model routing: cheap model for summaries/analysis
     cheap_model: str = ""  # empty = use primary model
     cheap_base_url: str = ""  # empty = use primary base_url
+    # Multiple API keys for the same provider — auto-rotate on rate limit (429)
+    api_keys: list = field(default_factory=list)
+    # Each entry: "sk-..." or {"key": "sk-...", "base_url": "https://..."}
     cache_enabled: bool = True
     cache_ttl_days: int = 7
     max_parallel_workers: int = 3

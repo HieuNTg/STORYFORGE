@@ -245,6 +245,10 @@ def main():
     async def serve_index():
         return FileResponse(os.path.join(web_dir, "index.html"))
 
+    @main_app.get("/favicon.svg")
+    async def serve_favicon():
+        return FileResponse(os.path.join(web_dir, "favicon.svg"), media_type="image/svg+xml")
+
     # Health check — lightweight with cached DB/Redis probes (30s TTL)
     from fastapi.responses import JSONResponse as _JSONResponse
     _health_cache: dict = {}
