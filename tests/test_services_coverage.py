@@ -29,7 +29,7 @@ class TestTextUtils:
 
     def test_sanitize_story_html_plain_text(self):
         from services.text_utils import sanitize_story_html, _HAS_NH3
-        if _HAS_NH3:
+        if not _HAS_NH3:
             pytest.skip("nh3 link_rel conflict in source — skip live nh3 tests")
         result = sanitize_story_html("Hello world")
         assert isinstance(result, str)

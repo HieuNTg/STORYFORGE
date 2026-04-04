@@ -224,7 +224,7 @@ class TestPipelineRoutes:
         """_sanitize_summary handles chapters with HTML content."""
         from api.pipeline_routes import _sanitize_summary
         from services.text_utils import _HAS_NH3
-        if _HAS_NH3:
+        if not _HAS_NH3:
             pytest.skip("nh3 link_rel conflict in source — sanitize_story_html broken")
         summary = {
             "draft": {

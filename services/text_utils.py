@@ -18,7 +18,7 @@ def sanitize_story_html(content: str) -> str:
         return ""
     if not _HAS_NH3:
         return content
-    return _nh3.clean(content, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS)
+    return _nh3.clean(content, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, link_rel=None)
 
 
 def excerpt_text(text: str, max_chars: int = 4000, head_ratio: float = 0.67) -> str:

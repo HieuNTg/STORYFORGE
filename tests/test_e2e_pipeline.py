@@ -447,7 +447,6 @@ def _run_minimal_pipeline(pipeline, **overrides):
         num_characters=3,
         word_count=500,
         num_sim_rounds=1,
-        shots_per_chapter=2,
         enable_agents=False,
         enable_scoring=False,
         enable_media=False,

@@ -33,9 +33,29 @@ def _sanitize_summary(summary: dict) -> dict:
 # within the same event loop when awaiting.
 _orchestrators: dict[str, PipelineOrchestrator] = {}
 _orchestrators_lock = asyncio.Lock()
+_orchestrator_timestamps: dict[str, float] = {}
+_SESSION_TTL = 3600  # 1 hour
+_REAPER_INTERVAL = 300  # check every 5 minutes
 
 # Active pipeline tasks — tracked for graceful shutdown.
 _active_tasks: set[asyncio.Task] = set()
+
+
+async def _session_reaper():
+    while True:
+        await asyncio.sleep(_REAPER_INTERVAL)
+        now = time.time()
+        expired = [k for k, ts in _orchestrator_timestamps.items() if now - ts > _SESSION_TTL]
+        for k in expired:
+            _orchestrators.pop(k, None)
+            _orchestrator_timestamps.pop(k, None)
+        if expired:
+            logger.debug(f"Session reaper evicted {len(expired)} expired orchestrator(s)")
+
+
+@router.on_event("startup")
+async def _start_session_reaper():
+    asyncio.create_task(_session_reaper())
 
 
 async def shutdown_pipeline_tasks(timeout: int = 30):
@@ -239,6 +259,7 @@ async def run_pipeline(request: Request, body: PipelineRequest):
         session_id = str(id(orch))
         async with _orchestrators_lock:
             _orchestrators[session_id] = orch
+            _orchestrator_timestamps[session_id] = time.time()
 
         logs = []
         progress_queue: _queue.Queue = _queue.Queue()
@@ -353,6 +374,7 @@ async def run_pipeline(request: Request, body: PipelineRequest):
         finally:
             async with _orchestrators_lock:
                 _orchestrators.pop(session_id, None)
+                _orchestrator_timestamps.pop(session_id, None)
             logger.debug(f"SSE /run stream closed (session={session_id})")
 
     return StreamingResponse(
@@ -392,6 +414,7 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
         session_id = str(id(orch))
         async with _orchestrators_lock:
             _orchestrators[session_id] = orch
+            _orchestrator_timestamps[session_id] = time.time()
 
         logs = []
         progress_queue: _queue.Queue = _queue.Queue()
@@ -474,6 +497,7 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
         finally:
             async with _orchestrators_lock:
                 _orchestrators.pop(session_id, None)
+                _orchestrator_timestamps.pop(session_id, None)
             logger.debug(f"SSE /resume stream closed (session={session_id})")
 
     return StreamingResponse(
