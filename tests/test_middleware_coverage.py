@@ -5,12 +5,12 @@ import os
 import sys
 import time
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 try:
-    from fastapi import FastAPI, Request
+    from fastapi import FastAPI
     from fastapi.testclient import TestClient
     _HAS_FASTAPI = True
 except ImportError:
@@ -87,13 +87,13 @@ class TestRateLimiterMiddleware:
 
     def test_in_memory_rate_limit_state_tracking(self):
         """In-memory state tracks request counts."""
-        from middleware.rate_limiter import _state, _lock
+        from middleware.rate_limiter import _state
         # Just verify state is a dict
         assert isinstance(_state, dict)
 
     def test_rate_limit_429_after_burst(self):
         """After enough requests, rate limit kicks in."""
-        from middleware.rate_limiter import _check_rate_limit_memory, _LIMITS, _WINDOW_SECONDS
+        from middleware.rate_limiter import _check_rate_limit_memory, _LIMITS
         # Use a fake IP unlikely to be used elsewhere
         fake_ip = "192.0.2.255"
         fake_tier = "expensive"
@@ -181,12 +181,12 @@ class TestAuditMiddleware:
 
         app.add_middleware(AuditMiddleware)
         client = TestClient(app, raise_server_exceptions=False)
-        with patch("middleware.audit_middleware.logger") as mock_logger:
+        with patch("middleware.audit_middleware.logger"):
             resp = client.get("/api/test")
         assert resp.status_code == 200
 
     def test_audit_skips_static_files(self):
-        from middleware.audit_middleware import AuditMiddleware, _SKIP_PREFIXES
+        from middleware.audit_middleware import _SKIP_PREFIXES
         # Verify static paths are in skip list
         assert "/static/" in _SKIP_PREFIXES
         assert "/favicon" in _SKIP_PREFIXES
@@ -220,7 +220,7 @@ class TestMetricsMiddleware:
         mock_metrics.record_request.assert_called_once()
 
     def test_metrics_skips_health_endpoint(self):
-        from middleware.metrics_middleware import MetricsMiddleware, _SKIP_PATHS
+        from middleware.metrics_middleware import _SKIP_PATHS
         assert "/api/health" in _SKIP_PATHS
 
     def test_metrics_middleware_skips_health(self):

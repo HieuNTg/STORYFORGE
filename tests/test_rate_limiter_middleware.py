@@ -294,7 +294,7 @@ class TestRateLimitMiddlewareDispatch:
         mw = self._make_middleware()
         req = _make_request(path="/")
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
-        resp = await mw.dispatch(req, call_next)
+        await mw.dispatch(req, call_next)
         call_next.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -302,7 +302,7 @@ class TestRateLimitMiddlewareDispatch:
         mw = self._make_middleware()
         req = _make_request(path="/api/health")
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
-        resp = await mw.dispatch(req, call_next)
+        await mw.dispatch(req, call_next)
         call_next.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -310,7 +310,7 @@ class TestRateLimitMiddlewareDispatch:
         mw = self._make_middleware()
         req = _make_request(path="/api/metrics")
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
-        resp = await mw.dispatch(req, call_next)
+        await mw.dispatch(req, call_next)
         call_next.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -318,7 +318,7 @@ class TestRateLimitMiddlewareDispatch:
         mw = self._make_middleware()
         req = _make_request(path="/api/stories", client_ip="2.2.2.2")
         call_next = AsyncMock(return_value=MagicMock(status_code=200))
-        resp = await mw.dispatch(req, call_next)
+        await mw.dispatch(req, call_next)
         call_next.assert_awaited_once()
 
     @pytest.mark.asyncio

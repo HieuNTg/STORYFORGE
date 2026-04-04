@@ -1,7 +1,6 @@
 """Coverage tests for API routes: health, config, pipeline, export."""
 from __future__ import annotations
 
-import json
 import os
 import sys
 import pytest
@@ -79,7 +78,7 @@ class TestHealthRoutes:
 
     def test_check_database_sqlite(self):
         """_check_database works with SQLite."""
-        from api.health_routes import _check_database, _health_engine_lock
+        from api.health_routes import _check_database
         import api.health_routes as hr
         # Reset engine so it gets created fresh
         orig = hr._health_engine
@@ -277,7 +276,6 @@ class TestExportRoutes:
 
     def test_safe_file_response_missing_file(self):
         """_safe_file_response raises 404 when file doesn't exist."""
-        import tempfile
         from api.export_routes import _safe_file_response, _ALLOWED_EXPORT_DIRS
         from fastapi import HTTPException
         # Use an allowed dir but nonexistent file

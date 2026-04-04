@@ -1,5 +1,5 @@
 # Backward-compatible re-exports for services.auth.*
-from .auth import create_token, verify_token, _b64url_encode, _b64url_decode
+from .auth import create_token, verify_token
 from .jwt_manager import (
     generate_key,
     get_current_key,

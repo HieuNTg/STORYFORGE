@@ -296,7 +296,7 @@ async def test_pipeline_run_creation(session):
 async def test_transaction_atomic_commit(engine):
     """transaction() commits story + chapter atomically when no exception occurs."""
     from models.db_models import Story, Chapter  # noqa: PLC0415
-    from unittest.mock import patch, AsyncMock  # noqa: PLC0415
+    from unittest.mock import patch  # noqa: PLC0415
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker  # noqa: PLC0415
 
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -328,7 +328,6 @@ async def test_transaction_rollback_on_exception(engine):
     from models.db_models import Story  # noqa: PLC0415
     from unittest.mock import patch  # noqa: PLC0415
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker  # noqa: PLC0415
-    from sqlalchemy.exc import NoResultFound  # noqa: PLC0415
 
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     story_id = _uid()

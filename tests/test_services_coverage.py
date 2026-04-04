@@ -3,9 +3,8 @@ from __future__ import annotations
 
 import os
 import sys
-import json
 import pytest
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -44,7 +43,7 @@ class TestTextUtils:
             pytest.skip("nh3 not installed")
 
     def test_sanitize_story_html_allows_basic_tags(self):
-        from services.text_utils import sanitize_story_html, _HAS_NH3
+        from services.text_utils import sanitize_story_html
         try:
             result = sanitize_story_html("<strong>Bold</strong> text")
             assert "Bold" in result
@@ -203,7 +202,6 @@ class TestLLMProviderFactory:
 
     def test_get_provider_openai_default(self):
         from services.llm.providers import get_provider
-        from openai import OpenAI
         with patch("openai.OpenAI") as mock_openai:
             mock_openai.return_value = MagicMock()
             provider = get_provider(base_url="https://api.openai.com/v1", api_key="sk-test")
@@ -379,7 +377,6 @@ class TestGenerationMixin:
     def _make_client(self, mock_response_text: str):
         """Create a minimal LLMClient-like object with mocked generate."""
         from services.llm.generation import GenerationMixin
-        import types
 
         class FakeClient(GenerationMixin):
             def generate(self, system_prompt, user_prompt, **kwargs):

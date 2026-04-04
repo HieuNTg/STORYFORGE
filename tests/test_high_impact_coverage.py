@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import os
 import sys
-import json
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -327,35 +326,40 @@ class TestHandlers:
 
     def test_friendly_error_mapping(self):
         from services.handlers import _friendly_error
-        mock_t = lambda key, **kw: key
+        def mock_t(key, **kw):
+            return key
         exc = Exception("JSON validation error")
         result = _friendly_error(exc, mock_t)
         assert isinstance(result, str)
 
     def test_friendly_error_connection(self):
         from services.handlers import _friendly_error
-        mock_t = lambda key, **kw: key
+        def mock_t(key, **kw):
+            return key
         exc = Exception("Connection refused")
         result = _friendly_error(exc, mock_t)
         assert "error" in result.lower() or "." in result
 
     def test_friendly_error_fallback(self):
         from services.handlers import _friendly_error
-        mock_t = lambda key, **kw: key
+        def mock_t(key, **kw):
+            return key
         exc = Exception("Some unknown error xyz")
         result = _friendly_error(exc, mock_t)
         assert isinstance(result, str)
 
     def test_handle_login_empty_credentials(self):
         from services.handlers import handle_login
-        mock_t = lambda key, **kw: key
+        def mock_t(key, **kw):
+            return key
         profile, msg, table = handle_login("", "", mock_t)
         assert profile is None
         assert table == []
 
     def test_handle_register_empty_credentials(self):
         from services.handlers import handle_register
-        mock_t = lambda key, **kw: key
+        def mock_t(key, **kw):
+            return key
         profile, msg, table = handle_register("", "", mock_t)
         assert profile is None
 
@@ -428,7 +432,6 @@ class TestBaseAgent:
 
     def test_base_agent_debate_response_default(self):
         """Default debate_response returns empty list."""
-        from pipeline.agents.base_agent import BaseAgent
         with patch("services.llm_client.LLMClient"):
             from pipeline.agents.drama_critic import DramaCriticAgent
             agent = DramaCriticAgent.__new__(DramaCriticAgent)
@@ -604,7 +607,7 @@ class TestStreamingMixin:
                 def _get_model(self, tier):
                     return "gpt-4o-mini"
 
-            streamer = FakeStreamer.__new__(FakeStreamer)
+            FakeStreamer.__new__(FakeStreamer)
             # Just verify import works
             assert StreamingMixin is not None
 

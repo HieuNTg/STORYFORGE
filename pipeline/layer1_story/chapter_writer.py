@@ -48,7 +48,7 @@ def format_context(
                 if getattr(s, "cumulative_relationships", None):
                     rel_lines.append(f"- {s.name}: {'; '.join(s.cumulative_relationships[-5:])}")
             if rel_lines:
-                parts.append(f"## Diễn biến mối quan hệ:\n" + "\n".join(rel_lines))
+                parts.append("## Diễn biến mối quan hệ:\n" + "\n".join(rel_lines))
         if context and context.plot_events:
             events_text = "\n".join(
                 f"- Ch.{e.chapter_number}: {e.event}" for e in context.plot_events[-10:]
@@ -77,7 +77,7 @@ def format_context(
             if getattr(s, "cumulative_relationships", None):
                 rel_lines.append(f"- {s.name}: {'; '.join(s.cumulative_relationships[-5:])}")
         if rel_lines:
-            parts.append(f"## Diễn biến mối quan hệ:\n" + "\n".join(rel_lines))
+            parts.append("## Diễn biến mối quan hệ:\n" + "\n".join(rel_lines))
     if context.plot_events:
         events_text = "\n".join(
             f"- Ch.{e.chapter_number}: {e.event}" for e in context.plot_events[-10:]

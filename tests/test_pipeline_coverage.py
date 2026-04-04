@@ -5,8 +5,7 @@ import json
 import os
 import sys
 import tempfile
-import pytest
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -87,7 +86,6 @@ class TestSchemaModels:
     def test_enhanced_story_model(self):
         from models.schemas import EnhancedStory
         # EnhancedStory may need required fields — check via hasattr on class
-        import inspect
         fields = EnhancedStory.model_fields
         assert "chapters" in fields or hasattr(EnhancedStory, "__fields__")
 
@@ -186,7 +184,6 @@ class TestCheckpointManager:
         assert len(result) >= 1
 
     def test_save_creates_file(self):
-        from pipeline.orchestrator_checkpoint import CheckpointManager
         from models.schemas import PipelineOutput, StoryDraft
         output = PipelineOutput()
         output.story_draft = StoryDraft(title="Test Story", genre="Fantasy")
@@ -201,7 +198,6 @@ class TestCheckpointManager:
             assert isinstance(data, dict)
 
     def test_save_returns_path(self):
-        from pipeline.orchestrator_checkpoint import CheckpointManager
         from models.schemas import PipelineOutput
         output = PipelineOutput()
         cm = self._make_checkpoint_manager(output)

@@ -10,7 +10,6 @@ Requires: pip install playwright && python -m playwright install chromium
 
 import asyncio
 import os
-import time
 from pathlib import Path
 
 # Ensure output directory exists

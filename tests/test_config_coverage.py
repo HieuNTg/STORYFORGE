@@ -6,7 +6,7 @@ import os
 import sys
 import tempfile
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -108,7 +108,7 @@ class TestConfigValidation:
         pipeline = PipelineConfig()
         errors = validate_config(llm, pipeline)
         # Should warn about OpenRouter model format
-        openrouter_errors = [e for e in errors if "OpenRouter" in e or "openrouter" in e.lower()]
+        [e for e in errors if "OpenRouter" in e or "openrouter" in e.lower()]
         # May or may not have errors depending on model format
         assert isinstance(errors, list)
 
