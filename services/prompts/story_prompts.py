@@ -9,6 +9,8 @@ SUGGEST_TITLE = """Bạn là nhà văn sáng tạo chuyên viết truyện {genr
 Hãy đề xuất 5 tiêu đề hấp dẫn cho một câu truyện thuộc thể loại {genre}.
 Yêu cầu thêm: {requirements}
 
+BẮT BUỘC: Viết tiêu đề bằng tiếng Việt.
+
 Trả về JSON: {{"titles": ["tiêu đề 1", "tiêu đề 2", ...]}}"""
 
 # vi-only
@@ -18,6 +20,7 @@ Tiêu đề truyện: {title}
 
 Hãy tạo {num_characters} nhân vật với thông tin chi tiết.
 Đảm bảo có xung đột nội tâm, mối quan hệ phức tạp giữa các nhân vật.
+BẮT BUỘC: Toàn bộ nội dung (tên, tính cách, tiểu sử...) phải viết bằng tiếng Việt.
 
 Trả về JSON:
 {{
@@ -40,6 +43,7 @@ Tiêu đề: {title}
 Nhân vật: {characters}
 
 Hãy xây dựng bối cảnh thế giới chi tiết, phong phú.
+BẮT BUỘC: Viết toàn bộ bằng tiếng Việt.
 
 Trả về JSON:
 {{
@@ -60,6 +64,7 @@ Bối cảnh: {world}
 Hãy tạo dàn ý chi tiết cho {num_chapters} chương.
 Mỗi chương cần có: cao trào, xung đột, phát triển nhân vật.
 Cốt truyện phải có nhịp điệu: giới thiệu → phát triển → cao trào → kết thúc.
+BẮT BUỘC: Viết toàn bộ nội dung (tiêu đề chương, tóm tắt, sự kiện...) bằng tiếng Việt.
 
 Trả về JSON:
 {{

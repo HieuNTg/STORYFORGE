@@ -31,7 +31,7 @@ def generate_characters(
 ) -> list[Character]:
     """Generate character list from story premise."""
     result = llm.generate_json(
-        system_prompt="Bạn là nhà văn chuyên xây dựng nhân vật. Trả về JSON.",
+        system_prompt="Bạn là nhà văn chuyên xây dựng nhân vật. BẮT BUỘC viết bằng tiếng Việt. Trả về JSON.",
         user_prompt=prompts.GENERATE_CHARACTERS.format(
             genre=genre, title=title, idea=idea,
             num_characters=num_characters,

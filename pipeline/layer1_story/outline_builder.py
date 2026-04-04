@@ -20,7 +20,7 @@ def suggest_titles(
 ) -> list[str]:
     """Suggest story titles for a given genre."""
     result = llm.generate_json(
-        system_prompt="Bạn là nhà văn sáng tạo. Trả về JSON.",
+        system_prompt="Bạn là nhà văn sáng tạo. BẮT BUỘC viết bằng tiếng Việt. Trả về JSON.",
         user_prompt=prompts.SUGGEST_TITLE.format(
             genre=genre, requirements=requirements
         ),
@@ -56,7 +56,7 @@ def generate_world(
             world_prompt = rag_section + world_prompt
 
     result = llm.generate_json(
-        system_prompt="Bạn là kiến trúc sư thế giới. Trả về JSON.",
+        system_prompt="Bạn là kiến trúc sư thế giới. BẮT BUỘC viết bằng tiếng Việt. Trả về JSON.",
         user_prompt=world_prompt,
         model=model,
     )
@@ -79,7 +79,7 @@ def generate_outline(
         for c in characters
     )
     result = llm.generate_json(
-        system_prompt="Bạn là biên kịch tài năng. Trả về JSON.",
+        system_prompt="Bạn là biên kịch tài năng. BẮT BUỘC viết bằng tiếng Việt. Trả về JSON.",
         user_prompt=prompts.GENERATE_OUTLINE.format(
             genre=genre, title=title, characters=chars_text,
             world=f"{world.name}: {world.description}",
