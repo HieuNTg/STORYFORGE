@@ -25,7 +25,6 @@ class LLMConfig:
     # Per-layer model routing (optional, falls back to primary model)
     layer1_model: str = ""  # Story generation
     layer2_model: str = ""  # Drama analysis
-    layer3_model: str = ""  # Video/storyboard
 
 
 @dataclass
@@ -42,10 +41,6 @@ class PipelineConfig:
     num_simulation_rounds: int = 5
     num_agents: int = 10
     drama_intensity: str = "cao"  # thấp, trung bình, cao
-
-    # Layer 3 - Video
-    shots_per_chapter: int = 8
-    video_style: str = "Phim ngắn drama"
 
     # Context tracking
     context_window_chapters: int = 5
@@ -76,26 +71,13 @@ class PipelineConfig:
     seedream_api_key: str = ""
     seedream_api_url: str = ""
 
-    # Video quality
-    video_quality: str = "draft"  # "draft" or "final"
-
     # Self-review (CoT quality check)
     enable_self_review: bool = False  # Opt-in CoT self-review
     self_review_threshold: float = 3.0  # Score threshold (1.0-5.0)
 
-    # TTS provider
-    tts_provider: str = "edge-tts"  # edge-tts / kling / none
-    kling_tts_api_key: str = ""
-    kling_tts_api_url: str = ""
-
     # RAG world-building
     rag_enabled: bool = False
     rag_persist_dir: str = "data/rag"
-
-    # XTTS v2 voice cloning
-    xtts_api_url: str = ""  # http://localhost:8020 or Replicate URL
-    xtts_reference_audio: str = ""  # default reference audio path
-    character_voice_map: dict = field(default_factory=dict)  # {"CharName": "data/voices/char.wav"}
 
     # Character-consistent images
     enable_character_consistency: bool = False
@@ -109,9 +91,6 @@ class PipelineConfig:
     long_context_api_key: str = ""
     long_context_base_url: str = ""
     long_context_max_tokens: int = 1000000
-
-    # Voice emotion synthesis
-    enable_voice_emotion: bool = False
 
     # Prompt injection defense mode: False = log-only, True = block and raise error
     block_on_injection: bool = False
@@ -134,12 +113,11 @@ class PipelineConfig:
 
 
 # Presets live in config/presets.py — imported here for convenience.
-from .presets import VIDEO_QUALITY_PRESETS, PIPELINE_PRESETS, MODEL_PRESETS  # noqa: E402
+from .presets import PIPELINE_PRESETS, MODEL_PRESETS  # noqa: E402
 
 __all__ = [
     "LLMConfig",
     "PipelineConfig",
-    "VIDEO_QUALITY_PRESETS",
     "PIPELINE_PRESETS",
     "MODEL_PRESETS",
 ]

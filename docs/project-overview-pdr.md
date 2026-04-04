@@ -4,15 +4,15 @@
 
 **AI-powered story generation with multi-agent drama simulation.**
 
-Transform a one-sentence idea into a complete, drama-rich story with video-ready storyboards. Self-hosted, privacy-first, works with any OpenAI-compatible LLM.
+Transform a one-sentence idea into a complete, drama-rich story with character-consistent images and cinematic scene backgrounds. Self-hosted, privacy-first, works with any OpenAI-compatible LLM.
 
 ## Core Features
 
-### 1. 3-Layer Generation Pipeline
+### 1. 2-Layer Generation Pipeline
 
 **Layer 1: Story Generation** → Characters, world-building, full chapters
 **Layer 2: Drama Simulation** → 13 AI agents, conflict analysis, auto-revision
-**Layer 3: Video Storyboarding** → Shot plans, camera direction, image prompts, voice scripts
+**Image Generation** → Character consistency (IP-Adapter) + scene backgrounds (runs after Layer 2)
 
 **Key**: Checkpoint & resume, real-time SSE streaming, quality gates.
 
@@ -53,7 +53,7 @@ Transform a one-sentence idea into a complete, drama-rich story with video-ready
 - PDF (via ReportLab)
 - EPUB (via ebooklib)
 - HTML web reader
-- ZIP with full storyboards (shots, scripts, image prompts)
+- ZIP with full story content (chapters, image prompts, character sheets)
 
 ### 6. Interactive Branch Reader
 
@@ -67,7 +67,7 @@ Choose-your-own-adventure mode: LLM generates branching narrative paths.
 | Frontend | Alpine.js 3, TypeScript, Tailwind CSS |
 | Streaming | Server-Sent Events (SSE) |
 | AI/LLM | Any OpenAI-compatible API |
-| TTS | edge-tts (in-browser, no API key) |
+| Image Generation | IP-Adapter (character consistency), diffusion models (scene backgrounds) |
 | Storage | PostgreSQL (persistent), SQLite (cache), JSON (prompts) |
 | Export | ReportLab (PDF), ebooklib (EPUB), custom HTML |
 | Auth | JWT (signed with SECRET_KEY) |
@@ -79,7 +79,7 @@ Choose-your-own-adventure mode: LLM generates branching narrative paths.
 ```
 ├── api/                 → REST endpoints (FastAPI routes)
 ├── services/            → Business logic (LLM, quality scoring, auth)
-├── pipeline/            → 3-layer generation + 13 agents
+├── pipeline/            → 2-layer generation + 13 agents
 ├── middleware/          → JWT auth, rate limiting, audit logging
 ├── models/              → Pydantic schemas
 ├── web/                 → Alpine.js SPA (TypeScript)
@@ -125,7 +125,7 @@ Choose-your-own-adventure mode: LLM generates branching narrative paths.
 
 | ID | Requirement | Status |
 |----|-------------|--------|
-| F1 | 3-layer pipeline with real-time streaming | Complete |
+| F1 | 2-layer pipeline with real-time streaming | Complete |
 | F2 | 13 AI agents with autonomous interactions | Complete |
 | F3 | Quality scoring with auto-revision | Complete |
 | F4 | Multi-provider LLM support | Complete |

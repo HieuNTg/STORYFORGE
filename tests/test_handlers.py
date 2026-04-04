@@ -224,77 +224,6 @@ class TestHandleExportPdf(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Tests: handle_export_tts
-# ---------------------------------------------------------------------------
-
-class TestHandleExportTts(unittest.TestCase):
-
-    def test_no_orch_returns_none(self):
-        from services.handlers import handle_export_tts
-        self.assertIsNone(handle_export_tts(None, _t))
-
-    def test_no_story_returns_none(self):
-        from services.handlers import handle_export_tts
-        orch = _make_orch_state()
-        self.assertIsNone(handle_export_tts(orch, _t))
-
-    @patch("services.handlers.TTSScriptGenerator")
-    def test_export_returns_file(self, MockTTS):
-        from services.handlers import handle_export_tts
-        gen = MockTTS.return_value
-        gen.generate_full_script.return_value = MagicMock()
-        gen.export_script.return_value = "output/tts.txt"
-        orch = _make_orch_state(enhanced_story=_make_enhanced_story())
-        result = handle_export_tts(orch, _t)
-        self.assertEqual(result, ["output/tts.txt"])
-
-    @patch("services.handlers.TTSScriptGenerator")
-    def test_export_exception_returns_none(self, MockTTS):
-        from services.handlers import handle_export_tts
-        gen = MockTTS.return_value
-        gen.generate_full_script.side_effect = Exception("tts fail")
-        orch = _make_orch_state(enhanced_story=_make_enhanced_story())
-        result = handle_export_tts(orch, _t)
-        self.assertIsNone(result)
-
-
-# ---------------------------------------------------------------------------
-# Tests: handle_export_tts_audio
-# ---------------------------------------------------------------------------
-
-class TestHandleExportTtsAudio(unittest.TestCase):
-
-    def test_no_orch_returns_none(self):
-        from services.handlers import handle_export_tts_audio
-        paths, msg = handle_export_tts_audio(None)
-        self.assertIsNone(paths)
-
-    def test_no_story_returns_none(self):
-        from services.handlers import handle_export_tts_audio
-        orch = _make_orch_state()
-        paths, msg = handle_export_tts_audio(orch)
-        self.assertIsNone(paths)
-
-    def test_no_chapters_returns_none(self):
-        from services.handlers import handle_export_tts_audio
-        es = _make_enhanced_story()
-        es.chapters = []
-        orch = _make_orch_state(enhanced_story=es)
-        paths, msg = handle_export_tts_audio(orch)
-        self.assertIsNone(paths)
-
-    def test_export_audio_success(self):
-        from services.handlers import handle_export_tts_audio
-        with patch("services.tts_audio_generator.TTSAudioGenerator") as MockTTS:
-            gen = MockTTS.return_value
-            gen.generate_full_audiobook.return_value = ["ch1.mp3", "ch2.mp3"]
-            orch = _make_orch_state(enhanced_story=_make_enhanced_story())
-            paths, msg = handle_export_tts_audio(orch)
-            self.assertEqual(len(paths), 2)
-            self.assertIn("2", msg)
-
-
-# ---------------------------------------------------------------------------
 # Tests: handle_share_story
 # ---------------------------------------------------------------------------
 
@@ -392,27 +321,6 @@ class TestHandleExportZip(unittest.TestCase):
         orch = MagicMock()
         orch.export_zip.side_effect = Exception("zip fail")
         result = handle_export_zip(orch, ["json"], _t)
-        self.assertIsNone(result)
-
-
-class TestHandleExportVideoAssets(unittest.TestCase):
-
-    def test_no_orch_returns_none(self):
-        from services.handlers import handle_export_video_assets
-        self.assertIsNone(handle_export_video_assets(None, _t))
-
-    def test_returns_path(self):
-        from services.handlers import handle_export_video_assets
-        orch = MagicMock()
-        orch.export_video_assets.return_value = "output/video.zip"
-        result = handle_export_video_assets(orch, _t)
-        self.assertEqual(result, "output/video.zip")
-
-    def test_exception_returns_none(self):
-        from services.handlers import handle_export_video_assets
-        orch = MagicMock()
-        orch.export_video_assets.side_effect = Exception("fail")
-        result = handle_export_video_assets(orch, _t)
         self.assertIsNone(result)
 
 
@@ -700,71 +608,21 @@ class TestHandleGenerateImages(unittest.TestCase):
         paths, msg = handle_generate_images(None, t=_t)
         self.assertEqual(paths, [])
 
-    def test_no_video_script_returns_empty(self):
+    def test_no_story_returns_empty(self):
         from services.handlers import handle_generate_images
         orch = _make_orch_state()
         paths, msg = handle_generate_images(orch, t=_t)
         self.assertEqual(paths, [])
 
-    def test_no_panels_returns_empty(self):
+    def test_with_story_calls_generators(self):
         from services.handlers import handle_generate_images
-        orch = _make_orch_state(video_script=_make_video_script(panels=[]))
-        paths, msg = handle_generate_images(orch, t=_t)
-        self.assertEqual(paths, [])
-
-    def test_with_panels_calls_generators(self):
-        from services.handlers import handle_generate_images
-        panel = MagicMock()
-        panel.chapter_number = 1
-        vs = _make_video_script(panels=[panel])
-        orch = _make_orch_state(video_script=vs)
+        orch = _make_orch_state(enhanced_story=_make_enhanced_story())
         with patch("services.image_generator.ImageGenerator") as MockImgGen, \
              patch("services.image_prompt_generator.ImagePromptGenerator") as MockPromptGen:
-            MockPromptGen.return_value.generate_from_panel.return_value = MagicMock()
+            MockPromptGen.return_value.generate_from_chapter.return_value = [MagicMock()]
             MockImgGen.return_value.generate_story_images.return_value = ["img1.png"]
             paths, msg = handle_generate_images(orch, provider="dalle", t=_t)
             self.assertEqual(paths, ["img1.png"])
-
-
-# ---------------------------------------------------------------------------
-# Tests: handle_compose_video
-# ---------------------------------------------------------------------------
-
-class TestHandleComposeVideo(unittest.TestCase):
-
-    def test_no_orch_returns_none(self):
-        from services.handlers import handle_compose_video
-        audio, video, msg = handle_compose_video(None)
-        self.assertIsNone(audio)
-        self.assertIsNone(video)
-
-    def test_no_story_returns_msg(self):
-        from services.handlers import handle_compose_video
-        orch = _make_orch_state()
-        audio, video, msg = handle_compose_video(orch)
-        self.assertIsNone(audio)
-
-    def test_no_chapters_returns_msg(self):
-        from services.handlers import handle_compose_video
-        es = _make_enhanced_story()
-        es.chapters = []
-        orch = _make_orch_state(enhanced_story=es)
-        audio, video, msg = handle_compose_video(orch)
-        self.assertIsNone(audio)
-
-    @patch("os.path.exists")
-    def test_compose_with_story_no_images(self, mock_exists):
-        from services.handlers import handle_compose_video
-        mock_exists.return_value = False
-        orch = _make_orch_state(enhanced_story=_make_enhanced_story())
-        with patch("services.tts_audio_generator.TTSAudioGenerator") as MockTTS, \
-             patch("services.video_composer.VideoComposer"):
-            gen = MockTTS.return_value
-            gen.generate_full_audiobook.return_value = ["ch1.mp3"]
-            audio, video, msg = handle_compose_video(orch)
-            self.assertIsNotNone(audio)
-            self.assertIsNone(video)
-            self.assertIn("1 audio", msg)
 
 
 if __name__ == "__main__":

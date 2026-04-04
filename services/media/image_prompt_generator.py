@@ -1,6 +1,6 @@
 """Generate AI image prompts from story content."""
 import logging
-from models.schemas import ImagePrompt, StoryboardPanel, Chapter
+from models.schemas import ImagePrompt, Chapter
 from services.llm_client import LLMClient
 from config import ConfigManager
 
@@ -29,44 +29,10 @@ class ImagePromptGenerator:
         self.llm = LLMClient()
         self.style = style or ConfigManager().pipeline.image_prompt_style
 
-    def generate_from_panel(
-        self,
-        panel: StoryboardPanel,
-        characters: dict = None,
-        visual_profiles: dict = None,
-    ) -> ImagePrompt:
-        """Convert storyboard panel to image prompts.
-
-        Args:
-            panel: The storyboard panel
-            characters: dict of {name: basic_description}
-            visual_profiles: dict of {name: frozen_visual_description} for consistency
-        """
-        chars_desc = ""
-        if panel.characters_in_frame:
-            for name in panel.characters_in_frame:
-                # Prefer visual profile (frozen description) over basic character info
-                if visual_profiles and name in visual_profiles:
-                    chars_desc += f"[{name}: {visual_profiles[name]}] "
-                elif characters and name in characters:
-                    chars_desc += f"{name}: {characters[name]}. "
-
-        dalle = f"{self.style} style, {panel.description}"
-        if chars_desc:
-            dalle += f", characters: {chars_desc}"
-        sd = f"({self.style}:1.3), {panel.description}, detailed, high quality"
-        neg = "text, watermark, blurry, low quality, deformed"
-
-        return ImagePrompt(
-            panel_number=panel.panel_number,
-            chapter_number=panel.chapter_number,
-            scene_description=panel.description,
-            style=self.style,
-            dalle_prompt=dalle,
-            sd_prompt=sd,
-            negative_prompt=neg,
-            characters_in_scene=list(panel.characters_in_frame),
-        )
+    def generate_scene_prompt(self, chapter: Chapter) -> str:
+        """Generate a single image prompt string for a chapter scene."""
+        summary = chapter.summary or chapter.title or f"Chapter {chapter.chapter_number}"
+        return f"{self.style} style, {summary}"
 
     def generate_from_chapter(
         self,

@@ -1,35 +1,28 @@
 """Test ImagePromptGenerator service."""
-from models.schemas import StoryboardPanel, ShotType
+from models.schemas import Chapter
 from services.image_prompt_generator import ImagePromptGenerator
 
 
-def test_generate_from_panel_basic():
+def test_generate_scene_prompt_basic():
     gen = ImagePromptGenerator(style="cinematic")
-    panel = StoryboardPanel(
-        panel_number=1, chapter_number=1,
-        shot_type=ShotType.WIDE,
-        description="A dark forest at night",
-        characters_in_frame=["Minh"],
-    )
-    result = gen.generate_from_panel(panel)
-    assert result.dalle_prompt != ""
-    assert result.sd_prompt != ""
-    assert result.panel_number == 1
-    assert result.style == "cinematic"
+    chapter = Chapter(chapter_number=1, title="The Beginning", content="Story content", summary="A hero emerges")
+    result = gen.generate_scene_prompt(chapter)
+    assert result != ""
+    assert "cinematic" in result
 
 
-def test_generate_from_panel_with_chars():
+def test_generate_scene_prompt_uses_summary():
     gen = ImagePromptGenerator(style="anime")
-    panel = StoryboardPanel(
-        panel_number=2, chapter_number=1,
-        shot_type=ShotType.CLOSE_UP,
-        description="Character looking at sunset",
-        characters_in_frame=["Linh"],
-    )
-    chars = {"Linh": "young woman with long black hair"}
-    result = gen.generate_from_panel(panel, characters=chars)
-    assert "Linh" in result.dalle_prompt or "young woman" in result.dalle_prompt
-    assert result.negative_prompt != ""
+    chapter = Chapter(chapter_number=1, title="Ch1", content="content", summary="battle scene")
+    result = gen.generate_scene_prompt(chapter)
+    assert "battle scene" in result
+
+
+def test_generate_scene_prompt_fallback_to_title():
+    gen = ImagePromptGenerator(style="anime")
+    chapter = Chapter(chapter_number=2, title="The Storm", content="content", summary="")
+    result = gen.generate_scene_prompt(chapter)
+    assert "The Storm" in result
 
 
 def test_default_style():

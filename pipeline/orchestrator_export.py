@@ -136,17 +136,6 @@ class PipelineExporter:
         chars = self.output.story_draft.characters if self.output.story_draft else []
         return EPUBExporter.export(story, path, characters=chars)
 
-    def export_video_assets(self, output_dir: str = "output") -> Optional[str]:
-        """Export video script as creator-friendly asset package (ZIP).
-
-        Returns ZIP path or None if no video script available.
-        """
-        if not self.output.video_script:
-            return None
-        from services.video_exporter import VideoExporter
-        exporter = VideoExporter(self.output.video_script)
-        return exporter.export_all(output_dir)
-
     def _export_markdown(self, output_dir: str, timestamp: str) -> Optional[str]:
         """Export story as formatted Markdown. Returns file path or None."""
         story = self.output.enhanced_story or self.output.story_draft

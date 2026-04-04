@@ -132,7 +132,6 @@ class LLMClient(StreamingMixin, GenerationMixin):
         layer_map = {
             1: config.llm.layer1_model,
             2: config.llm.layer2_model,
-            3: config.llm.layer3_model,
         }
         layer_model = layer_map.get(layer, "")
         return layer_model or self._current_model or config.llm.model

@@ -24,13 +24,11 @@ class CheckpointManager:
         analyzer,
         simulator,
         enhancer,
-        storyboard_gen,
     ):
         self.output = output
         self.analyzer = analyzer
         self.simulator = simulator
         self.enhancer = enhancer
-        self.storyboard_gen = storyboard_gen
 
     def save(self, layer: int, background: bool = True) -> str:
         """Save pipeline state after layer completion. Non-blocking by default."""
@@ -167,23 +165,9 @@ class CheckpointManager:
                 self.output.status = "partial"
 
         if last_layer <= 2 and enhanced:
-            _log("══════ RESUMING LAYER 3 ══════")
-            self.output.current_layer = 3
-            try:
-                video_script = self.storyboard_gen.generate_full_video_script(
-                    story=enhanced,
-                    characters=draft.characters if draft else [],
-                    shots_per_chapter=kwargs.get("shots_per_chapter", 8),
-                    progress_callback=lambda m: _log(f"[L3] {m}"),
-                )
-                self.output.video_script = video_script
-                self.output.progress = 1.0
-                if self.output.status != "partial":
-                    self.output.status = "completed"
-                self.save(3)
-                _log("PIPELINE HOAN TAT (resumed)!")
-            except Exception as e:
-                _log(f"Layer 3 loi: {e}")
-                self.output.status = "partial"
+            self.output.progress = 1.0
+            if self.output.status != "partial":
+                self.output.status = "completed"
+            _log("PIPELINE HOAN TAT (resumed)!")
 
         return self.output

@@ -34,7 +34,6 @@ jobs:
         run: pip install -r requirements.txt pip-audit
       - name: Run pip-audit
         run: pip-audit --strict --desc
-        continue-on-error: true
 
   unit-tests:
     runs-on: ubuntu-latest
@@ -107,7 +106,7 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
-    needs: [unit-tests, e2e-tests, frontend-tests]
+    needs: [unit-tests, e2e-tests, frontend-tests, security]
     if: github.ref == 'refs/heads/master'
     permissions:
       packages: write
@@ -145,14 +144,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Deploy to staging
+        env:
+          DEPLOY_HOST: ${{ secrets.STAGING_HOST }}
+          DEPLOY_USER: ${{ secrets.STAGING_USER }}
+          DEPLOY_KEY: ${{ secrets.STAGING_SSH_KEY }}
         run: |
-          echo "Staging deployment ready."
-          echo "To deploy manually: docker compose -f docker-compose.staging.yml up -d --build"
-          echo "Staging URL: http://localhost:7861"
+          # Skip if no staging secrets configured
+          if [ -z "$DEPLOY_HOST" ]; then
+            echo "⚠️ Staging secrets not configured. Skipping deployment."
+            echo "Configure STAGING_HOST, STAGING_USER, STAGING_SSH_KEY in GitHub environment 'staging'"
+            exit 0
+          fi
+          # Setup SSH
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          # Deploy via SSH
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" << 'DEPLOY_SCRIPT'
+            cd /opt/storyforge
+            git pull origin master
+            docker compose -f docker-compose.staging.yml pull
+            docker compose -f docker-compose.staging.yml up -d --remove-orphans
+            docker compose -f docker-compose.staging.yml ps
+          DEPLOY_SCRIPT
 
   release:
     runs-on: ubuntu-latest
-    needs: [unit-tests, e2e-tests]
+    needs: [unit-tests, e2e-tests, security]
     # Only run on version tags (e.g. v1.0.0)
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:

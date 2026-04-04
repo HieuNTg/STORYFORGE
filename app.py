@@ -172,6 +172,12 @@ def main():
     async def injection_blocked_handler(request, exc):
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 
+    # Graceful shutdown: cancel and await active pipeline tasks
+    @main_app.on_event("shutdown")
+    async def on_shutdown():
+        from api.pipeline_routes import shutdown_pipeline_tasks
+        await shutdown_pipeline_tasks(timeout=30)
+
     # API routes
     main_app.include_router(api_router)
 

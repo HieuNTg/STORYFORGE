@@ -189,8 +189,7 @@ def test_save_creates_valid_json_file(tmp_path, sample_pipeline_output):
     ckpt_mod.CHECKPOINT_DIR = str(tmp_path / "ckpts")
     try:
         mgr = CheckpointManager(output=sample_pipeline_output, analyzer=MagicMock(),
-                                simulator=MagicMock(), enhancer=MagicMock(),
-                                storyboard_gen=MagicMock())
+                                simulator=MagicMock(), enhancer=MagicMock())
         path = mgr.save(layer=1, background=False)
     finally:
         ckpt_mod.CHECKPOINT_DIR = orig

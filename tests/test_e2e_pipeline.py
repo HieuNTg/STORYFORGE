@@ -577,22 +577,6 @@ class TestPipelineGracefulFallbacks:
         # Status may be 'partial' or 'completed' (Layer 3 can still run)
         assert output.status in ("completed", "partial")
 
-    def test_pipeline_handles_layer3_failure(self, mock_llm):
-        """Layer 3 failure should result in partial status but enhanced_story populated."""
-        from pipeline.orchestrator import PipelineOrchestrator
-
-        with patch(
-            "pipeline.layer3_video.storyboard.StoryboardGenerator.generate_full_video_script",
-            side_effect=RuntimeError("Simulated Layer 3 failure"),
-        ):
-            orch = PipelineOrchestrator()
-            output = _run_minimal_pipeline(orch)
-
-        assert output.status == "partial", f"Expected partial after L3 fail, got {output.status}"
-        assert output.enhanced_story is not None, "enhanced_story should be populated"
-        # video_script may or may not be set — check enhanced_story is intact
-        assert len(output.enhanced_story.chapters) > 0
-
     def test_pipeline_connection_failure_returns_error(self, mock_llm):
         """Connection check failure should abort pipeline with error status."""
         from pipeline.orchestrator import PipelineOrchestrator
@@ -633,15 +617,6 @@ class TestPipelineOutputStructure:
         assert len(output.story_draft.chapters) == 2, (
             f"Expected 2 chapters, got {len(output.story_draft.chapters)}"
         )
-
-    def test_pipeline_video_panels_are_storyboard_panels(self, pipeline):
-        """All video_script panels must be valid StoryboardPanel instances."""
-        from models.schemas import StoryboardPanel
-        output = _run_minimal_pipeline(pipeline)
-        for panel in output.video_script.panels:
-            assert isinstance(panel, StoryboardPanel)
-            assert panel.panel_number > 0
-            assert panel.chapter_number > 0
 
     def test_pipeline_simulation_result_set(self, pipeline):
         """simulation_result should be populated after Layer 2."""

@@ -1,10 +1,9 @@
 """Pipeline API routes — run pipeline via SSE, get genres/templates/checkpoints."""
 
+import asyncio
 import json
 import logging
 import os
-import queue
-import threading
 import time
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -29,10 +28,22 @@ def _sanitize_summary(summary: dict) -> dict:
     return summary
 
 # Shared orchestrator instance per session.
-# Lock required: concurrent SSE requests (different sessions) may read/write
-# this dict simultaneously from separate threads/event-loop tasks.
+# asyncio.Lock: concurrent SSE requests (different sessions) may interleave
+# within the same event loop when awaiting.
 _orchestrators: dict[str, PipelineOrchestrator] = {}
-_orchestrators_lock = threading.Lock()
+_orchestrators_lock = asyncio.Lock()
+
+# Active pipeline tasks — tracked for graceful shutdown.
+_active_tasks: set[asyncio.Task] = set()
+
+
+async def shutdown_pipeline_tasks(timeout: int = 30):
+    """Cancel and await active pipeline tasks for graceful shutdown."""
+    tasks = list(_active_tasks)
+    for task in tasks:
+        task.cancel()
+    if tasks:
+        await asyncio.wait(tasks, timeout=timeout)
 
 i18n = I18n()
 
@@ -52,7 +63,6 @@ class PipelineRequest(BaseModel):
     word_count: int = 2000
     num_sim_rounds: int = 3
     drama_level: str = "cao"
-    shots_per_chapter: int = 8
     enable_agents: bool = True
     enable_scoring: bool = True
     enable_media: bool = False
@@ -215,7 +225,7 @@ async def run_pipeline(request: Request, body: PipelineRequest):
     # Validate input
     idea = (body.idea or "").strip()
     if not idea or len(idea) < 10:
-        def _error_stream():
+        async def _error_stream():
             yield f"data: {json.dumps({'type': 'error', 'data': 'Story idea is too short. Please enter at least 10 characters.'})}\n\n"
         return StreamingResponse(
             _error_stream(),
@@ -226,17 +236,18 @@ async def run_pipeline(request: Request, body: PipelineRequest):
     async def event_generator():
         orch = PipelineOrchestrator()
         session_id = str(id(orch))
-        with _orchestrators_lock:
+        async with _orchestrators_lock:
             _orchestrators[session_id] = orch
-        disconnected = threading.Event()
 
         logs = []
-        progress_queue = queue.Queue()
+        progress_queue: asyncio.Queue = asyncio.Queue()
         stream_text = [""]
 
         def on_progress(msg):
             logs.append(msg)
-            progress_queue.put(("log", msg))
+            # put_nowait is safe: called from asyncio.to_thread workers (thread pool)
+            # but the queue itself is asyncio-safe for cross-thread puts.
+            progress_queue.put_nowait(("log", msg))
 
         last_stream_time = [0.0]
 
@@ -244,7 +255,7 @@ async def run_pipeline(request: Request, body: PipelineRequest):
             stream_text[0] = partial_text
             now = time.time()
             if now - last_stream_time[0] > 0.3:
-                progress_queue.put(("stream", partial_text))
+                progress_queue.put_nowait(("stream", partial_text))
                 last_stream_time[0] = now
 
         # Apply lite mode: switch debate to 3-agent fast path (~85% fewer API calls).
@@ -252,11 +263,11 @@ async def run_pipeline(request: Request, body: PipelineRequest):
         if body.lite_mode or os.environ.get("STORYFORGE_LITE_MODE", "").lower() in ("1", "true"):
             orch.config.pipeline.debate_mode = "lite"
 
-        result = [None]
+        result: list = [None]
 
-        def _run():
+        async def _run_async():
             try:
-                result[0] = orch.run_full_pipeline(
+                result[0] = await orch.run_full_pipeline(
                     title=body.title or f"Truyện {body.genre}",
                     genre=body.genre,
                     idea=idea,
@@ -265,33 +276,38 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                     num_characters=body.num_characters,
                     word_count=body.word_count,
                     num_sim_rounds=body.num_sim_rounds,
-                    shots_per_chapter=body.shots_per_chapter,
                     progress_callback=on_progress,
                     stream_callback=on_stream,
                     enable_agents=body.enable_agents,
                     enable_scoring=body.enable_scoring,
                     enable_media=body.enable_media,
                 )
+            except asyncio.CancelledError:
+                logger.info(f"Pipeline task cancelled (session={session_id})")
+                raise
             except Exception as e:
                 logger.error(f"Pipeline error: {e}")
-                progress_queue.put(("error", str(e)))
+                progress_queue.put_nowait(("error", str(e)))
 
-        thread = threading.Thread(target=_run, daemon=True)
-        thread.start()
+        task = asyncio.create_task(_run_async())
+        _active_tasks.add(task)
+        task.add_done_callback(_active_tasks.discard)
 
         try:
             # Send session_id first
             yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
 
-            while thread.is_alive():
+            while not task.done():
                 # Check for client disconnect
                 if await request.is_disconnected():
                     logger.info(f"Client disconnected from /run stream (session={session_id})")
-                    disconnected.set()
-                    break
+                    task.cancel()
+                    return
                 try:
-                    msg_type, msg_data = progress_queue.get(timeout=0.2)
-                    # Drain queue for latest stream
+                    msg_type, msg_data = await asyncio.wait_for(
+                        progress_queue.get(), timeout=0.2
+                    )
+                    # Drain queue for latest stream event
                     while not progress_queue.empty():
                         try:
                             t, d = progress_queue.get_nowait()
@@ -299,25 +315,32 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                                 msg_type, msg_data = t, d
                             elif t == "error":
                                 msg_type, msg_data = t, d
-                        except queue.Empty:
+                        except asyncio.QueueEmpty:
                             break
                     event = {"type": msg_type, "data": msg_data}
                     if msg_type == "log":
                         event["logs_count"] = len(logs)
                     yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                except queue.Empty:
+                except asyncio.TimeoutError:
                     continue
 
-            if disconnected.is_set():
-                return
-
-            thread.join()
+            # Drain any remaining messages after task completion
+            while not progress_queue.empty():
+                try:
+                    msg_type, msg_data = progress_queue.get_nowait()
+                    event = {"type": msg_type, "data": msg_data}
+                    if msg_type == "log":
+                        event["logs_count"] = len(logs)
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                except asyncio.QueueEmpty:
+                    break
 
             # Send final result
             output = result[0]
             if output:
                 from api.pipeline_output_builder import build_output_summary
-                summary = build_output_summary(output)
+                safe_output = output.model_copy(deep=True)
+                summary = build_output_summary(safe_output)
                 summary["session_id"] = session_id
                 summary["logs"] = logs
                 _sanitize_summary(summary)
@@ -326,9 +349,10 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                 yield f"data: {json.dumps({'type': 'error', 'data': 'Pipeline thất bại'})}\n\n"
         except Exception as e:
             logger.error(f"SSE stream error (session={session_id}): {e}")
-            disconnected.set()
+            if not task.done():
+                task.cancel()
         finally:
-            with _orchestrators_lock:
+            async with _orchestrators_lock:
                 _orchestrators.pop(session_id, None)
             logger.debug(f"SSE /run stream closed (session={session_id})")
 
@@ -367,66 +391,79 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
     async def event_generator():
         orch = PipelineOrchestrator()
         session_id = str(id(orch))
-        with _orchestrators_lock:
+        async with _orchestrators_lock:
             _orchestrators[session_id] = orch
-        disconnected = threading.Event()
 
         logs = []
-        progress_queue = queue.Queue()
+        progress_queue: asyncio.Queue = asyncio.Queue()
 
         def on_progress(msg):
             logs.append(msg)
-            progress_queue.put(("log", msg))
+            progress_queue.put_nowait(("log", msg))
 
-        result = [None]
+        result: list = [None]
 
-        def _run():
+        async def _run_async():
             try:
-                result[0] = orch.resume_from_checkpoint(
+                result[0] = await asyncio.to_thread(
+                    orch.resume_from_checkpoint,
                     checkpoint_path=str(checkpoint_path),
                     progress_callback=on_progress,
                 )
+            except asyncio.CancelledError:
+                logger.info(f"Resume task cancelled (session={session_id})")
+                raise
             except Exception as e:
                 logger.error(f"Resume error: {e}")
-                progress_queue.put(("error", str(e)))
+                progress_queue.put_nowait(("error", str(e)))
 
-        thread = threading.Thread(target=_run, daemon=True)
-        thread.start()
+        task = asyncio.create_task(_run_async())
+        _active_tasks.add(task)
+        task.add_done_callback(_active_tasks.discard)
 
         try:
             yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
 
-            while thread.is_alive():
+            while not task.done():
                 # Check for client disconnect
                 if await request.is_disconnected():
                     logger.info(f"Client disconnected from /resume stream (session={session_id})")
-                    disconnected.set()
-                    break
+                    task.cancel()
+                    return
                 try:
-                    msg_type, msg_data = progress_queue.get(timeout=0.2)
+                    msg_type, msg_data = await asyncio.wait_for(
+                        progress_queue.get(), timeout=0.2
+                    )
                     while not progress_queue.empty():
                         try:
                             t, d = progress_queue.get_nowait()
                             if t == "error":
                                 msg_type, msg_data = t, d
-                        except queue.Empty:
+                        except asyncio.QueueEmpty:
                             break
                     event = {"type": msg_type, "data": msg_data}
                     if msg_type == "log":
                         event["logs_count"] = len(logs)
                     yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                except queue.Empty:
+                except asyncio.TimeoutError:
                     continue
 
-            if disconnected.is_set():
-                return
-
-            thread.join()
+            # Drain remaining messages after task completion
+            while not progress_queue.empty():
+                try:
+                    msg_type, msg_data = progress_queue.get_nowait()
+                    event = {"type": msg_type, "data": msg_data}
+                    if msg_type == "log":
+                        event["logs_count"] = len(logs)
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                except asyncio.QueueEmpty:
+                    break
 
             output = result[0]
             if output:
                 from api.pipeline_output_builder import build_output_summary
-                summary = build_output_summary(output)
+                safe_output = output.model_copy(deep=True)
+                summary = build_output_summary(safe_output)
                 summary["session_id"] = session_id
                 summary["logs"] = logs
                 _sanitize_summary(summary)
@@ -435,9 +472,10 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
                 yield f"data: {json.dumps({'type': 'error', 'data': 'Resume failed'})}\n\n"
         except Exception as e:
             logger.error(f"SSE stream error (session={session_id}): {e}")
-            disconnected.set()
+            if not task.done():
+                task.cancel()
         finally:
-            with _orchestrators_lock:
+            async with _orchestrators_lock:
                 _orchestrators.pop(session_id, None)
             logger.debug(f"SSE /resume stream closed (session={session_id})")
 

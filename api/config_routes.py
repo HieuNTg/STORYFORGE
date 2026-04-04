@@ -57,7 +57,6 @@ class ConfigUpdate(BaseModel):
     language: Optional[str] = None
     layer1_model: Optional[str] = None
     layer2_model: Optional[str] = None
-    layer3_model: Optional[str] = None
     enable_self_review: Optional[bool] = None
     self_review_threshold: Optional[float] = None
     image_provider: Optional[str] = None
@@ -85,7 +84,6 @@ def get_config():
             "cheap_base_url": cfg.llm.cheap_base_url,
             "layer1_model": cfg.llm.layer1_model,
             "layer2_model": cfg.llm.layer2_model,
-            "layer3_model": cfg.llm.layer3_model,
         },
         "pipeline": {
             "language": cfg.pipeline.language,
@@ -121,8 +119,6 @@ def save_config(body: ConfigUpdate):
         cfg.llm.layer1_model = body.layer1_model
     if body.layer2_model is not None:
         cfg.llm.layer2_model = body.layer2_model
-    if body.layer3_model is not None:
-        cfg.llm.layer3_model = body.layer3_model
     if body.language is not None:
         cfg.pipeline.language = body.language
         I18n().set_language(body.language)

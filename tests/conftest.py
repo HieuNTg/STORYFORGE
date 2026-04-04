@@ -7,8 +7,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 from models.schemas import (
     Character, Chapter, ChapterOutline, WorldSetting,
-    StoryDraft, EnhancedStory, PipelineOutput, SimulationResult, SimulationEvent, VideoScript, StoryboardPanel, VoiceLine,
-    ShotType,
+    StoryDraft, EnhancedStory, PipelineOutput, SimulationResult, SimulationEvent,
 )
 
 
@@ -184,44 +183,16 @@ def sample_simulation_result():
 
 
 @pytest.fixture
-def sample_video_script():
-    """Create sample video script."""
-    return VideoScript(
-        title="Thanh Van Kiem Khach",
-        panels=[
-            StoryboardPanel(
-                panel_number=1,
-                chapter_number=1,
-                shot_type=ShotType.WIDE,
-                description="Ly Huyen buoc vao tong mon",
-                dialogue="Day chinh la noi ta se bat dau.",
-                mood="determined",
-            ),
-        ],
-        voice_lines=[
-            VoiceLine(
-                character="Ly Huyen",
-                text="Day chinh la noi ta se bat dau.",
-                emotion="determined",
-            ),
-        ],
-        total_duration_seconds=300.0,
-    )
-
-
-@pytest.fixture
 def sample_pipeline_output(
     sample_story_draft,
     sample_enhanced_story,
     sample_simulation_result,
-    sample_video_script,
 ):
     """Create a complete pipeline output for agent testing."""
     return PipelineOutput(
         story_draft=sample_story_draft,
         enhanced_story=sample_enhanced_story,
         simulation_result=sample_simulation_result,
-        video_script=sample_video_script,
         reviews=[],
     )
 
