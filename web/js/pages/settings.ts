@@ -57,7 +57,7 @@ function settingsPage() {
 
     providers: [
       {
-        id: 'openai', name: 'OpenAI', icon: '🤖', hint: 'GPT-5.4, o3, o4',
+        id: 'openai', name: 'OpenAI', icon: 'chip', hint: 'GPT-5.4, o3, o4',
         url: 'https://api.openai.com/v1',
         keyPlaceholder: 'sk-proj-...',
         guide: 'Get your API key at <a href="https://platform.openai.com/api-keys" target="_blank" class="text-brand-600 underline font-medium">platform.openai.com</a> → Create new secret key → Copy and paste here.',
@@ -70,7 +70,7 @@ function settingsPage() {
         ],
       },
       {
-        id: 'gemini', name: 'Google Gemini', icon: '💎', hint: 'Gemini 2.5 / 3.1',
+        id: 'gemini', name: 'Google Gemini', icon: 'sparkles', hint: 'Gemini 2.5 / 3.1',
         url: 'https://generativelanguage.googleapis.com/v1beta/openai/',
         keyPlaceholder: 'AIza...',
         guide: 'Get a free API key at <a href="https://aistudio.google.com/apikey" target="_blank" class="text-brand-600 underline font-medium">aistudio.google.com</a> → Create API Key → Copy.',
@@ -86,7 +86,7 @@ function settingsPage() {
         ],
       },
       {
-        id: 'anthropic', name: 'Anthropic', icon: '🧠', hint: 'Claude 4.5 / 4.6',
+        id: 'anthropic', name: 'Anthropic', icon: 'academic-cap', hint: 'Claude 4.5 / 4.6',
         url: 'https://api.anthropic.com/v1/',
         keyPlaceholder: 'sk-ant-...',
         guide: 'Get your API key at <a href="https://console.anthropic.com/settings/keys" target="_blank" class="text-brand-600 underline font-medium">console.anthropic.com</a> → Create Key → Copy.',
@@ -97,7 +97,7 @@ function settingsPage() {
         ],
       },
       {
-        id: 'openrouter', name: 'OpenRouter', icon: '🔀', hint: '290+ models',
+        id: 'openrouter', name: 'OpenRouter', icon: 'arrows-right-left', hint: '290+ models',
         url: 'https://openrouter.ai/api/v1',
         keyPlaceholder: 'sk-or-...',
         guide: 'Register at <a href="https://openrouter.ai/keys" target="_blank" class="text-brand-600 underline font-medium">openrouter.ai</a> → Keys → Create Key. 29+ free models available!',
@@ -117,7 +117,7 @@ function settingsPage() {
         ],
       },
       {
-        id: 'local', name: 'Local / Ollama', icon: '💻', hint: 'Free, self-hosted',
+        id: 'local', name: 'Local / Ollama', icon: 'computer-desktop', hint: 'Free, self-hosted',
         url: 'http://localhost:11434/v1',
         keyPlaceholder: 'Leave blank or enter token...',
         guide: 'Install <a href="https://ollama.com" target="_blank" class="text-brand-600 underline font-medium">Ollama</a> → run <code class="bg-slate-100 px-1.5 py-0.5 rounded text-xs">ollama run qwen3.5:9b</code> → ready to use, no API key needed.',
@@ -130,7 +130,7 @@ function settingsPage() {
         ],
       },
       {
-        id: 'custom', name: 'Custom', icon: '⚙️', hint: 'Any URL',
+        id: 'custom', name: 'Custom', icon: 'cog-6-tooth', hint: 'Any URL',
         url: '',
         keyPlaceholder: 'API key...',
         guide: 'Enter the base URL and model name manually in the <strong>Advanced Settings</strong> section below.',
@@ -161,7 +161,7 @@ function settingsPage() {
       } catch (e) { this.message = 'Preset error: ' + (e as Error).message; }
     },
 
-    providerIcons: { openai: '🤖', gemini: '💎', anthropic: '🧠', openrouter: '🔀', local: '💻', custom: '⚙️' } as Record<string, string>,
+    providerIconIds: { openai: 'chip', gemini: 'sparkles', anthropic: 'academic-cap', openrouter: 'arrows-right-left', local: 'computer-desktop', custom: 'cog-6-tooth' } as Record<string, string>,
 
     openAddProfile(): void {
       this.profileForm = { name: '', base_url: '', api_key: '', model: '', enabled: true };

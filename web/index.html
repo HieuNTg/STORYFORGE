@@ -650,18 +650,27 @@
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <button @click="applyModelPreset('openrouter-free-basic')"
                 class="flex flex-col gap-1 p-3 rounded-xl border-2 border-surface-200 hover:border-brand-400 hover:bg-white transition-all cursor-pointer text-left">
-                <span class="text-sm font-semibold text-slate-700">🦙 Basic</span>
+                <span class="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z"/></svg>
+                  Basic
+                </span>
                 <span class="text-xs text-slate-500">Qwen 3.6 Plus for all layers</span>
               </button>
               <button @click="applyModelPreset('openrouter-free-optimized')"
                 class="flex flex-col gap-1 p-3 rounded-xl border-2 border-brand-300 bg-white ring-1 ring-brand-100 hover:border-brand-500 transition-all cursor-pointer text-left">
-                <span class="text-sm font-semibold text-brand-700">🎯 Optimized</span>
+                <span class="flex items-center gap-1.5 text-sm font-semibold text-brand-700">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+                  Optimized
+                </span>
                 <span class="text-xs text-slate-500">Qwen 3.6 + Nemotron per layer</span>
                 <span class="text-[10px] text-brand-500 font-medium">RECOMMENDED</span>
               </button>
               <button @click="applyModelPreset('openrouter-free-max')"
                 class="flex flex-col gap-1 p-3 rounded-xl border-2 border-surface-200 hover:border-brand-400 hover:bg-white transition-all cursor-pointer text-left">
-                <span class="text-sm font-semibold text-slate-700">🚀 Max Context</span>
+                <span class="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg>
+                  Max Context
+                </span>
                 <span class="text-xs text-slate-500">Qwen 3.6 1M + Nemotron 120B</span>
               </button>
             </div>
@@ -686,7 +695,14 @@
                     ? 'border-brand-500 bg-brand-50 ring-2 ring-brand-200'
                     : 'border-surface-200 hover:border-brand-300 hover:bg-surface-50'"
                   class="relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer text-center">
-                  <span class="text-2xl" x-text="p.icon"></span>
+                  <div class="w-8 h-8 flex items-center justify-center text-brand-600">
+                    <svg x-show="p.icon === 'chip'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5M4.5 15.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25z"/></svg>
+                    <svg x-show="p.icon === 'sparkles'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"/></svg>
+                    <svg x-show="p.icon === 'academic-cap'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15v-3.75m0 0h10.5m-10.5 0V15m10.5-3.75V15"/></svg>
+                    <svg x-show="p.icon === 'arrows-right-left'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+                    <svg x-show="p.icon === 'computer-desktop'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"/></svg>
+                    <svg x-show="p.icon === 'cog-6-tooth'" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  </div>
                   <span class="text-sm font-semibold text-slate-700" x-text="p.name"></span>
                   <span class="text-xs text-slate-400" x-text="p.hint"></span>
                   <span x-show="selectedProvider === p.id" class="absolute top-2 right-2">
@@ -796,7 +812,14 @@
             <div x-show="profiles.length" class="divide-y divide-surface-100 border border-surface-200 rounded-lg overflow-hidden">
               <template x-for="(p, i) in profiles" :key="i">
                 <div class="flex items-center gap-3 px-3 py-3 bg-white group" :class="!p.enabled && 'opacity-50'">
-                  <span class="flex-shrink-0 text-lg" x-text="providerIcons[p.provider] || '⚙️'"></span>
+                  <div class="flex-shrink-0 w-6 h-6 flex items-center justify-center text-brand-600">
+                    <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'chip'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5M4.5 15.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25z"/></svg>
+                    <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'sparkles'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"/></svg>
+                    <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'academic-cap'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15v-3.75m0 0h10.5m-10.5 0V15m10.5-3.75V15"/></svg>
+                    <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'arrows-right-left'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+                    <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'computer-desktop'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"/></svg>
+                    <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'cog-6-tooth'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  </div>
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2">
                       <span class="text-sm font-medium text-slate-700 truncate" x-text="p.name"></span>
@@ -851,7 +874,14 @@
               </div>
               <!-- Auto-detected provider badge -->
               <div x-show="profileDetected" x-transition class="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                <span class="text-lg" x-text="providerIcons[profileDetected?.provider] || '⚙️'"></span>
+                <div class="w-6 h-6 flex items-center justify-center text-green-700">
+                    <svg x-show="(providerIconIds[profileDetected?.provider] || 'cog-6-tooth') === 'chip'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5M4.5 15.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25z"/></svg>
+                    <svg x-show="(providerIconIds[profileDetected?.provider] || 'cog-6-tooth') === 'sparkles'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"/></svg>
+                    <svg x-show="(providerIconIds[profileDetected?.provider] || 'cog-6-tooth') === 'academic-cap'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15v-3.75m0 0h10.5m-10.5 0V15m10.5-3.75V15"/></svg>
+                    <svg x-show="(providerIconIds[profileDetected?.provider] || 'cog-6-tooth') === 'arrows-right-left'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+                    <svg x-show="(providerIconIds[profileDetected?.provider] || 'cog-6-tooth') === 'computer-desktop'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"/></svg>
+                    <svg x-show="(providerIconIds[profileDetected?.provider] || 'cog-6-tooth') === 'cog-6-tooth'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  </div>
                 <div class="flex-1">
                   <span class="text-sm font-medium text-green-800" x-text="profileDetected?.name"></span>
                   <span class="text-xs text-green-600 ml-2" x-text="'Model: ' + profileDetected?.model"></span>
@@ -901,7 +931,7 @@
             <div class="flex gap-3 items-end">
               <div class="flex-1">
                 <label for="sf-model" class="block text-xs text-slate-400 mb-1">Or type model name</label>
-                <input id="sf-model" type="text" x-model="form.model" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all" placeholder="e.g. gpt-4o-mini">
+                <input id="sf-model" type="text" x-model="form.model" class="w-full h-10 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all" placeholder="e.g. gpt-4o-mini">
               </div>
             </div>
           </div>
@@ -909,7 +939,7 @@
           <!-- Image Generation Settings -->
           <div class="card p-5 space-y-4">
             <div class="flex items-center gap-2 mb-1">
-              <span class="text-xl">🎨</span>
+              <svg class="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42"/></svg>
               <h2 class="font-semibold text-base text-slate-700">Image Generation</h2>
             </div>
             <p class="text-sm text-slate-500">Configure AI image generation for story illustrations.</p>
@@ -918,7 +948,7 @@
             <div>
               <label for="sf-image-provider" class="block text-xs text-slate-500 mb-1">Image Provider</label>
               <select id="sf-image-provider" x-model="form.image_provider"
-                class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all bg-white">
+                class="w-full h-10 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all bg-white">
                 <option value="none">None (disabled)</option>
                 <option value="huggingface">HuggingFace Inference</option>
                 <option value="dalle">DALL-E (OpenAI)</option>
@@ -935,14 +965,14 @@
                   <span x-show="maskedHfToken && maskedHfToken !== '***'" class="text-green-600 font-medium text-xs">Saved</span>
                 </label>
                 <input id="sf-hf-token" type="password" x-model="form.hf_token"
-                  class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all"
+                  class="w-full h-10 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all"
                   placeholder="hf_... (leave blank to keep saved token)">
                 <p class="text-xs text-slate-400 mt-1">Get a free token at <a href="https://huggingface.co/settings/tokens" target="_blank" class="text-brand-600 underline">huggingface.co/settings/tokens</a></p>
               </div>
               <div>
                 <label for="sf-hf-image-model" class="block text-xs text-slate-500 mb-1">HuggingFace Model</label>
                 <input id="sf-hf-image-model" type="text" x-model="form.hf_image_model"
-                  class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all"
+                  class="w-full h-10 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all"
                   placeholder="black-forest-labs/FLUX.1-schnell">
               </div>
             </div>
@@ -951,7 +981,7 @@
             <div>
               <label for="sf-image-style" class="block text-xs text-slate-500 mb-1">Image Style</label>
               <select id="sf-image-style" x-model="form.image_prompt_style"
-                class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all bg-white">
+                class="w-full h-10 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all bg-white">
                 <option value="cinematic">Cinematic</option>
                 <option value="anime">Anime</option>
                 <option value="realistic">Realistic</option>
@@ -997,17 +1027,17 @@
                   <button @click="form.temperature = 0.3"
                     :class="form.temperature <= 0.5 ? 'bg-blue-50 border-blue-400 text-blue-700' : 'border-surface-200 text-slate-500 hover:border-blue-300'"
                     class="flex-1 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all cursor-pointer text-center">
-                    <div class="text-base mb-0.5">🎯</div>Precise
+                    <div class="flex justify-center mb-0.5"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" stroke-linecap="round" stroke-linejoin="round"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 2v2m0 16v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M2 12h2m16 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></div>Precise
                   </button>
                   <button @click="form.temperature = 0.8"
                     :class="form.temperature > 0.5 && form.temperature <= 1.2 ? 'bg-purple-50 border-purple-400 text-purple-700' : 'border-surface-200 text-slate-500 hover:border-purple-300'"
                     class="flex-1 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all cursor-pointer text-center">
-                    <div class="text-base mb-0.5">✨</div>Balanced
+                    <div class="flex justify-center mb-0.5"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"/></svg></div>Balanced
                   </button>
                   <button @click="form.temperature = 1.4"
                     :class="form.temperature > 1.2 ? 'bg-orange-50 border-orange-400 text-orange-700' : 'border-surface-200 text-slate-500 hover:border-orange-300'"
                     class="flex-1 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all cursor-pointer text-center">
-                    <div class="text-base mb-0.5">🎨</div>Creative
+                    <div class="flex justify-center mb-0.5"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42"/></svg></div>Creative
                   </button>
                 </div>
               </div>
@@ -1036,7 +1066,7 @@
                 <div>
                   <label for="sf-cheap-model" class="block text-sm font-medium text-slate-700 mb-1">Cost-Saving Model <span class="font-normal text-slate-400">(optional)</span></label>
                   <p class="text-xs text-slate-400 mb-2">Use a cheaper model for outlines and reviews to reduce API costs.</p>
-                  <input id="sf-cheap-model" type="text" x-model="form.cheap_model" placeholder="e.g. gpt-4o-mini, gemini-flash" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none">
+                  <input id="sf-cheap-model" type="text" x-model="form.cheap_model" placeholder="e.g. gpt-4o-mini, gemini-flash" class="w-full h-10 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none">
                 </div>
               </div>
 
@@ -1046,12 +1076,12 @@
                 <div class="mt-3 space-y-3">
                   <div>
                     <label for="sf-base-url" class="block text-xs font-medium text-slate-500 mb-1">API Base URL</label>
-                    <input id="sf-base-url" type="text" x-model="form.base_url" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none" placeholder="Auto-filled from provider">
+                    <input id="sf-base-url" type="text" x-model="form.base_url" class="w-full h-10 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none" placeholder="Auto-filled from provider">
                     <p class="text-xs text-slate-400 mt-1">Only change if using a proxy or custom endpoint.</p>
                   </div>
                   <div>
                     <label for="sf-cheap-base-url" class="block text-xs font-medium text-slate-500 mb-1">Cost-Saving Model Base URL</label>
-                    <input id="sf-cheap-base-url" type="text" x-model="form.cheap_base_url" placeholder="Leave blank to use main URL" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none">
+                    <input id="sf-cheap-base-url" type="text" x-model="form.cheap_base_url" placeholder="Leave blank to use main URL" class="w-full h-10 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none">
                   </div>
                   <div class="grid grid-cols-2 gap-4">
                     <div>
