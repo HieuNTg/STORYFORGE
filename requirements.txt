@@ -1,15 +1,17 @@
 # ── Core framework ──
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
+fastapi>=0.109.0,<1.0
+uvicorn[standard]>=0.27.0,<1.0
 
 # ── AI / LLM ──
-openai==1.51.0
-chromadb==0.4.24
-sentence-transformers==2.7.0
+# openai <2.0: v2 has breaking client API changes (responses.create → completions split, etc.)
+openai>=1.51.0,<2.0
+# chromadb <0.5: 1.x is a full rewrite with incompatible collection/query API
+chromadb>=0.4.24,<0.5
+sentence-transformers>=2.7.0,<3.0
 
 # ── Data & validation ──
-pydantic==2.9.2
-requests==2.32.3
+pydantic>=2.9.2,<3.0
+requests>=2.32.3,<3.0
 
 # ── Export ──
 fpdf2==2.8.1
@@ -17,19 +19,17 @@ ebooklib==0.18
 plotly==5.24.1
 
 # ── Auth & security ──
-bcrypt==4.2.0
-cryptography==43.0.3
-
-# ── Browser auth (optional — needed for SSO flows) ──
-playwright==1.48.0
+bcrypt>=4.2.0,<5.0
+# cryptography <44.0: pin to current major to avoid unexpected cipher deprecations
+cryptography>=43.0.3,<44.0
 
 # ── Testing (dev only — also in requirements-test.txt) ──
 pytest-asyncio==0.24.0
 
 # ── Cache ──
-redis==5.2.1
+redis>=5.2.1,<6.0
 # ── Security ──
-nh3==0.2.18
+nh3>=0.2.18,<1.0
 
 # ── Optional LLM provider SDKs (install for native support) ──
 # anthropic>=0.39.0

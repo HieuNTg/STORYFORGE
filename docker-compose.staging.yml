@@ -1,32 +1,124 @@
 version: "3.8"
 
+# StoryForge Staging — mirrors production at reduced resource limits.
+# No monitoring stack (Loki/Promtail/Prometheus/Grafana) to keep staging lean.
+# Usage: docker compose -f docker-compose.staging.yml up -d
+# Required env file: .env.staging
+
+networks:
+  storyforge:
+    driver: bridge
+
+volumes:
+  storyforge-staging-data:
+  storyforge-staging-output:
+  staging-pg-data:
+  staging-redis-data:
+
 services:
-  storyforge-staging:
-    build: .
+
+  # ── PostgreSQL 16 ──────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: storyforge-staging-db
+    restart: unless-stopped
+    networks:
+      - storyforge
+    volumes:
+      - staging-pg-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: storyforge
+      POSTGRES_USER: ${DB_USER:-storyforge}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-storyforge} -d storyforge"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  # ── Redis 7 ───────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: storyforge-staging-redis
+    restart: unless-stopped
+    networks:
+      - storyforge
+    volumes:
+      - staging-redis-data:/data
+    command: redis-server --appendonly yes --appendfsync everysec --requirepass ${REDIS_PASSWORD}
+    environment:
+      - REDISCLI_AUTH=${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+  # ── StoryForge App ─────────────────────────────────────────────────────────
+  app:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-hieuNTg}/storyforge:edge
     container_name: storyforge-staging
+    restart: unless-stopped
+    networks:
+      - storyforge
     ports:
-      - "7861:7860"  # Different port to avoid conflict with production
+      - "7861:7860"
     volumes:
       - storyforge-staging-data:/app/data
       - storyforge-staging-output:/app/output
     env_file:
       - .env.staging
     environment:
-      - STORYFORGE_BASE_URL=${STORYFORGE_BASE_URL:-https://api.openai.com/v1}
-      - STORYFORGE_MODEL=${STORYFORGE_MODEL:-gpt-4o-mini}
-      - STORYFORGE_BACKEND=${STORYFORGE_BACKEND:-api}
-      - STORYFORGE_TEMPERATURE=${STORYFORGE_TEMPERATURE:-0.8}
-      # Staging-specific: enable all quality features for validation
-      - STORYFORGE_QUALITY_GATE=true
-      - STORYFORGE_SMART_REVISION=true
-      - STORYFORGE_AGENT_DEBATE=true
-    restart: unless-stopped
+      # Database
+      DATABASE_URL: postgresql://${DB_USER:-storyforge}:${DB_PASSWORD}@db:5432/storyforge
+      # Redis
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      # Security
+      STORYFORGE_SECRET_KEY: ${SECRET_KEY}
+      STORYFORGE_ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:7861}
+      STORYFORGE_JWT_KEY_DIR: /app/data/jwt_keys
+      # LLM backend
+      STORYFORGE_BASE_URL: ${STORYFORGE_BASE_URL:-https://api.openai.com/v1}
+      STORYFORGE_MODEL: ${STORYFORGE_MODEL:-gpt-4o-mini}
+      STORYFORGE_BACKEND: ${STORYFORGE_BACKEND:-api}
+      STORYFORGE_TEMPERATURE: ${STORYFORGE_TEMPERATURE:-0.8}
+      STORYFORGE_API_KEY: ${STORYFORGE_API_KEY}
+      # Staging: enable all quality features for validation
+      STORYFORGE_QUALITY_GATE: "true"
+      STORYFORGE_SMART_REVISION: "true"
+      STORYFORGE_AGENT_DEBATE: "true"
+      # Runtime
+      PYTHONUNBUFFERED: "1"
+      ENVIRONMENT: staging
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:7860/api/health')"]
       interval: 30s
-      timeout: 10s
+      timeout: 15s
       retries: 3
-
-volumes:
-  storyforge-staging-data:
-  storyforge-staging-output:
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
