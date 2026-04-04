@@ -54,7 +54,9 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 - **13 specialized AI agents** — autonomous character agents plus a drama critic, editor-in-chief, pacing analyzer, style consistency checker, dialogue expert, and more
 - **Quality scoring & auto-revision** — 4-dimension LLM-as-judge (coherence, character, drama, writing style) with an automated re-enhancement loop
 - **Image generation** — character-consistent portraits (IP-Adapter) and cinematic scene backgrounds, generated after drama simulation
-- **Multi-provider LLM support** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ models), Ollama (local), or any custom OpenAI-compatible endpoint
+- **Multi-provider LLM support** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ models), Ollama (local), or any custom OpenAI-compatible endpoint; auto-detect provider from API key
+- **Multi-provider fallback** — configure fallback profiles that auto-switch between providers on rate limit or failure
+- **Cumulative story memory** — character knowledge, relationships, and plot threads accumulate across chapters instead of resetting, ensuring multi-chapter continuity
 - **Vietnamese & English** — bilingual story generation out of the box
 - **Rich export** — PDF, EPUB, HTML web reader, and ZIP with chapters and image prompts
 - **Interactive branch reader** — choose-your-own-adventure mode with LLM-generated branching paths
@@ -94,7 +96,7 @@ python app.py
 
 ### First Run
 
-1. **Settings** → choose your AI provider, enter API key, select model
+1. **Settings** → paste your API key (provider auto-detected), select model
 2. **Create Story** → pick genre, style, describe your idea in one sentence
 3. **Run Pipeline** → watch generation, simulation, and image generation stream in real-time
 4. **Reader** → read the finished story or launch Branch Mode for interactive paths

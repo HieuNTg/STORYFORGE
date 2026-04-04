@@ -54,7 +54,9 @@ Hầu hết công cụ viết AI tạo ra những câu chuyện phẳng, dễ đ
 - **13 tác nhân AI chuyên biệt** — nhân vật tự trị + nhà phê bình kịch tính, tổng biên tập, phân tích nhịp điệu, kiểm tra phong cách, chuyên gia hội thoại...
 - **Chấm điểm & tự sửa** — đánh giá LLM theo 4 chiều (mạch lạc, nhân vật, kịch tính, văn phong) với vòng lặp tự động nâng chất
 - **Tạo hình ảnh** — chân dung nhân vật nhất quán (IP-Adapter) và phông cảnh điện ảnh, tạo sau mô phỏng kịch tính
-- **Hỗ trợ đa nhà cung cấp LLM** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ model), Ollama (local), hoặc endpoint tùy chỉnh
+- **Hỗ trợ đa nhà cung cấp LLM** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ model), Ollama (local), hoặc endpoint tùy chỉnh; tự nhận diện nhà cung cấp từ API key
+- **Fallback đa nhà cung cấp** — cấu hình hồ sơ dự phòng tự động chuyển sang nhà cung cấp khác khi bị rate limit hoặc lỗi
+- **Bộ nhớ truyện tích lũy** — kiến thức nhân vật, mối quan hệ và tuyến truyện được tích lũy xuyên suốt các chương thay vì reset, đảm bảo tính liên tục cho truyện nhiều chương
 - **Tiếng Việt & Tiếng Anh** — tạo truyện song ngữ ngay từ đầu
 - **Xuất phong phú** — PDF, EPUB, HTML web reader, ZIP với các chương và gợi ý hình ảnh
 - **Chế độ đọc nhánh tương tác** — chọn-hướng-phiêu-lưu với các nhánh sinh bởi LLM
@@ -94,7 +96,7 @@ python app.py
 
 ### Lần chạy đầu tiên
 
-1. **Cài đặt** → chọn nhà cung cấp AI, nhập API key, chọn model
+1. **Cài đặt** → dán API key (tự nhận diện nhà cung cấp), chọn model
 2. **Tạo truyện** → chọn thể loại, phong cách, mô tả ý tưởng một câu
 3. **Chạy Pipeline** → xem quá trình tạo, mô phỏng và tạo hình ảnh stream thời gian thực
 4. **Đọc** → đọc truyện hoàn chỉnh hoặc khởi động Chế độ Nhánh tương tác
