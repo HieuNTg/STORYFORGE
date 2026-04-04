@@ -352,10 +352,6 @@ def handle_character_gallery(orch_state) -> list:
             return []
         char_refs = getattr(output, "character_refs", None)
         if not char_refs:
-            vs = getattr(output, "video_script", None)
-            if vs:
-                char_refs = getattr(vs, "character_refs", None)
-        if not char_refs:
             return []
         return [(path, name) for name, path in char_refs.items() if path and os.path.exists(path)]
     except Exception as e:

@@ -28,14 +28,12 @@ services/                   → Business logic (no circular deps to api/)
   deepseek_web_client.py      DEPRECATED in v3.x, emits DeprecationWarning
   i18n.py                     ✓ Translation singleton
   llm_cache.py                ✓ SQLite TTL cache
-  tts_audio_generator.py      ✓ edge-tts integration
   [other service modules]
 
-pipeline/                   → 3-layer generation engine
+pipeline/                   → 2-layer generation engine
   orchestrator.py             ✓ Checkpoint & resume
   layer1_story/               ✓ Story generation layer
   layer2_enhance/             ✓ Drama simulation (13 agents)
-  layer3_video/               ✓ Storyboarding layer
   agents/                     ✓ Stateless agent implementations
 
 middleware/                 → Cross-cutting concerns
