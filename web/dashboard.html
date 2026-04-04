@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="/static/css/tokens.css">
   <style>
     body { background: #0f172a; color: #e2e8f0; }
-    .card { background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; padding: 1.25rem; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; padding: 1.25rem; overflow: hidden; }
     .stat-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
     .stat-value { font-size: 1.75rem; font-weight: 700; color: #f1f5f9; }
   </style>
@@ -38,7 +38,7 @@
       <h2 class="font-semibold text-slate-200 mb-4">Pipeline Runs</h2>
       <div class="flex items-center gap-6">
         <div class="w-40 h-40 flex-shrink-0">
-          <canvas id="pipelineChart"></canvas>
+          <canvas id="pipelineChart" role="img" aria-label="Pipeline runs doughnut chart showing success, error, and active counts"></canvas>
         </div>
         <div class="space-y-3">
           <div>
@@ -66,7 +66,7 @@
     <!-- Card 2: Quality Score Distribution -->
     <div class="card">
       <h2 class="font-semibold text-slate-200 mb-4">Quality Score Distribution</h2>
-      <canvas id="qualityChart" height="160"></canvas>
+      <canvas id="qualityChart" height="160" role="img" aria-label="Quality score distribution bar chart"></canvas>
     </div>
 
     <!-- Card 3: LLM Usage -->
@@ -91,7 +91,7 @@
     <!-- Card 4: Onboarding Funnel -->
     <div class="card">
       <h2 class="font-semibold text-slate-200 mb-4">Onboarding Funnel</h2>
-      <canvas id="funnelChart" height="160"></canvas>
+      <canvas id="funnelChart" height="160" role="img" aria-label="Onboarding funnel bar chart showing completed and dropped counts per step"></canvas>
     </div>
 
   </div>
@@ -175,7 +175,9 @@
 
     initCharts();
     fetchData();
-    setInterval(fetchData, 30000);
+    setInterval(function() {
+      if (!document.hidden) fetchData();
+    }, 30000);
   </script>
 </body>
 </html>

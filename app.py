@@ -194,6 +194,10 @@ def main():
     from middleware.security_headers import SecurityHeadersMiddleware
     main_app.add_middleware(SecurityHeadersMiddleware)
 
+    # --- Input sanitization middleware (prompt injection detection) ---
+    from middleware.sanitization import SanitizationMiddleware
+    main_app.add_middleware(SanitizationMiddleware)
+
     # --- Rate limiting middleware (Redis or in-memory, per-IP) ---
     from middleware.rate_limiter import RateLimitMiddleware
     main_app.add_middleware(RateLimitMiddleware)
@@ -216,7 +220,7 @@ def main():
     register_exception_handlers(main_app)
 
     from fastapi.responses import JSONResponse
-    from services.input_sanitizer import InjectionBlockedError
+    from services.security.input_sanitizer import InjectionBlockedError
 
     @main_app.exception_handler(InjectionBlockedError)
     async def injection_blocked_handler(request, exc):
@@ -295,6 +299,14 @@ def main():
                     "redis": redis_str,
                 },
             },
+        )
+
+    _secret = os.environ.get("STORYFORGE_SECRET_KEY", "")
+    if _secret in ("", "change-me-in-production"):
+        logger.warning(
+            "STORYFORGE_SECRET_KEY is not set or still default — "
+            "secrets at rest will NOT be encrypted. "
+            "Set a strong key for production use."
         )
 
     if not _preflight_check():

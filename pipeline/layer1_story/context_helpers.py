@@ -44,13 +44,15 @@ def write_chapter_with_long_context(
     from pipeline.layer1_story.chapter_writer import build_chapter_prompt
 
     use_lc = False
+    window_size = getattr(config.pipeline, "context_window_chapters", 5)
+    windowed_texts = all_chapter_texts[-window_size:] if all_chapter_texts else []
     if (
-        all_chapter_texts
+        windowed_texts
         and config.pipeline.use_long_context
         and long_context_client.is_configured
     ):
         from services.token_counter import fits_in_context
-        if fits_in_context(all_chapter_texts, long_context_client.max_context):
+        if fits_in_context(windowed_texts, long_context_client.max_context):
             use_lc = True
         else:
             logger.info(
@@ -62,7 +64,7 @@ def write_chapter_with_long_context(
     sys_prompt, user_prompt = build_chapter_prompt(
         config, title, genre, style, characters, world, outline,
         word_count, story_context, bible_context=bible_ctx,
-        full_chapter_texts=all_chapter_texts if use_lc else None,
+        full_chapter_texts=windowed_texts if use_lc else None,
         rag_kb=rag_kb,
     )
     if use_lc:

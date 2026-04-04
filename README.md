@@ -100,6 +100,33 @@ python app.py
 
 ---
 
+## Deployment & Scaling
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `STORYFORGE_SECRET_KEY` | _(file-based)_ | HMAC signing key. **Set this in production.** |
+| `REDIS_URL` | _(none)_ | Redis URL for cache + sessions. Required for multi-instance. |
+| `NUM_WORKERS` | `1` | Uvicorn workers. Scale with CPU cores. |
+| `STORYFORGE_ALLOWED_ORIGINS` | `localhost:7860` | CORS origins (comma-separated). |
+| `TRUSTED_PROXY_IPS` | _(none)_ | Trusted proxy IPs for X-Forwarded-For. |
+| `DB_POOL_SIZE` | `5` | SQLAlchemy connection pool size. |
+| `STORYFORGE_BLOCK_INJECTION` | `true` | Block detected prompt injections. |
+
+### Single Instance (default)
+Works out of the box with SQLite cache. No Redis needed.
+
+### Multi-Instance
+Requires Redis for shared cache and session state:
+```bash
+REDIS_URL=redis://redis:6379 NUM_WORKERS=4 docker compose up -d
+```
+
+> ⚠️ Without Redis, each worker has its own in-memory cache — sessions won't be shared.
+
+---
+
 ## Configuration
 
 All settings are managed through the **Settings** tab in the web UI and persisted to `data/config.json`. Key environment variables for Docker deployments:

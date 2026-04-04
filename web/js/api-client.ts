@@ -64,7 +64,11 @@ var API: ApiClient = {
     for (let attempt = 0; attempt <= GET_MAX_RETRIES; attempt++) {
       try {
         const res = await fetchWithTimeout(this.base + path, {}, DEFAULT_TIMEOUT_MS)
-        if (!res.ok) throw new Error(`GET ${path}: ${res.status}`)
+        if (!res.ok) {
+          let detail = `GET ${path}: ${res.status}`
+          try { const body = await res.json(); if (body.detail) detail = body.detail } catch {}
+          throw new Error(detail)
+        }
         return res.json() as Promise<T>
       } catch (err) {
         // Don't retry HTTP errors (res.ok was false) — only network/timeout errors.
@@ -88,7 +92,11 @@ var API: ApiClient = {
       },
       DEFAULT_TIMEOUT_MS,
     )
-    if (!res.ok) throw new Error(`POST ${path}: ${res.status}`)
+    if (!res.ok) {
+      let detail = `POST ${path}: ${res.status}`
+      try { const body = await res.json(); if (body.detail) detail = body.detail } catch {}
+      throw new Error(detail)
+    }
     return res.json() as Promise<T>
   },
 
@@ -102,7 +110,11 @@ var API: ApiClient = {
       },
       DEFAULT_TIMEOUT_MS,
     )
-    if (!res.ok) throw new Error(`PUT ${path}: ${res.status}`)
+    if (!res.ok) {
+      let detail = `PUT ${path}: ${res.status}`
+      try { const body = await res.json(); if (body.detail) detail = body.detail } catch {}
+      throw new Error(detail)
+    }
     return res.json() as Promise<T>
   },
 
@@ -116,7 +128,11 @@ var API: ApiClient = {
       },
       DEFAULT_TIMEOUT_MS,
     )
-    if (!res.ok) throw new Error(`PATCH ${path}: ${res.status}`)
+    if (!res.ok) {
+      let detail = `PATCH ${path}: ${res.status}`
+      try { const body = await res.json(); if (body.detail) detail = body.detail } catch {}
+      throw new Error(detail)
+    }
     return res.json() as Promise<T>
   },
 
@@ -126,7 +142,11 @@ var API: ApiClient = {
       { method: 'DELETE', headers: mutationHeaders() },
       DEFAULT_TIMEOUT_MS,
     )
-    if (!res.ok) throw new Error(`DELETE ${path}: ${res.status}`)
+    if (!res.ok) {
+      let detail = `DELETE ${path}: ${res.status}`
+      try { const body = await res.json(); if (body.detail) detail = body.detail } catch {}
+      throw new Error(detail)
+    }
     return res.json() as Promise<T>
   },
 
@@ -145,7 +165,11 @@ var API: ApiClient = {
       },
       STREAM_TIMEOUT_MS,
     )
-    if (!res.ok) throw new Error(`SSE ${path}: ${res.status}`)
+    if (!res.ok) {
+      let detail = `SSE ${path}: ${res.status}`
+      try { const body = await res.json(); if (body.detail) detail = body.detail } catch {}
+      throw new Error(detail)
+    }
 
     // ReadableStream is guaranteed non-null for successful fetch responses
     const reader = res.body!.getReader()
@@ -244,7 +268,11 @@ var API: ApiClient = {
       { method: 'POST', headers: mutationHeaders() },
       DEFAULT_TIMEOUT_MS,
     )
-    if (!res.ok) throw new Error(`Download ${path}: ${res.status}`)
+    if (!res.ok) {
+      let detail = `Download ${path}: ${res.status}`
+      try { const body = await res.json(); if (body.detail) detail = body.detail } catch {}
+      throw new Error(detail)
+    }
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')

@@ -210,13 +210,16 @@ async def close_db() -> None:
     """
     global _engine, _session_factory
 
+    engine_to_dispose = None
     with _lock:
         if _engine is not None:
-            try:
-                await _engine.dispose()
-                logger.info("close_db: engine disposed.")
-            except Exception as exc:
-                logger.error("close_db error: %s", exc, exc_info=True)
-            finally:
-                _engine = None
-                _session_factory = None
+            engine_to_dispose = _engine
+            _engine = None
+            _session_factory = None
+
+    if engine_to_dispose is not None:
+        try:
+            await engine_to_dispose.dispose()
+            logger.info("close_db: engine disposed.")
+        except Exception as exc:
+            logger.error("close_db error: %s", exc, exc_info=True)

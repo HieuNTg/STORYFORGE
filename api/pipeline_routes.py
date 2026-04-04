@@ -6,6 +6,7 @@ import logging
 import queue as _queue
 import os
 import time
+import uuid
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -31,11 +32,31 @@ def _sanitize_summary(summary: dict) -> dict:
 # Shared orchestrator instance per session.
 # asyncio.Lock: concurrent SSE requests (different sessions) may interleave
 # within the same event loop when awaiting.
-_orchestrators: dict[str, PipelineOrchestrator] = {}
+# Single dict merges orchestrator + timestamp to eliminate race conditions in reaper.
+_sessions: dict[str, tuple[PipelineOrchestrator, float, str]] = {}  # (orch, ts, client_ip)
 _orchestrators_lock = asyncio.Lock()
-_orchestrator_timestamps: dict[str, float] = {}
 _SESSION_TTL = 3600  # 1 hour
 _REAPER_INTERVAL = 300  # check every 5 minutes
+_MAX_SESSIONS_PER_IP = 3
+
+
+class _OrchestratorView:
+    """Read-only dict-like view over _sessions exposing only the orchestrator.
+
+    Provides backward-compatible `.get()` so external modules (e.g. export_routes)
+    can look up an orchestrator by session_id without knowing the internal tuple layout.
+    """
+
+    def get(self, key: str, default=None):
+        entry = _sessions.get(key)
+        return entry[0] if entry is not None else default
+
+    def __contains__(self, key: str) -> bool:
+        return key in _sessions
+
+
+# Backward-compatible alias used by api/export_routes.py
+_orchestrators = _OrchestratorView()
 
 # Active pipeline tasks — tracked for graceful shutdown.
 _active_tasks: set[asyncio.Task] = set()
@@ -45,10 +66,10 @@ async def _session_reaper():
     while True:
         await asyncio.sleep(_REAPER_INTERVAL)
         now = time.time()
-        expired = [k for k, ts in _orchestrator_timestamps.items() if now - ts > _SESSION_TTL]
-        for k in expired:
-            _orchestrators.pop(k, None)
-            _orchestrator_timestamps.pop(k, None)
+        async with _orchestrators_lock:
+            expired = [k for k, (_, ts, _ip) in _sessions.items() if now - ts > _SESSION_TTL]
+            for k in expired:
+                _sessions.pop(k, None)
         if expired:
             logger.debug(f"Session reaper evicted {len(expired)} expired orchestrator(s)")
 
@@ -171,6 +192,10 @@ def get_checkpoint(filename: str):
     if not checkpoint_path.exists():
         raise HTTPException(status_code=404, detail="Checkpoint not found")
 
+    _MAX_CHECKPOINT_BYTES = 50 * 1024 * 1024  # 50 MB
+    if checkpoint_path.stat().st_size > _MAX_CHECKPOINT_BYTES:
+        raise HTTPException(status_code=413, detail="Checkpoint file too large (max 50MB)")
+
     try:
         with open(str(checkpoint_path), "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -254,12 +279,19 @@ async def run_pipeline(request: Request, body: PipelineRequest):
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
+    client_ip = request.client.host if request.client else "unknown"
+
     async def event_generator():
-        orch = PipelineOrchestrator()
-        session_id = str(id(orch))
         async with _orchestrators_lock:
-            _orchestrators[session_id] = orch
-            _orchestrator_timestamps[session_id] = time.time()
+            ip_count = sum(1 for (_, _, ip) in _sessions.values() if ip == client_ip)
+            if ip_count >= _MAX_SESSIONS_PER_IP:
+                yield f"data: {json.dumps({'type': 'error', 'data': f'Too many concurrent sessions (max {_MAX_SESSIONS_PER_IP}). Please wait for current stories to finish.'})}\n\n"
+                return
+
+        orch = PipelineOrchestrator()
+        session_id = str(uuid.uuid4())
+        async with _orchestrators_lock:
+            _sessions[session_id] = (orch, time.time(), client_ip)
 
         logs = []
         progress_queue: _queue.Queue = _queue.Queue()
@@ -307,9 +339,15 @@ async def run_pipeline(request: Request, body: PipelineRequest):
             except asyncio.CancelledError:
                 logger.info(f"Pipeline task cancelled (session={session_id})")
                 raise
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Pipeline input error (session={session_id}): {e}")
+                progress_queue.put_nowait(("error", "Invalid pipeline input. Please check your settings."))
+            except (TimeoutError, ConnectionError) as e:
+                logger.error(f"Pipeline network error (session={session_id}): {e}")
+                progress_queue.put_nowait(("error", "Network error during pipeline. Please try again."))
             except Exception as e:
-                logger.error(f"Pipeline error: {e}")
-                progress_queue.put_nowait(("error", str(e)))
+                logger.exception(f"Pipeline error (session={session_id}): {e}")
+                progress_queue.put_nowait(("error", "An unexpected error occurred. Please try again."))
 
         task = asyncio.create_task(_run_async())
         _active_tasks.add(task)
@@ -367,14 +405,26 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                 yield f"data: {json.dumps({'type': 'done', 'data': summary}, ensure_ascii=False, default=str)}\n\n"
             else:
                 yield f"data: {json.dumps({'type': 'error', 'data': 'Pipeline thất bại'})}\n\n"
-        except Exception as e:
-            logger.error(f"SSE stream error (session={session_id}): {e}")
+        except asyncio.CancelledError:
+            logger.info(f"SSE /run stream cancelled (session={session_id})")
             if not task.done():
                 task.cancel()
+        except (ConnectionError, ConnectionResetError):
+            logger.info(f"SSE /run client connection lost (session={session_id})")
+            if not task.done():
+                task.cancel()
+        except (ValueError, TypeError) as e:
+            logger.warning(f"SSE /run serialization error (session={session_id}): {e}")
+            if not task.done():
+                task.cancel()
+        except Exception:
+            logger.exception(f"SSE /run unexpected error (session={session_id})")
+            if not task.done():
+                task.cancel()
+            raise
         finally:
             async with _orchestrators_lock:
-                _orchestrators.pop(session_id, None)
-                _orchestrator_timestamps.pop(session_id, None)
+                _sessions.pop(session_id, None)
             logger.debug(f"SSE /run stream closed (session={session_id})")
 
     return StreamingResponse(
@@ -409,12 +459,19 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
+    client_ip = request.client.host if request.client else "unknown"
+
     async def event_generator():
-        orch = PipelineOrchestrator()
-        session_id = str(id(orch))
         async with _orchestrators_lock:
-            _orchestrators[session_id] = orch
-            _orchestrator_timestamps[session_id] = time.time()
+            ip_count = sum(1 for (_, _, ip) in _sessions.values() if ip == client_ip)
+            if ip_count >= _MAX_SESSIONS_PER_IP:
+                yield f"data: {json.dumps({'type': 'error', 'data': f'Too many concurrent sessions (max {_MAX_SESSIONS_PER_IP}). Please wait for current stories to finish.'})}\n\n"
+                return
+
+        orch = PipelineOrchestrator()
+        session_id = str(uuid.uuid4())
+        async with _orchestrators_lock:
+            _sessions[session_id] = (orch, time.time(), client_ip)
 
         logs = []
         progress_queue: _queue.Queue = _queue.Queue()
@@ -435,9 +492,15 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
             except asyncio.CancelledError:
                 logger.info(f"Resume task cancelled (session={session_id})")
                 raise
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Resume input error (session={session_id}): {e}")
+                progress_queue.put_nowait(("error", "Invalid checkpoint data. The file may be corrupted."))
+            except (TimeoutError, ConnectionError) as e:
+                logger.error(f"Resume network error (session={session_id}): {e}")
+                progress_queue.put_nowait(("error", "Network error during resume. Please try again."))
             except Exception as e:
-                logger.error(f"Resume error: {e}")
-                progress_queue.put_nowait(("error", str(e)))
+                logger.exception(f"Resume error (session={session_id}): {e}")
+                progress_queue.put_nowait(("error", "An unexpected error occurred. Please try again."))
 
         task = asyncio.create_task(_run_async())
         _active_tasks.add(task)
@@ -490,14 +553,26 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
                 yield f"data: {json.dumps({'type': 'done', 'data': summary}, ensure_ascii=False, default=str)}\n\n"
             else:
                 yield f"data: {json.dumps({'type': 'error', 'data': 'Resume failed'})}\n\n"
-        except Exception as e:
-            logger.error(f"SSE stream error (session={session_id}): {e}")
+        except asyncio.CancelledError:
+            logger.info(f"SSE /resume stream cancelled (session={session_id})")
             if not task.done():
                 task.cancel()
+        except (ConnectionError, ConnectionResetError):
+            logger.info(f"SSE /resume client connection lost (session={session_id})")
+            if not task.done():
+                task.cancel()
+        except (ValueError, TypeError) as e:
+            logger.warning(f"SSE /resume serialization error (session={session_id}): {e}")
+            if not task.done():
+                task.cancel()
+        except Exception:
+            logger.exception(f"SSE /resume unexpected error (session={session_id})")
+            if not task.done():
+                task.cancel()
+            raise
         finally:
             async with _orchestrators_lock:
-                _orchestrators.pop(session_id, None)
-                _orchestrator_timestamps.pop(session_id, None)
+                _sessions.pop(session_id, None)
             logger.debug(f"SSE /resume stream closed (session={session_id})")
 
     return StreamingResponse(

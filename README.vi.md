@@ -100,6 +100,33 @@ python app.py
 
 ---
 
+## Triển khai & Mở rộng
+
+### Biến môi trường
+
+| Biến | Mặc định | Mô tả |
+|------|----------|-------|
+| `STORYFORGE_SECRET_KEY` | _(dựa trên file)_ | Khóa ký HMAC. **Bắt buộc đặt trong production.** |
+| `REDIS_URL` | _(không có)_ | Redis URL cho cache + session. Bắt buộc khi chạy nhiều instance. |
+| `NUM_WORKERS` | `1` | Số worker Uvicorn. Tăng theo số CPU core. |
+| `STORYFORGE_ALLOWED_ORIGINS` | `localhost:7860` | CORS origins (phân cách bằng dấu phẩy). |
+| `TRUSTED_PROXY_IPS` | _(không có)_ | IP proxy tin cậy cho X-Forwarded-For. |
+| `DB_POOL_SIZE` | `5` | Kích thước connection pool SQLAlchemy. |
+| `STORYFORGE_BLOCK_INJECTION` | `true` | Chặn các prompt injection bị phát hiện. |
+
+### Một instance (mặc định)
+Hoạt động ngay với SQLite cache. Không cần Redis.
+
+### Nhiều instance
+Yêu cầu Redis để chia sẻ cache và trạng thái session:
+```bash
+REDIS_URL=redis://redis:6379 NUM_WORKERS=4 docker compose up -d
+```
+
+> ⚠️ Không có Redis, mỗi worker có cache in-memory riêng — session sẽ không được chia sẻ.
+
+---
+
 ## Cấu hình
 
 Mọi cài đặt được quản lý qua tab **Cài đặt** trong giao diện web và lưu vào `data/config.json`. Biến môi trường chính cho triển khai Docker:

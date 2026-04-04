@@ -82,11 +82,12 @@ class StoryEnhancer:
             strong_points="(sẽ được phân tích trong feedback round)",
         )
         enhance_prompt = build_adaptive_enhance_prompt(enhance_prompt, genre)
+        enhance_prompt += "\n\n[NHẮC LẠI: Viết hoàn toàn bằng tiếng Việt. Không dùng tiếng Anh hay ngôn ngữ khác.]"
 
         enhanced_content = self.llm.generate(
             system_prompt=(
-                "Bạn là nhà văn tài năng chuyên viết truyện kịch tính. "
-                "Viết hoàn toàn bằng tiếng Việt."
+                "Bạn là nhà văn tài năng chuyên viết truyện kịch tính bằng tiếng Việt. "
+                "BẮT BUỘC: Toàn bộ output phải viết bằng tiếng Việt, không được dùng ngôn ngữ khác."
             ),
             user_prompt=enhance_prompt,
             max_tokens=8192,
@@ -237,16 +238,21 @@ class StoryEnhancer:
                     weak_text = "\n".join(f"- {wp}" for wp in analysis.get("weak_points", []))
                     strong_text = "\n".join(f"- {sp}" for sp in analysis.get("strong_points", []))
 
+                    rewrite_prompt = prompt_templates.REENHANCE_CHAPTER.format(
+                        chapter_content=enhanced.chapters[idx].content[:6000],
+                        weak_points=weak_text or "Kịch tính chung còn yếu",
+                        strong_points=strong_text or "Không có điểm mạnh nổi bật",
+                        genre_hints=genre_hints,
+                        suggestions="\n".join(sim_result.drama_suggestions[:3]),
+                        word_count=word_count,
+                    )
+                    rewrite_prompt += "\n\n[NHẮC LẠI: Viết hoàn toàn bằng tiếng Việt. Không dùng tiếng Anh hay ngôn ngữ khác.]"
                     rewritten = self.llm.generate(
-                        system_prompt="Bạn là nhà văn tài năng. Viết hoàn toàn bằng tiếng Việt.",
-                        user_prompt=prompt_templates.REENHANCE_CHAPTER.format(
-                            chapter_content=enhanced.chapters[idx].content[:6000],
-                            weak_points=weak_text or "Kịch tính chung còn yếu",
-                            strong_points=strong_text or "Không có điểm mạnh nổi bật",
-                            genre_hints=genre_hints,
-                            suggestions="\n".join(sim_result.drama_suggestions[:3]),
-                            word_count=word_count,
+                        system_prompt=(
+                            "Bạn là nhà văn tài năng chuyên viết truyện bằng tiếng Việt. "
+                            "BẮT BUỘC: Toàn bộ output phải viết bằng tiếng Việt, không được dùng ngôn ngữ khác."
                         ),
+                        user_prompt=rewrite_prompt,
                         max_tokens=8192,
                         model=self._layer_model,
                     )

@@ -1,0 +1,42 @@
+name: write_chapter
+version: v1
+description: "Generate a single chapter of the story"
+template: |
+  Bạn là tiểu thuyết gia tài năng chuyên viết {genre} bằng tiếng Việt.
+
+  Phong cách viết: {style}
+  Tiêu đề truyện: {title}
+  Bối cảnh thế giới: {world}
+
+  NHÂN VẬT:
+  {characters}
+
+  DÀN Ý CHƯƠNG {chapter_number} - {chapter_title}:
+  {outline}
+
+  NỘI DUNG CÁC CHƯƠNG TRƯỚC (tóm tắt):
+  {previous_summary}
+
+  YÊU CẦU:
+  - Viết chương {chapter_number} đầy đủ, khoảng {word_count} từ
+  - Miêu tả sinh động, đối thoại tự nhiên
+  - Thể hiện rõ tính cách nhân vật qua hành động và lời nói
+  - Tạo nhịp điệu kịch tính, có cao trào
+  - Kết chương tạo sự tò mò cho chương tiếp theo
+  - Viết hoàn toàn bằng tiếng Việt
+
+  Bắt đầu viết chương:
+variables:
+  - genre
+  - style
+  - title
+  - world
+  - characters
+  - chapter_number
+  - chapter_title
+  - outline
+  - previous_summary
+  - word_count
+metadata:
+  author: "system"
+  created_at: "2026-04-04"

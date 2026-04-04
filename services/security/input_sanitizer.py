@@ -29,6 +29,17 @@ _INJECTION_PATTERNS = [
     # Output manipulation
     (re.compile(r"(?:do\s+not|don'?t|never)\s+(?:score|rate|evaluate|check|validate)", re.IGNORECASE), "scoring_bypass"),
     (re.compile(r"(?:skip|bypass|disable)\s+(?:quality|safety|content)\s+(?:check|filter|gate|review)", re.IGNORECASE), "safety_bypass"),
+    # Vietnamese patterns — system override
+    (re.compile(r"bỏ\s+qua\s+(?:tất\s+cả\s+)?(?:hướng\s+dẫn|lệnh|quy\s+tắc)", re.IGNORECASE), "system_override"),
+    (re.compile(r"(?:hãy\s+)?quên\s+(?:đi\s+)?(?:các\s+)?(?:quy\s+tắc|hướng\s+dẫn|lệnh|ngữ\s+cảnh)", re.IGNORECASE), "system_override"),
+    # Vietnamese patterns — role override
+    (re.compile(r"(?:hãy\s+)?(?:đóng\s+vai|giả\s+vờ(?:\s+(?:là|bạn\s+là))?|giả\s+làm)", re.IGNORECASE), "role_override"),
+    (re.compile(r"bạn\s+không\s+phải\s+tuân\s+theo", re.IGNORECASE), "role_override"),
+    # Vietnamese patterns — scoring bypass
+    (re.compile(r"đừng\s+(?:đánh\s+giá|kiểm\s+tra|chấm\s+điểm)", re.IGNORECASE), "scoring_bypass"),
+    # Vietnamese patterns — prompt extraction
+    (re.compile(r"(?:prompt|hướng\s+dẫn|quy\s+tắc)\s+(?:hệ\s+thống|system)", re.IGNORECASE), "prompt_extraction"),
+    (re.compile(r"xuất\s+ra\s+(?:toàn\s+bộ\s+)?prompt", re.IGNORECASE), "prompt_extraction"),
 ]
 
 

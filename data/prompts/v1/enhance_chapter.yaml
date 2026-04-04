@@ -1,0 +1,46 @@
+name: enhance_chapter
+version: v1
+description: "Rewrite a chapter with added drama events and enhancements"
+template: |
+  Bạn là nhà văn tài năng chuyên viết truyện {genre_style}. Hãy viết lại chương truyện sau.
+
+  CHƯƠNG GỐC:
+  {original_chapter}
+
+  CÁC SỰ KIỆN KỊCH TÍNH CẦN THÊM:
+  {drama_events}
+
+  GỢI Ý TĂNG CƯỜNG:
+  {suggestions}
+
+  MỐI QUAN HỆ ĐÃ CẬP NHẬT:
+  {updated_relationships}
+
+  HƯỚNG DẪN THỂ LOẠI:
+  {genre_hints}
+
+  ĐIỂM MẠNH CẦN GIỮ:
+  {strong_points}
+
+  YÊU CẦU:
+  - Giữ cốt truyện chính, tăng kịch tính tại các điểm yếu đã chỉ ra
+  - Tăng xung đột nội tâm nhân vật
+  - Thêm twist tự nhiên, không gượng ép
+  - Đối thoại sắc bén theo phong cách thể loại
+  - Cliffhanger mạnh mẽ cuối chương
+  - Cảm xúc sâu sắc, phù hợp emotional arc
+  - Khoảng {word_count} từ, viết hoàn toàn tiếng Việt
+
+  Bắt đầu viết lại:
+variables:
+  - genre_style
+  - original_chapter
+  - drama_events
+  - suggestions
+  - updated_relationships
+  - genre_hints
+  - strong_points
+  - word_count
+metadata:
+  author: "system"
+  created_at: "2026-04-04"

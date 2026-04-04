@@ -56,6 +56,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'pipeline',  label: 'Create Story',  icon: 'pencil-square',         group: 'main'   },
   { id: 'library',   label: 'Library',       icon: 'building-library',       group: 'main'   },
   { id: 'reader',    label: 'Reader',        icon: 'book-open',              group: 'main'   },
+  { id: 'codex',     label: 'Codex',         icon: 'document-text',          group: 'main'   },
   { id: 'export',    label: 'Export',        icon: 'arrow-down-tray',        group: 'main'   },
   { id: 'analytics', label: 'Analytics',    icon: 'chart-bar',              group: 'main'   },
   { id: 'branching', label: 'Branching',    icon: 'arrows-pointing-out',    group: 'main'   },

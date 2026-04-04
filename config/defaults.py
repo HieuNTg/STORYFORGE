@@ -106,6 +106,10 @@ class PipelineConfig:
     enable_smart_revision: bool = False
     smart_revision_threshold: float = 3.5  # 1.0-5.0 scale
 
+    # Parallel chapter generation (batch mode)
+    parallel_chapters_enabled: bool = False  # Feature flag — sequential fallback when False
+    chapter_batch_size: int = 5  # Chapters per batch
+
     # Quality gate (inline scoring between layers)
     # Recommended thresholds by genre: romance/comedy=2.3, mystery/thriller=2.5,
     # fantasy/sci-fi=2.5, literary/historical=2.8, action=2.2

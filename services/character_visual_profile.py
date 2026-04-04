@@ -51,6 +51,47 @@ class CharacterVisualProfileStore:
             json.dump(profile, f, ensure_ascii=False, indent=2)
         logger.info("Saved visual profile for: %s", name)
 
+    def save_enhanced_profile(
+        self,
+        name: str,
+        appearance_desc: str,
+        structured_attributes: dict,
+        frozen_prompt: str,
+        reference_image_path: str = "",
+    ) -> None:
+        """Save character visual profile with structured attributes and frozen prompt."""
+        pdir = self._profile_dir(name)
+        os.makedirs(pdir, exist_ok=True)
+
+        ref_stored = ""
+        if reference_image_path and os.path.exists(reference_image_path):
+            ext = os.path.splitext(reference_image_path)[1]
+            ref_stored = os.path.join(pdir, f"reference{ext}")
+            if os.path.abspath(reference_image_path) != os.path.abspath(ref_stored):
+                shutil.copy2(reference_image_path, ref_stored)
+
+        # Preserve existing prompt_version if profile already exists
+        existing = self.load_profile(name)
+        prompt_version = 1
+        if existing and existing.get("frozen_prompt") and existing.get("frozen_prompt") != frozen_prompt:
+            prompt_version = existing.get("prompt_version", 1) + 1
+        elif existing and existing.get("prompt_version"):
+            prompt_version = existing["prompt_version"]
+
+        profile = {
+            "name": name,
+            "description": appearance_desc,
+            "reference_image": ref_stored,
+            "structured_attributes": structured_attributes,
+            "frozen_prompt": frozen_prompt,
+            "prompt_version": prompt_version,
+            "created_at": existing.get("created_at", datetime.now().isoformat()) if existing else datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+        }
+        with open(self._profile_path(name), "w", encoding="utf-8") as f:
+            json.dump(profile, f, ensure_ascii=False, indent=2)
+        logger.info("Saved enhanced visual profile for: %s (prompt_version=%d)", name, prompt_version)
+
     def load_profile(self, name: str) -> Optional[dict]:
         """Load character visual profile. Returns None if not found."""
         path = self._profile_path(name)
@@ -78,6 +119,19 @@ class CharacterVisualProfileStore:
         if profile and profile.get("description"):
             return profile["description"]
         return ""
+
+    def get_frozen_prompt(self, name: str) -> str:
+        """Return the frozen image generation prompt for a character.
+
+        Falls back to the plain description if no frozen_prompt is saved.
+        Returns empty string if profile does not exist.
+        """
+        profile = self.load_profile(name)
+        if not profile:
+            return ""
+        if profile.get("frozen_prompt"):
+            return profile["frozen_prompt"]
+        return profile.get("description", "")
 
     def build_visual_description(self, character) -> str:
         """Build a visual description from Character object attributes.

@@ -1,0 +1,39 @@
+name: generate_outline
+version: v1
+description: "Generate a detailed chapter-by-chapter story outline"
+template: |
+  Bạn là biên kịch chuyên xây dựng cốt truyện {genre}.
+  Tiêu đề: {title}
+  Nhân vật: {characters}
+  Bối cảnh: {world}
+  Ý tưởng: {idea}
+
+  Hãy tạo dàn ý chi tiết cho {num_chapters} chương.
+  Mỗi chương cần có: cao trào, xung đột, phát triển nhân vật.
+  Cốt truyện phải có nhịp điệu: giới thiệu → phát triển → cao trào → kết thúc.
+  BẮT BUỘC: Viết toàn bộ nội dung (tiêu đề chương, tóm tắt, sự kiện...) bằng tiếng Việt.
+
+  Trả về JSON:
+  {{
+    "synopsis": "tóm tắt toàn bộ truyện",
+    "outlines": [
+      {{
+        "chapter_number": 1,
+        "title": "tiêu đề chương",
+        "summary": "tóm tắt nội dung",
+        "key_events": ["sự kiện 1", "sự kiện 2"],
+        "characters_involved": ["tên nhân vật"],
+        "emotional_arc": "cung bậc cảm xúc chương này"
+      }}
+    ]
+  }}
+variables:
+  - genre
+  - title
+  - characters
+  - world
+  - idea
+  - num_chapters
+metadata:
+  author: "system"
+  created_at: "2026-04-04"

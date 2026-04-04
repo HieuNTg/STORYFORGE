@@ -7,19 +7,25 @@
  * NOTE: This build pipeline is optional. The app runs from CDN without it.
  *       Run `npm run build` to produce a production-optimised bundle.
  *
- * To add gzip/brotli compression, install vite-plugin-compression and uncomment:
- *   import viteCompression from 'vite-plugin-compression'
- *   ...plugins: [viteCompression({ algorithm: 'brotliCompress' })]
+ * Compression: gzip + brotli via vite-plugin-compression (both enabled below).
  */
 
 import { defineConfig } from 'vite'
 import { resolve } from 'path'
+import viteCompression from 'vite-plugin-compression'
 
 // TypeScript files are supported natively by Vite/esbuild — no extra plugin needed.
 // This config adds explicit .ts extension resolution so bare imports like
 // `import API from '@/api-client'` resolve to api-client.ts before api-client.js.
 
 export default defineConfig({
+  plugins: [
+    // Emit .gz companion files alongside every asset > 10 kB
+    viteCompression({ algorithm: 'gzip', threshold: 10240 }),
+    // Emit .br companion files (brotli gives ~20% better ratio than gzip)
+    viteCompression({ algorithm: 'brotliCompress', ext: '.br', threshold: 10240 }),
+  ],
+
   // Treat web/ as the project root so imports resolve from there
   root: 'web',
 

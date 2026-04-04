@@ -428,7 +428,7 @@
                           <template x-if="$store.pipeline.result.draft.chapters[chapter]">
                             <div>
                               <h4 class="font-semibold mb-2" x-text="'Chapter ' + $store.pipeline.result.draft.chapters[chapter].number + ': ' + $store.pipeline.result.draft.chapters[chapter].title.replace(/\*\*/g, '').replace(/^#+\s*/gm, '')"></h4>
-                              <div class="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap" x-html="$store.pipeline.result.draft.chapters[chapter].content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
+                              <div class="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap" x-html="formatContent($store.pipeline.result.draft.chapters[chapter].content)"></div>
                             </div>
                           </template>
                         </div>
@@ -446,7 +446,7 @@
                             </template>
                           </div>
                           <template x-if="$store.pipeline.result.enhanced.chapters[chapter]">
-                            <div class="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap" x-html="$store.pipeline.result.enhanced.chapters[chapter].content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
+                            <div class="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap" x-html="formatContent($store.pipeline.result.enhanced.chapters[chapter].content)"></div>
                           </template>
                         </div>
                       </template>
@@ -755,10 +755,10 @@
 
             <!-- Inline add key form -->
             <div x-show="showAddKey" x-transition class="space-y-2">
-              <label class="block text-xs font-medium text-slate-600">New API Key</label>
+              <label for="sf-new-api-key" class="block text-xs font-medium text-slate-600">New API Key</label>
               <div class="flex gap-2">
                 <div class="relative flex-1">
-                  <input type="password" x-model="newKeyInput"
+                  <input id="sf-new-api-key" type="password" x-model="newKeyInput"
                     class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all"
                     :placeholder="currentProvider?.keyPlaceholder || 'Paste API key...'"
                     @keydown.enter="addKey()">
@@ -783,6 +783,7 @@
               </summary>
               <div class="mt-2 relative">
                 <input id="sf-api-key" :type="showKey ? 'text' : 'password'" x-model="form.api_key"
+                  aria-label="Primary API key"
                   class="w-full border border-surface-200 rounded-lg px-3 py-2.5 text-sm pr-10 focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all"
                   :placeholder="maskedKey && maskedKey !== '***' ? 'Current: ' + maskedKey + ' — leave blank to keep' : (currentProvider?.keyPlaceholder || 'Paste API key here...')"
                 >
@@ -867,8 +868,8 @@
               </div>
               <!-- Just paste key — auto-detect -->
               <div>
-                <label class="block text-xs text-slate-500 mb-1">Paste API Key</label>
-                <input type="password" x-model="profileForm.api_key" @input.debounce.300ms="detectFromKey()"
+                <label for="sf-profile-api-key" class="block text-xs text-slate-500 mb-1">Paste API Key</label>
+                <input id="sf-profile-api-key" type="password" x-model="profileForm.api_key" @input.debounce.300ms="detectFromKey()"
                   class="w-full border border-surface-200 rounded-lg px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all"
                   placeholder="sk-..., AIza..., sk-ant-..., sk-or-...">
               </div>
@@ -896,10 +897,10 @@
                 </summary>
                 <div class="mt-2 space-y-2">
                   <div class="grid grid-cols-2 gap-2">
-                    <input type="text" x-model="profileForm.name" class="border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 outline-none" placeholder="Name">
-                    <input type="text" x-model="profileForm.model" class="border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 outline-none" placeholder="Model">
+                    <input type="text" x-model="profileForm.name" aria-label="Profile name" class="border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 outline-none" placeholder="Name">
+                    <input type="text" x-model="profileForm.model" aria-label="Model name" class="border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 outline-none" placeholder="Model">
                   </div>
-                  <input type="text" x-model="profileForm.base_url" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-brand-200 outline-none" placeholder="Base URL (https://...)">
+                  <input type="text" x-model="profileForm.base_url" aria-label="API base URL" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-brand-200 outline-none" placeholder="Base URL (https://...)">
                 </div>
               </details>
               <div class="flex justify-end gap-2">
@@ -1217,7 +1218,7 @@
               <template x-if="currentChapter">
                 <div>
                   <h3 class="text-xl font-bold text-slate-800 mb-4" x-text="'Chapter ' + currentChapter.number + ': ' + currentChapter.title.replace(/\*\*/g, '').replace(/^#+\s*/gm, '')"></h3>
-                  <div class="text-slate-700 whitespace-pre-wrap leading-[1.9]" :style="'font-size:' + fontSize + 'px'" x-html="currentChapter.content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
+                  <div class="text-slate-700 whitespace-pre-wrap leading-[1.9]" :style="'font-size:' + fontSize + 'px'" x-html="formatContent(currentChapter.content)"></div>
                 </div>
               </template>
             </div>
@@ -1411,6 +1412,302 @@
       </template>
 
 
+      <!-- ═══ CODEX PAGE ═══ -->
+      <template x-if="$store.app.page === 'codex'">
+      <div class="page-enter" x-data="codexPage()" x-init="init()">
+
+        <!-- Load bar -->
+        <div class="flex flex-col sm:flex-row gap-3 mb-6 items-start sm:items-center">
+          <div class="flex-1 flex gap-2">
+            <input
+              type="text"
+              x-model="storyId"
+              placeholder="story_filename.json"
+              class="flex-1 border border-surface-200 rounded-lg px-3 py-2 text-sm"
+              @keydown.enter="load()"
+              aria-label="Story filename"
+            >
+            <button
+              @click="load()"
+              :disabled="loading"
+              class="btn-primary px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 cursor-pointer"
+            >
+              <span x-show="!loading">Load</span>
+              <span x-show="loading">Loading…</span>
+            </button>
+          </div>
+          <template x-if="hasStory">
+            <button
+              @click="loadFromStore()"
+              class="text-sm text-brand-600 hover:underline cursor-pointer whitespace-nowrap"
+            >Load current story</button>
+          </template>
+        </div>
+
+        <!-- Error -->
+        <template x-if="error">
+          <div class="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700" x-text="error"></div>
+        </template>
+
+        <!-- Empty state -->
+        <template x-if="!data && !loading && !error">
+          <div class="card p-12 text-center">
+            <svg class="w-14 h-14 mx-auto text-slate-200 mb-4" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+            </svg>
+            <h3 class="text-lg font-semibold text-slate-400">World Codex</h3>
+            <p class="text-sm text-slate-400 mt-1">Enter a story filename or load your current story to explore the codex</p>
+          </div>
+        </template>
+
+        <!-- Codex content -->
+        <template x-if="data">
+          <div class="space-y-5">
+
+            <!-- Story header -->
+            <div class="card p-5">
+              <div class="flex flex-wrap items-start gap-3">
+                <div class="flex-1 min-w-0">
+                  <h2 class="text-xl font-bold text-slate-800 truncate" x-text="data.title"></h2>
+                  <div class="flex flex-wrap gap-2 mt-1">
+                    <span class="px-2 py-0.5 rounded text-xs font-medium bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300" x-text="data.genre"></span>
+                    <span class="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                      <span x-text="data.total_chapters"></span> chapters
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <template x-if="data.synopsis">
+                <p class="mt-3 text-sm text-slate-600 leading-relaxed" x-text="data.synopsis"></p>
+              </template>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex gap-1 border-b border-surface-200 overflow-x-auto">
+              <template x-for="t in ['characters','world','plot','timeline']" :key="t">
+                <button
+                  @click="tab = t"
+                  class="px-4 py-2.5 text-sm font-medium capitalize border-b-2 transition-colors cursor-pointer whitespace-nowrap"
+                  :class="tab === t
+                    ? 'border-brand-600 text-brand-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'"
+                  x-text="t === 'plot' ? 'Plot Threads' : t.charAt(0).toUpperCase() + t.slice(1)"
+                ></button>
+              </template>
+            </div>
+
+            <!-- CHARACTERS tab -->
+            <div x-show="tab === 'characters'" class="space-y-3">
+              <template x-if="!data.characters || data.characters.length === 0">
+                <p class="text-sm text-slate-400 text-center py-8">No characters found.</p>
+              </template>
+              <template x-for="(char, idx) in data.characters" :key="idx">
+                <div class="card overflow-hidden">
+                  <button
+                    @click="toggleChar(idx)"
+                    class="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-surface-50 dark:hover:bg-slate-700/30 cursor-pointer"
+                    :aria-expanded="expandedChar === idx"
+                  >
+                    <!-- Avatar placeholder -->
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+                         x-text="char.name ? char.name[0].toUpperCase() : '?'"></div>
+                    <div class="flex-1 min-w-0">
+                      <div class="font-semibold text-slate-800" x-text="char.name"></div>
+                      <div class="text-xs text-slate-500 truncate" x-text="char.personality"></div>
+                    </div>
+                    <span class="px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0"
+                          :class="roleClass(char.role)"
+                          x-text="char.role"></span>
+                    <svg class="w-4 h-4 text-slate-400 flex-shrink-0 transition-transform"
+                         :class="expandedChar === idx ? 'rotate-180' : ''"
+                         fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+                    </svg>
+                  </button>
+                  <div x-show="expandedChar === idx" class="px-5 pb-5 border-t border-surface-200 space-y-3 pt-4">
+                    <template x-if="char.background">
+                      <div>
+                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Background</div>
+                        <p class="text-sm text-slate-700 leading-relaxed" x-text="char.background"></p>
+                      </div>
+                    </template>
+                    <template x-if="char.motivation">
+                      <div>
+                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Motivation</div>
+                        <p class="text-sm text-slate-700 leading-relaxed" x-text="char.motivation"></p>
+                      </div>
+                    </template>
+                    <template x-if="char.appearance">
+                      <div>
+                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Appearance</div>
+                        <p class="text-sm text-slate-700 leading-relaxed" x-text="char.appearance"></p>
+                      </div>
+                    </template>
+                    <template x-if="char.relationships && char.relationships.length">
+                      <div>
+                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Relationships</div>
+                        <div class="flex flex-wrap gap-2">
+                          <template x-for="(rel, ri) in char.relationships" :key="ri">
+                            <span class="px-2.5 py-1 rounded-lg text-xs bg-surface-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300" x-text="rel"></span>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+            <!-- WORLD tab -->
+            <div x-show="tab === 'world'" class="space-y-4">
+              <template x-if="!data.world">
+                <p class="text-sm text-slate-400 text-center py-8">No world data found.</p>
+              </template>
+              <template x-if="data.world">
+                <div class="space-y-4">
+                  <div class="card p-5">
+                    <h3 class="font-semibold text-slate-800 mb-1" x-text="data.world.name"></h3>
+                    <template x-if="data.world.era">
+                      <span class="inline-block px-2.5 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 mb-2" x-text="data.world.era"></span>
+                    </template>
+                    <p class="text-sm text-slate-700 leading-relaxed" x-text="data.world.description"></p>
+                  </div>
+                  <template x-if="data.world.locations && data.world.locations.length">
+                    <div class="card p-5">
+                      <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Key Locations</h4>
+                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <template x-for="(loc, li) in data.world.locations" :key="li">
+                          <div class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                            <svg class="w-4 h-4 text-brand-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/>
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/>
+                            </svg>
+                            <span x-text="loc"></span>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                  <template x-if="data.world.rules && data.world.rules.length">
+                    <div class="card p-5">
+                      <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">World Rules</h4>
+                      <ul class="space-y-2">
+                        <template x-for="(rule, ri) in data.world.rules" :key="ri">
+                          <li class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+                            <span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-brand-500 flex-shrink-0"></span>
+                            <span x-text="rule"></span>
+                          </li>
+                        </template>
+                      </ul>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
+
+            <!-- PLOT THREADS tab -->
+            <div x-show="tab === 'plot'" class="space-y-4">
+              <template x-if="!data.story_bible">
+                <p class="text-sm text-slate-400 text-center py-8">No plot data found.</p>
+              </template>
+              <template x-if="data.story_bible">
+                <div class="space-y-4">
+                  <!-- Premise -->
+                  <template x-if="data.story_bible.premise">
+                    <div class="card p-5">
+                      <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Premise</div>
+                      <p class="text-sm text-slate-700 leading-relaxed" x-text="data.story_bible.premise"></p>
+                    </div>
+                  </template>
+                  <!-- Active threads -->
+                  <template x-if="data.story_bible.active_threads && data.story_bible.active_threads.length">
+                    <div class="card p-5">
+                      <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Active Threads</h4>
+                      <div class="space-y-3">
+                        <template x-for="(thread, ti) in data.story_bible.active_threads" :key="ti">
+                          <div class="border border-surface-200 rounded-lg p-3">
+                            <div class="flex items-center gap-2 mb-1">
+                              <span class="px-2 py-0.5 rounded-full text-xs font-medium"
+                                    :class="threadStatusClass(thread.status)"
+                                    x-text="thread.status"></span>
+                              <span x-show="thread.started_chapter" class="text-xs text-slate-400">Ch. <span x-text="thread.started_chapter"></span></span>
+                            </div>
+                            <p class="text-sm text-slate-700" x-text="thread.description"></p>
+                            <template x-if="thread.characters_involved && thread.characters_involved.length">
+                              <div class="flex flex-wrap gap-1 mt-2">
+                                <template x-for="(c, ci) in thread.characters_involved" :key="ci">
+                                  <span class="px-2 py-0.5 rounded text-xs bg-surface-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400" x-text="c"></span>
+                                </template>
+                              </div>
+                            </template>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                  <!-- Resolved threads -->
+                  <template x-if="data.story_bible.resolved_threads && data.story_bible.resolved_threads.length">
+                    <div class="card p-5">
+                      <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Resolved Threads</h4>
+                      <div class="space-y-2">
+                        <template x-for="(thread, ti) in data.story_bible.resolved_threads" :key="ti">
+                          <div class="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
+                            <svg class="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <span x-text="thread.description"></span>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                  <!-- Milestone events -->
+                  <template x-if="data.story_bible.milestone_events && data.story_bible.milestone_events.length">
+                    <div class="card p-5">
+                      <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Milestone Events</h4>
+                      <ul class="space-y-2">
+                        <template x-for="(ev, ei) in data.story_bible.milestone_events" :key="ei">
+                          <li class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+                            <span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0"></span>
+                            <span x-text="ev"></span>
+                          </li>
+                        </template>
+                      </ul>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
+
+            <!-- TIMELINE tab -->
+            <div x-show="tab === 'timeline'" class="space-y-2">
+              <template x-if="!data.timeline || data.timeline.length === 0">
+                <p class="text-sm text-slate-400 text-center py-8">No timeline data found.</p>
+              </template>
+              <template x-for="(entry, ei) in data.timeline" :key="ei">
+                <div class="card p-4 flex gap-4">
+                  <div class="flex-shrink-0 w-10 h-10 rounded-full bg-brand-50 dark:bg-brand-900/30 flex items-center justify-center text-sm font-bold text-brand-600" x-text="entry.chapter_number"></div>
+                  <div class="flex-1 min-w-0">
+                    <div class="font-medium text-slate-800 text-sm mb-1" x-text="entry.title"></div>
+                    <p class="text-xs text-slate-500 leading-relaxed" x-text="entry.summary"></p>
+                    <template x-if="entry.key_events && entry.key_events.length">
+                      <div class="flex flex-wrap gap-1.5 mt-2">
+                        <template x-for="(ev, ki) in entry.key_events" :key="ki">
+                          <span class="px-2 py-0.5 rounded text-xs bg-surface-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400" x-text="ev"></span>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+
+          </div>
+        </template>
+
+      </div>
+      </template>
+
       <!-- ═══ GUIDE PAGE ═══ -->
       <div x-show="$store.app.page === 'guide'" x-cloak class="page-enter">
         <div class="max-w-3xl mx-auto space-y-6">
@@ -1475,9 +1772,23 @@
   <script src="/static/js/pages/branching.js"></script>
   <script src="/static/js/pages/pipeline.js"></script>
   <script src="/static/js/pages/settings.js"></script>
+  <script src="/static/js/pages/codex.js"></script>
   <script src="/static/js/branch-reader.js"></script>
   <script src="/static/js/app.js"></script>
   <script>
+    /* Escape HTML entities to prevent XSS when rendering story content */
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.appendChild(document.createTextNode(str));
+      return div.innerHTML;
+    }
+    /* Format story content: escape first, then apply safe markdown-like styling */
+    function formatContent(raw) {
+      if (!raw) return '';
+      const escaped = escapeHtml(raw);
+      return escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+    }
+
     /* Heroicons SVG helper — returns inline SVG for nav icons */
     function getNavIcon(name) {
       const icons = {
@@ -1490,6 +1801,7 @@
         'cog-6-tooth': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
         'user-circle': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
         'question-mark-circle': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>',
+        'document-text': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>',
       };
       return icons[name] || '';
     }

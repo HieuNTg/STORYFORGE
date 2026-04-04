@@ -60,16 +60,15 @@ jobs:
             -v --tb=short \
             --cov=pipeline --cov=services --cov=api --cov=middleware --cov=errors --cov=models \
             --cov-report=term-missing --cov-report=html \
-            --cov-fail-under=60
+            --cov-fail-under=70
       - name: Enforce per-module coverage
-        # Ratchet approach: warn now, hard-fail once overall coverage reaches targets.
-        # Target thresholds: services/llm=80%, pipeline=75%, api=70%
-        # See .coveragerc for per-module documentation.
+        # Hard-fail at achievable thresholds; raise incrementally as coverage improves.
+        # Long-term targets: services/llm=80%, pipeline=75%, api=70%
         run: |
           echo "=== Per-module coverage gates ==="
-          coverage report --include="services/llm/*" --fail-under=80 || echo "WARNING: services/llm coverage below 80%"
-          coverage report --include="pipeline/*" --fail-under=75 || echo "WARNING: pipeline coverage below 75%"
-          coverage report --include="api/*" --fail-under=70 || echo "WARNING: api coverage below 70%"
+          coverage report --include="services/llm/*" --fail-under=65
+          coverage report --include="pipeline/*" --fail-under=65
+          coverage report --include="api/*" --fail-under=65
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v4
@@ -84,13 +83,21 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Install dependencies
         run: npm install
+      - name: Audit npm dependencies
+        run: npm audit --audit-level=high
       - name: TypeScript type check
         run: npm run typecheck
-      - name: Run Vitest frontend tests
-        run: npm test
+      - name: Run Vitest frontend tests with coverage
+        run: npm run test -- --coverage
+      - name: Upload frontend coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-report
+          path: coverage/
 
   db-tests:
     runs-on: ubuntu-latest
@@ -153,5 +160,30 @@ jobs:
           python-version: '3.10'
           cache: pip
       - run: pip install -r requirements.txt -r requirements-test.txt
-      - run: pytest tests/test_e2e_pipeline.py -v --tb=short
+      - run: |
+          pytest tests/test_e2e_pipeline.py -v --tb=short \
+            --cov=pipeline --cov=services --cov=api \
+            --cov-report=term-missing --cov-report=html:htmlcov-e2e
+      - name: Upload E2E coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-coverage-report
+          path: htmlcov-e2e/
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, frontend-tests]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t storyforge:ci-${{ github.sha }} .
+      - name: Verify container starts
+        run: |
+          docker run -d --name sf-test -p 7860:7860 \
+            -e STORYFORGE_SECRET_KEY=ci-test-only \
+            storyforge:ci-${{ github.sha }}
+          sleep 5
+          curl -sf http://localhost:7860/api/health || (docker logs sf-test && exit 1)
+          docker stop sf-test
 

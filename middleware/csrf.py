@@ -20,7 +20,6 @@ _EXEMPT_PREFIXES = (
     "/redoc",
     "/openapi.json",
     "/api/health",
-    "/api/v1/",
     "/mcp/",
 )
 

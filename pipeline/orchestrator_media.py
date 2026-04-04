@@ -39,19 +39,38 @@ class MediaProducer:
                     result["character_refs"][char.name] = ref_path
                     _log(f"[MEDIA] + {char.name}")
 
-        # Step 1.5: Build/load character visual profiles if consistency enabled
+        # Step 1.5: Build/load enhanced character visual profiles
         visual_profiles = {}
         if cfg.enable_character_consistency and draft.characters:
             from services.character_visual_profile import CharacterVisualProfileStore
+            from services.character_visual_extractor import CharacterVisualExtractor
             profile_store = CharacterVisualProfileStore()
+            extractor = CharacterVisualExtractor()
             for char in draft.characters:
-                if not profile_store.has_profile(char.name):
-                    desc = profile_store.build_visual_description(char)
-                    ref_path = result["character_refs"].get(char.name, "")
-                    profile_store.save_profile(char.name, desc, ref_path)
                 profile = profile_store.load_profile(char.name)
+                # Check if profile has frozen_prompt (enhanced profile)
+                if not profile or not profile.get("frozen_prompt"):
+                    _log(f"[MEDIA] Trích xuất visual profile: {char.name}...")
+                    try:
+                        attributes, frozen_prompt = extractor.extract_and_generate(char)
+                        desc = profile_store.build_visual_description(char)
+                        ref_path = result["character_refs"].get(char.name, "")
+                        profile_store.save_enhanced_profile(
+                            char.name, desc, attributes, frozen_prompt, ref_path
+                        )
+                        profile = profile_store.load_profile(char.name)
+                    except Exception as e:
+                        logger.warning("Visual extraction failed for %s: %s", char.name, e)
+                        # Fallback: use simple text description
+                        if not profile_store.has_profile(char.name):
+                            desc = profile_store.build_visual_description(char)
+                            ref_path = result["character_refs"].get(char.name, "")
+                            profile_store.save_profile(char.name, desc, ref_path)
+                        profile = profile_store.load_profile(char.name)
+
                 if profile:
-                    visual_profiles[char.name] = profile.get("description", "")
+                    # Prefer frozen_prompt, fallback to description
+                    visual_profiles[char.name] = profile.get("frozen_prompt") or profile.get("description", "")
                     if not char.reference_image and profile.get("reference_image"):
                         ref = profile["reference_image"]
                         if os.path.exists(ref):
@@ -87,9 +106,11 @@ class MediaProducer:
                     image_prompt = ch.summary or ch.title or f"Chapter {ch.chapter_number}"
                 refs = list(char_refs.values())[:2]
                 if use_consistency and visual_profiles:
+                    # Use frozen English prompts directly (no longer Vietnamese descriptions)
                     char_descs = "; ".join(
                         f"[{n}: {visual_profiles[n]}]"
                         for n in visual_profiles
+                        if n in [getattr(c, 'name', '') for c in (draft.characters or [])]
                     )
                     if char_descs:
                         image_prompt = f"{char_descs} {image_prompt}"

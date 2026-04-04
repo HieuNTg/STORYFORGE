@@ -58,6 +58,7 @@ logger = logging.getLogger(__name__)
 
 _KEY_STORE_PATH = os.path.join("data", "jwt_keys.enc")
 _ALGORITHM = "HS256"
+_ENV_SECRET_KEY = "STORYFORGE_SECRET_KEY"
 
 # ---------------------------------------------------------------------------
 # Rotation policy configuration constants
@@ -92,10 +93,25 @@ class _JWTKeyStore:
                     inst._lock = threading.Lock()
                     inst._store: dict = {}
                     inst._loaded = False
+                    inst._env_key: Optional[bytes] = None
                     cls._instance = inst
         return cls._instance
 
     def _load(self) -> None:
+        env_secret = os.environ.get(_ENV_SECRET_KEY, "")
+        if env_secret:
+            # Use env var directly — no file I/O needed
+            self._env_key: Optional[bytes] = hashlib.sha256(env_secret.encode()).digest()
+            self._store = {}
+            return
+
+        # Env var not set — fall back to file-based key store
+        logger.warning(
+            "%s not set — using file-based key (set env var for production)",
+            _ENV_SECRET_KEY,
+        )
+        self._env_key = None
+
         if not os.path.exists(_KEY_STORE_PATH):
             logger.info("JWT key store not found — initialising")
             self._store = {"current_key": secrets.token_hex(32),
@@ -132,12 +148,16 @@ class _JWTKeyStore:
     def get_current_key(self) -> bytes:
         with self._lock:
             self._ensure_loaded()
+            if self._env_key is not None:
+                return self._env_key
             return self._key_bytes(self._store["current_key"])
 
     def get_valid_keys(self) -> list[bytes]:
         """Return current key plus previous key if still within rotation window."""
         with self._lock:
             self._ensure_loaded()
+            if self._env_key is not None:
+                return [self._env_key]
             keys = [self._key_bytes(self._store["current_key"])]
             prev = self._store.get("previous_key")
             if prev:
@@ -149,6 +169,9 @@ class _JWTKeyStore:
     def rotate_key(self) -> None:
         with self._lock:
             self._ensure_loaded()
+            if self._env_key is not None:
+                logger.info("Key rotation skipped — using env var key (%s)", _ENV_SECRET_KEY)
+                return
             self._store["previous_key"] = self._store["current_key"]
             self._store["previous_created"] = self._store["current_created"]
             self._store["current_key"] = secrets.token_hex(32)
@@ -160,6 +183,8 @@ class _JWTKeyStore:
         """Rotate if rotation interval elapsed. Returns True if rotation occurred."""
         with self._lock:
             self._ensure_loaded()
+            if self._env_key is not None:
+                return False  # Static env key — no rotation needed
             needs = time.time() - self._store.get("current_created", 0) >= _ROTATION_INTERVAL_SEC
         if needs:
             self.rotate_key()

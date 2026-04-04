@@ -1,7 +1,6 @@
 """Layer 1: Story generation orchestrator."""
 
 import logging
-from concurrent.futures import ThreadPoolExecutor
 
 from models.schemas import Character, Chapter, StoryDraft, StoryContext
 from services.llm_client import LLMClient
@@ -118,7 +117,6 @@ class StoryGenerator:
                              num_chapters=10, num_characters=5, word_count=2000,
                              progress_callback=None, stream_callback=None) -> StoryDraft:
         """Generate complete story from start to finish."""
-        context_window = self.config.pipeline.context_window_chapters
 
         def _log(msg):
             logger.info(msg)
@@ -146,53 +144,22 @@ class StoryGenerator:
         if bible_enabled:
             draft.story_bible = self.bible_manager.initialize(draft, arc_size=self.config.pipeline.arc_size)
 
-        all_chapter_texts: list[str] = []
-        self_reviewer = self._get_self_reviewer() if self.config.pipeline.enable_self_review else None
-
-        # NOTE (async-migration): ThreadPoolExecutor is kept here intentionally.
-        # The executor is passed to process_chapter_post_write which uses executor.submit()
-        # to run summarize_chapter, extract_character_states, and extract_plot_events in
-        # parallel while the main loop proceeds to the next chapter sequentially.
-        # These are CPU-light LLM calls sharing the same sync LLMClient; replacing with
-        # asyncio.gather would require an async LLM client (future work, see audit #2/#5).
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            for outline in outlines:
-                story_context.current_chapter = outline.chapter_number
-                chapter_tokens_used = 0
-                bible_ctx = ""
-                if bible_enabled and draft.story_bible:
-                    bible_ctx = self.bible_manager.get_context_for_chapter(
-                        draft.story_bible, outline.chapter_number,
-                        recent_summaries=list(story_context.recent_summaries), character_states=list(story_context.character_states))
-                _log(f"Đang viết chương {outline.chapter_number}: {outline.title}...")
-                if stream_callback:
-                    chapter = self.write_chapter_stream(title, genre, style, characters, world, outline,
-                                                        word_count=word_count, context=story_context, stream_callback=stream_callback)
-                else:
-                    chapter = self._write_chapter_with_long_context(title, genre, style, characters, world, outline,
-                                                                     word_count, story_context, all_chapter_texts, bible_ctx)
-                # Estimate tokens used from response length (chars / 4 heuristic)
-                chapter_tokens_used += len(chapter.content) // 4
-                usage_pct = (chapter_tokens_used / self.token_budget_per_chapter) * 100
-                if usage_pct >= 80:
-                    logger.warning(
-                        "Chapter %d at %d%% of token budget (%d/%d estimated tokens)",
-                        outline.chapter_number, int(usage_pct),
-                        chapter_tokens_used, self.token_budget_per_chapter,
-                    )
-                else:
-                    logger.info(
-                        "Chapter %d token usage: %d/%d (%.0f%%)",
-                        outline.chapter_number, chapter_tokens_used,
-                        self.token_budget_per_chapter, usage_pct,
-                    )
-                draft.chapters.append(chapter)
-                all_chapter_texts.append(chapter.content)
-                _log(f"Đang trích xuất context chương {outline.chapter_number}...")
-                process_chapter_post_write(chapter, outline, story_context, characters, context_window,
-                                           executor, self.llm, bible_enabled, draft, self.bible_manager,
-                                           progress_callback, genre, word_count,
-                                           self.config.pipeline.enable_self_review, self_reviewer)
+        # Delegate to BatchChapterGenerator (Phase 1: sequential within batches)
+        from pipeline.layer1_story.batch_generator import BatchChapterGenerator
+        batch_gen = BatchChapterGenerator(self)
+        batch_gen.generate_chapters(
+            draft=draft,
+            outlines=outlines,
+            story_context=story_context,
+            title=title,
+            genre=genre,
+            style=style,
+            characters=characters,
+            world=world,
+            word_count=word_count,
+            progress_callback=progress_callback,
+            stream_callback=stream_callback,
+        )
 
         draft.character_states = list(story_context.character_states)
         draft.plot_events = list(story_context.plot_events)

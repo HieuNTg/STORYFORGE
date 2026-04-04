@@ -1,0 +1,37 @@
+name: generate_characters
+version: v1
+description: "Generate story characters with detailed profiles"
+template: |
+  Bạn là nhà văn chuyên xây dựng nhân vật cho truyện {genre}.
+  Tiêu đề truyện: {title}
+  Ý tưởng: {idea}
+
+  Hãy tạo {num_characters} nhân vật với thông tin chi tiết.
+  Đảm bảo có xung đột nội tâm, mối quan hệ phức tạp giữa các nhân vật.
+  BẮT BUỘC: Toàn bộ nội dung (tên, tính cách, tiểu sử...) phải viết bằng tiếng Việt.
+
+  QUAN TRỌNG: "relationships" PHẢI là một JSON array (danh sách), KHÔNG được là chuỗi text.
+  Mỗi mối quan hệ là một phần tử riêng trong mảng.
+
+  Trả về JSON:
+  {{
+    "characters": [
+      {{
+        "name": "tên",
+        "role": "chính/phụ/phản diện",
+        "personality": "tính cách chi tiết",
+        "background": "tiểu sử",
+        "motivation": "động lực hành động",
+        "appearance": "ngoại hình",
+        "relationships": ["Là bạn thân của X", "Kẻ thù của Y"]
+      }}
+    ]
+  }}
+variables:
+  - genre
+  - title
+  - idea
+  - num_characters
+metadata:
+  author: "system"
+  created_at: "2026-04-04"

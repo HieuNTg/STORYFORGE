@@ -6,9 +6,19 @@ translation when config.pipeline.language != "vi".
 
 
 def localize_prompt(prompt: str, language: str = "vi") -> str:
-    """Wrap prompt with language instruction for non-Vietnamese output."""
+    """Wrap prompt with language instruction to enforce output language.
+
+    For Vietnamese (default): prepend a strong Vietnamese-only directive so
+    English-dominant models don't default to English output.
+    For other languages: prepend a translation directive.
+    """
     if language == "vi":
-        return prompt
+        return (
+            "BẮT BUỘC: Toàn bộ nội dung phải viết bằng tiếng Việt. "
+            "Tên nhân vật, địa danh, đối thoại — tất cả đều phải bằng tiếng Việt. "
+            "KHÔNG được viết bằng tiếng Anh hay bất kỳ ngôn ngữ nào khác.\n\n"
+            f"{prompt}"
+        )
     lang_names = {"en": "English", "vi": "Vietnamese"}
     lang_name = lang_names.get(language, language)
     return (

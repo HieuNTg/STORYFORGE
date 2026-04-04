@@ -1,0 +1,13 @@
+name: summarize_chapter
+version: v1
+description: "Summarize chapter content in 3-5 sentences focusing on key events and character development"
+template: |
+  Tóm tắt ngắn gọn nội dung chương truyện sau trong 3-5 câu,
+  tập trung vào sự kiện chính và phát triển nhân vật:
+
+  {content}
+variables:
+  - content
+metadata:
+  author: "system"
+  created_at: "2026-04-04"
