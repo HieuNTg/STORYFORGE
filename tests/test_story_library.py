@@ -37,7 +37,7 @@ def _minimal_pipeline_data(title="Test Story", genre="tien_hiep", chapter_count=
                         "chapters": chapters},
         "enhanced_story": {"title": title, "genre": genre, "chapters": chapters,
                            "drama_score": 0.7, "enhancement_notes": []},
-        "simulation_result": None, "video_script": None, "status": "completed",
+        "simulation_result": None, "status": "completed",
         "current_layer": 3, "progress": 1.0, "logs": [], "reviews": [],
         "quality_scores": [], "analytics": {}, "knowledge_graph_summary": None,
         "progress_events": [],

@@ -64,7 +64,6 @@ class StoryContinuation:
         draft = StoryGenerator.remove_chapters(self.output.story_draft, from_chapter)
         self.output.story_draft = draft
         self.output.enhanced_story = None
-        self.output.video_script = None
         self.checkpoint_manager.output = self.output
         self.checkpoint_manager.save(1)
         if progress_callback:

@@ -84,11 +84,4 @@ class EditorInChiefAgent(BaseAgent):
                 for c in story.chapters[:3]
             )
             return f"Tiêu đề: {story.title}\nĐiểm kịch tính: {story.drama_score}\n\n{chapters_preview}"
-        if layer == 3 and output.video_script:
-            script = output.video_script
-            panels_preview = "\n".join(
-                f"Panel {p.panel_number}: {p.description[:100]}"
-                for p in script.panels[:5]
-            )
-            return f"Kịch bản: {script.title}\nTổng thời lượng: {script.total_duration_seconds}s\n\n{panels_preview}"
         return "Chưa có nội dung cho layer này."

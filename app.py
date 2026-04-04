@@ -287,7 +287,6 @@ def main():
                 "uptime_seconds": round(time.time() - _START_TIME, 1),
                 "services": {
                     "llm": llm_ok,
-                    "ffmpeg": _FFMPEG_AVAILABLE,
                     "database": db_status.get("status", "unknown"),
                     "redis": redis_str,
                 },

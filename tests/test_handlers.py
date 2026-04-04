@@ -40,24 +40,16 @@ def _make_enhanced_story(title="Enhanced"):
     return es
 
 
-def _make_video_script(panels=None):
-    vs = MagicMock()
-    vs.panels = panels if panels is not None else []
-    vs.character_descriptions = {}
-    return vs
-
-
-def _make_output(story_draft=None, enhanced_story=None, video_script=None):
+def _make_output(story_draft=None, enhanced_story=None):
     out = MagicMock()
     out.story_draft = story_draft
     out.enhanced_story = enhanced_story
-    out.video_script = video_script
     return out
 
 
-def _make_orch_state(story_draft=None, enhanced_story=None, video_script=None):
+def _make_orch_state(story_draft=None, enhanced_story=None):
     orch = MagicMock()
-    orch.output = _make_output(story_draft, enhanced_story, video_script)
+    orch.output = _make_output(story_draft, enhanced_story)
     return orch
 
 
@@ -570,9 +562,6 @@ class TestHandleCharacterGallery(unittest.TestCase):
         from services.handlers import handle_character_gallery
         orch = MagicMock()
         orch.output.character_refs = None
-        vs = MagicMock()
-        vs.character_refs = None
-        orch.output.video_script = vs
         result = handle_character_gallery(orch)
         self.assertEqual(result, [])
 

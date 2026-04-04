@@ -57,17 +57,6 @@ class PipelineExporter:
                 files.append(path)
 
         if "JSON" in formats:
-            if self.output.video_script:
-                path = os.path.join(output_dir, f"{timestamp}_video_script.json")
-                try:
-                    script_data = plugin_manager.apply_export("json", self.output.video_script.model_dump())
-                except Exception as _e:
-                    logger.warning(f"Plugin apply_export json failed: {_e}")
-                    script_data = self.output.video_script.model_dump()
-                with open(path, "w", encoding="utf-8") as f:
-                    json.dump(script_data, f, ensure_ascii=False, indent=2)
-                files.append(path)
-
             if self.output.simulation_result:
                 path = os.path.join(output_dir, f"{timestamp}_simulation.json")
                 try:

@@ -52,21 +52,6 @@ class ContinuityCheckerAgent(BaseAgent):
         return world_setting, chapters_content
 
     def _get_chapters_for_layer(self, output: PipelineOutput, layer: int):
-        if layer == 3 and output.video_script:
-            # Layer 3: tóm tắt từ panels theo chapter
-            script = output.video_script
-            chapter_map: dict[int, list[str]] = {}
-            for p in script.panels:
-                chapter_map.setdefault(p.chapter_number, []).append(p.description[:80])
-            # Trả về dạng Chapter-like bằng object đơn giản
-            return [
-                type("C", (), {
-                    "chapter_number": ch_num,
-                    "title": f"Chương {ch_num}",
-                    "content": "\n".join(descs),
-                })()
-                for ch_num, descs in list(chapter_map.items())[:5]
-            ]
         if layer == 2 and output.enhanced_story:
             return output.enhanced_story.chapters
         if output.story_draft:

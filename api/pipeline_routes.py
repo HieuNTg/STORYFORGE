@@ -8,7 +8,7 @@ import os
 import time
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from services.i18n import I18n
 from services.text_utils import sanitize_story_html
@@ -75,15 +75,15 @@ def _t(key, **kw):
 
 class PipelineRequest(BaseModel):
     """Request body for running the pipeline."""
-    title: str = ""
-    genre: str = "Tiên Hiệp"
-    style: str = "Miêu tả chi tiết"
-    idea: str = ""
-    num_chapters: int = 5
-    num_characters: int = 5
-    word_count: int = 2000
-    num_sim_rounds: int = 3
-    drama_level: str = "cao"
+    idea: str = Field("", max_length=5000)
+    title: str = Field("", max_length=200)
+    genre: str = Field("Tiên Hiệp", max_length=100)
+    style: str = Field("Miêu tả chi tiết", max_length=100)
+    num_chapters: int = Field(5, ge=1, le=50)
+    num_characters: int = Field(5, ge=1, le=30)
+    word_count: int = Field(2000, ge=100, le=20000)
+    num_sim_rounds: int = Field(3, ge=1, le=10)
+    drama_level: str = Field("cao", max_length=50)
     enable_agents: bool = True
     enable_scoring: bool = True
     enable_media: bool = False

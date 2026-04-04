@@ -8,7 +8,7 @@ def build_output_summary(output) -> dict:
 
     All LLM-generated text fields are sanitized with nh3 to prevent XSS.
     """
-    result = {"has_draft": False, "has_enhanced": False, "has_video": False}
+    result = {"has_draft": False, "has_enhanced": False}
 
     if output.story_draft:
         d = output.story_draft
@@ -60,15 +60,6 @@ def build_output_summary(output) -> dict:
                 for e in s.events[:20]
             ],
             "suggestions": [_san(sg) for sg in (s.drama_suggestions[:5] if s.drama_suggestions else [])],
-        }
-
-    if output.video_script:
-        vs = output.video_script
-        result["has_video"] = True
-        result["video"] = {
-            "title": _san(vs.title),
-            "duration_seconds": vs.total_duration_seconds,
-            "panels_count": len(vs.panels),
         }
 
     if output.quality_scores:

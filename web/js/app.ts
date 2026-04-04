@@ -347,8 +347,7 @@ document.addEventListener('alpine:init', () => {
 
     _detectLayer(msg: string): number {
       const up = msg.toUpperCase();
-      if (up.includes('MEDIA') || up.includes('IMAGE') || up.includes('AUDIO')) return 4;
-      if (up.includes('LAYER 3') || up.includes('STORYBOARD') || up.includes('VIDEO')) return 3;
+      if (up.includes('MEDIA') || up.includes('IMAGE')) return 3;
       if (up.includes('LAYER 2') || up.includes('MÔ PHỎNG') || up.includes('ENHANCE')) return 2;
       if (up.includes('LAYER 1') || up.includes('TẠO TRUYỆN') || up.includes('CHƯƠNG')) return 1;
       return this.progress || 0;

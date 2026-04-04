@@ -67,6 +67,7 @@ def get_optional_user(request: Request) -> Optional[dict]:
         user_record = store.get_user(user_id)
         role = user_record.get("role", "creator") if user_record else "creator"
     except Exception:
+        logger.warning("Could not fetch role for user %r — defaulting to creator", user_id)
         role = "creator"
 
     return {"user_id": user_id, "username": username, "role": role}

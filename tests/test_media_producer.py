@@ -15,15 +15,13 @@ class TestMediaProducerErrorRecovery:
         mock_draft.characters = []
         mock_enhanced = MagicMock()
         mock_enhanced.chapters = []
-        mock_script = MagicMock()
-        mock_script.panels = [MagicMock(image_prompt="test", image_path="")]
 
         with patch.object(producer, 'config') as mock_cfg:
             mock_cfg.pipeline.seedream_api_key = ""
             mock_cfg.pipeline.seedream_api_url = ""
             mock_cfg.pipeline.enable_character_consistency = False
             # With no seedream configured, should skip image gen gracefully
-            result = producer.run(mock_draft, mock_enhanced, mock_script)
+            result = producer.run(mock_draft, mock_enhanced)
             assert isinstance(result, dict)
             assert "character_refs" in result
 
@@ -39,14 +37,11 @@ class TestMediaProducerErrorRecovery:
         mock_draft.characters = []
         mock_enhanced = MagicMock()
         mock_enhanced.chapters = []
-        mock_script = MagicMock()
-        mock_script.panels = []
 
-        result = producer.run(mock_draft, mock_enhanced, mock_script,
+        result = producer.run(mock_draft, mock_enhanced,
                              progress_callback=lambda m: None)
         assert isinstance(result, dict)
         assert result["scene_images"] == []
-        assert result["video_path"] == ""
 
     def test_returns_all_expected_keys(self):
         """Result dict contains all expected keys."""
@@ -60,9 +55,7 @@ class TestMediaProducerErrorRecovery:
         mock_draft.characters = []
         mock_enhanced = MagicMock()
         mock_enhanced.chapters = []
-        mock_script = MagicMock()
-        mock_script.panels = []
 
-        result = producer.run(mock_draft, mock_enhanced, mock_script)
-        for key in ["character_refs", "scene_images", "audio_paths", "video_path"]:
+        result = producer.run(mock_draft, mock_enhanced)
+        for key in ["character_refs", "scene_images"]:
             assert key in result

@@ -119,7 +119,7 @@ class LLMCache:
             try:
                 self.evict_expired()
             except Exception:
-                pass
+                logger.debug("Cache eviction failed", exc_info=True)
 
         key = self._make_key(**params)
         conn = self._get_conn()

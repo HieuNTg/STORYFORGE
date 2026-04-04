@@ -27,8 +27,7 @@ function resolveHash(raw: string): string | null {
 
 function detectLayer(msg: string, currentProgress: number): number {
   const up = msg.toUpperCase()
-  if (up.includes('MEDIA') || up.includes('IMAGE') || up.includes('AUDIO')) return 4
-  if (up.includes('LAYER 3') || up.includes('STORYBOARD') || up.includes('VIDEO')) return 3
+  if (up.includes('MEDIA') || up.includes('IMAGE')) return 3
   if (up.includes('LAYER 2') || up.includes('MÔ PHỎNG') || up.includes('ENHANCE')) return 2
   if (up.includes('LAYER 1') || up.includes('TẠO TRUYỆN') || up.includes('CHƯƠNG')) return 1
   return currentProgress || 0
@@ -153,16 +152,9 @@ describe('resolveHash()', () => {
 // detectLayer()
 // ============================================================================
 describe('detectLayer()', () => {
-  it('returns 4 for media/image/audio keywords', () => {
-    expect(detectLayer('Generating MEDIA files', 0)).toBe(4)
-    expect(detectLayer('Processing IMAGE', 0)).toBe(4)
-    expect(detectLayer('AUDIO generation complete', 0)).toBe(4)
-  })
-
-  it('returns 3 for LAYER 3/storyboard/video keywords', () => {
-    expect(detectLayer('LAYER 3: building storyboard', 0)).toBe(3)
-    expect(detectLayer('Creating STORYBOARD', 0)).toBe(3)
-    expect(detectLayer('VIDEO export started', 0)).toBe(3)
+  it('returns 3 for media/image keywords', () => {
+    expect(detectLayer('Generating MEDIA files', 0)).toBe(3)
+    expect(detectLayer('Processing IMAGE', 0)).toBe(3)
   })
 
   it('returns 2 for LAYER 2/enhance keywords', () => {

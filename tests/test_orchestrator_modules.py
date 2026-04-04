@@ -56,18 +56,11 @@ def _make_panel(num=1, ch=1, characters_in_frame=None, image_prompt="img"):
     return p
 
 
-def _make_video_script(panels=None):
-    vs = MagicMock()
-    vs.panels = panels if panels is not None else []
-    return vs
-
-
-def _make_pipeline_output(story_draft=None, enhanced_story=None, video_script=None,
+def _make_pipeline_output(story_draft=None, enhanced_story=None,
                            current_layer=0, logs=None, quality_scores=None):
     out = MagicMock()
     out.story_draft = story_draft
     out.enhanced_story = enhanced_story
-    out.video_script = video_script
     out.current_layer = current_layer
     out.logs = logs if logs is not None else []
     out.quality_scores = quality_scores if quality_scores is not None else []
@@ -364,7 +357,6 @@ class TestStoryContinuationRemoveChapters(unittest.TestCase):
         sc = StoryContinuation(po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), cm)
         sc.remove_chapters(5)
         self.assertIsNone(po.enhanced_story)
-        self.assertIsNone(po.video_script)
         cm.save.assert_called_with(1)
 
     @patch("pipeline.orchestrator_continuation.StoryGenerator")

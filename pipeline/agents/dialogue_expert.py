@@ -26,20 +26,6 @@ class DialogueExpertAgent(BaseAgent):
         return self._parse_review_json(result, layer, iteration)
 
     def _extract_chapters(self, output: PipelineOutput, layer: int) -> str:
-        # Layer 2: enhanced chapters; Layer 3: dùng voice lines từ video script
-        if layer == 3 and output.video_script:
-            script = output.video_script
-            dialogues = "\n".join(
-                f"[{vl.character}] ({vl.emotion}): {vl.text}"
-                for vl in script.voice_lines[:20]
-            )
-            panels_with_dialogue = "\n".join(
-                f"Panel {p.panel_number}: {p.dialogue}"
-                for p in script.panels
-                if p.dialogue
-            )[:1000]
-            return f"Lời thoại voice-over:\n{dialogues}\n\nThoại trong panel:\n{panels_with_dialogue}"
-
         # Layer 2: enhanced story
         if layer == 2 and output.enhanced_story:
             return "\n\n---\n\n".join(
