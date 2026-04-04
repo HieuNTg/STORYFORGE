@@ -49,6 +49,7 @@ class ConfigUpdate(BaseModel):
     """Request body for saving settings."""
     api_key: Optional[str] = None
     api_keys: Optional[list] = None
+    append_api_keys: Optional[list] = None
     base_url: Optional[str] = None
     model: Optional[str] = None
     temperature: Optional[float] = None
@@ -83,7 +84,13 @@ def get_config():
             "max_tokens": cfg.llm.max_tokens,
             "cheap_model": cfg.llm.cheap_model,
             "cheap_base_url": cfg.llm.cheap_base_url,
-            "api_keys": cfg.llm.api_keys,
+            "api_keys_masked": [
+                (k[:6] + "***" + k[-4:] if len(k) > 10 else "***")
+                for raw in cfg.llm.api_keys
+                for k in [raw if isinstance(raw, str) else (raw.get("key") or raw.get("api_key") or "")]
+                if k
+            ],
+            "api_keys_count": len(cfg.llm.api_keys),
             "layer1_model": cfg.llm.layer1_model,
             "layer2_model": cfg.llm.layer2_model,
         },
@@ -107,6 +114,8 @@ def save_config(body: ConfigUpdate):
         cfg.llm.api_key = body.api_key
     if body.api_keys is not None:
         cfg.llm.api_keys = body.api_keys
+    if body.append_api_keys:
+        cfg.llm.api_keys = list(cfg.llm.api_keys) + [k for k in body.append_api_keys if k not in cfg.llm.api_keys]
     if body.base_url is not None:
         cfg.llm.base_url = body.base_url
     if body.model is not None:
@@ -212,6 +221,21 @@ def cache_stats():
     """Return LLM cache statistics."""
     from services.llm_cache import LLMCache
     return LLMCache(ttl_days=ConfigManager().llm.cache_ttl_days).stats()
+
+
+@router.delete("/api-keys/{index}")
+def remove_api_key(index: int):
+    """Remove an additional API key by index."""
+    cfg = ConfigManager()
+    keys = list(cfg.llm.api_keys)
+    if index < 0 or index >= len(keys):
+        raise HTTPException(status_code=404, detail="Key index out of range")
+    keys.pop(index)
+    cfg.llm.api_keys = keys
+    cfg.save()
+    from services.llm_client import LLMClient
+    LLMClient.reset()
+    return {"status": "ok", "remaining": len(keys)}
 
 
 @router.delete("/cache")
