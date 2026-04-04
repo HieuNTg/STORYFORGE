@@ -13,6 +13,7 @@ import logging
 import logging.handlers
 import os
 import shutil
+import sys
 import time
 
 import uvicorn
@@ -96,6 +97,57 @@ def _get_allowed_origins() -> list[str]:
             return _DEFAULT_ORIGINS
         return origins
     return _DEFAULT_ORIGINS
+
+
+def _preflight_check() -> bool:
+    """Validate DB and Redis connectivity before starting the server.
+
+    Returns True if all required services are reachable, False otherwise.
+
+    DB failure is always fatal. Redis failure is fatal only when
+    STORYFORGE_REDIS_REQUIRED=1, otherwise it is logged as a warning.
+    """
+    from api.health_routes import _check_database, _check_redis
+
+    all_ok = True
+
+    # --- Database (required) ---
+    db_result = _check_database()
+    db_status = db_result.get("status")
+    if db_status == "ok":
+        logger.info("Preflight: database OK")
+    elif db_status == "not_configured":
+        logger.info("Preflight: database not configured — skipping")
+    else:
+        logger.error(
+            "Preflight: database UNREACHABLE (%s) — cannot start",
+            db_result.get("detail", db_status),
+        )
+        all_ok = False
+
+    # --- Redis (optional unless STORYFORGE_REDIS_REQUIRED=1) ---
+    redis_result = _check_redis()
+    redis_status = redis_result.get("status")
+    redis_required = os.environ.get("STORYFORGE_REDIS_REQUIRED", "").lower() in ("1", "true")
+
+    if redis_status == "ok":
+        logger.info("Preflight: Redis OK")
+    elif redis_status == "not_configured":
+        logger.info("Preflight: Redis not configured — running without cache")
+    elif redis_required:
+        logger.error(
+            "Preflight: Redis UNREACHABLE (%s) and STORYFORGE_REDIS_REQUIRED=1 — cannot start",
+            redis_result.get("detail", redis_status),
+        )
+        all_ok = False
+    else:
+        logger.warning(
+            "Preflight: Redis unavailable (%s) — continuing without cache (set "
+            "STORYFORGE_REDIS_REQUIRED=1 to make this fatal)",
+            redis_result.get("detail", redis_status),
+        )
+
+    return all_ok
 
 
 def main():
@@ -248,6 +300,10 @@ def main():
                 },
             },
         )
+
+    if not _preflight_check():
+        logger.error("Preflight checks failed — aborting startup")
+        sys.exit(1)
 
     logger.info("StoryForge starting — Web UI at http://localhost:7860")
     uvicorn.run(main_app, host="0.0.0.0", port=7860, log_level="info")

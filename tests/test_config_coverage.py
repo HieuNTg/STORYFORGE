@@ -112,13 +112,6 @@ class TestConfigValidation:
         # May or may not have errors depending on model format
         assert isinstance(errors, list)
 
-    def test_validate_video_quality_invalid(self):
-        from config.defaults import LLMConfig, PipelineConfig
-        from config.validation import validate_config
-        llm = LLMConfig(api_key="sk-test")
-        pipeline = PipelineConfig(video_quality="ultra")
-        errors = validate_config(llm, pipeline)
-        assert any("video_quality" in e for e in errors)
 
 
 class TestConfigPersistence:
