@@ -68,10 +68,27 @@ def _detect_provider_name(base_url: str) -> str:
     return "custom"
 
 
+PROVIDER_FROM_KEY = [
+    ("sk-ant-", {"name": "Anthropic", "base_url": "https://api.anthropic.com/v1/", "model": "claude-haiku-4-5-20251001"}),
+    ("sk-or-",  {"name": "OpenRouter", "base_url": "https://openrouter.ai/api/v1", "model": "qwen/qwen3.6-plus:free"}),
+    ("sk-proj-", {"name": "OpenAI", "base_url": "https://api.openai.com/v1", "model": "gpt-4o-mini"}),
+    ("sk-",     {"name": "OpenAI", "base_url": "https://api.openai.com/v1", "model": "gpt-4o-mini"}),
+    ("AIza",    {"name": "Google Gemini", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/", "model": "gemini-2.5-flash"}),
+]
+
+
+def _detect_provider_from_key(api_key: str) -> dict | None:
+    """Auto-detect provider config from API key prefix."""
+    for prefix, config in PROVIDER_FROM_KEY:
+        if api_key.startswith(prefix):
+            return config
+    return None
+
+
 class ProfileCreate(BaseModel):
     """Request body for creating/updating an API profile."""
-    name: str
-    base_url: str
+    name: str = ""
+    base_url: str = ""
     api_key: str = ""
     model: str = ""
     enabled: bool = True
@@ -259,22 +276,45 @@ def apply_model_preset(key: str):
     return {"status": "ok", "label": preset.get("label", key)}
 
 
+@router.post("/profiles/detect")
+def detect_provider(body: ProfileCreate):
+    """Detect provider from API key prefix — returns provider info without saving."""
+    detected = _detect_provider_from_key(body.api_key) if body.api_key else None
+    if not detected:
+        return {"detected": False}
+    return {
+        "detected": True,
+        "provider": _detect_provider_name(detected["base_url"]),
+        "name": detected["name"],
+        "base_url": detected["base_url"],
+        "model": detected["model"],
+    }
+
+
 @router.post("/profiles")
 def add_profile(body: ProfileCreate):
-    """Add an API provider profile to the fallback chain."""
+    """Add an API provider profile. Auto-detects provider from key prefix if fields empty."""
+    detected = _detect_provider_from_key(body.api_key) if body.api_key else None
     cfg = ConfigManager()
     profile = {
-        "name": body.name,
-        "base_url": body.base_url,
+        "name": body.name or (detected or {}).get("name", "Custom"),
+        "base_url": body.base_url or (detected or {}).get("base_url", ""),
         "api_key": body.api_key,
-        "model": body.model,
+        "model": body.model or (detected or {}).get("model", ""),
         "enabled": body.enabled,
     }
+    if not profile["base_url"]:
+        raise HTTPException(status_code=400, detail="Could not detect provider. Provide base_url manually.")
     cfg.llm.fallback_models = list(cfg.llm.fallback_models) + [profile]
     cfg.save()
     from services.llm_client import LLMClient
     LLMClient.reset()
-    return {"status": "ok", "index": len(cfg.llm.fallback_models) - 1}
+    return {
+        "status": "ok",
+        "index": len(cfg.llm.fallback_models) - 1,
+        "detected": _detect_provider_name(profile["base_url"]),
+        "name": profile["name"],
+    }
 
 
 @router.put("/profiles/{index}")

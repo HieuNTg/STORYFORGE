@@ -25,6 +25,7 @@ function settingsPage() {
     showAddProfile: false as boolean,
     editingProfile: null as number | null,
     profileForm: { name: '', base_url: '', api_key: '', model: '', enabled: true },
+    profileDetected: null as { provider: string; name: string; model: string } | null,
     profiles: [] as { name: string; provider: string; base_url: string; api_key_masked: string; model: string; enabled: boolean }[],
     form: {
       api_key: '' as string,
@@ -164,6 +165,7 @@ function settingsPage() {
 
     openAddProfile(): void {
       this.profileForm = { name: '', base_url: '', api_key: '', model: '', enabled: true };
+      this.profileDetected = null;
       this.editingProfile = null;
       this.showAddProfile = true;
     },
@@ -171,22 +173,40 @@ function settingsPage() {
     openEditProfile(index: number): void {
       const p = this.profiles[index];
       this.profileForm = { name: p.name, base_url: p.base_url, api_key: '', model: p.model, enabled: p.enabled };
+      this.profileDetected = null;
       this.editingProfile = index;
       this.showAddProfile = true;
     },
 
+    async detectFromKey(): Promise<void> {
+      const key = this.profileForm.api_key.trim();
+      if (key.length < 4) { this.profileDetected = null; return; }
+      try {
+        const res = await API.post<{ detected: boolean; provider?: string; name?: string; model?: string; base_url?: string }>('/config/profiles/detect', { api_key: key });
+        if (res.detected) {
+          this.profileDetected = { provider: res.provider!, name: res.name!, model: res.model! };
+          this.profileForm.name = res.name!;
+          this.profileForm.base_url = res.base_url!;
+          this.profileForm.model = res.model!;
+        } else {
+          this.profileDetected = null;
+        }
+      } catch { this.profileDetected = null; }
+    },
+
     async saveProfile(): Promise<void> {
-      if (!this.profileForm.name || !this.profileForm.base_url) return;
+      if (!this.profileForm.api_key && this.editingProfile === null) return;
       try {
         if (this.editingProfile !== null) {
           await API.put(`/config/profiles/${this.editingProfile}`, this.profileForm);
         } else {
-          await API.post('/config/profiles', this.profileForm);
+          await API.post('/config/profiles', { api_key: this.profileForm.api_key, name: this.profileForm.name, base_url: this.profileForm.base_url, model: this.profileForm.model, enabled: true });
         }
         this.showAddProfile = false;
         this.editingProfile = null;
+        this.profileDetected = null;
         await Alpine.store('settings').load();
-        this.message = this.editingProfile !== null ? 'Profile updated.' : 'Profile added.';
+        this.message = 'Provider added.';
         setTimeout(() => { this.message = ''; }, 2000);
       } catch (e) { this.message = 'Error: ' + (e as Error).message; }
     },

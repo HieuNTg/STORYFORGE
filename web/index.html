@@ -842,40 +842,42 @@
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
               </div>
-              <!-- Quick provider picker -->
-              <div class="flex flex-wrap gap-1.5">
-                <template x-for="prov in providers.filter(p => p.id !== 'custom')" :key="prov.id">
-                  <button @click="profileForm.name = prov.name; setProfileProvider(prov.id)" type="button"
-                    :class="profileForm.base_url === prov.url ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-slate-600 border-surface-200 hover:border-brand-400'"
-                    class="px-2.5 py-1 rounded-md text-xs font-medium border transition-all cursor-pointer flex items-center gap-1">
-                    <span x-text="prov.icon"></span>
-                    <span x-text="prov.name"></span>
-                  </button>
-                </template>
-              </div>
-              <div class="grid grid-cols-2 gap-3">
-                <div>
-                  <label class="block text-xs text-slate-500 mb-1">Name</label>
-                  <input type="text" x-model="profileForm.name" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none" placeholder="e.g. Google Gemini">
-                </div>
-                <div>
-                  <label class="block text-xs text-slate-500 mb-1">Model</label>
-                  <input type="text" x-model="profileForm.model" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none" placeholder="e.g. gemini-2.5-flash">
-                </div>
-              </div>
+              <!-- Just paste key — auto-detect -->
               <div>
-                <label class="block text-xs text-slate-500 mb-1">Base URL</label>
-                <input type="text" x-model="profileForm.base_url" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none" placeholder="https://...">
+                <label class="block text-xs text-slate-500 mb-1">Paste API Key</label>
+                <input type="password" x-model="profileForm.api_key" @input.debounce.300ms="detectFromKey()"
+                  class="w-full border border-surface-200 rounded-lg px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all"
+                  placeholder="sk-..., AIza..., sk-ant-..., sk-or-...">
               </div>
-              <div>
-                <label class="block text-xs text-slate-500 mb-1">API Key</label>
-                <input type="password" x-model="profileForm.api_key" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none"
-                  :placeholder="editingProfile !== null ? 'Leave blank to keep current key' : 'Paste API key...'">
+              <!-- Auto-detected provider badge -->
+              <div x-show="profileDetected" x-transition class="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                <span class="text-lg" x-text="providerIcons[profileDetected?.provider] || '⚙️'"></span>
+                <div class="flex-1">
+                  <span class="text-sm font-medium text-green-800" x-text="profileDetected?.name"></span>
+                  <span class="text-xs text-green-600 ml-2" x-text="'Model: ' + profileDetected?.model"></span>
+                </div>
+                <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
               </div>
+              <!-- Manual override (collapsed) -->
+              <details x-show="editingProfile !== null || (profileForm.api_key && !profileDetected)" class="group">
+                <summary class="text-xs text-slate-500 cursor-pointer hover:text-brand-600 select-none flex items-center gap-1">
+                  <svg class="w-3 h-3 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                  Manual configuration
+                </summary>
+                <div class="mt-2 space-y-2">
+                  <div class="grid grid-cols-2 gap-2">
+                    <input type="text" x-model="profileForm.name" class="border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 outline-none" placeholder="Name">
+                    <input type="text" x-model="profileForm.model" class="border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 outline-none" placeholder="Model">
+                  </div>
+                  <input type="text" x-model="profileForm.base_url" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-brand-200 outline-none" placeholder="Base URL (https://...)">
+                </div>
+              </details>
               <div class="flex justify-end gap-2">
                 <button @click="showAddProfile = false" type="button" class="px-3 py-2 text-sm text-slate-500 hover:text-slate-700 cursor-pointer">Cancel</button>
-                <button @click="saveProfile()" type="button" class="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition-colors cursor-pointer">
-                  <span x-text="editingProfile !== null ? 'Update' : 'Add Provider'"></span>
+                <button @click="saveProfile()" type="button"
+                  :disabled="!profileForm.api_key && editingProfile === null"
+                  class="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                  <span x-text="editingProfile !== null ? 'Update' : (profileDetected ? 'Add ' + profileDetected.name : 'Add Provider')"></span>
                 </button>
               </div>
             </div>
