@@ -153,4 +153,13 @@ class StoryBibleManager:
             ]
             parts.append("## Trạng thái nhân vật:\n" + "\n".join(char_lines))
 
+            # 9. Diễn biến mối quan hệ tích lũy
+            rel_lines = []
+            for cs in character_states[:8]:
+                cum_rels = getattr(cs, "cumulative_relationships", [])
+                if cum_rels:
+                    rel_lines.append(f"- {cs.name}: {'; '.join(cum_rels[-5:])}")
+            if rel_lines:
+                parts.append("## Diễn biến mối quan hệ:\n" + "\n".join(rel_lines))
+
         return "\n\n".join(parts)

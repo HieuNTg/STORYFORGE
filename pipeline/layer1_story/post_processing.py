@@ -98,6 +98,27 @@ def process_chapter_post_write(
     if new_states:
         existing = {s.name: s for s in story_context.character_states}
         for s in new_states:
+            prev = existing.get(s.name)
+            if prev:
+                # Accumulate knowledge and relationship changes across chapters
+                seen_knowledge = set(prev.cumulative_knowledge)
+                merged_knowledge = list(prev.cumulative_knowledge)
+                for k in s.knowledge:
+                    if k and k not in seen_knowledge:
+                        merged_knowledge.append(k)
+                        seen_knowledge.add(k)
+                seen_rels = set(prev.cumulative_relationships)
+                merged_rels = list(prev.cumulative_relationships)
+                for r in s.relationship_changes:
+                    if r and r not in seen_rels:
+                        merged_rels.append(r)
+                        seen_rels.add(r)
+                # Keep last 20 each to prevent unbounded growth
+                s.cumulative_knowledge = merged_knowledge[-20:]
+                s.cumulative_relationships = merged_rels[-20:]
+            else:
+                s.cumulative_knowledge = list(s.knowledge)
+                s.cumulative_relationships = list(s.relationship_changes)
             existing[s.name] = s
         story_context.character_states = list(existing.values())
 

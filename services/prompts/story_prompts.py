@@ -22,6 +22,9 @@ Hãy tạo {num_characters} nhân vật với thông tin chi tiết.
 Đảm bảo có xung đột nội tâm, mối quan hệ phức tạp giữa các nhân vật.
 BẮT BUỘC: Toàn bộ nội dung (tên, tính cách, tiểu sử...) phải viết bằng tiếng Việt.
 
+QUAN TRỌNG: "relationships" PHẢI là một JSON array (danh sách), KHÔNG được là chuỗi text.
+Mỗi mối quan hệ là một phần tử riêng trong mảng.
+
 Trả về JSON:
 {{
   "characters": [
@@ -32,7 +35,7 @@ Trả về JSON:
       "background": "tiểu sử",
       "motivation": "động lực hành động",
       "appearance": "ngoại hình",
-      "relationships": ["mô tả mối quan hệ với nhân vật khác"]
+      "relationships": ["Là bạn thân của X", "Kẻ thù của Y"]
     }}
   ]
 }}"""
@@ -155,6 +158,9 @@ NỘI DUNG CHƯƠNG:
 DANH SÁCH NHÂN VẬT CẦN THEO DÕI:
 {characters}
 
+QUAN TRỌNG: Với "relationship_changes", ghi rõ MỐI QUAN HỆ thay đổi thế nào giữa các nhân vật cụ thể.
+Ví dụ: "A bắt đầu nghi ngờ B", "C phản bội D", "E và F trở thành đồng minh"
+
 Trả về JSON:
 {{
   "character_states": [
@@ -163,7 +169,7 @@ Trả về JSON:
       "mood": "tâm trạng hiện tại",
       "arc_position": "rising/crisis/falling/resolution",
       "knowledge": ["điều nhân vật biết được trong chương này"],
-      "relationship_changes": ["thay đổi mối quan hệ"],
+      "relationship_changes": ["A bắt đầu nghi ngờ B", "mối quan hệ cụ thể thay đổi"],
       "last_action": "hành động cuối cùng trong chương"
     }}
   ]

@@ -41,7 +41,15 @@ def generate_characters(
     characters = []
     for c in result.get("characters", []):
         if isinstance(c, dict):
-            characters.append(Character(**c))
+            rel = c.get("relationships")
+            if isinstance(rel, str):
+                c["relationships"] = [s.strip() for s in rel.split(",") if s.strip()] if "," in rel else [rel] if rel.strip() else []
+            elif rel is None:
+                c["relationships"] = []
+            try:
+                characters.append(Character(**c))
+            except Exception as e:
+                logger.warning("Skipping malformed character: %s", e)
         else:
             logger.warning("Skipping non-dict character entry: %s", type(c).__name__)
     return characters

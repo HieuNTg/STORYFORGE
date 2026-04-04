@@ -27,9 +27,18 @@ class Character(BaseModel):
     @field_validator("relationships", mode="before")
     @classmethod
     def _coerce_relationships(cls, v):
-        """LLM sometimes returns '' instead of [] — coerce to list."""
+        """LLM sometimes returns a string instead of list — coerce robustly."""
         if isinstance(v, str):
-            return [s.strip() for s in v.split(",") if s.strip()] if v.strip() else []
+            if not v.strip():
+                return []
+            if "\n" in v:
+                lines = [ln.strip().lstrip("-•*0123456789.) ") for ln in v.splitlines()]
+                return [ln for ln in lines if ln]
+            if "," in v:
+                return [s.strip() for s in v.split(",") if s.strip()]
+            return [v.strip()]
+        if v is None:
+            return []
         return v
 
 
@@ -69,6 +78,8 @@ class CharacterState(BaseModel):
     knowledge: list[str] = Field(default_factory=list)
     relationship_changes: list[str] = Field(default_factory=list)
     last_action: str = ""
+    cumulative_knowledge: list[str] = Field(default_factory=list)
+    cumulative_relationships: list[str] = Field(default_factory=list)
 
 
 class PlotEvent(BaseModel):
