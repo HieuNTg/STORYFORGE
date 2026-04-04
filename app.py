@@ -165,6 +165,11 @@ def main():
     from errors.handlers import storyforge_error_handler
     main_app.add_exception_handler(StoryForgeError, storyforge_error_handler)
 
+    # Global exception handler: log full traceback, return generic 500.
+    # Must be registered AFTER domain-specific handlers so those still fire first.
+    from api import register_exception_handlers
+    register_exception_handlers(main_app)
+
     from fastapi.responses import JSONResponse
     from services.input_sanitizer import InjectionBlockedError
 

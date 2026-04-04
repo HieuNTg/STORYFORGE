@@ -1,13 +1,41 @@
 """Structured progress tracking for pipeline steps.
 
 Emits typed progress events that UI can render as visual indicators.
+Events are persisted in Redis when a session_id is provided.
 """
 
+import json
+import os
 import time
 import logging
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
+
+_SESSION_TTL = 86400  # 24 hours
+
+
+def _session_key(session_id: str, namespace: str) -> str:
+    return f"storyforge:session:{session_id}:{namespace}"
+
+
+def _make_redis_client():
+    """Create a Redis client from REDIS_URL env var. Raises if unavailable."""
+    redis_url = os.environ.get("REDIS_URL", "").strip()
+    if not redis_url:
+        raise RuntimeError(
+            "REDIS_URL is not set. Redis is required for session state. "
+            "Start Redis via docker-compose and set REDIS_URL."
+        )
+    try:
+        import redis as _redis_lib
+    except ImportError as exc:
+        raise RuntimeError(
+            "redis package is not installed. Run: pip install redis"
+        ) from exc
+    client = _redis_lib.from_url(redis_url, decode_responses=True)
+    client.ping()
+    return client
 
 
 @dataclass
@@ -34,17 +62,48 @@ class ProgressEvent:
         icon = status_icons.get(self.status, "•")
         return f"[{label}] {icon}"
 
+    def to_dict(self) -> dict:
+        return {
+            "step": self.step,
+            "status": self.status,
+            "message": self.message,
+            "detail": self.detail,
+            "progress": self.progress,
+            "timestamp": self.timestamp,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "ProgressEvent":
+        return cls(
+            step=d["step"],
+            status=d["status"],
+            message=d["message"],
+            detail=d.get("detail", ""),
+            progress=d.get("progress", 0.0),
+            timestamp=d.get("timestamp", 0.0),
+        )
+
 
 class ProgressTracker:
     """Track pipeline progress with structured events.
 
-    Wraps a simple progress_callback to emit ProgressEvent objects
-    while maintaining backward-compatible string log output.
+    When session_id is provided, events are persisted in Redis.
+    Without session_id, events accumulate in memory only (backward compat).
     """
 
-    def __init__(self, callback=None):
+    def __init__(self, callback=None, session_id: str = ""):
         self._callback = callback
-        self._events: list[ProgressEvent] = []
+        self._session_id = session_id
+        self._redis = None
+        self._local_events: list[ProgressEvent] = []
+
+        if session_id:
+            try:
+                self._redis = _make_redis_client()
+                logger.debug("ProgressTracker: Redis connected for session %s", session_id)
+            except Exception as exc:
+                logger.error("ProgressTracker: Redis init failed: %s", exc)
+                raise
 
     def emit(self, step: str, status: str, message: str,
              detail: str = "", progress: float = 0.0) -> ProgressEvent:
@@ -53,9 +112,18 @@ class ProgressTracker:
             step=step, status=status, message=message,
             detail=detail, progress=progress,
         )
-        self._events.append(event)
 
-        # Backward-compatible: call string callback
+        if self._redis and self._session_id:
+            key = _session_key(self._session_id, "progress")
+            try:
+                self._redis.rpush(key, json.dumps(event.to_dict()))
+                self._redis.expire(key, _SESSION_TTL)
+            except Exception as exc:
+                logger.warning("ProgressTracker: Redis write error: %s", exc)
+                self._local_events.append(event)
+        else:
+            self._local_events.append(event)
+
         if self._callback:
             log_msg = f"{event.to_log_prefix()} {message}"
             if detail:
@@ -108,8 +176,17 @@ class ProgressTracker:
 
     @property
     def events(self) -> list[ProgressEvent]:
-        return list(self._events)
+        if self._redis and self._session_id:
+            key = _session_key(self._session_id, "progress")
+            try:
+                self._redis.expire(key, _SESSION_TTL)
+                raw = self._redis.lrange(key, 0, -1)
+                return [ProgressEvent.from_dict(json.loads(r)) for r in raw]
+            except Exception as exc:
+                logger.warning("ProgressTracker: Redis read error: %s", exc)
+        return list(self._local_events)
 
     @property
     def last_event(self) -> ProgressEvent | None:
-        return self._events[-1] if self._events else None
+        evts = self.events
+        return evts[-1] if evts else None

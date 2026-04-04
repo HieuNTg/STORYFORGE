@@ -78,3 +78,6 @@ plans/**/*
 screenshots/*
 docs/screenshots/*
 docs/research/*
+
+# ── TLS / SSL generated files ─────────────────────────────────────
+nginx/ssl/dhparam.pem

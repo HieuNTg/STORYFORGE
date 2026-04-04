@@ -7,13 +7,13 @@ function pipelinePage() {
     activeTab: 'draft' as string,
     branchOpen: false as boolean,
     _branchComp: null as unknown,
-    // Alpine magic properties — declared so TypeScript knows they exist at runtime
-    $watch: undefined as unknown as (
+    // Alpine magic properties — injected at runtime; stubs satisfy TypeScript without unsafe double-casts
+    $watch: null! as (
       expr: string | (() => unknown),
       cb: (val: unknown) => void
     ) => void,
-    $nextTick: undefined as unknown as () => Promise<void>,
-    $refs: undefined as unknown as Record<string, unknown>,
+    $nextTick: null! as () => Promise<void>,
+    $refs: null! as Record<string, HTMLElement & { _x_dataStack?: Array<{ startSession?: (t: string) => void }> }>,
 
     /**
      * Form persistence helpers — saves genre, idea, style, num_chapters
@@ -82,7 +82,7 @@ function pipelinePage() {
       const text = chapters.map(ch => (ch.title ? ch.title + '\n' : '') + ch.content).join('\n\n');
       this.branchOpen = true;
       await this.$nextTick();
-      const el = this.$refs.branchPanel as { _x_dataStack?: Array<{ startSession?: (t: string) => void }> };
+      const el = this.$refs['branchPanel'];
       if (el && el._x_dataStack) {
         const comp = el._x_dataStack[0];
         if (comp && typeof comp.startSession === 'function') {

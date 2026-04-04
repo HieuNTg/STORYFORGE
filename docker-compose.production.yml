@@ -230,6 +230,8 @@ services:
       - ./nginx/ssl-params.conf:/etc/nginx/ssl-params.conf:ro
       # SSL certificates — mount from host (Let's Encrypt / manual)
       - ./nginx/ssl:/etc/letsencrypt:ro
+      # DH parameters for TLS hardening — generate with: bash scripts/generate-dhparam.sh
+      - ./nginx/ssl/dhparam.pem:/etc/nginx/ssl/dhparam.pem:ro
       # Static web assets
       - ./web:/usr/share/nginx/html/web:ro
     depends_on:
@@ -352,6 +354,26 @@ services:
         reservations:
           cpus: "0.1"
           memory: 64M
+
+  # ── Alertmanager (alert delivery) ─────────────────────────────────────────
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: storyforge-alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "127.0.0.1:9093:9093"
+    networks:
+      - storyforge-network
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 64M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
 
   # ── Certbot (SSL auto-renewal) ─────────────────────────────────────────────
   certbot:

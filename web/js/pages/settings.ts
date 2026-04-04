@@ -41,8 +41,8 @@ function settingsPage() {
     showKey: false as boolean,
     selectedProvider: 'openai' as string,
     presetApplied: '' as string,
-    // Alpine magic property — declared so TypeScript knows it exists at runtime
-    $watch: undefined as unknown as (
+    // Alpine magic property — injected at runtime; stub satisfies TypeScript without unsafe double-cast
+    $watch: null! as (
       expr: string | (() => unknown),
       cb: (val: unknown) => void
     ) => void,

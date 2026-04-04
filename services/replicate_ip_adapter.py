@@ -4,10 +4,21 @@ import logging
 import base64
 import time
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from typing import Optional
 from config import ConfigManager
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ImageResult:
+    """Result wrapper for a single image generation attempt."""
+    prompt: str
+    image_url: Optional[str] = None
+    error: Optional[str] = None
+    success: bool = True
 
 
 class ReplicateIPAdapter:
@@ -117,3 +128,31 @@ class ReplicateIPAdapter:
         except Exception as e:
             logger.error("Replicate IP-Adapter error: %s", e)
             return None
+
+    def batch_generate(
+        self, requests_list: list[dict], max_workers: int = 5
+    ) -> list[ImageResult]:
+        """Generate multiple images in parallel. Returns partial results on failure.
+
+        Each dict in requests_list must include the kwargs accepted by generate():
+        prompt, reference_image_path, and optionally filename, timeout.
+        """
+        if not requests_list:
+            return []
+
+        results: list[ImageResult] = []
+        with ThreadPoolExecutor(max_workers=min(max_workers, len(requests_list))) as executor:
+            futures = {
+                executor.submit(self.generate, **req): req
+                for req in requests_list
+            }
+            for future in as_completed(futures):
+                req = futures[future]
+                prompt = req.get("prompt", "")
+                try:
+                    url = future.result()
+                    results.append(ImageResult(prompt=prompt, image_url=url))
+                except Exception as e:
+                    logger.error("Batch image generation failed for %r: %s", prompt, e)
+                    results.append(ImageResult(prompt=prompt, error=str(e), success=False))
+        return results

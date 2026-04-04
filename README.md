@@ -25,7 +25,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/create-story.png" alt="StoryForge — Create Story" width="800" />
+  <img src="assets/screenshots/v2-dark-home.png" alt="StoryForge — Create Story" width="800" />
 </p>
 
 ---
@@ -40,11 +40,11 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 
 | Create Story | Settings |
 |:---:|:---:|
-| ![Create](assets/screenshots/create-story.png) | ![Settings](assets/screenshots/settings.png) |
+| ![Create](assets/screenshots/v2-dark-home.png) | ![Settings](assets/screenshots/v2-dark-settings.png) |
 
 | Story Library | Light Mode |
 |:---:|:---:|
-| ![Library](assets/screenshots/library.png) | ![Light](assets/screenshots/light-mode.png) |
+| ![Library](assets/screenshots/v2-dark-library.png) | ![Light](assets/screenshots/v2-light-home.png) |
 
 ---
 

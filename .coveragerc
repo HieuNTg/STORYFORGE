@@ -58,12 +58,19 @@ exclude_lines =
     pass
     @(abc\.)?abstractmethod
 
-# ── Per-module minimum coverage targets (informational) ──────────────────────
-# The following modules must maintain ≥ 80 % line+branch coverage.
-# Enforced separately in CI via `coverage report --include=<path> --fail-under=80`.
+# ── Per-module minimum coverage targets ──────────────────────────────────────
+# Per-module gates enforced in CI — see .github/workflows/ci.yml
+# "Enforce per-module coverage" step in the unit-tests job.
+# Ratchet approach: currently warn-only (|| echo WARNING) until overall
+# coverage reaches targets, then gates will be converted to hard failures.
 #
 # Module                          Min   Rationale
 # ──────────────────────────────  ────  ────────────────────────────────────────
+# services/llm/*                   80%  Core LLM provider logic: reliability critical
+# pipeline/*                       75%  Story generation pipeline: correctness critical
+# api/*                            70%  API endpoints: integration coverage floor
+#
+# Legacy informational targets (not yet enforced in CI):
 # api/auth*                        80%  Security-critical: token validation, login
 # api/credits*                     80%  Business-critical: credit deduction logic
 # services/credit*                 80%  Business-critical: credit management service

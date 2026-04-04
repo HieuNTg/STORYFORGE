@@ -167,6 +167,6 @@ document.addEventListener('alpine:init', () => {
         data.active = false;
       },
     };
-    return data as unknown as Record<string, unknown>;
+    return data;
   });
 });

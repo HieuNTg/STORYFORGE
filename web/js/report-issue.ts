@@ -101,6 +101,6 @@ document.addEventListener('alpine:init', () => {
         data.error       = '';
       },
     };
-    return data as unknown as Record<string, unknown>;
+    return data;
   });
 });

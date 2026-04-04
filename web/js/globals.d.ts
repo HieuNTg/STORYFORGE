@@ -12,7 +12,8 @@ interface AlpineStatic {
   /** Define or retrieve an Alpine store. ThisType<T> gives `this` proper typing inside methods. */
   store<T extends Record<string, any>>(name: string, value: T & ThisType<T>): void
   store(name: string): any
-  data(name: string, fn: (...args: any[]) => Record<string, unknown>): void
+  /** Alpine.data accepts any object-returning factory — typed interface returned by factory, not Record<string, unknown> */
+  data(name: string, fn: (...args: any[]) => object): void
   start(): void
 }
 
@@ -22,7 +23,8 @@ declare var Alpine: AlpineStatic
 
 interface StreamEvent {
   type: 'progress' | 'chapter' | 'done' | 'error' | 'interrupted' | 'session' | 'log' | 'stream'
-  data: string
+  /** `data` is string for most event types; the `done` event delivers a parsed PipelineResult object */
+  data: unknown
   session_id?: string
   payload?: unknown
 }

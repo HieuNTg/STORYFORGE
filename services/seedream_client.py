@@ -4,6 +4,8 @@ import os
 import re
 import logging
 import base64
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from typing import Optional
 
 import requests
@@ -11,6 +13,15 @@ import requests
 MAX_REF_SIZE = 10 * 1024 * 1024  # 10MB
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ImageResult:
+    """Result wrapper for a single image generation attempt."""
+    prompt: str
+    image_url: Optional[str] = None
+    error: Optional[str] = None
+    success: bool = True
 
 
 class SeedreamClient:
@@ -78,6 +89,34 @@ class SeedreamClient:
             return self._edit_sequential(scene_prompt, reference_images, output_path)
         else:
             return self._text_to_image(scene_prompt, output_path)
+
+    def batch_generate(
+        self, requests_list: list[dict], max_workers: int = 5
+    ) -> list[ImageResult]:
+        """Generate multiple scenes in parallel. Returns partial results on failure.
+
+        Each dict in requests_list must include the kwargs accepted by generate_scene():
+        scene_prompt, reference_images, and optionally filename.
+        """
+        if not requests_list:
+            return []
+
+        results: list[ImageResult] = []
+        with ThreadPoolExecutor(max_workers=min(max_workers, len(requests_list))) as executor:
+            futures = {
+                executor.submit(self.generate_scene, **req): req
+                for req in requests_list
+            }
+            for future in as_completed(futures):
+                req = futures[future]
+                prompt = req.get("scene_prompt", "")
+                try:
+                    path = future.result()
+                    results.append(ImageResult(prompt=prompt, image_url=path))
+                except Exception as e:
+                    logger.error("Batch scene generation failed for %r: %s", prompt, e)
+                    results.append(ImageResult(prompt=prompt, error=str(e), success=False))
+        return results
 
     # ── Private helpers ────────────────────────────────────────────────────────
 

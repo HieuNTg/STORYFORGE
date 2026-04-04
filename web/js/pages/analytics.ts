@@ -32,8 +32,8 @@ function analyticsPage() {
     loaded: false as boolean,
     stats: null as AnalyticsStats | null,
     _lastResultRef: null as AnalyticsPipelineResult | null,
-    // Alpine magic — declared so TypeScript knows it exists at runtime
-    $watch: undefined as unknown as (
+    // Alpine magic — injected at runtime; stub satisfies TypeScript without unsafe double-cast
+    $watch: null! as (
       expr: string | (() => unknown),
       cb: (val: any) => void
     ) => void,

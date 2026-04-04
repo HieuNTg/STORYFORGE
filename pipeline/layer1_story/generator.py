@@ -33,12 +33,16 @@ class StoryGenerator:
     LAYER = 1
     _layer_model = None  # Class-level default for __new__-based test compatibility
 
-    def __init__(self):
+    # Token budget per chapter — can be overridden via subclassing or constructor kwarg
+    TOKEN_BUDGET_PER_CHAPTER: int = 4000
+
+    def __init__(self, token_budget_per_chapter: int = TOKEN_BUDGET_PER_CHAPTER):
         self.llm = LLMClient()
         self.config = ConfigManager()
         self.bible_manager = StoryBibleManager()
         self._long_ctx_client = None
         self._layer_model = self.llm.model_for_layer(self.LAYER)
+        self.token_budget_per_chapter = token_budget_per_chapter
 
     @property
     def long_context_client(self):
@@ -154,6 +158,7 @@ class StoryGenerator:
         with ThreadPoolExecutor(max_workers=3) as executor:
             for outline in outlines:
                 story_context.current_chapter = outline.chapter_number
+                chapter_tokens_used = 0
                 bible_ctx = ""
                 if bible_enabled and draft.story_bible:
                     bible_ctx = self.bible_manager.get_context_for_chapter(
@@ -166,6 +171,21 @@ class StoryGenerator:
                 else:
                     chapter = self._write_chapter_with_long_context(title, genre, style, characters, world, outline,
                                                                      word_count, story_context, all_chapter_texts, bible_ctx)
+                # Estimate tokens used from response length (chars / 4 heuristic)
+                chapter_tokens_used += len(chapter.content) // 4
+                usage_pct = (chapter_tokens_used / self.token_budget_per_chapter) * 100
+                if usage_pct >= 80:
+                    logger.warning(
+                        "Chapter %d at %d%% of token budget (%d/%d estimated tokens)",
+                        outline.chapter_number, int(usage_pct),
+                        chapter_tokens_used, self.token_budget_per_chapter,
+                    )
+                else:
+                    logger.info(
+                        "Chapter %d token usage: %d/%d (%.0f%%)",
+                        outline.chapter_number, chapter_tokens_used,
+                        self.token_budget_per_chapter, usage_pct,
+                    )
                 draft.chapters.append(chapter)
                 all_chapter_texts.append(chapter.content)
                 _log(f"Đang trích xuất context chương {outline.chapter_number}...")

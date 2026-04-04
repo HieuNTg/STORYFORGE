@@ -1,6 +1,16 @@
-"""API router registry — mounts all sub-routers onto a single FastAPI APIRouter."""
+"""API router registry — mounts all sub-routers onto a single FastAPI APIRouter.
 
-from fastapi import APIRouter
+Also exports ``register_exception_handlers`` to wire up the global 500 handler
+on the FastAPI application instance (called from app.py).
+"""
+
+import logging
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+
 from api.auth_routes import router as auth_router
 from api.config_routes import router as config_router
 from api.pipeline_routes import router as pipeline_router
@@ -34,4 +44,65 @@ api_router.include_router(eval_router)
 api_router.include_router(share_router)
 api_router.include_router(prompt_router)
 
-__all__ = ["api_router"]
+_log = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Error response schema
+# ---------------------------------------------------------------------------
+
+class ErrorResponse(BaseModel):
+    """Consistent error payload for all 4xx/5xx API responses."""
+
+    error: str
+    request_id: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Exception handler registration
+# ---------------------------------------------------------------------------
+
+def register_exception_handlers(app) -> None:
+    """Register global exception handlers on the FastAPI *app* instance.
+
+    Call this from ``app.py`` after creating the FastAPI application object
+    but before mounting routes.
+
+    Handlers registered:
+    - ``HTTPException`` → passthrough so intentional 4xx/5xx codes are
+      preserved with a structured ``ErrorResponse`` body.
+    - ``Exception`` (catch-all) → log full traceback, return generic 500
+      so internal details never reach the client.
+    """
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
+        """Preserve intentional HTTP errors with a structured JSON body."""
+        request_id = getattr(request.state, "request_id", None)
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=ErrorResponse(
+                error=exc.detail if isinstance(exc.detail, str) else str(exc.detail),
+                request_id=request_id,
+            ).model_dump(exclude_none=True),
+        )
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception):
+        """Catch all unhandled exceptions, log with traceback, return generic 500."""
+        request_id = getattr(request.state, "request_id", None)
+        _log.exception(
+            "Unhandled error in %s [request_id=%s]",
+            request.url.path,
+            request_id,
+        )
+        return JSONResponse(
+            status_code=500,
+            content=ErrorResponse(
+                error="Internal server error",
+                request_id=request_id,
+            ).model_dump(exclude_none=True),
+        )
+
+
+__all__ = ["api_router", "register_exception_handlers", "ErrorResponse"]
