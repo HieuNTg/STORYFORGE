@@ -50,12 +50,40 @@ function branchingPage() {
     showStoryPicker: false,
     storySource: 'current' as 'current' | 'saved',
     loadError: '',
+    restoringSession: false,
+    pendingRestoreSessionId: null as string | null,
 
     init() {
       this.fetchStories();
       (this as unknown as AlpineComponent).$el.addEventListener('branch-close', () => {
         this.selectedChapter = null;
+        clearBranchSession();
       });
+      document.addEventListener('branch:started', ((e: CustomEvent) => {
+        if (this.selectedChapter !== null) {
+          saveBranchSession(e.detail.sessionId, this.selectedChapter, this.storyTitle);
+        }
+      }) as EventListener);
+      this.tryRestoreSession();
+    },
+
+    async tryRestoreSession() {
+      const saved = loadBranchSession();
+      if (!saved) return;
+      this.restoringSession = true;
+      try {
+        const res = await fetch(`/api/branch/${saved.sessionId}/current`);
+        if (res.ok) {
+          this.pendingRestoreSessionId = saved.sessionId;
+          this.selectedChapter = saved.chapterIndex;
+        } else {
+          clearBranchSession();
+        }
+      } catch {
+        clearBranchSession();
+      } finally {
+        this.restoringSession = false;
+      }
     },
 
     get hasCurrentStory(): boolean {
@@ -131,6 +159,7 @@ function branchingPage() {
     selectChapter(idx: number) {
       if (this.selectedChapter === idx) {
         this.selectedChapter = null;
+        clearBranchSession();
         return;
       }
       this.selectedChapter = idx;

@@ -1522,7 +1522,7 @@
 
               <!-- Branch reader (appears when chapter selected) -->
               <template x-if="selectedChapter !== null">
-                <div x-data="branchReader()" x-init="startSession(getSelectedContent())" class="space-y-4">
+                <div x-data="branchReader()" x-init="pendingRestoreSessionId ? restoreSession(pendingRestoreSessionId).then(() => { pendingRestoreSessionId = null }) : startSession(getSelectedContent())" class="space-y-4">
 
                   <!-- Error banner -->
                   <div x-show="error" x-transition class="card p-4 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">

@@ -33,6 +33,32 @@ interface BranchTreeResponse {
   [key: string]: unknown;
 }
 
+interface BranchSessionStorage {
+  sessionId: string;
+  chapterIndex: number;
+  storyTitle: string;
+}
+
+const BRANCH_STORAGE_KEY = 'sf_branch_session';
+
+function saveBranchSession(sessionId: string, chapterIndex: number, storyTitle: string): void {
+  try {
+    localStorage.setItem(BRANCH_STORAGE_KEY, JSON.stringify({ sessionId, chapterIndex, storyTitle }));
+  } catch { /* quota exceeded — ignore */ }
+}
+
+function loadBranchSession(): BranchSessionStorage | null {
+  try {
+    const raw = localStorage.getItem(BRANCH_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as BranchSessionStorage;
+  } catch { return null; }
+}
+
+function clearBranchSession(): void {
+  localStorage.removeItem(BRANCH_STORAGE_KEY);
+}
+
 interface BranchReaderData {
   sessionId: string | null;
   currentNode: BranchTreeNode | null;
@@ -42,6 +68,7 @@ interface BranchReaderData {
   treeData: BranchTreeResponse | null;
   active: boolean;
   startSession(text: string): Promise<void>;
+  restoreSession(sessionId: string): Promise<boolean>;
   choose(index: number): Promise<void>;
   goBack(): Promise<void>;
   loadTree(): Promise<void>;
@@ -84,8 +111,32 @@ document.addEventListener('alpine:init', () => {
           data.sessionId = d.session_id;
           data.currentNode = d.node;
           data.active = true;
+          document.dispatchEvent(new CustomEvent('branch:started', { detail: { sessionId: d.session_id } }));
         } catch (e) {
           data.error = (e as Error).message;
+        } finally {
+          data.loading = false;
+        }
+      },
+
+      async restoreSession(sessionId: string): Promise<boolean> {
+        data.loading = true;
+        data.error = '';
+        data.history = [];
+        try {
+          const res = await fetch(`/api/branch/${sessionId}/current`);
+          if (!res.ok) {
+            clearBranchSession();
+            return false;
+          }
+          const d = await res.json();
+          data.sessionId = sessionId;
+          data.currentNode = d.node;
+          data.active = true;
+          return true;
+        } catch {
+          clearBranchSession();
+          return false;
         } finally {
           data.loading = false;
         }
@@ -167,6 +218,7 @@ document.addEventListener('alpine:init', () => {
 
       close(): void {
         data.active = false;
+        clearBranchSession();
       },
     };
     return data;
