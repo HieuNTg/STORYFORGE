@@ -59,6 +59,10 @@ class BatchChapterGenerator:
         stream_callback: Optional[Callable] = None,
         batch_checkpoint_callback: Optional[Callable] = None,
         resume_from_batch: int = 0,
+        # NEW:
+        macro_arcs=None,
+        conflict_web=None,
+        foreshadowing_plan=None,
     ) -> list[Chapter]:
         """Generate all chapters using batch strategy.
 
@@ -72,6 +76,10 @@ class BatchChapterGenerator:
             if self.config.pipeline.enable_self_review
             else None
         )
+
+        # Initialize conflict map in story_context from conflict_web
+        if conflict_web:
+            story_context.conflict_map = list(conflict_web)
 
         def _log(msg):
             logger.info(msg)
@@ -111,6 +119,9 @@ class BatchChapterGenerator:
                         executor=executor,
                         self_reviewer=self_reviewer,
                         progress_callback=progress_callback,
+                        macro_arcs=macro_arcs,
+                        conflict_web=conflict_web,
+                        foreshadowing_plan=foreshadowing_plan,
                     )
                 else:
                     batch_chapters = self._run_batch_sequential(
@@ -131,6 +142,9 @@ class BatchChapterGenerator:
                         self_reviewer=self_reviewer,
                         progress_callback=progress_callback,
                         stream_callback=stream_callback,
+                        macro_arcs=macro_arcs,
+                        conflict_web=conflict_web,
+                        foreshadowing_plan=foreshadowing_plan,
                     )
 
                 for ch in batch_chapters:
@@ -168,6 +182,9 @@ class BatchChapterGenerator:
         self_reviewer,
         progress_callback,
         stream_callback,
+        macro_arcs=None,
+        conflict_web=None,
+        foreshadowing_plan=None,
     ) -> list[Chapter]:
         """Run a single batch sequentially (Phase 1).
 
@@ -188,6 +205,25 @@ class BatchChapterGenerator:
                     character_states=list(story_context.character_states),
                 )
 
+            # Resolve per-chapter narrative context
+            active_conflicts = []
+            seeds = []
+            payoffs = []
+            pacing = ""
+            try:
+                from pipeline.layer1_story.macro_outline_builder import get_arc_for_chapter
+                from pipeline.layer1_story.conflict_web_builder import get_active_conflicts
+                from pipeline.layer1_story.foreshadowing_manager import get_seeds_to_plant, get_payoffs_due
+                from pipeline.layer1_story.pacing_controller import validate_pacing
+                current_arc = get_arc_for_chapter(macro_arcs or [], outline.chapter_number)
+                arc_num = current_arc.arc_number if current_arc else 1
+                active_conflicts = get_active_conflicts(conflict_web or [], arc_num)
+                seeds = get_seeds_to_plant(foreshadowing_plan or [], outline.chapter_number)
+                payoffs = get_payoffs_due(foreshadowing_plan or [], outline.chapter_number)
+                pacing = validate_pacing(getattr(outline, "pacing_type", "") or "")
+            except Exception as e:
+                logger.warning("Narrative context resolution failed for ch%d: %s", outline.chapter_number, e)
+
             if progress_callback:
                 progress_callback(
                     f"Đang viết chương {outline.chapter_number}: {outline.title}..."
@@ -198,11 +234,21 @@ class BatchChapterGenerator:
                     title, genre, style, characters, world, outline,
                     word_count=word_count, context=story_context,
                     stream_callback=stream_callback,
+                    open_threads=list(story_context.open_threads),
+                    active_conflicts=active_conflicts,
+                    foreshadowing_to_plant=seeds,
+                    foreshadowing_to_payoff=payoffs,
+                    pacing_type=pacing,
                 )
             else:
                 chapter = self.gen._write_chapter_with_long_context(
                     title, genre, style, characters, world, outline,
                     word_count, story_context, all_chapter_texts, bible_ctx,
+                    open_threads=list(story_context.open_threads),
+                    active_conflicts=active_conflicts,
+                    foreshadowing_to_plant=seeds,
+                    foreshadowing_to_payoff=payoffs,
+                    pacing_type=pacing,
                 )
 
             chapter_tokens_used = len(chapter.content) // 4
@@ -227,6 +273,8 @@ class BatchChapterGenerator:
                 executor, self.llm, bible_enabled, draft, self.gen.bible_manager,
                 progress_callback, genre, word_count,
                 self.config.pipeline.enable_self_review, self_reviewer,
+                open_threads=list(story_context.open_threads),
+                foreshadowing_plan=foreshadowing_plan,
             )
 
         return chapters
@@ -249,6 +297,9 @@ class BatchChapterGenerator:
         executor: ThreadPoolExecutor,
         self_reviewer,
         progress_callback,
+        macro_arcs=None,
+        conflict_web=None,
+        foreshadowing_plan=None,
     ) -> list[Chapter]:
         """Run a single batch in parallel (Phase 2).
 
@@ -256,6 +307,8 @@ class BatchChapterGenerator:
         Post-processing runs sequentially after all chapters are written.
         """
         sibling_summaries = self._build_sibling_context(batch)
+        # Capture frozen threads for parallel use
+        frozen_threads = list(story_context.open_threads)
 
         def _write_one(outline: ChapterOutline) -> Chapter:
             bible_ctx = ""
@@ -275,6 +328,25 @@ class BatchChapterGenerator:
             frozen_ctx.character_states = list(frozen.character_states)
             frozen_ctx.plot_events = list(frozen.plot_events)
 
+            # Resolve per-chapter narrative context (non-fatal)
+            active_conflicts = []
+            seeds = []
+            payoffs = []
+            pacing = ""
+            try:
+                from pipeline.layer1_story.macro_outline_builder import get_arc_for_chapter
+                from pipeline.layer1_story.conflict_web_builder import get_active_conflicts
+                from pipeline.layer1_story.foreshadowing_manager import get_seeds_to_plant, get_payoffs_due
+                from pipeline.layer1_story.pacing_controller import validate_pacing
+                current_arc = get_arc_for_chapter(macro_arcs or [], outline.chapter_number)
+                arc_num = current_arc.arc_number if current_arc else 1
+                active_conflicts = get_active_conflicts(conflict_web or [], arc_num)
+                seeds = get_seeds_to_plant(foreshadowing_plan or [], outline.chapter_number)
+                payoffs = get_payoffs_due(foreshadowing_plan or [], outline.chapter_number)
+                pacing = validate_pacing(getattr(outline, "pacing_type", "") or "")
+            except Exception as e:
+                logger.warning("Parallel narrative context resolution failed for ch%d: %s", outline.chapter_number, e)
+
             if progress_callback:
                 progress_callback(
                     f"Đang viết chương {outline.chapter_number}: {outline.title}..."
@@ -283,6 +355,11 @@ class BatchChapterGenerator:
             return self.gen._write_chapter_with_long_context(
                 title, genre, style, characters, world, outline,
                 word_count, frozen_ctx, list(frozen.chapter_texts), bible_ctx,
+                open_threads=frozen_threads,
+                active_conflicts=active_conflicts,
+                foreshadowing_to_plant=seeds,
+                foreshadowing_to_payoff=payoffs,
+                pacing_type=pacing,
             )
 
         max_workers = min(len(batch), 5)
@@ -315,6 +392,8 @@ class BatchChapterGenerator:
                 executor, self.llm, bible_enabled, draft, self.gen.bible_manager,
                 progress_callback, genre, word_count,
                 self.config.pipeline.enable_self_review, self_reviewer,
+                open_threads=frozen_threads,
+                foreshadowing_plan=foreshadowing_plan,
             )
 
         return chapters_ordered

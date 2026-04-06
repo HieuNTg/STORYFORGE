@@ -21,6 +21,29 @@ GENRE_EMPHASIS = {
     "Cung Đấu": "Mưu mô, âm mưu chính trị. Đối thoại nhiều tầng nghĩa, thể hiện trí tuệ và mưu lược nhân vật.",
 }
 
+PACING_MODIFIERS = {
+    "setup": "Chương xây dựng nền tảng: tập trung giới thiệu, miêu tả chi tiết thế giới/nhân vật. Nhịp chậm, tạo atmosphere. Ít action, nhiều nội tâm và đối thoại.",
+    "rising": "Chương tăng tension: stakes phải rõ ràng và leo thang. Nhịp nhanh hơn, cắt ngắn miêu tả, tăng đối thoại gay cấn và hành động.",
+    "climax": "Chương cao trào: confrontation trực tiếp, stakes cực đại. Câu ngắn, nhịp nhanh, cảm xúc mãnh liệt. Mọi thread active trong arc phải được đẩy lên đỉnh.",
+    "cooldown": "Chương nghỉ ngơi: aftermath, reflection, character bonding. Nhịp chậm, introspective. Giải quyết hậu quả, heal wounds, chuẩn bị cho arc tiếp.",
+    "twist": "Chương twist: đảo ngược expectation. Build theo 1 hướng rồi lật. Reveal thông tin mới thay đổi mọi thứ. Kết chương phải shocking.",
+}
+
+DIALOGUE_STRATEGY = {
+    "Tiên Hiệp": "Đối thoại trang trọng, dùng kính ngữ giữa bậc cao. Ngắn gọn, hàm ý sâu. Thi thoảng dùng thơ/câu nói triết lý.",
+    "Ngôn Tình": "Đối thoại nhiều tầng cảm xúc, subtext romantic tension. Dùng im lặng và ánh mắt. Banter và teasing tự nhiên.",
+    "Trinh Thám": "Đối thoại sắc bén, mỗi câu có thể là manh mối hoặc red herring. Nhân vật che giấu thông tin qua cách nói.",
+    "Cung Đấu": "Mỗi câu nói nhiều tầng nghĩa. Lời nói nhẹ nhàng che đậy dao kiếm. Power dynamics rõ trong mỗi cuộc hội thoại.",
+    "Đô Thị": "Đối thoại tự nhiên, có slang hiện đại. Phản ánh tầng lớp xã hội qua cách nói. Humor và sarcasm.",
+    "Kiếm Hiệp": "Đối thoại ngắn gọn, khí phách. Dùng giang hồ ngữ. Đôi khi nói bằng hành động thay lời.",
+    "Huyền Huyễn": "Mix giữa formal và casual tùy context. Thuật ngữ thế giới quan xen lẫn đối thoại thường.",
+    "Khoa Huyễn": "Đối thoại technical nhưng accessible. Nhân vật dùng thuật ngữ khoa học tự nhiên.",
+    "Xuyên Không": "Contrast giữa ngôn ngữ hiện đại của MC và ngôn ngữ thời đại. Tạo humor từ culture clash.",
+    "Trọng Sinh": "MC nói chín chắn bất thường so với tuổi. Đôi khi slip up, lộ knowledge from future.",
+    "Lịch Sử": "Ngôn ngữ phù hợp thời đại. Formal trong triều đình, bình dân ngoài chợ. Tránh anachrionism.",
+    "Hệ Thống": "Mix game terminology tự nhiên vào đối thoại. System notifications xen kẽ narrative.",
+}
+
 # Score-based prompt boosters — injected when specific quality dimensions are weak
 SCORE_BOOSTERS = {
     "coherence": "CHÚ Ý ĐẶC BIỆT: Chương trước có vấn đề về mạch lạc. Đảm bảo logic chặt chẽ, không có lỗ hổng cốt truyện, mỗi sự kiện phải có nguyên nhân rõ ràng.",
@@ -77,22 +100,30 @@ def build_adaptive_write_prompt(
     base_prompt: str,
     genre: str,
     prev_chapter_scores: Optional[dict] = None,
+    pacing_type: str = "",
 ) -> str:
-    """Enhance WRITE_CHAPTER prompt with genre emphasis and score boosters.
+    """Enhance WRITE_CHAPTER prompt with genre emphasis, score boosters, pacing, and dialogue strategy.
 
     Args:
         base_prompt: The formatted WRITE_CHAPTER prompt string
         genre: Story genre string
         prev_chapter_scores: Optional dict of previous chapter's dimension scores
+        pacing_type: Optional pacing type (setup/rising/climax/cooldown/twist)
 
     Returns:
-        Enhanced prompt with genre emphasis and score boosters prepended to YÊU CẦU section.
+        Enhanced prompt with genre emphasis, pacing modifier, dialogue strategy, and score boosters.
     """
     additions = []
 
     genre_text = get_genre_emphasis(genre)
     if genre_text:
         additions.append(f"HƯỚNG DẪN THỂ LOẠI {genre.upper()}:\n{genre_text}")
+
+    if pacing_type and pacing_type in PACING_MODIFIERS:
+        additions.append(f"HƯỚNG DẪN NHỊP ĐỘ ({pacing_type.upper()}):\n{PACING_MODIFIERS[pacing_type]}")
+
+    if genre in DIALOGUE_STRATEGY:
+        additions.append(f"CHIẾN LƯỢC ĐỐI THOẠI ({genre}):\n{DIALOGUE_STRATEGY[genre]}")
 
     booster_text = get_score_boosters(prev_chapter_scores)
     if booster_text:

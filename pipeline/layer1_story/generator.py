@@ -60,20 +60,32 @@ class StoryGenerator:
         rag_kb = _get_rag_kb(self.config.pipeline.rag_persist_dir) if self.config.pipeline.rag_enabled else None
         return generate_world(self.llm, self.config, title, genre, characters, rag_kb=rag_kb, model=self._layer_model)
 
-    def generate_outline(self, title, genre, characters, world, idea, num_chapters=10):
-        return generate_outline(self.llm, title, genre, characters, world, idea, num_chapters, model=self._layer_model)
+    def generate_outline(self, title, genre, characters, world, idea, num_chapters=10, macro_arcs=None):
+        return generate_outline(self.llm, title, genre, characters, world, idea, num_chapters, model=self._layer_model, macro_arcs=macro_arcs)
 
     def write_chapter(self, title, genre, style, characters, world, outline,
-                      previous_summary="", word_count=2000, context=None) -> Chapter:
+                      previous_summary="", word_count=2000, context=None,
+                      open_threads=None, active_conflicts=None,
+                      foreshadowing_to_plant=None, foreshadowing_to_payoff=None,
+                      pacing_type="") -> Chapter:
         rag_kb = _get_rag_kb(self.config.pipeline.rag_persist_dir) if self.config.pipeline.rag_enabled else None
         return write_chapter(self.llm, self.config, title, genre, style, characters, world, outline,
-                             previous_summary, word_count, context, rag_kb=rag_kb, model=self._layer_model)
+                             previous_summary, word_count, context, rag_kb=rag_kb, model=self._layer_model,
+                             open_threads=open_threads, active_conflicts=active_conflicts,
+                             foreshadowing_to_plant=foreshadowing_to_plant,
+                             foreshadowing_to_payoff=foreshadowing_to_payoff, pacing_type=pacing_type)
 
     def write_chapter_stream(self, title, genre, style, characters, world, outline,
-                             word_count=2000, context=None, stream_callback=None) -> Chapter:
+                             word_count=2000, context=None, stream_callback=None,
+                             open_threads=None, active_conflicts=None,
+                             foreshadowing_to_plant=None, foreshadowing_to_payoff=None,
+                             pacing_type="") -> Chapter:
         rag_kb = _get_rag_kb(self.config.pipeline.rag_persist_dir) if self.config.pipeline.rag_enabled else None
         return write_chapter_stream(self.llm, self.config, title, genre, style, characters, world, outline,
-                                    word_count, context, stream_callback, rag_kb=rag_kb, model=self._layer_model)
+                                    word_count, context, stream_callback, rag_kb=rag_kb, model=self._layer_model,
+                                    open_threads=open_threads, active_conflicts=active_conflicts,
+                                    foreshadowing_to_plant=foreshadowing_to_plant,
+                                    foreshadowing_to_payoff=foreshadowing_to_payoff, pacing_type=pacing_type)
 
     def extract_character_states(self, content, characters):
         return extract_character_states(self.llm, content, characters)
@@ -106,8 +118,55 @@ class StoryGenerator:
             self._self_reviewer = SelfReviewer(threshold=self.config.pipeline.self_review_threshold)
         return self._self_reviewer
 
-    def _write_chapter_with_long_context(self, title, genre, style, characters, world, outline,
-                                          word_count, story_context, all_chapter_texts, bible_ctx="") -> Chapter:
+    def _write_chapter_with_long_context(
+        self, title, genre, style, characters, world, outline,
+        word_count, story_context, all_chapter_texts, bible_ctx="",
+        open_threads=None, active_conflicts=None,
+        foreshadowing_to_plant=None, foreshadowing_to_payoff=None,
+        pacing_type="",
+    ) -> Chapter:
+        # When new narrative params are provided, build prompt directly so they are forwarded.
+        if any(p is not None for p in (open_threads, active_conflicts, foreshadowing_to_plant, foreshadowing_to_payoff)) or pacing_type:
+            from models.schemas import count_words
+            from pipeline.layer1_story.chapter_writer import build_chapter_prompt
+            window_size = getattr(self.config.pipeline, "context_window_chapters", 5)
+            windowed_texts = all_chapter_texts[-window_size:] if all_chapter_texts else []
+            use_lc = False
+            if (
+                windowed_texts
+                and self.config.pipeline.use_long_context
+                and self.long_context_client.is_configured
+            ):
+                from services.token_counter import fits_in_context
+                if fits_in_context(windowed_texts, self.long_context_client.max_context):
+                    use_lc = True
+            rag_kb = _get_rag_kb(self.config.pipeline.rag_persist_dir) if self.config.pipeline.rag_enabled else None
+            sys_prompt, user_prompt = build_chapter_prompt(
+                self.config, title, genre, style, characters, world, outline,
+                word_count, story_context, bible_context=bible_ctx,
+                full_chapter_texts=windowed_texts if use_lc else None,
+                rag_kb=rag_kb,
+                open_threads=open_threads, active_conflicts=active_conflicts,
+                foreshadowing_to_plant=foreshadowing_to_plant,
+                foreshadowing_to_payoff=foreshadowing_to_payoff,
+                pacing_type=pacing_type,
+            )
+            if use_lc:
+                content = self.long_context_client.generate(
+                    system_prompt=sys_prompt, user_prompt=user_prompt, max_tokens=8192,
+                )
+            else:
+                content = self.llm.generate(
+                    system_prompt=sys_prompt, user_prompt=user_prompt, max_tokens=8192,
+                    model=self._layer_model,
+                )
+            return Chapter(
+                chapter_number=outline.chapter_number,
+                title=outline.title,
+                content=content,
+                word_count=count_words(content),
+            )
+        # Fallback: no new params — use existing helper (unchanged behaviour)
         return _write_chapter_lc_fn(self.llm, self.long_context_client, self.config,
                                     title, genre, style, characters, world, outline,
                                     word_count, story_context, all_chapter_texts, bible_ctx,
@@ -134,11 +193,54 @@ class StoryGenerator:
         characters = self.generate_characters(title, genre, idea, num_characters)
         _log("Đang xây dựng bối cảnh thế giới...")
         world = self.generate_world(title, genre, characters)
+        # Step 4a: Generate macro arcs (structural backbone)
+        macro_arcs = []
+        try:
+            _log("Đang xây dựng cấu trúc macro arc...")
+            from pipeline.layer1_story.macro_outline_builder import generate_macro_arcs
+            macro_arcs = generate_macro_arcs(
+                self.llm, title, genre, characters, world, idea,
+                num_chapters, arc_size=self.config.pipeline.arc_size,
+                model=self._layer_model,
+            )
+            _log(f"Đã tạo {len(macro_arcs)} macro arcs")
+        except Exception as e:
+            logger.warning("Macro arc generation failed (non-fatal): %s", e)
+
         _log(f"Đang tạo dàn ý {num_chapters} chương...")
-        synopsis, outlines = self.generate_outline(title, genre, characters, world, idea, num_chapters)
+        synopsis, outlines = self.generate_outline(title, genre, characters, world, idea, num_chapters, macro_arcs=macro_arcs)
+
+        # Step 4b: Generate conflict web
+        conflict_web = []
+        try:
+            _log("Đang xây dựng mạng lưới xung đột...")
+            from pipeline.layer1_story.conflict_web_builder import generate_conflict_web
+            conflict_web = generate_conflict_web(
+                self.llm, title, genre, characters, macro_arcs,
+                model=self._layer_model,
+            )
+            _log(f"Đã tạo {len(conflict_web)} xung đột")
+        except Exception as e:
+            logger.warning("Conflict web generation failed (non-fatal): %s", e)
+
+        # Step 4c: Generate foreshadowing plan
+        foreshadowing_plan = []
+        try:
+            _log("Đang lên kế hoạch foreshadowing...")
+            from pipeline.layer1_story.foreshadowing_manager import generate_foreshadowing_plan
+            foreshadowing_plan = generate_foreshadowing_plan(
+                self.llm, title, genre, synopsis, macro_arcs, conflict_web,
+                model=self._layer_model,
+            )
+            _log(f"Đã lên kế hoạch {len(foreshadowing_plan)} foreshadowing seeds")
+        except Exception as e:
+            logger.warning("Foreshadowing plan generation failed (non-fatal): %s", e)
 
         draft = StoryDraft(title=title, genre=genre, synopsis=synopsis,
                            characters=characters, world=world, outlines=outlines)
+        draft.macro_arcs = macro_arcs
+        draft.conflict_web = conflict_web
+        draft.foreshadowing_plan = foreshadowing_plan
         story_context = StoryContext(total_chapters=len(outlines))
         bible_enabled = self.config.pipeline.story_bible_enabled
         if bible_enabled:
@@ -159,6 +261,9 @@ class StoryGenerator:
             word_count=word_count,
             progress_callback=progress_callback,
             stream_callback=stream_callback,
+            macro_arcs=macro_arcs,
+            conflict_web=conflict_web,
+            foreshadowing_plan=foreshadowing_plan,
         )
 
         draft.character_states = list(story_context.character_states)

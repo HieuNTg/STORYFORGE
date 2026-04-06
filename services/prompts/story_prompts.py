@@ -20,6 +20,7 @@ Tiêu đề truyện: {title}
 
 Hãy tạo {num_characters} nhân vật với thông tin chi tiết.
 Đảm bảo có xung đột nội tâm, mối quan hệ phức tạp giữa các nhân vật.
+Mỗi nhân vật cần có arc phát triển rõ ràng, xung đột nội tâm, và bí mật.
 BẮT BUỘC: Toàn bộ nội dung (tên, tính cách, tiểu sử...) phải viết bằng tiếng Việt.
 
 QUAN TRỌNG: "relationships" PHẢI là một JSON array (danh sách), KHÔNG được là chuỗi text.
@@ -35,7 +36,12 @@ Trả về JSON:
       "background": "tiểu sử",
       "motivation": "động lực hành động",
       "appearance": "ngoại hình",
-      "relationships": ["Là bạn thân của X", "Kẻ thù của Y"]
+      "relationships": ["Là bạn thân của X", "Kẻ thù của Y"],
+      "arc_trajectory": "hành trình biến đổi, vd: từ hèn nhát → can đảm",
+      "internal_conflict": "xung đột nội tâm cốt lõi",
+      "breaking_point": "sự kiện trigger biến đổi",
+      "secret": "bí mật sẽ thay đổi dynamics khi bị lộ",
+      "speech_pattern": "phong cách nói chuyện đặc trưng"
     }}
   ]
 }}"""
@@ -67,6 +73,7 @@ Bối cảnh: {world}
 Hãy tạo dàn ý chi tiết cho {num_chapters} chương.
 Mỗi chương cần có: cao trào, xung đột, phát triển nhân vật.
 Cốt truyện phải có nhịp điệu: giới thiệu → phát triển → cao trào → kết thúc.
+Đảm bảo nhịp điệu: không liên tục climax, xen kẽ setup → rising → climax → cooldown. Mỗi chương thuộc 1 macro arc.
 BẮT BUỘC: Viết toàn bộ nội dung (tiêu đề chương, tóm tắt, sự kiện...) bằng tiếng Việt.
 
 Trả về JSON:
@@ -79,7 +86,102 @@ Trả về JSON:
       "summary": "tóm tắt nội dung",
       "key_events": ["sự kiện 1", "sự kiện 2"],
       "characters_involved": ["tên nhân vật"],
-      "emotional_arc": "cung bậc cảm xúc chương này"
+      "emotional_arc": "cung bậc cảm xúc chương này",
+      "pacing_type": "setup/rising/climax/cooldown/twist",
+      "arc_id": 1,
+      "foreshadowing_plants": ["seed cần gieo trong chương này"],
+      "payoff_references": ["seed từ chương trước cần payoff"]
+    }}
+  ]
+}}"""
+
+GENERATE_MACRO_OUTLINE = """Bạn là kiến trúc sư cốt truyện cho truyện {genre}.
+Tiêu đề: {title}
+Nhân vật: {characters}
+Bối cảnh: {world}
+Ý tưởng: {idea}
+Tổng số chương: {num_chapters}
+
+Hãy chia truyện thành các ARC lớn (mỗi arc khoảng {arc_size} chương).
+Mỗi arc phải có xung đột trung tâm riêng, nhân vật trọng tâm, và cách giải quyết.
+Các arc phải kết nối logic và escalate stakes qua từng arc.
+
+BẮT BUỘC: Viết toàn bộ bằng tiếng Việt.
+
+Trả về JSON:
+{{
+  "macro_arcs": [
+    {{
+      "arc_number": 1,
+      "name": "tên arc",
+      "chapter_start": 1,
+      "chapter_end": 30,
+      "central_conflict": "xung đột chính của arc",
+      "character_focus": ["nhân vật trọng tâm"],
+      "resolution": "arc kết thúc thế nào",
+      "emotional_trajectory": "hành trình cảm xúc tổng thể"
+    }}
+  ]
+}}"""
+
+GENERATE_CONFLICT_WEB = """Bạn là chuyên gia xây dựng xung đột cho truyện {genre}.
+Tiêu đề: {title}
+
+NHÂN VẬT:
+{characters}
+
+CÁC ARC:
+{macro_arcs}
+
+Hãy xây dựng MẠNG LƯỚI XUNG ĐỘT phức tạp giữa các nhân vật.
+Bao gồm: xung đột bên ngoài (giữa nhân vật), xung đột nội tâm, xung đột tư tưởng.
+Mỗi xung đột phải có trigger event và range arc hoạt động.
+
+BẮT BUỘC: Viết toàn bộ bằng tiếng Việt.
+
+Trả về JSON:
+{{
+  "conflicts": [
+    {{
+      "conflict_id": "conflict_1",
+      "conflict_type": "external/internal/ideological",
+      "characters": ["A", "B"],
+      "description": "mô tả xung đột",
+      "arc_range": "1-3",
+      "trigger_event": "sự kiện kích hoạt",
+      "status": "dormant"
+    }}
+  ]
+}}"""
+
+GENERATE_FORESHADOWING_PLAN = """Bạn là bậc thầy về foreshadowing và setup-payoff.
+Thể loại: {genre}
+Tiêu đề: {title}
+
+DÀN Ý TỔNG:
+{synopsis}
+
+CÁC ARC:
+{macro_arcs}
+
+MẠNG LƯỚI XUNG ĐỘT:
+{conflict_web}
+
+Hãy lên kế hoạch FORESHADOWING cho truyện. Mỗi seed phải:
+- Được gieo tự nhiên, không lộ liễu
+- Có payoff rõ ràng ở chương sau
+- Liên quan đến xung đột hoặc bí mật nhân vật
+
+BẮT BUỘC: Viết toàn bộ bằng tiếng Việt.
+
+Trả về JSON:
+{{
+  "foreshadowing": [
+    {{
+      "hint": "mô tả seed cần gieo",
+      "plant_chapter": 5,
+      "payoff_chapter": 25,
+      "characters_involved": ["nhân vật liên quan"]
     }}
   ]
 }}"""
@@ -103,6 +205,7 @@ SỰ KIỆN QUAN TRỌNG ĐÃ XẢY RA:
 
 Hãy tạo dàn ý cho {additional_chapters} chương tiếp theo (bắt đầu từ chương {start_chapter}).
 Cốt truyện phải tiếp nối tự nhiên, phát triển xung đột, và tiến tới cao trào.
+Đảm bảo nhịp điệu: không liên tục climax, xen kẽ setup → rising → climax → cooldown. Mỗi chương thuộc 1 macro arc.
 
 Trả về JSON:
 {{
@@ -113,7 +216,11 @@ Trả về JSON:
       "summary": "tóm tắt nội dung",
       "key_events": ["sự kiện 1", "sự kiện 2"],
       "characters_involved": ["tên nhân vật"],
-      "emotional_arc": "cung bậc cảm xúc chương này"
+      "emotional_arc": "cung bậc cảm xúc chương này",
+      "pacing_type": "setup/rising/climax/cooldown/twist",
+      "arc_id": 1,
+      "foreshadowing_plants": ["seed cần gieo trong chương này"],
+      "payoff_references": ["seed từ chương trước cần payoff"]
     }}
   ]
 }}"""
@@ -134,6 +241,20 @@ DÀN Ý CHƯƠNG {chapter_number} - {chapter_title}:
 NỘI DUNG CÁC CHƯƠNG TRƯỚC (tóm tắt):
 {previous_summary}
 
+THREADS ĐANG MỞ:
+{open_threads}
+
+XUNG ĐỘT ĐANG ACTIVE:
+{active_conflicts}
+
+FORESHADOWING CẦN GIEO:
+{foreshadowing_to_plant}
+
+FORESHADOWING CẦN PAYOFF:
+{foreshadowing_to_payoff}
+
+NHỊP ĐỘ CHƯƠNG NÀY: {pacing_type}
+
 YÊU CẦU:
 - Viết chương {chapter_number} đầy đủ, khoảng {word_count} từ
 - Miêu tả sinh động, đối thoại tự nhiên
@@ -141,8 +262,59 @@ YÊU CẦU:
 - Tạo nhịp điệu kịch tính, có cao trào
 - Kết chương tạo sự tò mò cho chương tiếp theo
 - Viết hoàn toàn bằng tiếng Việt
+- Đối thoại phải reveal tính cách, advance plot, hoặc cả hai — tránh hội thoại trống rỗng
+- Mỗi nhân vật nói theo speech pattern riêng
+- Subtext quan trọng hơn nói thẳng
+- Nếu có foreshadowing cần gieo: gieo tự nhiên, không lộ liễu
+- Tuân thủ nhịp độ {pacing_type}: setup=xây dựng nền, rising=tăng căng thẳng, climax=đỉnh điểm, cooldown=nghỉ ngơi phản tỉnh, twist=đảo ngược bất ngờ
 
 Bắt đầu viết chương:"""
+
+EXTRACT_STRUCTURED_SUMMARY = """Phân tích chương truyện sau và trích xuất tóm tắt có cấu trúc.
+
+NỘI DUNG CHƯƠNG {chapter_number}:
+{content}
+
+THREADS ĐANG MỞ:
+{open_threads}
+
+Trả về JSON:
+{{
+  "plot_critical_events": ["sự kiện ảnh hưởng các chương sau"],
+  "character_developments": ["khoảnh khắc phát triển nhân vật"],
+  "open_questions": ["câu hỏi người đọc sẽ thắc mắc"],
+  "emotional_shift": "cảm xúc thay đổi thế nào trong chương",
+  "threads_advanced": ["thread_id đã tiến triển"],
+  "threads_opened": ["thread_id mới mở"],
+  "threads_resolved": ["thread_id đã giải quyết"],
+  "brief_summary": "tóm tắt 3-5 câu cho context window"
+}}"""
+
+EXTRACT_PLOT_THREADS = """Phân tích chương truyện và xác định các tuyến truyện (plot threads).
+
+NỘI DUNG CHƯƠNG {chapter_number}:
+{content}
+
+THREADS ĐANG MỞ TỪ TRƯỚC:
+{existing_threads}
+
+Hãy xác định:
+1. Threads mới được mở trong chương này
+2. Threads cũ được đề cập/tiến triển
+3. Threads đã được giải quyết
+
+Trả về JSON:
+{{
+  "new_threads": [
+    {{
+      "thread_id": "thread_ch{chapter_number}_1",
+      "description": "mô tả tuyến truyện",
+      "involved_characters": ["nhân vật liên quan"]
+    }}
+  ],
+  "progressed_threads": ["thread_id đã tiến triển"],
+  "resolved_threads": ["thread_id đã giải quyết"]
+}}"""
 
 # vi-only
 SUMMARIZE_CHAPTER = """Tóm tắt ngắn gọn nội dung chương truyện sau trong 3-5 câu,

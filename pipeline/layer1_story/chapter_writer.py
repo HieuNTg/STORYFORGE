@@ -101,6 +101,12 @@ def build_chapter_prompt(
     full_chapter_texts: Optional[list[str]] = None,
     rag_kb=None,
     knowledge_graph=None,
+    # NEW narrative context params:
+    open_threads=None,
+    active_conflicts=None,
+    foreshadowing_to_plant=None,
+    foreshadowing_to_payoff=None,
+    pacing_type: str = "",
 ) -> tuple[str, str]:
     """Build system/user prompts for chapter writing. Returns (system_prompt, user_prompt)."""
     chars_text = "\n".join(
@@ -138,6 +144,33 @@ def build_chapter_prompt(
         except Exception as e:
             logger.debug(f"Knowledge graph unavailable: {e}")
 
+    # Prepare new narrative context strings
+    try:
+        from pipeline.layer1_story.plot_thread_tracker import format_threads_for_prompt
+        threads_text = format_threads_for_prompt(open_threads or [])
+    except Exception:
+        threads_text = "Chưa có tuyến truyện đang mở."
+    try:
+        from pipeline.layer1_story.conflict_web_builder import format_conflicts_for_prompt
+        conflicts_text = format_conflicts_for_prompt(active_conflicts or [])
+    except Exception:
+        conflicts_text = "Không có xung đột active."
+    try:
+        from pipeline.layer1_story.foreshadowing_manager import format_seeds_for_prompt, format_payoffs_for_prompt
+        seeds_text = format_seeds_for_prompt(foreshadowing_to_plant or [])
+        payoffs_text = format_payoffs_for_prompt(foreshadowing_to_payoff or [])
+    except Exception:
+        seeds_text = "Không có foreshadowing cần gieo."
+        payoffs_text = "Không có foreshadowing cần payoff."
+    try:
+        from pipeline.layer1_story.dialogue_strategy import build_dialogue_context
+        build_dialogue_context(characters, genre)  # generate for side-effects; not directly injected
+    except Exception:
+        pass
+
+    # Resolve pacing type — fallback to outline field, then "rising"
+    resolved_pacing = pacing_type or getattr(outline, "pacing_type", "") or "rising"
+
     sys_prompt = (
         f"Bạn là tiểu thuyết gia tài năng viết truyện {genre} bằng tiếng Việt. "
         f"BẮT BUỘC: Toàn bộ output phải viết bằng tiếng Việt, không được dùng ngôn ngữ khác."
@@ -151,8 +184,13 @@ def build_chapter_prompt(
         outline=outline_text,
         previous_summary=context_text,
         word_count=word_count,
+        open_threads=threads_text,
+        active_conflicts=conflicts_text,
+        foreshadowing_to_plant=seeds_text,
+        foreshadowing_to_payoff=payoffs_text,
+        pacing_type=resolved_pacing,
     )
-    user_prompt = build_adaptive_write_prompt(user_prompt, genre)
+    user_prompt = build_adaptive_write_prompt(user_prompt, genre, pacing_type=resolved_pacing)
     # Reinforce Vietnamese at end of prompt (after all context) to prevent
     # language drift in later chapters where context is very long
     user_prompt += "\n\n[NHẮC LẠI: Viết hoàn toàn bằng tiếng Việt. Không dùng tiếng Anh hay ngôn ngữ khác.]"
@@ -173,11 +211,20 @@ def write_chapter(
     context: Optional[StoryContext] = None,
     rag_kb=None,
     model: Optional[str] = None,
+    open_threads=None,
+    active_conflicts=None,
+    foreshadowing_to_plant=None,
+    foreshadowing_to_payoff=None,
+    pacing_type: str = "",
 ) -> Chapter:
     """Write a single chapter (non-streaming)."""
     sys_prompt, user_prompt = build_chapter_prompt(
         config, title, genre, style, characters, world, outline,
         word_count, context, previous_summary, rag_kb=rag_kb,
+        open_threads=open_threads, active_conflicts=active_conflicts,
+        foreshadowing_to_plant=foreshadowing_to_plant,
+        foreshadowing_to_payoff=foreshadowing_to_payoff,
+        pacing_type=pacing_type,
     )
     content = llm.generate(
         system_prompt=sys_prompt,
@@ -207,11 +254,20 @@ def write_chapter_stream(
     stream_callback=None,
     rag_kb=None,
     model: Optional[str] = None,
+    open_threads=None,
+    active_conflicts=None,
+    foreshadowing_to_plant=None,
+    foreshadowing_to_payoff=None,
+    pacing_type: str = "",
 ) -> Chapter:
     """Write chapter with streaming. Calls stream_callback(partial_text) each chunk."""
     sys_prompt, user_prompt = build_chapter_prompt(
         config, title, genre, style, characters, world, outline,
         word_count, context, rag_kb=rag_kb,
+        open_threads=open_threads, active_conflicts=active_conflicts,
+        foreshadowing_to_plant=foreshadowing_to_plant,
+        foreshadowing_to_payoff=foreshadowing_to_payoff,
+        pacing_type=pacing_type,
     )
 
     full_content = ""
@@ -230,7 +286,9 @@ def write_chapter_stream(
         return write_chapter(
             llm, config, title, genre, style, characters, world,
             outline, word_count=word_count, context=context, rag_kb=rag_kb,
-            model=model,
+            model=model, open_threads=open_threads, active_conflicts=active_conflicts,
+            foreshadowing_to_plant=foreshadowing_to_plant,
+            foreshadowing_to_payoff=foreshadowing_to_payoff, pacing_type=pacing_type,
         )
 
     return Chapter(

@@ -36,6 +36,9 @@ def process_chapter_post_write(
     word_count: int = 2000,
     enable_self_review: bool = False,
     self_reviewer=None,
+    # NEW:
+    open_threads=None,
+    foreshadowing_plan=None,
 ) -> tuple:
     """Shared post-write logic: self-review, parallel extraction, context update, bible update.
 
@@ -131,5 +134,57 @@ def process_chapter_post_write(
             draft.story_bible, chapter,
             list(story_context.character_states), new_events,
         )
+
+    # --- New narrative tracking (non-fatal, sequential) ---
+
+    # Structured summary extraction
+    try:
+        from pipeline.layer1_story.structured_summary_extractor import extract_structured_summary
+        structured, brief = extract_structured_summary(
+            llm, chapter.content, outline.chapter_number,
+            open_threads or [],
+        )
+        chapter.structured_summary = structured
+        if brief:
+            chapter.summary = brief  # override basic summary with structured brief
+    except Exception as e:
+        logger.warning(f"Structured summary extraction failed: {e}")
+
+    # Plot thread tracking
+    try:
+        from pipeline.layer1_story.plot_thread_tracker import extract_plot_threads, update_threads
+        thread_result = extract_plot_threads(
+            llm, chapter.content, outline.chapter_number,
+            open_threads or [],
+        )
+        updated_threads = update_threads(
+            open_threads or [], thread_result, outline.chapter_number,
+        )
+        story_context.open_threads = updated_threads
+    except Exception as e:
+        logger.warning(f"Plot thread tracking failed: {e}")
+
+    # Conflict status update (heuristic, no LLM call)
+    try:
+        from pipeline.layer1_story.conflict_web_builder import update_conflict_status
+        if story_context.conflict_map:
+            update_conflict_status(
+                story_context.conflict_map, chapter.content, outline.chapter_number,
+            )
+    except Exception as e:
+        logger.warning(f"Conflict status update failed: {e}")
+
+    # Mark foreshadowing as planted/paid off
+    try:
+        from pipeline.layer1_story.foreshadowing_manager import mark_planted, mark_paid_off
+        if foreshadowing_plan:
+            mark_planted(foreshadowing_plan, outline.chapter_number)
+            mark_paid_off(foreshadowing_plan, outline.chapter_number)
+    except Exception as e:
+        logger.warning(f"Foreshadowing tracking failed: {e}")
+
+    # Pacing history tracking
+    story_context.pacing_history.append(getattr(outline, "pacing_type", None) or "rising")
+    story_context.pacing_history = story_context.pacing_history[-10:]
 
     return chapter, summary, new_states, new_events

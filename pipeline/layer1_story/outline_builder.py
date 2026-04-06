@@ -72,19 +72,32 @@ def generate_outline(
     idea: str,
     num_chapters: int = 10,
     model: Optional[str] = None,
+    macro_arcs=None,  # NEW: list[MacroArc] or None
 ) -> tuple[str, list[ChapterOutline]]:
     """Generate story outline. Returns (synopsis, outlines)."""
     chars_text = "\n".join(
         f"- {c.name} ({c.role}): {c.personality}, Động lực: {c.motivation}"
         for c in characters
     )
+    user_prompt = prompts.GENERATE_OUTLINE.format(
+        genre=genre, title=title, characters=chars_text,
+        world=f"{world.name}: {world.description}",
+        idea=idea, num_chapters=num_chapters,
+    )
+    if macro_arcs:
+        try:
+            from pipeline.layer1_story.macro_outline_builder import format_arcs_for_prompt
+            arcs_context = (
+                "## CẤU TRÚC MACRO ARC (cần bám sát khi tạo dàn ý):\n"
+                + format_arcs_for_prompt(macro_arcs)
+                + "\n\n"
+            )
+            user_prompt = arcs_context + user_prompt
+        except Exception as e:
+            logger.warning("Failed to inject macro arcs into outline prompt: %s", e)
     result = llm.generate_json(
         system_prompt="Bạn là biên kịch tài năng. BẮT BUỘC viết bằng tiếng Việt. Trả về JSON.",
-        user_prompt=prompts.GENERATE_OUTLINE.format(
-            genre=genre, title=title, characters=chars_text,
-            world=f"{world.name}: {world.description}",
-            idea=idea, num_chapters=num_chapters,
-        ),
+        user_prompt=user_prompt,
         temperature=0.9,
         model=model,
     )

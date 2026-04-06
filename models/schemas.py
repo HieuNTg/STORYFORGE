@@ -23,6 +23,11 @@ class Character(BaseModel):
     appearance: str = Field(default="", description="Ngoại hình")
     relationships: list[str] = Field(default_factory=list, description="Mối quan hệ")
     reference_image: str = Field(default="", description="Ảnh tham chiếu nhân vật")
+    arc_trajectory: str = Field(default="", description="Character transformation arc, e.g. 'từ hèn nhát → can đảm'")
+    internal_conflict: str = Field(default="", description="Core internal conflict driving character")
+    breaking_point: str = Field(default="", description="Event that triggers character transformation")
+    secret: str = Field(default="", description="Hidden information that shifts dynamics when revealed")
+    speech_pattern: str = Field(default="", description="Distinctive speech style: formal/slang/archaic/etc")
 
     @field_validator("relationships", mode="before")
     @classmethod
@@ -51,6 +56,17 @@ class WorldSetting(BaseModel):
     era: str = Field(default="", description="Thời đại")
 
 
+class StructuredSummary(BaseModel):
+    """Rich chapter summary for better context tracking."""
+    plot_critical_events: list[str] = Field(default_factory=list, description="Events that affect future chapters")
+    character_developments: list[str] = Field(default_factory=list, description="Character growth moments")
+    open_questions: list[str] = Field(default_factory=list, description="Questions reader will have")
+    emotional_shift: str = Field(default="", description="How emotional tone changed")
+    threads_advanced: list[str] = Field(default_factory=list, description="Thread IDs that progressed")
+    threads_opened: list[str] = Field(default_factory=list, description="New thread IDs introduced")
+    threads_resolved: list[str] = Field(default_factory=list, description="Thread IDs resolved")
+
+
 class ChapterOutline(BaseModel):
     """Dàn ý 1 chương."""
     chapter_number: int
@@ -59,6 +75,10 @@ class ChapterOutline(BaseModel):
     key_events: list[str] = Field(default_factory=list, description="Sự kiện chính")
     characters_involved: list[str] = Field(default_factory=list)
     emotional_arc: str = Field(default="", description="Cung bậc cảm xúc")
+    pacing_type: str = Field(default="rising", description="Pacing: setup/rising/climax/cooldown/twist")
+    foreshadowing_plants: list[str] = Field(default_factory=list, description="Seeds to plant for future payoff")
+    payoff_references: list[str] = Field(default_factory=list, description="Earlier foreshadowing to pay off in this chapter")
+    arc_id: int = Field(default=0, description="Which macro arc this chapter belongs to")
 
 
 class Chapter(BaseModel):
@@ -68,6 +88,7 @@ class Chapter(BaseModel):
     content: str
     word_count: int = 0
     summary: str = ""
+    structured_summary: Optional[StructuredSummary] = Field(default=None, description="Rich structured summary")
 
 
 class CharacterState(BaseModel):
@@ -90,13 +111,47 @@ class PlotEvent(BaseModel):
 
 
 class PlotThread(BaseModel):
-    """Tuyến cốt truyện đang theo dõi."""
-    thread_id: str = ""
-    description: str = ""
-    status: str = "active"  # active/resolved/abandoned
-    started_chapter: int = 0
-    resolved_chapter: int = 0
+    """Tracks an open narrative thread across chapters."""
+    thread_id: str = Field(description="Unique thread identifier")
+    description: str = Field(description="What this thread is about")
+    planted_chapter: int = Field(description="Chapter where thread was introduced")
+    status: str = Field(default="open", description="open/progressing/resolved")
+    involved_characters: list[str] = Field(default_factory=list)
+    last_mentioned_chapter: int = Field(default=0)
+    resolution_chapter: int = Field(default=0)
+
+
+class ConflictEntry(BaseModel):
+    """A conflict between characters or internal conflict."""
+    conflict_id: str = Field(description="Unique conflict identifier")
+    conflict_type: str = Field(description="external/internal/ideological")
+    characters: list[str] = Field(description="Characters involved")
+    description: str = Field(description="Nature of conflict")
+    arc_range: str = Field(default="", description="Arc range where active, e.g. '1-3'")
+    trigger_event: str = Field(default="", description="Event that activates this conflict")
+    status: str = Field(default="dormant", description="dormant/active/escalating/resolved")
+
+
+class MacroArc(BaseModel):
+    """High-level story arc spanning multiple chapters."""
+    arc_number: int = Field(description="Arc sequence number")
+    name: str = Field(description="Arc name")
+    chapter_start: int = Field(description="First chapter")
+    chapter_end: int = Field(description="Last chapter")
+    central_conflict: str = Field(description="Main conflict of this arc")
+    character_focus: list[str] = Field(default_factory=list, description="Key characters in this arc")
+    resolution: str = Field(default="", description="How arc resolves")
+    emotional_trajectory: str = Field(default="", description="Overall emotional arc")
+
+
+class ForeshadowingEntry(BaseModel):
+    """A foreshadowing seed and its planned payoff."""
+    hint: str = Field(description="The subtle hint/seed")
+    plant_chapter: int = Field(description="Chapter to plant the seed")
+    payoff_chapter: int = Field(description="Chapter where payoff happens")
     characters_involved: list[str] = Field(default_factory=list)
+    planted: bool = Field(default=False, description="Whether seed has been written")
+    paid_off: bool = Field(default=False, description="Whether payoff has been written")
 
 
 class StoryArc(BaseModel):
@@ -128,6 +183,10 @@ class StoryContext(BaseModel):
     plot_events: list[PlotEvent] = Field(default_factory=list)
     total_chapters: int = 0
     current_chapter: int = 0
+    open_threads: list[PlotThread] = Field(default_factory=list, description="Active narrative threads")
+    conflict_map: list[ConflictEntry] = Field(default_factory=list, description="Active conflicts")
+    current_arc: int = Field(default=1, description="Current macro arc number")
+    pacing_history: list[str] = Field(default_factory=list, description="Recent pacing types for rhythm tracking")
 
 
 class StoryDraft(BaseModel):
@@ -143,6 +202,9 @@ class StoryDraft(BaseModel):
     character_states: list[CharacterState] = Field(default_factory=list)
     plot_events: list[PlotEvent] = Field(default_factory=list)
     story_bible: Optional[StoryBible] = None
+    macro_arcs: list[MacroArc] = Field(default_factory=list, description="High-level story arcs")
+    conflict_web: list[ConflictEntry] = Field(default_factory=list, description="All planned conflicts")
+    foreshadowing_plan: list[ForeshadowingEntry] = Field(default_factory=list, description="Planned foreshadowing")
 
 
 # === Layer 2: Mô phỏng tăng kịch tính ===
