@@ -5,8 +5,13 @@
 interface StoryCheckpoint {
   path: string;
   title?: string;
+  genre?: string;
+  chapter_count?: number;
+  current_layer?: number;
   layer?: number;
   created_at?: string;
+  modified?: string;
+  size_kb?: number;
   [key: string]: unknown;
 }
 
@@ -70,6 +75,16 @@ function libraryPage() {
         this.error = 'Failed to delete: ' + (e as Error).message;
       }
       this.confirmDelete = null;
+    },
+
+    continueStory(story: StoryCheckpoint): void {
+      Alpine.store('pipeline').startContinuation({
+        checkpoint: story.path,
+        title: story.title || story.path,
+        chapterCount: story.chapter_count || 0,
+        genre: story.genre || '',
+      });
+      Alpine.store('app').navigate('pipeline');
     },
 
     layerLabel(layer: number): string {

@@ -64,9 +64,17 @@ function pipelinePage() {
       this._watchFormState();
     },
 
+    get isContinuation(): boolean {
+      return Alpine.store('pipeline').continuationMode;
+    },
+
     async runPipeline(): Promise<void> {
       this.activeTab = 'draft';
-      await Alpine.store('pipeline').run();
+      if (this.isContinuation) {
+        await Alpine.store('pipeline').runContinuation();
+      } else {
+        await Alpine.store('pipeline').run();
+      }
     },
 
     async openBranchMode(): Promise<void> {

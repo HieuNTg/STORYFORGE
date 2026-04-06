@@ -26,11 +26,13 @@ from api.usage_routes import router as usage_router
 from api.eval_routes import router as eval_router
 from api.share_routes import router as share_router
 from api.prompt_routes import router as prompt_router
+from api.continuation_routes import router as continuation_router
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth_router)
 api_router.include_router(config_router)
 api_router.include_router(pipeline_router)
+api_router.include_router(continuation_router)
 api_router.include_router(export_router)
 api_router.include_router(analytics_router)
 api_router.include_router(metrics_router)

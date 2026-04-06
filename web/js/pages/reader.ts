@@ -8,12 +8,15 @@ interface StoryChapter {
 }
 
 interface StoryContent {
+  title?: string;
+  genre?: string;
   chapters?: StoryChapter[];
 }
 
-interface PipelineResult {
+interface ReaderPipelineResult {
   enhanced?: StoryContent;
   draft?: StoryContent;
+  filename?: string;
 }
 
 function readerPage() {
@@ -22,7 +25,7 @@ function readerPage() {
     fontSize: 18 as number,
 
     get story(): StoryContent | null {
-      const result: PipelineResult | null = Alpine.store('app').pipelineResult;
+      const result: ReaderPipelineResult | null = Alpine.store('app').pipelineResult;
       if (!result) return null;
       return result.enhanced || result.draft || null;
     },
@@ -34,6 +37,24 @@ function readerPage() {
 
     get currentChapter(): StoryChapter | null {
       return this.chapters[this.chapter] || null;
+    },
+
+    get canContinue(): boolean {
+      const result: ReaderPipelineResult | null = Alpine.store('app').pipelineResult;
+      return !!(result && result.filename);
+    },
+
+    continueStory(): void {
+      const result: ReaderPipelineResult | null = Alpine.store('app').pipelineResult;
+      if (!result) return;
+      const story = result.enhanced || result.draft;
+      Alpine.store('pipeline').startContinuation({
+        checkpoint: result.filename || '',
+        title: story?.title || '',
+        chapterCount: (story?.chapters || []).length,
+        genre: story?.genre || '',
+      });
+      Alpine.store('app').navigate('pipeline');
     },
 
     prev(): void { if (this.chapter > 0) this.chapter--; },

@@ -36,6 +36,7 @@ interface PipelineForm {
 interface PipelineResult {
   session_id?: string;
   livePreview?: string;
+  filename?: string;
   [key: string]: unknown;
 }
 
@@ -233,6 +234,10 @@ document.addEventListener('alpine:init', () => {
     error: null as string | null,
     checkpoints: [] as CheckpointItem[],
 
+    // Continuation mode state
+    continuationMode: false as boolean,
+    continuationMeta: null as { checkpoint: string; title: string; chapterCount: number; genre: string } | null,
+
     // Form defaults
     form: {
       title: '', genre: 'Tiên Hiệp', style: 'Miêu tả chi tiết',
@@ -259,15 +264,7 @@ document.addEventListener('alpine:init', () => {
       } catch (e) { console.error('Load templates failed:', e); }
     },
 
-    async run(): Promise<void> {
-      // Client-side validation
-      const idea = (this.form.idea || '').trim();
-      if (!idea || idea.length < 10) {
-        this.error = 'Please enter a story idea (at least 10 characters).';
-        this.status = 'error';
-        return;
-      }
-
+    async _streamPipeline(url: string, body: Record<string, unknown>): Promise<void> {
       this.status = 'running';
       this.logs = [];
       this.livePreview = '';
@@ -276,7 +273,7 @@ document.addEventListener('alpine:init', () => {
       this.error = null;
 
       try {
-        for await (const event of API.stream('/pipeline/run', this.form as PipelineForm & Record<string, unknown>)) {
+        for await (const event of API.stream(url, body)) {
           if (event.type === 'session') {
             Alpine.store('app').sessionId = event.session_id ?? null;
           } else if (event.type === 'log') {
@@ -307,6 +304,39 @@ document.addEventListener('alpine:init', () => {
       }
     },
 
+    async run(): Promise<void> {
+      const idea = (this.form.idea || '').trim();
+      if (!idea || idea.length < 10) {
+        this.error = 'Please enter a story idea (at least 10 characters).';
+        this.status = 'error';
+        return;
+      }
+      await this._streamPipeline('/pipeline/run', this.form as PipelineForm & Record<string, unknown>);
+    },
+
+    startContinuation(meta: { checkpoint: string; title: string; chapterCount: number; genre: string }): void {
+      this.continuationMode = true;
+      this.continuationMeta = meta;
+      this.status = 'idle';
+      this.result = null;
+      this.error = null;
+      this.logs = [];
+      this.livePreview = '';
+      this.progress = 0;
+    },
+
+    async runContinuation(): Promise<void> {
+      if (!this.continuationMeta) return;
+      await this._streamPipeline('/pipeline/continue', {
+        checkpoint: this.continuationMeta.checkpoint,
+        additional_chapters: this.form.num_chapters,
+        word_count: this.form.word_count,
+        style: this.form.style,
+        run_enhancement: this.form.enable_agents,
+        num_sim_rounds: this.form.num_sim_rounds,
+      });
+    },
+
     async loadCheckpoints(): Promise<void> {
       try {
         const data = await API.get<{ checkpoints?: CheckpointItem[] }>('/pipeline/checkpoints');
@@ -318,41 +348,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     async resumeFromCheckpoint(path: string): Promise<void> {
-      this.status = 'running';
-      this.logs = [];
-      this.livePreview = '';
-      this.error = null;
-
-      try {
-        for await (const event of API.stream('/pipeline/resume', { checkpoint: path })) {
-          if (event.type === 'session') {
-            Alpine.store('app').sessionId = event.session_id ?? null;
-          } else if (event.type === 'log') {
-            this.currentLog = event.data as string;
-            this.logs.push(event.data as string);
-            this.progress = this._detectLayer(event.data as string);
-          } else if (event.type === 'stream') {
-            this.livePreview = event.data as string;
-          } else if (event.type === 'done') {
-            const result = event.data as PipelineResult;
-            this.result = result;
-            Alpine.store('app').savePipelineResult(result);
-            Alpine.store('app').sessionId = result.session_id ?? null;
-            this.status = 'done';
-            this.progress = 4;
-          } else if (event.type === 'error') {
-            this.error = event.data as string;
-            this.status = 'error';
-          } else if (event.type === 'interrupted') {
-            this.error = 'Connection lost during resume.';
-            this.status = 'interrupted';
-          }
-        }
-        if (this.status === 'running') this.status = 'done';
-      } catch (e) {
-        this.error = (e as Error).message;
-        this.status = 'error';
-      }
+      await this._streamPipeline('/pipeline/resume', { checkpoint: path });
     },
 
     _detectLayer(msg: string): number {
@@ -371,6 +367,8 @@ document.addEventListener('alpine:init', () => {
       this.result = null;
       this.error = null;
       this.checkpoints = [];
+      this.continuationMode = false;
+      this.continuationMeta = null;
     },
   });
 
