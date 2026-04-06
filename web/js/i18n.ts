@@ -6,6 +6,8 @@
  *
  * In templates:
  *   <span x-text="$store.i18n.t('key')"></span>
+ *
+ * Loaded as a classic <script> tag — exposes window.__sf_i18n for app.ts.
  */
 
 type Locale = 'vi' | 'en';
@@ -18,40 +20,43 @@ interface I18nStore {
   loadTranslations(): Promise<void>;
 }
 
-const i18n: I18nStore = {
-  locale: (
-    typeof localStorage !== 'undefined'
-      ? (localStorage.getItem('storyforge_locale') as Locale) || 'vi'
-      : 'vi'
-  ),
-  translations: {},
+// IIFE to avoid polluting global scope while still exposing via window
+((w: any) => {
+  const i18n: I18nStore = {
+    locale: (
+      typeof localStorage !== 'undefined'
+        ? (localStorage.getItem('storyforge_locale') as Locale) || 'vi'
+        : 'vi'
+    ),
+    translations: {},
 
-  t(key: string): string {
-    return (
-      this.translations[this.locale]?.[key] ||
-      this.translations['en']?.[key] ||
-      key
-    );
-  },
+    t(key: string): string {
+      return (
+        this.translations[this.locale]?.[key] ||
+        this.translations['en']?.[key] ||
+        key
+      );
+    },
 
-  setLocale(locale: Locale): void {
-    this.locale = locale;
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('storyforge_locale', locale);
-    }
-  },
+    setLocale(locale: Locale): void {
+      this.locale = locale;
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('storyforge_locale', locale);
+      }
+    },
 
-  async loadTranslations(): Promise<void> {
-    try {
-      const [vi, en] = await Promise.all([
-        fetch('/static/locales/vi.json').then((r) => r.json()),
-        fetch('/static/locales/en.json').then((r) => r.json()),
-      ]);
-      this.translations = { vi, en };
-    } catch (e) {
-      console.warn('Failed to load translations:', e);
-    }
-  },
-};
+    async loadTranslations(): Promise<void> {
+      try {
+        const [vi, en] = await Promise.all([
+          fetch('/static/locales/vi.json').then((r) => r.json()),
+          fetch('/static/locales/en.json').then((r) => r.json()),
+        ]);
+        this.translations = { vi, en };
+      } catch (e) {
+        console.warn('Failed to load translations:', e);
+      }
+    },
+  };
 
-export default i18n;
+  w.__sf_i18n = i18n;
+})(window);
