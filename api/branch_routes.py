@@ -11,6 +11,8 @@ router = APIRouter(prefix="/branch", tags=["branch"])
 logger = logging.getLogger(__name__)
 llm = LLMClient()
 
+MAX_BRANCH_DEPTH = 10
+
 _SYSTEM_PROMPT = (
     "You are a creative storyteller. Continue the story based on the reader's choice. "
     "Return JSON with 'continuation' (story text, 200-400 words) and "
@@ -77,25 +79,47 @@ def choose_branch(session_id: str, body: ChooseBody):
         )
     choice_text = choices[body.choice_index]
     context = current["text"]
+    current_depth = current.get("depth", 0)
 
-    try:
-        result = llm.generate_json(
-            system_prompt=_SYSTEM_PROMPT,
-            user_prompt=(
-                f"Story so far:\n{context}\n\n"
-                f"The reader chose: {choice_text}\n\nContinue the story."
-            ),
-            temperature=0.9,
-        )
-    except Exception as exc:
-        logger.error(f"LLM generation failed: {exc}")
-        raise HTTPException(status_code=502, detail=f"LLM generation failed: {exc}")
+    # Enforce depth limit — generate ending node at max depth
+    at_depth_limit = current_depth >= MAX_BRANCH_DEPTH - 1
 
-    continuation = result.get("continuation") or result.get("text", "")
-    new_choices = result.get("choices", ["Continue", "Take a different path"])
-    if not isinstance(new_choices, list):
-        new_choices = ["Continue", "Take a different path"]
-    new_choices = [str(c) for c in new_choices[:3]]
+    if at_depth_limit:
+        try:
+            result = llm.generate_json(
+                system_prompt=_SYSTEM_PROMPT,
+                user_prompt=(
+                    f"Story so far:\n{context}\n\n"
+                    f"The reader chose: {choice_text}\n\n"
+                    "Write a satisfying conclusion to this branch (200-300 words). "
+                    "Return JSON with 'continuation' (the ending text) and 'choices' as an empty list []."
+                ),
+                temperature=0.9,
+            )
+        except Exception as exc:
+            logger.error(f"LLM generation failed: {exc}")
+            raise HTTPException(status_code=502, detail=f"LLM generation failed: {exc}")
+        continuation = result.get("continuation") or result.get("text", "")
+        new_choices: list[str] = []
+    else:
+        try:
+            result = llm.generate_json(
+                system_prompt=_SYSTEM_PROMPT,
+                user_prompt=(
+                    f"Story so far:\n{context}\n\n"
+                    f"The reader chose: {choice_text}\n\nContinue the story."
+                ),
+                temperature=0.9,
+            )
+        except Exception as exc:
+            logger.error(f"LLM generation failed: {exc}")
+            raise HTTPException(status_code=502, detail=f"LLM generation failed: {exc}")
+
+        continuation = result.get("continuation") or result.get("text", "")
+        new_choices = result.get("choices", ["Continue", "Take a different path"])
+        if not isinstance(new_choices, list):
+            new_choices = ["Continue", "Take a different path"]
+        new_choices = [str(c) for c in new_choices[:3]]
 
     try:
         node = manager.add_generated_node(session_id, body.choice_index, continuation, new_choices)

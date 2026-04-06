@@ -1560,7 +1560,7 @@
                             </span>
                           </template>
                         </div>
-                        <span class="text-xs text-slate-400 dark:text-slate-500" x-text="'Depth: ' + depth"></span>
+                        <span class="text-xs tabular-nums" :class="depth >= 8 ? 'text-amber-500 font-medium' : 'text-slate-400 dark:text-slate-500'" x-text="'Depth: ' + depth + '/10'"></span>
                       </div>
 
                       <!-- Node content card -->
