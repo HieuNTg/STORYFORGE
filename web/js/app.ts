@@ -2,6 +2,8 @@
  * StoryForge — Alpine.js app stores and SPA routing.
  */
 
+import i18n from './i18n';
+
 /* ── Domain interfaces ── */
 
 interface NavItem {
@@ -66,6 +68,8 @@ const NAV_ITEMS: NavItem[] = [
 
 /* ── Global app store ── */
 document.addEventListener('alpine:init', () => {
+
+  Alpine.store('i18n', i18n);
 
   Alpine.store('app', {
     page: 'pipeline' as string,

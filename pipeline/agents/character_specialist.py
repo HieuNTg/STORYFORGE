@@ -25,6 +25,16 @@ class CharacterSpecialistAgent(BaseAgent):
             chapters_content=chapters_content[:3000],
         )
 
+        try:
+            from services.rag_knowledge_base import RAGKnowledgeBase
+            rag = RAGKnowledgeBase()
+            context_results = rag.query(characters_info[:500], n_results=3)
+            if context_results:
+                rag_context = "\n".join(context_results)
+                prompt = f"Bối cảnh từ các chương trước:\n{rag_context}\n\n{prompt}"
+        except Exception:
+            pass  # RAG optional — graceful fallback
+
         result = self.llm.generate_json(
             system_prompt="Bạn là chuyên gia phân tích nhân vật. Trả về JSON hợp lệ.",
             user_prompt=prompt,

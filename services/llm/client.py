@@ -355,6 +355,66 @@ class LLMClient(StreamingMixin, GenerationMixin):
             _call, label=f"Provider {entry['label']}", provider=provider_type
         )
 
+    async def agenerate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        json_mode: bool = False,
+        model_tier: str = "default",
+        model: Optional[str] = None,
+        budget_remaining: Optional[int] = None,
+    ) -> str:
+        """Async wrapper around generate() — offloads blocking I/O to thread pool.
+
+        Signature mirrors generate() exactly so callers can migrate by replacing
+        `self.llm.generate(...)` with `await self.llm.agenerate(...)`.
+        """
+        import asyncio
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            lambda: self.generate(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                json_mode=json_mode,
+                model_tier=model_tier,
+                model=model,
+                budget_remaining=budget_remaining,
+            ),
+        )
+
+    async def agenerate_json(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        model_tier: str = "default",
+        model: Optional[str] = None,
+    ) -> dict:
+        """Async wrapper around generate_json() — offloads blocking I/O to thread pool.
+
+        Signature mirrors generate_json() exactly so callers can migrate by replacing
+        `self.llm.generate_json(...)` with `await self.llm.agenerate_json(...)`.
+        """
+        import asyncio
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            lambda: self.generate_json(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                model_tier=model_tier,
+                model=model,
+            ),
+        )
+
     @staticmethod
     def _repair_json(text: str) -> str:
         """Backward-compat static method — delegates to generation module."""

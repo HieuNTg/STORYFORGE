@@ -4,7 +4,7 @@ import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from config import ConfigManager
-from services.seedream_client import SeedreamClient
+from services.media.image_provider import ImageProvider
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +27,16 @@ class MediaProducer:
             if progress_callback:
                 progress_callback(msg)
 
-        # Step 1: Character reference images (Seedream)
-        seedream = SeedreamClient(api_key=cfg.seedream_api_key, base_url=cfg.seedream_api_url)
-        if seedream.is_configured() and draft.characters:
+        # Step 1: Character reference images (via ImageProvider → Seedream)
+        provider = ImageProvider()
+        # Propagate config to underlying Seedream client
+        provider.seedream.api_key = cfg.seedream_api_key or provider.seedream.api_key
+        provider.seedream.base_url = cfg.seedream_api_url or provider.seedream.base_url
+        if provider.is_configured() and draft.characters:
             _log("[MEDIA] Tạo ảnh tham chiếu nhân vật...")
             for char in draft.characters:
                 desc = char.appearance or char.personality or char.name
-                ref_path = seedream.generate_character_reference(char.name, desc)
+                ref_path = provider.generate_character_reference(char.name, desc)
                 if ref_path:
                     char.reference_image = ref_path
                     result["character_refs"][char.name] = ref_path
@@ -82,15 +85,15 @@ class MediaProducer:
         use_consistency = cfg.enable_character_consistency
 
         if use_consistency:
-            provider = getattr(cfg, "character_consistency_provider", "seedream")
-            if provider == "seedream" and not seedream.is_configured():
-                provider = cfg.image_provider
+            consistency_provider = getattr(cfg, "character_consistency_provider", "seedream")
+            if consistency_provider == "seedream" and not provider.is_configured():
+                consistency_provider = cfg.image_provider
             from services.image_generator import ImageGenerator
-            image_gen = ImageGenerator(provider=provider)
+            image_gen = ImageGenerator(provider=consistency_provider)
         else:
             image_gen = None
 
-        if (use_consistency or seedream.is_configured()) and enhanced and enhanced.chapters:
+        if (use_consistency or provider.is_configured()) and enhanced and enhanced.chapters:
             from services.image_prompt_generator import ImagePromptGenerator
             prompt_gen = ImagePromptGenerator()
 
@@ -150,12 +153,12 @@ class MediaProducer:
                         if completed % 3 == 0 or completed == total:
                             _log(f"[MEDIA] Ảnh: {completed}/{total}")
             else:
-                # Seedream path — use batch_generate()
+                # Seedream path — use batch_generate() via ImageProvider
                 batch_requests = [
                     {"scene_prompt": prompt, "reference_images": refs, "filename": filename}
                     for _ch, prompt, refs, filename in prepared
                 ]
-                batch_results = seedream.batch_generate(batch_requests)
+                batch_results = provider.seedream.batch_generate(batch_requests)
                 for i, img_result in enumerate(batch_results):
                     if img_result.success and img_result.image_url:
                         result["scene_images"].append(img_result.image_url)
