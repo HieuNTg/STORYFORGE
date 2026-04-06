@@ -37,11 +37,13 @@ def configure_logging():
     # Remove existing handlers to avoid duplicates
     root.handlers.clear()
 
+    import io
+    utf8_stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
     if log_format == "json":
-        handler = logging.StreamHandler(sys.stdout)
+        handler = logging.StreamHandler(utf8_stdout)
         handler.setFormatter(JSONFormatter())
     else:
-        handler = logging.StreamHandler()
+        handler = logging.StreamHandler(utf8_stdout)
         handler.setFormatter(logging.Formatter(
             "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
         ))
