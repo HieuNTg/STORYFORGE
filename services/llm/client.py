@@ -158,7 +158,14 @@ class LLMClient(StreamingMixin, GenerationMixin):
             return self._providers_cache[cache_key], config.llm.cheap_model
 
     def _retry_with_backoff(self, fn, label: str = "LLM", provider: str = ""):
-        """Execute fn with retry + exponential backoff."""
+        """Execute fn with retry + exponential backoff.
+
+        When ``_should_retry`` returns ``(True, 0)`` the error is
+        *not* retryable on the same provider (e.g. 404 model-not-found,
+        401/403 auth) but *should* be retried on the next provider in
+        the fallback chain.  In that case we break immediately so the
+        chain-level loop in ``generate()`` can try the next entry.
+        """
         last_exc = None
         for attempt in range(MAX_RETRIES):
             try:
@@ -171,7 +178,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     else:
                         should_retry = _is_transient(e)
                         suggested_delay = BASE_DELAY
-                    if should_retry:
+                    if should_retry and suggested_delay > 0:
                         delay = max(suggested_delay, BASE_DELAY * (2 ** attempt)) + random.uniform(0, 0.5)
                         logger.warning(f"{label} attempt {attempt+1} failed: {_redact(e)}. Retry in {delay:.1f}s")
                         time.sleep(delay)

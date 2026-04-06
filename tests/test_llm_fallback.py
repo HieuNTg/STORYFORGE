@@ -384,7 +384,7 @@ class TestGenerateFallback(unittest.TestCase):
 
     @patch("services.llm_client.ConfigManager")
     @patch("services.llm_client.LLMCache")
-    def test_generate_stops_on_non_transient_error(self, MockCache, MockCM):
+    def test_generate_stops_on_truly_fatal_error(self, MockCache, MockCM):
         from services.llm_client import LLMClient
         cfg = _make_llm_config()
         MockCM.return_value = cfg
@@ -392,8 +392,8 @@ class TestGenerateFallback(unittest.TestCase):
 
         client = LLMClient()
         primary = MagicMock()
-        # 401 Unauthorized — not transient, should NOT try fallback
-        primary.chat.completions.create.side_effect = Exception("401 unauthorized")
+        # A truly non-retryable error (not 401/403/429/transient)
+        primary.chat.completions.create.side_effect = ValueError("invalid prompt format")
         fallback = MagicMock()
         resp = MagicMock()
         resp.choices[0].message.content = "Fallback"
@@ -404,10 +404,63 @@ class TestGenerateFallback(unittest.TestCase):
         ])
 
         with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
-            with self.assertRaises(Exception):
+            with self.assertRaises(ValueError):
                 client.generate("system", "user")
-        # Fallback should NOT be tried for non-transient errors
         fallback.chat.completions.create.assert_not_called()
+
+    @patch("services.llm_client.ConfigManager")
+    @patch("services.llm_client.LLMCache")
+    def test_generate_404_skips_to_fallback_immediately(self, MockCache, MockCM):
+        """404 model-not-found on OpenRouter should NOT retry on same provider, just skip to next."""
+        from services.llm_client import LLMClient
+        cfg = _make_llm_config()
+        MockCM.return_value = cfg
+        MockCache.return_value.get.return_value = None
+
+        client = LLMClient()
+        primary = MagicMock()
+        primary.base_url = "https://openrouter.ai/api/v1"
+        primary.chat.completions.create.side_effect = Exception("Error code: 404 - model not found")
+        fallback = MagicMock()
+        fallback.base_url = "https://api.openai.com/v1"
+        resp = MagicMock()
+        resp.choices[0].message.content = "Fallback OK"
+        fallback.chat.completions.create.return_value = resp
+        client._build_fallback_chain = MagicMock(return_value=[
+            {"client": primary, "model": "gpt-4", "label": "primary"},
+            {"client": fallback, "model": "gpt-3.5", "label": "cheap"},
+        ])
+
+        with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
+            result = client.generate("system", "user")
+        self.assertEqual(result, "Fallback OK")
+        # Must NOT retry on same provider — only 1 call
+        self.assertEqual(primary.chat.completions.create.call_count, 1)
+
+    @patch("services.llm_client.ConfigManager")
+    @patch("services.llm_client.LLMCache")
+    def test_generate_auth_error_tries_fallback(self, MockCache, MockCM):
+        from services.llm_client import LLMClient
+        cfg = _make_llm_config()
+        MockCM.return_value = cfg
+        MockCache.return_value.get.return_value = None
+
+        client = LLMClient()
+        primary = MagicMock()
+        primary.chat.completions.create.side_effect = Exception("401 unauthorized")
+        fallback = MagicMock()
+        resp = MagicMock()
+        resp.choices[0].message.content = "Fallback OK"
+        fallback.chat.completions.create.return_value = resp
+        client._build_fallback_chain = MagicMock(return_value=[
+            {"client": primary, "model": "gpt-4", "label": "primary"},
+            {"client": fallback, "model": "gpt-3.5", "label": "cheap"},
+        ])
+
+        with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
+            result = client.generate("system", "user")
+        self.assertEqual(result, "Fallback OK")
+        self.assertEqual(primary.chat.completions.create.call_count, 1)
 
 
 # ---------------------------------------------------------------------------
