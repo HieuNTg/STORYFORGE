@@ -11,7 +11,11 @@ def validate_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> list[str]:
     """Validate config fields. Returns list of warning/error messages."""
     errors = []
 
-    if not llm.api_key:
+    has_any_provider = bool(llm.api_key) or any(
+        fb.get("api_key") and fb.get("enabled", True)
+        for fb in getattr(llm, "fallback_models", [])
+    )
+    if not has_any_provider:
         errors.append("API key bắt buộc")
 
     if pipeline.num_chapters < 1:

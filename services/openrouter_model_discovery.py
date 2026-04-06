@@ -14,7 +14,7 @@ _CACHE_TTL_SECONDS = 86400  # 24 hours
 
 # Hardcoded fallback presets — used when API is unreachable
 _FALLBACK_FREE_MODELS = [
-    "qwen/qwen3.6-plus-preview:free",
+    "qwen/qwen3.6-plus:free",
     "nvidia/nemotron-3-super-120b-a12b:free",
     "nvidia/nemotron-3-nano-30b-a3b:free",
     "stepfun/step-3.5-flash:free",

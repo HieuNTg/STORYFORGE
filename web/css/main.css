@@ -24,6 +24,105 @@
   }
 }
 
+/* ── Toggle switch ───────────────────────────────────────────────────────── */
+.sf-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.sf-toggle-track {
+  display: block;
+  width: 36px;
+  height: 20px;
+  background: #cbd5e1;
+  border-radius: 9999px;
+  position: relative;
+  transition: background var(--sf-duration-fast) var(--sf-ease-spring);
+}
+.dark .sf-toggle-track {
+  background: #475569;
+}
+.sf-toggle.active .sf-toggle-track {
+  background: var(--sf-color-brand-600);
+}
+.sf-toggle-thumb {
+  display: block;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 9999px;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform var(--sf-duration-fast) var(--sf-ease-spring);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
+}
+.sf-toggle.active .sf-toggle-thumb {
+  transform: translateX(16px);
+}
+
+/* ── Custom range slider ─────────────────────────────────────────────────── */
+input[type="range"].sf-range {
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  width: 100%;
+  height: 6px;
+  background: #e2e8f0 !important;
+  border-radius: 9999px;
+  outline: none;
+  border: none;
+  padding: 0;
+  margin: 8px 0;
+}
+.dark input[type="range"].sf-range {
+  background: #334155 !important;
+}
+input[type="range"].sf-range::-webkit-slider-runnable-track {
+  height: 6px;
+  background: transparent;
+  border-radius: 9999px;
+}
+input[type="range"].sf-range::-webkit-slider-thumb {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 20px;
+  height: 20px;
+  background: #2563EB !important;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2.5px solid #fff;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.25);
+  margin-top: -7px;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+input[type="range"].sf-range::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.3);
+}
+input[type="range"].sf-range::-moz-range-track {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 9999px;
+  border: none;
+}
+.dark input[type="range"].sf-range::-moz-range-track {
+  background: #334155;
+}
+input[type="range"].sf-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: #2563EB;
+  border: 2.5px solid #fff;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.25);
+}
+
+/* ── Details chevron rotation ────────────────────────────────────────────── */
+details[open] .details-chevron {
+  transform: rotate(180deg);
+}
+
 /* Respect reduced-motion preference for vestibular disorder users */
 @media (prefers-reduced-motion: reduce) {
   *,

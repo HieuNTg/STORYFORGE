@@ -60,7 +60,7 @@ MODEL_PRESETS = {
     "openrouter-free-basic": {
         "label": "OpenRouter Free — Basic (Qwen 3.6 Plus)",
         "base_url": _OPENROUTER_BASE,
-        "model": "qwen/qwen3.6-plus-preview:free",
+        "model": "qwen/qwen3.6-plus:free",
         "cheap_model": "nvidia/nemotron-3-nano-30b-a3b:free",
         "cheap_base_url": _OPENROUTER_BASE,
         "layer1_model": "",
@@ -72,10 +72,10 @@ MODEL_PRESETS = {
     "openrouter-free-optimized": {
         "label": "OpenRouter Free — Optimized (per-layer routing)",
         "base_url": _OPENROUTER_BASE,
-        "model": "qwen/qwen3.6-plus-preview:free",
+        "model": "qwen/qwen3.6-plus:free",
         "cheap_model": "nvidia/nemotron-3-nano-30b-a3b:free",
         "cheap_base_url": _OPENROUTER_BASE,
-        "layer1_model": "qwen/qwen3.6-plus-preview:free",
+        "layer1_model": "qwen/qwen3.6-plus:free",
         "layer2_model": "nvidia/nemotron-3-super-120b-a12b:free",
         "fallback_models": [
             {"model": "nvidia/nemotron-3-super-120b-a12b:free", "base_url": _OPENROUTER_BASE},
@@ -85,10 +85,10 @@ MODEL_PRESETS = {
     "openrouter-free-max": {
         "label": "OpenRouter Free — Max Context (1M tokens)",
         "base_url": _OPENROUTER_BASE,
-        "model": "qwen/qwen3.6-plus-preview:free",
+        "model": "qwen/qwen3.6-plus:free",
         "cheap_model": "nvidia/nemotron-3-nano-30b-a3b:free",
         "cheap_base_url": _OPENROUTER_BASE,
-        "layer1_model": "qwen/qwen3.6-plus-preview:free",
+        "layer1_model": "qwen/qwen3.6-plus:free",
         "layer2_model": "nvidia/nemotron-3-super-120b-a12b:free",
         "fallback_models": [
             {"model": "minimax/minimax-m2.5:free", "base_url": _OPENROUTER_BASE},

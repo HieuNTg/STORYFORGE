@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 CONFIG_FILE = "data/config.json"
+_SECRETS_FILE = "data/secrets.json"
 
 # Maps env var name -> (section, field_name)
 _ENV_MAP: dict[str, tuple[str, str]] = {
@@ -50,7 +51,7 @@ _BOOL_FIELDS = {
 
 
 def load_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
-    """Load config from JSON file, then apply environment variable overrides."""
+    """Load config from JSON file, then secrets, then env var overrides."""
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -64,7 +65,48 @@ def load_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
         except Exception as e:
             logger.warning(f"Config load error: {e}")
 
+    _load_secrets(llm, pipeline)
     _apply_env_overrides(llm, pipeline)
+
+
+def _load_secrets(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
+    """Load encrypted secrets (api_key, api_keys, fallback_models) from secrets file."""
+    if not os.path.exists(_SECRETS_FILE):
+        return
+    try:
+        from services.secret_manager import load_encrypted
+        data = load_encrypted(_SECRETS_FILE)
+        for k, v in data.get("llm", {}).items():
+            if hasattr(llm, k):
+                setattr(llm, k, v)
+        for k, v in data.get("pipeline", {}).items():
+            if hasattr(pipeline, k):
+                setattr(pipeline, k, v)
+    except Exception as e:
+        logger.warning(f"Secrets load error: {e}")
+
+
+def _save_secrets(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
+    """Persist sensitive fields (api keys, fallback profiles) to encrypted file."""
+    try:
+        from services.secret_manager import save_encrypted
+        data = {
+            "llm": {
+                "api_key": llm.api_key,
+                "api_keys": llm.api_keys,
+                "fallback_models": llm.fallback_models,
+            },
+            "pipeline": {
+                k: getattr(pipeline, k)
+                for k in ("image_api_key", "seedream_api_key", "replicate_api_key",
+                           "long_context_api_key", "hf_token")
+                if getattr(pipeline, k, "")
+            },
+        }
+        os.makedirs(os.path.dirname(_SECRETS_FILE), exist_ok=True)
+        save_encrypted(_SECRETS_FILE, data)
+    except Exception as e:
+        logger.warning(f"Secrets save error: {e}")
 
 
 def _apply_env_overrides(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
@@ -148,3 +190,4 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
     }
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+    _save_secrets(llm, pipeline)

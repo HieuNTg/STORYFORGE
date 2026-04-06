@@ -207,7 +207,10 @@ def save_config(body: ConfigUpdate):
         cfg.pipeline.hf_image_model = body.hf_image_model
     if body.image_prompt_style is not None:
         cfg.pipeline.image_prompt_style = body.image_prompt_style
-    cfg.save()
+    try:
+        cfg.save()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     # Reset LLM client singleton
     from services.llm_client import LLMClient
     LLMClient.reset()
@@ -305,8 +308,16 @@ def add_profile(body: ProfileCreate):
     }
     if not profile["base_url"]:
         raise HTTPException(status_code=400, detail="Could not detect provider. Provide base_url manually.")
+    # If no primary key set, use this provider as primary too
+    if not cfg.llm.api_key:
+        cfg.llm.api_key = profile["api_key"]
+        cfg.llm.base_url = profile["base_url"]
+        cfg.llm.model = profile["model"]
     cfg.llm.fallback_models = list(cfg.llm.fallback_models) + [profile]
-    cfg.save()
+    try:
+        cfg.save()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     from services.llm_client import LLMClient
     LLMClient.reset()
     return {
@@ -333,7 +344,10 @@ def update_profile(index: int, body: ProfileCreate):
         "enabled": body.enabled,
     }
     cfg.llm.fallback_models = profiles
-    cfg.save()
+    try:
+        cfg.save()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     from services.llm_client import LLMClient
     LLMClient.reset()
     return {"status": "ok"}
@@ -348,7 +362,10 @@ def delete_profile(index: int):
         raise HTTPException(status_code=404, detail="Profile index out of range")
     profiles.pop(index)
     cfg.llm.fallback_models = profiles
-    cfg.save()
+    try:
+        cfg.save()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     from services.llm_client import LLMClient
     LLMClient.reset()
     return {"status": "ok", "remaining": len(profiles)}

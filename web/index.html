@@ -38,11 +38,12 @@
     @keyframes fadeSlideIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
     .sidebar-link { transition: all 0.15s ease; }
     .sidebar-link:hover { background: #F1F5F9; }
-    .sidebar-link.active { background: #EFF6FF; color: #2563EB; font-weight: 600; }
+    .sidebar-link.active { background: #EFF6FF; color: #2563EB; font-weight: 600; box-shadow: inset 3px 0 0 #2563EB; }
     .progress-step { transition: all 0.4s cubic-bezier(0.4,0,0.2,1); }
-    .btn-primary { background: linear-gradient(135deg,#2563EB,#3B82F6); color:white; }
+    .btn-primary { background: linear-gradient(135deg,#2563EB,#3B82F6); color:white; transition: all 0.2s ease; }
     .btn-primary:hover { background: linear-gradient(135deg,#1D4ED8,#2563EB); box-shadow:0 4px 14px rgba(37,99,235,0.35); transform:translateY(-1px); }
-    .card { background:white; border:1px solid #E2E8F0; border-radius:12px; }
+    .btn-primary:active { transform:translateY(0); box-shadow:0 1px 4px rgba(37,99,235,0.2); }
+    .card { background:white; border:1px solid #E2E8F0; border-radius:12px; transition: border-color 0.2s ease, box-shadow 0.2s ease; }
     /* Explicit light-mode backgrounds for form controls — prevents OS dark
        color-scheme from leaking dark native inputs when theme is light */
     input:not([type=range]):not([type=checkbox]),
@@ -77,7 +78,7 @@
     .dark .border-surface-200, .dark .border-slate-200 { border-color: var(--dm-border); }
     .dark .sidebar-link { color: var(--dm-text-secondary); }
     .dark .sidebar-link:hover { background: var(--dm-surface); }
-    .dark .sidebar-link.active { background: #1e3a5f; color: #60a5fa; }
+    .dark .sidebar-link.active { background: #1e3a5f; color: #60a5fa; box-shadow: inset 3px 0 0 #60a5fa; }
     .dark aside { background: var(--dm-bg); border-color: var(--dm-border); }
     .dark header { background: rgba(15,23,42,0.85); border-color: var(--dm-border); }
     .dark input:not([type=range]):not([type=checkbox]), .dark select, .dark textarea {
@@ -85,6 +86,12 @@
     }
     .dark input::placeholder, .dark textarea::placeholder { color: var(--dm-text-muted); }
     .dark ::-webkit-scrollbar-thumb { background: #475569; }
+    .dark .bg-brand-50 { background-color: rgba(37,99,235,0.1); }
+    .dark .bg-amber-50 { background-color: rgba(245,158,11,0.1); }
+    .dark .bg-emerald-50 { background-color: rgba(16,185,129,0.1); }
+    .dark .bg-violet-50 { background-color: rgba(139,92,246,0.1); }
+    .dark .bg-sky-50 { background-color: rgba(14,165,233,0.1); }
+    .dark .bg-rose-50 { background-color: rgba(244,63,94,0.1); }
     .dark .skeleton-pulse {
       background: linear-gradient(90deg, var(--dm-surface) 25%, var(--dm-border) 50%, var(--dm-surface) 75%);
       background-size: 200% 100%;
@@ -279,7 +286,10 @@
           <!-- Left: Form -->
           <div class="lg:col-span-4 space-y-4">
             <div class="card p-5 space-y-4">
-              <h2 class="font-semibold text-base text-slate-700">Quick Start</h2>
+              <h2 class="font-semibold text-base text-slate-700 flex items-center gap-2">
+                <svg class="w-5 h-5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"/></svg>
+                Quick Start
+              </h2>
               <div>
                 <label for="sf-genre" class="block text-sm font-medium text-slate-600 mb-1">Genre</label>
                 <select id="sf-genre" x-model="$store.pipeline.form.genre" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm bg-white">
@@ -307,47 +317,59 @@
             </div>
 
             <!-- Config sliders -->
-            <div class="card p-5 space-y-3">
-              <h2 class="font-semibold text-base text-slate-700">Configuration</h2>
+            <div class="card p-5 space-y-4">
+              <h2 class="font-semibold text-base text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                <svg class="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"/></svg>
+                Configuration
+              </h2>
               <div>
-                <div class="flex justify-between text-sm"><label for="sf-num-chapters" class="text-slate-600">Chapters</label><span class="font-medium" x-text="$store.pipeline.form.num_chapters"></span></div>
-                <input id="sf-num-chapters" type="range" min="1" max="50" x-model.number="$store.pipeline.form.num_chapters" aria-label="Number of chapters" class="w-full accent-brand-600">
+                <div class="flex justify-between items-center text-sm mb-1.5">
+                  <label for="sf-num-chapters" class="text-slate-600 dark:text-slate-300">Chapters</label>
+                  <span class="text-xs font-bold tabular-nums text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30 px-2 py-0.5 rounded-full min-w-[28px] text-center" x-text="$store.pipeline.form.num_chapters"></span>
+                </div>
+                <input id="sf-num-chapters" type="range" min="1" max="50" x-model.number="$store.pipeline.form.num_chapters" aria-label="Number of chapters" class="sf-range w-full">
               </div>
               <div>
-                <div class="flex justify-between text-sm"><label for="sf-num-characters" class="text-slate-600">Characters</label><span class="font-medium" x-text="$store.pipeline.form.num_characters"></span></div>
-                <input id="sf-num-characters" type="range" min="2" max="15" x-model.number="$store.pipeline.form.num_characters" aria-label="Number of characters" class="w-full accent-brand-600">
+                <div class="flex justify-between items-center text-sm mb-1.5">
+                  <label for="sf-num-characters" class="text-slate-600 dark:text-slate-300">Characters</label>
+                  <span class="text-xs font-bold tabular-nums text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30 px-2 py-0.5 rounded-full min-w-[28px] text-center" x-text="$store.pipeline.form.num_characters"></span>
+                </div>
+                <input id="sf-num-characters" type="range" min="2" max="15" x-model.number="$store.pipeline.form.num_characters" aria-label="Number of characters" class="sf-range w-full">
               </div>
               <div>
-                <div class="flex justify-between text-sm"><label for="sf-word-count" class="text-slate-600">Words / chapter</label><span class="font-medium" x-text="$store.pipeline.form.word_count"></span></div>
-                <input id="sf-word-count" type="range" min="500" max="5000" step="100" x-model.number="$store.pipeline.form.word_count" aria-label="Words per chapter" class="w-full accent-brand-600">
+                <div class="flex justify-between items-center text-sm mb-1.5">
+                  <label for="sf-word-count" class="text-slate-600 dark:text-slate-300">Words / chapter</label>
+                  <span class="text-xs font-bold tabular-nums text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30 px-2 py-0.5 rounded-full min-w-[42px] text-center" x-text="$store.pipeline.form.word_count"></span>
+                </div>
+                <input id="sf-word-count" type="range" min="500" max="5000" step="100" x-model.number="$store.pipeline.form.word_count" aria-label="Words per chapter" class="sf-range w-full">
               </div>
             </div>
 
             <!-- Advanced (collapsible) -->
             <details class="card overflow-hidden">
-              <summary class="px-5 py-3 cursor-pointer text-sm font-semibold text-slate-600 hover:bg-surface-50 select-none">Advanced</summary>
-              <div class="px-5 pb-4 space-y-3 border-t border-surface-200 pt-3">
+              <summary class="px-5 py-3.5 cursor-pointer text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-surface-50 dark:hover:bg-surface-100 select-none flex items-center justify-between">
+                <span class="flex items-center gap-2">
+                  <svg class="w-4.5 h-4.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0Z"/></svg>
+                  Advanced
+                </span>
+                <svg class="w-4 h-4 text-slate-400 transition-transform duration-200 details-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+              </summary>
+              <div class="border-t border-surface-200 px-5 py-4 space-y-4">
                 <div>
-                  <div class="flex justify-between text-sm"><label for="sf-num-sim-rounds" class="text-slate-600">Simulation Rounds</label><span class="font-medium" x-text="$store.pipeline.form.num_sim_rounds"></span></div>
-                  <input id="sf-num-sim-rounds" type="range" min="1" max="10" x-model.number="$store.pipeline.form.num_sim_rounds" aria-label="Simulation rounds" class="w-full accent-brand-600">
+                  <div class="flex justify-between items-center text-sm mb-1.5">
+                    <label for="sf-num-sim-rounds" class="text-slate-600 dark:text-slate-300">Simulation Rounds</label>
+                    <span class="text-xs font-bold tabular-nums text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30 px-2 py-0.5 rounded-full min-w-[28px] text-center" x-text="$store.pipeline.form.num_sim_rounds"></span>
+                  </div>
+                  <input id="sf-num-sim-rounds" type="range" min="1" max="10" x-model.number="$store.pipeline.form.num_sim_rounds" aria-label="Simulation rounds" class="sf-range w-full">
                 </div>
                 <div>
-                  <label for="sf-drama-level" class="block text-sm text-slate-600 mb-1">Drama Level</label>
-                  <select id="sf-drama-level" x-model="$store.pipeline.form.drama_level" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm bg-white">
+                  <label for="sf-drama-level" class="block text-sm text-slate-600 dark:text-slate-300 mb-1.5">Drama Level</label>
+                  <select id="sf-drama-level" x-model="$store.pipeline.form.drama_level" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm bg-white dark:bg-surface-100 capitalize">
                     <template x-for="d in $store.pipeline.dramaLevels" :key="d">
                       <option :value="d" x-text="d"></option>
                     </template>
                   </select>
                 </div>
-                <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
-                  <input type="checkbox" x-model="$store.pipeline.form.enable_agents" class="accent-brand-600"> Agent Review
-                </label>
-                <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
-                  <input type="checkbox" x-model="$store.pipeline.form.enable_scoring" class="accent-brand-600"> Auto Scoring
-                </label>
-                <label class="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
-                  <input type="checkbox" x-model="$store.pipeline.form.enable_media" class="accent-brand-600"> Media Production
-                </label>
               </div>
             </details>
 
@@ -360,7 +382,10 @@
               aria-describedby="sf-pipeline-error-msg"
               class="btn-primary w-full py-3 rounded-xl font-semibold text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <span x-show="$store.pipeline.status !== 'running'">Run Pipeline</span>
+              <span x-show="$store.pipeline.status !== 'running'" class="inline-flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z"/></svg>
+                Run Pipeline
+              </span>
               <span x-show="$store.pipeline.status === 'running'" class="flex items-center justify-center gap-2">
                 <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                 Running...
@@ -428,7 +453,7 @@
                           <template x-if="$store.pipeline.result.draft.chapters[chapter]">
                             <div>
                               <h4 class="font-semibold mb-2" x-text="'Chapter ' + $store.pipeline.result.draft.chapters[chapter].number + ': ' + $store.pipeline.result.draft.chapters[chapter].title.replace(/\*\*/g, '').replace(/^#+\s*/gm, '')"></h4>
-                              <div class="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap" x-html="formatContent($store.pipeline.result.draft.chapters[chapter].content)"></div>
+                              <div class="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap" x-html="$store.pipeline.result.draft.chapters[chapter].content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
                             </div>
                           </template>
                         </div>
@@ -446,7 +471,7 @@
                             </template>
                           </div>
                           <template x-if="$store.pipeline.result.enhanced.chapters[chapter]">
-                            <div class="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap" x-html="formatContent($store.pipeline.result.enhanced.chapters[chapter].content)"></div>
+                            <div class="text-sm leading-relaxed text-slate-700 whitespace-pre-wrap" x-html="$store.pipeline.result.enhanced.chapters[chapter].content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
                           </template>
                         </div>
                       </template>
@@ -597,12 +622,14 @@
             </div>
 
             <!-- Empty state -->
-            <div x-show="$store.pipeline.status === 'idle' && !$store.pipeline.result" class="card p-12 text-center">
-              <svg class="w-16 h-16 mx-auto text-slate-200 mb-4" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/>
-              </svg>
-              <h3 class="text-lg font-semibold text-slate-400 mb-1">No Story Yet</h3>
-              <p class="text-sm text-slate-400">Enter your idea on the left and click "Run Pipeline" to start</p>
+            <div x-show="$store.pipeline.status === 'idle' && !$store.pipeline.result" class="card p-16 text-center">
+              <div class="w-20 h-20 mx-auto mb-5 rounded-2xl bg-brand-50 flex items-center justify-center">
+                <svg class="w-10 h-10 text-brand-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/>
+                </svg>
+              </div>
+              <h3 class="text-lg font-semibold text-slate-500 mb-1">Ready to Create</h3>
+              <p class="text-sm text-slate-400 max-w-xs mx-auto">Enter your story idea on the left and click "Run Pipeline" to bring it to life</p>
             </div>
           </div>
         </div>
@@ -680,13 +707,17 @@
             </div>
           </div>
 
-          <!-- Step 1: Choose provider -->
-          <div class="card p-5 space-y-4">
-            <div class="flex items-center gap-2 mb-1">
-              <span class="flex items-center justify-center w-7 h-7 rounded-full bg-brand-600 text-white text-xs font-bold">1</span>
-              <h2 class="font-semibold text-base text-slate-700">Choose AI Provider</h2>
+          <!-- Provider & API Key (unified) -->
+          <div class="card p-5 space-y-5">
+            <div>
+              <h2 class="font-semibold text-base text-slate-700 flex items-center gap-2">
+                <svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008z"/></svg>
+                Provider & API Key
+              </h2>
+              <p class="text-sm text-slate-500 mt-1">Select your AI provider, enter the API key, and pick a model.</p>
             </div>
-            <p class="text-sm text-slate-500">Select the AI service you want to use. Connection info will be auto-filled.</p>
+
+            <!-- Provider grid -->
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <template x-for="p in providers" :key="p.id">
                 <button
@@ -711,230 +742,152 @@
                 </button>
               </template>
             </div>
-          </div>
 
-          <!-- Step 2: API Keys -->
-          <div class="card p-5 space-y-4">
-            <div class="flex items-center gap-2 mb-1">
-              <span class="flex items-center justify-center w-7 h-7 rounded-full bg-brand-600 text-white text-xs font-bold">2</span>
-              <h2 class="font-semibold text-base text-slate-700">API Keys</h2>
-              <span class="text-xs text-slate-400" x-text="(savedKeysMasked.length + (maskedKey && maskedKey !== '***' ? 1 : 0)) + ' configured'"></span>
-              <button @click="showAddKey = !showAddKey" type="button"
-                class="ml-auto text-xs font-medium text-brand-600 hover:text-brand-700 flex items-center gap-1 cursor-pointer transition-colors">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                Add
-              </button>
-            </div>
-            <p class="text-sm text-slate-500" x-html="currentProvider?.guide || 'Select a provider above to see how to get an API key.'"></p>
+            <!-- Selected provider details -->
+            <div x-show="currentProvider" x-transition class="space-y-4 border-t border-surface-200 pt-4">
+              <!-- Guide -->
+              <p class="text-sm text-slate-600 leading-relaxed" x-html="currentProvider?.guide"></p>
 
-            <!-- Key list -->
-            <div class="divide-y divide-surface-100 border border-surface-200 rounded-lg overflow-hidden">
-              <!-- Primary key row -->
-              <div class="flex items-center gap-3 px-3 py-2.5 bg-white">
-                <span class="flex-shrink-0 w-2 h-2 rounded-full" :class="maskedKey && maskedKey !== '***' ? 'bg-green-500' : 'bg-slate-300'"></span>
-                <span class="flex-1 text-sm font-mono text-slate-600 truncate" x-text="maskedKey && maskedKey !== '***' ? maskedKey : 'No primary key set'"></span>
-                <span class="flex-shrink-0 text-[10px] bg-brand-100 text-brand-700 px-1.5 py-0.5 rounded font-semibold">Primary</span>
+              <!-- API Key -->
+              <div>
+                <label class="block text-xs text-slate-500 mb-1 flex items-center gap-2">
+                  API Key
+                  <span x-show="maskedKey && maskedKey !== '***'" class="text-green-600 font-medium flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+                    Saved (<span x-text="maskedKey"></span>)
+                  </span>
+                </label>
+                <input type="password" x-model="form.api_key"
+                  :placeholder="currentProvider?.keyPlaceholder || 'Paste API key...'"
+                  class="w-full border border-surface-200 rounded-lg px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all">
+                <p x-show="maskedKey && maskedKey !== '***'" class="text-xs text-slate-400 mt-1">Leave blank to keep current key, or paste a new one to replace it.</p>
               </div>
-              <!-- Additional key rows -->
-              <template x-for="(mk, i) in savedKeysMasked" :key="i">
-                <div class="flex items-center gap-3 px-3 py-2.5 bg-white group">
-                  <span class="flex-shrink-0 w-2 h-2 rounded-full bg-green-500"></span>
-                  <span class="flex-1 text-sm font-mono text-slate-600 truncate" x-text="mk"></span>
-                  <span class="flex-shrink-0 text-[10px] text-slate-400 font-medium" x-text="'Pool #' + (i + 1)"></span>
-                  <button @click="removeKey(i)" type="button"
-                    class="flex-shrink-0 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all cursor-pointer" title="Remove">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                  </button>
+
+              <!-- Model -->
+              <div>
+                <label class="block text-xs text-slate-500 mb-2">Model</label>
+                <div x-show="currentProvider?.models?.length" class="flex flex-wrap gap-2 mb-3">
+                  <template x-for="m in (currentProvider?.models || [])" :key="m.id">
+                    <button @click="form.model = m.id"
+                      :class="form.model === m.id ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-slate-600 border-surface-200 hover:border-brand-400'"
+                      class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-all cursor-pointer"
+                      x-text="m.label"></button>
+                  </template>
                 </div>
-              </template>
-              <!-- Empty state -->
-              <div x-show="!savedKeysMasked.length && (!maskedKey || maskedKey === '***')" class="px-3 py-4 text-center text-xs text-slate-400">
-                No API keys configured. Click <strong>+ Add</strong> to get started.
+                <input id="sf-model" type="text" x-model="form.model"
+                  class="w-full h-10 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all"
+                  placeholder="Or type model name manually">
               </div>
             </div>
 
-            <!-- Inline add key form -->
-            <div x-show="showAddKey" x-transition class="space-y-2">
-              <label for="sf-new-api-key" class="block text-xs font-medium text-slate-600">New API Key</label>
-              <div class="flex gap-2">
-                <div class="relative flex-1">
-                  <input id="sf-new-api-key" type="password" x-model="newKeyInput"
-                    class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all"
-                    :placeholder="currentProvider?.keyPlaceholder || 'Paste API key...'"
-                    @keydown.enter="addKey()">
-                </div>
-                <button @click="addKey()" type="button"
-                  class="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition-colors cursor-pointer">
-                  Save
-                </button>
-                <button @click="showAddKey = false; newKeyInput = ''" type="button"
-                  class="px-3 py-2 text-sm text-slate-500 hover:text-slate-700 transition-colors cursor-pointer">
-                  Cancel
-                </button>
-              </div>
-              <p class="text-xs text-slate-400">Keys auto-rotate when rate limited (429). Same provider as primary.</p>
-            </div>
-
-            <!-- Update primary key -->
-            <details class="group">
-              <summary class="text-xs text-slate-500 cursor-pointer hover:text-brand-600 transition-colors select-none flex items-center gap-1">
-                <svg class="w-3 h-3 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-                Change primary key
+            <!-- Additional Providers (for auto-switching) -->
+            <details class="border-t border-surface-200 pt-4">
+              <summary class="cursor-pointer text-sm font-semibold text-slate-600 hover:text-slate-800 select-none flex items-center gap-2">
+                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+                Additional Providers
+                <span class="text-xs font-normal text-slate-400" x-text="profiles.length ? profiles.length + ' added' : 'optional'"></span>
               </summary>
-              <div class="mt-2 relative">
-                <input id="sf-api-key" :type="showKey ? 'text' : 'password'" x-model="form.api_key"
-                  aria-label="Primary API key"
-                  class="w-full border border-surface-200 rounded-lg px-3 py-2.5 text-sm pr-10 focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all"
-                  :placeholder="maskedKey && maskedKey !== '***' ? 'Current: ' + maskedKey + ' — leave blank to keep' : (currentProvider?.keyPlaceholder || 'Paste API key here...')"
-                >
-                <button @click="showKey = !showKey" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer" type="button">
-                  <svg x-show="!showKey" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                  <svg x-show="showKey" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12c1.292 4.338 5.31 7.5 10.066 7.5.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>
+              <div class="mt-3 space-y-3">
+                <p class="text-xs text-slate-500">Add extra providers for automatic rate-limit switching. When one hits 429, the system tries the next.</p>
+
+                <!-- Profile list -->
+                <div x-show="profiles.length" class="divide-y divide-surface-100 border border-surface-200 rounded-lg overflow-hidden">
+                  <template x-for="(p, i) in profiles" :key="i">
+                    <div class="flex items-center gap-3 px-3 py-3 bg-white group hover:bg-surface-50 transition-colors" :class="!p.enabled && 'opacity-50'">
+                      <div class="flex-shrink-0 w-6 h-6 flex items-center justify-center text-brand-600">
+                        <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'chip'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5M4.5 15.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25z"/></svg>
+                        <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'sparkles'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg>
+                        <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'academic-cap'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15v-3.75m0 0h10.5m-10.5 0V15m10.5-3.75V15"/></svg>
+                        <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'arrows-right-left'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+                        <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'computer-desktop'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"/></svg>
+                        <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'cog-6-tooth'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                          <span class="text-sm font-medium text-slate-700 truncate" x-text="p.name"></span>
+                          <span class="flex-shrink-0 w-2 h-2 rounded-full" :class="p.enabled ? 'bg-green-500' : 'bg-slate-300'"></span>
+                        </div>
+                        <div class="text-xs text-slate-400 truncate" x-text="p.model + ' · ' + p.api_key_masked"></div>
+                      </div>
+                      <button @click="toggleProfile(i)" type="button" class="flex-shrink-0 cursor-pointer" :title="p.enabled ? 'Disable' : 'Enable'">
+                        <div class="w-8 h-4.5 rounded-full transition-colors relative" :class="p.enabled ? 'bg-green-500' : 'bg-slate-300'">
+                          <div class="absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full shadow transition-transform" :class="p.enabled ? 'left-[calc(100%-0.95rem)]' : 'left-0.5'"></div>
+                        </div>
+                      </button>
+                      <button @click="openEditProfile(i)" type="button" class="flex-shrink-0 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-brand-600 transition-all cursor-pointer" title="Edit">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>
+                      </button>
+                      <button @click="deleteProfile(i)" type="button" class="flex-shrink-0 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all cursor-pointer" title="Remove">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Add provider button -->
+                <button @click="openAddProfile()" type="button"
+                  class="w-full flex items-center justify-center gap-2 py-2.5 text-sm font-medium text-brand-600 hover:text-brand-700 border border-dashed border-surface-200 hover:border-brand-300 rounded-lg cursor-pointer transition-colors">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                  Add Provider
                 </button>
+
+                <!-- Add/Edit provider form -->
+                <div x-show="showAddProfile" x-transition class="border border-surface-200 rounded-lg p-4 space-y-3 bg-slate-50">
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-slate-700" x-text="editingProfile !== null ? 'Edit Provider' : 'Add Provider'"></span>
+                    <button @click="showAddProfile = false" type="button" class="text-slate-400 hover:text-slate-600 cursor-pointer">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                  </div>
+                  <div>
+                    <label class="block text-xs text-slate-500 mb-1">Paste API Key</label>
+                    <input type="password" x-model="profileForm.api_key" @input.debounce.300ms="detectFromKey()"
+                      class="w-full border border-surface-200 rounded-lg px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all"
+                      placeholder="sk-..., AIza..., sk-ant-..., sk-or-...">
+                  </div>
+                  <!-- Detected provider badge + inline model selector -->
+                  <div x-show="profileDetected" x-transition class="space-y-2">
+                    <div class="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                      <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+                      <span class="text-sm font-medium text-green-800" x-text="profileDetected?.name"></span>
+                    </div>
+                    <div x-show="profileModelsList.length > 0">
+                      <label class="block text-xs text-slate-500 mb-1">Model</label>
+                      <select x-model="profileForm.model" class="w-full border border-surface-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-200 outline-none bg-white">
+                        <template x-for="m in profileModelsList" :key="m.id">
+                          <option :value="m.id" x-text="m.label"></option>
+                        </template>
+                      </select>
+                    </div>
+                  </div>
+                  <!-- Manual configuration for undetected or editing -->
+                  <details x-show="editingProfile !== null || (profileForm.api_key && !profileDetected)" class="group">
+                    <summary class="text-xs text-slate-500 cursor-pointer hover:text-brand-600 select-none flex items-center gap-1">
+                      <svg class="w-3 h-3 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                      Manual configuration
+                    </summary>
+                    <div class="mt-2 space-y-2">
+                      <input type="text" x-model="profileForm.name" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 outline-none" placeholder="Provider name">
+                      <select x-show="profileModelsList.length > 0" x-model="profileForm.model" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 outline-none bg-white">
+                        <template x-for="m in profileModelsList" :key="m.id">
+                          <option :value="m.id" x-text="m.label"></option>
+                        </template>
+                      </select>
+                      <input x-show="profileModelsList.length === 0" type="text" x-model="profileForm.model" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 outline-none" placeholder="Model name">
+                      <input type="text" x-model="profileForm.base_url" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-brand-200 outline-none" placeholder="Base URL (https://...)">
+                    </div>
+                  </details>
+                  <div class="flex justify-end gap-2">
+                    <button @click="showAddProfile = false" type="button" class="px-3 py-2 text-sm text-slate-500 hover:text-slate-700 cursor-pointer">Cancel</button>
+                    <button @click="saveProfile()" type="button"
+                      :disabled="!profileForm.api_key && editingProfile === null"
+                      class="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+                      <span x-text="editingProfile !== null ? 'Update' : (profileDetected ? 'Add ' + profileDetected.name : 'Add Provider')"></span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </details>
-          </div>
-
-          <!-- Fallback Providers -->
-          <div class="card p-5 space-y-4">
-            <div class="flex items-center gap-2 mb-1">
-              <svg class="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
-              <h2 class="font-semibold text-base text-slate-700">Fallback Providers</h2>
-              <span class="text-xs text-slate-400" x-text="profiles.length + ' configured'"></span>
-              <button @click="openAddProfile()" type="button"
-                class="ml-auto text-xs font-medium text-brand-600 hover:text-brand-700 flex items-center gap-1 cursor-pointer transition-colors">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                Add
-              </button>
-            </div>
-            <p class="text-xs text-slate-500">When the primary provider hits a rate limit or error, these providers are tried in order.</p>
-
-            <!-- Profile cards -->
-            <div x-show="profiles.length" class="divide-y divide-surface-100 border border-surface-200 rounded-lg overflow-hidden">
-              <template x-for="(p, i) in profiles" :key="i">
-                <div class="flex items-center gap-3 px-3 py-3 bg-white group" :class="!p.enabled && 'opacity-50'">
-                  <div class="flex-shrink-0 w-6 h-6 flex items-center justify-center text-brand-600">
-                    <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'chip'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5M4.5 15.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25z"/></svg>
-                    <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'sparkles'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"/></svg>
-                    <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'academic-cap'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15v-3.75m0 0h10.5m-10.5 0V15m10.5-3.75V15"/></svg>
-                    <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'arrows-right-left'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
-                    <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'computer-desktop'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"/></svg>
-                    <svg x-show="(providerIconIds[p.provider] || 'cog-6-tooth') === 'cog-6-tooth'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2">
-                      <span class="text-sm font-medium text-slate-700 truncate" x-text="p.name"></span>
-                      <span class="flex-shrink-0 w-2 h-2 rounded-full" :class="p.enabled ? 'bg-green-500' : 'bg-slate-300'"></span>
-                    </div>
-                    <div class="text-xs text-slate-400 truncate" x-text="p.model + ' · ' + p.api_key_masked"></div>
-                  </div>
-                  <span class="flex-shrink-0 text-[10px] text-slate-400 font-medium" x-text="'#' + (i + 1)"></span>
-                  <!-- Toggle -->
-                  <button @click="toggleProfile(i)" type="button" class="flex-shrink-0 cursor-pointer" :title="p.enabled ? 'Disable' : 'Enable'">
-                    <div class="w-8 h-4.5 rounded-full transition-colors relative" :class="p.enabled ? 'bg-green-500' : 'bg-slate-300'">
-                      <div class="absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full shadow transition-transform" :class="p.enabled ? 'left-[calc(100%-0.95rem)]' : 'left-0.5'"></div>
-                    </div>
-                  </button>
-                  <!-- Edit -->
-                  <button @click="openEditProfile(i)" type="button"
-                    class="flex-shrink-0 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-brand-600 transition-all cursor-pointer" title="Edit">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>
-                  </button>
-                  <!-- Delete -->
-                  <button @click="deleteProfile(i)" type="button"
-                    class="flex-shrink-0 opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all cursor-pointer" title="Remove">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                  </button>
-                </div>
-              </template>
-            </div>
-
-            <!-- Empty state -->
-            <div x-show="!profiles.length" class="border border-dashed border-surface-200 rounded-lg px-4 py-6 text-center">
-              <p class="text-sm text-slate-400">No fallback providers. Add one to auto-switch when rate limited.</p>
-              <button @click="openAddProfile()" type="button"
-                class="mt-2 text-xs font-medium text-brand-600 hover:text-brand-700 cursor-pointer">
-                + Add your first fallback provider
-              </button>
-            </div>
-
-            <!-- Add/Edit profile form -->
-            <div x-show="showAddProfile" x-transition class="border border-surface-200 rounded-lg p-4 space-y-3 bg-slate-50">
-              <div class="flex items-center justify-between">
-                <span class="text-sm font-medium text-slate-700" x-text="editingProfile !== null ? 'Edit Profile' : 'Add Fallback Provider'"></span>
-                <button @click="showAddProfile = false" type="button" class="text-slate-400 hover:text-slate-600 cursor-pointer">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-                </button>
-              </div>
-              <!-- Just paste key — auto-detect -->
-              <div>
-                <label for="sf-profile-api-key" class="block text-xs text-slate-500 mb-1">Paste API Key</label>
-                <input id="sf-profile-api-key" type="password" x-model="profileForm.api_key" @input.debounce.300ms="detectFromKey()"
-                  class="w-full border border-surface-200 rounded-lg px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all"
-                  placeholder="sk-..., AIza..., sk-ant-..., sk-or-...">
-              </div>
-              <!-- Auto-detected provider badge -->
-              <div x-show="profileDetected" x-transition class="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                <div class="w-6 h-6 flex items-center justify-center text-green-700">
-                    <svg x-show="(providerIconIds[profileDetected?.provider] || 'cog-6-tooth') === 'chip'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5M4.5 15.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 002.25-2.25V6.75a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6.75v10.5a2.25 2.25 0 002.25 2.25z"/></svg>
-                    <svg x-show="(providerIconIds[profileDetected?.provider] || 'cog-6-tooth') === 'sparkles'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"/></svg>
-                    <svg x-show="(providerIconIds[profileDetected?.provider] || 'cog-6-tooth') === 'academic-cap'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15v-3.75m0 0h10.5m-10.5 0V15m10.5-3.75V15"/></svg>
-                    <svg x-show="(providerIconIds[profileDetected?.provider] || 'cog-6-tooth') === 'arrows-right-left'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
-                    <svg x-show="(providerIconIds[profileDetected?.provider] || 'cog-6-tooth') === 'computer-desktop'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25"/></svg>
-                    <svg x-show="(providerIconIds[profileDetected?.provider] || 'cog-6-tooth') === 'cog-6-tooth'" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                  </div>
-                <div class="flex-1">
-                  <span class="text-sm font-medium text-green-800" x-text="profileDetected?.name"></span>
-                  <span class="text-xs text-green-600 ml-2" x-text="'Model: ' + profileDetected?.model"></span>
-                </div>
-                <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
-              </div>
-              <!-- Manual override (collapsed) -->
-              <details x-show="editingProfile !== null || (profileForm.api_key && !profileDetected)" class="group">
-                <summary class="text-xs text-slate-500 cursor-pointer hover:text-brand-600 select-none flex items-center gap-1">
-                  <svg class="w-3 h-3 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-                  Manual configuration
-                </summary>
-                <div class="mt-2 space-y-2">
-                  <div class="grid grid-cols-2 gap-2">
-                    <input type="text" x-model="profileForm.name" aria-label="Profile name" class="border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 outline-none" placeholder="Name">
-                    <input type="text" x-model="profileForm.model" aria-label="Model name" class="border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 outline-none" placeholder="Model">
-                  </div>
-                  <input type="text" x-model="profileForm.base_url" aria-label="API base URL" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-brand-200 outline-none" placeholder="Base URL (https://...)">
-                </div>
-              </details>
-              <div class="flex justify-end gap-2">
-                <button @click="showAddProfile = false" type="button" class="px-3 py-2 text-sm text-slate-500 hover:text-slate-700 cursor-pointer">Cancel</button>
-                <button @click="saveProfile()" type="button"
-                  :disabled="!profileForm.api_key && editingProfile === null"
-                  class="px-4 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
-                  <span x-text="editingProfile !== null ? 'Update' : (profileDetected ? 'Add ' + profileDetected.name : 'Add Provider')"></span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Step 3: Model -->
-          <div class="card p-5 space-y-4">
-            <div class="flex items-center gap-2 mb-1">
-              <span class="flex items-center justify-center w-7 h-7 rounded-full bg-brand-600 text-white text-xs font-bold">3</span>
-              <h2 class="font-semibold text-base text-slate-700">Choose Model</h2>
-            </div>
-            <div x-show="currentProvider?.models?.length" class="flex flex-wrap gap-2">
-              <template x-for="m in (currentProvider?.models || [])" :key="m.id">
-                <button @click="form.model = m.id"
-                  :class="form.model === m.id ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-slate-600 border-surface-200 hover:border-brand-400'"
-                  class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-all cursor-pointer">
-                  <span x-text="m.label"></span>
-                </button>
-              </template>
-            </div>
-            <div class="flex gap-3 items-end">
-              <div class="flex-1">
-                <label for="sf-model" class="block text-xs text-slate-400 mb-1">Or type model name</label>
-                <input id="sf-model" type="text" x-model="form.model" class="w-full h-10 border border-surface-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-200 focus:border-brand-500 outline-none transition-all" placeholder="e.g. gpt-4o-mini">
-              </div>
-            </div>
           </div>
 
           <!-- Image Generation Settings -->
@@ -1134,11 +1087,16 @@
 
           <!-- Empty state -->
           <template x-if="!loading && stories.length === 0 && !error">
-            <div class="card p-12 text-center">
-              <svg class="w-16 h-16 mx-auto text-slate-200 mb-4" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z"/></svg>
-              <h3 class="text-lg font-semibold text-slate-400 mb-1">No Saved Stories</h3>
-              <p class="text-sm text-slate-400">Generate a story first — checkpoints are saved automatically</p>
-              <button @click="$store.app.navigate('pipeline')" class="mt-4 btn-primary px-5 py-2 rounded-lg text-sm font-medium cursor-pointer">Create Story</button>
+            <div class="card p-16 text-center">
+              <div class="w-20 h-20 mx-auto mb-5 rounded-2xl bg-amber-50 flex items-center justify-center">
+                <svg class="w-10 h-10 text-amber-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z"/></svg>
+              </div>
+              <h3 class="text-lg font-semibold text-slate-500 mb-1">No Saved Stories</h3>
+              <p class="text-sm text-slate-400 max-w-xs mx-auto">Generate a story first — checkpoints are saved automatically</p>
+              <button @click="$store.app.navigate('pipeline')" class="mt-5 btn-primary px-6 py-2.5 rounded-lg text-sm font-medium cursor-pointer inline-flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                Create Story
+              </button>
             </div>
           </template>
 
@@ -1146,8 +1104,11 @@
           <template x-if="stories.length > 0">
             <div class="space-y-3">
               <template x-for="story in stories" :key="story.path">
-                <div class="card p-5 hover:border-brand-300 hover:shadow-sm transition-all cursor-pointer group" @click="openStory(story.path)">
-                  <div class="flex items-start justify-between gap-4">
+                <div class="card p-5 hover:border-brand-300 hover:shadow-md transition-all duration-200 cursor-pointer group" @click="openStory(story.path)">
+                  <div class="flex items-start gap-4">
+                    <div class="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0 group-hover:bg-brand-100 transition-colors">
+                      <svg class="w-5 h-5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
+                    </div>
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-2 mb-1">
                         <h3 class="font-semibold text-slate-700 truncate" x-text="story.title || story.path"></h3>
@@ -1165,6 +1126,8 @@
                       <template x-if="loadingStory === story.path">
                         <svg class="w-5 h-5 animate-spin text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                       </template>
+                      <!-- Open button on hover -->
+                      <span class="text-xs text-brand-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity">Open</span>
                       <!-- Delete button -->
                       <button
                         @click.stop="confirmDelete === story.path ? deleteStory(story.path) : confirmDelete = story.path"
@@ -1186,10 +1149,16 @@
       <!-- ═══ READER PAGE ═══ -->
       <div x-show="$store.app.page === 'reader'" x-cloak class="page-enter" x-data="readerPage()">
         <template x-if="!story">
-          <div class="card p-12 text-center">
-            <svg class="w-16 h-16 mx-auto text-slate-200 mb-4" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
-            <h3 class="text-lg font-semibold text-slate-400 mb-1">No Story Yet</h3>
-            <p class="text-sm text-slate-400">Generate a story first, then come back to read</p>
+          <div class="card p-16 text-center">
+            <div class="w-20 h-20 mx-auto mb-5 rounded-2xl bg-emerald-50 flex items-center justify-center">
+              <svg class="w-10 h-10 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
+            </div>
+            <h3 class="text-lg font-semibold text-slate-500 mb-1">Nothing to Read Yet</h3>
+            <p class="text-sm text-slate-400 max-w-xs mx-auto">Generate a story first, then come back to read it chapter by chapter</p>
+            <button @click="$store.app.navigate('pipeline')" class="mt-5 btn-primary px-6 py-2.5 rounded-lg text-sm font-medium cursor-pointer inline-flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+              Create Story
+            </button>
           </div>
         </template>
         <template x-if="story">
@@ -1218,7 +1187,7 @@
               <template x-if="currentChapter">
                 <div>
                   <h3 class="text-xl font-bold text-slate-800 mb-4" x-text="'Chapter ' + currentChapter.number + ': ' + currentChapter.title.replace(/\*\*/g, '').replace(/^#+\s*/gm, '')"></h3>
-                  <div class="text-slate-700 whitespace-pre-wrap leading-[1.9]" :style="'font-size:' + fontSize + 'px'" x-html="formatContent(currentChapter.content)"></div>
+                  <div class="text-slate-700 whitespace-pre-wrap leading-[1.9]" :style="'font-size:' + fontSize + 'px'" x-html="currentChapter.content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
                 </div>
               </template>
             </div>
@@ -1283,10 +1252,16 @@
       <!-- ═══ EXPORT PAGE ═══ -->
       <div x-show="$store.app.page === 'export'" x-cloak class="page-enter" x-data="exportPage()">
         <div class="max-w-2xl mx-auto space-y-4">
-          <div x-show="!hasStory" class="card p-12 text-center">
-            <svg class="w-12 h-12 mx-auto text-slate-200 mb-3" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
-            <h3 class="text-lg font-semibold text-slate-400">No story to export</h3>
-            <p class="text-sm text-slate-400 mt-1">Run the pipeline first to generate a story</p>
+          <div x-show="!hasStory" class="card p-16 text-center">
+            <div class="w-20 h-20 mx-auto mb-5 rounded-2xl bg-violet-50 flex items-center justify-center">
+              <svg class="w-10 h-10 text-violet-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+            </div>
+            <h3 class="text-lg font-semibold text-slate-500 mb-1">No Story to Export</h3>
+            <p class="text-sm text-slate-400 max-w-xs mx-auto">Run the pipeline first to generate a story, then export to PDF, EPUB, or ZIP</p>
+            <button @click="$store.app.navigate('pipeline')" class="mt-5 btn-primary px-6 py-2.5 rounded-lg text-sm font-medium cursor-pointer inline-flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+              Create Story
+            </button>
           </div>
           <template x-if="hasStory">
             <div class="space-y-4">
@@ -1318,29 +1293,35 @@
       <template x-if="$store.app.page === 'analytics'">
       <div class="page-enter" x-data="analyticsPage()">
         <template x-if="!result">
-          <div class="card p-12 text-center">
-            <svg class="w-12 h-12 mx-auto text-slate-200 mb-3" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
-            <h3 class="text-lg font-semibold text-slate-400">No Data Yet</h3>
-            <p class="text-sm text-slate-400 mt-1">Generate a story first to see analytics</p>
+          <div class="card p-16 text-center">
+            <div class="w-20 h-20 mx-auto mb-5 rounded-2xl bg-sky-50 flex items-center justify-center">
+              <svg class="w-10 h-10 text-sky-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+            </div>
+            <h3 class="text-lg font-semibold text-slate-500 mb-1">No Analytics Data</h3>
+            <p class="text-sm text-slate-400 max-w-xs mx-auto">Generate a story first to see word counts, quality scores, and reading time</p>
+            <button @click="$store.app.navigate('pipeline')" class="mt-5 btn-primary px-6 py-2.5 rounded-lg text-sm font-medium cursor-pointer inline-flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+              Create Story
+            </button>
           </div>
         </template>
         <template x-if="result && stats">
           <div class="space-y-4">
             <!-- Stats cards -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div class="card p-4 text-center">
+              <div class="card p-4 text-center hover:border-brand-300 hover:shadow-sm transition-all">
                 <div class="text-3xl font-bold text-brand-600" x-text="stats.totalChapters"></div>
                 <div class="text-xs text-slate-500 mt-1">Chapters</div>
               </div>
-              <div class="card p-4 text-center">
+              <div class="card p-4 text-center hover:border-brand-300 hover:shadow-sm transition-all">
                 <div class="text-3xl font-bold text-brand-600" x-text="stats.totalWords.toLocaleString()"></div>
                 <div class="text-xs text-slate-500 mt-1">Total Words</div>
               </div>
-              <div class="card p-4 text-center">
+              <div class="card p-4 text-center hover:border-brand-300 hover:shadow-sm transition-all">
                 <div class="text-3xl font-bold text-brand-600" x-text="stats.avgWords.toLocaleString()"></div>
                 <div class="text-xs text-slate-500 mt-1">Avg Words/Ch</div>
               </div>
-              <div class="card p-4 text-center">
+              <div class="card p-4 text-center hover:border-brand-300 hover:shadow-sm transition-all">
                 <div class="text-3xl font-bold text-brand-600" x-text="'~' + stats.readingTime + ' min'"></div>
                 <div class="text-xs text-slate-500 mt-1">Reading Time</div>
               </div>
@@ -1384,10 +1365,16 @@
       <div class="page-enter" x-data="branchingPage()">
         <div class="max-w-2xl mx-auto">
           <template x-if="!hasStory">
-            <div class="card p-12 text-center">
-              <svg class="w-12 h-12 mx-auto text-slate-200 mb-3" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>
-              <h3 class="text-lg font-semibold text-slate-400">No Story Yet</h3>
-              <p class="text-sm text-slate-400 mt-1">Generate a story first to use branching</p>
+            <div class="card p-16 text-center">
+              <div class="w-20 h-20 mx-auto mb-5 rounded-2xl bg-rose-50 flex items-center justify-center">
+                <svg class="w-10 h-10 text-rose-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>
+              </div>
+              <h3 class="text-lg font-semibold text-slate-500 mb-1">No Story to Branch</h3>
+              <p class="text-sm text-slate-400 max-w-xs mx-auto">Generate a story first, then explore alternate storylines from any chapter</p>
+              <button @click="$store.app.navigate('pipeline')" class="mt-5 btn-primary px-6 py-2.5 rounded-lg text-sm font-medium cursor-pointer inline-flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                Create Story
+              </button>
             </div>
           </template>
           <template x-if="hasStory">
@@ -1411,302 +1398,6 @@
       </div>
       </template>
 
-
-      <!-- ═══ CODEX PAGE ═══ -->
-      <template x-if="$store.app.page === 'codex'">
-      <div class="page-enter" x-data="codexPage()" x-init="init()">
-
-        <!-- Load bar -->
-        <div class="flex flex-col sm:flex-row gap-3 mb-6 items-start sm:items-center">
-          <div class="flex-1 flex gap-2">
-            <input
-              type="text"
-              x-model="storyId"
-              placeholder="story_filename.json"
-              class="flex-1 border border-surface-200 rounded-lg px-3 py-2 text-sm"
-              @keydown.enter="load()"
-              aria-label="Story filename"
-            >
-            <button
-              @click="load()"
-              :disabled="loading"
-              class="btn-primary px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50 cursor-pointer"
-            >
-              <span x-show="!loading">Load</span>
-              <span x-show="loading">Loading…</span>
-            </button>
-          </div>
-          <template x-if="hasStory">
-            <button
-              @click="loadFromStore()"
-              class="text-sm text-brand-600 hover:underline cursor-pointer whitespace-nowrap"
-            >Load current story</button>
-          </template>
-        </div>
-
-        <!-- Error -->
-        <template x-if="error">
-          <div class="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700" x-text="error"></div>
-        </template>
-
-        <!-- Empty state -->
-        <template x-if="!data && !loading && !error">
-          <div class="card p-12 text-center">
-            <svg class="w-14 h-14 mx-auto text-slate-200 mb-4" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
-            </svg>
-            <h3 class="text-lg font-semibold text-slate-400">World Codex</h3>
-            <p class="text-sm text-slate-400 mt-1">Enter a story filename or load your current story to explore the codex</p>
-          </div>
-        </template>
-
-        <!-- Codex content -->
-        <template x-if="data">
-          <div class="space-y-5">
-
-            <!-- Story header -->
-            <div class="card p-5">
-              <div class="flex flex-wrap items-start gap-3">
-                <div class="flex-1 min-w-0">
-                  <h2 class="text-xl font-bold text-slate-800 truncate" x-text="data.title"></h2>
-                  <div class="flex flex-wrap gap-2 mt-1">
-                    <span class="px-2 py-0.5 rounded text-xs font-medium bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300" x-text="data.genre"></span>
-                    <span class="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                      <span x-text="data.total_chapters"></span> chapters
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <template x-if="data.synopsis">
-                <p class="mt-3 text-sm text-slate-600 leading-relaxed" x-text="data.synopsis"></p>
-              </template>
-            </div>
-
-            <!-- Tabs -->
-            <div class="flex gap-1 border-b border-surface-200 overflow-x-auto">
-              <template x-for="t in ['characters','world','plot','timeline']" :key="t">
-                <button
-                  @click="tab = t"
-                  class="px-4 py-2.5 text-sm font-medium capitalize border-b-2 transition-colors cursor-pointer whitespace-nowrap"
-                  :class="tab === t
-                    ? 'border-brand-600 text-brand-600'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'"
-                  x-text="t === 'plot' ? 'Plot Threads' : t.charAt(0).toUpperCase() + t.slice(1)"
-                ></button>
-              </template>
-            </div>
-
-            <!-- CHARACTERS tab -->
-            <div x-show="tab === 'characters'" class="space-y-3">
-              <template x-if="!data.characters || data.characters.length === 0">
-                <p class="text-sm text-slate-400 text-center py-8">No characters found.</p>
-              </template>
-              <template x-for="(char, idx) in data.characters" :key="idx">
-                <div class="card overflow-hidden">
-                  <button
-                    @click="toggleChar(idx)"
-                    class="w-full flex items-center gap-3 px-5 py-4 text-left hover:bg-surface-50 dark:hover:bg-slate-700/30 cursor-pointer"
-                    :aria-expanded="expandedChar === idx"
-                  >
-                    <!-- Avatar placeholder -->
-                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
-                         x-text="char.name ? char.name[0].toUpperCase() : '?'"></div>
-                    <div class="flex-1 min-w-0">
-                      <div class="font-semibold text-slate-800" x-text="char.name"></div>
-                      <div class="text-xs text-slate-500 truncate" x-text="char.personality"></div>
-                    </div>
-                    <span class="px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0"
-                          :class="roleClass(char.role)"
-                          x-text="char.role"></span>
-                    <svg class="w-4 h-4 text-slate-400 flex-shrink-0 transition-transform"
-                         :class="expandedChar === idx ? 'rotate-180' : ''"
-                         fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
-                    </svg>
-                  </button>
-                  <div x-show="expandedChar === idx" class="px-5 pb-5 border-t border-surface-200 space-y-3 pt-4">
-                    <template x-if="char.background">
-                      <div>
-                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Background</div>
-                        <p class="text-sm text-slate-700 leading-relaxed" x-text="char.background"></p>
-                      </div>
-                    </template>
-                    <template x-if="char.motivation">
-                      <div>
-                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Motivation</div>
-                        <p class="text-sm text-slate-700 leading-relaxed" x-text="char.motivation"></p>
-                      </div>
-                    </template>
-                    <template x-if="char.appearance">
-                      <div>
-                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Appearance</div>
-                        <p class="text-sm text-slate-700 leading-relaxed" x-text="char.appearance"></p>
-                      </div>
-                    </template>
-                    <template x-if="char.relationships && char.relationships.length">
-                      <div>
-                        <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Relationships</div>
-                        <div class="flex flex-wrap gap-2">
-                          <template x-for="(rel, ri) in char.relationships" :key="ri">
-                            <span class="px-2.5 py-1 rounded-lg text-xs bg-surface-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300" x-text="rel"></span>
-                          </template>
-                        </div>
-                      </div>
-                    </template>
-                  </div>
-                </div>
-              </template>
-            </div>
-
-            <!-- WORLD tab -->
-            <div x-show="tab === 'world'" class="space-y-4">
-              <template x-if="!data.world">
-                <p class="text-sm text-slate-400 text-center py-8">No world data found.</p>
-              </template>
-              <template x-if="data.world">
-                <div class="space-y-4">
-                  <div class="card p-5">
-                    <h3 class="font-semibold text-slate-800 mb-1" x-text="data.world.name"></h3>
-                    <template x-if="data.world.era">
-                      <span class="inline-block px-2.5 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 mb-2" x-text="data.world.era"></span>
-                    </template>
-                    <p class="text-sm text-slate-700 leading-relaxed" x-text="data.world.description"></p>
-                  </div>
-                  <template x-if="data.world.locations && data.world.locations.length">
-                    <div class="card p-5">
-                      <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Key Locations</h4>
-                      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <template x-for="(loc, li) in data.world.locations" :key="li">
-                          <div class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                            <svg class="w-4 h-4 text-brand-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                              <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"/>
-                              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"/>
-                            </svg>
-                            <span x-text="loc"></span>
-                          </div>
-                        </template>
-                      </div>
-                    </div>
-                  </template>
-                  <template x-if="data.world.rules && data.world.rules.length">
-                    <div class="card p-5">
-                      <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">World Rules</h4>
-                      <ul class="space-y-2">
-                        <template x-for="(rule, ri) in data.world.rules" :key="ri">
-                          <li class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
-                            <span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-brand-500 flex-shrink-0"></span>
-                            <span x-text="rule"></span>
-                          </li>
-                        </template>
-                      </ul>
-                    </div>
-                  </template>
-                </div>
-              </template>
-            </div>
-
-            <!-- PLOT THREADS tab -->
-            <div x-show="tab === 'plot'" class="space-y-4">
-              <template x-if="!data.story_bible">
-                <p class="text-sm text-slate-400 text-center py-8">No plot data found.</p>
-              </template>
-              <template x-if="data.story_bible">
-                <div class="space-y-4">
-                  <!-- Premise -->
-                  <template x-if="data.story_bible.premise">
-                    <div class="card p-5">
-                      <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Premise</div>
-                      <p class="text-sm text-slate-700 leading-relaxed" x-text="data.story_bible.premise"></p>
-                    </div>
-                  </template>
-                  <!-- Active threads -->
-                  <template x-if="data.story_bible.active_threads && data.story_bible.active_threads.length">
-                    <div class="card p-5">
-                      <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Active Threads</h4>
-                      <div class="space-y-3">
-                        <template x-for="(thread, ti) in data.story_bible.active_threads" :key="ti">
-                          <div class="border border-surface-200 rounded-lg p-3">
-                            <div class="flex items-center gap-2 mb-1">
-                              <span class="px-2 py-0.5 rounded-full text-xs font-medium"
-                                    :class="threadStatusClass(thread.status)"
-                                    x-text="thread.status"></span>
-                              <span x-show="thread.started_chapter" class="text-xs text-slate-400">Ch. <span x-text="thread.started_chapter"></span></span>
-                            </div>
-                            <p class="text-sm text-slate-700" x-text="thread.description"></p>
-                            <template x-if="thread.characters_involved && thread.characters_involved.length">
-                              <div class="flex flex-wrap gap-1 mt-2">
-                                <template x-for="(c, ci) in thread.characters_involved" :key="ci">
-                                  <span class="px-2 py-0.5 rounded text-xs bg-surface-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400" x-text="c"></span>
-                                </template>
-                              </div>
-                            </template>
-                          </div>
-                        </template>
-                      </div>
-                    </div>
-                  </template>
-                  <!-- Resolved threads -->
-                  <template x-if="data.story_bible.resolved_threads && data.story_bible.resolved_threads.length">
-                    <div class="card p-5">
-                      <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Resolved Threads</h4>
-                      <div class="space-y-2">
-                        <template x-for="(thread, ti) in data.story_bible.resolved_threads" :key="ti">
-                          <div class="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400">
-                            <svg class="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                            </svg>
-                            <span x-text="thread.description"></span>
-                          </div>
-                        </template>
-                      </div>
-                    </div>
-                  </template>
-                  <!-- Milestone events -->
-                  <template x-if="data.story_bible.milestone_events && data.story_bible.milestone_events.length">
-                    <div class="card p-5">
-                      <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Milestone Events</h4>
-                      <ul class="space-y-2">
-                        <template x-for="(ev, ei) in data.story_bible.milestone_events" :key="ei">
-                          <li class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
-                            <span class="mt-1.5 w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0"></span>
-                            <span x-text="ev"></span>
-                          </li>
-                        </template>
-                      </ul>
-                    </div>
-                  </template>
-                </div>
-              </template>
-            </div>
-
-            <!-- TIMELINE tab -->
-            <div x-show="tab === 'timeline'" class="space-y-2">
-              <template x-if="!data.timeline || data.timeline.length === 0">
-                <p class="text-sm text-slate-400 text-center py-8">No timeline data found.</p>
-              </template>
-              <template x-for="(entry, ei) in data.timeline" :key="ei">
-                <div class="card p-4 flex gap-4">
-                  <div class="flex-shrink-0 w-10 h-10 rounded-full bg-brand-50 dark:bg-brand-900/30 flex items-center justify-center text-sm font-bold text-brand-600" x-text="entry.chapter_number"></div>
-                  <div class="flex-1 min-w-0">
-                    <div class="font-medium text-slate-800 text-sm mb-1" x-text="entry.title"></div>
-                    <p class="text-xs text-slate-500 leading-relaxed" x-text="entry.summary"></p>
-                    <template x-if="entry.key_events && entry.key_events.length">
-                      <div class="flex flex-wrap gap-1.5 mt-2">
-                        <template x-for="(ev, ki) in entry.key_events" :key="ki">
-                          <span class="px-2 py-0.5 rounded text-xs bg-surface-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400" x-text="ev"></span>
-                        </template>
-                      </div>
-                    </template>
-                  </div>
-                </div>
-              </template>
-            </div>
-
-          </div>
-        </template>
-
-      </div>
-      </template>
 
       <!-- ═══ GUIDE PAGE ═══ -->
       <div x-show="$store.app.page === 'guide'" x-cloak class="page-enter">
@@ -1772,23 +1463,9 @@
   <script src="/static/js/pages/branching.js"></script>
   <script src="/static/js/pages/pipeline.js"></script>
   <script src="/static/js/pages/settings.js"></script>
-  <script src="/static/js/pages/codex.js"></script>
   <script src="/static/js/branch-reader.js"></script>
   <script src="/static/js/app.js"></script>
   <script>
-    /* Escape HTML entities to prevent XSS when rendering story content */
-    function escapeHtml(str) {
-      const div = document.createElement('div');
-      div.appendChild(document.createTextNode(str));
-      return div.innerHTML;
-    }
-    /* Format story content: escape first, then apply safe markdown-like styling */
-    function formatContent(raw) {
-      if (!raw) return '';
-      const escaped = escapeHtml(raw);
-      return escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
-    }
-
     /* Heroicons SVG helper — returns inline SVG for nav icons */
     function getNavIcon(name) {
       const icons = {
@@ -1801,7 +1478,6 @@
         'cog-6-tooth': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
         'user-circle': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z"/></svg>',
         'question-mark-circle': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z"/></svg>',
-        'document-text': '<svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>',
       };
       return icons[name] || '';
     }

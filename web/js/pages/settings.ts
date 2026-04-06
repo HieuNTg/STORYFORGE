@@ -166,6 +166,7 @@ function settingsPage() {
     openAddProfile(): void {
       this.profileForm = { name: '', base_url: '', api_key: '', model: '', enabled: true };
       this.profileDetected = null;
+      this.profileModelsList = [];
       this.editingProfile = null;
       this.showAddProfile = true;
     },
@@ -176,6 +177,7 @@ function settingsPage() {
       this.profileDetected = null;
       this.editingProfile = index;
       this.showAddProfile = true;
+      this.updateProfileModels();
     },
 
     async detectFromKey(): Promise<void> {
@@ -188,6 +190,7 @@ function settingsPage() {
           this.profileForm.name = res.name!;
           this.profileForm.base_url = res.base_url!;
           this.profileForm.model = res.model!;
+          this.updateProfileModels();
         } else {
           this.profileDetected = null;
         }
@@ -203,9 +206,16 @@ function settingsPage() {
           await API.post('/config/profiles', { api_key: this.profileForm.api_key, name: this.profileForm.name, base_url: this.profileForm.base_url, model: this.profileForm.model, enabled: true });
         }
         this.showAddProfile = false;
+        const wasNew = this.editingProfile === null;
+        const detectedProvider = this.profileDetected?.provider;
         this.editingProfile = null;
         this.profileDetected = null;
         await Alpine.store('settings').load();
+        // Auto-select matching provider in Step 1 when adding new
+        if (wasNew && detectedProvider) {
+          const match = this.providers.find(p => p.id === detectedProvider);
+          if (match) this.selectProvider(match.id);
+        }
         this.message = 'Provider added.';
         setTimeout(() => { this.message = ''; }, 2000);
       } catch (e) { this.message = 'Error: ' + (e as Error).message; }
@@ -231,6 +241,21 @@ function settingsPage() {
       const p = this.providers.find(x => x.id === providerId);
       if (p?.url) this.profileForm.base_url = p.url;
       if (p?.models?.length) this.profileForm.model = p.models[0].id;
+    },
+
+    profileModelsList: [] as SettingsModel[],
+
+    updateProfileModels(): void {
+      const url = (this.profileForm.base_url || '').toLowerCase();
+      const match = this.providers.find(p => {
+        if (p.id === 'openai') return url.includes('openai.com');
+        if (p.id === 'gemini') return url.includes('googleapis.com') || url.includes('generativelanguage');
+        if (p.id === 'anthropic') return url.includes('anthropic.com');
+        if (p.id === 'openrouter') return url.includes('openrouter.ai');
+        if (p.id === 'local') return url.includes('localhost') || url.includes('127.0.0.1');
+        return false;
+      });
+      this.profileModelsList = match?.models || [];
     },
 
     async addKey(): Promise<void> {
