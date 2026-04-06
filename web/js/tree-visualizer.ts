@@ -113,7 +113,7 @@ function computeTreeLayout(data: TreeApiResponse): TreeLayout {
   return { nodes: layoutNodes, edges: layoutEdges, width: maxX, height: maxY };
 }
 
-interface TreeVisualizerData {
+interface TreeVisualizerComponent {
   showTree: boolean;
   treeLayout: TreeLayout | null;
   treeLoading: boolean;
@@ -131,14 +131,14 @@ document.addEventListener('alpine:init', () => {
   Alpine.data('treeVisualizer', () => {
     let navHandler: (() => void) | null = null;
 
-    const tv: TreeVisualizerData = {
+    return {
       showTree: false,
-      treeLayout: null,
+      treeLayout: null as TreeLayout | null,
       treeLoading: false,
-      _sessionId: null,
+      _sessionId: null as string | null,
 
-      init() {
-        navHandler = () => { tv.refreshTree(tv._sessionId); };
+      init(this: TreeVisualizerComponent) {
+        navHandler = () => { this.refreshTree(this._sessionId); };
         document.addEventListener('branch:navigated', navHandler);
       },
 
@@ -146,30 +146,30 @@ document.addEventListener('alpine:init', () => {
         if (navHandler) document.removeEventListener('branch:navigated', navHandler);
       },
 
-      setSession(sessionId: string | null) {
-        tv._sessionId = sessionId;
+      setSession(this: TreeVisualizerComponent, sessionId: string | null) {
+        this._sessionId = sessionId;
       },
 
-      async toggleTree(sessionId: string | null) {
-        tv._sessionId = sessionId;
-        tv.showTree = !tv.showTree;
-        if (tv.showTree) {
-          await tv.refreshTree(sessionId);
+      async toggleTree(this: TreeVisualizerComponent, sessionId: string | null) {
+        this._sessionId = sessionId;
+        this.showTree = !this.showTree;
+        if (this.showTree) {
+          await this.refreshTree(sessionId);
         }
       },
 
-      async refreshTree(sessionId: string | null) {
-        if (!sessionId || !tv.showTree) return;
-        tv.treeLoading = true;
+      async refreshTree(this: TreeVisualizerComponent, sessionId: string | null) {
+        if (!sessionId || !this.showTree) return;
+        this.treeLoading = true;
         try {
           const res = await fetch(`/api/branch/${sessionId}/tree`);
           if (!res.ok) return;
           const d: TreeApiResponse = await res.json();
-          tv.treeLayout = computeTreeLayout(d);
+          this.treeLayout = computeTreeLayout(d);
         } catch {
           // silently fail — tree is supplementary
         } finally {
-          tv.treeLoading = false;
+          this.treeLoading = false;
         }
       },
 
@@ -190,10 +190,10 @@ document.addEventListener('alpine:init', () => {
       },
 
       get viewBox(): string {
-        if (!tv.treeLayout) return '0 0 200 100';
-        return `0 0 ${tv.treeLayout.width} ${tv.treeLayout.height}`;
+        const self = this as unknown as TreeVisualizerComponent;
+        if (!self.treeLayout) return '0 0 200 100';
+        return `0 0 ${self.treeLayout.width} ${self.treeLayout.height}`;
       },
     };
-    return tv;
   });
 });

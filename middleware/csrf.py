@@ -49,7 +49,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             response.set_cookie(
                 key=_COOKIE_NAME,
                 value=secrets.token_hex(32),
-                httponly=True,
+                httponly=False,
                 samesite="strict",
                 secure=is_https,
                 path="/",
