@@ -33,10 +33,7 @@ function analyticsPage() {
     stats: null as AnalyticsStats | null,
     _lastResultRef: null as AnalyticsPipelineResult | null,
     // Alpine magic — injected at runtime; stub satisfies TypeScript without unsafe double-cast
-    $watch: null! as (
-      expr: string | (() => unknown),
-      cb: (val: unknown) => void
-    ) => void,
+    $watch: (null as unknown) as AlpineComponent['$watch'],
 
     get result(): AnalyticsPipelineResult | null {
       return Alpine.store('app').pipelineResult;

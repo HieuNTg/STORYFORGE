@@ -4,7 +4,7 @@ import logging
 import pathlib
 import re
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
@@ -71,19 +71,27 @@ def create_share(req: CreateShareRequest):
 
 
 @router.get("/gallery")
-def gallery():
-    """List all active public shares (no auth required)."""
-    shares = _share_manager.list_public_shares()
+def gallery(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """List active public shares with pagination (no auth required)."""
+    all_shares = _share_manager.list_public_shares()
+    total = len(all_shares)
+    page = all_shares[offset: offset + limit]
     return {
-        "shares": [
+        "items": [
             {
                 "share_id": s.share_id,
                 "story_title": s.story_title,
                 "created_at": s.created_at,
                 "expires_at": s.expires_at,
             }
-            for s in shares
-        ]
+            for s in page
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
     }
 
 

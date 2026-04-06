@@ -7,13 +7,10 @@ function pipelinePage() {
     activeTab: 'draft' as string,
     branchOpen: false as boolean,
     _branchComp: null as unknown,
-    // Alpine magic properties — injected at runtime; stubs satisfy TypeScript without unsafe double-casts
-    $watch: null! as (
-      expr: string | (() => unknown),
-      cb: (val: unknown) => void
-    ) => void,
-    $nextTick: null! as () => Promise<void>,
-    $refs: null! as Record<string, HTMLElement & { _x_dataStack?: Array<{ startSession?: (t: string) => void }> }>,
+    // Alpine magic properties — declared here so TypeScript sees them; Alpine injects real implementations at runtime.
+    $watch: (null as unknown) as AlpineComponent['$watch'],
+    $nextTick: (null as unknown) as ((() => Promise<void>) & ((cb: () => void) => void)),
+    $refs: (null as unknown) as Record<string, HTMLElement & { _x_dataStack?: Array<{ startSession?: (t: string) => void }> }>,
 
     /**
      * Form persistence helpers — saves genre, idea, style, num_chapters

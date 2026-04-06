@@ -8,7 +8,7 @@ import logging
 import time
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from middleware.auth_middleware import get_current_user
@@ -42,6 +42,9 @@ class FeedbackListResponse(BaseModel):
     entries: List[FeedbackEntry]
     average_rating: float
     count: int
+    total: int
+    limit: int
+    offset: int
 
 
 # ---------------------------------------------------------------------------
@@ -67,18 +70,26 @@ async def submit_feedback(body: FeedbackRequest) -> dict:
 @router.get("/{story_id}", response_model=FeedbackListResponse)
 async def get_feedback(
     story_id: str,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     _user: dict = Depends(get_current_user),
 ) -> FeedbackListResponse:
-    """Return all feedback entries for a story (auth required)."""
+    """Return feedback entries for a story with pagination (auth required)."""
     entries_raw = _store.get(story_id, [])
     if not entries_raw:
         raise HTTPException(status_code=404, detail=f"No feedback found for story '{story_id}'")
 
-    entries = [FeedbackEntry(**e) for e in entries_raw]
-    avg = round(sum(e.rating for e in entries) / len(entries), 2)
+    total = len(entries_raw)
+    page = entries_raw[offset: offset + limit]
+    entries = [FeedbackEntry(**e) for e in page]
+    all_entries = [FeedbackEntry(**e) for e in entries_raw]
+    avg = round(sum(e.rating for e in all_entries) / len(all_entries), 2)
     return FeedbackListResponse(
         story_id=story_id,
         entries=entries,
         average_rating=avg,
         count=len(entries),
+        total=total,
+        limit=limit,
+        offset=offset,
     )

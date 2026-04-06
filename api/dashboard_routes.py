@@ -6,7 +6,7 @@ import re
 import time
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from fastapi.responses import HTMLResponse
 
 from services import metrics as m
@@ -103,19 +103,27 @@ def dashboard_summary():
 # ---------------------------------------------------------------------------
 
 @router.get("/test-timings")
-def get_test_timings():
-    """Return the latest CI test timing data, or empty defaults if unavailable."""
+def get_test_timings(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """Return CI test timing data with pagination, or empty defaults if unavailable."""
     if not _TIMINGS_PATH.exists():
-        return {"tests": [], "timestamp": None}
+        return {"items": [], "total": 0, "limit": limit, "offset": offset, "timestamp": None}
     try:
         data = json.loads(_TIMINGS_PATH.read_text(encoding="utf-8"))
+        all_tests = data.get("tests", [])
+        total = len(all_tests)
         return {
-            "tests": data.get("tests", []),
+            "items": all_tests[offset: offset + limit],
+            "total": total,
+            "limit": limit,
+            "offset": offset,
             "timestamp": data.get("timestamp"),
             "total_duration": data.get("total_duration"),
         }
     except (OSError, json.JSONDecodeError):
-        return {"tests": [], "timestamp": None}
+        return {"items": [], "total": 0, "limit": limit, "offset": offset, "timestamp": None}
 
 
 # ---------------------------------------------------------------------------

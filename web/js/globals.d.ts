@@ -8,6 +8,21 @@
 
 /* ── Alpine.js ─────────────────────────────────────────────────────────── */
 
+/**
+ * Alpine magic properties injected at runtime into every component.
+ * Extend this interface when page components need additional magic properties.
+ */
+interface AlpineComponent {
+  $watch(expr: string | (() => unknown), cb: (val: unknown) => void): void;
+  /** Called with a callback or awaited with no args (returns Promise). */
+  $nextTick(): Promise<void>;
+  $nextTick(cb: () => void): void;
+  $refs: Record<string, HTMLElement>;
+  $el: HTMLElement;
+  $store: typeof Alpine.store;
+  $dispatch(event: string, detail?: unknown): void;
+}
+
 interface AlpineStatic {
   /** Define or retrieve an Alpine store. ThisType<T> gives `this` proper typing inside methods. */
   store<T extends Record<string, any>>(name: string, value: T & ThisType<T>): void

@@ -169,11 +169,15 @@ document.addEventListener('alpine:init', () => {
       const initialPage = resolveHash(window.location.hash);
       if (initialPage) this.page = initialPage;
 
+      // AbortController allows all listeners to be cleaned up via _controller.abort()
+      const _controller = new AbortController();
+      const _signal = _controller.signal;
+
       // Sync store when user navigates with back/forward or edits the URL bar
       window.addEventListener('hashchange', (_e: Event): void => {
         const page = resolveHash(window.location.hash);
         if (page && page !== this.page) this.page = page;
-      });
+      }, { signal: _signal });
       // F6: Auto-manage sidebar on resize (open on desktop, close on mobile)
       window.addEventListener('resize', (_e: Event): void => {
         if (window.innerWidth > 768 && !this.sidebarOpen) {
@@ -181,7 +185,7 @@ document.addEventListener('alpine:init', () => {
         } else if (window.innerWidth <= 768 && this.sidebarOpen) {
           this.sidebarOpen = false;
         }
-      });
+      }, { signal: _signal });
 
       // Issue #6: Notify user once per session when all storage backends fail
       let _storageErrorShown = false;
@@ -191,7 +195,7 @@ document.addEventListener('alpine:init', () => {
         if (typeof window.sfShowToast === 'function') {
           window.sfShowToast('Storage unavailable — progress may not be saved', 'warning');
         }
-      });
+      }, { signal: _signal });
 
       // Restore pipeline result via StorageManager
       await window.storageManager.init();
