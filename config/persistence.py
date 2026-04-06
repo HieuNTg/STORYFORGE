@@ -85,11 +85,13 @@ def _apply_env_overrides(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
 
 
 def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
-    """Persist config to JSON. Sensitive keys (api_key) are excluded."""
+    """Persist config to JSON including API keys for local self-hosted use."""
     os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
     data = {
         "llm": {
-            # api_key excluded — use STORYFORGE_API_KEY env var
+            "api_key": llm.api_key,
+            "api_keys": llm.api_keys,
+            "fallback_models": llm.fallback_models,
             "base_url": llm.base_url,
             "model": llm.model,
             "temperature": llm.temperature,
@@ -117,9 +119,9 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
             "share_base_url": pipeline.share_base_url,
             "pdf_font": pipeline.pdf_font,
             "image_provider": pipeline.image_provider,
-            # image_api_key excluded — use IMAGE_API_KEY env var
+            "image_api_key": pipeline.image_api_key,
             "image_api_url": pipeline.image_api_url,
-            # seedream_api_key excluded — use SEEDREAM_API_KEY env var
+            "seedream_api_key": pipeline.seedream_api_key,
             "seedream_api_url": pipeline.seedream_api_url,
             "arc_size": pipeline.arc_size,
             "story_bible_enabled": pipeline.story_bible_enabled,
@@ -128,7 +130,7 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
             "rag_enabled": pipeline.rag_enabled,
             "rag_persist_dir": pipeline.rag_persist_dir,
             "enable_character_consistency": pipeline.enable_character_consistency,
-            # replicate_api_key excluded — use REPLICATE_API_KEY env var
+            "replicate_api_key": getattr(pipeline, "replicate_api_key", ""),
             "character_consistency_provider": pipeline.character_consistency_provider,
             "enable_smart_revision": pipeline.enable_smart_revision,
             "smart_revision_threshold": pipeline.smart_revision_threshold,
@@ -136,7 +138,12 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
             "quality_gate_threshold": pipeline.quality_gate_threshold,
             "quality_gate_chapter_threshold": pipeline.quality_gate_chapter_threshold,
             "quality_gate_max_retries": pipeline.quality_gate_max_retries,
-            # long_context_api_key excluded — use LONG_CONTEXT_API_KEY env var
+            "hf_token": getattr(pipeline, "hf_token", ""),
+            "hf_image_model": getattr(pipeline, "hf_image_model", ""),
+            "long_context_api_key": getattr(pipeline, "long_context_api_key", ""),
+            "long_context_provider": getattr(pipeline, "long_context_provider", ""),
+            "long_context_model": getattr(pipeline, "long_context_model", ""),
+            "long_context_base_url": getattr(pipeline, "long_context_base_url", ""),
         },
     }
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
