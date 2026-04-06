@@ -1,15 +1,18 @@
 /**
- * Branching page — interactive story path selection (placeholder logic).
- * Full branching requires API endpoints (Phase 4 scope).
+ * Branching page — story loading, chapter selection, and branch session management.
+ * Supports two story sources: current pipeline result (in-memory) and saved checkpoints.
  */
 
 interface BranchingChapter {
+  number?: number;
   title?: string;
   content?: string;
   [key: string]: unknown;
 }
 
 interface BranchingStory {
+  title?: string;
+  genre?: string;
   chapters?: BranchingChapter[];
   [key: string]: unknown;
 }
@@ -17,22 +20,125 @@ interface BranchingStory {
 interface BranchingPipelineResult {
   enhanced?: BranchingStory;
   draft?: BranchingStory;
+  has_enhanced?: boolean;
+  has_draft?: boolean;
   [key: string]: unknown;
+}
+
+interface SavedStoryItem {
+  filename: string;
+  title: string;
+  genre: string;
+  chapter_count: number;
+  current_layer: number;
+  size_kb: number;
+  modified: string;
+}
+
+interface StoriesResponse {
+  items: SavedStoryItem[];
+  total: number;
 }
 
 function branchingPage() {
   return {
-    message: 'Branching requires a generated story.' as string,
+    selectedChapter: null as number | null,
+    stories: [] as SavedStoryItem[],
+    loadedStory: null as BranchingPipelineResult | null,
+    loadingStories: false,
+    loadingCheckpoint: false,
+    showStoryPicker: false,
+    storySource: 'current' as 'current' | 'saved',
+    loadError: '',
 
-    get hasStory(): boolean {
+    init() {
+      this.fetchStories();
+      (this as unknown as AlpineComponent).$el.addEventListener('branch-close', () => {
+        this.selectedChapter = null;
+      });
+    },
+
+    get hasCurrentStory(): boolean {
       return !!Alpine.store('app').pipelineResult;
     },
 
+    get hasAnyStory(): boolean {
+      return this.hasCurrentStory || this.loadedStory !== null;
+    },
+
+    get activeResult(): BranchingPipelineResult | null {
+      if (this.storySource === 'saved' && this.loadedStory) return this.loadedStory;
+      return Alpine.store('app').pipelineResult as BranchingPipelineResult | null;
+    },
+
     get chapters(): BranchingChapter[] {
-      const r: BranchingPipelineResult | null = Alpine.store('app').pipelineResult;
+      const r = this.activeResult;
       if (!r) return [];
       const story = r.enhanced || r.draft;
       return story?.chapters || [];
+    },
+
+    get storyTitle(): string {
+      const r = this.activeResult;
+      if (!r) return '';
+      const story = r.enhanced || r.draft;
+      return story?.title || 'Untitled';
+    },
+
+    getChapterContent(idx: number): string {
+      const r = this.activeResult;
+      if (!r) return '';
+      const enhanced = r.enhanced?.chapters?.[idx];
+      const draft = r.draft?.chapters?.[idx];
+      return enhanced?.content || draft?.content || '';
+    },
+
+    async fetchStories() {
+      this.loadingStories = true;
+      try {
+        const res: StoriesResponse = await API.get('/v1/pipeline/stories?limit=50');
+        this.stories = res.items || [];
+      } catch {
+        this.stories = [];
+      } finally {
+        this.loadingStories = false;
+      }
+    },
+
+    async loadStory(filename: string) {
+      this.loadingCheckpoint = true;
+      this.loadError = '';
+      try {
+        const data: BranchingPipelineResult = await API.get(`/v1/pipeline/checkpoints/${encodeURIComponent(filename)}`);
+        this.loadedStory = data;
+        this.storySource = 'saved';
+        this.selectedChapter = null;
+        this.showStoryPicker = false;
+      } catch (e) {
+        this.loadError = (e as Error).message || 'Failed to load story';
+      } finally {
+        this.loadingCheckpoint = false;
+      }
+    },
+
+    useCurrent() {
+      this.storySource = 'current';
+      this.loadedStory = null;
+      this.selectedChapter = null;
+      this.showStoryPicker = false;
+    },
+
+    selectChapter(idx: number) {
+      if (this.selectedChapter === idx) {
+        this.selectedChapter = null;
+        return;
+      }
+      this.selectedChapter = idx;
+    },
+
+    getSelectedContent(): string {
+      if (this.selectedChapter === null) return '';
+      return this.getChapterContent(this.selectedChapter);
     },
   };
 }
