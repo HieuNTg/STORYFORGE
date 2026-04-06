@@ -70,17 +70,25 @@ def load_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
 
 
 def _load_secrets(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
-    """Load encrypted secrets (api_key, api_keys, fallback_models) from secrets file."""
+    """Load encrypted secrets from secrets file.
+
+    Only loads when STORYFORGE_SECRET_KEY is set (encryption active).
+    Without it, config.json already contains all values in plaintext
+    and secrets.json may hold stale/dummy data that would overwrite
+    real keys.
+    """
     if not os.path.exists(_SECRETS_FILE):
+        return
+    if not os.environ.get("STORYFORGE_SECRET_KEY"):
         return
     try:
         from services.secret_manager import load_encrypted
         data = load_encrypted(_SECRETS_FILE)
         for k, v in data.get("llm", {}).items():
-            if hasattr(llm, k):
+            if hasattr(llm, k) and v:
                 setattr(llm, k, v)
         for k, v in data.get("pipeline", {}).items():
-            if hasattr(pipeline, k):
+            if hasattr(pipeline, k) and v:
                 setattr(pipeline, k, v)
     except Exception as e:
         logger.warning(f"Secrets load error: {e}")

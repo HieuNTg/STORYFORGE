@@ -143,19 +143,18 @@ class TestConfigPersistence:
                 pipeline2 = PipelineConfig()
                 load_config(llm2, pipeline2)
 
-    def test_save_config_excludes_api_key(self):
+    def test_save_config_includes_api_key(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.persistence import save_config
         with tempfile.TemporaryDirectory() as tmpdir:
             config_file = os.path.join(tmpdir, "config.json")
             with patch("config.persistence.CONFIG_FILE", config_file):
-                llm = LLMConfig(api_key="sk-supersecret")
+                llm = LLMConfig(api_key="sk-test-key")
                 pipeline = PipelineConfig()
                 save_config(llm, pipeline)
                 with open(config_file) as f:
                     data = json.load(f)
-                # API key must NOT be saved
-                assert "api_key" not in data.get("llm", {})
+                assert data["llm"]["api_key"] == "sk-test-key"
 
     def test_env_override_api_key(self):
         from config.defaults import LLMConfig, PipelineConfig
@@ -249,10 +248,12 @@ class TestConfigManagerSingleton:
         from config import ConfigManager
         cm = ConfigManager()
         original_key = cm.llm.api_key
+        original_fallbacks = cm.llm.fallback_models
         try:
             cm.llm.api_key = ""
-            # Saving with empty api_key should raise ValueError (critical)
+            cm.llm.fallback_models = []
             with pytest.raises((ValueError, Exception)):
                 cm.save()
         finally:
             cm.llm.api_key = original_key
+            cm.llm.fallback_models = original_fallbacks
