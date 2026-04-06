@@ -250,6 +250,7 @@ async def run_full_pipeline(
             genre=genre,
             num_rounds=num_sim_rounds,
             progress_callback=lambda m: _log(f"[L2] {m}"),
+            drama_intensity=self.config.pipeline.drama_intensity,
         )
         self.output.simulation_result = sim_result
 
@@ -500,6 +501,7 @@ def run_layer2_only(
         genre=draft.genre,
         num_rounds=num_sim_rounds,
         progress_callback=progress_callback,
+        drama_intensity=getattr(self.config.pipeline, "drama_intensity", "cao"),
     )
     return self.enhancer.enhance_with_feedback(
         draft=draft, sim_result=sim_result,

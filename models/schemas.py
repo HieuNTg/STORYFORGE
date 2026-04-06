@@ -89,6 +89,7 @@ class Chapter(BaseModel):
     word_count: int = 0
     summary: str = ""
     structured_summary: Optional[StructuredSummary] = Field(default=None, description="Rich structured summary")
+    enhancement_changelog: list[str] = Field(default_factory=list, description="Log các thay đổi trong quá trình tăng cường kịch tính")
 
 
 class CharacterState(BaseModel):
@@ -248,6 +249,7 @@ class AgentPost(BaseModel):
     target: str = ""
     sentiment: str = ""
     round_number: int = 0
+    importance_score: float = Field(default=0.5, ge=0, le=1, description="Điểm quan trọng để lọc bộ nhớ agent thông minh")
 
 
 class SimulationResult(BaseModel):
@@ -258,6 +260,7 @@ class SimulationResult(BaseModel):
     character_arcs: dict[str, str] = Field(default_factory=dict)
     tension_map: dict[str, float] = Field(default_factory=dict)
     agent_posts: list[AgentPost] = Field(default_factory=list)
+    emotional_trajectories: dict[str, list[str]] = Field(default_factory=dict, description="Chuỗi trạng thái cảm xúc theo vòng mô phỏng: tên_nhân_vật → [mood_round1, mood_round2, ...]")
 
 
 class EnhancedStory(BaseModel):
@@ -267,6 +270,7 @@ class EnhancedStory(BaseModel):
     chapters: list[Chapter] = Field(default_factory=list)
     enhancement_notes: list[str] = Field(default_factory=list)
     drama_score: float = Field(default=0.0, description="Điểm kịch tính tổng thể")
+    coherence_issues: list[str] = Field(default_factory=list, description="Danh sách vấn đề nhất quán phát hiện sau khi tăng cường")
 
 
 # === Quality Metrics ===

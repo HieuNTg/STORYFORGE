@@ -118,3 +118,25 @@ YÊU CẦU BẮT BUỘC:
 - Viết hoàn toàn bằng tiếng Việt
 
 Bắt đầu viết lại chương:"""
+
+COHERENCE_FIX = """Sửa chương truyện sau để giải quyết các vấn đề nhất quán.
+
+CHƯƠNG {chapter_number}: {title}
+
+NỘI DUNG:
+{content}
+
+VẤN ĐỀ CẦN SỬA:
+{issues}
+
+GỢI Ý SỬA:
+{fix_suggestion}
+
+YÊU CẦU:
+- CHỈ sửa các vấn đề nhất quán đã liệt kê
+- KHÔNG thay đổi cốt truyện chính hoặc giảm kịch tính
+- Giữ nguyên phong cách và giọng văn
+- Khoảng {word_count} từ
+- Viết hoàn toàn bằng tiếng Việt
+
+Bắt đầu viết lại:"""

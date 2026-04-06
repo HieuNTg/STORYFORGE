@@ -15,9 +15,21 @@ from models.schemas import (
 from services.llm_client import LLMClient
 from services import prompts
 from pipeline.layer2_enhance._agent import CharacterAgent, TENSION_DELTAS
-from pipeline.layer2_enhance.drama_patterns import get_genre_escalation_prompt
+from pipeline.layer2_enhance.drama_patterns import get_genre_escalation_prompt, get_tension_modifier
 
 logger = logging.getLogger(__name__)
+
+# Cấu hình cường độ kịch tính — ảnh hưởng đến nhiệt độ, ngưỡng leo thang, độ sâu phản ứng
+INTENSITY_CONFIG = {
+    "thấp": {"temperature": 0.7, "escalation_scale": 0.7, "max_escalations": 1, "reaction_depth": 1},
+    "trung bình": {"temperature": 0.85, "escalation_scale": 1.0, "max_escalations": 2, "reaction_depth": 2},
+    "cao": {"temperature": 0.95, "escalation_scale": 1.3, "max_escalations": 2, "reaction_depth": 3},
+}
+
+
+def _get_intensity_config(drama_intensity: str) -> dict:
+    return INTENSITY_CONFIG.get(drama_intensity, INTENSITY_CONFIG["cao"])
+
 
 ESCALATION_PATTERNS = {
     "phản_bội": {"trigger_tension": 0.7, "intensity_multiplier": 2.0},
@@ -80,6 +92,7 @@ class DramaSimulator:
         self.all_posts: list[AgentPost] = []
         self.relationships: list[Relationship] = []
         self.trust_network: dict[str, TrustNetworkEdge] = {}
+        self._intensity: dict = _get_intensity_config("cao")
 
     def setup_agents(
         self,
@@ -168,7 +181,7 @@ class DramaSimulator:
                     ),
                     recent_posts=recent_posts,
                 ),
-                temperature=0.95,
+                temperature=self._intensity.get("temperature", 0.95),
             )
 
             post = AgentPost(
@@ -338,13 +351,25 @@ class DramaSimulator:
                     trust_delta = -15.0 if post.sentiment in ("tiêu cực", "căng thẳng") else 5.0
                     edge.update_trust(trust_delta, f"R{round_number}: {post.action_type}")
 
-        # Reaction chain: targeted characters respond (1 layer)
-        reactions = self._generate_reactions(round_posts, round_number, context)
-        for post in reactions:
-            agent = self.agents[post.agent_name]
-            agent.posts.append(post)
-            agent.add_memory(f"Vòng {round_number} [phản ứng]: {post.content[:100]}")
-        round_posts.extend(reactions)
+        # Chuỗi phản ứng đa lớp: nhân vật bị nhắm đến phản ứng theo nhiều lớp
+        import random
+        all_reactions: list[AgentPost] = []
+        reaction_input = round_posts
+        for layer in range(self._intensity.get("reaction_depth", 1)):
+            if layer > 0:
+                skip_prob = 0.5 if layer == 1 else 0.7
+                if random.random() < skip_prob:
+                    break
+            reactions = self._generate_reactions(reaction_input, round_number, context)
+            if not reactions:
+                break
+            for post in reactions:
+                agent = self.agents[post.agent_name]
+                agent.posts.append(post)
+                agent.add_memory(f"Vòng {round_number} [phản ứng L{layer + 1}]: {post.content[:100]}")
+            all_reactions.extend(reactions)
+            reaction_input = reactions  # lớp tiếp theo phản ứng với lớp này
+        round_posts.extend(all_reactions)
 
         self.all_posts.extend(round_posts)
         return round_posts
@@ -371,13 +396,27 @@ class DramaSimulator:
             ),
         )
 
-    def _check_escalation(self, round_num: int) -> list[EscalationPattern]:
-        """Check tension thresholds and return triggered escalation patterns."""
+    def _check_escalation(self, round_num: int, total_rounds: int = 5, genre: str = "") -> list[EscalationPattern]:
+        """Kiểm tra ngưỡng căng thẳng và trả về các mô hình leo thang được kích hoạt.
+
+        Ngưỡng được điều chỉnh theo đường cong căng thẳng thể loại và cường độ kịch tính.
+        """
+        # Định hình đường cong căng thẳng: điều chỉnh ngưỡng theo vị trí trong câu chuyện
+        position = round_num / max(1, total_rounds)
+        curve_modifier = get_tension_modifier(genre, position)
+
         triggered = []
         seen_types: set[str] = set()
         for rel in self.relationships:
             for ptype, cfg in ESCALATION_PATTERNS.items():
-                if rel.tension < cfg["trigger_tension"] or ptype in seen_types:
+                if ptype in seen_types:
+                    continue
+                effective_trigger = (
+                    cfg["trigger_tension"]
+                    * curve_modifier
+                    / self._intensity.get("escalation_scale", 1.0)
+                )
+                if rel.tension < effective_trigger:
                     continue
                 valid_relations = ESCALATION_VALID_RELATIONS.get(ptype)
                 if valid_relations is not None and rel.relation_type not in valid_relations:
@@ -440,6 +479,7 @@ class DramaSimulator:
         relationships: list[Relationship],
         genre: str,
         num_rounds: int = 5,
+        drama_intensity: str = "cao",
         progress_callback=None,
     ) -> SimulationResult:
         """Chạy toàn bộ mô phỏng và trả về kết quả."""
@@ -449,6 +489,7 @@ class DramaSimulator:
             if progress_callback:
                 progress_callback(msg)
 
+        self._intensity = _get_intensity_config(drama_intensity)
         self.setup_agents(characters, relationships)
         all_events: list[SimulationEvent] = []
         all_drama_scores: list[float] = []
@@ -482,9 +523,10 @@ class DramaSimulator:
 
             all_drama_scores.append(evaluation.get("overall_drama_score", 0.5))
 
-            # Check and apply escalation patterns
-            escalations = self._check_escalation(round_num)
-            for pattern in escalations[:2]:  # Max 2 escalations per round
+            # Kiểm tra và áp dụng mô hình leo thang
+            escalations = self._check_escalation(round_num, total_rounds=num_rounds, genre=genre)
+            max_esc = self._intensity.get("max_escalations", 2)
+            for pattern in escalations[:max_esc]:
                 esc_event = self._apply_escalation(pattern, round_num, genre)
                 if esc_event:
                     all_events.append(esc_event)
@@ -494,9 +536,19 @@ class DramaSimulator:
             for change in evaluation.get("relationship_changes", []):
                 self._update_relationship(change)
 
+            # Ghi lại arc cảm xúc sau mỗi vòng
+            for agent in self.agents.values():
+                agent.emotion.record_round(round_num)
+
         # Tạo gợi ý kịch tính
         _log("💡 Đang tạo gợi ý tăng cường kịch tính...")
         suggestions_result = self._generate_suggestions(genre)
+
+        # Xây dựng dữ liệu quỹ đạo cảm xúc
+        emotional_trajectories = {
+            name: [m for _, m, _ in agent.emotion.arc_trajectory]
+            for name, agent in self.agents.items()
+        }
 
         result = SimulationResult(
             events=all_events,
@@ -505,6 +557,7 @@ class DramaSimulator:
             character_arcs=suggestions_result.get("character_arcs", {}),
             tension_map=suggestions_result.get("tension_points", {}),
             agent_posts=self.all_posts,
+            emotional_trajectories=emotional_trajectories,
         )
 
         avg_drama = sum(all_drama_scores) / len(all_drama_scores) if all_drama_scores else 0

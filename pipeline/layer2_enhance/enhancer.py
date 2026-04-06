@@ -34,6 +34,7 @@ class StoryEnhancer:
         word_count: int = 2000,
         total_chapters: int = 1,
         genre: str = "",
+        draft=None,
     ) -> Chapter:
         """Tăng cường kịch tính cho một chương.
 
@@ -69,6 +70,26 @@ class StoryEnhancer:
             for r in sim_result.updated_relationships[:10]
         )
 
+        # Build Layer 1 context for preservation
+        layer1_context = ""
+        if draft:
+            parts = []
+            if hasattr(draft, "foreshadowing_plan") and draft.foreshadowing_plan:
+                seeds = [f"- {f}" for f in draft.foreshadowing_plan[:5]]
+                if seeds:
+                    parts.append("Foreshadowing seeds:\n" + "\n".join(seeds))
+            if hasattr(draft, "conflict_web") and draft.conflict_web:
+                conflicts = [f"- {c}" for c in draft.conflict_web[:5]]
+                if conflicts:
+                    parts.append("Conflict web:\n" + "\n".join(conflicts))
+            if hasattr(draft, "macro_arcs") and draft.macro_arcs:
+                arcs = [f"- {a}" for a in draft.macro_arcs[:3]]
+                if arcs:
+                    parts.append("Macro arcs:\n" + "\n".join(arcs))
+            layer1_context = "\n".join(parts) if parts else "Không có dữ liệu Layer 1"
+        else:
+            layer1_context = "Không có dữ liệu Layer 1"
+
         genre_hints = get_genre_enhancement_hints(genre, chapter.chapter_number, total_chapters)
 
         enhance_prompt = prompts.ENHANCE_CHAPTER.format(
@@ -80,6 +101,7 @@ class StoryEnhancer:
             genre_style=genre or "kịch tính",
             genre_hints=genre_hints,
             strong_points="(sẽ được phân tích trong feedback round)",
+            layer1_context=layer1_context,
         )
         enhance_prompt = build_adaptive_enhance_prompt(enhance_prompt, genre)
         enhance_prompt += "\n\n[NHẮC LẠI: Viết hoàn toàn bằng tiếng Việt. Không dùng tiếng Anh hay ngôn ngữ khác.]"
@@ -140,7 +162,7 @@ class StoryEnhancer:
                 try:
                     result = await loop.run_in_executor(
                         None, self.enhance_chapter,
-                        chapter, sim_result, word_count, total_chapters, draft.genre,
+                        chapter, sim_result, word_count, total_chapters, draft.genre, draft,
                     )
                     _log(f"✨ Chương {ch_num} đã tăng cường xong")
                     return ch_num, result
@@ -157,6 +179,13 @@ class StoryEnhancer:
 
         # Maintain order
         enhanced.chapters = [results[ch.chapter_number] for ch in draft.chapters]
+
+        # Enhancement diff tracking (non-fatal)
+        try:
+            from pipeline.layer2_enhance.enhancement_diff_tracker import track_enhancement_diffs
+            track_enhancement_diffs(list(draft.chapters), enhanced.chapters)
+        except Exception as e:
+            logger.warning(f"Enhancement diff tracking failed (non-fatal): {e}")
 
         # Tính điểm kịch tính tổng thể (chuyển từ 0-1 sang 1-5)
         if sim_result.events:
@@ -264,4 +293,21 @@ class StoryEnhancer:
                         summary=enhanced.chapters[idx].summary,
                     )
                     _log(f"  ✓ Chương {ch_num}: score {analysis['score']:.2f} → re-enhanced")
+
+        # Coherence validation (non-fatal)
+        try:
+            from pipeline.layer2_enhance.coherence_validator import validate_coherence, fix_coherence_issues
+            _log("🔍 Đang kiểm tra tính nhất quán...")
+            issues = validate_coherence(self.llm, enhanced, draft)
+            if issues:
+                critical_count = sum(1 for i in issues if i.get("severity") == "critical")
+                _log(f"⚠️ Phát hiện {len(issues)} vấn đề nhất quán ({critical_count} critical)")
+                if critical_count > 0:
+                    fixed = fix_coherence_issues(self.llm, enhanced, issues, word_count)
+                    _log(f"✅ Đã sửa {fixed} chương có vấn đề critical")
+            else:
+                _log("✅ Không phát hiện vấn đề nhất quán")
+        except Exception as e:
+            logger.warning(f"Coherence validation failed (non-fatal): {e}")
+
         return enhanced

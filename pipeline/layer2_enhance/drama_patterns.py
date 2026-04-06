@@ -69,6 +69,32 @@ def get_genre_rules(genre: str) -> dict:
     return {}
 
 
+def get_tension_modifier(genre: str, position: float) -> float:
+    """Lấy hệ số điều chỉnh ngưỡng leo thang dựa trên đường cong căng thẳng thể loại và vị trí câu chuyện.
+
+    Trả về <1.0 để leo thang dễ hơn (ngưỡng thấp hơn), >1.0 để khó hơn.
+    """
+    import math
+    rules = get_genre_rules(genre)
+    curve = rules.get("tension_curve", "ascending")
+
+    if curve == "ascending":
+        # Leo thang dễ hơn khi câu chuyện tiến triển
+        return 1.2 - position * 0.5  # 1.2 → 0.7
+    elif curve == "oscillating":
+        # Mô hình sóng: dễ hơn ở đỉnh (0.3, 0.7), khó hơn ở đáy
+        return 1.0 - 0.3 * math.sin(position * math.pi * 2)
+    elif curve == "wave":
+        # Sóng nhẹ
+        return 1.0 - 0.2 * math.sin(position * math.pi * 3)
+    elif curve in ("ascending_steps", "escalating_spiral"):
+        # Hàm bậc thang: dễ hơn mỗi 25%
+        step = int(position * 4)
+        return max(0.6, 1.1 - step * 0.15)
+    else:
+        return 1.0
+
+
 def get_genre_escalation_prompt(genre: str, round_num: int, total_rounds: int) -> str:
     """Generate genre-specific escalation instruction for simulation prompts."""
     rules = get_genre_rules(genre)

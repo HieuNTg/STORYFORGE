@@ -37,6 +37,7 @@ class EmotionalState:
         self.energy: float = 0.7  # 0=exhausted, 1=peak
         self.stakes: float = 0.3  # 0=nothing to lose, 1=everything at stake
         self.mood_history: list[str] = []
+        self.arc_trajectory: list[tuple[int, str, float]] = []  # (vòng, tâm_trạng, drama_multiplier)
 
     def update(self, new_mood: str, energy_delta: float = 0, stakes_delta: float = 0):
         """Update emotional state. Records history."""
@@ -69,6 +70,10 @@ class EmotionalState:
         base = MOOD_DRAMA.get(self.mood, 1.0)
         desperation = self.stakes * (1.0 - self.energy) * 0.5
         return min(3.0, max(0.5, base + desperation))
+
+    def record_round(self, round_number: int):
+        """Ghi lại trạng thái hiện tại để theo dõi arc cảm xúc."""
+        self.arc_trajectory.append((round_number, self.mood, self.drama_multiplier))
 
     def to_prompt_text(self) -> str:
         """Format for LLM prompt injection."""
@@ -116,6 +121,7 @@ class CharacterAgent:
     def __init__(self, character: Character):
         self.character = character
         self.memory: list[str] = []
+        self._memory_scores: list[float] = []
         self.posts: list[AgentPost] = []
         self.emotion = EmotionalState()
         self.trust_map: dict[str, TrustEdge] = {}
@@ -125,10 +131,30 @@ class CharacterAgent:
         """Alias for emotion — compatibility with reaction chain code."""
         return self.emotion
 
-    def add_memory(self, event: str):
+    def add_memory(self, event: str, importance: float = 0.0):
+        """Thêm ký ức với điểm quan trọng. Sự kiện quan trọng cao sẽ được giữ lại khi cắt tỉa."""
+        if importance <= 0:
+            importance = self._score_importance(event)
         self.memory.append(event)
+        self._memory_scores.append(importance)
         if len(self.memory) > 50:
-            self.memory = self.memory[-50:]
+            self._prune_memory()
+
+    def _score_importance(self, event: str) -> float:
+        """Chấm điểm độ quan trọng của ký ức. Sự kiện leo thang/có liên quan trực tiếp được điểm cao hơn."""
+        escalation_keywords = {"phản_bội", "tiết_lộ", "đối_đầu", "hy_sinh", "đảo_ngược", "escalation"}
+        if any(kw in event for kw in escalation_keywords):
+            return 1.0
+        if self.character.name in event:
+            return 0.8
+        return 0.5
+
+    def _prune_memory(self):
+        """Xóa ký ức kém quan trọng nhất để duy trì giới hạn 50."""
+        while len(self.memory) > 50:
+            min_idx = min(range(len(self._memory_scores)), key=lambda i: self._memory_scores[i])
+            self.memory.pop(min_idx)
+            self._memory_scores.pop(min_idx)
 
     def process_event(self, event_type: str, is_target: bool = False):
         """Update emotional state based on event. Called from reaction chain."""
@@ -144,6 +170,13 @@ class CharacterAgent:
         if target not in self.trust_map:
             self.trust_map[target] = TrustEdge(target)
         return self.trust_map[target]
+
+    def get_arc_summary(self) -> str:
+        """Tóm tắt arc cảm xúc để đưa vào prompt."""
+        if not self.emotion.arc_trajectory:
+            return "Chưa có dữ liệu arc."
+        moods = [m for _, m, _ in self.emotion.arc_trajectory]
+        return f"Arc cảm xúc: {' → '.join(moods[-5:])}"
 
     def get_emotional_context(self) -> str:
         """Format emotional state + trust for prompt injection."""

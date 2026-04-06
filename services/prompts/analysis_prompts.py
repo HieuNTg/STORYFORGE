@@ -111,6 +111,9 @@ HƯỚNG DẪN THỂ LOẠI:
 ĐIỂM MẠNH CẦN GIỮ:
 {strong_points}
 
+NGỮ CẢNH TỪ LAYER 1 (BẮT BUỘC GIỮ NGUYÊN):
+{layer1_context}
+
 YÊU CẦU:
 - Giữ cốt truyện chính, tăng kịch tính tại các điểm yếu đã chỉ ra
 - Tăng xung đột nội tâm nhân vật
@@ -119,8 +122,45 @@ YÊU CẦU:
 - Cliffhanger mạnh mẽ cuối chương
 - Cảm xúc sâu sắc, phù hợp emotional arc
 - Khoảng {word_count} từ, viết hoàn toàn tiếng Việt
+- BẮT BUỘC: Giữ nguyên các plot thread, foreshadowing seed, và pacing từ Layer 1
 
 Bắt đầu viết lại:"""
+
+COHERENCE_CHECK = """Bạn là biên tập viên kiểm tra tính nhất quán của truyện sau khi chỉnh sửa.
+
+DANH SÁCH CHƯƠNG ĐÃ TĂNG CƯỜNG:
+{chapter_summaries}
+
+NHÂN VẬT:
+{characters}
+
+MỐI QUAN HỆ BAN ĐẦU:
+{relationships}
+
+Hãy kiểm tra và trả về JSON:
+{{
+  "is_coherent": true/false,
+  "issues": [
+    {{
+      "type": "timeline/character/plot_thread/relationship",
+      "chapter": 5,
+      "description": "mô tả vấn đề nhất quán",
+      "severity": "critical/warning"
+    }}
+  ],
+  "fix_suggestions": [
+    {{
+      "chapter": 5,
+      "suggestion": "gợi ý sửa cụ thể"
+    }}
+  ]
+}}
+
+Kiểm tra:
+1. Timeline: Sự kiện có đúng thứ tự thời gian không?
+2. Character: Nhân vật có hành xử nhất quán với tính cách không? Nhân vật đã chết có xuất hiện lại không?
+3. Plot threads: Các tuyến truyện có bị bỏ dở hoặc mâu thuẫn không?
+4. Relationships: Mối quan hệ có thay đổi hợp lý không?"""
 
 DRAMA_SUGGESTIONS = """Dựa trên kết quả mô phỏng tương tác nhân vật, hãy đề xuất cách làm truyện kịch tích hơn.
 
