@@ -90,6 +90,10 @@ def _should_retry(exc: Exception, provider: str) -> tuple[bool, float]:
             return True, 60.0  # OpenRouter needs longer backoff
         return True, 5.0  # Default rate limit delay
 
+    # Model not found on OpenRouter — not retryable on same provider, try next
+    if provider == "openrouter" and "404" in exc_str:
+        return True, 0
+
     # Auth errors — not retryable on same key, but should try next provider
     if "401" in exc_str or "403" in exc_str or "no cookie" in exc_str:
         return True, 0
