@@ -63,7 +63,7 @@ class AgentDAG:
         """Map class-name-style deps to actual agent.name values.
 
         Agents declare depends_on with *class names* (e.g. "CharacterSpecialist")
-        but agent.name is a Vietnamese string (e.g. "Chuyen Gia Nhan Vat").
+        but agent.name is a Vietnamese string (e.g. "Chuyên Gia Nhân Vật").
         This method tries both the raw name and a class-to-name lookup.
         """
         # Build class-name → agent-name mapping from existing nodes plus

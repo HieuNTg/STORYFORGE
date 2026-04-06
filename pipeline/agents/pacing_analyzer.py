@@ -6,11 +6,11 @@ from services.story_analytics import StoryAnalytics
 
 
 class PacingAnalyzerAgent(BaseAgent):
-    name = "Phan Tich Nhip Truyen"
+    name = "Phân Tích Nhịp Truyện"
     role = "pacing_analyzer"
     goal = "Phân tích nhịp điệu truyện — tốc độ hành động, chiều dài scene, cân bằng hành động/đối thoại"
     layers = [1, 2]
-    depends_on: list[str] = ["Chuyen Gia Nhan Vat"]
+    depends_on: list[str] = ["Chuyên Gia Nhân Vật"]
 
     def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
         pacing_data = self._extract_pacing_data(output, layer)

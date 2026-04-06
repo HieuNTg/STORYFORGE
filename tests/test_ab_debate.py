@@ -118,11 +118,11 @@ def run_ab_mock() -> ABResult:
     # ── CONTROL: Standard reviews, no debate ──
     # NOTE: agent_name must match actual agent.name (Vietnamese names)
     control_reviews = [
-        _make_review("Chuyen Gia Nhan Vat", 0.55,
+        _make_review("Chuyên Gia Nhân Vật", 0.55,
                      suggestions=["Nên giảm bớt kịch tính ở phân đoạn chiến đấu"]),
         _make_review("continuity_checker", 0.65),
         _make_review("dialogue_expert", 0.60),
-        _make_review("Nha Phe Binh Kich Tinh", 0.50,
+        _make_review("Nhà Phê Bình Kịch Tính", 0.50,
                      issues=["Drama chưa đủ mạnh"],
                      suggestions=["Tăng xung đột"]),
         _make_review("editor_in_chief", 0.58),
@@ -158,10 +158,10 @@ class TestABDebate:
         from models.schemas import DebateStance
 
         critic = DramaCritic()
-        own = _make_review("Nha Phe Binh Kich Tinh", 0.5)
+        own = _make_review("Nhà Phê Bình Kịch Tính", 0.5)
         all_reviews = [
             own,
-            _make_review("Chuyen Gia Nhan Vat", 0.6,
+            _make_review("Chuyên Gia Nhân Vật", 0.6,
                          suggestions=["Nên giảm bớt kịch tính"]),
         ]
 
@@ -170,7 +170,7 @@ class TestABDebate:
         challenges = [e for e in entries if e.stance == DebateStance.CHALLENGE]
 
         assert len(challenges) >= 1
-        assert challenges[0].target_agent == "Chuyen Gia Nhan Vat"
+        assert challenges[0].target_agent == "Chuyên Gia Nhân Vật"
 
     def test_character_specialist_challenges_plot_twist(self):
         """CharacterSpecialist should challenge suggestions that break character consistency."""
@@ -178,10 +178,10 @@ class TestABDebate:
         from models.schemas import DebateStance
 
         spec = CharacterSpecialist()
-        own = _make_review("Chuyen Gia Nhan Vat", 0.6)
+        own = _make_review("Chuyên Gia Nhân Vật", 0.6)
         all_reviews = [
             own,
-            _make_review("Nha Phe Binh Kich Tinh", 0.5,
+            _make_review("Nhà Phê Bình Kịch Tính", 0.5,
                          issues=["Cần plot twist bất ngờ để tăng drama"]),
         ]
 
@@ -190,7 +190,7 @@ class TestABDebate:
         challenges = [e for e in entries if e.stance == DebateStance.CHALLENGE]
 
         assert len(challenges) >= 1
-        assert challenges[0].target_agent == "Nha Phe Binh Kich Tinh"
+        assert challenges[0].target_agent == "Nhà Phê Bình Kịch Tính"
 
     def test_no_challenge_when_no_triggers(self):
         """No challenges when reviews don't contain trigger keywords."""
@@ -198,7 +198,7 @@ class TestABDebate:
         from pipeline.agents.drama_critic import DramaCriticAgent as DramaCritic
 
         critic = DramaCritic()
-        own = _make_review("Nha Phe Binh Kich Tinh", 0.7)
+        own = _make_review("Nhà Phê Bình Kịch Tính", 0.7)
         all_reviews = [
             own,
             _make_review("continuity_checker", 0.8,
@@ -243,7 +243,7 @@ class TestABDebate:
 
         # Check that debate added reasoning to suggestions
         for review in result.debate_result.final_reviews:
-            if review.agent_name == "Chuyen Gia Nhan Vat":
+            if review.agent_name == "Chuyên Gia Nhân Vật":
                 debate_suggestions = [s for s in review.suggestions if "[Debate-" in s]
                 # DramaCritic should have challenged this agent
                 assert len(debate_suggestions) >= 1
@@ -308,15 +308,15 @@ class TestLLMDebate:
         from pipeline.agents.drama_critic import DramaCriticAgent
 
         critic = DramaCriticAgent()
-        own = _make_review("Nha Phe Binh Kich Tinh", 0.5)
-        peer = _make_review("Chuyen Gia Nhan Vat", 0.6,
+        own = _make_review("Nhà Phê Bình Kịch Tính", 0.5)
+        peer = _make_review("Chuyên Gia Nhân Vật", 0.6,
                             suggestions=["Nên giảm bớt kịch tính"])
         all_reviews = [own, peer]
 
         mock_response = {
             "entries": [{
                 "stance": "challenge",
-                "target_agent": "Chuyen Gia Nhan Vat",
+                "target_agent": "Chuyên Gia Nhân Vật",
                 "target_issue": "Giảm kịch tính",
                 "reasoning": "Giảm kịch tính sẽ làm mất tension arc",
                 "revised_score": 0.45,
@@ -338,8 +338,8 @@ class TestLLMDebate:
         from pipeline.agents.drama_critic import DramaCriticAgent
 
         critic = DramaCriticAgent()
-        own = _make_review("Nha Phe Binh Kich Tinh", 0.5)
-        peer = _make_review("Chuyen Gia Nhan Vat", 0.6,
+        own = _make_review("Nhà Phê Bình Kịch Tính", 0.5)
+        peer = _make_review("Chuyên Gia Nhân Vật", 0.6,
                             suggestions=["Nên giảm bớt kịch tính"])
         all_reviews = [own, peer]
 
@@ -363,9 +363,9 @@ class TestLLMDebate:
         output = _make_output(draft)
 
         control_reviews = [
-            _make_review("Chuyen Gia Nhan Vat", 0.55,
+            _make_review("Chuyên Gia Nhân Vật", 0.55,
                          suggestions=["Nên giảm bớt kịch tính"]),
-            _make_review("Nha Phe Binh Kich Tinh", 0.50),
+            _make_review("Nhà Phê Bình Kịch Tính", 0.50),
         ]
         control_scores = [r.score for r in control_reviews]
 
@@ -373,7 +373,7 @@ class TestLLMDebate:
         drama_mock_response = {
             "entries": [{
                 "stance": "challenge",
-                "target_agent": "Chuyen Gia Nhan Vat",
+                "target_agent": "Chuyên Gia Nhân Vật",
                 "target_issue": "Giảm kịch tính",
                 "reasoning": "Tension arc cần được duy trì",
                 "revised_score": 0.35,
@@ -394,7 +394,7 @@ class TestLLMDebate:
         variant_scores = [r.score for r in result.final_reviews]
         delta = mean(variant_scores) - mean(control_scores)
 
-        # Delta should be non-zero because revised_score changes Chuyen Gia Nhan Vat's score
+        # Delta should be non-zero because revised_score changes Chuyên Gia Nhân Vật's score
         assert delta != 0.0
         assert result.total_challenges >= 1
 

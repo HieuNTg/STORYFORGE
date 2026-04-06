@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class CharacterSpecialistAgent(BaseAgent):
-    name = "Chuyen Gia Nhan Vat"
+    name = "Chuyên Gia Nhân Vật"
     role = "character_specialist"
     goal = "Kiểm tra tính nhất quán của nhân vật: tên, tính cách, động lực, mối quan hệ"
     layers = [1, 2]

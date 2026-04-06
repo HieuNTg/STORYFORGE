@@ -5,11 +5,11 @@ from pipeline.agents import agent_prompts
 
 
 class DialogueExpertAgent(BaseAgent):
-    name = "Chuyen Gia Doi Thoai"
+    name = "Chuyên Gia Đối Thoại"
     role = "dialogue_expert"
     goal = "Đánh giá tính tự nhiên, giọng nhân vật, và chất lượng tiếng Việt trong đối thoại"
     layers = [2, 3]
-    depends_on: list[str] = ["Chuyen Gia Nhan Vat"]
+    depends_on: list[str] = ["Chuyên Gia Nhân Vật"]
 
     def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
         chapters_content = self._extract_chapters(output, layer)

@@ -5,11 +5,11 @@ from pipeline.agents import agent_prompts
 
 
 class StyleConsistencyAgent(BaseAgent):
-    name = "Kiem Tra Van Phong"
+    name = "Kiểm Tra Văn Phong"
     role = "style_consistency"
     goal = "Kiểm tra tính nhất quán về tone, voice, và phong cách viết xuyên suốt truyện"
     layers = [1, 2]
-    depends_on: list[str] = ["Chuyen Gia Nhan Vat"]
+    depends_on: list[str] = ["Chuyên Gia Nhân Vật"]
 
     def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
         chapters_excerpt = self._extract_chapters(output, layer)

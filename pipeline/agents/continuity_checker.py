@@ -5,11 +5,11 @@ from pipeline.agents import agent_prompts
 
 
 class ContinuityCheckerAgent(BaseAgent):
-    name = "Kiem Soat Vien"
+    name = "Kiểm Soát Viên"
     role = "continuity_checker"
     goal = "Phát hiện lỗi dòng thời gian, luật thế giới, nhân vật chết hồi sinh, địa điểm sai"
     layers = [1, 2, 3]
-    depends_on: list[str] = ["Chuyen Gia Nhan Vat"]
+    depends_on: list[str] = ["Chuyên Gia Nhân Vật"]
 
     def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
         world_setting, chapters_content = self._extract_data(output, layer)
