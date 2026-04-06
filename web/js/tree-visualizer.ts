@@ -178,7 +178,7 @@ document.addEventListener('alpine:init', () => {
         try {
           const res = await fetch(`/api/branch/${sessionId}/goto`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: mutationHeaders(),
             body: JSON.stringify({ node_id: nodeId }),
           });
           if (!res.ok) return null;

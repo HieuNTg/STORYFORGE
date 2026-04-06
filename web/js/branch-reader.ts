@@ -103,7 +103,7 @@ document.addEventListener('alpine:init', () => {
         try {
           const res = await fetch('/api/branch/start', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: mutationHeaders(),
             body: JSON.stringify({ text: text.trim() }),
           });
           if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
@@ -152,7 +152,7 @@ document.addEventListener('alpine:init', () => {
         try {
           const res = await fetch(`/api/branch/${data.sessionId}/choose`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: mutationHeaders(),
             body: JSON.stringify({ choice_index: index }),
           });
           if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
@@ -178,6 +178,7 @@ document.addEventListener('alpine:init', () => {
         try {
           const res = await fetch(`/api/branch/${data.sessionId}/back`, {
             method: 'POST',
+            headers: mutationHeaders(),
           });
           if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
           const d: BranchBackResponse = await res.json();
