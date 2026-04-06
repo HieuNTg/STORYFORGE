@@ -155,7 +155,7 @@ class CheckpointManager:
                     except Exception as e:
                         logger.warning(f"Quality scoring failed: {e}")
             except Exception as e:
-                _log(f"Layer 2 loi: {e}")
+                _log(f"Layer 2 lỗi: {e}")
                 enhanced = EnhancedStory(
                     title=draft.title, genre=draft.genre,
                     chapters=list(draft.chapters),
@@ -168,6 +168,6 @@ class CheckpointManager:
             self.output.progress = 1.0
             if self.output.status != "partial":
                 self.output.status = "completed"
-            _log("PIPELINE HOAN TAT (resumed)!")
+            _log("PIPELINE HOÀN TẤT (resumed)!")
 
         return self.output

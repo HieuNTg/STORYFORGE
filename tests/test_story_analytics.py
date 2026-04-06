@@ -115,13 +115,13 @@ class TestDialogueDetection:
     def test_angle_bracket_dialogue(self):
         """Test dialogue with angle brackets «...» which the pattern supports."""
         from services.story_analytics import StoryAnalytics
-        ch = make_chapter(1, '\u00abXin chao the gioi\u00bb co ay noi.')
+        ch = make_chapter(1, '\u00abXin chào thế giới\u00bb cô ấy nói.')
         stats = StoryAnalytics.analyze_chapter(ch)
         assert stats["dialogue_count"] >= 1
 
     def test_no_dialogue(self):
         from services.story_analytics import StoryAnalytics
-        ch = make_chapter(1, "Khong co loi thoai nao o day ca.")
+        ch = make_chapter(1, "Không có lời thoại nào ở đây cả.")
         stats = StoryAnalytics.analyze_chapter(ch)
         assert stats["dialogue_count"] == 0
 
@@ -133,7 +133,7 @@ class TestDialogueDetection:
 
     def test_dialogue_ratio_zero_no_dialogue(self):
         from services.story_analytics import StoryAnalytics
-        ch = make_chapter(1, "Chi co van xuoi thuan tuy khong co doi thoai.")
+        ch = make_chapter(1, "Chỉ có văn xuôi thuần túy không có đối thoại.")
         stats = StoryAnalytics.analyze_chapter(ch)
         assert stats["dialogue_ratio"] == 0.0
 
@@ -449,21 +449,21 @@ class TestAnalyticsEdgeCases:
     def test_all_dialogue_chapter_high_dialogue_ratio(self):
         from services.story_analytics import StoryAnalytics
         # Only dialogue lines — should produce high dialogue_ratio
-        content = '"Xin chao the gioi" "Day la cuoc song" "Toi yeu em"'
+        content = '"Xin chào thế giới" "Đây là cuộc sống" "Tôi yêu em"'
         ch = make_chapter(1, content)
         stats = StoryAnalytics.analyze_chapter(ch)
         assert stats["dialogue_ratio"] > 0
 
     def test_all_dialogue_chapter_dialogue_count_positive(self):
         from services.story_analytics import StoryAnalytics
-        content = '"Xin chao the gioi" "Day la cuoc song" "Toi yeu em"'
+        content = '"Xin chào thế giới" "Đây là cuộc sống" "Tôi yêu em"'
         ch = make_chapter(1, content)
         stats = StoryAnalytics.analyze_chapter(ch)
         assert stats["dialogue_count"] >= 1
 
     def test_all_dialogue_chapter_dialogue_words_positive(self):
         from services.story_analytics import StoryAnalytics
-        content = '"Xin chao the gioi" "Day la cuoc song" "Toi yeu em"'
+        content = '"Xin chào thế giới" "Đây là cuộc sống" "Tôi yêu em"'
         ch = make_chapter(1, content)
         stats = StoryAnalytics.analyze_chapter(ch)
         assert stats["dialogue_words"] > 0

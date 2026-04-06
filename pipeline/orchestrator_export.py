@@ -38,7 +38,7 @@ class PipelineExporter:
                 with open(path, "w", encoding="utf-8") as f:
                     f.write(f"# {draft_data.title}\n\n")
                     for ch in draft_data.chapters:
-                        f.write(f"\n## Chuong {ch.chapter_number}: {ch.title}\n\n")
+                        f.write(f"\n## Chương {ch.chapter_number}: {ch.title}\n\n")
                         f.write(ch.content + "\n")
                 files.append(path)
 
@@ -50,9 +50,9 @@ class PipelineExporter:
                     logger.warning(f"Plugin apply_export txt (enhanced) failed: {_e}")
                     enhanced_data = self.output.enhanced_story
                 with open(path, "w", encoding="utf-8") as f:
-                    f.write(f"# {enhanced_data.title} (Phien ban kich tinh)\n\n")
+                    f.write(f"# {enhanced_data.title} (Phiên bản kịch tính)\n\n")
                     for ch in enhanced_data.chapters:
-                        f.write(f"\n## Chuong {ch.chapter_number}: {ch.title}\n\n")
+                        f.write(f"\n## Chương {ch.chapter_number}: {ch.title}\n\n")
                         f.write(ch.content + "\n")
                 files.append(path)
 
@@ -138,11 +138,11 @@ class PipelineExporter:
         with open(path, "w", encoding="utf-8") as f:
             f.write(f"# {story.title}\n\n")
             if hasattr(story, "genre"):
-                f.write(f"**The loai:** {story.genre}\n")
+                f.write(f"**Thể loại:** {story.genre}\n")
             if hasattr(story, "drama_score"):
-                f.write(f"**Diem kich tinh:** {story.drama_score:.2f}\n")
+                f.write(f"**Điểm kịch tính:** {story.drama_score:.2f}\n")
             f.write("\n---\n\n")
             for ch in story.chapters:
-                f.write(f"## Chuong {ch.chapter_number}: {ch.title}\n\n")
+                f.write(f"## Chương {ch.chapter_number}: {ch.title}\n\n")
                 f.write(ch.content + "\n\n")
         return path

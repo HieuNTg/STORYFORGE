@@ -229,7 +229,7 @@ class TestCharacterSpecialist:
     def test_extract_data_with_story_draft(self, sample_pipeline_output):
         agent = self._make_agent()
         chars_info, chapters_content = agent._extract_data(sample_pipeline_output, layer=1)
-        assert "Ly Huyen" in chars_info
+        assert "Lý Huyền" in chars_info
         assert chars_info != "Không có thông tin nhân vật."
 
     def test_extract_data_no_story_draft_returns_defaults(self):
@@ -243,13 +243,13 @@ class TestCharacterSpecialist:
         agent = self._make_agent()
         chars_info, chapters_content = agent._extract_data(sample_pipeline_output, layer=2)
         # Should still get character info from story_draft
-        assert "Ly Huyen" in chars_info
+        assert "Lý Huyền" in chars_info
 
     def test_extract_consistency_context_with_draft(self, sample_pipeline_output):
         agent = self._make_agent()
         context = agent.extract_consistency_context(sample_pipeline_output)
         assert isinstance(context, str)
-        assert "Ly Huyen" in context
+        assert "Lý Huyền" in context
 
     def test_extract_consistency_context_no_draft(self):
         agent = self._make_agent()
@@ -279,7 +279,7 @@ class TestContinuityChecker:
     def test_extract_data_with_world(self, sample_pipeline_output):
         agent = self._make_agent()
         world_info, chapters = agent._extract_data(sample_pipeline_output, layer=1)
-        assert "Thanh Van Gioi" in world_info
+        assert "Thanh Vân Giới" in world_info
 
     def test_extract_data_no_world_uses_default(self, sample_story_draft):
         agent = self._make_agent()
@@ -292,7 +292,7 @@ class TestContinuityChecker:
     def test_extract_data_layer2_uses_enhanced(self, sample_pipeline_output):
         agent = self._make_agent()
         world_info, chapters = agent._extract_data(sample_pipeline_output, layer=2)
-        assert "Khoi dau" in chapters or len(chapters) > 0
+        assert "Khởi đầu" in chapters or len(chapters) > 0
 
     def test_extract_data_layer3_uses_panels(self, sample_pipeline_output):
         agent = self._make_agent()
@@ -329,12 +329,12 @@ class TestDialogueExpert:
         content = agent._extract_chapters(sample_pipeline_output, layer=2)
         assert isinstance(content, str)
         assert len(content) > 0
-        assert "Khoi dau" in content or "Thu thach" in content
+        assert "Khởi đầu" in content or "Thử thách" in content
 
     def test_extract_chapters_layer3_uses_voice_lines(self, sample_pipeline_output):
         agent = self._make_agent()
         content = agent._extract_chapters(sample_pipeline_output, layer=3)
-        assert "voice-over" in content.lower() or "Ly Huyen" in content
+        assert "voice-over" in content.lower() or "Lý Huyền" in content
 
     def test_extract_chapters_no_data_returns_default(self):
         agent = self._make_agent()
@@ -348,7 +348,7 @@ class TestDialogueExpert:
         from models.schemas import PipelineOutput
         output = PipelineOutput(story_draft=sample_story_draft)
         content = agent._extract_chapters(output, layer=2)
-        assert "Khoi dau" in content or len(content) > 0
+        assert "Khởi đầu" in content or len(content) > 0
 
     def test_review_calls_llm(self, sample_pipeline_output):
         agent = self._make_agent()
@@ -372,7 +372,7 @@ class TestDramaCritic:
         agent = self._make_agent()
         chapters, events = agent._extract_data(sample_pipeline_output)
         assert "Chưa có" not in chapters
-        assert "Ly Huyen" in chapters or "Khoi dau" in chapters
+        assert "Lý Huyền" in chapters or "Khởi đầu" in chapters
 
     def test_extract_data_with_simulation_events(self, sample_pipeline_output):
         agent = self._make_agent()
@@ -390,7 +390,7 @@ class TestDramaCritic:
     def test_extract_data_enhancement_notes_included(self, sample_pipeline_output):
         agent = self._make_agent()
         chapters, _ = agent._extract_data(sample_pipeline_output)
-        assert "Tang xung dot" in chapters
+        assert "Tăng xung đột" in chapters
 
     def test_review_calls_llm(self, sample_pipeline_output):
         agent = self._make_agent()
@@ -448,7 +448,7 @@ class TestEditorInChief:
     def test_get_content_for_layer1_includes_title(self, sample_pipeline_output):
         agent = self._make_agent()
         content = agent._get_content_for_layer(sample_pipeline_output, layer=1)
-        assert "Thanh Van Kiem Khach" in content
+        assert "Thanh Vân Kiếm Khách" in content
 
     def test_get_content_for_layer2_includes_drama_score(self, sample_pipeline_output):
         agent = self._make_agent()

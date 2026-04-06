@@ -185,7 +185,7 @@ class TestBuildChaptersHtml:
     def test_empty_content_shows_placeholder(self):
         ch = Chapter(chapter_number=1, title="Empty", content="")
         result = _build_chapters_html([ch])
-        assert "Chua co noi dung" in result
+        assert "Chưa có nội dung" in result
 
     def test_multiple_chapters_all_rendered(self):
         chapters = [_make_chapter(1, "Ch1"), _make_chapter(2, "Ch2")]
@@ -245,14 +245,14 @@ class TestHTMLExporter:
         output_path = str(tmp_path / "out.html")
         HTMLExporter.export(story, output_path)
         content = open(output_path, encoding="utf-8").read()
-        assert "0.9" in content or "Kich tinh" in content
+        assert "0.9" in content or "Kịch tính" in content
 
     def test_enhanced_story_zero_drama_no_badge(self, tmp_path):
         story = _make_enhanced_story(drama_score=0.0)
         output_path = str(tmp_path / "out.html")
         HTMLExporter.export(story, output_path)
         content = open(output_path, encoding="utf-8").read()
-        assert "Kich tinh" not in content
+        assert "Kịch tính" not in content
 
     def test_explicit_characters_override_story_characters(self, tmp_path):
         story = _make_story_draft(characters=[_make_character("InStory")])

@@ -66,12 +66,12 @@ def _build_character_cards(characters: list[Character]) -> str:
         card = f'''<div class="char-card">
 <h4>{name}</h4>
 {f'<p class="char-role">{role}</p>' if role else ''}
-{f'<p><strong>Tinh cach:</strong> {personality}</p>' if personality else ''}
-{f'<p><strong>Dong luc:</strong> {motivation}</p>' if motivation else ''}
+{f'<p><strong>Tính cách:</strong> {personality}</p>' if personality else ''}
+{f'<p><strong>Động lực:</strong> {motivation}</p>' if motivation else ''}
 </div>'''
         cards.append(card)
     return f'''<section class="characters" id="characters">
-<h2>Nhan vat</h2>
+<h2>Nhân vật</h2>
 <div class="char-grid">{"".join(cards)}</div>
 </section>'''
 
@@ -81,10 +81,10 @@ def _build_chapters_html(chapters: list) -> str:
     sections = []
     for ch in chapters:
         title = html.escape(ch.title)
-        content = _md_to_html(ch.content) if ch.content else '<p><em>Chua co noi dung.</em></p>'
+        content = _md_to_html(ch.content) if ch.content else '<p><em>Chưa có nội dung.</em></p>'
         sections.append(
             f'<article id="ch-{ch.chapter_number}" class="chapter">\n'
-            f'<h2>Chuong {ch.chapter_number}: {title}</h2>\n'
+            f'<h2>Chương {ch.chapter_number}: {title}</h2>\n'
             f'{content}\n'
             f'</article>'
         )
@@ -192,7 +192,7 @@ footer {{ text-align: center; padding: 30px; font-size: 13px; opacity: 0.5; }}
 {chapters_html}
 </div>
 <button class="back-top" id="backTop" onclick="window.scrollTo({{top:0,behavior:'smooth'}})">&uarr;</button>
-<footer>Tao boi StoryForge</footer>
+<footer>Tạo bởi StoryForge</footer>
 <script>
 function toggleNav(){{var n=document.getElementById('navSidebar');n.classList.toggle('open')}}
 function toggleTheme(){{var d=document.documentElement;
@@ -236,7 +236,7 @@ class HTMLExporter:
         drama_badge = ''
         if isinstance(story, EnhancedStory) and story.drama_score > 0:
             score_str = html.escape(f"{story.drama_score:.1f}")
-            drama_badge = f'<span class="badge">Kich tinh: {score_str}/1.0</span>'
+            drama_badge = f'<span class="badge">Kịch tính: {score_str}/1.0</span>'
 
         # Synopsis
         synopsis_html = ''

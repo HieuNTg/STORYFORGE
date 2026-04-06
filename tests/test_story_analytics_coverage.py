@@ -43,7 +43,7 @@ class TestAnalyzeChapter:
 
     def test_dialogue_detection_em_dash(self):
         # em-dash dialogue format common in Vietnamese fiction
-        ch = _make_chapter(1, "Dialogue", "— Ly Huyen: Chào bạn, hôm nay thế nào?")
+        ch = _make_chapter(1, "Dialogue", "— Lý Huyền: Chào bạn, hôm nay thế nào?")
         result = StoryAnalytics.analyze_chapter(ch)
         assert result["dialogue_count"] >= 0  # may or may not match pattern
 

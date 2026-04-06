@@ -63,28 +63,28 @@ def sample_characters():
     """Create sample characters for testing."""
     return [
         Character(
-            name="Ly Huyen",
+            name="Lý Huyền",
             role="protagonist",
-            personality="Kien cuong, thong minh",
-            motivation="Tim su that ve gia toc",
-            background="Mo coi tu nho, duoc su phu nuoi duong",
-            relationships=["Nguyen Minh: ban dong hanh", "Hoang Yen: ke thu"],
+            personality="Kiên cường, thông minh",
+            motivation="Tìm sự thật về gia tộc",
+            background="Mồ côi từ nhỏ, được sư phụ nuôi dưỡng",
+            relationships=["Nguyễn Minh: bạn đồng hành", "Hoàng Yến: kẻ thù"],
         ),
         Character(
-            name="Nguyen Minh",
+            name="Nguyễn Minh",
             role="sidekick",
-            personality="Hai huoc, trung thanh",
-            motivation="Bao ve ban be",
-            background="Con trai thuong nhan giau co",
-            relationships=["Ly Huyen: ban than"],
+            personality="Hài hước, trung thành",
+            motivation="Bảo vệ bạn bè",
+            background="Con trai thương nhân giàu có",
+            relationships=["Lý Huyền: bạn thân"],
         ),
         Character(
-            name="Hoang Yen",
+            name="Hoàng Yến",
             role="antagonist",
-            personality="Xao quyet, tham vong",
-            motivation="Chiem doat quyen luc",
-            background="Truong lao phan boi tong mon",
-            relationships=["Ly Huyen: ke thu"],
+            personality="Xảo quyệt, tham vọng",
+            motivation="Chiếm đoạt quyền lực",
+            background="Trưởng lão phản bội tông môn",
+            relationships=["Lý Huyền: kẻ thù"],
         ),
     ]
 
@@ -121,11 +121,11 @@ def sample_chapters():
 def sample_world():
     """Create sample world setting."""
     return WorldSetting(
-        name="Thanh Van Gioi",
-        description="The gioi tu tien voi 9 canh gioi",
-        rules=["Linh khi la nguon suc manh", "Tu luyen theo cap bac"],
-        locations=["Thanh Van Tong", "Hac Phong Coc", "Long Uyen Ho"],
-        era="Co dai",
+        name="Thanh Vân Giới",
+        description="Thế giới tu tiên với 9 cảnh giới",
+        rules=["Linh khí là nguồn sức mạnh", "Tu luyện theo cấp bậc"],
+        locations=["Thanh Vân Tông", "Hắc Phong Cốc", "Long Uyên Hồ"],
+        era="Cổ đại",
     )
 
 
@@ -133,9 +133,9 @@ def sample_world():
 def sample_outlines():
     """Create sample chapter outlines."""
     return [
-        ChapterOutline(chapter_number=1, title="Khoi dau", summary="MC gia nhap tong mon"),
-        ChapterOutline(chapter_number=2, title="Thu thach", summary="MC doi dau ke thu"),
-        ChapterOutline(chapter_number=3, title="Bi mat", summary="Phat hien am muu"),
+        ChapterOutline(chapter_number=1, title="Khởi đầu", summary="MC gia nhập tông môn"),
+        ChapterOutline(chapter_number=2, title="Thử thách", summary="MC đối đầu kẻ thù"),
+        ChapterOutline(chapter_number=3, title="Bí mật", summary="Phát hiện âm mưu"),
     ]
 
 
@@ -143,9 +143,9 @@ def sample_outlines():
 def sample_story_draft(sample_characters, sample_chapters, sample_world, sample_outlines):
     """Create a complete story draft."""
     return StoryDraft(
-        title="Thanh Van Kiem Khach",
+        title="Thanh Vân Kiếm Khách",
         genre="tien_hiep",
-        synopsis="Cau chuyen ve Ly Huyen tu luyen thanh kiem khach",
+        synopsis="Câu chuyện về Lý Huyền tu luyện thành kiếm khách",
         characters=sample_characters,
         world=sample_world,
         outlines=sample_outlines,
@@ -157,11 +157,11 @@ def sample_story_draft(sample_characters, sample_chapters, sample_world, sample_
 def sample_enhanced_story(sample_chapters):
     """Create a sample enhanced story."""
     return EnhancedStory(
-        title="Thanh Van Kiem Khach (Enhanced)",
+        title="Thanh Vân Kiếm Khách (Enhanced)",
         genre="tien_hiep",
         chapters=sample_chapters,
         drama_score=0.75,
-        enhancement_notes=["Tang xung dot giua MC va antagonist"],
+        enhancement_notes=["Tăng xung đột giữa MC và antagonist"],
     )
 
 
@@ -173,12 +173,12 @@ def sample_simulation_result():
             SimulationEvent(
                 round_number=1,
                 event_type="confrontation",
-                description="Ly Huyen doi dau Hoang Yen tai dai dien",
+                description="Lý Huyền đối đầu Hoàng Yến tại đại điện",
                 drama_score=0.8,
-                characters_involved=["Ly Huyen", "Hoang Yen"],
+                characters_involved=["Lý Huyền", "Hoàng Yến"],
             ),
         ],
-        drama_suggestions=["Them canh phan boi bat ngo"],
+        drama_suggestions=["Thêm cảnh phản bội bất ngờ"],
     )
 
 

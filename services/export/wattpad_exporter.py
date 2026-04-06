@@ -73,7 +73,7 @@ class PlatformExporter:
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write(f"{story.title}\n{'=' * 40}\n\n")
             for ch in story.chapters:
-                f.write(f"Chuong {ch.chapter_number}: {ch.title}\n")
+                f.write(f"Chương {ch.chapter_number}: {ch.title}\n")
                 f.write(f"{'-' * 30}\n{ch.content}\n\n")
         files.append(txt_path)
 
@@ -84,7 +84,7 @@ class PlatformExporter:
             )
             char_path = os.path.join(output_dir, "characters.txt")
             with open(char_path, "w", encoding="utf-8") as f:
-                f.write(f"Nhan vat chinh:\n{char_text}")
+                f.write(f"Nhân vật chính:\n{char_text}")
             files.append(char_path)
 
         # ZIP bundle
@@ -110,7 +110,7 @@ class PlatformExporter:
                 escaped = re.sub(r'\*(.+?)\*', r'<i>\1</i>', escaped)
                 paragraphs.append(f"<p>{escaped}</p>")
         body = "\n".join(paragraphs)
-        return f"<h2>Chuong {chapter.chapter_number}: {title}</h2>\n{body}"
+        return f"<h2>Chương {chapter.chapter_number}: {title}</h2>\n{body}"
 
     @staticmethod
     def _generate_tags(story) -> list:

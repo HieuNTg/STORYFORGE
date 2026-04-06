@@ -57,13 +57,13 @@ class PDFExporter:
         pdf.set_font_size(24)
         pdf.cell(0, 40, story.title, new_x="LMARGIN", new_y="NEXT", align="C")
         pdf.set_font_size(14)
-        pdf.cell(0, 10, f"The loai: {story.genre}", new_x="LMARGIN", new_y="NEXT", align="C")
+        pdf.cell(0, 10, f"Thể loại: {story.genre}", new_x="LMARGIN", new_y="NEXT", align="C")
 
         # Trang nhân vật
         if characters:
             pdf.add_page()
             pdf.set_font_size(16)
-            pdf.cell(0, 10, "Nhan vat", new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 10, "Nhân vật", new_x="LMARGIN", new_y="NEXT")
             pdf.set_font_size(11)
             for c in characters:
                 pdf.multi_cell(0, 6, f"- {c.name} ({c.role}): {c.personality}")
@@ -74,7 +74,7 @@ class PDFExporter:
         for ch in story.chapters:
             pdf.add_page()
             pdf.set_font_size(16)
-            pdf.cell(0, 10, f"Chuong {ch.chapter_number}: {ch.title}", new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(0, 10, f"Chương {ch.chapter_number}: {ch.title}", new_x="LMARGIN", new_y="NEXT")
             pdf.set_font_size(12)
             pdf.ln(5)
             # Chia nội dung thành đoạn văn
@@ -88,11 +88,11 @@ class PDFExporter:
         stats = PDFExporter.compute_reading_stats(story)
         pdf.add_page()
         pdf.set_font_size(14)
-        pdf.cell(0, 10, "Thong ke", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 10, "Thống kê", new_x="LMARGIN", new_y="NEXT")
         pdf.set_font_size(11)
-        pdf.cell(0, 8, f"Tong so tu: {stats.total_words:,}", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 8, f"Tổng số từ: {stats.total_words:,}", new_x="LMARGIN", new_y="NEXT")
         pdf.cell(0, 8, f"Số chương: {stats.total_chapters}", new_x="LMARGIN", new_y="NEXT")
-        pdf.cell(0, 8, f"Thoi gian doc: ~{stats.estimated_reading_minutes} phut", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 8, f"Thời gian đọc: ~{stats.estimated_reading_minutes} phút", new_x="LMARGIN", new_y="NEXT")
 
         out_dir = os.path.dirname(output_path)
         if out_dir:
