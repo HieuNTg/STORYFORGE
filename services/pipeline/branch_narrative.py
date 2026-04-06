@@ -119,7 +119,9 @@ class BranchManager:
         """Return full tree structure for visualization."""
         with self._lock:
             tree = self._get_session(session_id)
-            nodes_snapshot = {k: _public_node(v) for k, v in tree["nodes"].items()}
+            nodes_snapshot = {
+                k: _public_node(v, tree["nodes"]) for k, v in tree["nodes"].items()
+            }
             return {
                 "session_id": session_id,
                 "root": tree["root"],
@@ -127,8 +129,18 @@ class BranchManager:
                 "nodes": nodes_snapshot,
             }
 
+    def goto_node(self, session_id: str, node_id: str) -> dict:
+        """Jump to any existing node in the session tree."""
+        with self._lock:
+            tree = self._get_session(session_id)
+            if node_id not in tree["nodes"]:
+                raise ValueError(f"Node {node_id!r} not found in session")
+            tree["current"] = node_id
+            node = tree["nodes"][node_id]
+        return _public_node(node, tree["nodes"])
 
-def _public_node(node: dict) -> dict:
+
+def _public_node(node: dict, all_nodes: dict | None = None) -> dict:
     """Strip internal children map; expose child_ids list for UI."""
     return {
         "id": node["id"],
@@ -136,14 +148,20 @@ def _public_node(node: dict) -> dict:
         "choices": node["choices"],
         "parent": node["parent"],
         "child_ids": list(node["children"].values()),
-        "depth": _depth(node),
+        "depth": _depth(node, all_nodes),
     }
 
 
-def _depth(node: dict) -> int:
-    """Approximate depth via parent chain length (not stored; caller handles)."""
-    # depth is not tracked explicitly; expose parent presence for UI
-    return 0 if node["parent"] is None else 1
+def _depth(node: dict, all_nodes: dict | None = None) -> int:
+    """Compute depth by walking parent chain."""
+    if all_nodes is None:
+        return 0 if node["parent"] is None else 1
+    depth = 0
+    current = node
+    while current["parent"] is not None:
+        depth += 1
+        current = all_nodes.get(current["parent"], {"parent": None})
+    return depth
 
 
 # Module-level singleton

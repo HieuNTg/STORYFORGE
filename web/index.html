@@ -1606,6 +1606,35 @@
                           End Session
                         </button>
                       </div>
+
+                      <!-- Tree visualization -->
+                      <div x-data="treeVisualizer()" x-effect="setSession(sessionId)">
+                        <button @click="toggleTree(sessionId)"
+                          class="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors bg-surface-100 dark:bg-surface-800 text-slate-600 dark:text-slate-400 hover:bg-surface-200 dark:hover:bg-surface-700 inline-flex items-center gap-1.5">
+                          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 01-1.125-1.125v-3.75zM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-8.25zM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-2.25z"/></svg>
+                          <span x-text="showTree ? 'Hide Tree' : 'Show Tree'"></span>
+                        </button>
+                        <div x-show="showTree" x-transition class="mt-3 card overflow-x-auto">
+                          <template x-if="treeLoading">
+                            <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-500">Loading tree...</div>
+                          </template>
+                          <template x-if="treeLayout && treeLayout.nodes.length > 0">
+                            <svg :viewBox="viewBox" class="min-w-full" :style="'min-height:' + treeLayout.height + 'px'" xmlns="http://www.w3.org/2000/svg">
+                              <template x-for="edge in treeLayout.edges" :key="edge.x1 + '-' + edge.y1 + '-' + edge.x2 + '-' + edge.y2">
+                                <line :x1="edge.x1" :y1="edge.y1" :x2="edge.x2" :y2="edge.y2" class="stroke-surface-300 dark:stroke-surface-600" stroke-width="2"/>
+                              </template>
+                              <template x-for="node in treeLayout.nodes" :key="node.id">
+                                <g class="cursor-pointer" @click="gotoNode(sessionId, node.id).then(n => { if(n) { currentNode = n; history = []; refreshTree(sessionId); } })">
+                                  <circle :cx="node.x" :cy="node.y" r="18"
+                                    :class="node.isCurrent ? 'fill-brand-500 stroke-brand-300' : 'fill-surface-200 dark:fill-surface-700 stroke-surface-400 dark:stroke-surface-500'"
+                                    stroke-width="2"/>
+                                  <text :x="node.x" :y="node.y + 32" text-anchor="middle" class="fill-slate-500 dark:fill-slate-400" font-size="9" x-text="node.label"></text>
+                                </g>
+                              </template>
+                            </svg>
+                          </template>
+                        </div>
+                      </div>
                     </div>
                   </template>
                 </div>
@@ -1684,6 +1713,7 @@
   <script src="/static/js/pages/pipeline.js"></script>
   <script src="/static/js/pages/settings.js"></script>
   <script src="/static/js/branch-reader.js"></script>
+  <script src="/static/js/tree-visualizer.js"></script>
   <script src="/static/js/i18n.js"></script>
   <script src="/static/js/app.js"></script>
   <script>

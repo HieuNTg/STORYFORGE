@@ -112,6 +112,7 @@ document.addEventListener('alpine:init', () => {
             choiceLabel,
           });
           data.currentNode = d.node;
+          document.dispatchEvent(new CustomEvent('branch:navigated'));
         } catch (e) {
           data.error = (e as Error).message;
         } finally {
@@ -131,6 +132,7 @@ document.addEventListener('alpine:init', () => {
           const d: BranchBackResponse = await res.json();
           data.currentNode = d.node;
           data.history.pop();
+          document.dispatchEvent(new CustomEvent('branch:navigated'));
         } catch (e) {
           data.error = (e as Error).message;
         } finally {

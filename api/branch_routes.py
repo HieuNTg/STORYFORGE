@@ -29,6 +29,10 @@ class ChooseBody(BaseModel):
     choice_index: int = Field(..., ge=0, le=9)
 
 
+class GotoBody(BaseModel):
+    node_id: str = Field(..., min_length=1, max_length=64)
+
+
 # ── Routes ──────────────────────────────────────────────────────────────────
 
 @router.post("/start", status_code=201)
@@ -106,6 +110,18 @@ def go_back(session_id: str):
     """Navigate to parent node."""
     try:
         node = manager.go_back(session_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"node": node}
+
+
+@router.post("/{session_id}/goto")
+def goto_node(session_id: str, body: GotoBody):
+    """Jump to any existing node in the session tree."""
+    try:
+        node = manager.goto_node(session_id, body.node_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except ValueError as exc:
