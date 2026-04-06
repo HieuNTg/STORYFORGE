@@ -240,6 +240,25 @@ def main():
     main_app.include_router(v1_router)
     main_app.add_middleware(DeprecationMiddleware)
 
+    # --- Body size limit (outermost — runs first, blocks oversized requests early) ---
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from fastapi import Request
+    from starlette.responses import JSONResponse as _SJSONResponse
+
+    MAX_BODY_SIZE = 10 * 1024 * 1024  # 10 MB
+
+    class BodySizeLimitMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):
+            content_length = request.headers.get("content-length")
+            if content_length and int(content_length) > MAX_BODY_SIZE:
+                return _SJSONResponse(
+                    status_code=413,
+                    content={"detail": "Request body too large. Maximum size is 10MB."}
+                )
+            return await call_next(request)
+
+    main_app.add_middleware(BodySizeLimitMiddleware)
+
     # Static files (web/)
     web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
     main_app.mount("/static", StaticFiles(directory=web_dir), name="static")

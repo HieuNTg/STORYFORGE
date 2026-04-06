@@ -44,7 +44,7 @@ function analyticsPage() {
 
     init(): void {
       // Recompute when pipelineResult changes
-      this.$watch('result', (val: AnalyticsPipelineResult | null) => {
+      this.$watch('result', (val: unknown) => {
         if (val) {
           this.compute();
         } else {
@@ -53,7 +53,8 @@ function analyticsPage() {
         }
       });
       // Reset when new pipeline run starts
-      this.$watch(() => Alpine.store('pipeline').status, (status: string) => {
+      this.$watch(() => Alpine.store('pipeline').status, (val: unknown) => {
+        const status = val as string;
         if (status === 'running') {
           this.stats = null;
           this.loaded = false;

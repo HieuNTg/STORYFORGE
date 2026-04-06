@@ -32,6 +32,11 @@ node_modules/
 !requirements.txt
 repomix-output.xml
 
+# Secrets
+data/config.json
+data/secrets.json
+data/jwt_keys/
+
 # Runtime data & caches
 output/*
 data/cache.db

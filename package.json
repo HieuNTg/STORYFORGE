@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "StoryForge AI-powered story generation platform — frontend build pipeline",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.build.json",
@@ -13,7 +14,7 @@
     "test:coverage": "vitest --coverage",
     "test:ui": "vitest --ui",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint web/js --ext .ts",
+    "lint": "eslint",
     "format": "prettier --write \"web/js/**/*.ts\""
   },
   "devDependencies": {
