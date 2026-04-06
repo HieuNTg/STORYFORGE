@@ -50,20 +50,44 @@ Hầu hết công cụ viết AI tạo ra những câu chuyện phẳng, dễ đ
 
 ## Tính năng chính
 
+### Engine Truyện
 - **Pipeline 2 lớp** — Tạo truyện → Mô phỏng kịch tính, có checkpoint & tiếp tục, streaming SSE thời gian thực
 - **13 tác nhân AI chuyên biệt** — nhân vật tự trị + nhà phê bình kịch tính, tổng biên tập, phân tích nhịp điệu, kiểm tra phong cách, chuyên gia hội thoại...
 - **Chấm điểm & tự sửa** — đánh giá LLM theo 4 chiều (mạch lạc, nhân vật, kịch tính, văn phong) với vòng lặp tự động nâng chất
+- **Tiếp tục truyện** — thêm chương mới vào truyện đã lưu từ checkpoint, tùy chỉnh số chương và số từ; tùy chọn chạy lại Layer 2 nâng chất toàn bộ truyện
+- **Bộ nhớ truyện tích lũy** — kiến thức nhân vật, mối quan hệ và tuyến truyện được tích lũy xuyên suốt các chương thay vì reset, đảm bảo tính liên tục cho truyện nhiều chương
+- **RAG knowledge base** — truy xuất ngữ cảnh xây dựng thế giới qua ChromaDB + sentence-transformers; tải file `.txt`, `.md`, hoặc `.pdf` tham khảo để làm giàu nội dung truyện
+
+### Đọc Nhánh Tương Tác
+- **Chọn-hướng-phiêu-lưu** — các nhánh sinh bởi LLM với streaming SSE thời gian thực
+- **Cây SVG tương tác** — bản đồ cây tất cả nhánh với điều hướng goto-node bấm được
+- **Giới hạn 10 tầng sâu** — tự động tạo kết thúc khi đạt độ sâu tối đa
+- **Lưu phiên** — trạng thái đọc nhánh lưu vào localStorage, giữ nguyên khi tải lại trang
+- **Chọn chương** — tải bất kỳ truyện nào từ pipeline hiện tại hoặc checkpoint đã lưu vào chế độ nhánh
+
+### Hình Ảnh & Xuất
 - **Tạo hình ảnh** — chân dung nhân vật nhất quán (IP-Adapter) và phông cảnh điện ảnh, tạo sau mô phỏng kịch tính
+- **Xuất phong phú** — PDF, EPUB, HTML web reader, ZIP với các chương và gợi ý hình ảnh
+
+### LLM & Nhà Cung Cấp
 - **Hỗ trợ đa nhà cung cấp LLM** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ model), Ollama (local), hoặc endpoint tùy chỉnh; tự nhận diện nhà cung cấp từ API key
 - **Fallback đa nhà cung cấp** — cấu hình hồ sơ dự phòng tự động chuyển sang nhà cung cấp khác khi bị rate limit hoặc lỗi
-- **Bộ nhớ truyện tích lũy** — kiến thức nhân vật, mối quan hệ và tuyến truyện được tích lũy xuyên suốt các chương thay vì reset, đảm bảo tính liên tục cho truyện nhiều chương
-- **Tiếng Việt & Tiếng Anh** — tạo truyện song ngữ ngay từ đầu
-- **Xuất phong phú** — PDF, EPUB, HTML web reader, ZIP với các chương và gợi ý hình ảnh
-- **Chế độ đọc nhánh tương tác** — chọn-hướng-phiêu-lưu với các nhánh sinh bởi LLM
-- **Giao diện Sáng / Tối** — chuyển đổi theme mượt mà với đồng bộ color-scheme toàn bộ trang
-- **Tự host, bảo mật** — truyện và API key không bao giờ rời khỏi hạ tầng của bạn
-- **Cache LLM tích hợp** — cache SQLite tránh gọi API lặp lại
 - **Định tuyến model thông minh** — model rẻ cho phân tích, model cao cấp cho viết (~45% tiết kiệm chi phí)
+- **Cache LLM tích hợp** — cache SQLite tránh gọi API lặp lại
+
+### Giao Diện & Trải Nghiệm
+- **Trang pipeline thiết kế mới** — form Tạo Truyện hiện đại với hero cards, config pills, và form state lưu tự động
+- **Wizard cài đặt** — hướng dẫn từng bước chọn nhà cung cấp, nhập API key, chọn model với kiểm tra kết nối tự động
+- **Heroicons SVG** — thay thế toàn bộ emoji bằng Heroicons SVG sắc nét
+- **Giao diện Sáng / Tối** — chuyển đổi theme mượt mà với đồng bộ color-scheme toàn bộ trang
+- **Tiếng Việt & Tiếng Anh** — tạo truyện song ngữ ngay từ đầu
+
+### Bảo Mật & Hạ Tầng
+- **Bảo vệ CSRF** — double-submit cookie pattern cho mọi request thay đổi trạng thái
+- **Giới hạn body** — payload request tối đa 10 MB
+- **Chặn prompt injection** — middleware phát hiện và chặn các mẫu injection trong JSON payload
+- **Mã hóa secrets** — API key được mã hóa trong `data/secrets.json` (yêu cầu `STORYFORGE_SECRET_KEY`)
+- **Tự host, bảo mật** — truyện và API key không bao giờ rời khỏi hạ tầng của bạn
 - **Tùy chỉnh prompt tác nhân** — chỉnh sửa `data/prompts/agent_prompts.yaml` để điều chỉnh cách tác nhân AI đánh giá và nâng chất truyện
 
 ---
@@ -92,11 +116,12 @@ python app.py
 
 ### Lần chạy đầu tiên
 
-1. **Cài đặt** → dán API key (tự nhận diện nhà cung cấp), chọn model
+1. **Cài đặt** → wizard hướng dẫn chọn nhà cung cấp, nhập API key, chọn model — tự động kiểm tra kết nối
 2. **Tạo truyện** → chọn thể loại, phong cách, mô tả ý tưởng một câu
 3. **Chạy Pipeline** → xem quá trình tạo, mô phỏng và tạo hình ảnh stream thời gian thực
-4. **Đọc** → đọc truyện hoàn chỉnh hoặc khởi động Chế độ Nhánh tương tác
-5. **Xuất** → tải xuống PDF, EPUB, HTML, hoặc ZIP storyboard
+4. **Tiếp tục** → thêm chương mới vào bất kỳ truyện đã lưu từ checkpoint
+5. **Đọc nhánh** → khám phá nhánh tương tác với cây SVG trực quan
+6. **Xuất** → tải xuống PDF, EPUB, HTML, hoặc ZIP storyboard
 
 ---
 
@@ -106,13 +131,15 @@ python app.py
 
 | Biến | Mặc định | Mô tả |
 |------|----------|-------|
-| `STORYFORGE_SECRET_KEY` | _(dựa trên file)_ | Khóa ký HMAC. **Bắt buộc đặt trong production.** |
+| `STORYFORGE_SECRET_KEY` | _(dựa trên file)_ | Khóa ký HMAC. Kích hoạt mã hóa secrets. **Bắt buộc đặt trong production.** |
 | `REDIS_URL` | _(không có)_ | Redis URL cho cache + session. Bắt buộc khi chạy nhiều instance. |
 | `NUM_WORKERS` | `1` | Số worker Uvicorn. Tăng theo số CPU core. |
 | `STORYFORGE_ALLOWED_ORIGINS` | `localhost:7860` | CORS origins (phân cách bằng dấu phẩy). |
 | `TRUSTED_PROXY_IPS` | _(không có)_ | IP proxy tin cậy cho X-Forwarded-For. |
 | `DB_POOL_SIZE` | `5` | Kích thước connection pool SQLAlchemy. |
 | `STORYFORGE_BLOCK_INJECTION` | `true` | Chặn các prompt injection bị phát hiện. |
+| `CHROMA_PERSIST_DIR` | `data/chroma` | Thư mục lưu trữ ChromaDB cho RAG knowledge base. |
+| `CHROMA_COLLECTION_NAME` | `storyforge` | Tên collection ChromaDB. |
 
 ### Một instance (mặc định)
 Hoạt động ngay với SQLite cache. Không cần Redis.
@@ -233,6 +260,7 @@ flowchart LR
 | Frontend | Alpine.js 3, TypeScript, Tailwind CSS |
 | Streaming | Server-Sent Events (SSE) |
 | AI / LLM | API tương thích OpenAI bất kỳ |
+| RAG | ChromaDB, sentence-transformers (tùy chọn) |
 | Tạo hình ảnh | IP-Adapter (nhất quán nhân vật), diffusion models (phông cảnh) |
 | Lưu trữ | JSON files, SQLite (cache dev), Redis (cache production) |
 | Xuất | fpdf2 (PDF), ebooklib (EPUB) |
@@ -255,6 +283,7 @@ storyforge/
 ├── services/                   # Logic nghiệp vụ tái sử dụng
 │   ├── llm/                    #   LLM client với provider abstraction & fallback
 │   ├── llm_cache.py            #   Cache hai backend (Redis / SQLite)
+│   ├── rag_knowledge_base.py   #   Truy xuất ngữ cảnh RAG (ChromaDB)
 │   ├── pipeline/               #   Chấm điểm, đọc nhánh, sửa thông minh
 │   ├── media/                  #   Tạo hình ảnh (chân dung, phông cảnh)
 │   ├── export/                 #   Xuất PDF, EPUB, HTML, Wattpad
@@ -262,9 +291,11 @@ storyforge/
 │   └── ...                     #   Analytics, feedback, onboarding, v.v.
 ├── api/                        # REST endpoint FastAPI
 │   ├── pipeline_routes.py      #   Pipeline SSE streaming + tiếp tục
+│   ├── continuation_routes.py  #   Tiếp tục truyện với chương mới
+│   ├── branch_routes.py        #   API đọc nhánh tương tác
 │   ├── config_routes.py        #   Settings CRUD + kiểm tra kết nối
 │   ├── export_routes.py        #   Xuất PDF, EPUB, ZIP
-│   └── ...                     #   Auth, analytics, health, metrics, v.v.
+│   └── ...                     #   Analytics, health, metrics, v.v.
 ├── web/                        # Frontend Alpine.js (SPA)
 │   ├── index.html              #   Ứng dụng chính
 │   ├── js/                     #   TypeScript source → biên dịch qua tsc

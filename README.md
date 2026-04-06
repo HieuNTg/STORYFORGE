@@ -50,20 +50,44 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 
 ## Features
 
+### Story Engine
 - **2-layer pipeline** — Story Generation → Drama Simulation, with checkpoint & resume and real-time SSE streaming
 - **13 specialized AI agents** — autonomous character agents plus a drama critic, editor-in-chief, pacing analyzer, style consistency checker, dialogue expert, and more
 - **Quality scoring & auto-revision** — 4-dimension LLM-as-judge (coherence, character, drama, writing style) with an automated re-enhancement loop
+- **Continue story** — append new chapters to existing stories from saved checkpoints, with configurable chapter count and word count; optional Layer 2 re-enhancement on the full story
+- **Cumulative story memory** — character knowledge, relationships, and plot threads accumulate across chapters instead of resetting, ensuring multi-chapter continuity
+- **RAG knowledge base** — optional world-building context retrieval via ChromaDB + sentence-transformers; upload `.txt`, `.md`, or `.pdf` reference files to enrich story generation
+
+### Interactive Branch Reader
+- **Choose-your-own-adventure** — LLM-generated branching paths with real-time SSE streaming
+- **SVG tree visualization** — interactive tree map of all branches with clickable goto-node navigation
+- **10-level depth limit** — automatic ending generation when maximum depth is reached
+- **Session persistence** — branch reader state saved to localStorage, survives page refresh
+- **Chapter selection** — load any story from the current pipeline or saved checkpoints into branch mode
+
+### Image & Export
 - **Image generation** — character-consistent portraits (IP-Adapter) and cinematic scene backgrounds, generated after drama simulation
+- **Rich export** — PDF, EPUB, HTML web reader, and ZIP with chapters and image prompts
+
+### LLM & Providers
 - **Multi-provider LLM support** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ models), Ollama (local), or any custom OpenAI-compatible endpoint; auto-detect provider from API key
 - **Multi-provider fallback** — configure fallback profiles that auto-switch between providers on rate limit or failure
-- **Cumulative story memory** — character knowledge, relationships, and plot threads accumulate across chapters instead of resetting, ensuring multi-chapter continuity
-- **Vietnamese & English** — bilingual story generation out of the box
-- **Rich export** — PDF, EPUB, HTML web reader, and ZIP with chapters and image prompts
-- **Interactive branch reader** — choose-your-own-adventure mode with LLM-generated branching paths
-- **Dark / Light mode** — polished theme toggle with full color-scheme sync across all pages
-- **Self-hosted, privacy-first** — your stories and API keys never leave your infrastructure
-- **Built-in LLM cache** — SQLite-backed cache to avoid redundant API calls
 - **Smart model routing** — assign cheap models to analysis tasks and premium models to writing (~45% cost savings)
+- **Built-in LLM cache** — SQLite-backed cache to avoid redundant API calls
+
+### UI & Experience
+- **Redesigned pipeline page** — modernized Create Story form with hero cards, config pills, and persistent form state
+- **Settings wizard** — guided multi-step provider setup with provider-specific model lists, API key masking, and connection testing
+- **Heroicons SVG icons** — all emoji icons replaced with crisp Heroicons SVGs
+- **Dark / Light mode** — polished theme toggle with full color-scheme sync across all pages
+- **Vietnamese & English** — bilingual story generation out of the box
+
+### Security & Infrastructure
+- **CSRF protection** — double-submit cookie pattern on all state-changing requests
+- **Body size limit** — 10 MB request payload limit
+- **Prompt injection blocking** — middleware detects and blocks injection patterns in JSON payloads
+- **Encrypted secrets** — API keys encrypted at rest in `data/secrets.json` (requires `STORYFORGE_SECRET_KEY`)
+- **Self-hosted, privacy-first** — your stories and API keys never leave your infrastructure
 - **Customizable agent prompts** — edit `data/prompts/agent_prompts.yaml` to tune how AI agents evaluate and enhance stories
 
 ---
@@ -92,11 +116,12 @@ python app.py
 
 ### First Run
 
-1. **Settings** → paste your API key (provider auto-detected), select model
+1. **Settings** → the setup wizard guides you through provider selection, API key, and model — connection tested automatically
 2. **Create Story** → pick genre, style, describe your idea in one sentence
 3. **Run Pipeline** → watch generation, simulation, and image generation stream in real-time
-4. **Reader** → read the finished story or launch Branch Mode for interactive paths
-5. **Export** → download as PDF, EPUB, HTML, or storyboard ZIP
+4. **Continue** → add more chapters to any saved story from checkpoints
+5. **Branch Reader** → explore interactive branching paths with SVG tree visualization
+6. **Export** → download as PDF, EPUB, HTML, or storyboard ZIP
 
 ---
 
@@ -106,13 +131,15 @@ python app.py
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `STORYFORGE_SECRET_KEY` | _(file-based)_ | HMAC signing key. **Set this in production.** |
+| `STORYFORGE_SECRET_KEY` | _(file-based)_ | HMAC signing key. Enables encrypted secrets storage. **Set this in production.** |
 | `REDIS_URL` | _(none)_ | Redis URL for cache + sessions. Required for multi-instance. |
 | `NUM_WORKERS` | `1` | Uvicorn workers. Scale with CPU cores. |
 | `STORYFORGE_ALLOWED_ORIGINS` | `localhost:7860` | CORS origins (comma-separated). |
 | `TRUSTED_PROXY_IPS` | _(none)_ | Trusted proxy IPs for X-Forwarded-For. |
 | `DB_POOL_SIZE` | `5` | SQLAlchemy connection pool size. |
 | `STORYFORGE_BLOCK_INJECTION` | `true` | Block detected prompt injections. |
+| `CHROMA_PERSIST_DIR` | `data/chroma` | ChromaDB persistence directory for RAG knowledge base. |
+| `CHROMA_COLLECTION_NAME` | `storyforge` | ChromaDB collection name. |
 
 ### Single Instance (default)
 Works out of the box with SQLite cache. No Redis needed.
@@ -233,6 +260,7 @@ flowchart LR
 | Frontend | Alpine.js 3, TypeScript, Tailwind CSS |
 | Streaming | Server-Sent Events (SSE) |
 | AI / LLM | Any OpenAI-compatible API |
+| RAG | ChromaDB, sentence-transformers (optional) |
 | Image Generation | IP-Adapter (character consistency), diffusion models (scene backgrounds) |
 | Storage | JSON files, SQLite (dev cache), Redis (production cache) |
 | Export | fpdf2 (PDF), ebooklib (EPUB) |
@@ -255,6 +283,7 @@ storyforge/
 ├── services/                   # Reusable business logic
 │   ├── llm/                    #   LLM client with provider abstraction & fallback
 │   ├── llm_cache.py            #   Dual-backend cache (Redis / SQLite)
+│   ├── rag_knowledge_base.py   #   RAG context retrieval (ChromaDB)
 │   ├── pipeline/               #   Quality scoring, branch narrative, smart revision
 │   ├── media/                  #   Image generation (character portraits, scenes)
 │   ├── export/                 #   PDF, EPUB, HTML, Wattpad exporters
@@ -262,9 +291,11 @@ storyforge/
 │   └── ...                     #   Analytics, feedback, onboarding, etc.
 ├── api/                        # FastAPI REST endpoints
 │   ├── pipeline_routes.py      #   Pipeline SSE streaming + resume
+│   ├── continuation_routes.py  #   Continue story with new chapters
+│   ├── branch_routes.py        #   Interactive branch reader API
 │   ├── config_routes.py        #   Settings CRUD + connection test
 │   ├── export_routes.py        #   PDF, EPUB, ZIP export
-│   └── ...                     #   Auth, analytics, health, metrics, etc.
+│   └── ...                     #   Analytics, health, metrics, etc.
 ├── web/                        # Alpine.js frontend (SPA)
 │   ├── index.html              #   Main application
 │   ├── js/                     #   TypeScript source → compiled to JS via tsc
