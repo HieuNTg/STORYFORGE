@@ -57,7 +57,7 @@ def process_chapter_post_write(
         if revised_content != chapter.content:
             if progress_callback:
                 progress_callback(
-                    f"Chuong {outline.chapter_number} da duoc cai thien "
+                    f"Chương {outline.chapter_number} đã được cải thiện "
                     f"(score: {review_scores['overall']:.1f})"
                 )
             chapter.content = revised_content

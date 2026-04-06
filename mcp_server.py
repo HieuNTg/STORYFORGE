@@ -218,11 +218,11 @@ def _handle_generate_story(args: dict) -> dict:
                 def _progress(msg):
                     j = _get_job(story_id) or {}
                     j.setdefault("logs", []).append(msg)
-                    if "Layer 1 hoan tat" in msg or "Layer 1 hoàn tất" in msg:
+                    if "Layer 1 hoàn tất" in msg:
                         j["progress"] = 0.33
-                    elif "Layer 2 hoan tat" in msg or "Layer 2 hoàn tất" in msg:
+                    elif "Layer 2 hoàn tất" in msg:
                         j["progress"] = 0.66
-                    elif "PIPELINE HOAN TAT" in msg or "PIPELINE HOÀN TẤT" in msg:
+                    elif "PIPELINE HOÀN TẤT" in msg:
                         j["progress"] = 1.0
                     _set_job(story_id, j)
 

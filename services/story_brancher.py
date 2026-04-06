@@ -14,37 +14,37 @@ logger = logging.getLogger(__name__)
 BRANCHES_DIR = "data/branches"
 
 BRANCH_POINT_PROMPT = """Dựa trên nội dung chương sau, tạo 2-3 lựa chọn
-cho nguoi doc de tiep tuc cau truyen theo huong khac nhau.
+cho người đọc để tiếp tục câu truyện theo hướng khác nhau.
 
-Chuong {chapter_number}: {title}
+Chương {chapter_number}: {title}
 ---
 {content_excerpt}
 ---
-The loai: {genre}
+Thể loại: {genre}
 
-Tra ve JSON:
+Trả về JSON:
 {{
   "choices": [
-    {{"text": "<lua chon 1>", "direction": "<mo ta ngan huong di>"}},
-    {{"text": "<lua chon 2>", "direction": "<mo ta ngan huong di>"}}
+    {{"text": "<lựa chọn 1>", "direction": "<mô tả ngắn hướng đi>"}},
+    {{"text": "<lựa chọn 2>", "direction": "<mô tả ngắn hướng đi>"}}
   ]
 }}"""
 
 BRANCH_CONTENT_PROMPT = """Viết tiếp chương truyện theo hướng đã chọn.
 
-Boi canh truoc do:
+Bối cảnh trước đó:
 {previous_content_excerpt}
 
-Lua chon cua nguoi doc: {choice_text}
-Huong di: {direction}
-The loai: {genre}
+Lựa chọn của người đọc: {choice_text}
+Hướng đi: {direction}
+Thể loại: {genre}
 
-Yeu cau:
-- Khoang {word_count} tu
-- Tiep noi tu nhien tu noi dung truoc
-- Ket thuc o mot diem co the tao them lua chon
+Yêu cầu:
+- Khoảng {word_count} từ
+- Tiếp nối tự nhiên từ nội dung trước
+- Kết thúc ở một điểm có thể tạo thêm lựa chọn
 
-Bat dau viet:"""
+Bắt đầu viết:"""
 
 
 class StoryBrancher:

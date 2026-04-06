@@ -95,24 +95,24 @@ def sample_chapters():
     return [
         Chapter(
             chapter_number=1,
-            title="Khoi dau",
-            content="Ly Huyen buoc vao tong mon voi anh mat kien dinh. "
-                    "Anh biet con duong phia truoc day gian nan, nhung quyet tam khong lui buoc.",
-            summary="Ly Huyen gia nhap tong mon",
+            title="Khởi đầu",
+            content="Lý Huyền bước vào tông môn với ánh mắt kiên định. "
+                    "Anh biết con đường phía trước đầy gian nan, nhưng quyết tâm không lui bước.",
+            summary="Lý Huyền gia nhập tông môn",
         ),
         Chapter(
             chapter_number=2,
-            title="Thu thach dau tien",
-            content="Tran dau dau tien cua Ly Huyen tai tong mon. "
-                    "Doi thu la Hoang Yen, ke co suc manh vuot troi.",
-            summary="Ly Huyen doi dau Hoang Yen",
+            title="Thử thách đầu tiên",
+            content="Trận đấu đầu tiên của Lý Huyền tại tông môn. "
+                    "Đối thủ là Hoàng Yến, kẻ có sức mạnh vượt trội.",
+            summary="Lý Huyền đối đầu Hoàng Yến",
         ),
         Chapter(
             chapter_number=3,
-            title="Bi mat phat lo",
-            content="Nguyen Minh phat hien bi mat cua tong mon. "
-                    "Mot am muu dang hinh thanh trong bong toi.",
-            summary="Phat hien am muu trong tong mon",
+            title="Bí mật phát lộ",
+            content="Nguyễn Minh phát hiện bí mật của tông môn. "
+                    "Một âm mưu đang hình thành trong bóng tối.",
+            summary="Phát hiện âm mưu trong tông môn",
         ),
     ]
 

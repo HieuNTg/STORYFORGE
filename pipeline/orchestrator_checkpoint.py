@@ -118,7 +118,7 @@ class CheckpointManager:
                 from pipeline.agents import register_all_agents
                 register_all_agents()
             except Exception as e:
-                logger.warning(f"Khong the khoi tao agents: {e}")
+                logger.warning(f"Không thể khởi tạo agents: {e}")
                 enable_agents = False
 
         draft = self.output.story_draft

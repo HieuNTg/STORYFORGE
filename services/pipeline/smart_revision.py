@@ -41,12 +41,12 @@ class SmartRevisionService:
 
         # Get latest quality scores
         if not quality_scores:
-            _log("Khong co diem chat luong, bo qua revision.")
+            _log("Không có điểm chất lượng, bỏ qua revision.")
             return {"revised_count": 0, "total_weak": 0, "score_deltas": []}
 
         latest_scores = quality_scores[-1]
         if not latest_scores.chapter_scores:
-            _log("Khong co diem theo chuong, bo qua revision.")
+            _log("Không có điểm theo chương, bỏ qua revision.")
             return {"revised_count": 0, "total_weak": 0, "score_deltas": []}
 
         # Find weak chapters
@@ -56,10 +56,10 @@ class SmartRevisionService:
         ]
 
         if not weak_scores:
-            _log("Tat ca chuong dat chuan, khong can sua.")
+            _log("Tất cả chương đạt chuẩn, không cần sửa.")
             return {"revised_count": 0, "total_weak": 0, "score_deltas": []}
 
-        _log(f"Tim thay {len(weak_scores)} chuong yeu (< {self.threshold}/5)")
+        _log(f"Tìm thấy {len(weak_scores)} chương yếu (< {self.threshold}/5)")
 
         # Build chapter lookup
         chapter_map = {c.chapter_number: c for c in enhanced_story.chapters}
@@ -77,7 +77,7 @@ class SmartRevisionService:
 
             revised = False
             for pass_num in range(1, self.max_passes + 1):
-                _log(f"Chuong {cs.chapter_number}: lan thu {pass_num}/{self.max_passes} (diem hien tai: {old_score:.1f})")
+                _log(f"Chương {cs.chapter_number}: lần thứ {pass_num}/{self.max_passes} (điểm hiện tại: {old_score:.1f})")
 
                 # Build revision prompt
                 prompt = prompts.SMART_REVISE_CHAPTER.format(
@@ -119,7 +119,7 @@ class SmartRevisionService:
                     break
 
                 delta = new_score - old_score
-                _log(f"Chuong {cs.chapter_number}: diem moi {new_score:.1f} (delta: {delta:+.1f})")
+                _log(f"Chương {cs.chapter_number}: điểm mới {new_score:.1f} (delta: {delta:+.1f})")
 
                 if delta >= MIN_IMPROVEMENT_DELTA:
                     # Accept revision
@@ -135,12 +135,12 @@ class SmartRevisionService:
                     revised = True
                     break
                 else:
-                    _log(f"Chuong {cs.chapter_number}: lan {pass_num} cai thien khong du ({delta:+.1f} < +{MIN_IMPROVEMENT_DELTA}), thu lai...")
+                    _log(f"Chương {cs.chapter_number}: lần {pass_num} cải thiện không đủ ({delta:+.1f} < +{MIN_IMPROVEMENT_DELTA}), thử lại...")
 
             if revised:
                 revised_count += 1
 
-        _log(f"Hoan tat: da sua {revised_count}/{len(weak_scores)} chuong yeu")
+        _log(f"Hoàn tất: đã sửa {revised_count}/{len(weak_scores)} chương yếu")
         return {
             "revised_count": revised_count,
             "total_weak": len(weak_scores),

@@ -23,46 +23,46 @@ def get_genre_threshold(genre: str, fallback: float = DEFAULT_THRESHOLD) -> floa
 
 CRITIC_PROMPT = """Bạn là nhà phê bình văn học nghiêm khắc. Đánh giá chương truyện sau:
 
-Chuong {chapter_number}: {title}
-The loai: {genre}
+Chương {chapter_number}: {title}
+Thể loại: {genre}
 ---
 {content}
 ---
 
-Suy nghi tung buoc (chain-of-thought):
-1. Tinh lien ket cua cot truyen co logic khong?
+Suy nghĩ từng bước (chain-of-thought):
+1. Tính liên kết của cốt truyện có logic không?
 2. Nhân vật hành động có nhất quán không?
-3. Nhip do co phu hop khong? Co doan nao nham khong?
-4. Van phong co hap dan khong?
+3. Nhịp độ có phù hợp không? Có đoạn nào nhạm không?
+4. Văn phong có hấp dẫn không?
 
-Tra ve JSON:
+Trả về JSON:
 {{
   "coherence": <1-5>,
   "character_consistency": <1-5>,
   "pacing": <1-5>,
   "writing_quality": <1-5>,
   "overall": <1-5>,
-  "weaknesses": ["<diem yeu 1>", "<diem yeu 2>"],
-  "strengths": ["<diem manh 1>"]
+  "weaknesses": ["<điểm yếu 1>", "<điểm yếu 2>"],
+  "strengths": ["<điểm mạnh 1>"]
 }}"""
 
 REVISE_PROMPT = """Viết lại chương truyện sau, chỉ sửa các điểm yếu đã chỉ ra.
 GIỮ NGUYÊN cốt truyện, nhân vật, và các điểm mạnh.
 
-Diem yeu can sua:
+Điểm yếu cần sửa:
 {weaknesses}
 
-Noi dung goc:
+Nội dung gốc:
 ---
 {content}
 ---
 
-Yeu cau:
-- Khoang {word_count} tu
-- Viet hoan toan bang tieng Viet
-- Chi cai thien diem yeu, KHONG thay doi cot truyen
+Yêu cầu:
+- Khoảng {word_count} từ
+- Viết hoàn toàn bằng tiếng Việt
+- Chỉ cải thiện điểm yếu, KHÔNG thay đổi cốt truyện
 
-Bat dau viet lai:"""
+Bắt đầu viết lại:"""
 
 
 class SelfReviewer:
@@ -83,7 +83,7 @@ class SelfReviewer:
         """Critique a chapter. Returns scores dict with weaknesses."""
         try:
             result = self.llm.generate_json(
-                system_prompt="Ban la nha phe binh van hoc. Tra ve JSON.",
+                system_prompt="Bạn là nhà phê bình văn học. Trả về JSON.",
                 user_prompt=CRITIC_PROMPT.format(
                     chapter_number=chapter_number,
                     title=title,
@@ -108,7 +108,7 @@ class SelfReviewer:
         weakness_text = "\n".join(f"- {w}" for w in weaknesses)
         try:
             revised = self.llm.generate(
-                system_prompt="Ban la nha van chuyen nghiep. Viet lai chuong truyen.",
+                system_prompt="Bạn là nhà văn chuyên nghiệp. Viết lại chương truyện.",
                 user_prompt=REVISE_PROMPT.format(
                     weaknesses=weakness_text,
                     content=content,
