@@ -75,6 +75,7 @@ Mỗi chương cần có: cao trào, xung đột, phát triển nhân vật.
 Cốt truyện phải có nhịp điệu: giới thiệu → phát triển → cao trào → kết thúc.
 Đảm bảo nhịp điệu: không liên tục climax, xen kẽ setup → rising → climax → cooldown. Mỗi chương thuộc 1 macro arc.
 BẮT BUỘC: Viết toàn bộ nội dung (tiêu đề chương, tóm tắt, sự kiện...) bằng tiếng Việt.
+BẮT BUỘC: Tên nhân vật PHẢI dùng CHÍNH XÁC như danh sách nhân vật ở trên. Tên địa danh, tông môn PHẢI dùng CHÍNH XÁC như bối cảnh thế giới. KHÔNG được tự ý đổi tên.
 
 Trả về JSON:
 {{
@@ -221,6 +222,7 @@ Cốt truyện phải tiếp nối tự nhiên, phát triển xung đột, và t
 Phải tận dụng foreshadowing đã gieo để payoff và gieo thêm seed mới cho các chương sau.
 Xung đột phải leo thang dựa trên conflict web hiện tại.
 BẮT BUỘC: Viết toàn bộ nội dung (tiêu đề chương, tóm tắt, sự kiện, cung bậc cảm xúc...) bằng tiếng Việt. Không được dùng tiếng Anh hay ngôn ngữ khác.
+BẮT BUỘC: Tên nhân vật, tông môn, địa danh PHẢI dùng CHÍNH XÁC như danh sách nhân vật và bối cảnh ở trên. KHÔNG được tự ý đổi tên.
 
 Trả về JSON:
 {{
@@ -283,6 +285,11 @@ YÊU CẦU:
 - Nếu có foreshadowing cần gieo: gieo tự nhiên, không lộ liễu
 - Tuân thủ nhịp độ {pacing_type}: setup=xây dựng nền, rising=tăng căng thẳng, climax=đỉnh điểm, cooldown=nghỉ ngơi phản tỉnh, twist=đảo ngược bất ngờ
 
+TUYỆT ĐỐI TUÂN THỦ TÍNH NHẤT QUÁN TÊN:
+- Tên nhân vật PHẢI dùng CHÍNH XÁC như danh sách NHÂN VẬT ở trên. KHÔNG được đổi, viết tắt, phiên âm khác, hay dùng biệt danh trừ khi đã định nghĩa sẵn.
+- Tên địa danh, tông môn, bang phái, thế giới PHẢI dùng CHÍNH XÁC như phần BỐI CẢNH THẾ GIỚI ở trên. KHÔNG được tự ý đổi tên hay dùng tên khác.
+- Nếu nhân vật cải danh hoặc dùng bí danh, PHẢI giải thích rõ trong nội dung chương (vd: "hắn giấu tên thật, xưng là...").
+
 Bắt đầu viết chương:"""
 
 EXTRACT_STRUCTURED_SUMMARY = """Phân tích chương truyện sau và trích xuất tóm tắt có cấu trúc.
@@ -333,7 +340,8 @@ Trả về JSON:
 
 # vi-only
 SUMMARIZE_CHAPTER = """Tóm tắt ngắn gọn nội dung chương truyện sau trong 3-5 câu,
-tập trung vào sự kiện chính và phát triển nhân vật:
+tập trung vào sự kiện chính và phát triển nhân vật.
+QUAN TRỌNG: Giữ nguyên CHÍNH XÁC tên nhân vật, địa danh, tông môn như trong nội dung gốc. KHÔNG được đổi hay viết khác tên.
 
 {content}"""
 
@@ -345,6 +353,7 @@ NỘI DUNG CHƯƠNG:
 DANH SÁCH NHÂN VẬT CẦN THEO DÕI:
 {characters}
 
+QUAN TRỌNG: Tên nhân vật trong "name" PHẢI dùng CHÍNH XÁC như danh sách trên. KHÔNG được đổi hay viết khác tên.
 QUAN TRỌNG: Với "relationship_changes", ghi rõ MỐI QUAN HỆ thay đổi thế nào giữa các nhân vật cụ thể.
 Ví dụ: "A bắt đầu nghi ngờ B", "C phản bội D", "E và F trở thành đồng minh"
 
