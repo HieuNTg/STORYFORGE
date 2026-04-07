@@ -25,6 +25,8 @@ class OpenAIProvider:
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
         response = self.client.chat.completions.create(**kwargs)
+        if not response.choices:
+            raise RuntimeError(f"LLM returned empty choices (model={model}, finish_reason=unknown)")
         return response.choices[0].message.content or ""
 
     def stream(self, messages: list[dict], model: str, temperature: float,

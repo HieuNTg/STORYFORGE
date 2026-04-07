@@ -4,30 +4,30 @@
  * Breakpoint: max-width: 639px (below Tailwind sm:)
  */
 
-/* ── Tap target baseline ──────────────────────────────────────────────────── */
+/* ── Tap target baseline (mobile only) ────────────────────────────────────── */
 /*
- * All interactive elements must be at least 44×44px per WCAG 2.5.5.
- * Tailwind's default button sizes are often smaller; these rules enforce minimum.
+ * WCAG 2.5.5: 44×44px minimum tap targets — mobile only.
+ * Desktop has precise cursors; forcing min-size globally breaks layout.
  */
-button,
-[role="button"],
-a,
-input[type="checkbox"],
-input[type="radio"],
-select {
-  min-height: 44px;
-  min-width: 44px;
-}
+@media (max-width: 639px) {
+  button,
+  [role="button"],
+  a,
+  input[type="checkbox"],
+  input[type="radio"],
+  select {
+    min-height: 44px;
+  }
 
-/* Icon-only buttons (no text) should still fill the tap target */
-button.p-1,
-button.p-1\.5,
-button.p-2 {
-  min-height: 44px;
-  min-width: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  button.p-1,
+  button.p-1\.5,
+  button.p-2 {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
 /* ── Story Form (375px) ───────────────────────────────────────────────────── */

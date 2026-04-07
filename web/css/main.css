@@ -85,14 +85,14 @@ input[type="range"].sf-range::-webkit-slider-runnable-track {
 input[type="range"].sf-range::-webkit-slider-thumb {
   -webkit-appearance: none !important;
   appearance: none !important;
-  width: 20px;
-  height: 20px;
+  width: 14px;
+  height: 14px;
   background: #2563EB !important;
   border-radius: 50%;
   cursor: pointer;
-  border: 2.5px solid #fff;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.25);
-  margin-top: -7px;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+  margin-top: -4px;
   transition: transform 150ms ease, box-shadow 150ms ease;
 }
 input[type="range"].sf-range::-webkit-slider-thumb:hover {
@@ -109,13 +109,13 @@ input[type="range"].sf-range::-moz-range-track {
   background: #334155;
 }
 input[type="range"].sf-range::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
+  width: 14px;
+  height: 14px;
   background: #2563EB;
-  border: 2.5px solid #fff;
+  border: 2px solid #fff;
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.25);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
 }
 
 /* ── Details chevron rotation ────────────────────────────────────────────── */
