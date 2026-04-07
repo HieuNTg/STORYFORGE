@@ -15,10 +15,13 @@ _CACHE_TTL_SECONDS = 86400  # 24 hours
 # Hardcoded fallback presets — used when API is unreachable
 _FALLBACK_FREE_MODELS = [
     "qwen/qwen3.6-plus:free",
+    "nousresearch/hermes-3-llama-3.1-405b:free",
     "nvidia/nemotron-3-super-120b-a12b:free",
-    "nvidia/nemotron-3-nano-30b-a3b:free",
     "stepfun/step-3.5-flash:free",
     "minimax/minimax-m2.5:free",
+    "arcee-ai/trinity-large-preview:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "z-ai/glm-4.5-air:free",
 ]
 
 # Minimum context window required for story generation
@@ -79,10 +82,24 @@ def _is_free(model: dict) -> bool:
         return False
 
 
+_EXCLUDED_PATTERNS = [
+    "lyria",       # music generation
+    "coder",       # code-only models produce poor prose
+    "gemma-3n",    # edge models, too small for quality prose
+    "gemma-3-4b",  # too small
+    "liquid/lfm",  # 1.2B params, too small
+    "llama-3.2-3b",  # 3B params, too small
+    "openrouter/free",  # meta-router, unpredictable routing
+]
+
+
 def _meets_requirements(model: dict) -> bool:
-    """Return True if model has sufficient context window for story gen."""
+    """Return True if model is suitable for story generation."""
     ctx = model.get("context_length", 0) or 0
-    return int(ctx) >= _MIN_CONTEXT_TOKENS
+    if int(ctx) < _MIN_CONTEXT_TOKENS:
+        return False
+    mid = model.get("id", "").lower()
+    return not any(pat in mid for pat in _EXCLUDED_PATTERNS)
 
 
 def get_free_models(api_key: str = "", force_refresh: bool = False) -> list[str]:
