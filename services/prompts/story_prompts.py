@@ -197,6 +197,18 @@ Tóm tắt: {synopsis}
 CÁC CHƯƠNG ĐÃ CÓ:
 {existing_outlines}
 
+CẤU TRÚC MACRO ARC:
+{macro_arcs}
+
+MẠNG LƯỚI XUNG ĐỘT:
+{conflict_web}
+
+KẾ HOẠCH FORESHADOWING:
+{foreshadowing_plan}
+
+TUYẾN TRUYỆN ĐANG MỞ:
+{open_threads}
+
 TRẠNG THÁI NHÂN VẬT HIỆN TẠI:
 {character_states}
 
@@ -206,6 +218,9 @@ SỰ KIỆN QUAN TRỌNG ĐÃ XẢY RA:
 Hãy tạo dàn ý cho {additional_chapters} chương tiếp theo (bắt đầu từ chương {start_chapter}).
 Cốt truyện phải tiếp nối tự nhiên, phát triển xung đột, và tiến tới cao trào.
 Đảm bảo nhịp điệu: không liên tục climax, xen kẽ setup → rising → climax → cooldown. Mỗi chương thuộc 1 macro arc.
+Phải tận dụng foreshadowing đã gieo để payoff và gieo thêm seed mới cho các chương sau.
+Xung đột phải leo thang dựa trên conflict web hiện tại.
+BẮT BUỘC: Viết toàn bộ nội dung (tiêu đề chương, tóm tắt, sự kiện, cung bậc cảm xúc...) bằng tiếng Việt. Không được dùng tiếng Anh hay ngôn ngữ khác.
 
 Trả về JSON:
 {{

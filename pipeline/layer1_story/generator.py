@@ -268,6 +268,7 @@ class StoryGenerator:
 
         draft.character_states = list(story_context.character_states)
         draft.plot_events = list(story_context.plot_events)
+        draft.open_threads = list(story_context.open_threads)
         _log("Layer 1 hoàn tất - Bản thảo truyện đã sẵn sàng!")
         return draft
 
@@ -284,8 +285,8 @@ class StoryGenerator:
         context.plot_events = list(draft.plot_events[-50:])
         # Restore conflict map from draft (guard for old checkpoints without field)
         context.conflict_map = list(getattr(draft, 'conflict_web', None) or [])
-        # Init open_threads empty — post-processing will populate per chapter
-        context.open_threads = []
+        # Restore open_threads from draft (guard for old checkpoints without field)
+        context.open_threads = list(getattr(draft, 'open_threads', None) or [])
         return context
 
     def continue_story(self, draft: StoryDraft, additional_chapters=5, word_count=2000,

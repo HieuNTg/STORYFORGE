@@ -206,6 +206,7 @@ class StoryDraft(BaseModel):
     macro_arcs: list[MacroArc] = Field(default_factory=list, description="High-level story arcs")
     conflict_web: list[ConflictEntry] = Field(default_factory=list, description="All planned conflicts")
     foreshadowing_plan: list[ForeshadowingEntry] = Field(default_factory=list, description="Planned foreshadowing")
+    open_threads: list[PlotThread] = Field(default_factory=list, description="Active narrative threads carried across chapters")
 
 
 # === Layer 2: Mô phỏng tăng kịch tính ===
