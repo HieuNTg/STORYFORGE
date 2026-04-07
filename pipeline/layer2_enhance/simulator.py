@@ -186,10 +186,10 @@ class DramaSimulator:
 
             post = AgentPost(
                 agent_name=name,
-                content=result.get("content", "..."),
-                action_type=result.get("action_type", "post"),
-                target=result.get("target", ""),
-                sentiment=result.get("sentiment", "trung lập"),
+                content=result.get("content") or "...",
+                action_type=result.get("action_type") or "post",
+                target=result.get("target") or "",
+                sentiment=result.get("sentiment") or "trung lập",
                 round_number=round_number,
             )
             metadata = {
@@ -261,10 +261,10 @@ class DramaSimulator:
                 agent.get_trust(triggering_post.agent_name).update(trust_delta)
             return AgentPost(
                 agent_name=agent.character.name,
-                content=result.get("content", "..."),
-                action_type=f"phản_ứng_{result.get('action_type', 'post')}",
+                content=result.get("content") or "...",
+                action_type=f"phản_ứng_{result.get('action_type') or 'post'}",
                 target=triggering_post.agent_name,
-                sentiment=result.get("sentiment", "trung lập"),
+                sentiment=result.get("sentiment") or "trung lập",
                 round_number=round_num,
             )
         except Exception as e:
