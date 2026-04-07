@@ -67,25 +67,27 @@ class StoryGenerator:
                       previous_summary="", word_count=2000, context=None,
                       open_threads=None, active_conflicts=None,
                       foreshadowing_to_plant=None, foreshadowing_to_payoff=None,
-                      pacing_type="") -> Chapter:
+                      pacing_type="", enhancement_context="") -> Chapter:
         rag_kb = _get_rag_kb(self.config.pipeline.rag_persist_dir) if self.config.pipeline.rag_enabled else None
         return write_chapter(self.llm, self.config, title, genre, style, characters, world, outline,
                              previous_summary, word_count, context, rag_kb=rag_kb, model=self._layer_model,
                              open_threads=open_threads, active_conflicts=active_conflicts,
                              foreshadowing_to_plant=foreshadowing_to_plant,
-                             foreshadowing_to_payoff=foreshadowing_to_payoff, pacing_type=pacing_type)
+                             foreshadowing_to_payoff=foreshadowing_to_payoff, pacing_type=pacing_type,
+                             enhancement_context=enhancement_context)
 
     def write_chapter_stream(self, title, genre, style, characters, world, outline,
                              word_count=2000, context=None, stream_callback=None,
                              open_threads=None, active_conflicts=None,
                              foreshadowing_to_plant=None, foreshadowing_to_payoff=None,
-                             pacing_type="") -> Chapter:
+                             pacing_type="", enhancement_context="") -> Chapter:
         rag_kb = _get_rag_kb(self.config.pipeline.rag_persist_dir) if self.config.pipeline.rag_enabled else None
         return write_chapter_stream(self.llm, self.config, title, genre, style, characters, world, outline,
                                     word_count, context, stream_callback, rag_kb=rag_kb, model=self._layer_model,
                                     open_threads=open_threads, active_conflicts=active_conflicts,
                                     foreshadowing_to_plant=foreshadowing_to_plant,
-                                    foreshadowing_to_payoff=foreshadowing_to_payoff, pacing_type=pacing_type)
+                                    foreshadowing_to_payoff=foreshadowing_to_payoff, pacing_type=pacing_type,
+                                    enhancement_context=enhancement_context)
 
     def extract_character_states(self, content, characters):
         return extract_character_states(self.llm, content, characters)
@@ -123,7 +125,7 @@ class StoryGenerator:
         word_count, story_context, all_chapter_texts, bible_ctx="",
         open_threads=None, active_conflicts=None,
         foreshadowing_to_plant=None, foreshadowing_to_payoff=None,
-        pacing_type="",
+        pacing_type="", enhancement_context="",
     ) -> Chapter:
         # When new narrative params are provided, build prompt directly so they are forwarded.
         if any(p is not None for p in (open_threads, active_conflicts, foreshadowing_to_plant, foreshadowing_to_payoff)) or pacing_type:
@@ -150,6 +152,7 @@ class StoryGenerator:
                 foreshadowing_to_plant=foreshadowing_to_plant,
                 foreshadowing_to_payoff=foreshadowing_to_payoff,
                 pacing_type=pacing_type,
+                enhancement_context=enhancement_context,
             )
             if use_lc:
                 content = self.long_context_client.generate(
@@ -170,7 +173,8 @@ class StoryGenerator:
         return _write_chapter_lc_fn(self.llm, self.long_context_client, self.config,
                                     title, genre, style, characters, world, outline,
                                     word_count, story_context, all_chapter_texts, bible_ctx,
-                                    layer_model=self._layer_model)
+                                    layer_model=self._layer_model,
+                                    enhancement_context=enhancement_context)
 
     def generate_full_story(self, title, genre, idea, style="Miêu tả chi tiết",
                              num_chapters=10, num_characters=5, word_count=2000,
@@ -189,8 +193,35 @@ class StoryGenerator:
                 from errors.exceptions import InputSanitizationError
                 raise InputSanitizationError(_san.threats_found)
 
+        # --- Enhancement 1: Theme/Premise anchor ---
+        premise = {}
+        if self.config.pipeline.enable_theme_premise:
+            try:
+                _log("Đang xác định chủ đề cốt lõi...")
+                from pipeline.layer1_story.theme_premise_generator import generate_premise
+                premise = generate_premise(self.llm, title, genre, idea, model=self._layer_model)
+                if premise:
+                    _log(f"Chủ đề: {premise.get('premise_statement', '')[:80]}...")
+            except Exception as e:
+                logger.warning("Theme premise generation failed (non-fatal): %s", e)
+
         _log(f"Đang tạo nhân vật cho '{title}'...")
         characters = self.generate_characters(title, genre, idea, num_characters)
+
+        # --- Enhancement 2: Character voice profiles ---
+        voice_profiles = []
+        if self.config.pipeline.enable_voice_profiles:
+            try:
+                _log("Đang tạo hồ sơ giọng nói nhân vật...")
+                from pipeline.layer1_story.character_voice_profiler import (
+                    generate_voice_profiles, update_character_speech_patterns,
+                )
+                voice_profiles = generate_voice_profiles(self.llm, characters, genre, model=self._layer_model)
+                if voice_profiles:
+                    update_character_speech_patterns(characters, voice_profiles)
+                    _log(f"Đã tạo voice profile cho {len(voice_profiles)} nhân vật")
+            except Exception as e:
+                logger.warning("Voice profile generation failed (non-fatal): %s", e)
         _log("Đang xây dựng bối cảnh thế giới...")
         world = self.generate_world(title, genre, characters)
         # Step 4a: Generate macro arcs (structural backbone)
@@ -209,6 +240,22 @@ class StoryGenerator:
 
         _log(f"Đang tạo dàn ý {num_chapters} chương...")
         synopsis, outlines = self.generate_outline(title, genre, characters, world, idea, num_chapters, macro_arcs=macro_arcs)
+
+        # --- Enhancement 3: Outline critique-revise loop ---
+        outline_critique = {}
+        if self.config.pipeline.enable_outline_critique:
+            try:
+                _log("Đang đánh giá và cải thiện dàn ý...")
+                from pipeline.layer1_story.outline_critic import critique_and_revise
+                outlines, outline_critique = critique_and_revise(
+                    self.llm, outlines, characters, world, synopsis, genre,
+                    max_rounds=self.config.pipeline.outline_critique_max_rounds,
+                    model=self._layer_model,
+                )
+                score = outline_critique.get("overall_score", "?")
+                _log(f"Dàn ý đạt điểm: {score}/5")
+            except Exception as e:
+                logger.warning("Outline critique failed (non-fatal): %s", e)
 
         # Step 4b: Generate conflict web
         conflict_web = []
@@ -237,7 +284,8 @@ class StoryGenerator:
             logger.warning("Foreshadowing plan generation failed (non-fatal): %s", e)
 
         draft = StoryDraft(title=title, genre=genre, synopsis=synopsis,
-                           characters=characters, world=world, outlines=outlines)
+                           characters=characters, world=world, outlines=outlines,
+                           premise=premise, voice_profiles=voice_profiles)
         draft.macro_arcs = macro_arcs
         draft.conflict_web = conflict_web
         draft.foreshadowing_plan = foreshadowing_plan
@@ -264,6 +312,8 @@ class StoryGenerator:
             macro_arcs=macro_arcs,
             conflict_web=conflict_web,
             foreshadowing_plan=foreshadowing_plan,
+            premise=premise,
+            voice_profiles=voice_profiles,
         )
 
         draft.character_states = list(story_context.character_states)

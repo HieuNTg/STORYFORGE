@@ -120,6 +120,9 @@ def continue_story(
     conflict_web = getattr(draft, 'conflict_web', None) or []
     foreshadowing_plan = getattr(draft, 'foreshadowing_plan', None) or []
 
+    premise = getattr(draft, "premise", None) or {}
+    voice_profiles = getattr(draft, "voice_profiles", None) or []
+
     with ThreadPoolExecutor(max_workers=3) as executor:
         for outline in new_outlines:
             story_context.current_chapter = outline.chapter_number
@@ -144,6 +147,20 @@ def continue_story(
             except Exception as e:
                 logger.warning("Narrative context resolution failed for ch%d: %s", outline.chapter_number, e)
 
+            # Build enhancement context (theme, voice, scene decomposition, show-don't-tell)
+            enhancement_context = ""
+            try:
+                from pipeline.layer1_story.enhancement_context_builder import build_enhancement_context
+                enhancement_context = build_enhancement_context(
+                    config=generator.config, llm=generator.llm,
+                    genre=draft.genre, pacing=pacing,
+                    premise=premise, voice_profiles=voice_profiles,
+                    outline=outline, characters=draft.characters,
+                    world=draft.world, layer_model=generator._layer_model,
+                )
+            except Exception as e:
+                logger.debug("Enhancement context build failed for ch%d: %s", outline.chapter_number, e)
+
             _log(f"Writing chapter {outline.chapter_number}: {outline.title}...")
             if stream_callback:
                 chapter = generator.write_chapter_stream(
@@ -156,6 +173,7 @@ def continue_story(
                     foreshadowing_to_plant=seeds,
                     foreshadowing_to_payoff=payoffs,
                     pacing_type=pacing,
+                    enhancement_context=enhancement_context,
                 )
             else:
                 chapter = generator._write_chapter_with_long_context(
@@ -167,6 +185,7 @@ def continue_story(
                     foreshadowing_to_plant=seeds,
                     foreshadowing_to_payoff=payoffs,
                     pacing_type=pacing,
+                    enhancement_context=enhancement_context,
                 )
             draft.chapters.append(chapter)
             all_chapter_texts.append(chapter.content)

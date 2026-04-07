@@ -107,6 +107,7 @@ def build_chapter_prompt(
     foreshadowing_to_plant=None,
     foreshadowing_to_payoff=None,
     pacing_type: str = "",
+    enhancement_context: str = "",
 ) -> tuple[str, str]:
     """Build system/user prompts for chapter writing. Returns (system_prompt, user_prompt)."""
     chars_text = "\n".join(
@@ -191,6 +192,9 @@ def build_chapter_prompt(
         pacing_type=resolved_pacing,
     )
     user_prompt = build_adaptive_write_prompt(user_prompt, genre, pacing_type=resolved_pacing)
+    # Inject enhancement context (theme premise, voice profiles, scene structure, show-don't-tell)
+    if enhancement_context:
+        user_prompt += "\n\n" + enhancement_context
     # Reinforce Vietnamese at end of prompt (after all context) to prevent
     # language drift in later chapters where context is very long
     user_prompt += "\n\n[NHẮC LẠI: Viết hoàn toàn bằng tiếng Việt. Không dùng tiếng Anh hay ngôn ngữ khác.]"
@@ -216,6 +220,7 @@ def write_chapter(
     foreshadowing_to_plant=None,
     foreshadowing_to_payoff=None,
     pacing_type: str = "",
+    enhancement_context: str = "",
 ) -> Chapter:
     """Write a single chapter (non-streaming)."""
     sys_prompt, user_prompt = build_chapter_prompt(
@@ -225,6 +230,7 @@ def write_chapter(
         foreshadowing_to_plant=foreshadowing_to_plant,
         foreshadowing_to_payoff=foreshadowing_to_payoff,
         pacing_type=pacing_type,
+        enhancement_context=enhancement_context,
     )
     content = llm.generate(
         system_prompt=sys_prompt,
@@ -259,6 +265,7 @@ def write_chapter_stream(
     foreshadowing_to_plant=None,
     foreshadowing_to_payoff=None,
     pacing_type: str = "",
+    enhancement_context: str = "",
 ) -> Chapter:
     """Write chapter with streaming. Calls stream_callback(partial_text) each chunk."""
     sys_prompt, user_prompt = build_chapter_prompt(
@@ -268,6 +275,7 @@ def write_chapter_stream(
         foreshadowing_to_plant=foreshadowing_to_plant,
         foreshadowing_to_payoff=foreshadowing_to_payoff,
         pacing_type=pacing_type,
+        enhancement_context=enhancement_context,
     )
 
     full_content = ""
@@ -289,6 +297,7 @@ def write_chapter_stream(
             model=model, open_threads=open_threads, active_conflicts=active_conflicts,
             foreshadowing_to_plant=foreshadowing_to_plant,
             foreshadowing_to_payoff=foreshadowing_to_payoff, pacing_type=pacing_type,
+            enhancement_context=enhancement_context,
         )
 
     return Chapter(

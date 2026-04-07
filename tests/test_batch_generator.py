@@ -107,7 +107,7 @@ class TestBatchChapterGenerator:
         chapters_created = []
 
         def fake_write(title, genre, style, characters, world, outline,
-                       word_count, story_context, all_chapter_texts, bible_ctx):
+                       word_count, story_context, all_chapter_texts, bible_ctx="", **kwargs):
             ch = _make_chapter(outline.chapter_number)
             chapters_created.append(ch)
             return ch

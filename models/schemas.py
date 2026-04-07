@@ -196,6 +196,8 @@ class StoryDraft(BaseModel):
     genre: str
     sub_genres: list[str] = Field(default_factory=list)
     synopsis: str = ""
+    premise: dict = Field(default_factory=dict, description="Thematic premise anchor from theme_premise_generator")
+    voice_profiles: list[dict] = Field(default_factory=list, description="Character voice profiles for distinct dialogue")
     characters: list[Character] = Field(default_factory=list)
     world: Optional[WorldSetting] = None
     outlines: list[ChapterOutline] = Field(default_factory=list)

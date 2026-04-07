@@ -63,6 +63,8 @@ class BatchChapterGenerator:
         macro_arcs=None,
         conflict_web=None,
         foreshadowing_plan=None,
+        premise=None,
+        voice_profiles=None,
     ) -> list[Chapter]:
         """Generate all chapters using batch strategy.
 
@@ -122,6 +124,8 @@ class BatchChapterGenerator:
                         macro_arcs=macro_arcs,
                         conflict_web=conflict_web,
                         foreshadowing_plan=foreshadowing_plan,
+                        premise=premise,
+                        voice_profiles=voice_profiles,
                     )
                 else:
                     batch_chapters = self._run_batch_sequential(
@@ -145,6 +149,8 @@ class BatchChapterGenerator:
                         macro_arcs=macro_arcs,
                         conflict_web=conflict_web,
                         foreshadowing_plan=foreshadowing_plan,
+                        premise=premise,
+                        voice_profiles=voice_profiles,
                     )
 
                 for ch in batch_chapters:
@@ -185,6 +191,8 @@ class BatchChapterGenerator:
         macro_arcs=None,
         conflict_web=None,
         foreshadowing_plan=None,
+        premise=None,
+        voice_profiles=None,
     ) -> list[Chapter]:
         """Run a single batch sequentially (Phase 1).
 
@@ -229,6 +237,15 @@ class BatchChapterGenerator:
                     f"Đang viết chương {outline.chapter_number}: {outline.title}..."
                 )
 
+            # Build enhancement context (theme, voice, scenes, show-don't-tell)
+            from pipeline.layer1_story.enhancement_context_builder import build_enhancement_context
+            enhancement_context = build_enhancement_context(
+                self.config, self.llm, genre, pacing,
+                premise=premise, voice_profiles=voice_profiles,
+                outline=outline, characters=characters, world=world,
+                layer_model=self.gen._layer_model,
+            )
+
             if stream_callback:
                 chapter = self.gen.write_chapter_stream(
                     title, genre, style, characters, world, outline,
@@ -239,6 +256,7 @@ class BatchChapterGenerator:
                     foreshadowing_to_plant=seeds,
                     foreshadowing_to_payoff=payoffs,
                     pacing_type=pacing,
+                    enhancement_context=enhancement_context,
                 )
             else:
                 chapter = self.gen._write_chapter_with_long_context(
@@ -249,6 +267,7 @@ class BatchChapterGenerator:
                     foreshadowing_to_plant=seeds,
                     foreshadowing_to_payoff=payoffs,
                     pacing_type=pacing,
+                    enhancement_context=enhancement_context,
                 )
 
             chapter_tokens_used = len(chapter.content) // 4
@@ -267,6 +286,32 @@ class BatchChapterGenerator:
                 progress_callback(
                     f"Đang trích xuất context chương {outline.chapter_number}..."
                 )
+
+            # --- Enhancement 6: Chapter self-critique ---
+            if self.config.pipeline.enable_chapter_critique:
+                try:
+                    from pipeline.layer1_story.chapter_self_critique import (
+                        critique_chapter, rewrite_weak_sections, should_critique,
+                    )
+                    if should_critique(outline.chapter_number, story_context.total_chapters):
+                        outline_text = f"{outline.title}: {outline.summary}"
+                        crit = critique_chapter(
+                            self.llm, chapter.content, outline_text,
+                            characters, genre, pacing, model=self.gen._layer_model,
+                        )
+                        if crit:
+                            revised = rewrite_weak_sections(
+                                self.llm, chapter.content, crit,
+                                model=self.gen._layer_model,
+                            )
+                            if revised != chapter.content:
+                                from models.schemas import count_words
+                                chapter.content = revised
+                                chapter.word_count = count_words(revised)
+                                if progress_callback:
+                                    progress_callback(f"Chương {outline.chapter_number} đã cải thiện qua self-critique")
+                except Exception as e:
+                    logger.warning("Chapter self-critique failed for ch%d (non-fatal): %s", outline.chapter_number, e)
 
             process_chapter_post_write(
                 chapter, outline, story_context, characters, context_window,
@@ -300,6 +345,8 @@ class BatchChapterGenerator:
         macro_arcs=None,
         conflict_web=None,
         foreshadowing_plan=None,
+        premise=None,
+        voice_profiles=None,
     ) -> list[Chapter]:
         """Run a single batch in parallel (Phase 2).
 
@@ -309,6 +356,12 @@ class BatchChapterGenerator:
         sibling_summaries = self._build_sibling_context(batch)
         # Capture frozen threads for parallel use
         frozen_threads = list(story_context.open_threads)
+
+        # Pre-build shared enhancement context (no per-chapter LLM calls)
+        from pipeline.layer1_story.enhancement_context_builder import build_shared_enhancement_context
+        shared_enhancement = build_shared_enhancement_context(
+            self.config, genre, premise=premise, voice_profiles=voice_profiles,
+        )
 
         def _write_one(outline: ChapterOutline) -> Chapter:
             bible_ctx = ""
@@ -347,6 +400,23 @@ class BatchChapterGenerator:
             except Exception as e:
                 logger.warning("Parallel narrative context resolution failed for ch%d: %s", outline.chapter_number, e)
 
+            # Add per-chapter scene decomposition on top of shared context
+            per_chapter_enhancement = shared_enhancement
+            if self.config.pipeline.enable_scene_decomposition:
+                try:
+                    from pipeline.layer1_story.scene_decomposer import (
+                        decompose_chapter_scenes, format_scenes_for_prompt, should_decompose,
+                    )
+                    if should_decompose(outline.chapter_number, pacing):
+                        scenes = decompose_chapter_scenes(
+                            self.llm, outline, characters, world, genre, model=self.gen._layer_model,
+                        )
+                        st = format_scenes_for_prompt(scenes)
+                        if st:
+                            per_chapter_enhancement = f"{shared_enhancement}\n\n{st}".strip()
+                except Exception:
+                    pass
+
             if progress_callback:
                 progress_callback(
                     f"Đang viết chương {outline.chapter_number}: {outline.title}..."
@@ -360,6 +430,7 @@ class BatchChapterGenerator:
                 foreshadowing_to_plant=seeds,
                 foreshadowing_to_payoff=payoffs,
                 pacing_type=pacing,
+                enhancement_context=per_chapter_enhancement,
             )
 
         max_workers = min(len(batch), 5)

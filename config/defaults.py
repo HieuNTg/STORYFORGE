@@ -110,6 +110,15 @@ class PipelineConfig:
     parallel_chapters_enabled: bool = False  # Feature flag — sequential fallback when False
     chapter_batch_size: int = 5  # Chapters per batch
 
+    # Layer 1 enhancements (all opt-in, non-fatal)
+    enable_theme_premise: bool = True  # Generate thematic anchor before story
+    enable_voice_profiles: bool = True  # Generate character voice profiles
+    enable_outline_critique: bool = True  # Critique-revise loop on outlines
+    outline_critique_max_rounds: int = 1  # Max critique-revise iterations
+    enable_scene_decomposition: bool = True  # Break chapters into scenes before writing
+    enable_show_dont_tell: bool = True  # Inject show-don't-tell guidance into prompts
+    enable_chapter_critique: bool = False  # Post-write chapter self-critique (costs extra LLM calls)
+
     # Quality gate (inline scoring between layers)
     # Recommended thresholds by genre: romance/comedy=2.3, mystery/thriller=2.5,
     # fantasy/sci-fi=2.5, literary/historical=2.8, action=2.2

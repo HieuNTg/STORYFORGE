@@ -38,6 +38,7 @@ def write_chapter_with_long_context(
     all_chapter_texts: list,
     bible_ctx: str = "",
     layer_model=None,
+    enhancement_context: str = "",
 ) -> Chapter:
     """Try long-context generation; fall back to standard if disabled/overflow."""
     # Lazy import for mock compat
@@ -66,6 +67,7 @@ def write_chapter_with_long_context(
         word_count, story_context, bible_context=bible_ctx,
         full_chapter_texts=windowed_texts if use_lc else None,
         rag_kb=rag_kb,
+        enhancement_context=enhancement_context,
     )
     if use_lc:
         content = long_context_client.generate(
