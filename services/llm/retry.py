@@ -27,10 +27,15 @@ _TRANSIENT_CODES = {429, 500, 502, 503, 504}
 
 def _is_transient(exc: Exception) -> bool:
     """Check if exception is transient (worth retrying)."""
+    import json
+    if isinstance(exc, json.JSONDecodeError):
+        return True
+    if isinstance(exc, RuntimeError) and "empty choices" in str(exc).lower():
+        return True
     exc_str = str(exc).lower()
     if any(str(code) in exc_str for code in _TRANSIENT_CODES):
         return True
-    if any(kw in exc_str for kw in ("timeout", "connection", "reset", "broken pipe")):
+    if any(kw in exc_str for kw in ("timeout", "connection", "reset", "broken pipe", "incomplete chunked")):
         return True
     return False
 
@@ -83,11 +88,11 @@ def _should_retry(exc: Exception, provider: str) -> tuple[bool, float]:
 
     # 429 rate limit — use Retry-After header if available, else provider defaults
     if "429" in exc_str:
+        if provider == "openrouter":
+            return True, 0  # Skip immediately to next model in chain
         retry_after = _parse_retry_after(exc)
         if retry_after is not None:
             return True, retry_after
-        if provider == "openrouter":
-            return True, 60.0  # OpenRouter needs longer backoff
         return True, 5.0  # Default rate limit delay
 
     # Model not found on OpenRouter — not retryable on same provider, try next

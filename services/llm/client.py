@@ -95,6 +95,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
         self._providers_cache: dict = {}
         self._key_index = 0
         self._rate_limited_keys: dict[str, float] = {}
+        self._rate_limited_models: dict[str, float] = {}  # "model:api_key" -> cooldown_expiry
         ConfigManager, _, LLMCache = _imports()
         try:
             config = ConfigManager()
@@ -256,7 +257,11 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 provider_type = _detect_provider(str(provider_url) if provider_url else "")
                 should_try_next, suggested_delay = _should_retry(e, provider_type)
                 if "429" in str(e) and "_api_key" in entry:
-                    self._mark_rate_limited(entry["_api_key"], suggested_delay or 60.0)
+                    if provider_type == "openrouter":
+                        # Mark specific model, not the key — other models on same key may work
+                        self._mark_model_rate_limited(entry["model"], entry["_api_key"], 90.0)
+                    else:
+                        self._mark_rate_limited(entry["_api_key"], suggested_delay or 60.0)
                 if not should_try_next and not _is_transient(e):
                     raise
                 logger.warning(f"Provider {entry['label']} failed, trying next...")
@@ -296,6 +301,17 @@ class LLMClient(StreamingMixin, GenerationMixin):
         logger.warning("API key %s...%s rate-limited, cooldown %.0fs",
                        api_key[:8], api_key[-4:] if len(api_key) > 8 else "", cooldown)
 
+    def _mark_model_rate_limited(self, model: str, api_key: str, cooldown: float = 90.0):
+        """Mark a model+key combo as rate-limited."""
+        combo = f"{model}:{api_key}"
+        self._rate_limited_models[combo] = time.time() + cooldown
+        logger.warning("Model %s rate-limited for %.0fs", model, cooldown)
+
+    def _is_model_rate_limited(self, model: str, api_key: str) -> bool:
+        combo = f"{model}:{api_key}"
+        expiry = self._rate_limited_models.get(combo, 0)
+        return time.time() < expiry
+
     def _build_fallback_chain(self, config, model_tier: str, model_override: Optional[str] = None) -> list[dict]:
         chain = []
         if model_tier == "cheap" and config.llm.cheap_model:
@@ -304,6 +320,15 @@ class LLMClient(StreamingMixin, GenerationMixin):
         else:
             primary_model = model_override or self._current_model or config.llm.model
             api_key_entries = self._resolve_api_keys(config)
+
+            # Collect all free models for OpenRouter round-robin
+            is_openrouter = any(
+                "openrouter" in e.get("base_url", "").lower() for e in api_key_entries
+            )
+            free_models = []
+            if is_openrouter:
+                free_models = self._get_openrouter_free_models(config, primary_model)
+
             for i, entry in enumerate(api_key_entries):
                 cache_key = f"{entry['base_url']}:{entry['api_key']}"
                 with self._client_lock:
@@ -311,18 +336,38 @@ class LLMClient(StreamingMixin, GenerationMixin):
                         self._providers_cache[cache_key] = _get_provider(
                             entry["base_url"], entry["api_key"]
                         )
-                label = "primary" if i == 0 else f"key-{i+1}"
-                if model_override:
-                    label = f"{label}:{primary_model}"
-                chain.append({
-                    "provider": self._providers_cache[cache_key],
-                    "model": primary_model,
-                    "label": label,
-                    "_api_key": entry["api_key"],
-                })
+                provider = self._providers_cache[cache_key]
+                api_key = entry["api_key"]
+                key_label = "primary" if i == 0 else f"key-{i+1}"
+
+                # Primary model first
+                if not self._is_model_rate_limited(primary_model, api_key):
+                    label = f"{key_label}:{primary_model}" if model_override else key_label
+                    chain.append({
+                        "provider": provider,
+                        "model": primary_model,
+                        "label": label,
+                        "_api_key": api_key,
+                    })
+
+                # Then all other free models on same key (OpenRouter round-robin)
+                if is_openrouter and "openrouter" in entry["base_url"].lower():
+                    for fm in free_models:
+                        if fm == primary_model:
+                            continue
+                        if self._is_model_rate_limited(fm, api_key):
+                            continue
+                        chain.append({
+                            "provider": provider,
+                            "model": fm,
+                            "label": f"{key_label}:rr:{fm}",
+                            "_api_key": api_key,
+                        })
+
         if model_tier != "cheap" and config.llm.cheap_model:
             provider, model = self._get_cheap_client()
             chain.append({"provider": provider, "model": model, "label": f"cheap:{model}"})
+
         for fb in getattr(config.llm, 'fallback_models', []):
             fb_model = fb.get("model", "")
             if not fb_model or fb.get("enabled") is False:
@@ -333,12 +378,34 @@ class LLMClient(StreamingMixin, GenerationMixin):
             with self._client_lock:
                 if cache_key not in self._providers_cache:
                     self._providers_cache[cache_key] = _get_provider(fb_base, fb_key)
-                chain.append({
-                    "provider": self._providers_cache[cache_key],
-                    "model": fb_model,
-                    "label": f"fallback:{fb_model}",
-                })
+                # Skip if already in chain (from round-robin)
+                already = any(c["model"] == fb_model and c.get("_api_key") == fb_key for c in chain)
+                if not already:
+                    chain.append({
+                        "provider": self._providers_cache[cache_key],
+                        "model": fb_model,
+                        "label": f"fallback:{fb_model}",
+                        "_api_key": fb_key,
+                    })
         return chain
+
+    def _get_openrouter_free_models(self, config, primary_model: str) -> list[str]:
+        """Get all free OpenRouter models, primary first."""
+        try:
+            from services.openrouter_model_discovery import get_free_models
+            api_key = config.llm.api_key
+            models = get_free_models(api_key=api_key)
+            # Primary model first, then the rest
+            ordered = []
+            if primary_model in models:
+                ordered.append(primary_model)
+            for m in models:
+                if m != primary_model:
+                    ordered.append(m)
+            return ordered
+        except Exception as e:
+            logger.warning("Failed to fetch free models for round-robin: %s", e)
+            return []
 
     def _try_provider(self, entry: dict, messages: list, temperature: float,
                       max_tokens: int, json_mode: bool) -> str:
