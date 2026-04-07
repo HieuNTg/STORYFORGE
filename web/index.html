@@ -1581,8 +1581,8 @@
                 </template>
               </div>
 
-              <!-- Branch reader (appears when chapter selected) -->
-              <template x-if="selectedChapter !== null">
+              <!-- Branch reader (appears when chapter selected) — :key forces re-init on chapter switch -->
+              <template x-if="selectedChapter !== null" :key="'branch-ch-' + selectedChapter">
                 <div x-data="branchReader()" x-init="pendingRestoreSessionId ? restoreSession(pendingRestoreSessionId).then(() => { pendingRestoreSessionId = null }) : startSession(getSelectedContent(), getStoryContext())" class="space-y-4">
 
                   <!-- Error banner -->
@@ -1630,7 +1630,7 @@
                           <div x-show="loading" class="absolute inset-0 bg-white/60 dark:bg-surface-900/60 rounded-lg flex items-center justify-center z-10">
                             <svg class="animate-spin h-6 w-6 text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                           </div>
-                          <div class="prose dark:prose-invert max-w-none text-sm leading-relaxed text-slate-700 dark:text-slate-300" x-text="currentNode.text"></div>
+                          <div class="prose dark:prose-invert max-w-none text-sm leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-wrap" x-text="currentNode.text"></div>
                         </div>
                       </div>
 
@@ -1685,7 +1685,7 @@
                                 <line :x1="edge.x1" :y1="edge.y1" :x2="edge.x2" :y2="edge.y2" class="stroke-surface-300 dark:stroke-surface-600" stroke-width="2"/>
                               </template>
                               <template x-for="node in treeLayout.nodes" :key="node.id">
-                                <g class="cursor-pointer" @click="gotoNode(sessionId, node.id).then(n => { if(n) { currentNode = n; history = []; refreshTree(sessionId); } })">
+                                <g class="cursor-pointer" @click="gotoNode($data.sessionId || sessionId, node.id).then(n => { if(n) { $data.currentNode = n; if($data.history) $data.history = []; refreshTree($data.sessionId || sessionId); } })">
                                   <circle :cx="node.x" :cy="node.y" r="18"
                                     :class="node.isCurrent ? 'fill-brand-500 stroke-brand-300' : 'fill-surface-200 dark:fill-surface-700 stroke-surface-400 dark:stroke-surface-500'"
                                     stroke-width="2"/>
@@ -1693,6 +1693,12 @@
                                 </g>
                               </template>
                             </svg>
+                          </template>
+                          <template x-if="!treeLoading && treeError">
+                            <div class="p-4 text-center text-sm text-red-500 dark:text-red-400" x-text="treeError"></div>
+                          </template>
+                          <template x-if="!treeLoading && !treeError && (!treeLayout || treeLayout.nodes.length === 0)">
+                            <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-500">No tree data available. Try navigating first.</div>
                           </template>
                         </div>
                       </div>

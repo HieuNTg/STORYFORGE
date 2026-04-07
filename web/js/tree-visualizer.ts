@@ -117,6 +117,7 @@ interface TreeVisualizerComponent {
   showTree: boolean;
   treeLayout: TreeLayout | null;
   treeLoading: boolean;
+  treeError: string;
   _sessionId: string | null;
   init(): void;
   destroy(): void;
@@ -135,6 +136,7 @@ document.addEventListener('alpine:init', () => {
       showTree: false,
       treeLayout: null as TreeLayout | null,
       treeLoading: false,
+      treeError: '',
       _sessionId: null as string | null,
 
       init(this: TreeVisualizerComponent) {
@@ -161,13 +163,17 @@ document.addEventListener('alpine:init', () => {
       async refreshTree(this: TreeVisualizerComponent, sessionId: string | null) {
         if (!sessionId || !this.showTree) return;
         this.treeLoading = true;
+        this.treeError = '';
         try {
           const res = await fetch(`/api/branch/${sessionId}/tree`);
-          if (!res.ok) return;
+          if (!res.ok) {
+            this.treeError = `Failed to load tree (${res.status})`;
+            return;
+          }
           const d: TreeApiResponse = await res.json();
           this.treeLayout = computeTreeLayout(d);
-        } catch {
-          // silently fail — tree is supplementary
+        } catch (e) {
+          this.treeError = (e as Error).message || 'Failed to load tree';
         } finally {
           this.treeLoading = false;
         }
