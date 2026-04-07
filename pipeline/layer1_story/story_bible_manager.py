@@ -49,9 +49,9 @@ class StoryBibleManager:
                 thread = PlotThread(
                     thread_id=str(uuid.uuid4())[:8],
                     description=event.event,
-                    status="active",
-                    started_chapter=ch_num,
-                    characters_involved=event.characters_involved,
+                    status="open",
+                    planted_chapter=ch_num,
+                    involved_characters=event.characters_involved,
                 )
                 bible.active_threads.append(thread)
 
