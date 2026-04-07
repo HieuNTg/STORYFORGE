@@ -116,28 +116,14 @@ class GenerationMixin:
         )
 
     def check_connection(self) -> tuple[bool, str]:
-        """Check API backend connection."""
+        """Check API backend connection using full fallback chain."""
         try:
-            provider = self._get_client()
-            model = self._current_model or _config_manager()().llm.model
-            messages = [{"role": "user", "content": "test"}]
-            # Use the LLMProvider protocol (.complete) when available.
-            # Fall back to raw OpenAI SDK (.chat.completions.create) when
-            # _get_client() was monkey-patched to return a raw client (tests).
-            _is_provider = getattr(type(provider), "_is_llm_provider", False)
-            if _is_provider:
-                provider.complete(
-                    messages=messages,
-                    model=model,
-                    temperature=0.0,
-                    max_tokens=5,
-                )
-            else:
-                provider.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    max_tokens=5,
-                )
+            self.generate(
+                system_prompt="Reply OK",
+                user_prompt="ping",
+                temperature=0.0,
+                max_tokens=5,
+            )
             return True, "Kết nối thành công"
         except Exception as e:
             return False, f"Lỗi kết nối: {str(e)}"

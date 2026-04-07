@@ -573,23 +573,23 @@ class TestCheckConnection(unittest.TestCase):
         from services.llm_client import LLMClient
         MockCM.return_value = _make_llm_config()
         client = LLMClient()
-        mock_openai = MagicMock()
-        response = MagicMock()
-        mock_openai.chat.completions.create.return_value = response
-        client._get_client = MagicMock(return_value=mock_openai)
-        client._current_model = "gpt-4"
+        client.generate = MagicMock(return_value="OK")
         ok, msg = client.check_connection()
         self.assertTrue(ok)
         self.assertIn("thành công", msg)
+        client.generate.assert_called_once_with(
+            system_prompt="Reply OK",
+            user_prompt="ping",
+            temperature=0.0,
+            max_tokens=5,
+        )
 
     @patch("services.llm_client.ConfigManager")
     def test_check_connection_failure(self, MockCM):
         from services.llm_client import LLMClient
         MockCM.return_value = _make_llm_config()
         client = LLMClient()
-        mock_openai = MagicMock()
-        mock_openai.chat.completions.create.side_effect = Exception("connection refused")
-        client._get_client = MagicMock(return_value=mock_openai)
+        client.generate = MagicMock(side_effect=RuntimeError("All LLM providers failed: connection refused"))
         ok, msg = client.check_connection()
         self.assertFalse(ok)
         self.assertIn("Lỗi", msg)
