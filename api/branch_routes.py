@@ -13,18 +13,56 @@ llm = LLMClient()
 
 MAX_BRANCH_DEPTH = 10
 
-_SYSTEM_PROMPT = (
-    "You are a creative storyteller. Continue the story based on the reader's choice. "
-    "Return JSON with 'continuation' (story text, 200-400 words) and "
-    "'choices' (list of 2-3 short options for what the reader should do next)."
-)
+
+def _build_system_prompt(context: dict, node_states: dict | None = None) -> str:
+    """Build story-aware system prompt from session context and per-node character states."""
+    parts = ["You are a creative storyteller. Continue the story based on the reader's choice."]
+
+    if context.get("genre"):
+        parts.append(f"Genre: {context['genre']}.")
+
+    if context.get("characters"):
+        char_lines = []
+        for c in context["characters"]:
+            if not c.get("name"):
+                continue
+            line = f"- {c['name']} ({c.get('role', '')}): {c.get('personality', '')}"
+            if node_states and c["name"] in node_states:
+                st = node_states[c["name"]]
+                line += f" [mood: {st.get('mood', '?')}, arc: {st.get('arc_position', '?')}]"
+            char_lines.append(line)
+        if char_lines:
+            parts.append("Key characters:\n" + "\n".join(char_lines))
+
+    if context.get("world_summary"):
+        parts.append(f"World: {context['world_summary']}")
+
+    if context.get("conflict_summary"):
+        parts.append(f"Active conflicts: {context['conflict_summary']}")
+
+    parts.append(
+        "Return JSON with:\n"
+        "- 'continuation': story text (200-400 words)\n"
+        "- 'choices': list of 2-3 short options\n"
+        "- 'character_states': dict of {name: {mood, arc_position}} for characters that changed"
+    )
+    return "\n\n".join(parts)
 
 
 # ── Request models ──────────────────────────────────────────────────────────
 
+class BranchCharacter(BaseModel):
+    name: str = ""
+    role: str = ""
+    personality: str = ""
+
+
 class StartBody(BaseModel):
     text: str = Field(..., min_length=10, max_length=20000)
     genre: str = Field(default="", max_length=64)
+    characters: list[BranchCharacter] = Field(default_factory=list, max_length=10)
+    world_summary: str = Field(default="", max_length=500)
+    conflict_summary: str = Field(default="", max_length=500)
 
 
 class ChooseBody(BaseModel):
@@ -40,7 +78,13 @@ class GotoBody(BaseModel):
 @router.post("/start", status_code=201)
 def start_session(body: StartBody):
     """Create a new branch session from story text."""
-    data = manager.start_session(body.text)
+    context = {
+        "genre": body.genre,
+        "characters": [c.model_dump() for c in body.characters] if body.characters else [],
+        "world_summary": body.world_summary,
+        "conflict_summary": body.conflict_summary,
+    }
+    data = manager.start_session(body.text, context=context)
     return data
 
 
@@ -78,8 +122,13 @@ def choose_branch(session_id: str, body: ChooseBody):
             detail=f"choice_index {body.choice_index} out of range ({len(choices)} choices)",
         )
     choice_text = choices[body.choice_index]
-    context = current["text"]
+    story_text = current["text"]
     current_depth = current.get("depth", 0)
+
+    # Build context-aware system prompt with per-node character states
+    story_context = manager.get_context(session_id)
+    node_states = manager.get_node_states(session_id)
+    system_prompt = _build_system_prompt(story_context, node_states)
 
     # Enforce depth limit — generate ending node at max depth
     at_depth_limit = current_depth >= MAX_BRANCH_DEPTH - 1
@@ -87,33 +136,34 @@ def choose_branch(session_id: str, body: ChooseBody):
     if at_depth_limit:
         try:
             result = llm.generate_json(
-                system_prompt=_SYSTEM_PROMPT,
+                system_prompt=system_prompt,
                 user_prompt=(
-                    f"Story so far:\n{context}\n\n"
+                    f"Story so far:\n{story_text}\n\n"
                     f"The reader chose: {choice_text}\n\n"
                     "Write a satisfying conclusion to this branch (200-300 words). "
-                    "Return JSON with 'continuation' (the ending text) and 'choices' as an empty list []."
+                    "Return JSON with 'continuation' (the ending text), 'choices' as an empty list [], "
+                    "and 'character_states' for any characters that changed."
                 ),
                 temperature=0.9,
             )
         except Exception as exc:
             logger.error(f"LLM generation failed: {exc}")
-            raise HTTPException(status_code=502, detail=f"LLM generation failed: {exc}")
+            raise HTTPException(status_code=502, detail="LLM generation failed. Please try again.")
         continuation = result.get("continuation") or result.get("text", "")
         new_choices: list[str] = []
     else:
         try:
             result = llm.generate_json(
-                system_prompt=_SYSTEM_PROMPT,
+                system_prompt=system_prompt,
                 user_prompt=(
-                    f"Story so far:\n{context}\n\n"
+                    f"Story so far:\n{story_text}\n\n"
                     f"The reader chose: {choice_text}\n\nContinue the story."
                 ),
                 temperature=0.9,
             )
         except Exception as exc:
             logger.error(f"LLM generation failed: {exc}")
-            raise HTTPException(status_code=502, detail=f"LLM generation failed: {exc}")
+            raise HTTPException(status_code=502, detail="LLM generation failed. Please try again.")
 
         continuation = result.get("continuation") or result.get("text", "")
         new_choices = result.get("choices", ["Continue", "Take a different path"])
@@ -121,8 +171,17 @@ def choose_branch(session_id: str, body: ChooseBody):
             new_choices = ["Continue", "Take a different path"]
         new_choices = [str(c) for c in new_choices[:3]]
 
+    # Extract and merge character states from LLM response
+    new_states = result.get("character_states", {})
+    if not isinstance(new_states, dict):
+        new_states = {}
+    merged_states = {**node_states, **new_states}
+
     try:
-        node = manager.add_generated_node(session_id, body.choice_index, continuation, new_choices)
+        node = manager.add_generated_node(
+            session_id, body.choice_index, continuation, new_choices,
+            character_states=merged_states,
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 

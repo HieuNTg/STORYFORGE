@@ -282,6 +282,10 @@ class StoryGenerator:
                 logger.warning(f"Chapter {ch.chapter_number} has no summary for context rebuild")
         context.character_states = list(draft.character_states)
         context.plot_events = list(draft.plot_events[-50:])
+        # Restore conflict map from draft (guard for old checkpoints without field)
+        context.conflict_map = list(getattr(draft, 'conflict_web', None) or [])
+        # Init open_threads empty — post-processing will populate per chapter
+        context.open_threads = []
         return context
 
     def continue_story(self, draft: StoryDraft, additional_chapters=5, word_count=2000,

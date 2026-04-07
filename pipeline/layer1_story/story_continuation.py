@@ -108,12 +108,19 @@ def continue_story(
             _log(f"Extracting context for chapter {outline.chapter_number}...")
             process_chapter_post_write(
                 chapter, outline, story_context, draft.characters, context_window,
-                executor, generator.llm, False, draft, generator.bible_manager,
+                executor, generator.llm,
+                bool(draft.story_bible),
+                draft, generator.bible_manager,
                 progress_callback, draft.genre, word_count,
                 generator.config.pipeline.enable_self_review, self_reviewer,
+                open_threads=story_context.open_threads,
+                foreshadowing_plan=getattr(draft, 'foreshadowing_plan', None),
             )
 
     draft.character_states = list(story_context.character_states)
     draft.plot_events = list(story_context.plot_events)
+    # Sync conflict web status back to draft after new chapters
+    if story_context.conflict_map:
+        draft.conflict_web = list(story_context.conflict_map)
     _log(f"Continuation complete — {len(new_outlines)} chapters added!")
     return draft

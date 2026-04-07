@@ -169,5 +169,31 @@ function branchingPage() {
       if (this.selectedChapter === null) return '';
       return this.getChapterContent(this.selectedChapter);
     },
+
+    /** Extract story context from active result for branch session. */
+    getStoryContext(): Record<string, unknown> {
+      const r = this.activeResult;
+      if (!r) return {};
+      const story = r.enhanced || r.draft;
+      if (!story) return {};
+      const chars = ((story as Record<string, unknown>).characters as Array<Record<string, string>> || [])
+        .slice(0, 10)
+        .map(c => ({ name: c.name || '', role: c.role || '', personality: c.personality || '' }));
+      const world = (story as Record<string, unknown>).world as Record<string, string> | null;
+      const worldSummary = world ? `${world.name || ''}: ${world.description || ''}`.slice(0, 500) : '';
+      const conflictWeb = ((story as Record<string, unknown>).conflict_web as Array<Record<string, string>> || []);
+      const conflictSummary = conflictWeb
+        .filter(c => c.status === 'active')
+        .slice(0, 5)
+        .map(c => c.description || '')
+        .join('; ')
+        .slice(0, 500);
+      return {
+        genre: story.genre || '',
+        characters: chars,
+        world_summary: worldSummary,
+        conflict_summary: conflictSummary,
+      };
+    },
   };
 }

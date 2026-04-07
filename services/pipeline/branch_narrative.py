@@ -19,13 +19,17 @@ class BranchManager:
 
     # ── helpers ────────────────────────────────────────────────────────────
 
-    def _make_node(self, node_id: str, text: str, choices: list[str], parent: Optional[str]) -> dict:
+    def _make_node(
+        self, node_id: str, text: str, choices: list[str],
+        parent: Optional[str], character_states: Optional[dict] = None,
+    ) -> dict:
         return {
             "id": node_id,
             "text": text,
             "choices": choices,
             "children": {},   # choice_index (str) -> node_id
             "parent": parent,
+            "character_states": character_states or {},
         }
 
     def _evict_if_needed(self) -> None:
@@ -47,7 +51,10 @@ class BranchManager:
 
     # ── public API ─────────────────────────────────────────────────────────
 
-    def start_session(self, story_text: str, choices: Optional[list[str]] = None) -> dict:
+    def start_session(
+        self, story_text: str, choices: Optional[list[str]] = None,
+        context: Optional[dict] = None,
+    ) -> dict:
         """Parse story text, create root node, return session data."""
         session_id = str(uuid.uuid4())
         root_id = str(uuid.uuid4())
@@ -63,6 +70,7 @@ class BranchManager:
             "current": root_id,
             "nodes": {root_id: root_node},
             "created_at": time.time(),
+            "context": context or {},
         }
         with self._lock:
             self._evict_if_needed()
@@ -91,14 +99,15 @@ class BranchManager:
         return None  # needs LLM generation
 
     def add_generated_node(
-        self, session_id: str, choice_index: int, text: str, choices: list[str]
+        self, session_id: str, choice_index: int, text: str, choices: list[str],
+        character_states: Optional[dict] = None,
     ) -> dict:
         """Add LLM-generated continuation as child node; move current pointer."""
         with self._lock:
             tree = self._get_session(session_id)
             node = self._walk_to_current(tree)
             new_id = str(uuid.uuid4())
-            new_node = self._make_node(new_id, text, choices, node["id"])
+            new_node = self._make_node(new_id, text, choices, node["id"], character_states)
             tree["nodes"][new_id] = new_node
             node["children"][str(choice_index)] = new_id
             tree["current"] = new_id
@@ -114,6 +123,19 @@ class BranchManager:
             tree["current"] = node["parent"]
             parent = tree["nodes"][node["parent"]]
         return _public_node(parent)
+
+    def get_context(self, session_id: str) -> dict:
+        """Return session-level story context (genre, characters, world, conflicts)."""
+        with self._lock:
+            tree = self._get_session(session_id)
+            return tree.get("context", {})
+
+    def get_node_states(self, session_id: str) -> dict:
+        """Return character_states of current node."""
+        with self._lock:
+            tree = self._get_session(session_id)
+            node = self._walk_to_current(tree)
+            return node.get("character_states", {})
 
     def get_tree(self, session_id: str) -> dict:
         """Return full tree structure for visualization."""

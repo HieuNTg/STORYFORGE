@@ -67,7 +67,7 @@ interface BranchReaderComponent {
   error: string;
   treeData: BranchTreeResponse | null;
   active: boolean;
-  startSession(text: string): Promise<void>;
+  startSession(text: string, context?: Record<string, unknown>): Promise<void>;
   restoreSession(sessionId: string): Promise<boolean>;
   choose(index: number): Promise<void>;
   goBack(): Promise<void>;
@@ -91,7 +91,7 @@ document.addEventListener('alpine:init', () => {
       treeData: null,
       active: false,
 
-      async startSession(this: BranchReaderComponent, text: string): Promise<void> {
+      async startSession(this: BranchReaderComponent, text: string, context?: Record<string, unknown>): Promise<void> {
         if (!text || text.trim().length < 10) {
           this.error = 'Need at least 10 characters of story text.';
           return;
@@ -101,10 +101,11 @@ document.addEventListener('alpine:init', () => {
         this.history = [];
         this.treeData = null;
         try {
+          const payload: Record<string, unknown> = { text: text.trim(), ...context };
           const res = await fetch('/api/branch/start', {
             method: 'POST',
             headers: mutationHeaders(),
-            body: JSON.stringify({ text: text.trim() }),
+            body: JSON.stringify(payload),
           });
           if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
           const d: BranchStartResponse = await res.json();
