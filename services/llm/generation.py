@@ -28,22 +28,10 @@ class GenerationMixin:
         model: Optional[str] = None,
     ) -> dict:
         """Call LLM and parse JSON result with auto-repair."""
-        result = self.generate(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            json_mode=True,
-            model_tier=model_tier,
-            model=model,
+        text = self._generate_json_text(
+            system_prompt, user_prompt, temperature, max_tokens,
+            model_tier, model,
         )
-        text = result.strip()
-        # Strip markdown code block
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
 
         # Attempt 1: direct parse
         try:
@@ -51,14 +39,19 @@ class GenerationMixin:
         except json.JSONDecodeError as e:
             logger.warning(f"JSON parse failed, attempting repair: {e}")
 
-        # Attempt 2: repair common issues
+        # Attempt 2: repair common issues (trailing commas, quotes, truncation)
         repaired = _repair_json(text)
         try:
             return json.loads(repaired)
         except json.JSONDecodeError:
             pass
 
-        # Attempt 3: ask LLM to fix (use cheap model)
+        # Attempt 3: ask LLM to fix (use cheap model) — skip if text is trivially short
+        if len(text) < 5:
+            raise ValueError(
+                f"JSON parse failed: LLM returned near-empty response "
+                f"({len(text)} chars): {text!r}"
+            )
         logger.warning("JSON repair failed, asking LLM to fix")
         fixed = self.generate(
             system_prompt="Fix this malformed JSON. Return ONLY valid JSON, no explanation.",
@@ -76,6 +69,45 @@ class GenerationMixin:
                 f"Parse error: {e}. "
                 f"Last text ({len(fixed)} chars, showing first 800): {preview!r}"
             ) from e
+
+    def _generate_json_text(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: Optional[float],
+        max_tokens: Optional[int],
+        model_tier: str,
+        model: Optional[str],
+        _retried: bool = False,
+    ) -> str:
+        """Generate text for JSON parsing, retrying once on empty response."""
+        result = self.generate(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            json_mode=True,
+            model_tier=model_tier,
+            model=model,
+        )
+        text = result.strip()
+
+        # Retry once on empty — likely a flaky free model
+        if not text and not _retried:
+            logger.warning("LLM returned empty response for JSON request, retrying")
+            return self._generate_json_text(
+                system_prompt, user_prompt, temperature, max_tokens,
+                model_tier, model, _retried=True,
+            )
+
+        # Strip markdown code block
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+
+        return text
 
     def generate_stream(
         self,
@@ -112,7 +144,9 @@ class GenerationMixin:
             yield from provider.stream(messages, effective_model, effective_temp, eff_max_tokens)
 
         yield from self._stream_with_chunk_timeout(
-            self._stream_with_retry(_api_gen, "API stream"), chunk_timeout=60
+            self._stream_with_retry(_api_gen, "API stream"),
+            chunk_timeout=30,
+            first_chunk_timeout=60,
         )
 
     def check_connection(self) -> tuple[bool, str]:
@@ -130,11 +164,50 @@ class GenerationMixin:
 
 
 def _repair_json(text: str) -> str:
-    """Fix common JSON issues."""
+    """Fix common JSON issues: trailing commas, single quotes, truncation."""
+    if not text or len(text) < 2:
+        return text
     text = re.sub(r',\s*([}\]])', r'\1', text)
     text = re.sub(r"(?<=[\[{,:])\s*'([^']*?)'\s*(?=[,}\]:])", r' "\1" ', text)
+    # Extract JSON boundaries
     starts = [text.find(c) for c in ('{', '[') if text.find(c) >= 0]
     ends = [text.rfind(c) for c in ('}', ']') if text.rfind(c) >= 0]
     if starts and ends:
-        return text[min(starts):max(ends) + 1]
+        text = text[min(starts):max(ends) + 1]
+    elif starts:
+        # Truncated — no closing bracket found; attempt to close
+        text = text[min(starts):]
+        text = _close_truncated_json(text)
+    return text
+
+
+def _close_truncated_json(text: str) -> str:
+    """Best-effort closure of truncated JSON by balancing brackets/quotes."""
+    in_string = False
+    escape = False
+    stack = []
+    for ch in text:
+        if escape:
+            escape = False
+            continue
+        if ch == '\\' and in_string:
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch in ('{', '['):
+            stack.append('}' if ch == '{' else ']')
+        elif ch in ('}', ']'):
+            if stack:
+                stack.pop()
+    # Close unclosed string
+    if in_string:
+        text += '"'
+    # Remove trailing comma before we close
+    text = re.sub(r',\s*$', '', text)
+    # Close unclosed brackets in reverse order
+    text += ''.join(reversed(stack))
     return text

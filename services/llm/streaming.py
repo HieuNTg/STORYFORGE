@@ -43,12 +43,16 @@ class StreamingMixin:
         logger.error(f"{label} failed after {MAX_RETRIES} attempts: {_redact(last_exc)}")
         raise last_exc
 
-    def _stream_with_chunk_timeout(self, source_gen, chunk_timeout: int = 60):
-        """Wrap a streaming generator with a per-chunk timeout.
+    def _stream_with_chunk_timeout(
+        self,
+        source_gen,
+        chunk_timeout: int = 30,
+        first_chunk_timeout: int = 60,
+    ):
+        """Wrap a streaming generator with per-chunk timeouts.
 
-        Raises TimeoutError if no chunk is received within `chunk_timeout` seconds.
-        Uses a background thread + queue to enforce the deadline without stalling
-        the caller on blocked I/O indefinitely.
+        Uses a longer timeout for the first chunk (TTFT includes model load)
+        and a shorter timeout for subsequent chunks (stall detection).
         """
         import queue as _queue
 
@@ -67,18 +71,22 @@ class StreamingMixin:
         producer_thread = threading.Thread(target=_producer, daemon=True)
         producer_thread.start()
 
+        got_first = False
         while True:
+            timeout = first_chunk_timeout if not got_first else chunk_timeout
             try:
-                item = chunk_queue.get(timeout=chunk_timeout)
+                item = chunk_queue.get(timeout=timeout)
             except _queue.Empty:
+                phase = "first chunk" if not got_first else "inter-chunk"
                 logger.error(
-                    f"Stream chunk timeout: no data received in {chunk_timeout}s"
+                    f"Stream {phase} timeout: no data received in {timeout}s"
                 )
                 raise TimeoutError(
-                    f"Streaming response stalled — no chunk received within {chunk_timeout}s"
+                    f"Streaming response stalled — no {phase} data within {timeout}s"
                 )
             if item is _SENTINEL:
                 return
             if isinstance(item, Exception):
                 raise item
+            got_first = True
             yield item
