@@ -76,7 +76,7 @@ jobs:
           coverage report --include="api/*" --fail-under=65
       - name: Upload coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: htmlcov/
@@ -99,7 +99,7 @@ jobs:
         run: npm run test -- --coverage
       - name: Upload frontend coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-coverage-report
           path: coverage/
@@ -171,7 +171,7 @@ jobs:
             --cov-report=term-missing --cov-report=html:htmlcov-e2e
       - name: Upload E2E coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-coverage-report
           path: htmlcov-e2e/
