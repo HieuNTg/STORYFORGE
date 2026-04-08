@@ -234,6 +234,19 @@ async def run_full_pipeline(
         _log("[L2] Đang phân tích cấu trúc truyện...")
         analysis = await asyncio.to_thread(self.analyzer.analyze, draft)
 
+        # Extract theme for L2 enhancement (non-fatal)
+        theme_profile = None
+        try:
+            from pipeline.layer2_enhance.thematic_tracker import ThematicTracker
+            thematic = ThematicTracker()
+            theme_profile = await asyncio.to_thread(thematic.extract_theme, draft)
+            if theme_profile and theme_profile.central_theme:
+                _log(f"[L2] Chủ đề: {theme_profile.central_theme}")
+            else:
+                _log("[L2] Không trích xuất được chủ đề trung tâm")
+        except Exception as e:
+            logger.warning(f"Theme extraction failed (non-fatal): {e}")
+
         # Plugin hook: allow plugins to observe/override genre drama rules
         try:
             from pipeline.layer2_enhance.drama_patterns import get_genre_rules
@@ -254,12 +267,19 @@ async def run_full_pipeline(
         )
         self.output.simulation_result = sim_result
 
+        if hasattr(sim_result, 'actual_rounds') and sim_result.actual_rounds:
+            _log(f"[L2] Adaptive: {sim_result.actual_rounds} rounds (requested {num_sim_rounds})")
+        if hasattr(sim_result, 'knowledge_state') and sim_result.knowledge_state:
+            total_facts = sum(len(v) for v in sim_result.knowledge_state.values())
+            _log(f"[L2] Knowledge: {total_facts} sự kiện theo dõi, {len(sim_result.knowledge_state)} nhân vật")
+
         _log("[L2] Đang viết lại truyện với kịch tính cao hơn...")
         enhanced = await asyncio.to_thread(
             self.enhancer.enhance_with_feedback,
             draft=draft, sim_result=sim_result,
             word_count=word_count,
             progress_callback=lambda m: _log(f"[L2] {m}"),
+            theme_profile=theme_profile,
         )
         with self._lock:
             self.output.enhanced_story = enhanced
@@ -360,6 +380,18 @@ async def run_full_pipeline(
                  f"dialogue: {analytics['dialogue_ratio']:.0%}")
         except Exception as e:
             logger.warning(f"Analytics Layer 2 failed: {e}")
+
+        # L2 enhanced metrics (non-fatal)
+        try:
+            if sim_result:
+                self.output.analytics.setdefault("layer2", {})
+                self.output.analytics["layer2"]["actual_rounds"] = getattr(sim_result, "actual_rounds", 0)
+                self.output.analytics["layer2"]["causal_chains"] = len(getattr(sim_result, "causal_chains", []))
+            if theme_profile:
+                self.output.analytics.setdefault("layer2", {})
+                self.output.analytics["layer2"]["theme"] = theme_profile.central_theme
+        except Exception as e:
+            logger.warning(f"L2 analytics extension failed: {e}")
 
         # Multi-agent review panel for Layer 2
         if enable_agents:

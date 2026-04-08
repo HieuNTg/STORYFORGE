@@ -50,6 +50,15 @@ from services.prompts.system_prompts import (  # noqa: E402
     GENERATE_STORYBOARD, GENERATE_VOICE_SCRIPT,
     CHARACTER_IMAGE_PROMPT, LOCATION_IMAGE_PROMPT,
 )
+from services.prompts.layer2_enhanced_prompts import (  # noqa: E402
+    EXTRACT_PSYCHOLOGY,
+    DECOMPOSE_CHAPTER_CONTENT,
+    SCORE_SCENE_DRAMA,
+    ENHANCE_SCENE,
+    DIALOGUE_SUBTEXT_GUIDANCE,
+    EXTRACT_THEME,
+    SCORE_CHAPTER_THEME,
+)
 
 __all__ = [
     "localize_prompt",
@@ -69,4 +78,12 @@ __all__ = [
     # Layer 3
     "GENERATE_STORYBOARD", "GENERATE_VOICE_SCRIPT",
     "CHARACTER_IMAGE_PROMPT", "LOCATION_IMAGE_PROMPT",
+    # Layer 2 Enhanced
+    "EXTRACT_PSYCHOLOGY",
+    "DECOMPOSE_CHAPTER_CONTENT",
+    "SCORE_SCENE_DRAMA",
+    "ENHANCE_SCENE",
+    "DIALOGUE_SUBTEXT_GUIDANCE",
+    "EXTRACT_THEME",
+    "SCORE_CHAPTER_THEME",
 ]

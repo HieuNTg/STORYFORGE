@@ -42,6 +42,55 @@ class StoryEnhancer:
             total_chapters: Tổng số chương trong truyện (để phân bổ sự kiện đều).
         """
 
+        # --- Scene-level enhancement (Phase 4) ---
+        try:
+            from pipeline.layer2_enhance.scene_enhancer import SceneEnhancer
+            from pipeline.layer2_enhance.dialogue_subtext import DialogueSubtextAnalyzer
+            from pipeline.layer2_enhance.thematic_tracker import ThematicTracker, ThemeProfile
+
+            _subtext_guidance = ""
+            _thematic_guidance = ""
+
+            # Build subtext guidance from psychology + knowledge if available
+            if draft and hasattr(draft, "characters") and draft.characters:
+                try:
+                    _analyzer = DialogueSubtextAnalyzer()
+                    _psych_map = getattr(draft, "_psychology_map", {})
+                    _knowledge = getattr(draft, "_knowledge_state", {})
+                    if _psych_map:
+                        _subtext_guidance = _analyzer.generate_subtext_guidance(
+                            _psych_map, _knowledge
+                        )
+                except Exception as _e:
+                    logger.debug(f"Subtext guidance failed (non-fatal): {_e}")
+
+            # Build thematic guidance if theme profile is attached to draft
+            if draft:
+                try:
+                    _theme = getattr(draft, "_theme_profile", None)
+                    if _theme is None:
+                        _tracker = ThematicTracker()
+                        _theme = _tracker.extract_theme(draft)
+                        draft._theme_profile = _theme  # cache for subsequent chapters
+                    if _theme and _theme.central_theme:
+                        _tracker = ThematicTracker()
+                        _ch_score = _tracker.score_chapter_theme(chapter, _theme)
+                        _thematic_guidance = _tracker.generate_thematic_guidance(
+                            _theme, _ch_score
+                        )
+                except Exception as _e:
+                    logger.debug(f"Thematic guidance failed (non-fatal): {_e}")
+
+            scene_enhancer = SceneEnhancer()
+            return scene_enhancer.enhance_chapter_by_scenes(
+                chapter, sim_result, genre, draft,
+                subtext_guidance=_subtext_guidance,
+                thematic_guidance=_thematic_guidance,
+            )
+        except Exception as e:
+            logger.warning(f"Scene-level enhancement failed, falling back to blob: {e}")
+        # --- End scene-level enhancement ---
+
         # Lọc sự kiện liên quan đến chương này
         relevant_events = [
             e for e in sim_result.events
@@ -75,15 +124,24 @@ class StoryEnhancer:
         if draft:
             parts = []
             if hasattr(draft, "foreshadowing_plan") and draft.foreshadowing_plan:
-                seeds = [f"- {f}" for f in draft.foreshadowing_plan[:5]]
+                seeds = [
+                    f"- {f.hint} (Ch{f.plant_chapter}→Ch{f.payoff_chapter})"
+                    for f in draft.foreshadowing_plan[:5]
+                ]
                 if seeds:
                     parts.append("Foreshadowing seeds:\n" + "\n".join(seeds))
             if hasattr(draft, "conflict_web") and draft.conflict_web:
-                conflicts = [f"- {c}" for c in draft.conflict_web[:5]]
+                conflicts = [
+                    f"- {c.description} [{c.conflict_type}]"
+                    for c in draft.conflict_web[:5]
+                ]
                 if conflicts:
                     parts.append("Conflict web:\n" + "\n".join(conflicts))
             if hasattr(draft, "macro_arcs") and draft.macro_arcs:
-                arcs = [f"- {a}" for a in draft.macro_arcs[:3]]
+                arcs = [
+                    f"- Arc {a.arc_number}: {a.name} (Ch{a.chapter_start}-{a.chapter_end})"
+                    for a in draft.macro_arcs[:3]
+                ]
                 if arcs:
                     parts.append("Macro arcs:\n" + "\n".join(arcs))
             layer1_context = "\n".join(parts) if parts else "Không có dữ liệu Layer 1"
@@ -130,8 +188,13 @@ class StoryEnhancer:
         sim_result: SimulationResult,
         word_count: int = 2000,
         progress_callback=None,
+        theme_profile=None,
     ) -> EnhancedStory:
         """Tăng cường kịch tính cho toàn bộ truyện."""
+
+        # Cache theme profile on draft so enhance_chapter can access it
+        if theme_profile is not None:
+            draft._theme_profile = theme_profile
 
         def _log(msg):
             logger.info(msg)
@@ -232,6 +295,7 @@ class StoryEnhancer:
         sim_result: SimulationResult,
         word_count: int = 2000,
         progress_callback=None,
+        theme_profile=None,
     ) -> EnhancedStory:
         """Enhance story with iterative feedback — re-enhance weak chapters."""
         def _log(msg):
@@ -239,7 +303,7 @@ class StoryEnhancer:
             if progress_callback:
                 progress_callback(msg)
 
-        enhanced = self.enhance_story(draft, sim_result, word_count, progress_callback)
+        enhanced = self.enhance_story(draft, sim_result, word_count, progress_callback, theme_profile)
 
         genre = draft.genre if hasattr(draft, 'genre') else ""
 

@@ -1,6 +1,6 @@
 """Agent nhân vật với emotional state và trust network."""
 
-from models.schemas import Character, AgentPost
+from models.schemas import Character, AgentPost, CharacterPsychology
 
 # Tension deltas by relationship type
 TENSION_DELTAS = {
@@ -125,6 +125,7 @@ class CharacterAgent:
         self.posts: list[AgentPost] = []
         self.emotion = EmotionalState()
         self.trust_map: dict[str, TrustEdge] = {}
+        self.psychology: CharacterPsychology | None = None
 
     @property
     def emotional_state(self) -> EmotionalState:
@@ -171,6 +172,20 @@ class CharacterAgent:
             self.trust_map[target] = TrustEdge(target)
         return self.trust_map[target]
 
+    def get_drama_multiplier(self) -> float:
+        """Tính hệ số kịch tính pha trộn psychology + emotion.
+
+        Khi có psychology: vuln_avg * pressure + emotion.drama_multiplier * 0.3
+        Khi không có psychology: fallback về emotion.drama_multiplier.
+        """
+        if self.psychology and self.psychology.vulnerabilities:
+            vuln_avg = sum(
+                v.drama_multiplier for v in self.psychology.vulnerabilities
+            ) / len(self.psychology.vulnerabilities)
+            blended = vuln_avg * (1.0 + self.psychology.pressure) + self.emotion.drama_multiplier * 0.3
+            return min(3.0, max(self.emotion.drama_multiplier, blended))
+        return self.emotion.drama_multiplier
+
     def get_arc_summary(self) -> str:
         """Tóm tắt arc cảm xúc để đưa vào prompt."""
         if not self.emotion.arc_trajectory:
@@ -179,9 +194,21 @@ class CharacterAgent:
         return f"Arc cảm xúc: {' → '.join(moods[-5:])}"
 
     def get_emotional_context(self) -> str:
-        """Format emotional state + trust for prompt injection."""
+        """Format emotional state + trust + psychology for prompt injection."""
         trust_text = ", ".join(
             f"{name}: {edge.trust:.0f}/100"
             for name, edge in self.trust_map.items()
         )
-        return f"{self.emotion.to_prompt_text()} | Tin tưởng: [{trust_text or 'chưa rõ'}]"
+        base = f"{self.emotion.to_prompt_text()} | Tin tưởng: [{trust_text or 'chưa rõ'}]"
+        if self.psychology:
+            psych_parts = []
+            if self.psychology.goals.fear:
+                psych_parts.append(f"Nỗi sợ: {self.psychology.goals.fear}")
+            if self.psychology.vulnerabilities:
+                wounds = ", ".join(v.wound for v in self.psychology.vulnerabilities[:2])
+                psych_parts.append(f"Điểm yếu: {wounds}")
+            if self.psychology.pressure > 0.1:
+                psych_parts.append(f"Áp lực: {self.psychology.pressure:.2f}")
+            if psych_parts:
+                base += " | " + " | ".join(psych_parts)
+        return base

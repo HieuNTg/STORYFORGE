@@ -60,7 +60,7 @@ class StoryBibleManager:
             overflow = bible.active_threads[:-20]
             for t in overflow:
                 t.status = "resolved"
-                t.resolved_chapter = ch_num
+                t.resolution_chapter = ch_num
                 bible.resolved_threads.append(t)
             bible.active_threads = bible.active_threads[-20:]
 
@@ -128,7 +128,7 @@ class StoryBibleManager:
         # 5. Các tuyến truyện đang mở
         if bible.active_threads:
             threads = [
-                f"- {t.description} (từ ch{t.started_chapter})"
+                f"- {t.description} (từ ch{t.planted_chapter})"
                 for t in bible.active_threads[-10:]
             ]
             parts.append("## Tuyến truyện đang mở:\n" + "\n".join(threads))

@@ -1,0 +1,88 @@
+"""Bộ điều khiển cường độ mô phỏng thích nghi — tự động leo thang/hạ nhiệt theo drama."""
+
+import logging
+from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
+
+DRAMA_THRESHOLD = 0.5   # Dưới ngưỡng này = vòng yếu
+DRAMA_TARGET = 0.65     # Dừng khi trung bình đạt mức này
+MIN_ROUNDS = 3
+MAX_ROUNDS = 10
+
+
+class RoundFeedback(BaseModel):
+    round_number: int
+    drama_score: float
+    escalation_applied: bool = False
+    note: str = ""
+
+
+class AdaptiveController:
+    """Điều chỉnh cường độ mô phỏng dựa trên phản hồi drama từng vòng."""
+
+    def __init__(self, base_intensity: dict, min_rounds: int = 3, max_rounds: int = 10):
+        self.base = dict(base_intensity)
+        self.current = dict(base_intensity)
+        self.min_rounds = min_rounds
+        self.max_rounds = max_rounds
+        self.history: list[RoundFeedback] = []
+
+    def record_round(self, round_num: int, drama_score: float) -> None:
+        """Ghi lại kết quả vòng và điều chỉnh cường độ cho vòng tiếp theo."""
+        fb = RoundFeedback(round_number=round_num, drama_score=drama_score)
+        if drama_score < DRAMA_THRESHOLD:
+            self._escalate()
+            fb.escalation_applied = True
+            fb.note = f"Vòng yếu ({drama_score:.2f} < {DRAMA_THRESHOLD}), leo thang"
+            logger.info(f"[Adaptive] Vòng {round_num}: drama thấp {drama_score:.2f} → leo thang")
+        elif drama_score > 0.85:
+            self._deescalate()
+            fb.note = f"Drama rất cao ({drama_score:.2f}), hạ nhiệt nhẹ"
+            logger.info(f"[Adaptive] Vòng {round_num}: drama cao {drama_score:.2f} → hạ nhiệt")
+        self.history.append(fb)
+
+    def should_continue(self, round_num: int) -> bool:
+        """True nếu mô phỏng nên chạy thêm một vòng nữa."""
+        if round_num <= self.min_rounds:
+            return True
+        if round_num > self.max_rounds:
+            return False
+        if not self.history:
+            return True
+        avg = sum(h.drama_score for h in self.history) / len(self.history)
+        return avg < DRAMA_TARGET
+
+    def get_current_config(self) -> dict:
+        """Trả về cấu hình cường độ hiện tại (có thể đã được leo thang)."""
+        return dict(self.current)
+
+    def _escalate(self) -> None:
+        """Tăng nhiệt độ +0.05, escalation_scale +0.15, reaction_depth +1."""
+        self.current["temperature"] = min(1.0, self.current.get("temperature", 0.85) + 0.05)
+        self.current["escalation_scale"] = min(2.0, self.current.get("escalation_scale", 1.0) + 0.15)
+        self.current["reaction_depth"] = min(4, self.current.get("reaction_depth", 2) + 1)
+
+    def _deescalate(self) -> None:
+        """Giảm nhẹ nhiệt độ -0.03, reaction_depth -1."""
+        self.current["temperature"] = max(0.7, self.current.get("temperature", 0.85) - 0.03)
+        self.current["reaction_depth"] = max(1, self.current.get("reaction_depth", 2) - 1)
+
+    def get_tension_modifier_actual(self, genre: str, round_num: int, total_rounds: int) -> float:
+        """Kết hợp đường cong toán học (0.6) với drama thực tế (0.4) cho tension modifier."""
+        try:
+            from pipeline.layer2_enhance.drama_patterns import get_tension_modifier
+            position = round_num / max(1, total_rounds)
+            math_modifier = get_tension_modifier(genre, position)
+        except Exception as e:
+            logger.debug(f"get_tension_modifier lỗi: {e}")
+            math_modifier = 1.0
+
+        if not self.history:
+            return math_modifier
+
+        avg_drama = sum(h.drama_score for h in self.history) / len(self.history)
+        # Kết hợp: drama thực tế cao → giảm ngưỡng (dễ leo thang hơn)
+        actual_component = 1.0 - avg_drama  # 0 khi drama=1.0, 1 khi drama=0.0
+        blended = 0.6 * math_modifier + 0.4 * actual_component
+        return round(blended, 4)

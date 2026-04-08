@@ -213,6 +213,31 @@ class StoryDraft(BaseModel):
 
 # === Layer 2: Mô phỏng tăng kịch tính ===
 
+# --- Psychology Engine schemas ---
+
+class GoalHierarchy(BaseModel):
+    primary_goal: str = ""
+    hidden_motive: str = ""
+    fear: str = ""
+    shame_trigger: str = ""
+
+
+class VulnerabilityEntry(BaseModel):
+    wound: str = ""
+    exploiters: list[str] = Field(default_factory=list)
+    drama_multiplier: float = Field(default=1.5, ge=1.0, le=3.0)
+
+
+class CharacterPsychology(BaseModel):
+    character_name: str = ""
+    goals: GoalHierarchy = Field(default_factory=GoalHierarchy)
+    vulnerabilities: list[VulnerabilityEntry] = Field(default_factory=list)
+    pressure: float = Field(default=0.0, ge=0, le=1)
+    defenses: list[str] = Field(default_factory=list)
+
+
+# --- Simulation schemas ---
+
 class RelationType(str, Enum):
     ALLY = "đồng_minh"
     RIVAL = "đối_thủ"
@@ -242,6 +267,8 @@ class SimulationEvent(BaseModel):
     description: str
     drama_score: float = Field(ge=0, le=1, description="Độ kịch tính 0-1")
     suggested_insertion: str = Field(default="", description="Gợi ý chèn vào chương nào")
+    cause_event_id: str = Field(default="", description="ID of event that caused this one")
+    consequences: list[str] = Field(default_factory=list, description="What this event caused")
 
 
 class AgentPost(BaseModel):
@@ -264,6 +291,9 @@ class SimulationResult(BaseModel):
     tension_map: dict[str, float] = Field(default_factory=dict)
     agent_posts: list[AgentPost] = Field(default_factory=list)
     emotional_trajectories: dict[str, list[str]] = Field(default_factory=dict, description="Chuỗi trạng thái cảm xúc theo vòng mô phỏng: tên_nhân_vật → [mood_round1, mood_round2, ...]")
+    knowledge_state: dict[str, list[str]] = Field(default_factory=dict, description="Per-character knowledge at end of simulation")
+    causal_chains: list[list[str]] = Field(default_factory=list, description="Top causal chains as event_id lists")
+    actual_rounds: int = Field(default=0, description="Actual rounds run (may differ from requested)")
 
 
 class EnhancedStory(BaseModel):
@@ -285,6 +315,8 @@ class ChapterScore(BaseModel):
     character_consistency: float = Field(default=3.0, ge=1, le=5, description="Character behavior consistency")
     drama: float = Field(default=3.0, ge=1, le=5, description="Tension & engagement")
     writing_quality: float = Field(default=3.0, ge=1, le=5, description="Prose quality & clarity")
+    thematic_alignment: float = Field(default=0.0, ge=0, le=5, description="Theme reinforcement score")
+    dialogue_depth: float = Field(default=0.0, ge=0, le=5, description="Dialogue subtext depth score")
     overall: float = Field(default=0.0, description="Computed average of 4 dimensions")
     notes: str = Field(default="", max_length=1000, description="Brief strengths/weaknesses note")
 

@@ -17,6 +17,30 @@ from services import prompts
 from pipeline.layer2_enhance._agent import CharacterAgent, TENSION_DELTAS
 from pipeline.layer2_enhance.drama_patterns import get_genre_escalation_prompt, get_tension_modifier
 
+try:
+    from pipeline.layer2_enhance.psychology_engine import PsychologyEngine
+    _PSYCHOLOGY_AVAILABLE = True
+except Exception:  # pragma: no cover
+    _PSYCHOLOGY_AVAILABLE = False
+
+try:
+    from pipeline.layer2_enhance.knowledge_system import KnowledgeRegistry
+    _KNOWLEDGE_AVAILABLE = True
+except Exception:  # pragma: no cover
+    _KNOWLEDGE_AVAILABLE = False
+
+try:
+    from pipeline.layer2_enhance.causal_chain import CausalGraph
+    _CAUSAL_AVAILABLE = True
+except Exception:  # pragma: no cover
+    _CAUSAL_AVAILABLE = False
+
+try:
+    from pipeline.layer2_enhance.adaptive_intensity import AdaptiveController
+    _ADAPTIVE_AVAILABLE = True
+except Exception:  # pragma: no cover
+    _ADAPTIVE_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 # Cấu hình cường độ kịch tính — ảnh hưởng đến nhiệt độ, ngưỡng leo thang, độ sâu phản ứng
@@ -93,6 +117,10 @@ class DramaSimulator:
         self.relationships: list[Relationship] = []
         self.trust_network: dict[str, TrustNetworkEdge] = {}
         self._intensity: dict = _get_intensity_config("cao")
+        self._psychology_engine = PsychologyEngine() if _PSYCHOLOGY_AVAILABLE else None
+        self.knowledge: "KnowledgeRegistry | None" = None
+        self.causal_graph: "CausalGraph | None" = None
+        self.adaptive: "AdaptiveController | None" = None
 
     def setup_agents(
         self,
@@ -110,12 +138,83 @@ class DramaSimulator:
             self.trust_network[key] = TrustNetworkEdge(rel.character_a, rel.character_b, initial_trust)
         logger.info(f"Đã tạo {len(self.agents)} agent nhân vật, {len(self.trust_network)} trust edges")
 
+        # Khởi tạo hệ thống tri thức (non-fatal)
+        if _KNOWLEDGE_AVAILABLE:
+            try:
+                self.knowledge = KnowledgeRegistry()
+                for c in characters:
+                    self.knowledge.register_secret(c)
+                self.knowledge.register_initial_knowledge(characters, relationships)
+                logger.info("Đã khởi tạo KnowledgeRegistry")
+            except Exception as e:
+                logger.warning(f"KnowledgeRegistry thất bại, tiếp tục không có: {e}")
+                self.knowledge = None
+
+        # Khởi tạo đồ thị nhân quả (non-fatal)
+        if _CAUSAL_AVAILABLE:
+            try:
+                self.causal_graph = CausalGraph()
+                logger.info("Đã khởi tạo CausalGraph")
+            except Exception as e:
+                logger.warning(f"CausalGraph thất bại: {e}")
+                self.causal_graph = None
+
+        # Extract psychology for each agent in parallel (non-fatal)
+        if self._psychology_engine:
+            try:
+                self._extract_all_psychology(characters)
+            except Exception as e:
+                logger.warning(f"Psychology extraction thất bại, tiếp tục không có tâm lý: {e}")
+
+    def _extract_all_psychology(self, characters: list[Character]) -> None:
+        """Trích xuất tâm lý cho tất cả nhân vật song song."""
+        import asyncio as _asyncio
+
+        engine = self._psychology_engine
+        if engine is None:
+            return
+
+        async def _gather():
+            loop = _asyncio.get_running_loop()
+
+            async def _one(character: Character):
+                try:
+                    return character.name, await _asyncio.wait_for(
+                        loop.run_in_executor(
+                            None, engine.extract_psychology, character, characters
+                        ),
+                        timeout=60,
+                    )
+                except Exception as e:
+                    logger.warning(f"Psychology timeout/lỗi cho '{character.name}': {e}")
+                    return character.name, None
+
+            results = await _asyncio.gather(*[_one(c) for c in characters])
+            return results
+
+        gathered = asyncio.run(_gather())
+        for name, psychology in gathered:
+            if psychology is not None and name in self.agents:
+                self.agents[name].psychology = psychology
+        logger.info("Đã trích xuất tâm lý cho tất cả nhân vật")
+
     def _get_recent_posts(self, exclude_agent: str, limit: int = 5) -> str:
-        """Lấy các bài viết gần đây của nhân vật khác."""
-        recent = [
-            p for p in self.all_posts[-20:]
-            if p.agent_name != exclude_agent
-        ][-limit:]
+        """Lấy các bài viết gần đây của nhân vật khác, lọc theo tri thức nếu có."""
+        try:
+            if self.knowledge is not None:
+                recent = self.knowledge.get_visible_posts(exclude_agent, self.all_posts, limit)
+            else:
+                recent = [
+                    p for p in self.all_posts[-20:]
+                    if p.agent_name != exclude_agent
+                ][-limit:]
+        except Exception as e:
+            logger.debug(f"Knowledge filter lỗi, fallback: {e}")
+            recent = [
+                p for p in self.all_posts[-20:]
+                if p.agent_name != exclude_agent
+            ][-limit:]
+
         if not recent:
             return "Chưa có hoạt động nào."
         return "\n".join(
@@ -350,6 +449,16 @@ class DramaSimulator:
                 if edge:
                     trust_delta = -15.0 if post.sentiment in ("tiêu cực", "căng thẳng") else 5.0
                     edge.update_trust(trust_delta, f"R{round_number}: {post.action_type}")
+                # Update psychology pressure for the target (non-fatal)
+                if self._psychology_engine and target_agent.psychology:
+                    try:
+                        self._psychology_engine.update_pressure(
+                            target_agent.psychology,
+                            post.action_type,
+                            post.agent_name,
+                        )
+                    except Exception as e:
+                        logger.debug(f"update_pressure lỗi: {e}")
 
         # Chuỗi phản ứng đa lớp: nhân vật bị nhắm đến phản ứng theo nhiều lớp
         import random
@@ -372,6 +481,16 @@ class DramaSimulator:
         round_posts.extend(all_reactions)
 
         self.all_posts.extend(round_posts)
+
+        # Kiểm tra tiết lộ bí mật sau vòng (non-fatal)
+        if self.knowledge is not None:
+            try:
+                revelations = self.knowledge.check_revelation_triggers(round_posts, round_number)
+                if revelations:
+                    logger.info(f"Vòng {round_number}: {len(revelations)} bí mật được tiết lộ")
+            except Exception as e:
+                logger.debug(f"check_revelation_triggers lỗi: {e}")
+
         return round_posts
 
     def evaluate_drama(self, round_posts: list[AgentPost]) -> dict:
@@ -401,9 +520,17 @@ class DramaSimulator:
 
         Ngưỡng được điều chỉnh theo đường cong căng thẳng thể loại và cường độ kịch tính.
         """
-        # Định hình đường cong căng thẳng: điều chỉnh ngưỡng theo vị trí trong câu chuyện
-        position = round_num / max(1, total_rounds)
-        curve_modifier = get_tension_modifier(genre, position)
+        # Định hình đường cong căng thẳng: ưu tiên adaptive nếu có, fallback sang math curve
+        try:
+            if self.adaptive is not None:
+                curve_modifier = self.adaptive.get_tension_modifier_actual(genre, round_num, total_rounds)
+            else:
+                position = round_num / max(1, total_rounds)
+                curve_modifier = get_tension_modifier(genre, position)
+        except Exception as e:
+            logger.debug(f"Tension modifier lỗi, fallback: {e}")
+            position = round_num / max(1, total_rounds)
+            curve_modifier = get_tension_modifier(genre, position)
 
         triggered = []
         seen_types: set[str] = set()
@@ -451,7 +578,7 @@ class DramaSimulator:
             # Scale by average drama_multiplier of involved agents (bounded 0.5–3.0)
             chars_involved = result.get("characters_involved", chars)
             agent_multipliers = [
-                self.agents[c.strip()].emotion.drama_multiplier
+                self.agents[c.strip()].get_drama_multiplier()
                 for c in chars_involved
                 if c.strip() in self.agents
             ]
@@ -494,8 +621,40 @@ class DramaSimulator:
         all_events: list[SimulationEvent] = []
         all_drama_scores: list[float] = []
 
-        for round_num in range(1, num_rounds + 1):
-            _log(f"🔄 Vòng mô phỏng {round_num}/{num_rounds}...")
+        # Khởi tạo bộ điều khiển thích nghi (non-fatal)
+        if _ADAPTIVE_AVAILABLE:
+            try:
+                self.adaptive = AdaptiveController(
+                    self._intensity,
+                    min_rounds=max(3, num_rounds - 2),
+                    max_rounds=num_rounds + 3,
+                )
+                logger.info("Đã khởi tạo AdaptiveController")
+            except Exception as e:
+                logger.warning(f"AdaptiveController thất bại: {e}")
+                self.adaptive = None
+
+        round_num = 0
+        while True:
+            round_num += 1
+            # Kiểm tra nên tiếp tục không (adaptive hoặc fixed)
+            if self.adaptive is not None:
+                if round_num > 1 and not self.adaptive.should_continue(round_num):
+                    _log(f"Drama đủ sau {round_num - 1} vòng, dừng sớm")
+                    break
+            else:
+                if round_num > num_rounds:
+                    break
+
+            display_total = num_rounds if self.adaptive is None else (self.adaptive.max_rounds)
+            _log(f"Vòng mô phỏng {round_num}/{display_total}...")
+
+            # Cập nhật intensity từ adaptive nếu có
+            if self.adaptive is not None:
+                try:
+                    self._intensity = self.adaptive.get_current_config()
+                except Exception:
+                    pass
 
             # Chạy vòng mô phỏng
             round_posts = self.simulate_round(
@@ -504,8 +663,9 @@ class DramaSimulator:
 
             # Đánh giá kịch tính
             evaluation = self.evaluate_drama(round_posts)
+            round_drama = evaluation.get("overall_drama_score", 0.5)
 
-            # Trích xuất sự kiện
+            # Trích xuất sự kiện + liên kết nhân quả
             for ev in evaluation.get("events", []):
                 try:
                     event = SimulationEvent(
@@ -517,11 +677,24 @@ class DramaSimulator:
                         suggested_insertion=ev.get("suggested_insertion", ""),
                     )
                     all_events.append(event)
+                    # Thêm vào đồ thị nhân quả (non-fatal)
+                    if self.causal_graph is not None:
+                        try:
+                            self.causal_graph.add_event(event)
+                        except Exception as e:
+                            logger.debug(f"causal_graph.add_event lỗi: {e}")
                 except (KeyError, ValueError, TypeError) as e:
                     logger.debug(f"Skipping malformed simulation event at round {round_num}: {e}")
                     continue
 
-            all_drama_scores.append(evaluation.get("overall_drama_score", 0.5))
+            all_drama_scores.append(round_drama)
+
+            # Ghi lại vòng vào adaptive controller (non-fatal)
+            if self.adaptive is not None:
+                try:
+                    self.adaptive.record_round(round_num, round_drama)
+                except Exception as e:
+                    logger.debug(f"adaptive.record_round lỗi: {e}")
 
             # Kiểm tra và áp dụng mô hình leo thang
             escalations = self._check_escalation(round_num, total_rounds=num_rounds, genre=genre)
@@ -530,7 +703,12 @@ class DramaSimulator:
                 esc_event = self._apply_escalation(pattern, round_num, genre)
                 if esc_event:
                     all_events.append(esc_event)
-                    _log(f"⚡ Escalation: {pattern.pattern_type} — {pattern.description}")
+                    if self.causal_graph is not None:
+                        try:
+                            self.causal_graph.add_event(esc_event)
+                        except Exception:
+                            pass
+                    _log(f"Escalation: {pattern.pattern_type} — {pattern.description}")
 
             # Cập nhật mối quan hệ
             for change in evaluation.get("relationship_changes", []):
@@ -550,6 +728,27 @@ class DramaSimulator:
             for name, agent in self.agents.items()
         }
 
+        # Xây dựng knowledge_state và causal_chains (non-fatal)
+        knowledge_state: dict[str, list[str]] = {}
+        causal_chains: list[list[str]] = []
+        try:
+            if self.knowledge is not None:
+                for name in self.agents:
+                    known = [
+                        item.content for item in self.knowledge.items.values()
+                        if name in item.known_by
+                    ]
+                    knowledge_state[name] = known
+        except Exception as e:
+            logger.debug(f"knowledge_state build lỗi: {e}")
+
+        try:
+            if self.causal_graph is not None:
+                top_chains = self.causal_graph.get_top_chains(n=5)
+                causal_chains = [[ev.event_id for ev in chain] for chain in top_chains]
+        except Exception as e:
+            logger.debug(f"causal_chains build lỗi: {e}")
+
         result = SimulationResult(
             events=all_events,
             updated_relationships=self.relationships,
@@ -558,6 +757,9 @@ class DramaSimulator:
             tension_map=suggestions_result.get("tension_points", {}),
             agent_posts=self.all_posts,
             emotional_trajectories=emotional_trajectories,
+            knowledge_state=knowledge_state,
+            causal_chains=causal_chains,
+            actual_rounds=round_num,
         )
 
         avg_drama = sum(all_drama_scores) / len(all_drama_scores) if all_drama_scores else 0
