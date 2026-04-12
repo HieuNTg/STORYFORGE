@@ -198,6 +198,8 @@ def continue_story(
                 generator.config.pipeline.enable_self_review, self_reviewer,
                 open_threads=list(story_context.open_threads),
                 foreshadowing_plan=foreshadowing_plan,
+                world_rules=getattr(draft.world, 'rules', None) or [],
+                voice_profiles=getattr(draft, 'voice_profiles', None) or [],
             )
 
     draft.character_states = list(story_context.character_states)

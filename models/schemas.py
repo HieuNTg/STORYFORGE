@@ -201,6 +201,8 @@ class StoryContext(BaseModel):
     stale_thread_warnings: list[str] = Field(default_factory=list, description="Cảnh báo tuyến truyện bị bỏ quên")
     chapter_ending_hook: str = Field(default="", description="Hook từ chương trước để tiếp nối")
     emotional_history: list[str] = Field(default_factory=list, description="Lịch sử cảm xúc per chapter")
+    world_rule_violations: list[str] = Field(default_factory=list, description="Vi phạm quy tắc thế giới phát hiện trong chương")
+    dialogue_voice_warnings: list[str] = Field(default_factory=list, description="Cảnh báo giọng nói nhân vật không nhất quán")
 
 
 class StoryDraft(BaseModel):

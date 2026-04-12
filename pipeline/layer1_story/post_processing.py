@@ -46,6 +46,8 @@ def process_chapter_post_write(
     # NEW:
     open_threads=None,
     foreshadowing_plan=None,
+    world_rules=None,
+    voice_profiles=None,
 ) -> tuple:
     """Shared post-write logic: self-review, parallel extraction, context update, bible update.
 
@@ -276,6 +278,32 @@ def process_chapter_post_write(
             mark_paid_off(foreshadowing_plan, outline.chapter_number)
     except Exception as e:
         logger.warning(f"Foreshadowing tracking failed: {e}")
+
+    # --- Quality validators (1 cheap LLM call each, non-fatal) ---
+
+    # World rules validation
+    try:
+        if world_rules:
+            from pipeline.layer1_story.quality_validators import validate_world_rules
+            violations = validate_world_rules(llm, chapter.content, world_rules, outline.chapter_number)
+            # Overwrite: only latest chapter's violations guide the next chapter
+            story_context.world_rule_violations = violations
+            if violations:
+                logger.warning("Ch%d world rule violations: %s", outline.chapter_number, violations)
+    except Exception as e:
+        logger.warning(f"World rules validation failed: {e}")
+
+    # Dialogue voice validation
+    try:
+        if voice_profiles:
+            from pipeline.layer1_story.quality_validators import validate_dialogue_voice
+            voice_warnings = validate_dialogue_voice(llm, chapter.content, voice_profiles, outline.chapter_number)
+            # Overwrite: only latest chapter's warnings guide the next chapter
+            story_context.dialogue_voice_warnings = voice_warnings
+            if voice_warnings:
+                logger.warning("Ch%d voice warnings: %s", outline.chapter_number, voice_warnings)
+    except Exception as e:
+        logger.warning(f"Dialogue voice validation failed: {e}")
 
     # Pacing history tracking
     story_context.pacing_history.append(getattr(outline, "pacing_type", None) or "rising")

@@ -342,6 +342,8 @@ class BatchChapterGenerator:
                 self.config.pipeline.enable_self_review, self_reviewer,
                 open_threads=list(story_context.open_threads),
                 foreshadowing_plan=foreshadowing_plan,
+                world_rules=getattr(draft.world, 'rules', None) or [],
+                voice_profiles=getattr(draft, 'voice_profiles', None) or [],
             )
 
         return chapters
@@ -509,6 +511,8 @@ class BatchChapterGenerator:
                 self.config.pipeline.enable_self_review, self_reviewer,
                 open_threads=frozen_threads,
                 foreshadowing_plan=foreshadowing_plan,
+                world_rules=getattr(draft.world, 'rules', None) or [],
+                voice_profiles=getattr(draft, 'voice_profiles', None) or [],
             )
 
         return chapters_ordered
