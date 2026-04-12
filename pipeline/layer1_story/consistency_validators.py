@@ -138,6 +138,46 @@ def _edit_distance(s1: str, s2: str) -> int:
     return prev[-1]
 
 
+_TRAVEL_KEYWORDS = (
+    "di chuyển", "đi đến", "bay đến", "đến nơi", "hành trình",
+    "rời khỏi", "xuất phát", "trên đường", "travel", "journey",
+    "lên đường", "quay về", "trở lại", "đáp xuống", "cưỡi",
+    "dịch chuyển", "teleport", "xuyên không", "vượt qua",
+    "ngày sau", "tuần sau", "tháng sau", "năm sau",
+    "sáng hôm sau", "chiều hôm sau", "đêm hôm sau",
+)
+
+
+def validate_location_transitions(
+    prev_locations: dict[str, str],
+    new_locations: dict[str, str],
+    chapter_content: str,
+) -> list[str]:
+    """Flag impossible character location transitions. Pure Python heuristic.
+
+    Returns list of warning strings.
+    """
+    if not prev_locations or not new_locations:
+        return []
+
+    content_lower = chapter_content.lower() if chapter_content else ""
+    has_travel = any(kw in content_lower for kw in _TRAVEL_KEYWORDS)
+
+    warnings = []
+    for char_name, new_loc in new_locations.items():
+        prev_loc = prev_locations.get(char_name, "")
+        if not prev_loc or not new_loc:
+            continue
+        if prev_loc.lower().strip() == new_loc.lower().strip():
+            continue
+        if not has_travel and char_name.lower() in content_lower:
+            warnings.append(
+                f"[VỊ TRÍ] {char_name}: '{prev_loc}' → '{new_loc}' "
+                "nhưng không thấy đề cập di chuyển/thời gian trôi qua"
+            )
+    return warnings
+
+
 def detect_arc_drift(character_states: list, characters: list,
                      chapter_number: int, total_chapters: int) -> list[str]:
     """Detect characters whose arc_position contradicts expected trajectory progress.

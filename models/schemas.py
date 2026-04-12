@@ -210,6 +210,7 @@ class StoryContext(BaseModel):
     emotional_history: list[str] = Field(default_factory=list, description="Lịch sử cảm xúc per chapter")
     world_rule_violations: list[str] = Field(default_factory=list, description="Vi phạm quy tắc thế giới phát hiện trong chương")
     dialogue_voice_warnings: list[str] = Field(default_factory=list, description="Cảnh báo giọng nói nhân vật không nhất quán")
+    pacing_adjustment: str = Field(default="", description="Pacing correction directive for next chapter")
 
 
 class StoryDraft(BaseModel):

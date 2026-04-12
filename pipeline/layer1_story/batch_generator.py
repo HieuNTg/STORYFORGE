@@ -356,7 +356,8 @@ class BatchChapterGenerator:
                     from pipeline.layer1_story.chapter_self_critique import (
                         critique_chapter, rewrite_weak_sections, should_critique,
                     )
-                    if should_critique(outline.chapter_number, story_context.total_chapters):
+                    if should_critique(outline.chapter_number, story_context.total_chapters,
+                                       macro_arcs=macro_arcs, pacing_type=pacing):
                         outline_text = f"{outline.title}: {outline.summary}"
                         crit = critique_chapter(
                             self.llm, chapter.content, outline_text,

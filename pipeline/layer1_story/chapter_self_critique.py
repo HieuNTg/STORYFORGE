@@ -198,12 +198,29 @@ def rewrite_weak_sections(
     return current_content
 
 
-def should_critique(chapter_number: int, total_chapters: int) -> bool:
-    """Short stories (<=20): always. Long: first 3 + every 5th + last 3."""
+def should_critique(
+    chapter_number: int,
+    total_chapters: int,
+    macro_arcs=None,
+    pacing_type: str = "",
+) -> bool:
+    """Selective critique: first/last 3, arc boundaries, climax/twist chapters.
+
+    Expected: ~15-25% of chapters critiqued in a 100-chapter story.
+    Short stories (<=20): always critique.
+    """
     if total_chapters <= 20:
         return True
-    return (
-        chapter_number <= 3
-        or chapter_number >= total_chapters - 2
-        or chapter_number % 5 == 0
-    )
+    if chapter_number <= 3 or chapter_number >= total_chapters - 2:
+        return True
+    if pacing_type in ("climax", "twist"):
+        return True
+    if macro_arcs:
+        for arc in macro_arcs:
+            start = getattr(arc, "chapter_start", 0)
+            end = getattr(arc, "chapter_end", 0)
+            if chapter_number == start or chapter_number == end:
+                return True
+            if chapter_number == start + 1 or chapter_number == end - 1:
+                return True
+    return False

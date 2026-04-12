@@ -58,6 +58,8 @@ def _append_consistency_context(parts: list[str], context: StoryContext) -> None
         recent_emotions = context.emotional_history[-3:]
         emo_text = " → ".join(recent_emotions)
         parts.append(f"## Dòng cảm xúc gần đây: {emo_text}")
+    if context.pacing_adjustment:
+        parts.append(context.pacing_adjustment)
     if context.world_rule_violations:
         viol_text = "\n".join(f"- {v}" for v in context.world_rule_violations[:5])
         parts.append(

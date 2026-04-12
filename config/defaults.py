@@ -117,7 +117,7 @@ class PipelineConfig:
     outline_critique_max_rounds: int = 1  # Max critique-revise iterations
     enable_scene_decomposition: bool = True  # Break chapters into scenes before writing
     enable_show_dont_tell: bool = True  # Inject show-don't-tell guidance into prompts
-    enable_chapter_critique: bool = False  # Post-write chapter self-critique (costs extra LLM calls)
+    enable_chapter_critique: bool = True  # Post-write selective self-critique (climax, arc boundaries, first/last)
 
     # Phase 1 quality improvements
     enable_arc_waypoints: bool = True  # Structured character arc tracking per chapter

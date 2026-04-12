@@ -193,6 +193,7 @@ def process_chapter_post_write(
         logger.warning(f"World state extraction failed: {e}")
 
     # Extract timeline positions and character locations (1 cheap LLM call)
+    prev_locations = dict(story_context.character_locations)
     try:
         new_tl, new_loc = extract_timeline_and_locations(
             llm, chapter.content, outline.chapter_number,
@@ -202,6 +203,20 @@ def process_chapter_post_write(
         story_context.character_locations = new_loc
     except Exception as e:
         logger.warning(f"Timeline/location extraction failed: {e}")
+        new_loc = story_context.character_locations
+
+    # Location transition validation (pure Python, zero LLM cost)
+    # Store separately — world_rule_violations may be overwritten by quality validators later
+    _location_warnings: list[str] = []
+    try:
+        from pipeline.layer1_story.consistency_validators import validate_location_transitions
+        _location_warnings = validate_location_transitions(
+            prev_locations, new_loc, chapter.content,
+        )
+        for w in _location_warnings:
+            logger.warning("Ch%d location: %s", outline.chapter_number, w)
+    except Exception as e:
+        logger.debug("Location validation failed (non-fatal): %s", e)
 
     # Update Story Bible (always-on)
     if draft.story_bible and bible_manager:
@@ -231,6 +246,19 @@ def process_chapter_post_write(
             story_context.emotional_history.append(structured.actual_emotional_arc)
             # Store 10 for future analysis; chapter_writer shows last 3
             story_context.emotional_history = story_context.emotional_history[-10:]
+        # Pacing feedback loop: compare intended vs actual, compute correction
+        try:
+            from pipeline.layer1_story.pacing_controller import compute_pacing_adjustment
+            intended_pacing = getattr(outline, "pacing_type", "") or ""
+            actual_arc = structured.actual_emotional_arc
+            adjustment = compute_pacing_adjustment(
+                intended_pacing, actual_arc, list(story_context.pacing_history),
+            )
+            story_context.pacing_adjustment = adjustment
+            if adjustment:
+                logger.info("Pacing mismatch ch%d: %s", outline.chapter_number, adjustment)
+        except Exception as pace_err:
+            logger.debug("Pacing feedback failed (non-fatal): %s", pace_err)
     except Exception as e:
         logger.warning(f"Structured summary extraction failed: {e}")
 
@@ -303,12 +331,17 @@ def process_chapter_post_write(
         if world_rules:
             from pipeline.layer1_story.quality_validators import validate_world_rules
             violations = validate_world_rules(llm, chapter.content, world_rules, outline.chapter_number)
-            # Overwrite: only latest chapter's violations guide the next chapter
             story_context.world_rule_violations = violations
             if violations:
                 logger.warning("Ch%d world rule violations: %s", outline.chapter_number, violations)
     except Exception as e:
         logger.warning(f"World rules validation failed: {e}")
+
+    # Merge location warnings into world_rule_violations (after world rule check)
+    if _location_warnings:
+        story_context.world_rule_violations = (
+            list(story_context.world_rule_violations) + _location_warnings
+        )[-5:]
 
     # Dialogue voice validation
     try:
