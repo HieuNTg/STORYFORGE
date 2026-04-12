@@ -123,6 +123,10 @@ class PipelineConfig:
     enable_arc_waypoints: bool = True  # Structured character arc tracking per chapter
     enable_outline_arc_validation: bool = True  # Validate outline-to-macro_arc coherence
 
+    # Phase 2 chapter contracts
+    enable_chapter_contracts: bool = True  # Per-chapter requirement contracts
+    enable_contract_validation: bool = True  # Post-write contract compliance check
+
     # Quality gate (inline scoring between layers)
     # Recommended thresholds by genre: romance/comedy=2.3, mystery/thriller=2.5,
     # fantasy/sci-fi=2.5, literary/historical=2.8, action=2.2

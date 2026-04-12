@@ -199,6 +199,7 @@ class BatchChapterGenerator:
         the batch. The frozen snapshot is available for Phase 2 parallel mode.
         """
         chapters: list[Chapter] = []
+        _contract_failures: list[str] = []
 
         for outline in batch:
             story_context.current_chapter = outline.chapter_number
@@ -248,6 +249,25 @@ class BatchChapterGenerator:
                     f"Đang viết chương {outline.chapter_number}: {outline.title}..."
                 )
 
+            # Build chapter contract (unified per-chapter requirements)
+            contract_text = ""
+            contract = None
+            if getattr(self.config.pipeline, "enable_chapter_contracts", False):
+                try:
+                    from pipeline.layer1_story.chapter_contract_builder import build_contract, format_contract_for_prompt
+                    contract = build_contract(
+                        outline.chapter_number, outline,
+                        threads=list(story_context.open_threads),
+                        macro_arcs=macro_arcs,
+                        conflicts=conflict_web,
+                        foreshadowing_plan=foreshadowing_plan,
+                        characters=characters,
+                        previous_failures=_contract_failures,
+                    )
+                    contract_text = format_contract_for_prompt(contract)
+                except Exception as e:
+                    logger.warning("Contract build failed for ch%d (non-fatal): %s", outline.chapter_number, e)
+
             # Build enhancement context (theme, voice, scenes, show-don't-tell)
             from pipeline.layer1_story.enhancement_context_builder import build_enhancement_context
             enhancement_context = build_enhancement_context(
@@ -278,6 +298,7 @@ class BatchChapterGenerator:
                     pacing_type=pacing,
                     enhancement_context=enhancement_context,
                     current_arc_context=arc_context,
+                    chapter_contract=contract_text,
                 )
             else:
                 chapter = self.gen._write_chapter_with_long_context(
@@ -290,6 +311,7 @@ class BatchChapterGenerator:
                     pacing_type=pacing,
                     enhancement_context=enhancement_context,
                     current_arc_context=arc_context,
+                    chapter_contract=contract_text,
                 )
 
             chapter_tokens_used = len(chapter.content) // 4
@@ -345,6 +367,28 @@ class BatchChapterGenerator:
                 world_rules=getattr(draft.world, 'rules', None) or [],
                 voice_profiles=getattr(draft, 'voice_profiles', None) or [],
             )
+
+            # Post-write contract validation
+            if contract is not None and getattr(self.config.pipeline, "enable_contract_validation", False):
+                try:
+                    from pipeline.layer1_story.chapter_contract_builder import validate_contract_compliance
+                    compliance = validate_contract_compliance(
+                        self.llm, chapter.content, contract, model=self.gen._layer_model,
+                    )
+                    _contract_failures = compliance.get("failures", [])
+                    score = compliance.get("compliance_score", 0.0)
+                    if score < 0.7:
+                        logger.warning(
+                            "Ch%d contract compliance %.0f%% — failures: %s",
+                            outline.chapter_number, score * 100, _contract_failures,
+                        )
+                    elif progress_callback:
+                        progress_callback(
+                            f"Chương {outline.chapter_number} hợp đồng: {score:.0%}"
+                        )
+                except Exception as e:
+                    logger.warning("Contract validation failed for ch%d (non-fatal): %s", outline.chapter_number, e)
+                    _contract_failures = []
 
         return chapters
 
@@ -462,6 +506,23 @@ class BatchChapterGenerator:
             if scene_beats:
                 per_chapter_enhancement += scene_beats
 
+            # Build chapter contract (parallel: no previous_failures feedback)
+            p_contract_text = ""
+            if getattr(self.config.pipeline, "enable_chapter_contracts", False):
+                try:
+                    from pipeline.layer1_story.chapter_contract_builder import build_contract, format_contract_for_prompt
+                    p_contract = build_contract(
+                        outline.chapter_number, outline,
+                        threads=frozen_threads,
+                        macro_arcs=macro_arcs,
+                        conflicts=conflict_web,
+                        foreshadowing_plan=foreshadowing_plan,
+                        characters=characters,
+                    )
+                    p_contract_text = format_contract_for_prompt(p_contract)
+                except Exception as e:
+                    logger.warning("Contract build failed for ch%d (non-fatal): %s", outline.chapter_number, e)
+
             if progress_callback:
                 progress_callback(
                     f"Đang viết chương {outline.chapter_number}: {outline.title}..."
@@ -477,6 +538,7 @@ class BatchChapterGenerator:
                 pacing_type=pacing,
                 enhancement_context=per_chapter_enhancement,
                 current_arc_context=arc_context,
+                chapter_contract=p_contract_text,
             )
 
         max_workers = min(len(batch), 5)

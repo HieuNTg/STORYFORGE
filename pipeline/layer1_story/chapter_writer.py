@@ -163,6 +163,7 @@ def build_chapter_prompt(
     pacing_type: str = "",
     enhancement_context: str = "",
     current_arc_context: str = "",
+    chapter_contract: str = "",
 ) -> tuple[str, str]:
     """Build system/user prompts for chapter writing. Returns (system_prompt, user_prompt)."""
     chars_text = "\n".join(
@@ -278,6 +279,9 @@ def build_chapter_prompt(
         pacing_directive=pacing_directive,
     )
     user_prompt = build_adaptive_write_prompt(user_prompt, genre, pacing_type=resolved_pacing)
+    # Inject chapter contract (unified requirements for this chapter)
+    if chapter_contract:
+        user_prompt += "\n\n" + chapter_contract
     # Inject enhancement context (theme premise, voice profiles, scene structure, show-don't-tell)
     if enhancement_context:
         user_prompt += "\n\n" + enhancement_context
@@ -320,6 +324,7 @@ def write_chapter(
     pacing_type: str = "",
     enhancement_context: str = "",
     current_arc_context: str = "",
+    chapter_contract: str = "",
 ) -> Chapter:
     """Write a single chapter (non-streaming)."""
     sys_prompt, user_prompt = build_chapter_prompt(
@@ -331,6 +336,7 @@ def write_chapter(
         pacing_type=pacing_type,
         enhancement_context=enhancement_context,
         current_arc_context=current_arc_context,
+        chapter_contract=chapter_contract,
     )
     content = llm.generate(
         system_prompt=sys_prompt,
@@ -367,6 +373,7 @@ def write_chapter_stream(
     pacing_type: str = "",
     enhancement_context: str = "",
     current_arc_context: str = "",
+    chapter_contract: str = "",
 ) -> Chapter:
     """Write chapter with streaming. Calls stream_callback(partial_text) each chunk."""
     sys_prompt, user_prompt = build_chapter_prompt(
@@ -378,6 +385,7 @@ def write_chapter_stream(
         pacing_type=pacing_type,
         enhancement_context=enhancement_context,
         current_arc_context=current_arc_context,
+        chapter_contract=chapter_contract,
     )
 
     full_content = ""
@@ -401,6 +409,7 @@ def write_chapter_stream(
             foreshadowing_to_payoff=foreshadowing_to_payoff, pacing_type=pacing_type,
             enhancement_context=enhancement_context,
             current_arc_context=current_arc_context,
+            chapter_contract=chapter_contract,
         )
 
     return Chapter(
