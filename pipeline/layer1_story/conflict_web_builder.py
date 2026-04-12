@@ -77,7 +77,8 @@ def format_conflicts_for_prompt(conflicts: list[ConflictEntry]) -> str:
     lines = []
     for c in conflicts:
         chars = " vs ".join(c.characters) if c.conflict_type != "internal" else c.characters[0]
-        lines.append(f"- [{c.conflict_type}] {chars}: {c.description} ({c.status})")
+        status_label = f"{c.status} (ESCALATING)" if c.status == "escalating" else c.status
+        lines.append(f"- [{c.conflict_type}] {chars}: {c.description} ({status_label})")
     return "\n".join(lines)
 
 
@@ -85,20 +86,50 @@ def update_conflict_status(
     conflicts: list[ConflictEntry],
     chapter_content: str,
     chapter_number: int,
+    llm=None,
 ) -> list[ConflictEntry]:
-    """Simple heuristic update: if trigger_event keywords appear in content, activate conflict."""
+    """Semantic conflict activation: LLM checks if trigger conditions are met."""
     content_lower = chapter_content.lower()
-    for c in conflicts:
-        if c.status == "dormant" and c.trigger_event:
-            # Simple keyword match — trigger_event words found in content
+
+    dormant_with_triggers = [c for c in conflicts if c.status == "dormant" and c.trigger_event]
+
+    if dormant_with_triggers and llm is not None:
+        # Batch check: single LLM call for all dormant conflicts
+        conflicts_text = "\n".join(
+            f"- conflict_id={c.conflict_id}: trigger=[{c.trigger_event}]"
+            for c in dormant_with_triggers
+        )
+        result = llm.generate_json(
+            system_prompt="Bạn phân tích nội dung chương truyện. Trả về JSON.",
+            user_prompt=(
+                f"Nội dung chương:\n{chapter_content[:3000]}\n\n"
+                f"Các xung đột đang dormant:\n{conflicts_text}\n\n"
+                "Với mỗi conflict, xác định xem điều kiện trigger có xảy ra trong chương không (theo nghĩa semantic, không cần từ ngữ giống hệt).\n"
+                'Trả về JSON: {"activated": ["conflict_id1", "conflict_id2"]}'
+            ),
+            temperature=0.2,
+            max_tokens=300,
+            model_tier="cheap",
+        )
+        activated_ids = set(result.get("activated", []))
+        for c in dormant_with_triggers:
+            if c.conflict_id in activated_ids:
+                c.status = "active"
+                logger.info("Conflict %s semantically activated at chapter %d", c.conflict_id, chapter_number)
+    elif dormant_with_triggers:
+        # Fallback: keyword matching when no LLM available
+        for c in dormant_with_triggers:
             trigger_words = [w.strip().lower() for w in c.trigger_event.split() if len(w) > 3]
             match_count = sum(1 for w in trigger_words if w in content_lower)
             if trigger_words and match_count / len(trigger_words) > 0.4:
                 c.status = "active"
-                logger.info("Conflict %s activated at chapter %d", c.conflict_id, chapter_number)
-        elif c.status == "active":
-            # Check for escalation keywords
+                logger.info("Conflict %s keyword-activated at chapter %d", c.conflict_id, chapter_number)
+
+    # Escalation check (keep existing logic)
+    for c in conflicts:
+        if c.status == "active":
             escalation_words = ["phản bội", "đối đầu", "bùng nổ", "không thể tha thứ", "quyết chiến"]
             if any(w in content_lower for w in escalation_words):
                 c.status = "escalating"
+
     return conflicts

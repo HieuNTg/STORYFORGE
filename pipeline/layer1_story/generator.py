@@ -294,9 +294,9 @@ class StoryGenerator:
         draft.conflict_web = conflict_web
         draft.foreshadowing_plan = foreshadowing_plan
         story_context = StoryContext(total_chapters=len(outlines))
-        bible_enabled = self.config.pipeline.story_bible_enabled
-        if bible_enabled:
-            draft.story_bible = self.bible_manager.initialize(draft, arc_size=self.config.pipeline.arc_size)
+        if not self.config.pipeline.story_bible_enabled:
+            logger.warning("story_bible_enabled=False is deprecated; Story Bible is now always-on for consistency.")
+        draft.story_bible = self.bible_manager.initialize(draft, arc_size=self.config.pipeline.arc_size)
 
         # Delegate to BatchChapterGenerator (Phase 1: sequential within batches)
         from pipeline.layer1_story.batch_generator import BatchChapterGenerator

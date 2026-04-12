@@ -252,11 +252,17 @@ Bối cảnh thế giới: {world}
 NHÂN VẬT:
 {characters}
 
+RÀNG BUỘC NHÂN VẬT:
+{chars_constraints}
+
 DÀN Ý CHƯƠNG {chapter_number} - {chapter_title}:
 {outline}
 
 NỘI DUNG CÁC CHƯƠNG TRƯỚC (tóm tắt):
 {previous_summary}
+
+BỐI CẢNH ARC HIỆN TẠI:
+{current_arc_context}
 
 THREADS ĐANG MỞ:
 {open_threads}
@@ -271,12 +277,14 @@ FORESHADOWING CẦN PAYOFF:
 {foreshadowing_to_payoff}
 
 NHỊP ĐỘ CHƯƠNG NÀY: {pacing_type}
+{pacing_directive}
 
 YÊU CẦU:
 - Viết chương {chapter_number} đầy đủ, khoảng {word_count} từ
 - Miêu tả sinh động, đối thoại tự nhiên
 - Thể hiện rõ tính cách nhân vật qua hành động và lời nói
 - Tạo nhịp điệu kịch tính, có cao trào
+- Các sự kiện chính trong DÀN Ý PHẢI xảy ra đầy đủ trong chương này, không được bỏ sót bất kỳ sự kiện nào
 - Kết chương tạo sự tò mò cho chương tiếp theo
 - Viết hoàn toàn bằng tiếng Việt
 - Đối thoại phải reveal tính cách, advance plot, hoặc cả hai — tránh hội thoại trống rỗng

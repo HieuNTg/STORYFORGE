@@ -109,6 +109,7 @@ class PlotEvent(BaseModel):
     chapter_number: int
     event: str
     characters_involved: list[str] = Field(default_factory=list)
+    critical: bool = Field(default=False, description="If True, this event is never pruned from context")
 
 
 class PlotThread(BaseModel):
@@ -175,6 +176,8 @@ class StoryBible(BaseModel):
     arcs: list[StoryArc] = Field(default_factory=list)
     milestone_events: list[str] = Field(default_factory=list)
     arc_summaries: list[str] = Field(default_factory=list)
+    timeline_positions: dict[str, str] = Field(default_factory=dict, description="Mốc thời gian per POV {tên nhân vật: mốc thời gian}")
+    character_locations: dict[str, str] = Field(default_factory=dict, description="Vị trí nhân vật {tên: địa điểm}")
 
 
 class StoryContext(BaseModel):
@@ -188,6 +191,11 @@ class StoryContext(BaseModel):
     conflict_map: list[ConflictEntry] = Field(default_factory=list, description="Active conflicts")
     current_arc: int = Field(default=1, description="Current macro arc number")
     pacing_history: list[str] = Field(default_factory=list, description="Recent pacing types for rhythm tracking")
+    world_state_changes: list[str] = Field(default_factory=list, description="Permanent world changes (cities burned, rulers dead, etc.)")
+    timeline_positions: dict[str, str] = Field(default_factory=dict, description="Mốc thời gian per POV {tên nhân vật/narrator: mốc thời gian}")
+    character_locations: dict[str, str] = Field(default_factory=dict, description="Vị trí hiện tại {tên nhân vật: địa điểm}")
+    arc_drift_warnings: list[str] = Field(default_factory=list, description="Cảnh báo trượt arc nhân vật")
+    name_warnings: list[str] = Field(default_factory=list, description="Cảnh báo tên nhân vật không nhất quán")
 
 
 class StoryDraft(BaseModel):

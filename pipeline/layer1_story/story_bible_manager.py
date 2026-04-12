@@ -39,6 +39,8 @@ class StoryBibleManager:
         chapter: Chapter,
         character_states: list[CharacterState],
         plot_events: list[PlotEvent],
+        timeline_positions: dict[str, str] | None = None,
+        character_locations: dict[str, str] | None = None,
     ) -> None:
         """Cập nhật bible sau khi viết xong một chương."""
         ch_num = chapter.chapter_number
@@ -87,6 +89,16 @@ class StoryBibleManager:
             bible.resolved_threads = bible.resolved_threads[-50:]
         if len(bible.arc_summaries) > 20:
             bible.arc_summaries = bible.arc_summaries[-20:]
+
+        # Persist timeline/location for long-term memory (cap at 30 entries each)
+        if timeline_positions:
+            bible.timeline_positions.update(timeline_positions)
+            if len(bible.timeline_positions) > 30:
+                bible.timeline_positions = dict(list(bible.timeline_positions.items())[-30:])
+        if character_locations:
+            bible.character_locations.update(character_locations)
+            if len(bible.character_locations) > 30:
+                bible.character_locations = dict(list(bible.character_locations.items())[-30:])
 
     def get_context_for_chapter(
         self,
@@ -145,7 +157,15 @@ class StoryBibleManager:
                 "## Các chương gần đây:\n" + "\n---\n".join(recent_summaries[-5:])
             )
 
-        # 8. Trạng thái nhân vật
+        # 8. Timeline & vị trí nhân vật (long-term persistence)
+        if bible.timeline_positions:
+            tl_lines = [f"- {name}: {tl}" for name, tl in bible.timeline_positions.items()]
+            parts.append("## Mốc thời gian:\n" + "\n".join(tl_lines))
+        if bible.character_locations:
+            loc_lines = [f"- {name}: {loc}" for name, loc in bible.character_locations.items()]
+            parts.append("## Vị trí nhân vật:\n" + "\n".join(loc_lines))
+
+        # 9. Trạng thái nhân vật
         if character_states:
             char_lines = [
                 f"- {cs.name}: {cs.mood}, {cs.arc_position}, last: {cs.last_action}"

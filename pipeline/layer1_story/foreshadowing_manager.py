@@ -55,11 +55,32 @@ def get_payoffs_due(plan: list[ForeshadowingEntry], chapter_number: int) -> list
     return [f for f in plan if f.payoff_chapter == chapter_number and f.planted and not f.paid_off]
 
 
-def mark_planted(plan: list[ForeshadowingEntry], chapter_number: int) -> None:
-    """Mark seeds as planted after chapter is written."""
+def mark_planted(
+    plan: list[ForeshadowingEntry],
+    chapter_number: int,
+    chapter_content: str = "",
+) -> None:
+    """Mark seeds as planted. If chapter_content provided, verify hint actually appears."""
     for f in plan:
         if f.plant_chapter == chapter_number and not f.planted:
-            f.planted = True
+            if chapter_content:
+                # Verify hint concept appears in chapter (simple substring or key word check)
+                hint_words = [w.lower() for w in f.hint.split() if len(w) > 3]
+                content_lower = chapter_content.lower()
+                # Consider planted if at least 30% of hint key words appear
+                if hint_words:
+                    match_ratio = sum(1 for w in hint_words if w in content_lower) / len(hint_words)
+                    if match_ratio >= 0.3:
+                        f.planted = True
+                    else:
+                        logger.warning(
+                            "Foreshadowing '%s' scheduled for ch%d but hint not detected in content (match=%.0f%%)",
+                            f.hint[:50], chapter_number, match_ratio * 100,
+                        )
+                else:
+                    f.planted = True  # no key words to check, mark as planted
+            else:
+                f.planted = True  # no content to verify, mark as planted (backwards compat)
 
 
 def mark_paid_off(plan: list[ForeshadowingEntry], chapter_number: int) -> None:

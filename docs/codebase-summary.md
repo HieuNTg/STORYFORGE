@@ -235,6 +235,65 @@ docker compose -f docker-compose.production.yml up -d --scale app=3
 # Nginx sticky sessions (ip_hash) route SSE to same instance
 ```
 
+## Phase 1 Consistency Improvements
+
+### 1. Consistency Validators Module (`pipeline/layer1_story/consistency_validators.py`)
+
+**Purpose**: Non-fatal, post-write validation to catch coherence issues early.
+
+**Three Validators**:
+1. **Timeline & Location Extraction** (`extract_timeline_and_locations`)
+   - LLM-powered: Extracts per-POV timeline positions and character locations
+   - Cheap tier call; merges with previous state (30-entry cap)
+   - Tracks temporal continuity and spatial consistency
+   
+2. **Character Name Validation** (`validate_character_names`)
+   - Regex-based, zero LLM cost
+   - Detects misspellings via edit distance (Levenshtein)
+   - Warns on name variants & inconsistencies
+
+3. **Arc Drift Detection** (`detect_arc_drift`)
+   - Heuristic check, zero LLM cost
+   - Validates character arc_position matches expected trajectory progress
+   - Supports Vietnamese arc stage aliases (setup, rising, crisis, climax, resolution)
+   - ±0.3 progress tolerance band
+
+**Integration**: Called in `post_processing.py` after chapter write; warnings stored in `StoryContext.arc_drift_warnings` and `StoryContext.name_warnings`.
+
+### 2. StoryContext & StoryBible Schema Updates
+
+**StoryContext** (rolling context for chapter writing):
+- `timeline_positions: dict[str, str]` — Per-POV timeline markers
+- `character_locations: dict[str, str]` — Current character locations
+- `arc_drift_warnings: list[str]` — Arc position contradictions
+- `name_warnings: list[str]` — Name consistency issues
+
+**StoryBible** (long-term memory):
+- `timeline_positions: dict[str, str]` — Persisted timeline (30-entry cap)
+- `character_locations: dict[str, str]` — Persisted locations (30-entry cap)
+
+### 3. Story Bible Manager Changes
+
+**Timeline & Location Persistence**:
+- `update_after_chapter()` now accepts optional `timeline_positions` and `character_locations` params
+- Merges new extractions with existing state (update, not replace)
+- Maintains 30-entry cap for unbounded growth prevention
+
+### 4. Chapter Writer Integration
+
+**New Helper**: `_append_consistency_context(parts, context)`
+- Appends timeline, location, and warning sections to LLM prompts
+- Arc drift warnings flagged as `[CẢNH BÁO ARC NHÂN VẬT]` (forces correction)
+- Name warnings flagged as `[CẢNH BÁO TÊN NHÂN VẬT]` (enforces canon names)
+- Called in `format_context()` to inject context into chapter write prompts
+
+### 5. Always-On Story Bible
+
+**Change**: Story Bible is now always enabled (no `bible_enabled` parameter).
+- Removed from `batch_generator.py` signatures
+- Removed from `story_continuation.py` post-write calls
+- Generator logs deprecation message for removed parameter
+
 ## P3 Sprint Changes
 
 ### 1. Redis Authentication

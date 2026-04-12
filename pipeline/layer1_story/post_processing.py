@@ -11,13 +11,21 @@ if __name__ == "__main__":
 logger = logging.getLogger(__name__)
 
 
+_CRITICAL_KEYWORDS = [
+    "chết", "phản bội", "tiết lộ bí mật", "kết thúc", "chiến thắng",
+    "thất bại hoàn toàn", "hi sinh", "phá hủy", "sụp đổ", "bị phản",
+]
+
+
 def _prune_plot_events(events: list) -> list:
-    """Smart prune: keep recent 30 + top-20 older by event length. Cap 50."""
-    if len(events) <= 50:
-        return events
-    recent = events[-30:]
-    older = sorted(events[:-30], key=lambda e: len(e.event), reverse=True)[:20]
-    return older + recent
+    """Smart prune: always keep critical events + recent 30 + top older by length. Cap 50 non-critical."""
+    critical = [e for e in events if getattr(e, 'critical', False)]
+    non_critical = [e for e in events if not getattr(e, 'critical', False)]
+    if len(non_critical) <= 50:
+        return events  # nothing to prune
+    recent = non_critical[-30:]
+    older = sorted(non_critical[:-30], key=lambda e: len(e.event), reverse=True)[:20]
+    return critical + older + recent
 
 
 def process_chapter_post_write(
@@ -28,7 +36,6 @@ def process_chapter_post_write(
     context_window: int,
     executor: ThreadPoolExecutor,
     llm,
-    bible_enabled: bool,
     draft: StoryDraft,
     bible_manager,
     progress_callback=None,
@@ -81,6 +88,8 @@ def process_chapter_post_write(
 
     try:
         new_states = states_f.result(timeout=_TIMEOUT)
+        # Arc trajectory context is now passed in extraction prompt (character_generator.py).
+        # TODO: add regression check if arc_position contradicts arc_trajectory direction.
     except Exception as e:
         logger.warning(f"Character state extraction failed: {e}")
         new_states = []
@@ -88,6 +97,10 @@ def process_chapter_post_write(
 
     try:
         new_events = events_f.result(timeout=_TIMEOUT)
+        # Tag critical events based on keywords (non-LLM, cheap heuristic)
+        for e in new_events:
+            if any(kw in e.event.lower() for kw in _CRITICAL_KEYWORDS):
+                e.critical = True
     except Exception as e:
         logger.warning(f"Plot event extraction failed: {e}")
         new_events = []
@@ -128,11 +141,73 @@ def process_chapter_post_write(
     story_context.plot_events.extend(new_events)
     story_context.plot_events = _prune_plot_events(story_context.plot_events)
 
-    # Update Story Bible
-    if bible_enabled and draft.story_bible:
+    # --- Consistency validators (non-fatal) ---
+    try:
+        from pipeline.layer1_story.consistency_validators import (
+            validate_character_names, detect_arc_drift, extract_timeline_and_locations,
+        )
+        # Name validation (regex, zero LLM cost)
+        name_warnings = validate_character_names(chapter.content, characters)
+        story_context.name_warnings = name_warnings
+        if name_warnings:
+            logger.warning("Ch%d name issues: %s", outline.chapter_number, name_warnings)
+
+        # Arc drift detection (heuristic, zero LLM cost)
+        drift_warnings = detect_arc_drift(
+            story_context.character_states, characters,
+            outline.chapter_number, story_context.total_chapters,
+        )
+        story_context.arc_drift_warnings = drift_warnings
+        for w in drift_warnings:
+            logger.warning(w)
+    except Exception as e:
+        logger.warning(f"Consistency validation failed: {e}")
+
+    # Extract world state changes (permanent, irreversible changes to the setting)
+    try:
+        world_changes_result = llm.generate_json(
+            system_prompt="Trích xuất thay đổi thế giới. Trả về JSON.",
+            user_prompt=(
+                f"Chương {outline.chapter_number}:\n{chapter.content[:3000]}\n\n"
+                "Liệt kê các thay đổi CỐ ĐỊNH, KHÔNG THỂ ĐẢO NGƯỢC đối với thế giới/bối cảnh "
+                "(ví dụ: thành phố bị thiêu rụi, vua chết, cầu bị phá). "
+                "BỎ QUA: trạng thái nhân vật, cảm xúc, thông tin nhân vật biết.\n"
+                '{"world_changes": ["mô tả thay đổi ngắn gọn"]}'
+            ),
+            temperature=0.2,
+            max_tokens=300,
+            model_tier="cheap",
+        )
+        new_world_changes = world_changes_result.get("world_changes", [])
+        if new_world_changes and hasattr(story_context, 'world_state_changes'):
+            seen = set(story_context.world_state_changes)
+            for change in new_world_changes:
+                if change and change not in seen:
+                    story_context.world_state_changes.append(change)
+                    seen.add(change)
+            # Cap at 30 world state changes
+            story_context.world_state_changes = story_context.world_state_changes[-30:]
+    except Exception as e:
+        logger.warning(f"World state extraction failed: {e}")
+
+    # Extract timeline positions and character locations (1 cheap LLM call)
+    try:
+        new_tl, new_loc = extract_timeline_and_locations(
+            llm, chapter.content, outline.chapter_number,
+            story_context.timeline_positions, story_context.character_locations,
+        )
+        story_context.timeline_positions = new_tl
+        story_context.character_locations = new_loc
+    except Exception as e:
+        logger.warning(f"Timeline/location extraction failed: {e}")
+
+    # Update Story Bible (always-on)
+    if draft.story_bible and bible_manager:
         bible_manager.update_after_chapter(
             draft.story_bible, chapter,
             list(story_context.character_states), new_events,
+            timeline_positions=story_context.timeline_positions,
+            character_locations=story_context.character_locations,
         )
 
     # --- New narrative tracking (non-fatal, sequential) ---
@@ -169,7 +244,7 @@ def process_chapter_post_write(
         from pipeline.layer1_story.conflict_web_builder import update_conflict_status
         if story_context.conflict_map:
             update_conflict_status(
-                story_context.conflict_map, chapter.content, outline.chapter_number,
+                story_context.conflict_map, chapter.content, outline.chapter_number, llm=llm,
             )
     except Exception as e:
         logger.warning(f"Conflict status update failed: {e}")
@@ -178,7 +253,7 @@ def process_chapter_post_write(
     try:
         from pipeline.layer1_story.foreshadowing_manager import mark_planted, mark_paid_off
         if foreshadowing_plan:
-            mark_planted(foreshadowing_plan, outline.chapter_number)
+            mark_planted(foreshadowing_plan, outline.chapter_number, chapter.content)
             mark_paid_off(foreshadowing_plan, outline.chapter_number)
     except Exception as e:
         logger.warning(f"Foreshadowing tracking failed: {e}")

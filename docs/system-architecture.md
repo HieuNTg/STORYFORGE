@@ -25,6 +25,51 @@ User Input
         Export (PDF/EPUB/HTML/ZIP)
 ```
 
+## Layer 1 Pipeline: Story Generation
+
+Layer 1 generates story structure in stages:
+
+```
+1. Setup (characters, world, outline)
+   ↓
+2. Batch Generation (parallel chapter writing)
+   ├─ Outline critique + revision loop
+   ├─ Scene decomposition
+   ├─ Character voice profiling
+   └─ Theme premise anchoring
+   ↓
+3. Chapter Writing (per-chapter)
+   ├─ Format context (story bible or rolling summaries)
+   ├─ Call LLM with adaptive prompt
+   ├─ Optional self-review & revision
+   ├─ Extract: summary, character states, plot events
+   ├─ Consistency validation (zero-cost heuristics)
+   ├─ Story bible update (timeline, locations, threads)
+   └─ Show-don't-tell enforcement
+   ↓
+4. Continuation (resume from checkpoint)
+   ├─ Fetch last written chapter
+   ├─ Rebuild context window
+   └─ Resume at next chapter
+```
+
+**Key Components** (`pipeline/layer1_story/`):
+- `generator.py` — Main orchestrator, calls batch_generator or story_continuation
+- `batch_generator.py` — Parallel chapter generation with quality gates
+- `chapter_writer.py` — Chapter text generation with context formatting
+- `consistency_validators.py` — Non-fatal post-write validation (timeline, names, arc drift)
+- `story_bible_manager.py` — Long-term memory for 100+ chapter stories
+- `post_processing.py` — Summary, state, event extraction + context updates
+- `story_continuation.py` — Resume generation from checkpoint
+
+**Quality Enhancements** (Phase 1):
+- Theme premise anchoring (semantic consistency)
+- Character voice profiling (dialogue distinctiveness)
+- Outline critique & revision loop (structural coherence)
+- Scene decomposition (pacing control)
+- Show-don't-tell enforcement (narrative quality)
+- Chapter self-critique (consistency review)
+
 ## Core Services Architecture
 
 ### Backend Stack
@@ -85,6 +130,58 @@ web/
 | SQLite | LLM response cache (local), embeddings | Per-instance (optional) |
 | Redis | Rate limiting, token revocation, session state | Shared (required for scale) |
 | JSON files | Agent prompts, presets, exports | Mounted volume |
+
+## Phase 1 Consistency Architecture
+
+### Consistency Validation Pipeline
+
+Post-write validation runs in `pipeline/layer1_story/post_processing.py`:
+
+```
+Chapter Written
+    ↓
+[Non-fatal Validators - Parallel / Sequential]
+    ├─ Timeline & Location Extraction (1 cheap LLM call)
+    ├─ Character Name Validation (Regex, zero cost)
+    └─ Arc Drift Detection (Heuristic, zero cost)
+    ↓
+Story Context Updated
+    ├─ timeline_positions dict
+    ├─ character_locations dict
+    ├─ arc_drift_warnings list
+    └─ name_warnings list
+    ↓
+Story Bible Updated (if enabled)
+    ├─ timeline_positions capped at 30
+    ├─ character_locations capped at 30
+    ├─ milestone_events tracked
+    └─ active_threads managed (20-entry cap)
+    ↓
+Chapter Write Prompt Enhanced
+    └─ _append_consistency_context() injects:
+       ├─ Timeline markers (mốc thời gian)
+       ├─ Character locations (vị trí)
+       ├─ Arc drift warnings ([CẢNH BÁO])
+       └─ Name issues ([TÊN NHÂN VẬT])
+```
+
+**Key Design Principles**:
+1. **Non-fatal**: Validation failures don't crash pipeline; logged as warnings
+2. **Cheap**: Name validation (regex) and arc drift (heuristic) have zero LLM cost
+3. **Contextual**: Warnings fed back into next chapter's LLM prompt
+4. **Capped**: Timeline/location storage bounded at 30 entries (prevent memory bloat)
+
+**Vietnamese Localization**:
+- Arc stages: setup (giới thiệu), rising (phát triển), testing (thử thách), crisis (khủng hoảng), climax (cao trào), resolution (giải quyết)
+- Warnings and prompts fully in Vietnamese
+
+### Always-On Story Bible
+
+Story Bible is now mandatory (no opt-out):
+- Initialized with `StoryBibleManager.initialize()`
+- Updated after each chapter with new events, threads, and timeline data
+- Provides long-term memory context for chapters 100+
+- Replaces rolling window approach for large stories
 
 ## P3 Sprint Architecture Changes
 

@@ -193,7 +193,6 @@ def continue_story(
             process_chapter_post_write(
                 chapter, outline, story_context, draft.characters, context_window,
                 executor, generator.llm,
-                bool(draft.story_bible),
                 draft, generator.bible_manager,
                 progress_callback, draft.genre, word_count,
                 generator.config.pipeline.enable_self_review, self_reviewer,

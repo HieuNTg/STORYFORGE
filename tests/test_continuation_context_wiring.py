@@ -78,15 +78,15 @@ class TestContinuationParameterPassing:
     """Verify story_continuation passes correct params to process_chapter_post_write."""
 
     @patch("pipeline.layer1_story.story_continuation.process_chapter_post_write")
-    def test_passes_bible_enabled_true_when_bible_exists(self, mock_post_write):
-        """When draft has story_bible, bible_enabled should be True."""
+    def test_passes_draft_to_post_write(self, mock_post_write):
+        """draft should be passed as positional arg (bible_enabled removed)."""
         from pipeline.layer1_story.story_continuation import continue_story
 
         draft = StoryDraft(
             title="T", genre="fantasy",
             characters=[Character(name="A", role="hero", personality="brave", motivation="m")],
             chapters=[Chapter(chapter_number=1, title="Ch1", content="c", word_count=100, summary="s")],
-            story_bible=StoryBible(characters={}, world_rules=[], timeline=[]),
+            story_bible=StoryBible(),
         )
 
         gen = MagicMock()
@@ -109,43 +109,9 @@ class TestContinuationParameterPassing:
 
         continue_story(gen, draft, additional_chapters=1)
 
-        # Check bible_enabled arg (positional index 7)
+        # bible_enabled removed; positional index 7 is now draft
         call_args = mock_post_write.call_args
-        assert call_args[0][7] is True  # bible_enabled
-
-    @patch("pipeline.layer1_story.story_continuation.process_chapter_post_write")
-    def test_passes_bible_enabled_false_when_no_bible(self, mock_post_write):
-        from pipeline.layer1_story.story_continuation import continue_story
-
-        draft = StoryDraft(
-            title="T", genre="fantasy",
-            characters=[Character(name="A", role="hero", personality="brave", motivation="m")],
-            chapters=[Chapter(chapter_number=1, title="Ch1", content="c", word_count=100, summary="s")],
-            story_bible=None,
-        )
-
-        gen = MagicMock()
-        gen.config.pipeline.context_window_chapters = 5
-        gen.config.pipeline.enable_self_review = False
-        gen.config.pipeline.writing_style = ""
-        gen.rebuild_context.return_value = StoryContext(total_chapters=1, current_chapter=1)
-        gen.llm.generate_json.return_value = {
-            "outlines": [{"chapter_number": 2, "title": "Ch2", "summary": "s", "key_events": []}]
-        }
-        gen._layer_model = None
-        gen._get_self_reviewer.return_value = None
-        gen._write_chapter_with_long_context.return_value = Chapter(
-            chapter_number=2, title="Ch2", content="new content", word_count=200
-        )
-        mock_post_write.return_value = (
-            Chapter(chapter_number=2, title="Ch2", content="new content", word_count=200),
-            "summary", [], [],
-        )
-
-        continue_story(gen, draft, additional_chapters=1)
-
-        call_args = mock_post_write.call_args
-        assert call_args[0][7] is False  # bible_enabled
+        assert call_args[0][7] is draft
 
     @patch("pipeline.layer1_story.story_continuation.process_chapter_post_write")
     def test_passes_foreshadowing_plan_kwarg(self, mock_post_write):

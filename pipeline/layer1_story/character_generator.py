@@ -61,7 +61,10 @@ def extract_character_states(
     characters: list[Character],
 ) -> list[CharacterState]:
     """Extract character states from chapter content. Low temp, cheap call."""
-    chars_text = ", ".join(c.name for c in characters)
+    chars_text = "\n".join(
+        f"- {c.name}: arc=[{getattr(c, 'arc_trajectory', '') or 'không xác định'}]"
+        for c in characters
+    )
     result = llm.generate_json(
         system_prompt="Trích xuất trạng thái nhân vật. Trả về JSON.",
         user_prompt=prompts.EXTRACT_CHARACTER_STATE.format(

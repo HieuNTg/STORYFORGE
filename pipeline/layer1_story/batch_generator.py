@@ -72,7 +72,6 @@ class BatchChapterGenerator:
         """
         all_chapter_texts: list[str] = []
         context_window = self.config.pipeline.context_window_chapters
-        bible_enabled = self.config.pipeline.story_bible_enabled
         self_reviewer = (
             self.gen._get_self_reviewer()
             if self.config.pipeline.enable_self_review
@@ -117,7 +116,7 @@ class BatchChapterGenerator:
                         world=world,
                         word_count=word_count,
                         context_window=context_window,
-                        bible_enabled=bible_enabled,
+
                         executor=executor,
                         self_reviewer=self_reviewer,
                         progress_callback=progress_callback,
@@ -141,7 +140,7 @@ class BatchChapterGenerator:
                         world=world,
                         word_count=word_count,
                         context_window=context_window,
-                        bible_enabled=bible_enabled,
+
                         executor=executor,
                         self_reviewer=self_reviewer,
                         progress_callback=progress_callback,
@@ -183,7 +182,7 @@ class BatchChapterGenerator:
         world,
         word_count: int,
         context_window: int,
-        bible_enabled: bool,
+
         executor: ThreadPoolExecutor,
         self_reviewer,
         progress_callback,
@@ -205,7 +204,7 @@ class BatchChapterGenerator:
             story_context.current_chapter = outline.chapter_number
 
             bible_ctx = ""
-            if bible_enabled and draft.story_bible:
+            if draft.story_bible:
                 bible_ctx = self.gen.bible_manager.get_context_for_chapter(
                     draft.story_bible,
                     outline.chapter_number,
@@ -218,6 +217,7 @@ class BatchChapterGenerator:
             seeds = []
             payoffs = []
             pacing = ""
+            current_arc = None
             try:
                 from pipeline.layer1_story.macro_outline_builder import get_arc_for_chapter
                 from pipeline.layer1_story.conflict_web_builder import get_active_conflicts
@@ -231,6 +231,17 @@ class BatchChapterGenerator:
                 pacing = validate_pacing(getattr(outline, "pacing_type", "") or "")
             except Exception as e:
                 logger.warning("Narrative context resolution failed for ch%d: %s", outline.chapter_number, e)
+
+            # Build arc context string for chapter writing prompt (Fix #11)
+            arc_context = ""
+            if current_arc:
+                arc_context = (
+                    f"Arc {current_arc.arc_number}: {current_arc.name}\n"
+                    f"Xung đột trung tâm: {current_arc.central_conflict}\n"
+                    f"Nhân vật trọng tâm: {', '.join(current_arc.character_focus) if current_arc.character_focus else 'tất cả'}\n"
+                    f"Kết thúc arc: {current_arc.resolution}\n"
+                    f"Cung bậc cảm xúc: {current_arc.emotional_trajectory}"
+                )
 
             if progress_callback:
                 progress_callback(
@@ -246,6 +257,15 @@ class BatchChapterGenerator:
                 layer_model=self.gen._layer_model,
             )
 
+            # Append scene beats for climax/twist chapters (Fix #12)
+            from pipeline.layer1_story.scene_beat_generator import generate_scene_beats
+            scene_beats = generate_scene_beats(
+                self.llm, outline, characters, world, genre,
+                model_tier=self.gen._layer_model or "cheap",
+            )
+            if scene_beats:
+                enhancement_context += scene_beats
+
             if stream_callback:
                 chapter = self.gen.write_chapter_stream(
                     title, genre, style, characters, world, outline,
@@ -257,6 +277,7 @@ class BatchChapterGenerator:
                     foreshadowing_to_payoff=payoffs,
                     pacing_type=pacing,
                     enhancement_context=enhancement_context,
+                    current_arc_context=arc_context,
                 )
             else:
                 chapter = self.gen._write_chapter_with_long_context(
@@ -268,6 +289,7 @@ class BatchChapterGenerator:
                     foreshadowing_to_payoff=payoffs,
                     pacing_type=pacing,
                     enhancement_context=enhancement_context,
+                    current_arc_context=arc_context,
                 )
 
             chapter_tokens_used = len(chapter.content) // 4
@@ -315,7 +337,7 @@ class BatchChapterGenerator:
 
             process_chapter_post_write(
                 chapter, outline, story_context, characters, context_window,
-                executor, self.llm, bible_enabled, draft, self.gen.bible_manager,
+                executor, self.llm, draft, self.gen.bible_manager,
                 progress_callback, genre, word_count,
                 self.config.pipeline.enable_self_review, self_reviewer,
                 open_threads=list(story_context.open_threads),
@@ -338,7 +360,7 @@ class BatchChapterGenerator:
         world,
         word_count: int,
         context_window: int,
-        bible_enabled: bool,
+
         executor: ThreadPoolExecutor,
         self_reviewer,
         progress_callback,
@@ -365,7 +387,7 @@ class BatchChapterGenerator:
 
         def _write_one(outline: ChapterOutline) -> Chapter:
             bible_ctx = ""
-            if bible_enabled and draft.story_bible:
+            if draft.story_bible:
                 bible_ctx = self.gen.bible_manager.get_context_for_chapter(
                     draft.story_bible,
                     outline.chapter_number,
@@ -386,6 +408,7 @@ class BatchChapterGenerator:
             seeds = []
             payoffs = []
             pacing = ""
+            current_arc = None
             try:
                 from pipeline.layer1_story.macro_outline_builder import get_arc_for_chapter
                 from pipeline.layer1_story.conflict_web_builder import get_active_conflicts
@@ -399,6 +422,17 @@ class BatchChapterGenerator:
                 pacing = validate_pacing(getattr(outline, "pacing_type", "") or "")
             except Exception as e:
                 logger.warning("Parallel narrative context resolution failed for ch%d: %s", outline.chapter_number, e)
+
+            # Build arc context string for chapter writing prompt (Fix #11)
+            arc_context = ""
+            if current_arc:
+                arc_context = (
+                    f"Arc {current_arc.arc_number}: {current_arc.name}\n"
+                    f"Xung đột trung tâm: {current_arc.central_conflict}\n"
+                    f"Nhân vật trọng tâm: {', '.join(current_arc.character_focus) if current_arc.character_focus else 'tất cả'}\n"
+                    f"Kết thúc arc: {current_arc.resolution}\n"
+                    f"Cung bậc cảm xúc: {current_arc.emotional_trajectory}"
+                )
 
             # Add per-chapter scene decomposition on top of shared context
             per_chapter_enhancement = shared_enhancement
@@ -417,6 +451,15 @@ class BatchChapterGenerator:
                 except Exception:
                     pass
 
+            # Append scene beats for climax/twist chapters (Fix #12)
+            from pipeline.layer1_story.scene_beat_generator import generate_scene_beats
+            scene_beats = generate_scene_beats(
+                self.llm, outline, characters, world, genre,
+                model_tier=self.gen._layer_model or "cheap",
+            )
+            if scene_beats:
+                per_chapter_enhancement += scene_beats
+
             if progress_callback:
                 progress_callback(
                     f"Đang viết chương {outline.chapter_number}: {outline.title}..."
@@ -431,6 +474,7 @@ class BatchChapterGenerator:
                 foreshadowing_to_payoff=payoffs,
                 pacing_type=pacing,
                 enhancement_context=per_chapter_enhancement,
+                current_arc_context=arc_context,
             )
 
         max_workers = min(len(batch), 5)
@@ -460,7 +504,7 @@ class BatchChapterGenerator:
             all_chapter_texts.append(chapter.content)
             process_chapter_post_write(
                 chapter, outline, story_context, characters, context_window,
-                executor, self.llm, bible_enabled, draft, self.gen.bible_manager,
+                executor, self.llm, draft, self.gen.bible_manager,
                 progress_callback, genre, word_count,
                 self.config.pipeline.enable_self_review, self_reviewer,
                 open_threads=frozen_threads,

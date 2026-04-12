@@ -22,6 +22,28 @@ def excerpt(content: str, max_chars: int = 4000) -> str:
     return excerpt_text(content, max_chars=max_chars)
 
 
+def _append_consistency_context(parts: list[str], context: StoryContext) -> None:
+    """Append timeline, location, arc drift, and name warnings to prompt parts."""
+    if context.timeline_positions:
+        tl_lines = [f"- {name}: {tl}" for name, tl in context.timeline_positions.items()]
+        parts.append("## Mốc thời gian hiện tại:\n" + "\n".join(tl_lines))
+    if context.character_locations:
+        loc_lines = [f"- {name}: {loc}" for name, loc in context.character_locations.items()]
+        parts.append("## Vị trí nhân vật hiện tại:\n" + "\n".join(loc_lines))
+    if context.arc_drift_warnings:
+        drift_text = "\n".join(context.arc_drift_warnings)
+        parts.append(
+            f"## [CẢNH BÁO ARC NHÂN VẬT - PHẢI ĐIỀU CHỈNH]:\n{drift_text}\n"
+            "Hãy đẩy nhân vật tiến về đúng hướng arc trajectory trong chương này."
+        )
+    if context.name_warnings:
+        name_issues = "; ".join(context.name_warnings[:5])
+        parts.append(
+            f"## [CẢNH BÁO TÊN NHÂN VẬT]: {name_issues}\n"
+            "PHẢI dùng tên nhân vật chính xác như đã định nghĩa. Không dùng biến thể hay viết tắt."
+        )
+
+
 def format_context(
     context: StoryContext,
     bible_context: str = "",
@@ -54,6 +76,8 @@ def format_context(
                 f"- Ch.{e.chapter_number}: {e.event}" for e in context.plot_events[-10:]
             )
             parts.append(f"## Sự kiện quan trọng đã xảy ra:\n{events_text}")
+        if context:
+            _append_consistency_context(parts, context)
         return "\n\n".join(parts)
 
     if not context or (not context.recent_summaries and not context.character_states):
@@ -83,6 +107,8 @@ def format_context(
             f"- Ch.{e.chapter_number}: {e.event}" for e in context.plot_events[-10:]
         )
         parts.append(f"## Sự kiện quan trọng đã xảy ra:\n{events_text}")
+
+    _append_consistency_context(parts, context)
     return "\n\n".join(parts)
 
 
@@ -108,12 +134,20 @@ def build_chapter_prompt(
     foreshadowing_to_payoff=None,
     pacing_type: str = "",
     enhancement_context: str = "",
+    current_arc_context: str = "",
 ) -> tuple[str, str]:
     """Build system/user prompts for chapter writing. Returns (system_prompt, user_prompt)."""
     chars_text = "\n".join(
         f"- {c.name} ({c.role}): {c.personality}\n  Tiểu sử: {c.background}"
+        + (f"\n  Giọng nói: {c.speech_pattern}" if getattr(c, 'speech_pattern', '') else "")
         for c in characters
     )
+    chars_constraints_lines = [
+        f"- {c.name}: bí mật=[{c.secret}] | điểm gãy=[{c.breaking_point}]"
+        for c in characters
+        if getattr(c, 'secret', '') or getattr(c, 'breaking_point', '')
+    ]
+    chars_constraints = "\n".join(chars_constraints_lines) if chars_constraints_lines else "Không có ràng buộc đặc biệt."
     outline_text = (
         f"Tóm tắt: {outline.summary}\n"
         f"Sự kiện chính: {', '.join(outline.key_events)}\n"
@@ -172,24 +206,47 @@ def build_chapter_prompt(
     # Resolve pacing type — fallback to outline field, then "rising"
     resolved_pacing = pacing_type or getattr(outline, "pacing_type", "") or "rising"
 
+    # Build world text with era, rules, locations
+    world_lines = [f"{world.name}: {world.description}"]
+    if getattr(world, 'era', ''):
+        world_lines.append(f"Thời đại: {world.era}")
+    if getattr(world, 'rules', []):
+        world_lines.append("Quy tắc PHẢI tuân thủ:\n" + "\n".join(f"  • {r}" for r in world.rules))
+    if getattr(world, 'locations', []):
+        world_lines.append("Địa điểm: " + ", ".join(world.locations[:5]))
+    world_text = "\n".join(world_lines)
+
+    # Build strong pacing directive per pacing_type
+    _PACING_DIRECTIVES = {
+        "climax": "⚡ CLIMAX — Viết quyết định KHÔNG THỂ đảo ngược. Đối đầu trực tiếp. Cảm xúc bùng nổ. Mỗi câu phải đẩy action forward. Không có cảnh dừng.",
+        "twist": "🌀 TWIST — Đảo ngược kỳ vọng hoàn toàn. Tiết lộ thông tin ẩn. Hành động bất ngờ NHƯNG hợp lý khi nhìn lại. Kết chương sốc.",
+        "rising": "📈 RISING — Cản trở liên tục leo thang. Mỗi chọn lựa đắt giá hơn. Hệ quả tích lũy. Kết chương PHẢI khiến đọc tiếp ngay.",
+        "setup": "🏗️ SETUP — Gieo thông tin tự nhiên, không lộ liễu. Xây quan hệ có chiều sâu. Tạo câu hỏi ngầm. Tuyệt đối không nhàm chán.",
+        "cooldown": "🌊 COOLDOWN — Nhân vật xử lý hệ quả sâu sắc. Phát triển nội tâm. Hé lộ chiều sâu mới. Chuẩn bị mâu thuẫn lớn hơn.",
+    }
+    pacing_directive = _PACING_DIRECTIVES.get(resolved_pacing, "")
+
     sys_prompt = (
         f"Bạn là tiểu thuyết gia tài năng viết truyện {genre} bằng tiếng Việt. "
         f"BẮT BUỘC: Toàn bộ output phải viết bằng tiếng Việt, không được dùng ngôn ngữ khác."
     )
     user_prompt = prompts.WRITE_CHAPTER.format(
         genre=genre, style=style, title=title,
-        world=f"{world.name}: {world.description}",
+        world=world_text,
         characters=chars_text,
+        chars_constraints=chars_constraints,
         chapter_number=outline.chapter_number,
         chapter_title=outline.title,
         outline=outline_text,
         previous_summary=context_text,
+        current_arc_context=current_arc_context,
         word_count=word_count,
         open_threads=threads_text,
         active_conflicts=conflicts_text,
         foreshadowing_to_plant=seeds_text,
         foreshadowing_to_payoff=payoffs_text,
         pacing_type=resolved_pacing,
+        pacing_directive=pacing_directive,
     )
     user_prompt = build_adaptive_write_prompt(user_prompt, genre, pacing_type=resolved_pacing)
     # Inject enhancement context (theme premise, voice profiles, scene structure, show-don't-tell)
@@ -221,6 +278,7 @@ def write_chapter(
     foreshadowing_to_payoff=None,
     pacing_type: str = "",
     enhancement_context: str = "",
+    current_arc_context: str = "",
 ) -> Chapter:
     """Write a single chapter (non-streaming)."""
     sys_prompt, user_prompt = build_chapter_prompt(
@@ -231,6 +289,7 @@ def write_chapter(
         foreshadowing_to_payoff=foreshadowing_to_payoff,
         pacing_type=pacing_type,
         enhancement_context=enhancement_context,
+        current_arc_context=current_arc_context,
     )
     content = llm.generate(
         system_prompt=sys_prompt,
@@ -266,6 +325,7 @@ def write_chapter_stream(
     foreshadowing_to_payoff=None,
     pacing_type: str = "",
     enhancement_context: str = "",
+    current_arc_context: str = "",
 ) -> Chapter:
     """Write chapter with streaming. Calls stream_callback(partial_text) each chunk."""
     sys_prompt, user_prompt = build_chapter_prompt(
@@ -276,6 +336,7 @@ def write_chapter_stream(
         foreshadowing_to_payoff=foreshadowing_to_payoff,
         pacing_type=pacing_type,
         enhancement_context=enhancement_context,
+        current_arc_context=current_arc_context,
     )
 
     full_content = ""
@@ -298,6 +359,7 @@ def write_chapter_stream(
             foreshadowing_to_plant=foreshadowing_to_plant,
             foreshadowing_to_payoff=foreshadowing_to_payoff, pacing_type=pacing_type,
             enhancement_context=enhancement_context,
+            current_arc_context=current_arc_context,
         )
 
     return Chapter(
