@@ -213,6 +213,25 @@ class BatchChapterGenerator:
                     character_states=list(story_context.character_states),
                 )
 
+            # Tiered context: replaces flat bible_ctx with priority-based 4-tier system
+            if getattr(self.config.pipeline, "enable_tiered_context", False):
+                try:
+                    from pipeline.layer1_story.tiered_context_builder import build_tiered_context
+                    tiered = build_tiered_context(
+                        chapter_num=outline.chapter_number,
+                        chapters=draft.chapters,
+                        outline=outline,
+                        open_threads=list(story_context.open_threads),
+                        story_bible=draft.story_bible,
+                        all_chapter_texts=all_chapter_texts,
+                        max_tokens=getattr(self.config.pipeline, "tiered_context_max_tokens", 3000),
+                        max_promotions=getattr(self.config.pipeline, "tiered_max_promotions", 5),
+                    )
+                    if tiered:
+                        bible_ctx = tiered
+                except Exception as e:
+                    logger.warning("Tiered context failed for ch%d (using bible fallback): %s", outline.chapter_number, e)
+
             # Resolve per-chapter narrative context
             active_conflicts = []
             seeds = []
@@ -442,6 +461,25 @@ class BatchChapterGenerator:
                 )
             if sibling_summaries:
                 bible_ctx = f"{bible_ctx}\n\n[Sibling outlines in this batch]\n{sibling_summaries}" if bible_ctx else f"[Sibling outlines in this batch]\n{sibling_summaries}"
+
+            # Tiered context: replaces flat bible_ctx with priority-based 4-tier system
+            if getattr(self.config.pipeline, "enable_tiered_context", False):
+                try:
+                    from pipeline.layer1_story.tiered_context_builder import build_tiered_context
+                    tiered = build_tiered_context(
+                        chapter_num=outline.chapter_number,
+                        chapters=list(draft.chapters),
+                        outline=outline,
+                        open_threads=frozen_threads,
+                        story_bible=draft.story_bible,
+                        all_chapter_texts=list(frozen.chapter_texts),
+                        max_tokens=getattr(self.config.pipeline, "tiered_context_max_tokens", 3000),
+                        max_promotions=getattr(self.config.pipeline, "tiered_max_promotions", 5),
+                    )
+                    if tiered:
+                        bible_ctx = tiered
+                except Exception as e:
+                    logger.warning("Tiered context failed for ch%d (using bible fallback): %s", outline.chapter_number, e)
 
             frozen_ctx = StoryContext(total_chapters=story_context.total_chapters)
             frozen_ctx.current_chapter = outline.chapter_number

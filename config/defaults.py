@@ -131,6 +131,16 @@ class PipelineConfig:
     enable_semantic_foreshadowing: bool = True  # LLM-based foreshadowing verification (replaces keyword)
     semantic_foreshadowing_threshold: float = 0.7  # Confidence threshold for seed/payoff verification
 
+    # Phase 4 context management
+    enable_tiered_context: bool = True  # Tiered summary system for long stories
+    tiered_context_max_tokens: int = 3000  # Token budget for tiered context
+    bible_max_world_rules: int = 10  # was hardcoded 5
+    bible_max_active_threads: int = 30  # was hardcoded 20
+    bible_max_character_states: int = 15  # was hardcoded 8
+    bible_max_milestones: int = 50  # was hardcoded 30
+    bible_max_relationships_per_char: int = 8  # was hardcoded 5
+    tiered_max_promotions: int = 5  # max chapters promoted from low tier to high tier
+
     # Quality gate (inline scoring between layers)
     # Recommended thresholds by genre: romance/comedy=2.3, mystery/thriller=2.5,
     # fantasy/sci-fi=2.5, literary/historical=2.8, action=2.2

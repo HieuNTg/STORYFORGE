@@ -13,6 +13,12 @@ logger = logging.getLogger(__name__)
 class StoryBibleManager:
     """Quản lý Story Bible — cập nhật sau mỗi chương để đảm bảo tính liên tục."""
 
+    _config_pipeline = None
+
+    def set_config(self, pipeline_config) -> None:
+        """Optionally set pipeline config for configurable caps."""
+        self._config_pipeline = pipeline_config
+
     def initialize(self, draft: StoryDraft, arc_size: int = 30) -> StoryBible:
         """Tạo bible ban đầu từ thiết lập truyện."""
         bible = StoryBible(
@@ -57,21 +63,23 @@ class StoryBibleManager:
                 )
                 bible.active_threads.append(thread)
 
-        # Giữ tối đa 20 thread đang mở (cũ nhất tự động resolved)
-        if len(bible.active_threads) > 20:
-            overflow = bible.active_threads[:-20]
+        # Giữ tối đa N thread đang mở (cũ nhất tự động resolved)
+        max_threads = getattr(getattr(self, '_config_pipeline', None), 'bible_max_active_threads', 30)
+        if len(bible.active_threads) > max_threads:
+            overflow = bible.active_threads[:-max_threads]
             for t in overflow:
                 t.status = "resolved"
                 t.resolution_chapter = ch_num
                 bible.resolved_threads.append(t)
-            bible.active_threads = bible.active_threads[-20:]
+            bible.active_threads = bible.active_threads[-max_threads:]
 
-        # Cập nhật milestone events (giữ 30 sự kiện quan trọng nhất)
+        # Cập nhật milestone events
+        max_milestones = getattr(getattr(self, '_config_pipeline', None), 'bible_max_milestones', 50)
         for event in plot_events:
             bible.milestone_events.append(
                 f"Ch{event.chapter_number}: {event.event}"
             )
-        bible.milestone_events = bible.milestone_events[-30:]
+        bible.milestone_events = bible.milestone_events[-max_milestones:]
 
         # Đánh dấu arc hoàn tất khi đến cuối arc
         for arc in bible.arcs:
@@ -115,8 +123,9 @@ class StoryBibleManager:
             parts.append(f"## Tiền đề truyện:\n{bible.premise}")
 
         # 2. Quy tắc thế giới (nén gọn)
+        max_rules = getattr(getattr(self, '_config_pipeline', None), 'bible_max_world_rules', 10)
         if bible.world_rules:
-            rules = "; ".join(bible.world_rules[:5])
+            rules = "; ".join(bible.world_rules[:max_rules])
             parts.append(f"## Quy tắc thế giới:\n{rules}")
 
         # 3. Thông tin arc hiện tại
@@ -141,7 +150,7 @@ class StoryBibleManager:
         if bible.active_threads:
             threads = [
                 f"- {t.description} (từ ch{t.planted_chapter})"
-                for t in bible.active_threads[-10:]
+                for t in bible.active_threads[-min(15, len(bible.active_threads)):]
             ]
             parts.append("## Tuyến truyện đang mở:\n" + "\n".join(threads))
 
@@ -166,19 +175,21 @@ class StoryBibleManager:
             parts.append("## Vị trí nhân vật:\n" + "\n".join(loc_lines))
 
         # 9. Trạng thái nhân vật
+        max_chars = getattr(getattr(self, '_config_pipeline', None), 'bible_max_character_states', 15)
+        max_rels = getattr(getattr(self, '_config_pipeline', None), 'bible_max_relationships_per_char', 8)
         if character_states:
             char_lines = [
                 f"- {cs.name}: {cs.mood}, {cs.arc_position}, last: {cs.last_action}"
-                for cs in character_states[:8]
+                for cs in character_states[:max_chars]
             ]
             parts.append("## Trạng thái nhân vật:\n" + "\n".join(char_lines))
 
             # 9. Diễn biến mối quan hệ tích lũy
             rel_lines = []
-            for cs in character_states[:8]:
+            for cs in character_states[:max_chars]:
                 cum_rels = getattr(cs, "cumulative_relationships", [])
                 if cum_rels:
-                    rel_lines.append(f"- {cs.name}: {'; '.join(cum_rels[-5:])}")
+                    rel_lines.append(f"- {cs.name}: {'; '.join(cum_rels[-max_rels:])}")
             if rel_lines:
                 parts.append("## Diễn biến mối quan hệ:\n" + "\n".join(rel_lines))
 
