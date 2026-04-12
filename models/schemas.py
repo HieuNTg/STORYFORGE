@@ -124,6 +124,9 @@ class PlotThread(BaseModel):
     involved_characters: list[str] = Field(default_factory=list)
     last_mentioned_chapter: int = Field(default=0)
     resolution_chapter: int = Field(default=0)
+    depends_on: list[str] = Field(default_factory=list, description="Thread IDs that must resolve before this one")
+    blocks: list[str] = Field(default_factory=list, description="Thread IDs this thread blocks")
+    urgency: int = Field(default=3, ge=1, le=5, description="1=background, 5=must-resolve-soon")
 
 
 class ConflictEntry(BaseModel):
@@ -135,6 +138,8 @@ class ConflictEntry(BaseModel):
     arc_range: str = Field(default="", description="Arc range where active, e.g. '1-3'")
     trigger_event: str = Field(default="", description="Event that activates this conflict")
     status: str = Field(default="dormant", description="dormant/active/escalating/resolved")
+    intensity: int = Field(default=1, ge=1, le=5, description="Current conflict intensity 1-5")
+    escalation_timeline: list[dict] = Field(default_factory=list, description="[{chapter: int, intensity: int}]")
 
 
 class MacroArc(BaseModel):
@@ -157,6 +162,7 @@ class ForeshadowingEntry(BaseModel):
     characters_involved: list[str] = Field(default_factory=list)
     planted: bool = Field(default=False, description="Whether seed has been written")
     paid_off: bool = Field(default=False, description="Whether payoff has been written")
+    planted_confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Semantic confidence that seed was planted")
 
 
 class StoryArc(BaseModel):

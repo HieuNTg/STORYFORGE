@@ -270,12 +270,29 @@ def process_chapter_post_write(
     except Exception as e:
         logger.warning(f"Conflict status update failed: {e}")
 
-    # Mark foreshadowing as planted/paid off
+    # Mark foreshadowing as planted/paid off (semantic when available, keyword fallback)
     try:
-        from pipeline.layer1_story.foreshadowing_manager import mark_planted, mark_paid_off
+        from pipeline.layer1_story.foreshadowing_manager import (
+            mark_planted, mark_paid_off, get_seeds_to_plant, get_payoffs_due,
+            verify_seeds_semantic, verify_payoffs_semantic,
+        )
         if foreshadowing_plan:
-            mark_planted(foreshadowing_plan, outline.chapter_number, chapter.content)
-            mark_paid_off(foreshadowing_plan, outline.chapter_number)
+            seeds_due = get_seeds_to_plant(foreshadowing_plan, outline.chapter_number)
+            payoffs_due = get_payoffs_due(foreshadowing_plan, outline.chapter_number)
+            if seeds_due and llm:
+                try:
+                    verify_seeds_semantic(llm, chapter.content, seeds_due)
+                except Exception:
+                    mark_planted(foreshadowing_plan, outline.chapter_number, chapter.content)
+            else:
+                mark_planted(foreshadowing_plan, outline.chapter_number, chapter.content)
+            if payoffs_due and llm:
+                try:
+                    verify_payoffs_semantic(llm, chapter.content, payoffs_due)
+                except Exception:
+                    mark_paid_off(foreshadowing_plan, outline.chapter_number)
+            else:
+                mark_paid_off(foreshadowing_plan, outline.chapter_number)
     except Exception as e:
         logger.warning(f"Foreshadowing tracking failed: {e}")
 

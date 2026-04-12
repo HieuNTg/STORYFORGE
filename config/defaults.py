@@ -127,6 +127,10 @@ class PipelineConfig:
     enable_chapter_contracts: bool = True  # Per-chapter requirement contracts
     enable_contract_validation: bool = True  # Post-write contract compliance check
 
+    # Phase 3 narrative linking
+    enable_semantic_foreshadowing: bool = True  # LLM-based foreshadowing verification (replaces keyword)
+    semantic_foreshadowing_threshold: float = 0.7  # Confidence threshold for seed/payoff verification
+
     # Quality gate (inline scoring between layers)
     # Recommended thresholds by genre: romance/comedy=2.3, mystery/thriller=2.5,
     # fantasy/sci-fi=2.5, literary/historical=2.8, action=2.2
