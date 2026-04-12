@@ -65,6 +65,8 @@ class StructuredSummary(BaseModel):
     threads_advanced: list[str] = Field(default_factory=list, description="Thread IDs that progressed")
     threads_opened: list[str] = Field(default_factory=list, description="New thread IDs introduced")
     threads_resolved: list[str] = Field(default_factory=list, description="Thread IDs resolved")
+    chapter_ending_hook: str = Field(default="", description="Cliffhanger hoặc khoảnh khắc chưa giải quyết cuối chương")
+    actual_emotional_arc: str = Field(default="", description="Cung bậc cảm xúc thực sự trong chương")
 
 
 class ChapterOutline(BaseModel):
@@ -196,6 +198,9 @@ class StoryContext(BaseModel):
     character_locations: dict[str, str] = Field(default_factory=dict, description="Vị trí hiện tại {tên nhân vật: địa điểm}")
     arc_drift_warnings: list[str] = Field(default_factory=list, description="Cảnh báo trượt arc nhân vật")
     name_warnings: list[str] = Field(default_factory=list, description="Cảnh báo tên nhân vật không nhất quán")
+    stale_thread_warnings: list[str] = Field(default_factory=list, description="Cảnh báo tuyến truyện bị bỏ quên")
+    chapter_ending_hook: str = Field(default="", description="Hook từ chương trước để tiếp nối")
+    emotional_history: list[str] = Field(default_factory=list, description="Lịch sử cảm xúc per chapter")
 
 
 class StoryDraft(BaseModel):

@@ -49,6 +49,8 @@ def extract_structured_summary(
         threads_advanced=result.get("threads_advanced", []),
         threads_opened=result.get("threads_opened", []),
         threads_resolved=result.get("threads_resolved", []),
+        chapter_ending_hook=result.get("chapter_ending_hook") or "",
+        actual_emotional_arc=result.get("actual_emotional_arc") or "",
     )
     brief = result.get("brief_summary", "")
     return structured, brief

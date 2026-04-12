@@ -42,6 +42,22 @@ def _append_consistency_context(parts: list[str], context: StoryContext) -> None
             f"## [CẢNH BÁO TÊN NHÂN VẬT]: {name_issues}\n"
             "PHẢI dùng tên nhân vật chính xác như đã định nghĩa. Không dùng biến thể hay viết tắt."
         )
+    if context.stale_thread_warnings:
+        stale_text = "\n".join(f"- {w}" for w in context.stale_thread_warnings[:5])
+        parts.append(
+            f"## [TUYẾN TRUYỆN BỊ BỎ QUÊN — PHẢI GIẢI QUYẾT]:\n{stale_text}\n"
+            "PHẢI nhắc đến hoặc giải quyết ít nhất 1 tuyến truyện bị bỏ quên trong chương này."
+        )
+    if context.chapter_ending_hook:
+        parts.append(
+            f"## [HOOK CHƯƠNG TRƯỚC — PHẢI TIẾP NỐI]:\n"
+            f"PHẢI tiếp nối ngay từ đầu chương: {context.chapter_ending_hook}\n"
+            "Không được bỏ qua hoặc skip khoảnh khắc này."
+        )
+    if context.emotional_history:
+        recent_emotions = context.emotional_history[-3:]
+        emo_text = " → ".join(recent_emotions)
+        parts.append(f"## Dòng cảm xúc gần đây: {emo_text}")
 
 
 def format_context(

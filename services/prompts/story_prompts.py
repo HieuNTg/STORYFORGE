@@ -317,6 +317,8 @@ Trả về JSON:
   "threads_advanced": ["thread_id đã tiến triển"],
   "threads_opened": ["thread_id mới mở"],
   "threads_resolved": ["thread_id đã giải quyết"],
+  "chapter_ending_hook": "khoảnh khắc chưa giải quyết hoặc cliffhanger cuối chương — điều gì khiến người đọc PHẢI đọc tiếp",
+  "actual_emotional_arc": "cung bậc cảm xúc THỰC SỰ được truyền tải (ví dụ: 'hy vọng → tuyệt vọng', 'bình lặng → sốc')",
   "brief_summary": "tóm tắt 3-5 câu cho context window"
 }}"""
 

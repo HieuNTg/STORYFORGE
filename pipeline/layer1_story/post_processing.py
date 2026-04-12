@@ -222,6 +222,13 @@ def process_chapter_post_write(
         chapter.structured_summary = structured
         if brief:
             chapter.summary = brief  # override basic summary with structured brief
+        # Always overwrite hook — clears stale hook if this chapter has none
+        story_context.chapter_ending_hook = structured.chapter_ending_hook
+        # Track emotional arc history across chapters
+        if structured.actual_emotional_arc:
+            story_context.emotional_history.append(structured.actual_emotional_arc)
+            # Store 10 for future analysis; chapter_writer shows last 3
+            story_context.emotional_history = story_context.emotional_history[-10:]
     except Exception as e:
         logger.warning(f"Structured summary extraction failed: {e}")
 
@@ -236,6 +243,18 @@ def process_chapter_post_write(
             open_threads or [], thread_result, outline.chapter_number,
         )
         story_context.open_threads = updated_threads
+        # Stale thread detection (zero LLM cost)
+        try:
+            from pipeline.layer1_story.plot_thread_tracker import get_stale_threads
+            stale_gap = min(10, max(3, story_context.total_chapters // 3))
+            stale = get_stale_threads(updated_threads, outline.chapter_number, stale_gap)
+            story_context.stale_thread_warnings = [
+                f"Tuyến '{t.description}' (mở từ ch.{t.planted_chapter}, "
+                f"lần cuối nhắc ch.{t.last_mentioned_chapter}) — đã {outline.chapter_number - t.last_mentioned_chapter} chương không nhắc đến"
+                for t in stale
+            ]
+        except Exception as e:
+            logger.warning(f"Stale thread detection failed: {e}")
     except Exception as e:
         logger.warning(f"Plot thread tracking failed: {e}")
 
