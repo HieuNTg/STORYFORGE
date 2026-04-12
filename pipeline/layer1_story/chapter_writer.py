@@ -225,9 +225,10 @@ def build_chapter_prompt(
     except Exception:
         seeds_text = "Không có foreshadowing cần gieo."
         payoffs_text = "Không có foreshadowing cần payoff."
+    dialogue_context = ""
     try:
         from pipeline.layer1_story.dialogue_strategy import build_dialogue_context
-        build_dialogue_context(characters, genre)  # generate for side-effects; not directly injected
+        dialogue_context = build_dialogue_context(characters, genre)
     except Exception:
         pass
 
@@ -280,6 +281,18 @@ def build_chapter_prompt(
     # Inject enhancement context (theme premise, voice profiles, scene structure, show-don't-tell)
     if enhancement_context:
         user_prompt += "\n\n" + enhancement_context
+    # Fallback voice injection: if characters have speech_pattern but enhancement_context
+    # doesn't contain voice profile section, inject dialogue context directly
+    if dialogue_context and "PHONG CÁCH NÓI CHUYỆN" not in (enhancement_context or ""):
+        user_prompt += "\n\n" + dialogue_context
+    # Inject arc waypoint targets — independent of current_arc_context (macro arcs)
+    try:
+        from pipeline.layer1_story.arc_waypoint_generator import format_arc_stages_for_prompt
+        arc_stage_text = format_arc_stages_for_prompt(characters, outline.chapter_number)
+        if arc_stage_text:
+            user_prompt += "\n\n" + arc_stage_text
+    except Exception:
+        pass
     # Reinforce Vietnamese at end of prompt (after all context) to prevent
     # language drift in later chapters where context is very long
     user_prompt += "\n\n[NHẮC LẠI: Viết hoàn toàn bằng tiếng Việt. Không dùng tiếng Anh hay ngôn ngữ khác.]"

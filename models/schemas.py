@@ -28,6 +28,7 @@ class Character(BaseModel):
     breaking_point: str = Field(default="", description="Event that triggers character transformation")
     secret: str = Field(default="", description="Hidden information that shifts dynamics when revealed")
     speech_pattern: str = Field(default="", description="Distinctive speech style: formal/slang/archaic/etc")
+    arc_waypoints: list[dict] = Field(default_factory=list, description="Structured arc stages — each dict is an ArcWaypoint")
 
     @field_validator("relationships", mode="before")
     @classmethod

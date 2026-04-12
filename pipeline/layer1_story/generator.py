@@ -242,8 +242,38 @@ class StoryGenerator:
         except Exception as e:
             logger.warning("Macro arc generation failed (non-fatal): %s", e)
 
+        # --- Arc waypoints: structured character arc tracking ---
+        if self.config.pipeline.enable_arc_waypoints:
+            try:
+                _log("Đang tạo arc waypoints cho nhân vật...")
+                from pipeline.layer1_story.arc_waypoint_generator import (
+                    generate_arc_waypoints, apply_waypoints_to_characters,
+                )
+                waypoints_map = generate_arc_waypoints(
+                    self.llm, characters, num_chapters, genre, model=self._layer_model,
+                )
+                if waypoints_map:
+                    apply_waypoints_to_characters(characters, waypoints_map)
+                    _log(f"Đã tạo arc waypoints cho {len(waypoints_map)} nhân vật")
+            except Exception as e:
+                logger.warning("Arc waypoint generation failed (non-fatal): %s", e)
+
         _log(f"Đang tạo dàn ý {num_chapters} chương...")
         synopsis, outlines = self.generate_outline(title, genre, characters, world, idea, num_chapters, macro_arcs=macro_arcs)
+
+        # --- Outline-arc coherence validation ---
+        if self.config.pipeline.enable_outline_arc_validation and macro_arcs:
+            try:
+                _log("Đang kiểm tra tính nhất quán outline-arc...")
+                from pipeline.layer1_story.outline_arc_validator import validate_outline_arc_coherence
+                arc_validation = validate_outline_arc_coherence(
+                    self.llm, outlines, macro_arcs, model=self._layer_model,
+                )
+                if arc_validation.get("warnings"):
+                    for w in arc_validation["warnings"]:
+                        _log(f"⚠ Outline-arc: {w}")
+            except Exception as e:
+                logger.warning("Outline-arc validation failed (non-fatal): %s", e)
 
         # --- Enhancement 3: Outline critique-revise loop ---
         outline_critique = {}

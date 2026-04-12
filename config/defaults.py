@@ -119,6 +119,10 @@ class PipelineConfig:
     enable_show_dont_tell: bool = True  # Inject show-don't-tell guidance into prompts
     enable_chapter_critique: bool = False  # Post-write chapter self-critique (costs extra LLM calls)
 
+    # Phase 1 quality improvements
+    enable_arc_waypoints: bool = True  # Structured character arc tracking per chapter
+    enable_outline_arc_validation: bool = True  # Validate outline-to-macro_arc coherence
+
     # Quality gate (inline scoring between layers)
     # Recommended thresholds by genre: romance/comedy=2.3, mystery/thriller=2.5,
     # fantasy/sci-fi=2.5, literary/historical=2.8, action=2.2
