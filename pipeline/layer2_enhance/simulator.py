@@ -277,6 +277,7 @@ class DramaSimulator:
                         f"Vòng mô phỏng {round_number}. "
                         f"Trạng thái: {agent.get_emotional_context()}. "
                         f"Ký ức gần đây: {'; '.join(agent.memory[-3:]) if agent.memory else 'Không có.'}"
+                        + (f"\nTri thức: {self.knowledge.get_knowledge_context(name)}" if self.knowledge else "")
                     ),
                     recent_posts=recent_posts,
                 ),

@@ -103,11 +103,15 @@ class StoryEnhancer:
             start = (chapter.chapter_number - 1) * events_per_chapter
             relevant_events = sim_result.events[start:start + events_per_chapter]
 
-        events_text = "\n".join(
-            f"- [{e.event_type}] {e.description} "
-            f"(nhân vật: {', '.join(e.characters_involved)}, kịch tính: {e.drama_score:.1f})"
-            for e in relevant_events[:5]
-        ) or "Không có sự kiện cụ thể - tăng cường xung đột nội tâm."
+        try:
+            from pipeline.layer2_enhance.scene_enhancer import _format_events_with_causality
+            events_text = _format_events_with_causality(sim_result)
+        except Exception:
+            events_text = "\n".join(
+                f"- [{e.event_type}] {e.description} "
+                f"(nhân vật: {', '.join(e.characters_involved)}, kịch tính: {e.drama_score:.1f})"
+                for e in relevant_events[:5]
+            ) or "Không có sự kiện cụ thể - tăng cường xung đột nội tâm."
 
         suggestions_text = "\n".join(
             f"- {s}" for s in sim_result.drama_suggestions[:5]

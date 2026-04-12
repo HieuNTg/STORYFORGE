@@ -7,6 +7,24 @@ from services.llm_client import LLMClient
 
 logger = logging.getLogger(__name__)
 
+
+def _format_events_with_causality(sim_result: SimulationResult) -> str:
+    """Format events as causal chains when available, fall back to flat list."""
+    try:
+        if sim_result.causal_chains:
+            from pipeline.layer2_enhance.causal_chain import CausalGraph
+            graph = CausalGraph()
+            for event in sim_result.events:
+                graph.add_event(event, getattr(event, "cause_event_id", ""))
+            text = graph.format_causal_text()
+            if text:
+                return text
+    except Exception:
+        pass
+    return "\n".join(
+        f"- {e.description}" for e in sim_result.events[:5]
+    ) or "Không có sự kiện cụ thể."
+
 DECOMPOSE_CHAPTER_CONTENT = """Chia nội dung chương sau thành 3-5 cảnh riêng biệt.
 Mỗi cảnh là một đơn vị hành động/đối thoại có ranh giới rõ ràng.
 
@@ -130,9 +148,7 @@ class SceneEnhancer:
     ) -> Chapter:
         """Nâng cấp chỉ những cảnh yếu, ghép lại thành chương hoàn chỉnh."""
         score_map = {s.scene_number: s for s in scores}
-        events_text = "\n".join(
-            f"- {e.description}" for e in sim_result.events[:5]
-        ) or "Không có sự kiện cụ thể."
+        events_text = _format_events_with_causality(sim_result)
 
         enhanced_parts: list[str] = []
         for scene in scenes:
