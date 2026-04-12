@@ -47,6 +47,8 @@ class QualityScorer:
             character_consistency=_clamp(result.get("character_consistency", 3)),
             drama=_clamp(result.get("drama", 3)),
             writing_quality=_clamp(result.get("writing_quality", 3)),
+            thematic_alignment=_clamp(result.get("thematic_alignment", 0), 0.0, 5.0),
+            dialogue_depth=_clamp(result.get("dialogue_depth", 0), 0.0, 5.0),
             notes=str(result.get("notes", "")),
         )
         score.overall = (score.coherence + score.character_consistency +

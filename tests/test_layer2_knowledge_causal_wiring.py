@@ -1,7 +1,7 @@
-"""Tests for Layer 2 Phase 2 wiring: knowledge context in prompts, causal chain formatting."""
+"""Tests for Layer 2 Phase 2 wiring: knowledge context in prompts, causal chain formatting, quality scoring."""
 
 from unittest.mock import MagicMock, patch
-from models.schemas import SimulationResult, SimulationEvent
+from models.schemas import SimulationResult, SimulationEvent, Chapter, ChapterScore
 from pipeline.layer2_enhance.knowledge_system import KnowledgeRegistry, KnowledgeItem
 from pipeline.layer2_enhance.causal_chain import CausalGraph, CausalEvent
 from pipeline.layer2_enhance.scene_enhancer import _format_events_with_causality
@@ -138,3 +138,56 @@ class TestFormatEventsWithCausality:
         )
         text = _format_events_with_causality(sim)
         assert "→" in text or "confronts" in text
+
+
+class TestQualityScorerNewDimensions:
+    def test_score_chapter_extracts_new_dimensions(self):
+        from services.pipeline.quality_scorer import QualityScorer
+        with patch("services.pipeline.quality_scorer.LLMClient") as MockLLM:
+            mock_llm = MockLLM.return_value
+            mock_llm.generate_json.return_value = {
+                "coherence": 4.0,
+                "character_consistency": 3.5,
+                "drama": 4.5,
+                "writing_quality": 3.0,
+                "thematic_alignment": 4.2,
+                "dialogue_depth": 3.8,
+                "notes": "Good chapter",
+            }
+            scorer = QualityScorer()
+            ch = Chapter(chapter_number=1, title="Ch1", content="test " * 100,
+                         word_count=100, summary="test")
+            score = scorer.score_chapter(ch)
+            assert score.thematic_alignment == 4.2
+            assert score.dialogue_depth == 3.8
+            assert score.overall == (4.0 + 3.5 + 4.5 + 3.0) / 4
+
+    def test_score_chapter_defaults_new_dimensions_to_zero(self):
+        from services.pipeline.quality_scorer import QualityScorer
+        with patch("services.pipeline.quality_scorer.LLMClient") as MockLLM:
+            mock_llm = MockLLM.return_value
+            mock_llm.generate_json.return_value = {
+                "coherence": 3.0,
+                "character_consistency": 3.0,
+                "drama": 3.0,
+                "writing_quality": 3.0,
+                "notes": "",
+            }
+            scorer = QualityScorer()
+            ch = Chapter(chapter_number=1, title="Ch1", content="test " * 100,
+                         word_count=100, summary="test")
+            score = scorer.score_chapter(ch)
+            assert score.thematic_alignment == 0.0
+            assert score.dialogue_depth == 0.0
+
+    def test_chapter_score_schema_has_new_fields(self):
+        score = ChapterScore(chapter_number=1)
+        assert hasattr(score, "thematic_alignment")
+        assert hasattr(score, "dialogue_depth")
+        assert score.thematic_alignment == 0.0
+        assert score.dialogue_depth == 0.0
+
+    def test_score_chapter_prompt_includes_new_dimensions(self):
+        from services.prompts.story_prompts import SCORE_CHAPTER
+        assert "thematic_alignment" in SCORE_CHAPTER
+        assert "dialogue_depth" in SCORE_CHAPTER

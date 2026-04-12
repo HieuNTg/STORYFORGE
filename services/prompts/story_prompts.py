@@ -397,12 +397,14 @@ Trả về JSON:
   ]
 }}"""
 
-SCORE_CHAPTER = """Đánh giá chương truyện sau theo 4 tiêu chí (thang điểm 1-5, trong đó 1=rất kém, 3=trung bình, 5=xuất sắc):
+SCORE_CHAPTER = """Đánh giá chương truyện sau theo 6 tiêu chí (thang điểm 1-5, trong đó 1=rất kém, 3=trung bình, 5=xuất sắc):
 
 1. **coherence:** Cốt truyện logic, mạch lạc, không mâu thuẫn
 2. **character_consistency:** Nhân vật hành xử nhất quán với tính cách, phát triển hợp lý
 3. **drama:** Tình huống gay cấn, hấp dẫn, tạo cảm xúc cho người đọc
 4. **writing_quality:** Câu văn hay, rõ ràng, sinh động, giàu hình ảnh
+5. **thematic_alignment:** Chương có củng cố và phát triển chủ đề trung tâm của truyện không
+6. **dialogue_depth:** Đối thoại có chiều sâu tâm lý (nói một đằng, ý một nẻo), phân biệt giọng nhân vật
 
 NỘI DUNG CHƯƠNG {chapter_number}:
 {content}
@@ -411,4 +413,4 @@ BỐI CẢNH TRƯỚC ĐÓ:
 {context}
 
 Trả về JSON:
-{{"coherence": X, "character_consistency": X, "drama": X, "writing_quality": X, "notes": "nhận xét ngắn gọn về điểm mạnh/yếu"}}"""
+{{"coherence": X, "character_consistency": X, "drama": X, "writing_quality": X, "thematic_alignment": X, "dialogue_depth": X, "notes": "nhận xét ngắn gọn về điểm mạnh/yếu"}}"""
