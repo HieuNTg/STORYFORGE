@@ -41,7 +41,10 @@ class _LegacyClientAdapter:
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
         response = self._raw.chat.completions.create(**kwargs)
-        return response.choices[0].message.content or ""
+        content = response.choices[0].message.content
+        if not content or not content.strip():
+            raise RuntimeError("LLM returned empty content (legacy adapter)")
+        return content
 
     def stream(self, messages: list, model: str, temperature: float,
                max_tokens: int):
@@ -232,7 +235,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 json_mode=json_mode,
             )
             cached = cache.get(**cache_params)
-            if cached is not None:
+            if cached is not None and cached.strip():
                 return cached
 
         chain = self._build_fallback_chain(config, model_tier, model_override=model)
@@ -242,12 +245,17 @@ class LLMClient(StreamingMixin, GenerationMixin):
             logger.debug("budget_remaining=%d → effective max_tokens=%d", budget_remaining, eff_max_tokens)
 
         all_errors = []
+        skip_keys: set[str] = set()
         for entry in chain:
+            entry_key = entry.get("_api_key", "")
+            if entry_key and entry_key in skip_keys:
+                all_errors.append(f"{entry['label']}: skipped (account rate-limited)")
+                continue
             try:
                 result = self._try_provider(
                     entry, messages, effective_temp, eff_max_tokens, json_mode
                 )
-                if use_cache and cache is not None and cache_params is not None:
+                if use_cache and cache is not None and cache_params is not None and result.strip():
                     cache.put(result, **cache_params)
                 return result
             except Exception as e:
@@ -259,13 +267,17 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 if "_api_key" in entry:
                     err_str = str(e)
                     if "429" in err_str:
-                        if provider_type == "openrouter":
-                            self._mark_model_rate_limited(entry["model"], entry["_api_key"], 90.0)
+                        if provider_type == "openrouter" and self._is_account_rate_limit(err_str):
+                            self._mark_rate_limited(entry_key, 300.0)
+                            skip_keys.add(entry_key)
+                            logger.warning("Account-level rate limit on key %s...%s — skipping remaining models",
+                                           entry_key[:8], entry_key[-4:] if len(entry_key) > 8 else "")
+                        elif provider_type == "openrouter":
+                            self._mark_model_rate_limited(entry["model"], entry_key, 90.0)
                         else:
-                            self._mark_rate_limited(entry["_api_key"], suggested_delay or 60.0)
+                            self._mark_rate_limited(entry_key, suggested_delay or 60.0)
                     elif "404" in err_str and provider_type == "openrouter":
-                        # Guardrail/model-not-found — skip this model for longer
-                        self._mark_model_rate_limited(entry["model"], entry["_api_key"], 600.0)
+                        self._mark_model_rate_limited(entry["model"], entry_key, 600.0)
                 if not should_try_next and not _is_transient(e):
                     raise
                 logger.warning(f"Provider {entry['label']} failed, trying next...")
@@ -315,6 +327,11 @@ class LLMClient(StreamingMixin, GenerationMixin):
         combo = f"{model}:{api_key}"
         expiry = self._rate_limited_models.get(combo, 0)
         return time.time() < expiry
+
+    @staticmethod
+    def _is_account_rate_limit(err_str: str) -> bool:
+        """Detect OpenRouter account-level rate limits (not model-specific)."""
+        return "free-models-per-day" in err_str or "free-models-per-min" in err_str
 
     def _build_fallback_chain(self, config, model_tier: str, model_override: Optional[str] = None) -> list[dict]:
         chain = []

@@ -17,7 +17,6 @@ _FALLBACK_FREE_MODELS = [
     "qwen/qwen3.6-plus:free",
     "nousresearch/hermes-3-llama-3.1-405b:free",
     "nvidia/nemotron-3-super-120b-a12b:free",
-    "stepfun/step-3.5-flash:free",
     "minimax/minimax-m2.5:free",
     "arcee-ai/trinity-large-preview:free",
     "meta-llama/llama-3.3-70b-instruct:free",
