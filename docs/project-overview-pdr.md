@@ -91,6 +91,43 @@ Choose-your-own-adventure mode: LLM generates branching narrative paths.
 └── docker-compose.production.yml → Full stack with monitoring
 ```
 
+## Phase A: L2 Signal Integration Deliverables
+
+### 1. Arc Waypoint Gates (`pipeline/layer2_enhance/_agent.py`)
+- CharacterAgent now stores `waypoint_floor` (min arc progress) and `waypoint_stage` (max arc progress)
+- `set_waypoint()` method enforces character arc gates during dialogue generation
+- Prevents L2 agents from contradicting L1 arc trajectories
+
+### 2. Pacing Directive Routing (`pipeline/layer2_enhance/enhancer.py` + `adaptive_intensity.py`)
+- `_extract_pacing_directive()` parses L1 draft for pacing cues (slow_down, escalate, neutral)
+- AdaptiveController maps directives to DRAMA_TARGET: slow_down=0.55, escalate=0.75
+- Scene enhancement threshold adjusts dynamically based on pacing
+
+### 3. Plot Thread Validation (`pipeline/layer2_enhance/simulator.py`)
+- `_is_event_thread_valid()` gates resolution events against PlotThread.status
+- Prevents L2 agents from resolving threads L1 marked as unresolved
+- Validates event logic against structured narrative from L1
+
+### 4. Signal-Aware Scene Enhancement (`pipeline/layer2_enhance/scene_enhancer.py`)
+- SCORE_SCENE_DRAMA and ENHANCE_SCENE prompts gain `preserve_facts`, `thread_status`, `arc_context` fields
+- `_scenes_from_summary()` skip-extraction gate prevents fact loss during dramatization
+- Ensures L2 rewrites respect L1 narrative anchors
+
+### 5. Chapter Contract Attachment (`pipeline/layer1_story/batch_generator.py`)
+- L1 now attaches ChapterContract to each Chapter object
+- Contract specifies arc_waypoints, thread_dependencies, and validation gates
+- Applied in both serial and parallel generation paths
+
+### 6. Config Flags (`config/defaults.py`)
+- `l2_use_l1_signals` (default: enabled) — Master signal integration toggle
+- `l2_causal_audit` — Log signal flow for debugging
+- `l2_thread_pressure` — Enforce stricter thread validation
+- `l2_contract_gate` — Enforce contract boundaries
+
+### 7. Test Coverage (`tests/test_l2_signal_integration.py`)
+- 16 new tests validating arc waypoint gates, pacing directive mapping, thread validation, and scene fact preservation
+- Tests cover both enabled and disabled signal integration scenarios
+
 ## P3 Sprint Deliverables
 
 ### 1. Production Redis Security
@@ -145,11 +182,12 @@ Choose-your-own-adventure mode: LLM generates branching narrative paths.
 | NF3 | Sticky session routing for SSE streams | P3 Sprint |
 | NF4 | Health check API with scale_ready flag | P3 Sprint |
 | NF5 | Database connection pooling | P3 Sprint |
-| NF6 | Sub-2s response time for shallow health checks | Target |
-| NF7 | Support single & multi-instance deployments | Complete |
-| NF8 | Prometheus + Grafana monitoring | Complete |
-| NF9 | Audit logging (PostgreSQL-backed) | Complete |
-| NF10 | JWT auth with token revocation | Complete |
+| NF6 | L1 signal integration for L2 (Phase A) | Phase A |
+| NF7 | Sub-2s response time for shallow health checks | Target |
+| NF8 | Support single & multi-instance deployments | Complete |
+| NF9 | Prometheus + Grafana monitoring | Complete |
+| NF10 | Audit logging (PostgreSQL-backed) | Complete |
+| NF11 | JWT auth with token revocation | Complete |
 
 ## Acceptance Criteria (P3 Sprint)
 

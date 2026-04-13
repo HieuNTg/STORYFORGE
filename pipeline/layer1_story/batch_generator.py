@@ -333,6 +333,12 @@ class BatchChapterGenerator:
                     chapter_contract=contract_text,
                 )
 
+            if contract is not None:
+                try:
+                    chapter.contract = contract
+                except Exception as e:
+                    logger.debug("Attach contract to chapter failed: %s", e)
+
             chapter_tokens_used = len(chapter.content) // 4
             usage_pct = (chapter_tokens_used / self.gen.token_budget_per_chapter) * 100
             if usage_pct >= 80:
@@ -547,6 +553,7 @@ class BatchChapterGenerator:
 
             # Build chapter contract (parallel: no previous_failures feedback)
             p_contract_text = ""
+            p_contract = None
             if getattr(self.config.pipeline, "enable_chapter_contracts", False):
                 try:
                     from pipeline.layer1_story.chapter_contract_builder import build_contract, format_contract_for_prompt
@@ -567,7 +574,7 @@ class BatchChapterGenerator:
                     f"Đang viết chương {outline.chapter_number}: {outline.title}..."
                 )
 
-            return self.gen._write_chapter_with_long_context(
+            ch_result = self.gen._write_chapter_with_long_context(
                 title, genre, style, characters, world, outline,
                 word_count, frozen_ctx, list(frozen.chapter_texts), bible_ctx,
                 open_threads=frozen_threads,
@@ -579,6 +586,12 @@ class BatchChapterGenerator:
                 current_arc_context=arc_context,
                 chapter_contract=p_contract_text,
             )
+            if p_contract is not None:
+                try:
+                    ch_result.contract = p_contract
+                except Exception as e:
+                    logger.debug("Attach contract to parallel chapter failed: %s", e)
+            return ch_result
 
         max_workers = min(len(batch), 5)
         with ThreadPoolExecutor(max_workers=max_workers) as write_executor:

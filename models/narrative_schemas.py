@@ -20,3 +20,21 @@ class ArcWaypoint(BaseModel):
     description: str = Field(default="", description="Mô tả ngắn gọn giai đoạn này")
     emotional_state: str = Field(default="", description="Trạng thái cảm xúc chủ đạo")
     progress_pct: float = Field(default=0.0, ge=0.0, le=1.0, description="Tiến trình arc 0.0-1.0")
+
+
+class ChapterContract(BaseModel):
+    """Per-chapter requirements contract — bundles ALL constraints into one structure.
+
+    Generated from existing pipeline data (pure Python, no LLM).
+    Injected into chapter write prompt so LLM knows exactly what to accomplish.
+    Validated post-write to detect missed requirements.
+    """
+    chapter_number: int
+    must_advance_threads: list[str] = Field(default_factory=list, description="Thread IDs that MUST progress")
+    must_plant_seeds: list[str] = Field(default_factory=list, description="Foreshadowing hints to plant")
+    must_payoff: list[str] = Field(default_factory=list, description="Foreshadowing payoffs due")
+    character_arc_targets: dict[str, str] = Field(default_factory=dict, description="{name: 'stage (pct%)'}")
+    pacing_type: str = Field(default="rising", description="Expected pacing type")
+    emotional_endpoint: str = Field(default="", description="Target emotional state at chapter end")
+    must_mention_characters: list[str] = Field(default_factory=list, description="Characters that MUST appear")
+    previous_contract_failures: list[str] = Field(default_factory=list, description="Missed items from previous chapter")

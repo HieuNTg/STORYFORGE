@@ -235,6 +235,28 @@ docker compose -f docker-compose.production.yml up -d --scale app=3
 # Nginx sticky sessions (ip_hash) route SSE to same instance
 ```
 
+## Phase A: L2 Signal Integration (Layer 1 → Layer 2)
+
+Layer 2 drama simulator now reads 4 L1 signals for enhanced narrative control. Feature-flagged via `l2_use_l1_signals` (default: enabled).
+
+**Signals Integrated**:
+1. `arc_waypoints` (from L1 Chapter.contract) → Character arc progress gates
+2. `structured_summary` (from L1 post_processing) → Scene extraction guards
+3. `pacing_directive` (from L1 draft analysis) → Drama intensity modulation (slow_down=0.55, escalate=0.75)
+4. `PlotThread.status` (from L1 story bible) → Resolution event validation gates
+
+**Modified Components**:
+- `pipeline/layer2_enhance/simulator.py` — `setup_agents(arc_waypoints)`, `run_simulation(pacing_directive)`, `_apply_arc_waypoints()`
+- `pipeline/layer2_enhance/_agent.py` — CharacterAgent gains `waypoint_floor`/`waypoint_stage` fields + `set_waypoint()` method
+- `pipeline/layer2_enhance/scene_enhancer.py` — SCORE_SCENE_DRAMA/ENHANCE_SCENE prompts gain `preserve_facts`, `thread_status`, `arc_context`
+- `pipeline/layer2_enhance/adaptive_intensity.py` — AdaptiveController accepts `pacing_directive`, maps to DRAMA_TARGET
+- `pipeline/layer2_enhance/enhancer.py` — Signal propagation from draft/chapter to SceneEnhancer
+- `pipeline/orchestrator_layers.py` — Extracts signals, passes to `run_simulation()`
+- `pipeline/layer1_story/batch_generator.py` — Attaches ChapterContract to Chapter (both serial + parallel paths)
+- `models/schemas.py` — Chapter.contract field + model_rebuild()
+- `config/defaults.py` — New flags: l2_use_l1_signals, l2_causal_audit, l2_thread_pressure, l2_contract_gate
+- `tests/test_l2_signal_integration.py` — 16 new tests validating signal flow
+
 ## Phase 1 Consistency Improvements
 
 ### 1. Consistency Validators Module (`pipeline/layer1_story/consistency_validators.py`)
@@ -398,11 +420,12 @@ docker compose -f docker-compose.production.yml up -d --scale app=3
 | `api/health_routes.py` | 194 | Health checks (P3: scale_ready, cached engine) |
 | `services/quality_scorer.py` | 150 | 4-dimension evaluation |
 | `pipeline/orchestrator.py` | 250 | Pipeline execution + checkpoint |
-| `pipeline/layer2_enhance/agent_graph.py` | 300 | Multi-agent orchestration |
+| `pipeline/layer2_enhance/simulator.py` | 350+ | Agent setup + signal integration (Phase A) |
+| `pipeline/layer2_enhance/enhancer.py` | 180+ | Signal extraction + propagation (Phase A) |
 | `services/llm/__init__.py` | 200 | Multi-provider LLM abstraction |
 | `web/js/app.ts` | 180 | Alpine.js main instance |
 | `nginx/nginx.conf` | 177 | Proxy config (P3: ip_hash) |
-| `docker-compose.production.yml` | 290 | Production stack (P3: Redis auth) |
+| `tests/test_l2_signal_integration.py` | 250+ | Phase A signal tests |
 
 ## Community & Contribution
 

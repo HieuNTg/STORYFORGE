@@ -18,6 +18,52 @@ MAX_REENHANCE_ROUNDS = 2
 MIN_DRAMA_SCORE = 0.6
 
 
+def _build_arc_context(draft, chapter_number: int) -> str:
+    """Derive arc waypoint context per character for current chapter."""
+    try:
+        chars = getattr(draft, "characters", None) or []
+        lines: list[str] = []
+        for c in chars:
+            waypoints = getattr(c, "arc_waypoints", None) or []
+            for wp in waypoints:
+                wp_dict = wp.model_dump() if hasattr(wp, "model_dump") else wp
+                if not isinstance(wp_dict, dict):
+                    continue
+                ch_range = wp_dict.get("chapter_range") or wp_dict.get("range") or ""
+                if ch_range:
+                    try:
+                        parts = str(ch_range).replace(" ", "").split("-")
+                        start = int(parts[0]); end = int(parts[-1])
+                        if not (start <= chapter_number <= end):
+                            continue
+                    except (ValueError, IndexError):
+                        pass
+                stage = wp_dict.get("stage_name") or wp_dict.get("stage") or ""
+                pct = wp_dict.get("progress_pct", 0.0)
+                if stage:
+                    lines.append(f"- {c.name}: {stage} ({int(float(pct) * 100)}%)")
+                    break
+        return "\n".join(lines)[:400] if lines else ""
+    except Exception:
+        return ""
+
+
+def _extract_pacing_directive(draft, chapter_number: int) -> str:
+    if draft is None:
+        return ""
+    try:
+        chapters = list(getattr(draft, "chapters", []) or [])
+        for ch in chapters:
+            if getattr(ch, "chapter_number", None) == chapter_number:
+                return str(getattr(ch, "pacing_adjustment", "") or "")
+        ctx = getattr(draft, "context", None)
+        if ctx is not None:
+            return str(getattr(ctx, "pacing_adjustment", "") or "")
+    except Exception:
+        pass
+    return ""
+
+
 class StoryEnhancer:
     """Viết lại truyện với tính kịch tích cao hơn."""
 
@@ -82,10 +128,29 @@ class StoryEnhancer:
                     logger.debug(f"Thematic guidance failed (non-fatal): {_e}")
 
             scene_enhancer = SceneEnhancer()
+            _signals_on = True
+            try:
+                _signals_on = bool(getattr(ConfigManager().load().pipeline, "l2_use_l1_signals", True))
+            except Exception:
+                pass
+            _chapter_summary = None
+            _thread_state = None
+            _arc_context = ""
+            _pacing_directive = ""
+            if _signals_on:
+                _chapter_summary = getattr(chapter, "structured_summary", None)
+                if draft is not None:
+                    _thread_state = list(getattr(draft, "open_threads", []) or []) + list(getattr(draft, "resolved_threads", []) or [])
+                    _arc_context = _build_arc_context(draft, chapter.chapter_number)
+                _pacing_directive = _extract_pacing_directive(draft, chapter.chapter_number)
             return scene_enhancer.enhance_chapter_by_scenes(
                 chapter, sim_result, genre, draft,
                 subtext_guidance=_subtext_guidance,
                 thematic_guidance=_thematic_guidance,
+                chapter_summary=_chapter_summary,
+                thread_state=_thread_state,
+                arc_context=_arc_context,
+                pacing_directive=_pacing_directive,
             )
         except Exception as e:
             logger.warning(f"Scene-level enhancement failed, falling back to blob: {e}")

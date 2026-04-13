@@ -141,6 +141,12 @@ class PipelineConfig:
     bible_max_relationships_per_char: int = 8  # was hardcoded 5
     tiered_max_promotions: int = 5  # max chapters promoted from low tier to high tier
 
+    # L2 enhancement quality signals
+    l2_use_l1_signals: bool = True  # wire L1 waypoints/summary/pacing/thread.status into L2
+    l2_causal_audit: bool = True  # post-L2 causality verification (Phase B)
+    l2_thread_pressure: bool = True  # thread.urgency → psychology pressure (Phase C)
+    l2_contract_gate: bool = True  # post-L2 contract validation + optional rewrite (Phase E)
+
     # Quality gate (inline scoring between layers)
     # Recommended thresholds by genre: romance/comedy=2.3, mystery/thriller=2.5,
     # fantasy/sci-fi=2.5, literary/historical=2.8, action=2.2

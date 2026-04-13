@@ -21,12 +21,27 @@ class RoundFeedback(BaseModel):
 class AdaptiveController:
     """Điều chỉnh cường độ mô phỏng dựa trên phản hồi drama từng vòng."""
 
-    def __init__(self, base_intensity: dict, min_rounds: int = 3, max_rounds: int = 10):
+    def __init__(
+        self,
+        base_intensity: dict,
+        min_rounds: int = 3,
+        max_rounds: int = 10,
+        pacing_directive: str = "",
+    ):
         self.base = dict(base_intensity)
         self.current = dict(base_intensity)
         self.min_rounds = min_rounds
         self.max_rounds = max_rounds
         self.history: list[RoundFeedback] = []
+        self.pacing_directive = (pacing_directive or "").strip().lower()
+        if self.pacing_directive == "slow_down":
+            self.drama_target = 0.55
+        elif self.pacing_directive == "escalate":
+            self.drama_target = 0.75
+        else:
+            self.drama_target = DRAMA_TARGET
+        if self.pacing_directive:
+            logger.info(f"[Adaptive] pacing={self.pacing_directive} → DRAMA_TARGET={self.drama_target}")
 
     def record_round(self, round_num: int, drama_score: float) -> None:
         """Ghi lại kết quả vòng và điều chỉnh cường độ cho vòng tiếp theo."""
@@ -51,7 +66,7 @@ class AdaptiveController:
         if not self.history:
             return True
         avg = sum(h.drama_score for h in self.history) / len(self.history)
-        return avg < DRAMA_TARGET
+        return avg < self.drama_target
 
     def get_current_config(self) -> dict:
         """Trả về cấu hình cường độ hiện tại (có thể đã được leo thang)."""

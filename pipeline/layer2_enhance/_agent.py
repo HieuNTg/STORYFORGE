@@ -126,11 +126,17 @@ class CharacterAgent:
         self.emotion = EmotionalState()
         self.trust_map: dict[str, TrustEdge] = {}
         self.psychology: CharacterPsychology | None = None
+        self.waypoint_floor: float = 0.0
+        self.waypoint_stage: str = ""
 
     @property
     def emotional_state(self) -> EmotionalState:
         """Alias for emotion — compatibility with reaction chain code."""
         return self.emotion
+
+    def set_waypoint(self, stage: str, progress_pct: float):
+        self.waypoint_stage = stage
+        self.waypoint_floor = max(0.0, min(1.0, float(progress_pct)))
 
     def add_memory(self, event: str, importance: float = 0.0):
         """Thêm ký ức với điểm quan trọng. Sự kiện quan trọng cao sẽ được giữ lại khi cắt tỉa."""

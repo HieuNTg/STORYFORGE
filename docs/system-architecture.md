@@ -25,6 +25,28 @@ User Input
         Export (PDF/EPUB/HTML/ZIP)
 ```
 
+## Phase A: Layer 1 → Layer 2 Signal Integration
+
+Layer 2 now reads and processes 4 L1 output signals for enhanced narrative control:
+
+```
+L1: Chapter + Draft + StoryBible
+    ├─ arc_waypoints (L1 → L2 via Chapter.contract)
+    ├─ structured_summary (L1 → L2 for scene gates)
+    ├─ pacing_directive (L1 → L2 for drama intensity)
+    └─ PlotThread.status (L1 → L2 for event validation)
+         ↓
+L2: Signal-Aware Agent Simulation
+    ├─ CharacterAgent respects arc_waypoints
+    ├─ SceneEnhancer preserves L1 facts via thread_status
+    ├─ AdaptiveController modulates drama by pacing_directive
+    └─ Simulator validates events via thread gates
+         ↓
+    Enhanced Story (L1 facts + L2 drama)
+```
+
+**Feature Flag**: `l2_use_l1_signals` (config/defaults.py, default: enabled)
+
 ## Layer 1 Pipeline: Story Generation
 
 Layer 1 generates story structure in stages:
@@ -182,6 +204,48 @@ Story Bible is now mandatory (no opt-out):
 - Updated after each chapter with new events, threads, and timeline data
 - Provides long-term memory context for chapters 100+
 - Replaces rolling window approach for large stories
+
+## Phase A: Layer 2 Signal Integration Architecture
+
+### 1. Simulator Signal Ingestion (`pipeline/layer2_enhance/simulator.py`)
+
+**setup_agents()**:
+- Now accepts `arc_waypoints: list[dict]` (from Chapter.contract)
+- Calls `_apply_arc_waypoints(waypoints, current_chapter)` to set CharacterAgent floor/stage
+- CharacterAgent stores waypoint state: `waypoint_floor`, `waypoint_stage`
+
+**run_simulation()**:
+- Accepts `pacing_directive: str` (extracted via `_extract_pacing_directive()` in enhancer.py)
+- Passes pacing to AdaptiveController for drama intensity modulation
+- Validates event resolution against PlotThread.status via `_is_event_thread_valid()`
+
+### 2. Signal Extraction (`pipeline/layer2_enhance/enhancer.py`)
+
+**_extract_pacing_directive()**:
+- Parses L1 draft for pacing cues (slow_down, escalate, neutral)
+- Default: empty string (no pacing override)
+- Gated by `l2_use_l1_signals` flag
+
+**Signal Propagation**:
+- Reads `Chapter.arc_waypoints` from L1 output
+- Reads `Draft.structured_summary` for scene extraction guards
+- Passes `pacing_directive` to SceneEnhancer + AdaptiveController
+- All signals flow to `run_simulation()` in simulator
+
+### 3. Scene Enhancement with L1 Context (`pipeline/layer2_enhance/scene_enhancer.py`)
+
+**SCORE_SCENE_DRAMA + ENHANCE_SCENE Prompts**:
+- New fields: `preserve_facts`, `thread_status`, `arc_context`
+- Prevent drama rewrites from contradicting L1 plot threads
+- Enforce character arc gates (waypoint_floor < current_arc < waypoint_stage)
+- MIN_DRAMA threshold adjusts by pacing_directive: slow_down lowers threshold, escalate raises it
+
+### 4. Adaptive Intensity Mapping (`pipeline/layer2_enhance/adaptive_intensity.py`)
+
+**AdaptiveController** accepts `pacing_directive`:
+- "slow_down" → DRAMA_TARGET = 0.55 (subdued conflict)
+- "escalate" → DRAMA_TARGET = 0.75 (heightened drama)
+- "" (default) → DRAMA_TARGET = 0.65 (standard)
 
 ## P3 Sprint Architecture Changes
 

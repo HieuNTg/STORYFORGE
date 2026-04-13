@@ -39,6 +39,7 @@ class StoryGenerator:
         self.llm = LLMClient()
         self.config = ConfigManager()
         self.bible_manager = StoryBibleManager()
+        self.bible_manager.set_config(self.config.pipeline)
         self._long_ctx_client = None
         self._layer_model = self.llm.model_for_layer(self.LAYER)
         self.token_budget_per_chapter = token_budget_per_chapter

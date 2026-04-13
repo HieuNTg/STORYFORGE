@@ -93,6 +93,7 @@ class Chapter(BaseModel):
     summary: str = ""
     structured_summary: Optional[StructuredSummary] = Field(default=None, description="Rich structured summary")
     enhancement_changelog: list[str] = Field(default_factory=list, description="Log các thay đổi trong quá trình tăng cường kịch tính")
+    contract: Optional["ChapterContract"] = Field(default=None, description="L1-generated per-chapter requirements contract")
 
 
 class CharacterState(BaseModel):
@@ -499,3 +500,10 @@ class PipelineOutput(BaseModel):
     analytics: dict = Field(default_factory=dict)
     knowledge_graph_summary: str = ""
     progress_events: list = Field(default_factory=list)
+
+
+try:
+    from models.narrative_schemas import ChapterContract
+    Chapter.model_rebuild(_types_namespace={"ChapterContract": ChapterContract})
+except Exception:
+    pass

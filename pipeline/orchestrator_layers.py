@@ -256,6 +256,24 @@ async def run_full_pipeline(
             logger.warning(f"Plugin apply_genre_rules failed: {_e}")
 
         _log(f"[L2] Bắt đầu mô phỏng {num_sim_rounds} vòng...")
+        _use_signals = bool(getattr(self.config.pipeline, "l2_use_l1_signals", True))
+        _arc_wps = []
+        _threads_in = None
+        _pacing_dir = ""
+        if _use_signals:
+            for c in (draft.characters or []):
+                wps = getattr(c, "arc_waypoints", None) or []
+                for wp in wps:
+                    wd = wp.model_dump() if hasattr(wp, "model_dump") else wp
+                    if isinstance(wd, dict):
+                        wd.setdefault("character", c.name)
+                        _arc_wps.append(wd)
+            _threads_in = list(getattr(draft, "open_threads", []) or []) + list(getattr(draft, "resolved_threads", []) or [])
+            try:
+                _ctx = getattr(draft, "context", None)
+                _pacing_dir = str(getattr(_ctx, "pacing_adjustment", "") or "") if _ctx else ""
+            except Exception:
+                _pacing_dir = ""
         sim_result = await asyncio.to_thread(
             self.simulator.run_simulation,
             characters=draft.characters,
@@ -264,6 +282,10 @@ async def run_full_pipeline(
             num_rounds=num_sim_rounds,
             progress_callback=lambda m: _log(f"[L2] {m}"),
             drama_intensity=self.config.pipeline.drama_intensity,
+            pacing_directive=_pacing_dir,
+            arc_waypoints=_arc_wps,
+            threads=_threads_in,
+            current_chapter=1,
         )
         self.output.simulation_result = sim_result
 

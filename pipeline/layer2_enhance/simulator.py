@@ -115,6 +115,7 @@ class DramaSimulator:
         self.agents: dict[str, CharacterAgent] = {}
         self.all_posts: list[AgentPost] = []
         self.relationships: list[Relationship] = []
+        self.threads: list = []
         self.trust_network: dict[str, TrustNetworkEdge] = {}
         self._intensity: dict = _get_intensity_config("cao")
         self._psychology_engine = PsychologyEngine() if _PSYCHOLOGY_AVAILABLE else None
@@ -126,10 +127,15 @@ class DramaSimulator:
         self,
         characters: list[Character],
         relationships: list[Relationship],
+        arc_waypoints: list[dict] | None = None,
+        threads: list | None = None,
+        current_chapter: int = 1,
     ):
         """Khởi tạo agent cho mỗi nhân vật."""
         self.agents = {c.name: CharacterAgent(c) for c in characters}
         self.relationships = list(relationships)
+        self.threads = list(threads) if threads else []
+        self._apply_arc_waypoints(arc_waypoints, current_chapter)
         # Initialize trust network from relationships
         self.trust_network = {}
         for rel in self.relationships:
@@ -197,6 +203,66 @@ class DramaSimulator:
             if psychology is not None and name in self.agents:
                 self.agents[name].psychology = psychology
         logger.info("Đã trích xuất tâm lý cho tất cả nhân vật")
+
+    def _apply_arc_waypoints(self, waypoints_list, current_chapter: int):
+        if not waypoints_list:
+            return
+        applied = 0
+        for entry in waypoints_list:
+            try:
+                if hasattr(entry, "model_dump"):
+                    entry = entry.model_dump()
+                if not isinstance(entry, dict):
+                    continue
+                char_name = entry.get("character") or entry.get("character_name") or entry.get("name")
+                if not char_name or char_name not in self.agents:
+                    continue
+                ch_range = entry.get("chapter_range") or entry.get("range") or ""
+                if ch_range and not self._chapter_in_range(current_chapter, ch_range):
+                    continue
+                agent = self.agents[char_name]
+                agent.set_waypoint(
+                    stage=entry.get("stage_name") or entry.get("stage") or "",
+                    progress_pct=float(entry.get("progress_pct", 0.0)),
+                )
+                applied += 1
+            except Exception as e:
+                logger.debug(f"waypoint apply skipped: {e}")
+        if applied:
+            logger.info(f"[L2] Waypoint floor applied to {applied}/{len(self.agents)} characters")
+
+    @staticmethod
+    def _chapter_in_range(chapter: int, rng: str) -> bool:
+        try:
+            parts = str(rng).replace(" ", "").split("-")
+            start = int(parts[0])
+            end = int(parts[-1])
+            return start <= chapter <= end
+        except (ValueError, IndexError):
+            return True
+
+    def _is_event_thread_valid(self, event) -> bool:
+        if not getattr(self, "threads", None):
+            return True
+        resolution_types = {"hy_sinh", "đảo_ngược", "giải_quyết"}
+        if event.event_type not in resolution_types:
+            return True
+        involved = set(event.characters_involved or [])
+        for th in self.threads:
+            th_status = getattr(th, "status", "open")
+            th_urgency = getattr(th, "urgency", 3)
+            th_chars = set(
+                getattr(th, "involved_characters", None)
+                or getattr(th, "characters_involved", None)
+                or []
+            )
+            if not (involved and th_chars and (involved & th_chars)):
+                continue
+            if th_status == "resolved":
+                return False
+            if th_status == "open" and th_urgency < 4:
+                return False
+        return True
 
     def _get_recent_posts(self, exclude_agent: str, limit: int = 5) -> str:
         """Lấy các bài viết gần đây của nhân vật khác, lọc theo tri thức nếu có."""
@@ -609,6 +675,10 @@ class DramaSimulator:
         num_rounds: int = 5,
         drama_intensity: str = "cao",
         progress_callback=None,
+        pacing_directive: str = "",
+        arc_waypoints: list[dict] | None = None,
+        threads: list | None = None,
+        current_chapter: int = 1,
     ) -> SimulationResult:
         """Chạy toàn bộ mô phỏng và trả về kết quả."""
 
@@ -618,7 +688,12 @@ class DramaSimulator:
                 progress_callback(msg)
 
         self._intensity = _get_intensity_config(drama_intensity)
-        self.setup_agents(characters, relationships)
+        self.setup_agents(
+            characters, relationships,
+            arc_waypoints=arc_waypoints,
+            threads=threads,
+            current_chapter=current_chapter,
+        )
         all_events: list[SimulationEvent] = []
         all_drama_scores: list[float] = []
 
@@ -629,6 +704,7 @@ class DramaSimulator:
                     self._intensity,
                     min_rounds=max(3, num_rounds - 2),
                     max_rounds=num_rounds + 3,
+                    pacing_directive=pacing_directive,
                 )
                 logger.info("Đã khởi tạo AdaptiveController")
             except Exception as e:
@@ -677,6 +753,9 @@ class DramaSimulator:
                         drama_score=ev.get("drama_score", 0.5),
                         suggested_insertion=ev.get("suggested_insertion", ""),
                     )
+                    if not self._is_event_thread_valid(event):
+                        logger.debug(f"Event blocked by thread gate: {event.event_type} r{round_num}")
+                        continue
                     all_events.append(event)
                     # Thêm vào đồ thị nhân quả (non-fatal)
                     if self.causal_graph is not None:
