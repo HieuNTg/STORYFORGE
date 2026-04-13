@@ -136,3 +136,25 @@ Trả về JSON:
   "motifs_missing": ["motif nên thêm vào để củng cố chủ đề"],
   "drift_warning": "cảnh báo nếu chương lệch chủ đề (để rỗng nếu ổn)"
 }}"""
+
+# --- Causal Audit (Phase B) ---
+
+CAUSAL_AUDIT_EXTRACT = """Quét chương sau để tìm những lời khẳng định "X biết / phát hiện / được kể / nghe rằng Y".
+
+NỘI DUNG CHƯƠNG:
+{content}
+
+Mỗi lời khẳng định là một câu trong chương cho thấy một nhân vật tiếp nhận thông tin từ một nguồn cụ thể.
+Chỉ trích xuất những lời khẳng định tường minh — KHÔNG suy đoán.
+
+Trả về JSON:
+{{
+  "fact_mentions": [
+    {{
+      "fact": "nội dung ngắn gọn của thông tin (≤ 80 ký tự)",
+      "claimed_source": "tên nhân vật được nêu là nguồn / người tiết lộ",
+      "sentence": "trích nguyên văn câu khẳng định (≤ 200 ký tự)"
+    }}
+  ]
+}}
+Nếu không có lời khẳng định nào, trả về {{"fact_mentions": []}}."""

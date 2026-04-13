@@ -446,4 +446,43 @@ class StoryEnhancer:
         except Exception as e:
             logger.warning(f"Coherence validation failed (non-fatal): {e}")
 
+        # Causal audit (Phase B, non-fatal, feature-flagged)
+        try:
+            _audit_on = bool(getattr(ConfigManager().load().pipeline, "l2_causal_audit", True))
+        except Exception:
+            _audit_on = True
+        if _audit_on:
+            try:
+                _kr = getattr(draft, "_knowledge_registry", None)
+                _cg = getattr(draft, "_causal_graph", None)
+                if _kr is not None:
+                    from pipeline.layer2_enhance.causal_chain import audit_revelation_causality
+                    _log("🔎 Đang kiểm tra nhân quả tiết lộ...")
+                    violations = audit_revelation_causality(
+                        self.llm, _cg, _kr, enhanced.chapters, enabled=True,
+                    )
+                    if violations:
+                        by_ch: dict[int, list[dict]] = {}
+                        for v in violations:
+                            by_ch.setdefault(v["chapter_number"], []).append(v)
+                        for ch in enhanced.chapters:
+                            flags = by_ch.get(ch.chapter_number, [])
+                            if not flags:
+                                continue
+                            try:
+                                ch.enhancement_changelog = list(getattr(ch, "enhancement_changelog", []) or [])
+                                for v in flags:
+                                    ch.enhancement_changelog.append(f"[causality:{v['severity']}] {v['msg']}")
+                            except Exception:
+                                pass
+                        try:
+                            object.__setattr__(enhanced, "_causality_flags", violations)
+                        except Exception:
+                            pass
+                        _log(f"⚠️ Nhân quả: {len(violations)} vi phạm trên {len(by_ch)} chương")
+                    else:
+                        _log("✅ Nhân quả tiết lộ hợp lệ")
+            except Exception as e:
+                logger.warning(f"Causal audit failed (non-fatal): {e}")
+
         return enhanced

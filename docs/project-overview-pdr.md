@@ -91,6 +91,29 @@ Choose-your-own-adventure mode: LLM generates branching narrative paths.
 └── docker-compose.production.yml → Full stack with monitoring
 ```
 
+## Phase B: Causal Accountability Deliverables
+
+### 1. Revelation Event Recording (`pipeline/layer2_enhance/simulator.py`)
+- After each simulation round, `record_revelation_event()` emits `CausalEvent(type="tiết_lộ", cause_event_id, ...)` per secret reveal
+- Chains reveals of same fact across rounds; only revealer required for cause_event_id lookup (1-char overlap + 2-round lookback)
+
+### 2. Witness Propagation (`pipeline/layer2_enhance/knowledge_system.py`)
+- When secret X revealed A → B, other characters posting in round±1 gain knowledge with source="witness"
+- Capped at 3 witnesses per revelation; skipped for dramatic_irony facts (reader-only secrets stay reader-only)
+
+### 3. Revelation Causality Audit (`pipeline/layer2_enhance/causal_chain.py`)
+- LLM-gated post-coherence: `audit_revelation_causality()` extracts "X knows/discovered/was told Y" claims from enhanced chapter text
+- Cross-checks against `KnowledgeRegistry`: flags critical (claimed_source impossible), warning (wrong attribution chain)
+
+### 4. reveal_log on KnowledgeItem (`pipeline/layer2_enhance/knowledge_system.py`)
+- Full audit trail per fact: `reveal_log=[RevealEntry(char, round, source, event_id), ...]`
+- Initial holder seeded source="initial"; subsequent entries track reveal chain
+- enables causality validation
+
+### 5. Orchestrator Wiring (`pipeline/orchestrator_layers.py`)
+- Attaches `simulator.knowledge` + `simulator.causal_graph` to draft as private attrs (`_knowledge_registry`, `_causal_graph`)
+- Enhancer reads post-coherence to run audit
+
 ## Phase A: L2 Signal Integration Deliverables
 
 ### 1. Arc Waypoint Gates (`pipeline/layer2_enhance/_agent.py`)

@@ -15,6 +15,8 @@ User Input
 ┌─────────────────────────────────────┐
 │   Layer 2: Drama Simulation         │
 │   (13 AI Agents, Conflict Analysis) │
+│   + Phase B: Causal Accountability  │
+│   (Knowledge Graph, Revelation Audit)│
 └────────────┬────────────────────────┘
              ↓
 ┌─────────────────────────────────────┐
@@ -23,6 +25,38 @@ User Input
 └────────────┬────────────────────────┘
              ↓
         Export (PDF/EPUB/HTML/ZIP)
+```
+
+## Phase B: Causal Accountability Architecture
+
+L2 simulator now tracks knowledge revelation as explicit causal events, validates causality in enhanced text via LLM audit.
+
+```
+Simulator Round
+    ↓ (each round)
+[Record Revelation Events]
+    ├─ Secret X revealed by A → B
+    ├─ Type: tiết_lộ, cause_event_id points to prior X reveal
+    └─ Witness propagation: chars posting ±1 gain knowledge
+         ↓
+[Enhanced Chapter + KnowledgeRegistry + CausalGraph]
+    ├─ draft._knowledge_registry (private attr)
+    └─ draft._causal_graph (private attr)
+         ↓
+[Post-Coherence Audit]
+    └─ audit_revelation_causality():
+       ├─ LLM extracts "X knows Y" claims from enhanced text
+       ├─ Cross-checks against reveal_log + KnowledgeRegistry
+       ├─ Flags critical (impossible knowledge) & warning (wrong attribution)
+       └─ Return audit_report with flagged events
+
+**Feature Flag**: l2_causal_audit (default True)
+
+**KnowledgeItem.reveal_log**: [RevealEntry(char, round, source, event_id)]
+- source ∈ {initial, told, discovered, witness}
+- Initial holder seeded with source="initial"
+- Critical: claimed_source ∉ known_by → impossible knowledge
+- Warning: claimed_source not in first 2 entries of reveal_log → wrong chain attribution
 ```
 
 ## Phase A: Layer 1 → Layer 2 Signal Integration

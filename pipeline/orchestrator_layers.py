@@ -289,6 +289,13 @@ async def run_full_pipeline(
         )
         self.output.simulation_result = sim_result
 
+        # Expose live simulator state to enhancer via draft private attrs (Phase B causal audit)
+        try:
+            draft._knowledge_registry = getattr(self.simulator, "knowledge", None)
+            draft._causal_graph = getattr(self.simulator, "causal_graph", None)
+        except Exception:
+            pass
+
         if hasattr(sim_result, 'actual_rounds') and sim_result.actual_rounds:
             _log(f"[L2] Adaptive: {sim_result.actual_rounds} rounds (requested {num_sim_rounds})")
         if hasattr(sim_result, 'knowledge_state') and sim_result.knowledge_state:

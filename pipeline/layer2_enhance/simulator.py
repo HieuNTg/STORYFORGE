@@ -552,9 +552,28 @@ class DramaSimulator:
         # Kiểm tra tiết lộ bí mật sau vòng (non-fatal)
         if self.knowledge is not None:
             try:
-                revelations = self.knowledge.check_revelation_triggers(round_posts, round_number)
+                revelations = self.knowledge.check_revelation_triggers(
+                    round_posts, round_number, all_posts=self.all_posts,
+                )
                 if revelations:
                     logger.info(f"Vòng {round_number}: {len(revelations)} bí mật được tiết lộ")
+                    if self.causal_graph is not None:
+                        try:
+                            from pipeline.layer2_enhance.causal_chain import record_revelation_event
+                            for rev in revelations:
+                                new_id = record_revelation_event(
+                                    self.causal_graph, self.knowledge,
+                                    rev["fact_id"], rev["by"], rev["revealed_to"], round_number,
+                                )
+                                if new_id:
+                                    try:
+                                        fact = self.knowledge.items.get(rev["fact_id"])
+                                        if fact and fact.reveal_log:
+                                            fact.reveal_log[-1].event_id = new_id
+                                    except Exception:
+                                        pass
+                        except Exception as e:
+                            logger.debug(f"record_revelation_event wiring lỗi: {e}")
             except Exception as e:
                 logger.debug(f"check_revelation_triggers lỗi: {e}")
 

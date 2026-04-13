@@ -58,6 +58,7 @@ from services.prompts.layer2_enhanced_prompts import (  # noqa: E402
     DIALOGUE_SUBTEXT_GUIDANCE,
     EXTRACT_THEME,
     SCORE_CHAPTER_THEME,
+    CAUSAL_AUDIT_EXTRACT,
 )
 
 __all__ = [
@@ -86,4 +87,5 @@ __all__ = [
     "DIALOGUE_SUBTEXT_GUIDANCE",
     "EXTRACT_THEME",
     "SCORE_CHAPTER_THEME",
+    "CAUSAL_AUDIT_EXTRACT",
 ]

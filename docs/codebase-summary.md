@@ -235,6 +235,27 @@ docker compose -f docker-compose.production.yml up -d --scale app=3
 # Nginx sticky sessions (ip_hash) route SSE to same instance
 ```
 
+## Phase B: Causal Accountability (Knowledge + Revelation Graph)
+
+**Feature Flag**: `config.pipeline.l2_causal_audit` (default: True)
+
+**Capabilities**:
+1. **Revelation Events in Causal Graph** — Each secret reveal adds type `tiết_lộ` CausalEvent with `cause_event_id` chain per fact
+2. **Witness Propagation** — When A reveals X to B, characters posting ±1 rounds gain knowledge (source="witness", capped 3 per reveal, skipped for dramatic_irony)
+3. **Revelation Causality Audit (LLM)** — Post-coherence, extracts "X knows/discovered/was told Y" claims from enhanced text, cross-checks KnowledgeRegistry; flags critical (impossible knowledge) and warning (wrong attribution chain)
+4. **reveal_log on KnowledgeItem** — Full audit trail [RevealEntry(char, round, source, event_id)], initial holder seeded source="initial"
+5. **Relaxed Cause Inference** — 1-char overlap + 2-round lookback for type "tiết_lộ" (lone discoveries often share only revealer)
+6. **Orchestrator Wiring** — Attaches `simulator.knowledge` + `simulator.causal_graph` as private attrs to draft; enhancer reads post-coherence for audit
+
+**Modified Files**:
+- `pipeline/layer2_enhance/causal_chain.py` (+80 LOC: record_revelation_event, audit_revelation_causality, _infer_cause relaxed)
+- `pipeline/layer2_enhance/knowledge_system.py` (+60 LOC: RevealEntry, reveal_log, witness propagation)
+- `pipeline/layer2_enhance/simulator.py` (+30 LOC: record_revelation_event emit after each round)
+- `pipeline/layer2_enhance/enhancer.py` (+40 LOC: post-coherence audit block)
+- `pipeline/orchestrator_layers.py` (+5 LOC: attach registry+graph to draft)
+- `services/prompts/layer2_enhanced_prompts.py` (+20 LOC: CAUSAL_AUDIT_EXTRACT prompt, Vietnamese)
+- `tests/test_causal_audit.py` (NEW, 18 tests)
+
 ## Phase A: L2 Signal Integration (Layer 1 → Layer 2)
 
 Layer 2 drama simulator now reads 4 L1 signals for enhanced narrative control. Feature-flagged via `l2_use_l1_signals` (default: enabled).
