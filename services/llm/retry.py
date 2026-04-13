@@ -1,12 +1,16 @@
 """Retry logic, error classification, and credential-redaction utilities for LLM calls."""
 
 import re
+import time
 import logging
 
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
 BASE_DELAY = 1.0
+
+# OpenRouter embeds X-RateLimit-Reset (ms since epoch) in 429 error bodies.
+_OPENROUTER_RESET_RE = re.compile(r"['\"]X-RateLimit-Reset['\"]\s*:\s*['\"]?(\d{10,})['\"]?", re.IGNORECASE)
 
 # Patterns that may expose credentials in error messages
 _REDACT_PATTERNS = re.compile(
@@ -30,7 +34,9 @@ def _is_transient(exc: Exception) -> bool:
     import json
     if isinstance(exc, json.JSONDecodeError):
         return True
-    if isinstance(exc, RuntimeError) and "empty choices" in str(exc).lower():
+    if isinstance(exc, RuntimeError) and (
+        "empty choices" in str(exc).lower() or "empty content" in str(exc).lower()
+    ):
         return True
     exc_str = str(exc).lower()
     if any(str(code) in exc_str for code in _TRANSIENT_CODES):
@@ -71,6 +77,27 @@ def _parse_retry_after(exc: Exception) -> float | None:
     return None
 
 
+def parse_openrouter_reset(err_str: str) -> float | None:
+    """Seconds remaining until OpenRouter's X-RateLimit-Reset, or None if absent.
+
+    OpenRouter returns reset time as ms-since-epoch embedded in 429 error metadata.
+    Clamps to a 60s floor so we never mark a key as "ready" faster than sane.
+    """
+    match = _OPENROUTER_RESET_RE.search(err_str)
+    if not match:
+        return None
+    try:
+        reset_ms = int(match.group(1))
+    except ValueError:
+        return None
+    # Heuristic: values < 1e12 are plain seconds; >= 1e12 are ms.
+    reset_sec = reset_ms / 1000.0 if reset_ms >= 10**12 else float(reset_ms)
+    delta = reset_sec - time.time()
+    if delta <= 0:
+        return None
+    return max(delta, 60.0)
+
+
 def _should_retry(exc: Exception, provider: str) -> tuple[bool, float]:
     """Decide if error is retryable and suggest delay.
 
@@ -94,6 +121,10 @@ def _should_retry(exc: Exception, provider: str) -> tuple[bool, float]:
         if retry_after is not None:
             return True, retry_after
         return True, 5.0  # Default rate limit delay
+
+    # Empty content on OpenRouter — content filter or guardrail; skip to next model
+    if provider == "openrouter" and "empty content" in exc_str:
+        return True, 0
 
     # Model not found on OpenRouter — not retryable on same provider, try next
     if provider == "openrouter" and "404" in exc_str:

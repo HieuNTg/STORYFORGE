@@ -27,7 +27,13 @@ class OpenAIProvider:
         response = self.client.chat.completions.create(**kwargs)
         if not response.choices:
             raise RuntimeError(f"LLM returned empty choices (model={model}, finish_reason=unknown)")
-        return response.choices[0].message.content or ""
+        content = response.choices[0].message.content
+        if not content or not content.strip():
+            raise RuntimeError(
+                f"LLM returned empty content (model={model}, "
+                f"finish_reason={response.choices[0].finish_reason})"
+            )
+        return content
 
     def stream(self, messages: list[dict], model: str, temperature: float,
                max_tokens: int) -> Iterator[str]:

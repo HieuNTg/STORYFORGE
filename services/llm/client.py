@@ -9,6 +9,7 @@ from typing import Optional
 from services.llm.retry import (
     MAX_RETRIES, BASE_DELAY,
     _redact, _is_transient, _detect_provider, _should_retry,
+    parse_openrouter_reset,
 )
 from services.llm.streaming import StreamingMixin
 from services.llm.generation import GenerationMixin
@@ -246,6 +247,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
 
         all_errors = []
         skip_keys: set[str] = set()
+        account_rl_reset: float | None = None  # seconds-until-reset across all exhausted OR keys
         for entry in chain:
             entry_key = entry.get("_api_key", "")
             if entry_key and entry_key in skip_keys:
@@ -268,10 +270,14 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     err_str = str(e)
                     if "429" in err_str:
                         if provider_type == "openrouter" and self._is_account_rate_limit(err_str):
-                            self._mark_rate_limited(entry_key, 300.0)
+                            reset_delta = parse_openrouter_reset(err_str)
+                            cooldown = reset_delta if reset_delta is not None else 300.0
+                            if reset_delta is not None:
+                                account_rl_reset = min(account_rl_reset, reset_delta) if account_rl_reset else reset_delta
+                            self._mark_rate_limited(entry_key, cooldown)
                             skip_keys.add(entry_key)
-                            logger.warning("Account-level rate limit on key %s...%s — skipping remaining models",
-                                           entry_key[:8], entry_key[-4:] if len(entry_key) > 8 else "")
+                            logger.warning("Account-level rate limit on key %s...%s — cooldown %.0fs, skipping remaining models",
+                                           entry_key[:8], entry_key[-4:] if len(entry_key) > 8 else "", cooldown)
                         elif provider_type == "openrouter":
                             self._mark_model_rate_limited(entry["model"], entry_key, 90.0)
                         else:
@@ -282,9 +288,32 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     raise
                 logger.warning(f"Provider {entry['label']} failed, trying next...")
 
+        hint = self._build_exhaustion_hint(account_rl_reset, chain)
         error_msg = "; ".join(all_errors)
-        logger.error(f"All LLM providers failed: {error_msg}")
-        raise RuntimeError(f"All LLM providers failed: {error_msg}")
+        logger.error(f"All LLM providers failed: {hint} | details: {error_msg}")
+        raise RuntimeError(f"All LLM providers failed. {hint}")
+
+    @staticmethod
+    def _build_exhaustion_hint(reset_delta: float | None, chain: list) -> str:
+        """User-facing guidance when every provider is exhausted.
+
+        Tells the user *when* OpenRouter's free tier resets and *how* to unblock
+        themselves now (add credits or plug in a non-OpenRouter provider).
+        """
+        only_openrouter = all(
+            "openrouter" in str(getattr(e.get("provider") or e.get("client"), "base_url", "")).lower()
+            for e in chain
+        ) if chain else False
+        parts = []
+        if reset_delta is not None:
+            hours = reset_delta / 3600.0
+            if hours >= 1:
+                parts.append(f"OpenRouter free tier resets in ~{hours:.1f}h")
+            else:
+                parts.append(f"OpenRouter free tier resets in ~{reset_delta/60.0:.0f}min")
+        if only_openrouter:
+            parts.append("To unblock now: add $10 OpenRouter credits (unlocks 1000 req/day), add more API keys in Settings > LLM, or configure a non-OpenRouter fallback (Gemini/Anthropic)")
+        return " — ".join(parts) if parts else "All LLM providers failed."
 
     def _resolve_api_keys(self, config) -> list[dict]:
         """Build ordered list of {base_url, api_key} from primary + api_keys pool.

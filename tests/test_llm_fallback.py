@@ -276,7 +276,8 @@ class TestTryProvider(unittest.TestCase):
             client._try_provider(provider, [], 0.7, 1000, False)
 
     @patch("services.llm_client.ConfigManager")
-    def test_try_provider_empty_content_returns_empty_string(self, MockCM):
+    @patch("services.llm_client.time")
+    def test_try_provider_empty_content_raises(self, mock_time, MockCM):
         from services.llm_client import LLMClient
         MockCM.return_value = _make_llm_config()
         client = LLMClient()
@@ -286,8 +287,8 @@ class TestTryProvider(unittest.TestCase):
         mock_openai.chat.completions.create.return_value = response
 
         provider = {"client": mock_openai, "model": "gpt-4", "label": "primary"}
-        result = client._try_provider(provider, [], 0.7, 1000, False)
-        self.assertEqual(result, "")
+        with self.assertRaises(RuntimeError):
+            client._try_provider(provider, [], 0.7, 1000, False)
 
 
 # ---------------------------------------------------------------------------

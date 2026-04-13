@@ -45,7 +45,10 @@ class AnthropicProvider:
         if system_msg:
             kwargs["system"] = system_msg
         response = self.client.messages.create(**kwargs)
-        return response.content[0].text
+        content = response.content[0].text
+        if not content or not content.strip():
+            raise RuntimeError(f"LLM returned empty content (model={model})")
+        return content
 
     def stream(self, messages: list[dict], model: str, temperature: float,
                max_tokens: int) -> Iterator[str]:

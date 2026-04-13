@@ -45,7 +45,10 @@ class GeminiProvider:
         response = self.client.models.generate_content(
             model=model, contents=contents, config=config
         )
-        return response.text or ""
+        content = response.text
+        if not content or not content.strip():
+            raise RuntimeError(f"LLM returned empty content (model={model})")
+        return content
 
     def stream(self, messages: list[dict], model: str, temperature: float,
                max_tokens: int) -> Iterator[str]:
