@@ -92,13 +92,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- **Phase E: Contract Gate** — Validate enhanced chapters against `ChapterContract` (Phase 1 constraints); auto-rewrite if ≥2 critical failures or (≥1 critical + ≥2 warnings); integrated post-causal-audit; feature-flagged `config.pipeline.l2_contract_gate` (default True)
+
 ### Removed
 - Layer 3 video storyboarding pipeline
 - TTS/voice narration (edge-tts)
 - Audio player component
 - Video composer and exporter
 
-### Added
+### Changed
 - Thread-safe SSE streaming (RLock + snapshot pattern)
 - 98 RBAC + rate limiter middleware tests
 - Graceful pipeline shutdown handler

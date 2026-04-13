@@ -1,13 +1,14 @@
 ---
 title: "L2 Enhancement Quality — Signal Integration, Causal Accountability, Contract Gate"
 description: "Wire L1 Phase 1-5 signals into L2 + add causal/psychology/contract enforcement"
-status: in-progress
+status: done
 priority: P1
 effort: 19-20h
 branch: master
 tags: [layer2, enhancement, signal-integration, causal, contract, quality]
 created: 2026-04-13
-progress: 4/5 phases complete
+completed: 2026-04-13
+progress: 5/5 phases complete
 ---
 
 # L2 Enhancement Quality Improvements
@@ -22,11 +23,11 @@ L2 (`pipeline/layer2_enhance/`) is architecturally orphaned from L1 Phase 1-5 si
 | D | Cleanup (dead code, dup structs) | 1-2h | DONE (2026-04-13, scoped) | [phase-D-cleanup.md](./phase-D-cleanup.md) |
 | B | Causal Accountability (revelation DAG, knowledge log, text auditor) | 4-6h | DONE (2026-04-13) | [phase-B-causal-accountability.md](./phase-B-causal-accountability.md) |
 | C | Thread-Urgency → Psychology Pressure | 2-3h | DONE (2026-04-13) | [phase-C-thread-urgency-psychology.md](./phase-C-thread-urgency-psychology.md) |
-| E | Contract Gate (pre/post validation + optional rewrite) | 3-4h | **NEXT** | [phase-E-contract-gate.md](./phase-E-contract-gate.md) |
+| E | Contract Gate (pre/post validation + optional rewrite) | 3-4h | DONE (2026-04-13) | [phase-E-contract-gate.md](./phase-E-contract-gate.md) |
 
 ## Progress
 
-**4 of 5 phases complete** (Phase A, Phase D, Phase B, Phase C — 2026-04-13). **Next: Phase E (Contract Gate).**
+**5 of 5 phases complete** (Phase A, Phase D, Phase B, Phase C, Phase E — 2026-04-13). **Plan complete.**
 
 ### Phase A Completion Summary
 - **Implementation**: 8 files modified — `pipeline/layer2_enhance/{_agent,simulator,scene_enhancer,adaptive_intensity,enhancer}.py`, `pipeline/orchestrator_layers.py`, `pipeline/layer1_story/batch_generator.py`, `models/schemas.py`, `config/defaults.py`
@@ -55,6 +56,12 @@ L2 (`pipeline/layer2_enhance/`) is architecturally orphaned from L1 Phase 1-5 si
 - **Tests**: 18/18 pass (`tests/test_causal_audit.py`)
 - **Review**: 9/10 after 1 auto-fix cycle (from initial 6/10); approved
 - **Notable fixes**: removed unused `prerequisite_event_ids` (YAGNI), `register_secret` now seeds `reveal_log` for initial holder, audit capped at 40 chapters for cost bound
+- **Completed**: 2026-04-13
+
+### Phase E Completion Summary
+- **Implementation**: `pipeline/layer2_enhance/contract_gate.py` (new), `pipeline/layer2_enhance/enhancer.py` (wired), `services/prompts/` (Vietnamese `CONTRACT_REWRITE`), `config/defaults.py` (`L2_CONTRACT_GATE` flag), `tests/test_contract_gate.py`
+- **Tests**: 81/81 pass
+- **Review**: 8.5/10, approved
 - **Completed**: 2026-04-13
 
 ## Dependency Diagram

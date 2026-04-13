@@ -140,3 +140,21 @@ YÊU CẦU:
 - Viết hoàn toàn bằng tiếng Việt
 
 Bắt đầu viết lại:"""
+
+
+CONTRACT_REWRITE = """Chương dưới đây CHƯA đáp ứng hợp đồng chương. Viết lại để bổ sung các yêu cầu bị thiếu, giữ nguyên nội dung đã đạt.
+
+YÊU CẦU BỊ BỎ LỠ:
+{missed_items}
+
+NỘI DUNG HIỆN TẠI:
+{content}
+
+YÊU CẦU:
+- BẢO TOÀN những phần đã làm tốt — không viết lại từ đầu
+- Chèn/bổ sung đầy đủ các mục [CRITICAL], ưu tiên [WARN] nếu không làm hỏng cấu trúc
+- Giữ giọng văn và nhịp điệu gốc
+- Khoảng {word_count} từ
+- Viết hoàn toàn bằng tiếng Việt
+
+Bắt đầu viết lại:"""

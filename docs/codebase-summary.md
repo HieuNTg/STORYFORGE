@@ -289,6 +289,21 @@ Layer 2 drama simulator now reads 4 L1 signals for enhanced narrative control. F
 
 **Files**: `pipeline/layer2_enhance/psychology_engine.py`, `pipeline/layer2_enhance/simulator.py` (~20 LOC), `tests/test_thread_pressure.py` (12 tests)
 
+## Phase E: L2 Contract Gate
+
+**Purpose**: Validate enhanced chapters against `ChapterContract` (Phase 1 constraints). Rewrites via LLM if ≥2 critical failures OR (≥1 critical + ≥2 warnings); reverts if rewrite regresses.
+
+**Key Module**: `pipeline/layer2_enhance/contract_gate.py`
+- `apply_contract_gate()` — Main entry point, non-fatal on errors, feature-flagged by `config.pipeline.l2_contract_gate` (default True)
+- Checks: character_count, pacing, dialogue_ratio, arc_progression per `Chapter.contract`
+- Failure classification: critical (arc OOB, missing chars), warning (pacing off)
+- Rewrite only if viable; tracks regression via quality_score
+- Integrated into `enhancer.py` post-coherence-fix, post-causal-audit
+
+**New Files**: `services/prompts/revision_prompts.py` (CONTRACT_REWRITE Vietnamese prompt), `tests/test_contract_gate.py` (20 tests)
+
+**Modified**: `pipeline/layer2_enhance/enhancer.py`, `services/prompts/__init__.py`
+
 ## Phase D: L2 Cleanup
 
 **Removed Dead Code**:

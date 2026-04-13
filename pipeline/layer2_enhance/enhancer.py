@@ -485,4 +485,25 @@ class StoryEnhancer:
             except Exception as e:
                 logger.warning(f"Causal audit failed (non-fatal): {e}")
 
+        # Contract gate (Phase E, non-fatal, feature-flagged)
+        try:
+            _gate_on = bool(getattr(ConfigManager().load().pipeline, "l2_contract_gate", True))
+        except Exception:
+            _gate_on = True
+        if _gate_on:
+            try:
+                from pipeline.layer2_enhance.contract_gate import apply_contract_gate
+                _draft_threads = list(getattr(draft, "open_threads", []) or []) + list(getattr(draft, "resolved_threads", []) or [])
+                _log("📋 Đang kiểm tra hợp đồng chương...")
+                stats = apply_contract_gate(self.llm, enhanced, _draft_threads, enabled=True)
+                if stats.get("rewrites", 0) > 0:
+                    _log(
+                        f"🔧 Contract gate: {stats['rewrites']} chương viết lại "
+                        f"(tổng {stats.get('total_failures', 0)} vi phạm)"
+                    )
+                else:
+                    _log(f"✅ Contract gate: {stats.get('total_failures', 0)} vi phạm, không cần viết lại")
+            except Exception as e:
+                logger.warning(f"Contract gate failed (non-fatal): {e}")
+
         return enhanced

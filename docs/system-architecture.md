@@ -27,6 +27,30 @@ User Input
         Export (PDF/EPUB/HTML/ZIP)
 ```
 
+## Phase E: Contract Gate Architecture
+
+L2 now validates enhanced chapters against Phase 1 `ChapterContract` constraints (character count, pacing, dialogue ratio, arc progression):
+
+```
+Enhanced Chapter
+    ↓
+[Contract Validation]
+    ├─ Compare actual vs contract targets
+    ├─ Classify failures: critical (arc OOB, missing chars) vs warning (pacing off)
+    └─ If ≥2 critical OR (≥1 critical + ≥2 warnings):
+         ↓
+    [LLM Rewrite]
+        ├─ Call CONTRACT_REWRITE prompt with contract targets
+        └─ Check regression: accept only if quality improves
+             ↓
+    [Revert or Accept]
+        └─ Return fixed or original chapter
+
+**Feature Flag**: `config.pipeline.l2_contract_gate` (default True)
+```
+
+Integrated into L2 pipeline post-coherence-fix, post-causal-audit. Non-fatal; logs issues but allows pipeline to continue.
+
 ## Phase C: Thread-Urgency → Psychology Pressure Architecture
 
 L2 now applies pure Python pressure scoring to active plot threads based on urgency and narrative staleness:
