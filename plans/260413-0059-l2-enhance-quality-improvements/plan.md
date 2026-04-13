@@ -7,7 +7,7 @@ effort: 19-20h
 branch: master
 tags: [layer2, enhancement, signal-integration, causal, contract, quality]
 created: 2026-04-13
-progress: 3/5 phases complete
+progress: 4/5 phases complete
 ---
 
 # L2 Enhancement Quality Improvements
@@ -21,12 +21,12 @@ L2 (`pipeline/layer2_enhance/`) is architecturally orphaned from L1 Phase 1-5 si
 | A | L1 Signal Integration (conflict_intensity emission, waypoints, summary, pacing, thread status, Chapter.contract wiring) | 7-9h | DONE (2026-04-13) | [phase-A-signal-integration.md](./phase-A-signal-integration.md) |
 | D | Cleanup (dead code, dup structs) | 1-2h | DONE (2026-04-13, scoped) | [phase-D-cleanup.md](./phase-D-cleanup.md) |
 | B | Causal Accountability (revelation DAG, knowledge log, text auditor) | 4-6h | DONE (2026-04-13) | [phase-B-causal-accountability.md](./phase-B-causal-accountability.md) |
-| C | Thread-Urgency → Psychology Pressure | 2-3h | **NEXT** | [phase-C-thread-urgency-psychology.md](./phase-C-thread-urgency-psychology.md) |
-| E | Contract Gate (pre/post validation + optional rewrite) | 3-4h | pending | [phase-E-contract-gate.md](./phase-E-contract-gate.md) |
+| C | Thread-Urgency → Psychology Pressure | 2-3h | DONE (2026-04-13) | [phase-C-thread-urgency-psychology.md](./phase-C-thread-urgency-psychology.md) |
+| E | Contract Gate (pre/post validation + optional rewrite) | 3-4h | **NEXT** | [phase-E-contract-gate.md](./phase-E-contract-gate.md) |
 
 ## Progress
 
-**3 of 5 phases complete** (Phase A, Phase D, Phase B — 2026-04-13). **Next: Phase C (Thread-Urgency → Psychology Pressure).**
+**4 of 5 phases complete** (Phase A, Phase D, Phase B, Phase C — 2026-04-13). **Next: Phase E (Contract Gate).**
 
 ### Phase A Completion Summary
 - **Implementation**: 8 files modified — `pipeline/layer2_enhance/{_agent,simulator,scene_enhancer,adaptive_intensity,enhancer}.py`, `pipeline/orchestrator_layers.py`, `pipeline/layer1_story/batch_generator.py`, `models/schemas.py`, `config/defaults.py`
@@ -40,6 +40,14 @@ L2 (`pipeline/layer2_enhance/`) is architecturally orphaned from L1 Phase 1-5 si
 - **5 items SKIPPED** with grep-verified rationale (preserving test coverage, actively-used aliases, and emitted event types — details in `phase-D-cleanup.md`)
 - **Tests**: 170/170 pass (no regressions)
 - **Review**: 9/10, 0 critical
+- **Completed**: 2026-04-13
+
+### Phase C Completion Summary
+- **Implementation**: `pipeline/layer2_enhance/psychology_engine.py`, `pipeline/layer2_enhance/simulator.py`, `tests/test_thread_pressure.py`
+- **Tests**: 12/12 pass
+- **Review**: 8/10 after 1 fix cycle; approved
+- **Scope decisions**: wired call site in `simulator.setup_agents` (not per-chapter enhancer) — pressure is set once at sim init and evolves via `update_pressure` during rounds; simpler and matches existing psychology lifecycle
+- **Notable fix**: `last_mentioned_chapter=0` fallback now uses `planted_chapter` (sibling-module convention)
 - **Completed**: 2026-04-13
 
 ### Phase B Completion Summary

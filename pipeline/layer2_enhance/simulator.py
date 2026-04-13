@@ -172,6 +172,26 @@ class DramaSimulator:
             except Exception as e:
                 logger.warning(f"Psychology extraction thất bại, tiếp tục không có tâm lý: {e}")
 
+        # Phase C: thread-urgency → psychology pressure (pure-python, non-fatal)
+        if self._psychology_engine and self.threads:
+            try:
+                _thread_pressure_on = True
+                try:
+                    from config import ConfigManager as _CM
+                    _thread_pressure_on = bool(getattr(_CM().load().pipeline, "l2_thread_pressure", True))
+                except Exception:
+                    pass
+                if _thread_pressure_on:
+                    for agent in self.agents.values():
+                        psych = getattr(agent, "psychology", None)
+                        if psych is None:
+                            continue
+                        self._psychology_engine.apply_thread_pressure(
+                            psych, self.threads, current_chapter
+                        )
+            except Exception as e:
+                logger.debug(f"apply_thread_pressure failed (non-fatal): {e}")
+
     def _extract_all_psychology(self, characters: list[Character]) -> None:
         """Trích xuất tâm lý cho tất cả nhân vật song song."""
         import asyncio as _asyncio

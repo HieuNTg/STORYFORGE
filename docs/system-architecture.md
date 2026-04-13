@@ -27,6 +27,30 @@ User Input
         Export (PDF/EPUB/HTML/ZIP)
 ```
 
+## Phase C: Thread-Urgency → Psychology Pressure Architecture
+
+L2 now applies pure Python pressure scoring to active plot threads based on urgency and narrative staleness:
+
+```
+Simulator Setup
+    ↓
+[Parallel Psychology Extraction]
+    ├─ Character psychology profiles extracted
+    └─ Plot thread urgency + staleness indexed
+         ↓
+[Apply Thread Pressure]
+    ├─ PsychologyEngine.apply_thread_pressure(psychology, threads, current_chapter, max_bump=0.30)
+    ├─ For involved_characters:
+    │   ├─ urgency≥4 AND staleness≥2 → +0.15
+    │   └─ urgency==5 AND open → +0.05 additional
+    └─ Fallback: never-mentioned threads use planted_chapter
+         ↓
+[Drama Potential Computation]
+    └─ higher pressure → higher drama_multiplier → intense posts
+```
+
+**Feature Flag**: `config.pipeline.l2_thread_pressure` (default True)
+
 ## Phase B: Causal Accountability Architecture
 
 L2 simulator now tracks knowledge revelation as explicit causal events, validates causality in enhanced text via LLM audit.

@@ -278,6 +278,17 @@ Layer 2 drama simulator now reads 4 L1 signals for enhanced narrative control. F
 - `config/defaults.py` — New flags: l2_use_l1_signals, l2_causal_audit, l2_thread_pressure, l2_contract_gate
 - `tests/test_l2_signal_integration.py` — 16 new tests validating signal flow
 
+## Phase C: Thread-Urgency → Psychology Pressure
+
+**Pure Python Pressure Calculation** — `PsychologyEngine.apply_thread_pressure()` (50 LOC):
+- For threads where character in `involved_characters`: urgency≥4 AND staleness≥2 → +0.15 pressure; urgency==5 AND open → +0.05 additional
+- Never-mentioned threads fallback to `planted_chapter` for staleness (matches L1 `chapter_contract_builder` convention)
+- Per-call bump capped at 0.30, feeds naturally into `compute_drama_potential` (higher pressure → higher drama_multiplier)
+
+**Wiring**: `DramaSimulator.setup_agents()` post-parallel psychology extraction, gated by `config.pipeline.l2_thread_pressure` (default True)
+
+**Files**: `pipeline/layer2_enhance/psychology_engine.py`, `pipeline/layer2_enhance/simulator.py` (~20 LOC), `tests/test_thread_pressure.py` (12 tests)
+
 ## Phase D: L2 Cleanup
 
 **Removed Dead Code**:

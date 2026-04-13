@@ -91,6 +91,16 @@ Choose-your-own-adventure mode: LLM generates branching narrative paths.
 └── docker-compose.production.yml → Full stack with monitoring
 ```
 
+## Phase C: Thread-Urgency → Psychology Pressure Deliverables
+
+### 1. Psychology-Driven Pressure Engine (`pipeline/layer2_enhance/psychology_engine.py`)
+- `apply_thread_pressure(psychology, threads, current_chapter, max_bump=0.30)` computes urgency-based pressure: urgency≥4 AND staleness≥2 → +0.15; urgency==5 AND open → +0.05 additional
+- Never-mentioned threads fallback to `planted_chapter` for staleness calc (matches L1 convention)
+- Wired into `simulator.setup_agents()` post-psychology, gated by `config.pipeline.l2_thread_pressure` (default True)
+
+### 2. Test Coverage (`tests/test_thread_pressure.py`)
+- 12 tests validating pressure calculation: urgency thresholds, staleness staleness, per-call cap, fallback logic, drama_multiplier propagation
+
 ## Phase B: Causal Accountability Deliverables
 
 ### 1. Revelation Event Recording (`pipeline/layer2_enhance/simulator.py`)

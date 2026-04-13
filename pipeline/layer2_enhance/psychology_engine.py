@@ -132,3 +132,50 @@ class PsychologyEngine:
                 f"Áp lực '{psychology.character_name}' tăng {delta:.2f} "
                 f"(attacker={attacker}, event={event_type}) → {psychology.pressure:.2f}"
             )
+
+    def apply_thread_pressure(
+        self,
+        psychology: CharacterPsychology,
+        threads: list,
+        current_chapter: int,
+        max_bump: float = 0.30,
+    ) -> float:
+        """Bump pressure for characters involved in stale urgent plot threads.
+
+        Rules:
+          - urgency >= 4 AND staleness (current - last_mentioned) >= 2 → +0.15
+          - urgency == 5 AND status == 'open' → additional +0.05
+          - Per-call cumulative bump capped at max_bump (default 0.30).
+
+        Returns the applied delta (0.0 if no bump). Safe on empty threads.
+        """
+        if not threads:
+            return 0.0
+        name = psychology.character_name
+        total = 0.0
+        matched = []
+        for t in threads:
+            involved = getattr(t, "involved_characters", []) or []
+            if name not in involved:
+                continue
+            urgency = getattr(t, "urgency", 3) or 3
+            if urgency < 4:
+                continue
+            # Convention: fall back to planted_chapter when never mentioned (0-default)
+            last_ch = getattr(t, "last_mentioned_chapter", 0) or getattr(t, "planted_chapter", current_chapter)
+            if current_chapter - last_ch < 2:
+                continue
+            bump = 0.15
+            if urgency == 5 and getattr(t, "status", "open") == "open":
+                bump += 0.05
+            total = min(max_bump, total + bump)
+            matched.append(getattr(t, "thread_id", "?"))
+            if total >= max_bump:
+                break
+        if total > 0:
+            psychology.pressure = min(1.0, psychology.pressure + total)
+            logger.info(
+                f"[Pressure] {name}: +{total:.2f} from {len(matched)} urgent stale threads "
+                f"→ {psychology.pressure:.2f}"
+            )
+        return total
