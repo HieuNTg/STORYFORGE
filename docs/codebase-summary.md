@@ -257,6 +257,15 @@ Layer 2 drama simulator now reads 4 L1 signals for enhanced narrative control. F
 - `config/defaults.py` — New flags: l2_use_l1_signals, l2_causal_audit, l2_thread_pressure, l2_contract_gate
 - `tests/test_l2_signal_integration.py` — 16 new tests validating signal flow
 
+## Phase D: L2 Cleanup
+
+**Removed Dead Code**:
+- `StoryAnalyzer.extract_conflict_graph()` and `StoryAnalyzer._calc_tension()` (37 LOC) — superseded by L1 `structured_summary` signal integration in Phase A
+- Analyzer conflict graph pattern no longer needed; all conflict detection moved to scene-level enhancement
+
+**Deprecated Fallback**:
+- `StoryEnhancer.enhance_chapter()` blob fallback path (lines 155–160) marked `[DEPRECATED blob fallback]` — whole-chapter rewrite path scheduled for removal next sprint. SceneEnhancer now handles all drama enhancement at scene granularity
+
 ## Phase 1 Consistency Improvements
 
 ### 1. Consistency Validators Module (`pipeline/layer1_story/consistency_validators.py`)

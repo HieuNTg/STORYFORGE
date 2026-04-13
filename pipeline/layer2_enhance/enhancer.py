@@ -153,7 +153,10 @@ class StoryEnhancer:
                 pacing_directive=_pacing_directive,
             )
         except Exception as e:
-            logger.warning(f"Scene-level enhancement failed, falling back to blob: {e}")
+            logger.warning(
+                f"[DEPRECATED blob fallback] Scene-level enhancement failed: {e}. "
+                "Using legacy whole-chapter rewrite path — scheduled for removal next sprint."
+            )
         # --- End scene-level enhancement ---
 
         # Lọc sự kiện liên quan đến chương này
