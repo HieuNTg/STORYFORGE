@@ -38,3 +38,8 @@ class ChapterContract(BaseModel):
     emotional_endpoint: str = Field(default="", description="Target emotional state at chapter end")
     must_mention_characters: list[str] = Field(default_factory=list, description="Characters that MUST appear")
     previous_contract_failures: list[str] = Field(default_factory=list, description="Missed items from previous chapter")
+    forbidden_actions: list[str] = Field(default_factory=list, description="Actions that MUST NOT happen")
+    must_maintain: list[str] = Field(default_factory=list, description="Facts/states that must remain true")
+    world_rules: list[str] = Field(default_factory=list, description="World rules to enforce")
+    secret_protection: dict[str, str] = Field(default_factory=dict, description="{char: secret} - secrets to guard")
+    causal_dependencies: list[str] = Field(default_factory=list, description="Prior events that MUST be acknowledged")

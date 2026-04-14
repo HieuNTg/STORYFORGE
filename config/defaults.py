@@ -141,6 +141,14 @@ class PipelineConfig:
     bible_max_relationships_per_char: int = 8  # was hardcoded 5
     tiered_max_promotions: int = 5  # max chapters promoted from low tier to high tier
 
+    # Phase 5: L1 consistency improvements (opt-in, default OFF)
+    enable_emotional_memory: bool = False  # Per-character emotion tracking across chapters
+    enable_proactive_constraints: bool = False  # forbidden_actions, must_maintain in contracts
+    enable_thread_enforcement: bool = False  # Hard requirement for stale threads (gap >= 8)
+    enable_emotional_bridge: bool = False  # Inter-chapter emotional continuity
+    enable_scene_beat_writing: bool = False  # Per-beat chapter writing (extends enable_scene_decomposition)
+    enable_l1_causal_graph: bool = False  # Causal event tracking and validation
+
     # L2 enhancement quality signals
     l2_use_l1_signals: bool = True  # wire L1 waypoints/summary/pacing/thread.status into L2
     l2_causal_audit: bool = True  # post-L2 causality verification (Phase B)

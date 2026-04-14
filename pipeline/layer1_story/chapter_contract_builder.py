@@ -29,6 +29,8 @@ def build_contract(
     foreshadowing_plan: list["ForeshadowingEntry"] | None = None,
     characters: list["Character"] | None = None,
     previous_failures: list[str] | None = None,
+    world_rules: list[str] | None = None,
+    character_secrets: dict[str, str] | None = None,
 ) -> ChapterContract:
     """Build a ChapterContract from existing pipeline data. Pure Python."""
     threads = threads or []
@@ -74,6 +76,10 @@ def build_contract(
     # --- Must-mention characters from outline ---
     must_mention = list(chapter_chars)
 
+    # --- Proactive constraints ---
+    secrets = character_secrets or {}
+    forbidden_actions = [f"DO NOT reveal {secret}" for secret in secrets.values()]
+
     return ChapterContract(
         chapter_number=chapter_num,
         must_advance_threads=must_advance,
@@ -84,11 +90,14 @@ def build_contract(
         emotional_endpoint=emotional,
         must_mention_characters=must_mention,
         previous_contract_failures=previous_failures or [],
+        forbidden_actions=forbidden_actions,
+        world_rules=world_rules or [],
+        secret_protection=secrets,
     )
 
 
 def format_contract_for_prompt(contract: ChapterContract) -> str:
-    """Format contract as Vietnamese prompt section. Capped at ~800 chars."""
+    """Format contract as Vietnamese prompt section. Capped at ~1200 chars."""
     parts = [f"## HỢP ĐỒNG CHƯƠNG {contract.chapter_number}"]
     parts.append("Chương này BẮT BUỘC phải hoàn thành:")
 
@@ -112,9 +121,24 @@ def format_contract_for_prompt(contract: ChapterContract) -> str:
         for f in contract.previous_contract_failures[:3]:
             parts.append(f"  - {f}")
 
+    # Proactive constraint section
+    has_constraints = (
+        contract.forbidden_actions
+        or contract.must_maintain
+        or contract.world_rules
+    )
+    if has_constraints:
+        parts.append("## RÀNG BUỘC")
+        for action in contract.forbidden_actions[:5]:
+            parts.append(f"CẤM: {action}")
+        for state in contract.must_maintain[:5]:
+            parts.append(f"DUY TRÌ: {state}")
+        for rule in contract.world_rules[:5]:
+            parts.append(f"QUY TẮC THẾ GIỚI: {rule}")
+
     result = "\n".join(parts)
-    if len(result) > 800:
-        result = result[:797] + "..."
+    if len(result) > 1200:
+        result = result[:1197] + "..."
     return result
 
 

@@ -141,6 +141,30 @@ def validate_thread_resolution(
     return True, ""
 
 
+def format_mandatory_threads(
+    threads: list["PlotThread"],
+    current_chapter: int,
+    gap_threshold: int = 8,
+) -> str:
+    """Format stale threads as HARD REQUIREMENT block for prompt injection.
+
+    Returns Vietnamese-formatted block or empty string if no stale threads.
+    """
+    stale = [
+        t for t in threads
+        if t.status != "resolved"
+        and (current_chapter - (t.last_mentioned_chapter or t.planted_chapter)) >= gap_threshold
+    ]
+    if not stale:
+        return ""
+
+    lines = [f"⚠️ YÊU CẦU BẮT BUỘC (threads bị bỏ quên {gap_threshold}+ chương):"]
+    for t in stale:
+        lines.append(f"• [{t.thread_id}] {t.description} (từ Ch.{t.planted_chapter})")
+    lines.append("Phải nhắc lại hoặc giải quyết ÍT NHẤT 1 thread trên trong chương này.")
+    return "\n".join(lines)
+
+
 def escalate_urgency(threads: list[PlotThread], current_chapter: int, gap: int = 5) -> None:
     """Auto-escalate urgency for threads not mentioned in `gap` chapters. In-place."""
     for t in threads:

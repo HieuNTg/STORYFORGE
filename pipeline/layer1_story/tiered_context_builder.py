@@ -30,6 +30,7 @@ def build_tiered_context(
     all_chapter_texts: list[str] | None = None,
     max_tokens: int = 3000,
     max_promotions: int = 5,
+    prev_chapter: "Chapter | None" = None,
 ) -> str:
     """Build tiered context string for a chapter. Zero LLM calls."""
     all_chapter_texts = all_chapter_texts or []
@@ -47,6 +48,12 @@ def build_tiered_context(
 
     parts = []
     est_tokens = 0
+
+    # --- Emotional continuity bridge (prepended before tiers) ---
+    bridge = _get_emotional_bridge(prev_chapter)
+    if bridge:
+        parts.append(bridge)
+        est_tokens += len(bridge) // 4
 
     # --- Tier 1: Full text (last 2 chapters) ---
     tier1_texts = []
@@ -175,6 +182,22 @@ def _get_promoted_chapters(
             break
 
     return promoted
+
+
+def _get_emotional_bridge(prev_chapter: "Chapter | None") -> str:
+    """Build emotional continuity bridge from previous chapter.
+
+    Returns one-sentence opening anchor or empty string.
+    """
+    if prev_chapter is None:
+        return ""
+    ss = getattr(prev_chapter, "structured_summary", None)
+    if ss is None:
+        return ""
+    emotional_shift = getattr(ss, "emotional_shift", None) or getattr(ss, "actual_emotional_arc", None)
+    if emotional_shift:
+        return f"[CẦU NỐI CẢM XÚC] Chương trước kết thúc với: {emotional_shift}. Tiếp nối tâm trạng này."
+    return ""
 
 
 def _get_detailed_summary(chapter: "Chapter") -> str:

@@ -1,5 +1,5 @@
 {
-  "cached_at": 1775978562.6161592,
+  "cached_at": 1776066703.2309673,
   "models": [
     {
       "id": "google/gemma-4-26b-a4b-it:free",
@@ -190,7 +190,7 @@
       },
       "top_provider": {
         "context_length": 196608,
-        "max_completion_tokens": 196608,
+        "max_completion_tokens": 8192,
         "is_moderated": true
       },
       "per_request_limits": null,
@@ -548,7 +548,7 @@
       },
       "top_provider": {
         "context_length": 131072,
-        "max_completion_tokens": 131072,
+        "max_completion_tokens": 8192,
         "is_moderated": true
       },
       "per_request_limits": null,

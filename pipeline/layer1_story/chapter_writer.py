@@ -422,6 +422,113 @@ def write_chapter_stream(
     )
 
 
+def write_chapter_by_beats(
+    llm: "LLMClient",
+    beats: list,  # list[SceneBeat]
+    context: dict,
+    title: str,
+    genre: str,
+    style: str,
+    word_count: int = 2000,
+    model: Optional[str] = None,
+) -> str:
+    """Write chapter beat-by-beat, then concatenate.
+
+    Each beat is written as a mini-scene using its own prompt. The previous
+    beat's tail (last 200 chars) is passed as continuity anchor.
+    context dict may contain: 'previous_summary', 'characters_text', 'world_text'.
+    Returns the full chapter text.
+    """
+    previous_summary = context.get("previous_summary", "")
+    characters_text = context.get("characters_text", "")
+    world_text = context.get("world_text", "")
+
+    beat_words = max(200, word_count // max(len(beats), 1)) if beats else word_count
+
+    sys_prompt = (
+        f"Bạn là tiểu thuyết gia tài năng viết truyện {genre} bằng tiếng Việt. "
+        "BẮT BUỘC: Toàn bộ output phải viết bằng tiếng Việt, không được dùng ngôn ngữ khác."
+    )
+
+    texts: list[str] = []
+    for beat in beats:
+        chars = ", ".join(beat.characters) if beat.characters else "nhân vật chính"
+        tension_pct = int(beat.tension_level * 100)
+        pov_line = f"POV: {beat.pov}\n" if beat.pov else ""
+        tail = texts[-1][-200:] if texts else ""
+        continuity = f"\n## Đoạn văn trước kết thúc:\n{tail}\n" if tail else ""
+
+        user_prompt = (
+            f"Thể loại: {genre} | Phong cách: {style}\n"
+            f"Tiêu đề truyện: {title}\n"
+            + (f"Thế giới: {world_text}\n" if world_text else "")
+            + (f"Nhân vật: {characters_text}\n" if characters_text else "")
+            + (f"Bối cảnh trước: {previous_summary}\n" if previous_summary else "")
+            + continuity
+            + f"\n## Cảnh {beat.scene_num} cần viết:\n"
+            f"Địa điểm/thời gian: {beat.setting}\n"
+            f"Hành động chính: {beat.action}\n"
+            f"{pov_line}"
+            f"Tension: {tension_pct}%\n"
+            f"Mục tiêu cảm xúc: {beat.emotional_goal}\n"
+            f"Nhân vật xuất hiện: {chars}\n\n"
+            f"Viết cảnh này khoảng {beat_words} từ. "
+            "Không thêm tiêu đề hay số chương. Chỉ viết văn xuôi thuần túy.\n"
+            "[NHẮC LẠI: Viết hoàn toàn bằng tiếng Việt.]"
+        )
+
+        try:
+            text = llm.generate(
+                system_prompt=sys_prompt,
+                user_prompt=user_prompt,
+                max_tokens=max(512, beat_words * 3),
+                model=model,
+            )
+            texts.append(text)
+        except Exception as e:
+            logger.warning(f"Beat {beat.scene_num} generation failed: {e}")
+            texts.append("")
+
+    return "\n\n".join(t for t in texts if t)
+
+
+def validate_beat_transitions(beats: list, texts: list[str]) -> list[str]:
+    """Check tension delta and setting consistency between consecutive beats.
+
+    Returns a list of warning strings (empty list = no issues).
+    beats: list[SceneBeat], texts: written text per beat (same length).
+    """
+    warnings: list[str] = []
+    if not beats or len(beats) != len(texts):
+        return warnings
+
+    for i in range(1, len(beats)):
+        prev, curr = beats[i - 1], beats[i]
+
+        # Tension delta check — flag jumps > 0.4 without intermediate beat
+        delta = abs(curr.tension_level - prev.tension_level)
+        if delta > 0.4:
+            direction = "tăng" if curr.tension_level > prev.tension_level else "giảm"
+            warnings.append(
+                f"Cảnh {prev.scene_num}→{curr.scene_num}: tension {direction} đột ngột "
+                f"({prev.tension_level:.1f}→{curr.tension_level:.1f}, delta={delta:.1f}). "
+                "Cân nhắc thêm cảnh chuyển tiếp."
+            )
+
+        # Setting consistency — warn if setting changed but text doesn't mention new setting
+        if prev.setting and curr.setting and prev.setting != curr.setting:
+            curr_text = texts[i].lower() if i < len(texts) else ""
+            # Use first significant word of new setting as probe
+            setting_probe = curr.setting.split("/")[0].strip().lower()
+            if setting_probe and len(setting_probe) > 3 and setting_probe not in curr_text:
+                warnings.append(
+                    f"Cảnh {curr.scene_num}: địa điểm thay đổi sang '{curr.setting}' "
+                    "nhưng văn bản không đề cập rõ. Kiểm tra chuyển cảnh."
+                )
+
+    return warnings
+
+
 def summarize_chapter(llm: "LLMClient", content: str) -> str:
     """Summarize a chapter for use as context in the next chapter."""
     return llm.generate(
