@@ -14,12 +14,12 @@ _CACHE_TTL_SECONDS = 86400  # 24 hours
 
 # Hardcoded fallback presets — used when API is unreachable
 _FALLBACK_FREE_MODELS = [
-    "qwen/qwen3.6-plus:free",
+    "openrouter/free",  # Auto-router: picks best free model for request
     "nousresearch/hermes-3-llama-3.1-405b:free",
     "nvidia/nemotron-3-super-120b-a12b:free",
     "minimax/minimax-m2.5:free",
-    "arcee-ai/trinity-large-preview:free",
     "meta-llama/llama-3.3-70b-instruct:free",
+    "google/gemma-4-31b-it:free",
     "z-ai/glm-4.5-air:free",
 ]
 
@@ -88,7 +88,7 @@ _EXCLUDED_PATTERNS = [
     "gemma-3-4b",  # too small
     "liquid/lfm",  # 1.2B params, too small
     "llama-3.2-3b",  # 3B params, too small
-    "openrouter/free",  # meta-router, unpredictable routing
+    # "openrouter/free" - now allowed as auto-router option
 ]
 
 
@@ -114,6 +114,10 @@ def get_free_models(api_key: str = "", force_refresh: bool = False) -> list[str]
         cached = _load_cache()
         if cached:
             ids = [m["id"] for m in cached["models"]]
+            # Move auto-router to top
+            if "openrouter/free" in ids:
+                ids.remove("openrouter/free")
+            ids.insert(0, "openrouter/free")
             logger.debug(f"Model discovery: {len(ids)} models from cache")
             return ids
 
@@ -127,6 +131,10 @@ def get_free_models(api_key: str = "", force_refresh: bool = False) -> list[str]
         ]
         _save_cache(filtered)
         ids = [m["id"] for m in filtered]
+        # Move auto-router to top (it's always available)
+        if "openrouter/free" in ids:
+            ids.remove("openrouter/free")
+        ids.insert(0, "openrouter/free")
         logger.info(f"Model discovery: {len(ids)} free models fetched from OpenRouter")
         return ids
 

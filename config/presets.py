@@ -56,41 +56,51 @@ _OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 # Vietnamese-capable models prioritized — models that produce poor Vietnamese
 # (e.g. coder models, tiny models, English-only fine-tunes) cause language
 # drift where summaries/context turn English and later chapters follow suit.
+_KYMA_BASE = "https://kymaapi.com/v1"
+
 MODEL_PRESETS = {
-    "openrouter-free-basic": {
-        "label": "OpenRouter Free — Basic (Qwen 3.6 Plus)",
+    "kyma-auto": {
+        "label": "Kyma — Auto Failover (recommended)",
+        "base_url": _KYMA_BASE,
+        "model": "qwen-3.6-plus",
+        "cheap_model": "",
+        "cheap_base_url": _KYMA_BASE,
+        "layer1_model": "",
+        "layer2_model": "",
+        "fallback_models": [],  # Kyma handles failover internally
+    },
+    "openrouter-free-auto": {
+        "label": "OpenRouter Free — Auto Router",
         "base_url": _OPENROUTER_BASE,
-        "model": "qwen/qwen3.6-plus:free",
+        "model": "openrouter/free",
+        "cheap_model": "",
+        "cheap_base_url": _OPENROUTER_BASE,
+        "layer1_model": "",
+        "layer2_model": "",
+        "fallback_models": [],
+    },
+    "openrouter-free-basic": {
+        "label": "OpenRouter Free — Hermes 405B",
+        "base_url": _OPENROUTER_BASE,
+        "model": "nousresearch/hermes-3-llama-3.1-405b:free",
         "cheap_model": "",
         "cheap_base_url": _OPENROUTER_BASE,
         "layer1_model": "",
         "layer2_model": "",
         "fallback_models": [
-            {"model": "nvidia/nemotron-3-super-120b-a12b:free", "base_url": _OPENROUTER_BASE},
+            {"model": "openrouter/free", "base_url": _OPENROUTER_BASE},
         ],
     },
     "openrouter-free-optimized": {
-        "label": "OpenRouter Free — Optimized (per-layer routing)",
+        "label": "OpenRouter Free — Per-layer routing",
         "base_url": _OPENROUTER_BASE,
-        "model": "qwen/qwen3.6-plus:free",
+        "model": "openrouter/free",
         "cheap_model": "",
         "cheap_base_url": _OPENROUTER_BASE,
-        "layer1_model": "qwen/qwen3.6-plus:free",
+        "layer1_model": "nousresearch/hermes-3-llama-3.1-405b:free",
         "layer2_model": "nvidia/nemotron-3-super-120b-a12b:free",
         "fallback_models": [
-            {"model": "nvidia/nemotron-3-super-120b-a12b:free", "base_url": _OPENROUTER_BASE},
-        ],
-    },
-    "openrouter-free-max": {
-        "label": "OpenRouter Free — Max Context (1M tokens)",
-        "base_url": _OPENROUTER_BASE,
-        "model": "qwen/qwen3.6-plus:free",
-        "cheap_model": "",
-        "cheap_base_url": _OPENROUTER_BASE,
-        "layer1_model": "qwen/qwen3.6-plus:free",
-        "layer2_model": "nvidia/nemotron-3-super-120b-a12b:free",
-        "fallback_models": [
-            {"model": "minimax/minimax-m2.5:free", "base_url": _OPENROUTER_BASE},
+            {"model": "openrouter/free", "base_url": _OPENROUTER_BASE},
         ],
     },
 }

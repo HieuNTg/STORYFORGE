@@ -99,25 +99,25 @@ function settingsPage() {
         keyPlaceholder: 'sk-or-...',
         guide: 'Register at <a href="https://openrouter.ai/keys" target="_blank" class="text-brand-600 underline font-medium">openrouter.ai</a> → Keys → Create Key. 29+ free models available!',
         models: [
-          { id: 'qwen/qwen3.6-plus:free', label: 'Qwen 3.6 Plus (free, 1M ctx)' },
+          { id: 'openrouter/free', label: '🎯 Auto Router (free, auto-picks best model)' },
           { id: 'qwen/qwen3-next-80b-a3b-instruct:free', label: 'Qwen3 Next 80B (free, 262K ctx)' },
           { id: 'nousresearch/hermes-3-llama-3.1-405b:free', label: 'Hermes 3 405B (free, 131K ctx)' },
           { id: 'nvidia/nemotron-3-super-120b-a12b:free', label: 'Nemotron 3 Super 120B (free)' },
           { id: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (free, 65K ctx)' },
-          { id: 'google/gemma-4-31b-it', label: 'Gemma 4 31B (262K ctx, cheap)' },
-          { id: 'google/gemma-4-26b-a4b-it', label: 'Gemma 4 26B MoE (262K ctx, cheap)' },
+          { id: 'google/gemma-4-31b-it:free', label: 'Gemma 4 31B (free, 262K ctx)' },
+          { id: 'google/gemma-4-26b-a4b-it:free', label: 'Gemma 4 26B MoE (free, 262K ctx)' },
           { id: 'google/gemma-3-27b-it:free', label: 'Gemma 3 27B (free, 131K ctx)' },
           { id: 'z-ai/glm-4.5-air:free', label: 'GLM 4.5 Air (free, 131K ctx)' },
-          { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+          { id: 'openai/gpt-oss-120b:free', label: 'GPT-OSS 120B (free)' },
           { id: 'deepseek/deepseek-r1', label: 'DeepSeek R1' },
           { id: 'anthropic/claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
         ],
       },
       {
-        id: 'kyma', name: 'Kyma', icon: 'bolt', hint: '21 models, $0.50 free',
+        id: 'kyma', name: 'Kyma', icon: 'bolt', hint: 'Auto-failover, $0.50 free',
         url: 'https://kymaapi.com/v1',
-        keyPlaceholder: 'ky-...',
-        guide: 'Register at <a href="https://kymaapi.com" target="_blank" class="text-brand-600 underline font-medium">kymaapi.com</a> → Get $0.50 free credits. Simple pay-per-token pricing.',
+        keyPlaceholder: 'ky-... or kyma-...',
+        guide: 'Register at <a href="https://kymaapi.com" target="_blank" class="text-brand-600 underline font-medium">kymaapi.com</a> → Get $0.50 free credits. <strong>Auto-failover</strong>: automatically retries on backup providers if primary fails.',
         models: [
           { id: 'qwen-3.6-plus', label: 'Qwen 3.6 Plus (recommended)' },
           { id: 'deepseek-v3', label: 'DeepSeek V3' },
@@ -295,10 +295,29 @@ function settingsPage() {
       } catch (e) { this.message = 'Error: ' + (e as Error).message; }
     },
 
-    selectProvider(id: string): void {
+    async selectProvider(id: string): Promise<void> {
       this.selectedProvider = id;
       const p = this.providers.find(x => x.id === id);
       if (p?.url) this.form.base_url = p.url;
+
+      // Fetch models dynamically for supported providers
+      if (['openrouter', 'kyma'].includes(id) && p?.url) {
+        try {
+          const resp = await API.post('/config/provider/models', {
+            base_url: p.url,
+            api_key: this.form.api_key || '',
+          });
+          if (resp.models?.length) {
+            p.models = resp.models;
+            this.form.model = resp.models[0].id;
+            return;
+          }
+        } catch (e) {
+          console.warn('Failed to fetch models:', e);
+        }
+      }
+
+      // Fallback to hardcoded list
       if (p?.models?.length) this.form.model = p.models[0].id;
     },
 

@@ -2,6 +2,7 @@
 
 import logging
 import random
+import re
 import sqlite3
 import time
 import threading
@@ -15,6 +16,102 @@ from services.llm.streaming import StreamingMixin
 from services.llm.generation import GenerationMixin
 
 logger = logging.getLogger(__name__)
+
+
+# Explicit OpenRouter → Kyma model mapping (Kyma uses different naming)
+_OPENROUTER_TO_KYMA = {
+    "qwen/qwen3.6-plus:free": "qwen-3.6-plus",
+    "qwen/qwen-3.6-plus:free": "qwen-3.6-plus",
+    "qwen/qwen-3-32b:free": "qwen-3-32b",
+    "deepseek/deepseek-v3:free": "deepseek-v3",
+    "deepseek/deepseek-r1:free": "deepseek-r1",
+    "meta-llama/llama-3.3-70b-instruct:free": "llama-3.3-70b",
+    "minimax/minimax-m2.5:free": "minimax-m2.5",
+    "google/gemini-2.5-flash:free": "gemini-2.5-flash",
+    "google/gemma-4-31b-it:free": "gemma-4-31b",
+    "openai/gpt-oss-120b:free": "gpt-oss-120b",
+}
+
+
+def _detect_provider_type(base_url: str) -> str:
+    """Detect provider type from base URL."""
+    if not base_url:
+        return "unknown"
+    url = base_url.lower()
+    if "openrouter" in url:
+        return "openrouter"
+    if "kymaapi.com" in url:
+        return "kyma"
+    if "anthropic.com" in url:
+        return "anthropic"
+    if "openai.com" in url:
+        return "openai"
+    if "googleapis.com" in url or "generativelanguage" in url:
+        return "google"
+    return "generic"
+
+
+def _model_matches_provider(model: str, provider: str) -> bool:
+    """Check if model format matches provider expectations."""
+    if not model:
+        return False
+
+    # Special routers work only on their provider
+    if model == "openrouter/free":
+        return provider == "openrouter"
+
+    has_slash = "/" in model
+    has_colon = ":" in model
+
+    if provider == "openrouter":
+        # OpenRouter uses vendor/model or vendor/model:variant
+        return has_slash
+    if provider == "kyma":
+        # Kyma uses simple IDs without slashes
+        return not has_slash and not has_colon
+    if provider in ("openai", "anthropic", "google", "generic"):
+        # These use simple model IDs
+        return not has_slash
+
+    return True  # Unknown provider, assume it matches
+
+
+def _normalize_model_for_provider(model: str, base_url: str, fallback_model: str = "") -> str:
+    """Normalize model name to match provider format.
+
+    If model format doesn't match provider, attempts conversion or returns fallback.
+    """
+    if not model or not base_url:
+        return model or fallback_model
+
+    provider = _detect_provider_type(base_url)
+
+    # Already correct format
+    if _model_matches_provider(model, provider):
+        return model
+
+    # OpenRouter format on non-OpenRouter provider → extract base model name
+    if "/" in model:
+        # Check explicit mapping first (for Kyma)
+        if provider == "kyma" and model in _OPENROUTER_TO_KYMA:
+            return _OPENROUTER_TO_KYMA[model]
+
+        # Generic extraction: qwen/qwen3.6-plus:free → qwen3.6-plus
+        name = model.split("/")[-1].split(":")[0]
+
+        # Kyma-specific: try regex normalization as fallback
+        if provider == "kyma":
+            # qwen3.6-plus → qwen-3.6-plus (add hyphen between letter and digit)
+            name = re.sub(r"([a-zA-Z])(\d)", r"\1-\2", name)
+
+        return name
+
+    # Non-OpenRouter format on OpenRouter → can't auto-convert, use fallback
+    if provider == "openrouter" and "/" not in model:
+        logger.warning(f"Model '{model}' format incompatible with OpenRouter, using fallback")
+        return fallback_model or model
+
+    return model
 
 
 def _imports():
@@ -133,15 +230,20 @@ class LLMClient(StreamingMixin, GenerationMixin):
         """Return model name for a given pipeline layer (1, 2, or 3).
 
         Falls back to primary model if layer-specific model not configured.
+        Normalizes model name to match the primary provider format.
         """
         ConfigManager, _, _ = _imports()
         config = ConfigManager()
+        primary_model = self._current_model or config.llm.model
         layer_map = {
             1: config.llm.layer1_model,
             2: config.llm.layer2_model,
         }
         layer_model = layer_map.get(layer, "")
-        return layer_model or self._current_model or config.llm.model
+        if not layer_model:
+            return primary_model
+        # Normalize to match provider format, fallback to primary if incompatible
+        return _normalize_model_for_provider(layer_model, config.llm.base_url, primary_model)
 
     def _get_cheap_client(self):
         """Return (provider, model) for cheap/fast model tier."""
@@ -367,7 +469,10 @@ class LLMClient(StreamingMixin, GenerationMixin):
         api_key_entries = self._resolve_api_keys(config)
 
         # Collect free models for each provider type (they use different model ID formats)
-        primary_model = model_override or self._current_model or config.llm.model
+        default_model = self._current_model or config.llm.model
+        raw_model = model_override or default_model
+        # Normalize model name to match primary provider format
+        primary_model = _normalize_model_for_provider(raw_model, config.llm.base_url, default_model)
         openrouter_models: list[str] = []
         kyma_models: list[str] = []
 

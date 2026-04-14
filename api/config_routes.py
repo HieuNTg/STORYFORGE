@@ -298,6 +298,56 @@ def detect_provider(body: ProfileCreate):
     }
 
 
+class ModelsRequest(BaseModel):
+    """Request body for fetching models from a provider."""
+    base_url: str = ""
+    api_key: str = ""
+
+
+@router.post("/provider/models")
+def get_provider_models(body: ModelsRequest):
+    """Fetch available models from a provider (OpenRouter, Kyma, etc.)."""
+    provider = _detect_provider_name(body.base_url)
+    models = []
+
+    if provider == "openrouter":
+        try:
+            from services.openrouter_model_discovery import get_free_models
+            models = [{"id": m, "label": m.split("/")[-1].replace(":free", "")} for m in get_free_models(body.api_key)]
+        except Exception as e:
+            return {"provider": provider, "models": [], "error": str(e)}
+
+    elif provider == "kyma":
+        try:
+            from services.kyma_model_discovery import get_kyma_models
+            models = [{"id": m, "label": m} for m in get_kyma_models(body.api_key)]
+        except Exception as e:
+            return {"provider": provider, "models": [], "error": str(e)}
+
+    elif provider == "anthropic":
+        models = [
+            {"id": "claude-sonnet-4-20250514", "label": "Claude Sonnet 4"},
+            {"id": "claude-haiku-4-5-20251001", "label": "Claude Haiku 4.5"},
+            {"id": "claude-opus-4-20250514", "label": "Claude Opus 4"},
+        ]
+
+    elif provider == "openai":
+        models = [
+            {"id": "gpt-4o", "label": "GPT-4o"},
+            {"id": "gpt-4o-mini", "label": "GPT-4o Mini"},
+            {"id": "gpt-4-turbo", "label": "GPT-4 Turbo"},
+        ]
+
+    elif provider == "gemini":
+        models = [
+            {"id": "gemini-2.5-flash", "label": "Gemini 2.5 Flash"},
+            {"id": "gemini-2.5-pro", "label": "Gemini 2.5 Pro"},
+            {"id": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
+        ]
+
+    return {"provider": provider, "models": models}
+
+
 @router.post("/profiles")
 def add_profile(body: ProfileCreate):
     """Add an API provider profile. Auto-detects provider from key prefix if fields empty."""
