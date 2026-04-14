@@ -70,29 +70,21 @@ Nhân vật: {characters}
 Bối cảnh: {world}
 Ý tưởng: {idea}
 
-Hãy tạo dàn ý chi tiết cho {num_chapters} chương.
+Hãy tạo dàn ý chi tiết cho CHÍNH XÁC {num_chapters} chương (từ chương 1 đến chương {num_chapters}).
 Mỗi chương cần có: cao trào, xung đột, phát triển nhân vật.
 Cốt truyện phải có nhịp điệu: giới thiệu → phát triển → cao trào → kết thúc.
 Đảm bảo nhịp điệu: không liên tục climax, xen kẽ setup → rising → climax → cooldown. Mỗi chương thuộc 1 macro arc.
 BẮT BUỘC: Viết toàn bộ nội dung (tiêu đề chương, tóm tắt, sự kiện...) bằng tiếng Việt.
 BẮT BUỘC: Tên nhân vật PHẢI dùng CHÍNH XÁC như danh sách nhân vật ở trên. Tên địa danh, tông môn PHẢI dùng CHÍNH XÁC như bối cảnh thế giới. KHÔNG được tự ý đổi tên.
+BẮT BUỘC: Mảng "outlines" PHẢI có ĐÚNG {num_chapters} phần tử, từ chapter_number 1 đến {num_chapters}.
 
 Trả về JSON:
 {{
   "synopsis": "tóm tắt toàn bộ truyện",
   "outlines": [
-    {{
-      "chapter_number": 1,
-      "title": "tiêu đề chương",
-      "summary": "tóm tắt nội dung",
-      "key_events": ["sự kiện 1", "sự kiện 2"],
-      "characters_involved": ["tên nhân vật"],
-      "emotional_arc": "cung bậc cảm xúc chương này",
-      "pacing_type": "setup/rising/climax/cooldown/twist",
-      "arc_id": 1,
-      "foreshadowing_plants": ["seed cần gieo trong chương này"],
-      "payoff_references": ["seed từ chương trước cần payoff"]
-    }}
+    {{"chapter_number": 1, "title": "...", "summary": "...", "key_events": [...], "characters_involved": [...], "emotional_arc": "...", "pacing_type": "setup", "arc_id": 1, "foreshadowing_plants": [...], "payoff_references": [...]}},
+    {{"chapter_number": 2, "title": "...", "summary": "...", "key_events": [...], "characters_involved": [...], "emotional_arc": "...", "pacing_type": "rising", "arc_id": 1, "foreshadowing_plants": [...], "payoff_references": [...]}},
+    ... (tiếp tục đến chương {num_chapters})
   ]
 }}"""
 

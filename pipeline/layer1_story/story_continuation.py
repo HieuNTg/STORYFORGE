@@ -378,6 +378,109 @@ Các dàn ý PHẢI thể hiện sự chuyển đổi arc của nhân vật theo
     return outlines
 
 
+def generate_continuation_paths(
+    generator,
+    draft: StoryDraft,
+    additional_chapters: int = 5,
+    num_paths: int = 3,
+    progress_callback=None,
+    arc_directives: list = None,
+) -> list[dict]:
+    """Generate multiple alternative continuation paths (outlines only).
+
+    Each path represents a different narrative direction the story could take.
+
+    Args:
+        num_paths: Number of alternative paths to generate (2-5, default 3)
+        arc_directives: Optional arc steering directives
+
+    Returns:
+        List of PathPreview-like dicts: [{path_id, theme, tone, outlines}, ...]
+    """
+    arc_directives = arc_directives or []
+    num_paths = max(2, min(5, num_paths))  # Clamp to 2-5
+
+    def _log(msg):
+        logger.info(msg)
+        if progress_callback:
+            progress_callback(msg)
+
+    start_chapter = len(draft.chapters) + 1
+    _log(f"Generating {num_paths} alternative continuation paths...")
+
+    chars_text = "\n".join(
+        f"- {c.name} ({c.role}): {c.personality}, Động lực: {c.motivation}"
+        for c in draft.characters
+    )
+    existing_outlines_text = "\n".join(
+        f"Ch.{o.chapter_number}: {o.title} — {o.summary}"
+        for o in draft.outlines[-10:]  # Last 10 chapters for context
+    )
+    states_text = "\n".join(
+        f"- {s.name}: mood={s.mood}, arc={s.arc_position}"
+        for s in draft.character_states
+    ) or "N/A"
+    world_text = f"{draft.world.name}: {draft.world.description}" if draft.world else "N/A"
+
+    # Build arc directives text
+    arc_text = ""
+    if arc_directives:
+        arc_lines = "\n".join(
+            f"- {d.character}: {d.from_state} → {d.to_state} trong {d.chapter_span} chương"
+            for d in arc_directives
+        )
+        arc_text = f"\n\nCHỈ THỊ ARC NHÂN VẬT:\n{arc_lines}"
+
+    prompt = f"""Bạn là biên kịch chuyên xây dựng cốt truyện {draft.genre}.
+Tiêu đề: {draft.title}
+Nhân vật: {chars_text}
+Bối cảnh: {world_text}
+
+TRUYỆN HIỆN TẠI ({len(draft.chapters)} chương):
+Tóm tắt: {draft.synopsis}
+
+CÁC CHƯƠNG GẦN ĐÂY:
+{existing_outlines_text}
+
+TRẠNG THÁI NHÂN VẬT HIỆN TẠI:
+{states_text}
+{arc_text}
+
+Hãy tạo {num_paths} HƯỚNG ĐI KHÁC NHAU cho {additional_chapters} chương tiếp theo.
+Mỗi hướng đi phải có chủ đề và tone riêng biệt (ví dụ: bi kịch, lãng mạn, hành động, bất ngờ...).
+
+BẮT BUỘC: Viết toàn bộ nội dung bằng tiếng Việt.
+
+Trả về JSON:
+{{
+  "paths": [
+    {{
+      "path_id": "path_1",
+      "theme": "mô tả ngắn hướng đi này (ví dụ: 'Con đường cứu chuộc')",
+      "tone": "tone cảm xúc (dark/hopeful/romantic/action/suspense)",
+      "outlines": [
+        {{"chapter_number": {start_chapter}, "title": "...", "summary": "...", "key_events": [...]}}
+      ]
+    }}
+  ]
+}}"""
+
+    result = generator.llm.generate_json(
+        system_prompt="Bạn là biên kịch tài năng viết truyện bằng tiếng Việt. Trả về JSON với nhiều hướng đi cốt truyện.",
+        user_prompt=prompt,
+        temperature=1.0,  # Higher temperature for more diverse paths
+        model=generator._layer_model,
+    )
+
+    paths = result.get("paths", [])
+    for p in paths:
+        # Ensure outlines have proper structure
+        p["outlines"] = [ChapterOutline(**o).model_dump() for o in p.get("outlines", [])]
+
+    _log(f"Generated {len(paths)} alternative paths.")
+    return paths
+
+
 def write_from_outlines(
     generator,
     draft: StoryDraft,

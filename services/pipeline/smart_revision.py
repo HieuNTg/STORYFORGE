@@ -49,11 +49,24 @@ class SmartRevisionService:
             _log("Không có điểm theo chương, bỏ qua revision.")
             return {"revised_count": 0, "total_weak": 0, "score_deltas": []}
 
-        # Find weak chapters
+        # Find weak chapters by quality score
         weak_scores = [
             cs for cs in latest_scores.chapter_scores
             if cs.overall < self.threshold
         ]
+
+        # Also find chapters with significant agent issues (even if quality score is OK)
+        chapters_with_issues = self._find_chapters_with_agent_issues(reviews, min_issues=3)
+        weak_chapter_nums = {cs.chapter_number for cs in weak_scores}
+
+        # Add chapters with agent issues that aren't already in weak list
+        for ch_num in chapters_with_issues:
+            if ch_num not in weak_chapter_nums:
+                # Find the chapter score, or create a placeholder
+                matching = [cs for cs in latest_scores.chapter_scores if cs.chapter_number == ch_num]
+                if matching:
+                    weak_scores.append(matching[0])
+                    _log(f"Chương {ch_num} có nhiều vấn đề từ agents, thêm vào danh sách sửa")
 
         if not weak_scores:
             _log("Tất cả chương đạt chuẩn, không cần sửa.")
@@ -183,3 +196,33 @@ class SmartRevisionService:
                         suggestions.append(f"[{review.agent_name}] {suggestion}")
 
         return issues[:5], suggestions[:5]
+
+    def _find_chapters_with_agent_issues(
+        self, reviews: list[AgentReview], min_issues: int = 3
+    ) -> set[int]:
+        """Find chapters that have significant issues from agent reviews.
+
+        Even if overall quality score is OK, chapters with many agent-reported
+        issues should be revised.
+
+        Returns set of chapter numbers with >= min_issues total issues.
+        """
+        chapter_issue_count: dict[int, int] = {}
+        ch_pattern = re.compile(r'\bch(?:ương\s*)?(\d+)\b', re.IGNORECASE)
+
+        for review in reviews:
+            # Count issues per chapter
+            for issue in review.issues:
+                matches = ch_pattern.findall(issue)
+                for ch_num_str in matches:
+                    ch_num = int(ch_num_str)
+                    chapter_issue_count[ch_num] = chapter_issue_count.get(ch_num, 0) + 1
+
+            # Also count suggestions as potential issues
+            for suggestion in review.suggestions:
+                matches = ch_pattern.findall(suggestion)
+                for ch_num_str in matches:
+                    ch_num = int(ch_num_str)
+                    chapter_issue_count[ch_num] = chapter_issue_count.get(ch_num, 0) + 1
+
+        return {ch for ch, count in chapter_issue_count.items() if count >= min_issues}

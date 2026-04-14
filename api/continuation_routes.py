@@ -11,11 +11,11 @@ import time
 import uuid
 
 from fastapi import APIRouter, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from api.pipeline_output_builder import build_output_summary
-from models.schemas import ArcDirective
+from models.schemas import ArcDirective, PathPreview, ChapterOutline
 from api.pipeline_routes import (
     _active_tasks,
     _orchestrators_lock,
@@ -78,6 +78,24 @@ class InsertChapterRequest(BaseModel):
     summary: str = Field("", max_length=2000, description="Optional summary/direction for inserted chapter")
     word_count: int = Field(2000, ge=100, le=20000)
     style: str = Field("", max_length=100)
+
+
+class MultiPathRequest(BaseModel):
+    """Request body for generating multiple continuation paths."""
+    checkpoint: str
+    additional_chapters: int = Field(5, ge=1, le=20)
+    num_paths: int = Field(3, ge=2, le=5, description="Number of alternative paths (2-5)")
+    arc_directives: list[ArcDirective] = Field(default_factory=list)
+
+
+class SelectPathRequest(BaseModel):
+    """Request body for selecting a path and writing chapters."""
+    checkpoint: str
+    path_id: str = Field(..., description="ID of the selected path")
+    outlines: list[dict] = Field(..., description="ChapterOutline dicts from selected path")
+    word_count: int = Field(2000, ge=100, le=20000)
+    style: str = Field("", max_length=100)
+    arc_directives: list[ArcDirective] = Field(default_factory=list)
 
 
 def _resolve_checkpoint(filename: str) -> pathlib.Path | None:
@@ -800,6 +818,154 @@ async def insert_chapter(request: Request, body: InsertChapterRequest):
         finally:
             async with _orchestrators_lock:
                 _sessions.pop(session_id, None)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Multi-path Preview Endpoints
+# ══════════════════════════════════════════════════════════════════════════════
+
+@router.post("/continue/paths")
+async def generate_continuation_paths(body: MultiPathRequest):
+    """Generate multiple alternative continuation paths (outlines only).
+
+    Returns 2-5 different narrative directions, each with outlines.
+    User selects preferred path, then calls /continue/select-path to write chapters.
+    """
+    checkpoint_path = _resolve_checkpoint(body.checkpoint)
+    if not checkpoint_path:
+        return JSONResponse(
+            status_code=404,
+            content={"error": f"Checkpoint not found: {body.checkpoint}"},
+        )
+
+    orch = PipelineOrchestrator()
+    draft = orch.continuation.load_from_checkpoint(str(checkpoint_path))
+    if not draft:
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Failed to load checkpoint"},
+        )
+
+    try:
+        paths = orch.continuation.generate_continuation_paths(
+            additional_chapters=body.additional_chapters,
+            num_paths=body.num_paths,
+            arc_directives=body.arc_directives,
+        )
+        return {
+            "checkpoint": body.checkpoint,
+            "existing_chapters": len(draft.chapters),
+            "paths": paths,
+        }
+    except Exception as e:
+        logger.exception("Error generating continuation paths: %s", e)
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to generate paths: {e}"},
+        )
+
+
+@router.post("/continue/select-path")
+async def select_path_and_write(request: Request, body: SelectPathRequest):
+    """Select a path and write chapters from its outlines via SSE.
+
+    After reviewing paths from /continue/paths, user selects one and
+    calls this endpoint to write the actual chapters.
+    """
+    checkpoint_path = _resolve_checkpoint(body.checkpoint)
+    session_id = str(uuid.uuid4())
+
+    async def event_generator():
+        if not checkpoint_path:
+            yield f"data: {json.dumps({'type': 'error', 'data': f'Checkpoint not found: {body.checkpoint}'})}\n\n"
+            return
+
+        orch = PipelineOrchestrator()
+        draft = orch.continuation.load_from_checkpoint(str(checkpoint_path))
+        if not draft:
+            yield f"data: {json.dumps({'type': 'error', 'data': 'Failed to load checkpoint'})}\n\n"
+            return
+
+        # Parse outlines
+        try:
+            outlines = [ChapterOutline(**o) for o in body.outlines]
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'data': f'Invalid outlines: {e}'})}\n\n"
+            return
+
+        yield f"data: {json.dumps({'type': 'start', 'data': f'Writing {len(outlines)} chapters from path {body.path_id}'})}\n\n"
+
+        msg_queue = _queue.Queue()
+        stream_queue = _queue.Queue()
+        result = [None]
+
+        def on_progress(msg):
+            msg_queue.put(msg)
+
+        def on_stream(chunk):
+            stream_queue.put(chunk)
+
+        async def run_write():
+            try:
+                await asyncio.to_thread(
+                    orch.continuation.write_from_outlines,
+                    outlines=outlines,
+                    word_count=body.word_count,
+                    style=body.style,
+                    progress_callback=on_progress,
+                    stream_callback=on_stream,
+                    arc_directives=body.arc_directives,
+                )
+                result[0] = orch.output
+            except asyncio.CancelledError:
+                logger.info("Select-path write cancelled (session=%s)", session_id)
+            except Exception as e:
+                logger.exception("Select-path write error (session=%s): %s", session_id, e)
+                msg_queue.put(f"Error: {e}")
+
+        task = asyncio.create_task(run_write())
+
+        try:
+            while not task.done():
+                if await request.is_disconnected():
+                    logger.info("Client disconnected from /select-path (session=%s)", session_id)
+                    task.cancel()
+                    break
+                while not msg_queue.empty():
+                    msg = msg_queue.get_nowait()
+                    yield f"data: {json.dumps({'type': 'progress', 'data': msg})}\n\n"
+                while not stream_queue.empty():
+                    chunk = stream_queue.get_nowait()
+                    yield f"data: {json.dumps({'type': 'stream', 'data': chunk})}\n\n"
+                await asyncio.sleep(0.1)
+
+            # Drain remaining
+            while not msg_queue.empty():
+                msg = msg_queue.get_nowait()
+                yield f"data: {json.dumps({'type': 'progress', 'data': msg})}\n\n"
+
+            if result[0] and result[0].story_draft:
+                summary = build_output_summary(result[0])
+                summary["path_id"] = body.path_id
+                _sanitize_summary(summary)
+                yield f"data: {json.dumps({'type': 'done', 'data': summary}, ensure_ascii=False, default=str)}\n\n"
+            else:
+                yield f"data: {json.dumps({'type': 'error', 'data': 'Failed to write chapters from selected path'})}\n\n"
+        except asyncio.CancelledError:
+            logger.info("SSE /select-path cancelled (session=%s)", session_id)
+            if not task.done():
+                task.cancel()
+        except Exception:
+            logger.exception("SSE /select-path unexpected error (session=%s)", session_id)
+            if not task.done():
+                task.cancel()
+            raise
 
     return StreamingResponse(
         event_generator(),

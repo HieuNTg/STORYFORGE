@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from typing import Optional
 from models.schemas import (
     StoryDraft, SimulationResult, EnhancedStory, Chapter, count_words,
 )
@@ -11,6 +12,13 @@ from services import prompts as prompt_templates
 from services.adaptive_prompts import build_adaptive_enhance_prompt
 from pipeline.layer2_enhance.genre_drama_rules import get_genre_enhancement_hints
 from config import ConfigManager
+
+# Consistency Engine (A-E improvements)
+try:
+    from pipeline.layer2_enhance.consistency_engine import ConsistencyEngine
+    _CONSISTENCY_AVAILABLE = True
+except ImportError:
+    _CONSISTENCY_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +80,7 @@ class StoryEnhancer:
     def __init__(self):
         self.llm = LLMClient()
         self._layer_model = self.llm.model_for_layer(self.LAYER)
+        self.consistency_engine: Optional["ConsistencyEngine"] = None
 
     def enhance_chapter(
         self,
@@ -143,6 +152,16 @@ class StoryEnhancer:
                     _thread_state = list(getattr(draft, "open_threads", []) or []) + list(getattr(draft, "resolved_threads", []) or [])
                     _arc_context = _build_arc_context(draft, chapter.chapter_number)
                 _pacing_directive = _extract_pacing_directive(draft, chapter.chapter_number)
+            # Get consistency constraints if engine is available
+            _consistency_constraints = ""
+            if self.consistency_engine:
+                try:
+                    _consistency_constraints = self.consistency_engine.get_constraints_for_chapter(
+                        chapter.chapter_number
+                    )
+                except Exception as _ce:
+                    logger.debug(f"Consistency constraints failed: {_ce}")
+
             return scene_enhancer.enhance_chapter_by_scenes(
                 chapter, sim_result, genre, draft,
                 subtext_guidance=_subtext_guidance,
@@ -151,6 +170,7 @@ class StoryEnhancer:
                 thread_state=_thread_state,
                 arc_context=_arc_context,
                 pacing_directive=_pacing_directive,
+                consistency_constraints=_consistency_constraints,
             )
         except Exception as e:
             logger.warning(
@@ -273,6 +293,21 @@ class StoryEnhancer:
             if progress_callback:
                 progress_callback(msg)
 
+        # Build consistency engine (A-E improvements)
+        _consistency_enabled = True
+        try:
+            _consistency_enabled = bool(ConfigManager().load().pipeline.l2_consistency_engine)
+        except Exception:
+            pass
+        if _CONSISTENCY_AVAILABLE and _consistency_enabled and self.consistency_engine is None:
+            try:
+                _log("🔧 Building consistency engine...")
+                self.consistency_engine = ConsistencyEngine()
+                self.consistency_engine.build_from_draft(draft, progress_callback=_log)
+            except Exception as e:
+                logger.warning(f"ConsistencyEngine build failed (non-fatal): {e}")
+                self.consistency_engine = None
+
         enhanced = EnhancedStory(
             title=draft.title,
             genre=draft.genre,
@@ -321,6 +356,37 @@ class StoryEnhancer:
             track_enhancement_diffs(list(draft.chapters), enhanced.chapters)
         except Exception as e:
             logger.warning(f"Enhancement diff tracking failed (non-fatal): {e}")
+
+        # Consistency validation (A-E improvements)
+        if self.consistency_engine:
+            _log("🔍 Validating consistency...")
+            total_violations = 0
+            for orig_ch, enh_ch in zip(draft.chapters, enhanced.chapters):
+                try:
+                    violations = self.consistency_engine.validate_enhanced_chapter(
+                        orig_ch.content or "",
+                        enh_ch.content or "",
+                        enh_ch.chapter_number,
+                    )
+                    if violations:
+                        total_violations += len(violations)
+                        # Attach violations to chapter changelog
+                        try:
+                            enh_ch.enhancement_changelog = list(
+                                getattr(enh_ch, "enhancement_changelog", []) or []
+                            )
+                            for v in violations:
+                                enh_ch.enhancement_changelog.append(
+                                    f"[{v.type}:{v.severity}] {v.description}"
+                                )
+                        except Exception:
+                            pass
+                except Exception as ve:
+                    logger.debug(f"Consistency validation ch{enh_ch.chapter_number} error: {ve}")
+            if total_violations > 0:
+                _log(f"⚠️ Phát hiện {total_violations} vi phạm nhất quán")
+            else:
+                _log("✅ Không phát hiện vi phạm nhất quán")
 
         # Tính điểm kịch tính tổng thể (chuyển từ 0-1 sang 1-5)
         if sim_result.events:
@@ -374,6 +440,9 @@ class StoryEnhancer:
             logger.info(msg)
             if progress_callback:
                 progress_callback(msg)
+
+        # Reset consistency engine for fresh build
+        self.consistency_engine = None
 
         enhanced = self.enhance_story(draft, sim_result, word_count, progress_callback, theme_profile)
 
@@ -505,5 +574,24 @@ class StoryEnhancer:
                     _log(f"✅ Contract gate: {stats.get('total_failures', 0)} vi phạm, không cần viết lại")
             except Exception as e:
                 logger.warning(f"Contract gate failed (non-fatal): {e}")
+
+        # Final consistency report (unresolved threads)
+        if self.consistency_engine:
+            try:
+                report = self.consistency_engine.get_final_report()
+                if report.unresolved_threads:
+                    _log(f"⚠️ Còn {len(report.unresolved_threads)} tuyến truyện chưa giải quyết")
+                    try:
+                        enhanced.enhancement_notes = list(enhanced.enhancement_notes or [])
+                        for ut in report.unresolved_threads[:5]:
+                            enhanced.enhancement_notes.append(
+                                f"[UNRESOLVED] {ut.get('description', '')[:80]}"
+                            )
+                    except Exception:
+                        pass
+                else:
+                    _log("✅ Tất cả tuyến truyện đã được giải quyết")
+            except Exception as e:
+                logger.debug(f"Final consistency report failed: {e}")
 
         return enhanced

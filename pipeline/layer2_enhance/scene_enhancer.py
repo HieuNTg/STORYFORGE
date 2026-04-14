@@ -78,6 +78,8 @@ TRẠNG THÁI THREAD:
 VỊ TRÍ ARC NHÂN VẬT:
 {arc_context}
 
+{consistency_constraints}
+
 NỘI DUNG GỐC:
 {content}
 
@@ -206,6 +208,7 @@ class SceneEnhancer:
         preserve_facts: str = "Không có",
         thread_status: str = "Không có",
         arc_context: str = "Không có",
+        consistency_constraints: str = "",
     ) -> Chapter:
         """Nâng cấp chỉ những cảnh yếu, ghép lại thành chương hoàn chỉnh."""
         score_map = {s.scene_number: s for s in scores}
@@ -234,6 +237,7 @@ class SceneEnhancer:
                             preserve_facts=preserve_facts or "Không có",
                             thread_status=thread_status or "Không có",
                             arc_context=arc_context or "Không có",
+                            consistency_constraints=consistency_constraints or "",
                             content=content[:3000],
                         ),
                         max_tokens=4096,
@@ -268,6 +272,7 @@ class SceneEnhancer:
         thread_state=None,
         arc_context: str = "",
         pacing_directive: str = "",
+        consistency_constraints: str = "",
     ) -> Chapter:
         """Pipeline đầy đủ: phân tách → chấm điểm → nâng cấp cảnh yếu → ghép lại."""
         summary = chapter_summary  # caller decides whether to pass; None = skip signal reuse
@@ -307,6 +312,7 @@ class SceneEnhancer:
             preserve_facts=preserve_facts,
             thread_status=thread_text,
             arc_context=arc_text,
+            consistency_constraints=consistency_constraints,
         )
 
     @staticmethod

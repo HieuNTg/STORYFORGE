@@ -103,7 +103,7 @@ class PipelineConfig:
     max_debate_rounds: int = 3
 
     # Smart chapter revision (auto-fix weak chapters using agent reviews)
-    enable_smart_revision: bool = False
+    enable_smart_revision: bool = True
     smart_revision_threshold: float = 3.5  # 1.0-5.0 scale
 
     # Parallel chapter generation (batch mode)
@@ -154,6 +154,13 @@ class PipelineConfig:
     l2_causal_audit: bool = True  # post-L2 causality verification (Phase B)
     l2_thread_pressure: bool = True  # thread.urgency → psychology pressure (Phase C)
     l2_contract_gate: bool = True  # post-L2 contract validation + optional rewrite (Phase E)
+
+    # L2 Consistency Engine (character state, setting, threads, voice)
+    l2_consistency_engine: bool = True  # Enable A-E consistency improvements
+    l2_consistency_character_state: bool = True  # Track character location/physical/emotional state
+    l2_consistency_setting: bool = True  # Track locations, objects, timeline
+    l2_consistency_threads: bool = True  # Thread watchdog for plot resolution
+    l2_consistency_voice: bool = True  # Voice fingerprint for dialogue consistency
 
     # Quality gate (inline scoring between layers)
     # Recommended thresholds by genre: romance/comedy=2.3, mystery/thriller=2.5,

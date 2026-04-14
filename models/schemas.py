@@ -117,6 +117,14 @@ class ArcDirective(BaseModel):
     notes: str = Field(default="", description="Optional guidance for arc progression")
 
 
+class PathPreview(BaseModel):
+    """A single continuation path alternative with outlines."""
+    path_id: str = Field(description="Unique path identifier (e.g., 'path_1')")
+    theme: str = Field(description="Brief description of this path's direction/theme")
+    tone: str = Field(default="", description="Emotional tone of this path (e.g., 'dark', 'hopeful')")
+    outlines: list = Field(default_factory=list, description="List of ChapterOutline dicts for this path")
+
+
 class PlotEvent(BaseModel):
     """Sự kiện quan trọng để theo dõi tính liên tục."""
     chapter_number: int

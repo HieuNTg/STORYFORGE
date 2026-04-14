@@ -1,0 +1,233 @@
+{
+  "cached_at": 1776151077.5018055,
+  "models": [
+    {
+      "id": "qwen-3.6-plus",
+      "object": "model",
+      "name": "Qwen 3.6 Plus",
+      "created": 1776151077,
+      "owned_by": "alibaba",
+      "context_window": 131072,
+      "description": "Alibaba's newest flagship. #1 on Kyma.",
+      "best_for": "General, reasoning, multilingual",
+      "speed": "medium",
+      "recommended": true,
+      "hot": true,
+      "pricing": {
+        "input": 0.439,
+        "output": 2.633
+      },
+      "supports_caching": true,
+      "supports_tools": true
+    },
+    {
+      "id": "qwen-3-32b",
+      "object": "model",
+      "name": "Qwen 3 32B",
+      "created": 1776151077,
+      "owned_by": "alibaba",
+      "context_window": 32768,
+      "description": "Top coding model. Ultra fast inference.",
+      "best_for": "Code, math, multilingual",
+      "speed": "fast",
+      "recommended": true,
+      "hot": true,
+      "pricing": {
+        "input": 0.392,
+        "output": 0.81
+      },
+      "supports_caching": true,
+      "supports_tools": true
+    },
+    {
+      "id": "gemma-4-31b",
+      "object": "model",
+      "name": "Gemma 4 31B",
+      "created": 1776151077,
+      "owned_by": "google",
+      "context_window": 128000,
+      "description": "Google's newest open model. Multimodal.",
+      "best_for": "Multimodal, vision, general",
+      "speed": "medium",
+      "recommended": true,
+      "hot": true,
+      "pricing": {
+        "input": 0.189,
+        "output": 0.54
+      },
+      "supports_caching": true,
+      "supports_tools": true
+    },
+    {
+      "id": "minimax-m2.5",
+      "object": "model",
+      "name": "MiniMax M2.5",
+      "created": 1776151077,
+      "owned_by": "minimax",
+      "context_window": 196608,
+      "description": "SWE-bench 80.2%. Top agentic coding.",
+      "best_for": "Coding, agentic workflows",
+      "speed": "medium",
+      "recommended": true,
+      "hot": true,
+      "pricing": {
+        "input": 0.405,
+        "output": 1.62
+      },
+      "supports_caching": true,
+      "supports_tools": true
+    },
+    {
+      "id": "deepseek-v3",
+      "object": "model",
+      "name": "DeepSeek V3",
+      "created": 1776151077,
+      "owned_by": "deepseek",
+      "context_window": 160000,
+      "description": "GPT-5 class. IMO gold medal. Best value.",
+      "best_for": "Reasoning, coding, general",
+      "speed": "medium",
+      "recommended": true,
+      "hot": true,
+      "pricing": {
+        "input": 0.81,
+        "output": 2.295
+      },
+      "supports_caching": false,
+      "supports_tools": true
+    },
+    {
+      "id": "deepseek-r1",
+      "object": "model",
+      "name": "DeepSeek R1",
+      "created": 1776151077,
+      "owned_by": "deepseek",
+      "context_window": 64000,
+      "description": "Top reasoning model. 96% cheaper than o1.",
+      "best_for": "Math, logic, complex reasoning",
+      "speed": "slow",
+      "recommended": true,
+      "hot": true,
+      "pricing": {
+        "input": 0.675,
+        "output": 2.903
+      },
+      "supports_caching": false,
+      "supports_tools": true
+    },
+    {
+      "id": "gemini-2.5-flash",
+      "object": "model",
+      "name": "Gemini 2.5 Flash",
+      "created": 1776151077,
+      "owned_by": "google",
+      "context_window": 1048576,
+      "description": "Google's fastest. 1M context.",
+      "best_for": "Long context, fast",
+      "speed": "fast",
+      "recommended": false,
+      "hot": true,
+      "pricing": {
+        "input": 0.405,
+        "output": 3.375
+      },
+      "supports_caching": true,
+      "supports_tools": true
+    },
+    {
+      "id": "gemini-3-flash",
+      "object": "model",
+      "name": "Gemini 3 Flash",
+      "created": 1776151077,
+      "owned_by": "google",
+      "context_window": 1048576,
+      "description": "Newest Gemini. 1M context.",
+      "best_for": "Long context, reasoning",
+      "speed": "fast",
+      "recommended": false,
+      "hot": true,
+      "pricing": {
+        "input": 0.675,
+        "output": 4.05
+      },
+      "supports_caching": true,
+      "supports_tools": true
+    },
+    {
+      "id": "llama-3.3-70b",
+      "object": "model",
+      "name": "Llama 3.3 70B",
+      "created": 1776151077,
+      "owned_by": "meta",
+      "context_window": 128000,
+      "description": "Most popular open model. Great all-rounder.",
+      "best_for": "General, code, reasoning",
+      "speed": "medium",
+      "recommended": true,
+      "hot": true,
+      "pricing": {
+        "input": 1.188,
+        "output": 1.188
+      },
+      "supports_caching": true,
+      "supports_tools": true
+    },
+    {
+      "id": "gpt-oss-120b",
+      "object": "model",
+      "name": "GPT-OSS 120B",
+      "created": 1776151077,
+      "owned_by": "openai",
+      "context_window": 128000,
+      "description": "OpenAI's open source. 120B parameters.",
+      "best_for": "General intelligence, writing",
+      "speed": "medium",
+      "recommended": false,
+      "hot": true,
+      "pricing": {
+        "input": 0.203,
+        "output": 0.81
+      },
+      "supports_caching": true,
+      "supports_tools": true
+    },
+    {
+      "id": "kimi-k2.5",
+      "object": "model",
+      "name": "Kimi K2.5",
+      "created": 1776151077,
+      "owned_by": "moonshot",
+      "context_window": 262144,
+      "description": "Multimodal agentic. 262K context.",
+      "best_for": "Agentic coding, vision, tool use",
+      "speed": "medium",
+      "recommended": false,
+      "hot": true,
+      "pricing": {
+        "input": 0.675,
+        "output": 3.78
+      },
+      "supports_caching": false,
+      "supports_tools": true
+    },
+    {
+      "id": "minimax-m2.7",
+      "object": "model",
+      "name": "MiniMax M2.7",
+      "created": 1776151077,
+      "owned_by": "minimax",
+      "context_window": 204800,
+      "description": "Next-gen agentic productivity.",
+      "best_for": "Agentic coding, productivity, debugging",
+      "speed": "medium",
+      "recommended": false,
+      "hot": true,
+      "pricing": {
+        "input": 0.405,
+        "output": 1.62
+      },
+      "supports_caching": false,
+      "supports_tools": true
+    }
+  ]
+}

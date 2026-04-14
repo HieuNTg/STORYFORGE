@@ -259,8 +259,15 @@ def main():
 
     main_app.add_middleware(BodySizeLimitMiddleware)
 
-    # Static files (web/)
-    web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
+    # Static files
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    web_dir = os.path.join(base_dir, "web")
+    locales_dir = os.path.join(base_dir, "locales")
+
+    # Mount locales FIRST (more specific path takes precedence)
+    if os.path.isdir(locales_dir):
+        main_app.mount("/static/locales", StaticFiles(directory=locales_dir), name="locales")
+    # Then mount web/ for remaining static files
     main_app.mount("/static", StaticFiles(directory=web_dir), name="static")
 
     # Serve index.html at root

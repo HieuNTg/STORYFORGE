@@ -167,6 +167,32 @@ class StoryContinuation:
         self.checkpoint_manager.save(1)
         return draft
 
+    def generate_continuation_paths(
+        self,
+        additional_chapters: int = 5,
+        num_paths: int = 3,
+        progress_callback=None,
+        arc_directives: list = None,
+    ) -> list[dict]:
+        """Generate multiple alternative continuation paths (outlines only).
+
+        Each path represents a different narrative direction.
+        Use write_from_outlines() with selected path's outlines to write chapters.
+        """
+        if not self.output.story_draft:
+            raise ValueError("No story draft loaded.")
+
+        from pipeline.layer1_story.story_continuation import generate_continuation_paths
+        paths = generate_continuation_paths(
+            generator=self.story_gen,
+            draft=self.output.story_draft,
+            additional_chapters=additional_chapters,
+            num_paths=num_paths,
+            progress_callback=progress_callback,
+            arc_directives=arc_directives or [],
+        )
+        return paths
+
     def insert_chapter(
         self,
         insert_after: int,

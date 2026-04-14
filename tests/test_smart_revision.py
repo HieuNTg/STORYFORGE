@@ -221,5 +221,5 @@ class TestSmartRevision:
         pc = PipelineConfig()
         assert hasattr(pc, "enable_smart_revision")
         assert hasattr(pc, "smart_revision_threshold")
-        assert pc.enable_smart_revision is False
+        assert pc.enable_smart_revision is True
         assert pc.smart_revision_threshold == 3.5
