@@ -5,12 +5,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/HieuNTg/STORYFORGE/actions/workflows/ci.yml"><img src="https://github.com/HieuNTg/STORYFORGE/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+" /></a>
   <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI" /></a>
   <a href="https://alpinejs.dev"><img src="https://img.shields.io/badge/Alpine.js-8BC0D0?logo=alpine.js&logoColor=white" alt="Alpine.js" /></a>
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
-  <a href="https://hub.docker.com"><img src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white" alt="Docker" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" /></a>
   <a href="https://github.com/HieuNTg/STORYFORGE/stargazers"><img src="https://img.shields.io/github/stars/HieuNTg/STORYFORGE?style=social" alt="GitHub Stars" /></a>
 </p>
@@ -132,16 +130,6 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 
 ## Quick Start
 
-### Docker (recommended)
-
-```bash
-docker compose up
-```
-
-Open [http://localhost:7860](http://localhost:7860). That's it.
-
-### Local
-
 ```bash
 git clone https://github.com/HieuNTg/STORYFORGE.git
 cd STORYFORGE
@@ -185,7 +173,7 @@ Works out of the box with SQLite cache. No Redis needed.
 ### Multi-Instance
 Requires Redis for shared cache and session state:
 ```bash
-REDIS_URL=redis://redis:6379 NUM_WORKERS=4 docker compose up -d
+REDIS_URL=redis://localhost:6379 NUM_WORKERS=4 python app.py
 ```
 
 > ⚠️ Without Redis, each worker has its own in-memory cache — sessions won't be shared.
@@ -194,7 +182,7 @@ REDIS_URL=redis://redis:6379 NUM_WORKERS=4 docker compose up -d
 
 ## Configuration
 
-All settings are managed through the **Settings** tab in the web UI and persisted to `data/config.json`. Key environment variables for Docker deployments:
+All settings are managed through the **Settings** tab in the web UI and persisted to `data/config.json`. Key environment variables:
 
 | Variable | Description | Default |
 |:---------|:------------|:--------|
@@ -218,23 +206,6 @@ StoryForge ships with 10 customizable agent prompts in `data/prompts/agent_promp
 - Change the language of AI evaluation (default: Vietnamese)
 - Adjust scoring criteria and thresholds
 - Modify agent personalities and review focus areas
-
----
-
-## Running
-
-### Docker Compose
-
-```bash
-# Start
-docker compose up -d
-
-# View logs
-docker compose logs -f
-
-# Stop
-docker compose down
-```
 
 ---
 
@@ -302,8 +273,6 @@ flowchart LR
 | Image Generation | IP-Adapter (character consistency), diffusion models (scene backgrounds) |
 | Storage | JSON files, SQLite (dev cache), Redis (production cache) |
 | Export | fpdf2 (PDF), ebooklib (EPUB) |
-| Containerization | Docker, Docker Compose |
-| CI/CD | GitHub Actions |
 
 ---
 

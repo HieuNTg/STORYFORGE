@@ -5,12 +5,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/HieuNTg/STORYFORGE/actions/workflows/ci.yml"><img src="https://github.com/HieuNTg/STORYFORGE/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+" /></a>
   <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI" /></a>
   <a href="https://alpinejs.dev"><img src="https://img.shields.io/badge/Alpine.js-8BC0D0?logo=alpine.js&logoColor=white" alt="Alpine.js" /></a>
   <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
-  <a href="https://hub.docker.com"><img src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white" alt="Docker" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" /></a>
   <a href="https://github.com/HieuNTg/STORYFORGE/stargazers"><img src="https://img.shields.io/github/stars/HieuNTg/STORYFORGE?style=social" alt="GitHub Stars" /></a>
 </p>
@@ -132,16 +130,6 @@ Hầu hết công cụ viết AI tạo ra những câu chuyện phẳng, dễ đ
 
 ## Cài đặt nhanh
 
-### Docker (khuyến nghị)
-
-```bash
-docker compose up
-```
-
-Mở [http://localhost:7860](http://localhost:7860). Xong.
-
-### Cài đặt thủ công
-
 ```bash
 git clone https://github.com/HieuNTg/STORYFORGE.git
 cd STORYFORGE
@@ -185,7 +173,7 @@ Hoạt động ngay với SQLite cache. Không cần Redis.
 ### Nhiều instance
 Yêu cầu Redis để chia sẻ cache và trạng thái session:
 ```bash
-REDIS_URL=redis://redis:6379 NUM_WORKERS=4 docker compose up -d
+REDIS_URL=redis://localhost:6379 NUM_WORKERS=4 python app.py
 ```
 
 > ⚠️ Không có Redis, mỗi worker có cache in-memory riêng — session sẽ không được chia sẻ.
@@ -194,7 +182,7 @@ REDIS_URL=redis://redis:6379 NUM_WORKERS=4 docker compose up -d
 
 ## Cấu hình
 
-Mọi cài đặt được quản lý qua tab **Cài đặt** trong giao diện web và lưu vào `data/config.json`. Biến môi trường chính cho triển khai Docker:
+Mọi cài đặt được quản lý qua tab **Cài đặt** trong giao diện web và lưu vào `data/config.json`. Biến môi trường chính:
 
 | Biến | Mô tả | Mặc định |
 |:-----|:------|:---------|
@@ -218,23 +206,6 @@ StoryForge đi kèm 10 prompt tác nhân có thể tùy chỉnh trong `data/prom
 - Thay đổi ngôn ngữ đánh giá AI (mặc định: Tiếng Việt)
 - Điều chỉnh tiêu chí và ngưỡng chấm điểm
 - Thay đổi tính cách tác nhân và trọng tâm đánh giá
-
----
-
-## Chạy ứng dụng
-
-### Docker Compose
-
-```bash
-# Khởi động
-docker compose up -d
-
-# Xem log
-docker compose logs -f
-
-# Dừng
-docker compose down
-```
 
 ---
 
@@ -302,8 +273,6 @@ flowchart LR
 | Tạo hình ảnh | IP-Adapter (nhất quán nhân vật), diffusion models (phông cảnh) |
 | Lưu trữ | JSON files, SQLite (cache dev), Redis (cache production) |
 | Xuất | fpdf2 (PDF), ebooklib (EPUB) |
-| Container | Docker, Docker Compose |
-| CI/CD | GitHub Actions |
 
 ---
 
