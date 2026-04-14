@@ -73,6 +73,12 @@ class GotoBody(BaseModel):
     node_id: str = Field(..., min_length=1, max_length=64)
 
 
+class MergeBody(BaseModel):
+    node_a_id: str = Field(..., min_length=1, max_length=64, description="First node to merge")
+    node_b_id: str = Field(..., min_length=1, max_length=64, description="Second node to merge")
+    strategy: str = Field(default="auto", description="Merge strategy: 'auto', 'prefer_a', 'prefer_b'")
+
+
 # ── Routes ──────────────────────────────────────────────────────────────────
 
 @router.post("/start", status_code=201)
@@ -220,3 +226,39 @@ def get_tree(session_id: str):
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return tree
+
+
+@router.post("/{session_id}/merge")
+def merge_branches(session_id: str, body: MergeBody):
+    """Merge two branch paths into a single canonical node.
+
+    Detects contradictions between the branches and resolves them based on strategy:
+    - 'auto': Use LLM to intelligently merge narratives
+    - 'prefer_a': Keep node_a's version when conflicts occur
+    - 'prefer_b': Keep node_b's version when conflicts occur
+    """
+    if body.strategy not in ("auto", "prefer_a", "prefer_b"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid strategy '{body.strategy}'. Must be 'auto', 'prefer_a', or 'prefer_b'",
+        )
+
+    try:
+        result = manager.merge_branches(
+            session_id=session_id,
+            node_a_id=body.node_a_id,
+            node_b_id=body.node_b_id,
+            strategy=body.strategy,
+            llm=llm if body.strategy == "auto" else None,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    return {
+        "merged_node": result["merged_node"],
+        "conflicts_resolved": result["conflicts_resolved"],
+        "conflicts_unresolved": result["conflicts_unresolved"],
+        "common_ancestor": result["common_ancestor"],
+    }

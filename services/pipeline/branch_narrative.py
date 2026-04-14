@@ -161,6 +161,160 @@ class BranchManager:
             node = tree["nodes"][node_id]
         return _public_node(node, tree["nodes"])
 
+    def merge_branches(
+        self,
+        session_id: str,
+        node_a_id: str,
+        node_b_id: str,
+        strategy: str = "auto",
+        llm=None,
+    ) -> dict:
+        """Merge two branch paths into a single canonical node.
+
+        Args:
+            session_id: Session containing the branches
+            node_a_id: First node to merge
+            node_b_id: Second node to merge
+            strategy: 'auto' (LLM resolves), 'prefer_a', 'prefer_b'
+            llm: LLM client for conflict resolution (required if strategy='auto')
+
+        Returns:
+            dict with merged_node, conflicts_resolved, conflicts_unresolved
+        """
+        with self._lock:
+            tree = self._get_session(session_id)
+            if node_a_id not in tree["nodes"]:
+                raise ValueError(f"Node {node_a_id!r} not found")
+            if node_b_id not in tree["nodes"]:
+                raise ValueError(f"Node {node_b_id!r} not found")
+
+            node_a = tree["nodes"][node_a_id]
+            node_b = tree["nodes"][node_b_id]
+
+            # Find common ancestor
+            ancestors_a = self._get_ancestors(node_a, tree["nodes"])
+            ancestors_b = self._get_ancestors(node_b, tree["nodes"])
+            common_ancestor = None
+            for anc_id in ancestors_a:
+                if anc_id in ancestors_b:
+                    common_ancestor = anc_id
+                    break
+
+            # Detect conflicts
+            conflicts = self._detect_conflicts(node_a, node_b, tree.get("context", {}))
+
+            # Resolve conflicts based on strategy
+            resolved = []
+            unresolved = []
+            merged_text = ""
+
+            if strategy == "prefer_a":
+                merged_text = node_a["text"]
+                resolved = [{"conflict": c, "resolution": "Used version A"} for c in conflicts]
+            elif strategy == "prefer_b":
+                merged_text = node_b["text"]
+                resolved = [{"conflict": c, "resolution": "Used version B"} for c in conflicts]
+            elif strategy == "auto" and llm:
+                merge_result = self._llm_merge(node_a, node_b, conflicts, llm)
+                merged_text = merge_result["text"]
+                resolved = merge_result.get("resolved", [])
+                unresolved = merge_result.get("unresolved", [])
+            else:
+                # Simple concatenation if no LLM
+                merged_text = f"{node_a['text']}\n\n---\n\n{node_b['text']}"
+                unresolved = conflicts
+
+            # Create merged node
+            new_id = str(uuid.uuid4())
+            merged_choices = list(set(node_a["choices"] + node_b["choices"]))[:3]
+            merged_states = {**node_a.get("character_states", {}), **node_b.get("character_states", {})}
+            merged_node = self._make_node(
+                new_id, merged_text, merged_choices, common_ancestor, merged_states
+            )
+            tree["nodes"][new_id] = merged_node
+            tree["current"] = new_id
+
+            # Link from common ancestor if exists
+            if common_ancestor:
+                tree["nodes"][common_ancestor]["children"]["merged"] = new_id
+
+        return {
+            "merged_node": _public_node(merged_node, tree["nodes"]),
+            "conflicts_resolved": resolved,
+            "conflicts_unresolved": unresolved,
+            "common_ancestor": common_ancestor,
+        }
+
+    def _get_ancestors(self, node: dict, all_nodes: dict) -> list[str]:
+        """Return list of ancestor node IDs from node to root."""
+        ancestors = []
+        current = node
+        while current["parent"] is not None:
+            ancestors.append(current["parent"])
+            current = all_nodes.get(current["parent"], {"parent": None})
+        return ancestors
+
+    def _detect_conflicts(self, node_a: dict, node_b: dict, context: dict) -> list[dict]:
+        """Detect narrative conflicts between two nodes."""
+        conflicts = []
+        states_a = node_a.get("character_states", {})
+        states_b = node_b.get("character_states", {})
+
+        # Check character state contradictions
+        for char in set(states_a.keys()) | set(states_b.keys()):
+            if char in states_a and char in states_b:
+                if states_a[char] != states_b[char]:
+                    conflicts.append({
+                        "conflict_type": "character_state",
+                        "description": f"{char} has different states",
+                        "source_a": str(states_a[char]),
+                        "source_b": str(states_b[char]),
+                    })
+
+        return conflicts
+
+    def _llm_merge(self, node_a: dict, node_b: dict, conflicts: list, llm) -> dict:
+        """Use LLM to merge conflicting narratives."""
+        prompt = f"""Merge these two story branches into a coherent narrative.
+
+BRANCH A:
+{node_a['text']}
+
+BRANCH B:
+{node_b['text']}
+
+DETECTED CONFLICTS:
+{conflicts}
+
+Create a merged narrative that:
+1. Combines the best elements of both branches
+2. Resolves contradictions in a narratively satisfying way
+3. Maintains story continuity
+
+Return JSON:
+{{"text": "merged narrative", "resolutions": ["how each conflict was resolved"]}}"""
+
+        try:
+            result = llm.generate_json(
+                system_prompt="You merge story branches. Return JSON.",
+                user_prompt=prompt,
+                temperature=0.7,
+            )
+            return {
+                "text": result.get("text", f"{node_a['text']}\n\n{node_b['text']}"),
+                "resolved": [
+                    {"conflict": c, "resolution": r}
+                    for c, r in zip(conflicts, result.get("resolutions", []))
+                ],
+                "unresolved": [],
+            }
+        except Exception:
+            return {
+                "text": f"{node_a['text']}\n\n{node_b['text']}",
+                "resolved": [],
+                "unresolved": conflicts,
+            }
+
 
 def _public_node(node: dict, all_nodes: dict | None = None) -> dict:
     """Strip internal children map; expose child_ids list for UI."""

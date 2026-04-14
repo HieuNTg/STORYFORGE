@@ -125,6 +125,23 @@ class PathPreview(BaseModel):
     outlines: list = Field(default_factory=list, description="List of ChapterOutline dicts for this path")
 
 
+class MergeConflict(BaseModel):
+    """A detected conflict between two branch paths."""
+    conflict_type: str = Field(description="Type: 'character_state', 'timeline', 'fact', 'location'")
+    description: str = Field(description="Description of the contradiction")
+    source_a: str = Field(description="Text from first branch")
+    source_b: str = Field(description="Text from second branch")
+    suggested_resolution: str = Field(default="", description="AI-suggested resolution")
+
+
+class MergeResult(BaseModel):
+    """Result of merging two branch paths."""
+    merged_text: str = Field(description="Combined narrative text")
+    conflicts_resolved: list[MergeConflict] = Field(default_factory=list)
+    conflicts_unresolved: list[MergeConflict] = Field(default_factory=list)
+    merge_strategy: str = Field(default="auto", description="Strategy used: 'auto', 'prefer_a', 'prefer_b'")
+
+
 class PlotEvent(BaseModel):
     """Sự kiện quan trọng để theo dõi tính liên tục."""
     chapter_number: int
