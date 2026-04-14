@@ -63,6 +63,8 @@ def _detect_provider_name(base_url: str) -> str:
         return "anthropic"
     if "openrouter.ai" in url:
         return "openrouter"
+    if "kymaapi.com" in url:
+        return "kyma"
     if "localhost" in url or "127.0.0.1" in url:
         return "local"
     return "custom"
@@ -74,6 +76,7 @@ PROVIDER_FROM_KEY = [
     ("sk-proj-", {"name": "OpenAI", "base_url": "https://api.openai.com/v1", "model": "gpt-4o-mini"}),
     ("sk-",     {"name": "OpenAI", "base_url": "https://api.openai.com/v1", "model": "gpt-4o-mini"}),
     ("AIza",    {"name": "Google Gemini", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/", "model": "gemini-2.5-flash"}),
+    ("ky-",     {"name": "Kyma", "base_url": "https://kymaapi.com/v1", "model": "qwen-3.6-plus"}),
 ]
 
 

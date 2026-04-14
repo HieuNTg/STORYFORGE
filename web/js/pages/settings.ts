@@ -114,6 +114,23 @@ function settingsPage() {
         ],
       },
       {
+        id: 'kyma', name: 'Kyma', icon: 'bolt', hint: '21 models, $0.50 free',
+        url: 'https://kymaapi.com/v1',
+        keyPlaceholder: 'ky-...',
+        guide: 'Register at <a href="https://kymaapi.com" target="_blank" class="text-brand-600 underline font-medium">kymaapi.com</a> → Get $0.50 free credits. Simple pay-per-token pricing.',
+        models: [
+          { id: 'qwen-3.6-plus', label: 'Qwen 3.6 Plus (recommended)' },
+          { id: 'deepseek-v3', label: 'DeepSeek V3' },
+          { id: 'deepseek-r1', label: 'DeepSeek R1 (reasoning)' },
+          { id: 'kimi-k2.5', label: 'Kimi K2.5' },
+          { id: 'llama-3.3-70b', label: 'Llama 3.3 70B' },
+          { id: 'qwen-3-32b', label: 'Qwen 3 32B' },
+          { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+          { id: 'minimax-m2.5', label: 'MiniMax M2.5' },
+          { id: 'gpt-oss-120b', label: 'GPT-OSS 120B' },
+        ],
+      },
+      {
         id: 'local', name: 'Local / Ollama', icon: 'computer-desktop', hint: 'Free, self-hosted',
         url: 'http://localhost:11434/v1',
         keyPlaceholder: 'Leave blank or enter token...',
@@ -158,7 +175,7 @@ function settingsPage() {
       } catch (e) { this.message = 'Preset error: ' + (e as Error).message; }
     },
 
-    providerIconIds: { openai: 'chip', gemini: 'sparkles', anthropic: 'academic-cap', openrouter: 'arrows-right-left', local: 'computer-desktop', custom: 'cog-6-tooth' } as Record<string, string>,
+    providerIconIds: { openai: 'chip', gemini: 'sparkles', anthropic: 'academic-cap', openrouter: 'arrows-right-left', kyma: 'bolt', local: 'computer-desktop', custom: 'cog-6-tooth' } as Record<string, string>,
 
     openAddProfile(): void {
       this.profileForm = { name: '', base_url: '', api_key: '', model: '', enabled: true };
@@ -249,6 +266,7 @@ function settingsPage() {
         if (p.id === 'gemini') return url.includes('googleapis.com') || url.includes('generativelanguage');
         if (p.id === 'anthropic') return url.includes('anthropic.com');
         if (p.id === 'openrouter') return url.includes('openrouter.ai');
+        if (p.id === 'kyma') return url.includes('kymaapi.com');
         if (p.id === 'local') return url.includes('localhost') || url.includes('127.0.0.1');
         return false;
       });
@@ -310,6 +328,7 @@ function settingsPage() {
         else if (url.includes('googleapis.com') || url.includes('generativelanguage')) this.selectedProvider = 'gemini';
         else if (url.includes('anthropic.com')) this.selectedProvider = 'anthropic';
         else if (url.includes('openrouter.ai')) this.selectedProvider = 'openrouter';
+        else if (url.includes('kymaapi.com')) this.selectedProvider = 'kyma';
         else if (url.includes('localhost') || url.includes('127.0.0.1')) this.selectedProvider = 'local';
         else this.selectedProvider = 'custom';
       };

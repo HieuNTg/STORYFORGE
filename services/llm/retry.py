@@ -53,6 +53,8 @@ def _detect_provider(base_url: str) -> str:
     url = base_url.lower()
     if "openrouter" in url:
         return "openrouter"
+    if "kymaapi.com" in url:
+        return "kyma"
     if "localhost" in url or "127.0.0.1" in url or "ollama" in url:
         return "ollama"
     if "anthropic" in url:
@@ -115,19 +117,19 @@ def _should_retry(exc: Exception, provider: str) -> tuple[bool, float]:
 
     # 429 rate limit — use Retry-After header if available, else provider defaults
     if "429" in exc_str:
-        if provider == "openrouter":
+        if provider in ("openrouter", "kyma"):
             return True, 0  # Skip immediately to next model in chain
         retry_after = _parse_retry_after(exc)
         if retry_after is not None:
             return True, retry_after
         return True, 5.0  # Default rate limit delay
 
-    # Empty content on OpenRouter — content filter or guardrail; skip to next model
-    if provider == "openrouter" and "empty content" in exc_str:
+    # Empty content on OpenRouter/Kyma — content filter or guardrail; skip to next model
+    if provider in ("openrouter", "kyma") and "empty content" in exc_str:
         return True, 0
 
-    # Model not found on OpenRouter — not retryable on same provider, try next
-    if provider == "openrouter" and "404" in exc_str:
+    # Model not found on OpenRouter/Kyma — not retryable on same provider, try next
+    if provider in ("openrouter", "kyma") and "404" in exc_str:
         return True, 0
 
     # Auth errors — not retryable on same key, but should try next provider

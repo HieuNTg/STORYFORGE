@@ -366,15 +366,20 @@ class LLMClient(StreamingMixin, GenerationMixin):
         chain = []
         api_key_entries = self._resolve_api_keys(config)
 
-        # Collect all free models for OpenRouter round-robin
+        # Collect all free models for OpenRouter/Kyma round-robin
         is_openrouter = any(
             "openrouter" in e.get("base_url", "").lower() for e in api_key_entries
+        )
+        is_kyma = any(
+            "kymaapi.com" in e.get("base_url", "").lower() for e in api_key_entries
         )
         free_models = []
 
         primary_model = model_override or self._current_model or config.llm.model
         if is_openrouter:
             free_models = self._get_openrouter_free_models(config, primary_model)
+        elif is_kyma:
+            free_models = self._get_kyma_models(config, primary_model)
 
         if model_tier == "cheap" and config.llm.cheap_model:
             # Cheap model on primary key first
@@ -385,7 +390,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
 
         # Round-robin all free models across ALL API keys
         for i, entry in enumerate(api_key_entries):
-            if not is_openrouter or "openrouter" not in entry.get("base_url", "").lower():
+            entry_url = entry.get("base_url", "").lower()
+            is_rr_provider = ("openrouter" in entry_url) or ("kymaapi.com" in entry_url)
+            if not is_rr_provider:
                 # Non-OpenRouter key: only add primary model
                 cache_key = f"{entry['base_url']}:{entry['api_key']}"
                 with self._client_lock:
@@ -452,7 +459,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 if cache_key not in self._providers_cache:
                     self._providers_cache[cache_key] = _get_provider(fb_base, fb_key)
             fb_prov = self._providers_cache[cache_key]
-            fb_is_or = "openrouter" in fb_base.lower()
+            fb_is_rr = "openrouter" in fb_base.lower() or "kymaapi.com" in fb_base.lower()
 
             # Add configured fallback model first
             if (fb_model, fb_key) not in existing_combos:
@@ -463,8 +470,8 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     })
                     existing_combos.add((fb_model, fb_key))
 
-            # Round-robin all free models on this fallback key
-            if fb_is_or and free_models:
+            # Round-robin all models on this fallback key (OpenRouter/Kyma)
+            if fb_is_rr and free_models:
                 for fm in free_models:
                     if (fm, fb_key) in existing_combos:
                         continue
@@ -493,6 +500,23 @@ class LLMClient(StreamingMixin, GenerationMixin):
             return ordered
         except Exception as e:
             logger.warning("Failed to fetch free models for round-robin: %s", e)
+            return []
+
+    def _get_kyma_models(self, config, primary_model: str) -> list[str]:
+        """Get all Kyma models, primary first."""
+        try:
+            from services.kyma_model_discovery import get_kyma_models
+            api_key = config.llm.api_key
+            models = get_kyma_models(api_key=api_key)
+            ordered = []
+            if primary_model in models:
+                ordered.append(primary_model)
+            for m in models:
+                if m != primary_model:
+                    ordered.append(m)
+            return ordered
+        except Exception as e:
+            logger.warning("Failed to fetch Kyma models for round-robin: %s", e)
             return []
 
     def _try_provider(self, entry: dict, messages: list, temperature: float,
