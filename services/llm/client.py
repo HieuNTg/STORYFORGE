@@ -366,20 +366,15 @@ class LLMClient(StreamingMixin, GenerationMixin):
         chain = []
         api_key_entries = self._resolve_api_keys(config)
 
-        # Collect all free models for OpenRouter/Kyma round-robin
-        is_openrouter = any(
-            "openrouter" in e.get("base_url", "").lower() for e in api_key_entries
-        )
-        is_kyma = any(
-            "kymaapi.com" in e.get("base_url", "").lower() for e in api_key_entries
-        )
-        free_models = []
-
+        # Collect free models for each provider type (they use different model ID formats)
         primary_model = model_override or self._current_model or config.llm.model
-        if is_openrouter:
-            free_models = self._get_openrouter_free_models(config, primary_model)
-        elif is_kyma:
-            free_models = self._get_kyma_models(config, primary_model)
+        openrouter_models: list[str] = []
+        kyma_models: list[str] = []
+
+        if any("openrouter" in e.get("base_url", "").lower() for e in api_key_entries):
+            openrouter_models = self._get_openrouter_free_models(config, primary_model)
+        if any("kymaapi.com" in e.get("base_url", "").lower() for e in api_key_entries):
+            kyma_models = self._get_kyma_models(config, primary_model)
 
         if model_tier == "cheap" and config.llm.cheap_model:
             # Cheap model on primary key first
@@ -429,8 +424,11 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     "label": label, "_api_key": api_key,
                 })
 
+            # Select correct model list for this provider
+            entry_models = kyma_models if "kymaapi.com" in entry_url else openrouter_models
+
             # All free models on this key (round-robin)
-            for fm in free_models:
+            for fm in entry_models:
                 if fm == primary_model and cheap_model_name is None:
                     continue  # already added above for non-cheap
                 if fm == cheap_model_name:
@@ -459,7 +457,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 if cache_key not in self._providers_cache:
                     self._providers_cache[cache_key] = _get_provider(fb_base, fb_key)
             fb_prov = self._providers_cache[cache_key]
-            fb_is_rr = "openrouter" in fb_base.lower() or "kymaapi.com" in fb_base.lower()
+            fb_is_kyma = "kymaapi.com" in fb_base.lower()
+            fb_is_openrouter = "openrouter" in fb_base.lower()
+            fb_is_rr = fb_is_kyma or fb_is_openrouter
 
             # Add configured fallback model first
             if (fb_model, fb_key) not in existing_combos:
@@ -470,9 +470,21 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     })
                     existing_combos.add((fb_model, fb_key))
 
+            # Select correct model list for this fallback provider (lazy-load if needed)
+            if fb_is_kyma:
+                if not kyma_models:
+                    kyma_models = self._get_kyma_models(config, primary_model)
+                fb_models = kyma_models
+            elif fb_is_openrouter:
+                if not openrouter_models:
+                    openrouter_models = self._get_openrouter_free_models(config, primary_model)
+                fb_models = openrouter_models
+            else:
+                fb_models = []
+
             # Round-robin all models on this fallback key (OpenRouter/Kyma)
-            if fb_is_rr and free_models:
-                for fm in free_models:
+            if fb_is_rr and fb_models:
+                for fm in fb_models:
                     if (fm, fb_key) in existing_combos:
                         continue
                     if self._is_model_rate_limited(fm, fb_key):
