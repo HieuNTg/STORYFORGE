@@ -108,6 +108,15 @@ class CharacterState(BaseModel):
     cumulative_relationships: list[str] = Field(default_factory=list)
 
 
+class ArcDirective(BaseModel):
+    """User-specified character arc steering directive for continuation."""
+    character: str = Field(description="Character name to steer")
+    from_state: str = Field(description="Current/starting arc state (e.g., 'villain', 'naive')")
+    to_state: str = Field(description="Target arc state (e.g., 'redeemed', 'wise')")
+    chapter_span: int = Field(default=5, ge=1, le=50, description="Number of chapters for arc transition")
+    notes: str = Field(default="", description="Optional guidance for arc progression")
+
+
 class PlotEvent(BaseModel):
     """Sự kiện quan trọng để theo dõi tính liên tục."""
     chapter_number: int

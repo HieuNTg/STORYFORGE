@@ -273,11 +273,17 @@ def generate_continuation_outlines(
     draft: StoryDraft,
     additional_chapters: int = 5,
     progress_callback=None,
+    arc_directives: list = None,
 ) -> list[ChapterOutline]:
     """Generate outlines for continuation without writing chapters.
 
+    Args:
+        arc_directives: List of ArcDirective objects for character arc steering
+
     Returns list of ChapterOutline objects that can be edited by user before writing.
     """
+    arc_directives = arc_directives or []
+
     def _log(msg):
         logger.info(msg)
         if progress_callback:
@@ -330,23 +336,40 @@ def generate_continuation_outlines(
         for t in _open_threads if t.status != "resolved"
     ) or "N/A"
 
+    # Build base prompt
+    base_prompt = prompts.CONTINUE_OUTLINE.format(
+        genre=draft.genre, title=draft.title,
+        characters=chars_text, world=world_text,
+        existing_chapters=len(draft.chapters),
+        synopsis=draft.synopsis,
+        existing_outlines=existing_outlines_text,
+        macro_arcs=macro_arcs_text,
+        conflict_web=conflict_web_text,
+        foreshadowing_plan=foreshadowing_text,
+        open_threads=threads_text,
+        character_states=states_text,
+        plot_events=events_text,
+        additional_chapters=additional_chapters,
+        start_chapter=start_chapter,
+    )
+
+    # Append arc directives if provided
+    if arc_directives:
+        arc_text = "\n".join(
+            f"- {d.character}: {d.from_state} → {d.to_state} trong {d.chapter_span} chương"
+            + (f" ({d.notes})" if getattr(d, 'notes', '') else "")
+            for d in arc_directives
+        )
+        base_prompt += f"""
+
+CHỈ THỊ ARC NHÂN VẬT (QUAN TRỌNG - phải tuân theo):
+{arc_text}
+
+Các dàn ý PHẢI thể hiện sự chuyển đổi arc của nhân vật theo chỉ thị trên. Chia đều tiến trình arc qua các chương."""
+
     result = generator.llm.generate_json(
         system_prompt="Bạn là biên kịch tài năng viết truyện bằng tiếng Việt. BẮT BUỘC: Toàn bộ output phải viết bằng tiếng Việt, không được dùng ngôn ngữ khác. Trả về JSON.",
-        user_prompt=prompts.CONTINUE_OUTLINE.format(
-            genre=draft.genre, title=draft.title,
-            characters=chars_text, world=world_text,
-            existing_chapters=len(draft.chapters),
-            synopsis=draft.synopsis,
-            existing_outlines=existing_outlines_text,
-            macro_arcs=macro_arcs_text,
-            conflict_web=conflict_web_text,
-            foreshadowing_plan=foreshadowing_text,
-            open_threads=threads_text,
-            character_states=states_text,
-            plot_events=events_text,
-            additional_chapters=additional_chapters,
-            start_chapter=start_chapter,
-        ),
+        user_prompt=base_prompt,
         temperature=0.9,
         model=generator._layer_model,
     )
@@ -363,11 +386,16 @@ def write_from_outlines(
     style: str = "",
     progress_callback=None,
     stream_callback=None,
+    arc_directives: list = None,
 ) -> StoryDraft:
     """Write chapters from pre-generated (possibly user-edited) outlines.
 
+    Args:
+        arc_directives: List of ArcDirective objects for character arc steering
+
     Does not generate new outlines - uses provided ones directly.
     """
+    arc_directives = arc_directives or []
     if not outlines:
         return draft
 
@@ -432,6 +460,22 @@ def write_from_outlines(
             except Exception as e:
                 logger.debug("Enhancement context build failed for ch%d: %s", outline.chapter_number, e)
 
+            # Add arc steering context if directives provided
+            if arc_directives:
+                start_ch = len(draft.chapters) + 1 - len(outlines) + outlines.index(outline)
+                arc_lines = []
+                for d in arc_directives:
+                    ch_in_arc = outline.chapter_number - start_ch + 1
+                    if 1 <= ch_in_arc <= d.chapter_span:
+                        progress = ch_in_arc / d.chapter_span
+                        stage = "khởi đầu" if progress <= 0.3 else "giữa chặng" if progress <= 0.7 else "gần đạt"
+                        arc_lines.append(
+                            f"- {d.character}: đang ở giai đoạn {stage} ({int(progress*100)}%) "
+                            f"từ '{d.from_state}' → '{d.to_state}'"
+                        )
+                if arc_lines:
+                    enhancement_context += f"\n\nCHỈ THỊ ARC NHÂN VẬT CHƯƠNG NÀY:\n" + "\n".join(arc_lines)
+
             _log(f"Writing chapter {outline.chapter_number}: {outline.title}...")
             if stream_callback:
                 chapter = generator.write_chapter_stream(
@@ -490,16 +534,22 @@ def continue_story(
     style: str = "",
     progress_callback=None,
     stream_callback=None,
+    arc_directives: list = None,
 ) -> StoryDraft:
     """Continue writing from existing StoryDraft by adding more chapters.
 
     `generator` is a StoryGenerator instance (passed to avoid circular import).
     This is a convenience wrapper that generates outlines and writes chapters in one step.
     For two-step flow (preview → edit → write), use generate_continuation_outlines + write_from_outlines.
+
+    Args:
+        arc_directives: List of ArcDirective objects for character arc steering
     """
+    arc_directives = arc_directives or []
+
     # Step 1: Generate outlines
     new_outlines = generate_continuation_outlines(
-        generator, draft, additional_chapters, progress_callback
+        generator, draft, additional_chapters, progress_callback, arc_directives
     )
     if not new_outlines:
         if progress_callback:
@@ -508,7 +558,7 @@ def continue_story(
 
     # Step 2: Write chapters from outlines
     return write_from_outlines(
-        generator, draft, new_outlines, word_count, style, progress_callback, stream_callback
+        generator, draft, new_outlines, word_count, style, progress_callback, stream_callback, arc_directives
     )
 
 

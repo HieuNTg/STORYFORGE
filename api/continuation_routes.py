@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from api.pipeline_output_builder import build_output_summary
+from models.schemas import ArcDirective
 from api.pipeline_routes import (
     _active_tasks,
     _orchestrators_lock,
@@ -41,6 +42,7 @@ class ContinueRequest(BaseModel):
     style: str = Field("", max_length=100)
     run_enhancement: bool = False
     num_sim_rounds: int = Field(3, ge=1, le=10)
+    arc_directives: list[ArcDirective] = Field(default_factory=list, description="Character arc steering directives")
 
 
 class RegenerateChapterRequest(BaseModel):
@@ -56,6 +58,7 @@ class OutlinePreviewRequest(BaseModel):
     """Request body for generating continuation outlines without writing chapters."""
     checkpoint: str
     additional_chapters: int = Field(5, ge=1, le=50)
+    arc_directives: list[ArcDirective] = Field(default_factory=list, description="Character arc steering directives")
 
 
 class OutlineWriteRequest(BaseModel):
@@ -64,6 +67,7 @@ class OutlineWriteRequest(BaseModel):
     outlines: list[dict] = Field(..., description="User-edited ChapterOutline dicts")
     word_count: int = Field(2000, ge=100, le=20000)
     style: str = Field("", max_length=100)
+    arc_directives: list[ArcDirective] = Field(default_factory=list, description="Character arc steering directives")
 
 
 class InsertChapterRequest(BaseModel):
@@ -162,6 +166,7 @@ async def continue_story(request: Request, body: ContinueRequest):
                     style=body.style,
                     progress_callback=on_progress,
                     stream_callback=on_stream,
+                    arc_directives=body.arc_directives,
                 )
 
                 if body.run_enhancement:
@@ -453,6 +458,7 @@ async def generate_outlines(body: OutlinePreviewRequest):
     try:
         outlines = orch.generate_continuation_outlines(
             additional_chapters=body.additional_chapters,
+            arc_directives=body.arc_directives,
         )
         return {
             "checkpoint": body.checkpoint,
@@ -544,6 +550,7 @@ async def write_from_outlines_endpoint(request: Request, body: OutlineWriteReque
                     style=body.style,
                     progress_callback=on_progress,
                     stream_callback=on_stream,
+                    arc_directives=body.arc_directives,
                 )
 
                 result[0] = orch.output
