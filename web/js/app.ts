@@ -239,6 +239,25 @@ document.addEventListener('alpine:init', () => {
     continuationMode: false as boolean,
     continuationMeta: null as { checkpoint: string; title: string; chapterCount: number; genre: string } | null,
 
+    // Advanced continuation features
+    multiPathMode: false as boolean,
+    paths: [] as Array<{ id: string; title: string; summary: string; outlines: Array<{ chapter_number: number; title: string; summary: string; key_events: string[] }> }>,
+    selectedPathId: null as string | null,
+
+    collaborativeMode: false as boolean,
+    collaborativeText: '' as string,
+    collaborativeChapterNum: 1 as number,
+    collaborativeTitle: '' as string,
+    polishLevel: 'light' as 'light' | 'medium' | 'heavy',
+    polishedResult: null as { title: string; content: string; word_count: number } | null,
+
+    consistencyMode: false as boolean,
+    consistencyReport: null as { issues: Array<{ severity: string; category: string; description: string; suggestion: string; chapter_refs: number[] }>; error_count: number; warning_count: number; is_consistent: boolean } | null,
+
+    outlineMode: false as boolean,
+    outlines: [] as Array<{ chapter_number: number; title: string; summary: string; key_events: string[]; scenes: Array<{ beat: string; characters: string[]; location: string }> }>,
+    editingOutlineIdx: null as number | null,
+
     // Form defaults
     form: {
       title: '', genre: 'Tiên Hiệp', style: 'Miêu tả chi tiết',
@@ -361,6 +380,134 @@ document.addEventListener('alpine:init', () => {
       return this.progress || 0;
     },
 
+    // ═══ Multi-Path Preview ═══
+    async generatePaths(numPaths: number = 3): Promise<void> {
+      if (!this.continuationMeta) return;
+      this.status = 'running';
+      this.error = null;
+      this.paths = [];
+      try {
+        const data = await API.post<{ paths: Array<{ id: string; title: string; summary: string; outlines: Array<{ chapter_number: number; title: string; summary: string; key_events: string[] }> }> }>('/pipeline/continue/paths', {
+          checkpoint: this.continuationMeta.checkpoint,
+          additional_chapters: this.form.num_chapters,
+          num_paths: numPaths,
+        });
+        this.paths = data.paths || [];
+        this.multiPathMode = true;
+        this.status = 'idle';
+      } catch (e) {
+        this.error = (e as Error).message;
+        this.status = 'error';
+      }
+    },
+
+    async selectPath(pathId: string): Promise<void> {
+      const path = this.paths.find(p => p.id === pathId);
+      if (!path || !this.continuationMeta) return;
+      this.selectedPathId = pathId;
+      await this._streamPipeline('/pipeline/continue/select-path', {
+        checkpoint: this.continuationMeta.checkpoint,
+        path_id: pathId,
+        outlines: path.outlines,
+        word_count: this.form.word_count,
+        style: this.form.style,
+      });
+      this.multiPathMode = false;
+      this.paths = [];
+    },
+
+    // ═══ Outline Preview & Edit ═══
+    async generateOutlines(): Promise<void> {
+      if (!this.continuationMeta) return;
+      this.status = 'running';
+      this.error = null;
+      try {
+        const data = await API.post<{ outlines: Array<{ chapter_number: number; title: string; summary: string; key_events: string[]; scenes: Array<{ beat: string; characters: string[]; location: string }> }> }>('/pipeline/continue/outlines', {
+          checkpoint: this.continuationMeta.checkpoint,
+          additional_chapters: this.form.num_chapters,
+        });
+        this.outlines = data.outlines || [];
+        this.outlineMode = true;
+        this.status = 'idle';
+      } catch (e) {
+        this.error = (e as Error).message;
+        this.status = 'error';
+      }
+    },
+
+    async writeFromOutlines(): Promise<void> {
+      if (!this.continuationMeta || this.outlines.length === 0) return;
+      await this._streamPipeline('/pipeline/continue/write', {
+        checkpoint: this.continuationMeta.checkpoint,
+        outlines: this.outlines,
+        word_count: this.form.word_count,
+        style: this.form.style,
+      });
+      this.outlineMode = false;
+      this.outlines = [];
+    },
+
+    // ═══ Collaborative Mode ═══
+    async polishChapter(): Promise<void> {
+      if (!this.continuationMeta || !this.collaborativeText.trim()) return;
+      this.status = 'running';
+      this.error = null;
+      this.polishedResult = null;
+      try {
+        for await (const event of API.stream('/pipeline/collaborative-chapter', {
+          checkpoint: this.continuationMeta.checkpoint,
+          chapter_number: this.collaborativeChapterNum,
+          user_text: this.collaborativeText,
+          title: this.collaborativeTitle,
+          polish_level: this.polishLevel,
+        })) {
+          if (event.type === 'progress') {
+            this.currentLog = event.data as string;
+            this.logs.push(event.data as string);
+          } else if (event.type === 'done') {
+            const result = event.data as { title: string; content: string; word_count: number };
+            this.polishedResult = result;
+            this.status = 'done';
+          } else if (event.type === 'error') {
+            this.error = event.data as string;
+            this.status = 'error';
+          }
+        }
+      } catch (e) {
+        this.error = (e as Error).message;
+        this.status = 'error';
+      }
+    },
+
+    // ═══ Consistency Check ═══
+    async checkConsistency(chapterNumbers?: number[]): Promise<void> {
+      if (!this.continuationMeta) return;
+      this.status = 'running';
+      this.error = null;
+      this.consistencyReport = null;
+      try {
+        for await (const event of API.stream('/pipeline/check-consistency', {
+          checkpoint: this.continuationMeta.checkpoint,
+          chapter_numbers: chapterNumbers || [],
+        })) {
+          if (event.type === 'progress') {
+            this.currentLog = event.data as string;
+            this.logs.push(event.data as string);
+          } else if (event.type === 'done') {
+            this.consistencyReport = event.data as typeof this.consistencyReport;
+            this.consistencyMode = true;
+            this.status = 'done';
+          } else if (event.type === 'error') {
+            this.error = event.data as string;
+            this.status = 'error';
+          }
+        }
+      } catch (e) {
+        this.error = (e as Error).message;
+        this.status = 'error';
+      }
+    },
+
     reset(): void {
       this.status = 'idle';
       this.logs = [];
@@ -371,6 +518,18 @@ document.addEventListener('alpine:init', () => {
       this.checkpoints = [];
       this.continuationMode = false;
       this.continuationMeta = null;
+      // Reset advanced features
+      this.multiPathMode = false;
+      this.paths = [];
+      this.selectedPathId = null;
+      this.collaborativeMode = false;
+      this.collaborativeText = '';
+      this.polishedResult = null;
+      this.consistencyMode = false;
+      this.consistencyReport = null;
+      this.outlineMode = false;
+      this.outlines = [];
+      this.editingOutlineIdx = null;
     },
   });
 

@@ -59,12 +59,13 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 
 ### Advanced Story Continuation
 - **Continue story** — append new chapters to existing stories from saved checkpoints, with configurable chapter count and word count; optional Layer 2 re-enhancement on the full story
-- **Multi-path preview** — preview multiple continuation directions before committing to one
+- **Multi-path preview** — preview 2-5 different continuation directions with summaries and outlines; click to select and write
+- **Outline editor** — generate chapter outlines first, edit titles and summaries inline, then write from approved outlines
+- **Collaborative chapter writing** — write your own chapter text, then let AI polish it with 3 levels (light/medium/heavy)
+- **Consistency checker** — scan story for contradictions in characters, timeline, facts, and locations; view issues with severity and suggested fixes
 - **Character arc steering** — guide character development trajectory across new chapters
-- **Outline preview & write** — generate chapter outlines first, then write from approved outlines
 - **Chapter insertion** — insert new chapters mid-story with automatic renumbering
 - **Selective chapter regeneration** — regenerate specific chapters without affecting others
-- **Collaborative mode** — human-AI collaborative writing with turn-based chapter authoring
 - **Retroactive consistency fix** — automatically fix continuity errors in earlier chapters when new chapters introduce changes
 
 ### Layer 1 — Story Generation Quality
@@ -85,8 +86,14 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 - **Zero-cost quality signals** — stale thread detection, chapter hooks, emotional arc tracking
 
 ### Interactive Branch Reader
-- **Choose-your-own-adventure** — LLM-generated branching paths with real-time SSE streaming
+- **Choose-your-own-adventure** — LLM-generated branching paths with real-time SSE streaming and live text animation
 - **SVG tree visualization** — interactive tree map of all branches with clickable goto-node navigation
+- **Undo/Redo navigation** — navigate back and forth through your choice history with full state preservation
+- **Bookmarks** — save and jump to any node in the tree; bookmarks persist across sessions
+- **Branch analytics** — track visits, unique paths explored, popular choices, and depth distribution
+- **Minimap with zoom/pan** — bird's-eye view of the entire tree with zoom controls and current position indicator
+- **WebSocket collaboration** — real-time multi-user sessions with live user count and synchronized navigation
+- **EPUB export** — download the entire branch tree as an EPUB with all paths included
 - **Branch merging** — merge divergent branches back together with conflict detection and resolution
 - **10-level depth limit** — automatic ending generation when maximum depth is reached
 - **Session persistence** — branch reader state saved to localStorage, survives page refresh

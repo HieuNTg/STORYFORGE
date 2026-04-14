@@ -59,12 +59,13 @@ Hầu hết công cụ viết AI tạo ra những câu chuyện phẳng, dễ đ
 
 ### Tiếp Tục Truyện Nâng Cao
 - **Tiếp tục truyện** — thêm chương mới vào truyện đã lưu từ checkpoint, tùy chỉnh số chương và số từ; tùy chọn chạy lại Layer 2 nâng chất toàn bộ truyện
-- **Xem trước đa hướng** — xem trước nhiều hướng phát triển trước khi chọn một
+- **Xem trước đa hướng** — xem trước 2-5 hướng phát triển khác nhau với tóm tắt và outline; click để chọn và viết
+- **Trình biên tập outline** — tạo outline chương trước, chỉnh sửa tiêu đề và tóm tắt inline, rồi viết từ outline đã duyệt
+- **Viết chương cộng tác** — tự viết nội dung chương, sau đó để AI polish với 3 mức độ (nhẹ/trung bình/nặng)
+- **Kiểm tra nhất quán** — quét truyện tìm mâu thuẫn về nhân vật, dòng thời gian, sự kiện và địa điểm; xem issues với mức nghiêm trọng và gợi ý sửa
 - **Điều hướng cung nhân vật** — hướng dẫn quỹ đạo phát triển nhân vật qua các chương mới
-- **Xem trước & viết từ outline** — tạo outline chương trước, rồi viết từ outline đã duyệt
 - **Chèn chương** — chèn chương mới giữa truyện với đánh số lại tự động
 - **Tái tạo chương chọn lọc** — tái tạo chương cụ thể mà không ảnh hưởng chương khác
-- **Chế độ cộng tác** — viết cộng tác người-AI với chương xen kẽ
 - **Sửa nhất quán hồi tố** — tự động sửa lỗi liên tục trong chương trước khi chương mới gây ra thay đổi
 
 ### Layer 1 — Chất Lượng Tạo Truyện
@@ -85,8 +86,14 @@ Hầu hết công cụ viết AI tạo ra những câu chuyện phẳng, dễ đ
 - **Tín hiệu chất lượng không chi phí** — phát hiện tuyến cũ, hook chương, theo dõi cung cảm xúc
 
 ### Đọc Nhánh Tương Tác
-- **Chọn-hướng-phiêu-lưu** — các nhánh sinh bởi LLM với streaming SSE thời gian thực
+- **Chọn-hướng-phiêu-lưu** — các nhánh sinh bởi LLM với streaming SSE thời gian thực và hiệu ứng text sống động
 - **Cây SVG tương tác** — bản đồ cây tất cả nhánh với điều hướng goto-node bấm được
+- **Undo/Redo** — điều hướng qua lại lịch sử lựa chọn với bảo toàn trạng thái đầy đủ
+- **Bookmarks** — lưu và nhảy đến bất kỳ node nào trong cây; bookmark lưu trữ xuyên phiên
+- **Analytics nhánh** — theo dõi lượt truy cập, số path đã khám phá, lựa chọn phổ biến, phân bố độ sâu
+- **Minimap zoom/pan** — xem toàn cảnh cây với điều khiển zoom và chỉ báo vị trí hiện tại
+- **Cộng tác WebSocket** — phiên đa người dùng thời gian thực với số user online và điều hướng đồng bộ
+- **Xuất EPUB** — tải toàn bộ cây nhánh dưới dạng EPUB với tất cả các đường
 - **Gộp nhánh** — gộp các nhánh phân kỳ với phát hiện và giải quyết xung đột
 - **Giới hạn 10 tầng sâu** — tự động tạo kết thúc khi đạt độ sâu tối đa
 - **Lưu phiên** — trạng thái đọc nhánh lưu vào localStorage, giữ nguyên khi tải lại trang

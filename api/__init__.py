@@ -27,6 +27,7 @@ from api.eval_routes import router as eval_router
 from api.share_routes import router as share_router
 from api.prompt_routes import router as prompt_router
 from api.continuation_routes import router as continuation_router
+from api.branch_websocket import router as branch_ws_router
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth_router)
@@ -45,6 +46,7 @@ api_router.include_router(usage_router)
 api_router.include_router(eval_router)
 api_router.include_router(share_router)
 api_router.include_router(prompt_router)
+api_router.include_router(branch_ws_router)
 
 _log = logging.getLogger(__name__)
 

@@ -303,12 +303,12 @@ function settingsPage() {
       // Fetch models dynamically for supported providers
       if (['openrouter', 'kyma'].includes(id) && p?.url) {
         try {
-          const resp = await API.post('/config/provider/models', {
+          const resp = await API.post<{ models?: Array<{ id: string; label?: string }> }>('/config/provider/models', {
             base_url: p.url,
             api_key: this.form.api_key || '',
           });
           if (resp.models?.length) {
-            p.models = resp.models;
+            p.models = resp.models.map(m => ({ id: m.id, label: m.label || m.id }));
             this.form.model = resp.models[0].id;
             return;
           }
