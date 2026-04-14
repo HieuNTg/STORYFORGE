@@ -321,12 +321,8 @@
           <div class="lg:col-span-5 space-y-4">
             <!-- Story Idea — Hero element -->
             <div class="card sf-card-hero p-5 space-y-4">
-              <!-- New Story header -->
-              <div x-show="!$store.pipeline.continuationMode" class="flex items-center justify-between">
-                <h2 class="font-semibold text-base text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                  <svg class="w-5 h-5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"/></svg>
-                  Create Story
-                </h2>
+              <!-- Char counter (removed duplicate Create Story header - shown in page title) -->
+              <div x-show="!$store.pipeline.continuationMode" class="flex items-center justify-end">
                 <span class="text-xs text-slate-400 dark:text-slate-500 tabular-nums" x-text="($store.pipeline.form.idea || '').length + ' chars'"></span>
               </div>
               <!-- Continuation header -->
@@ -405,7 +401,7 @@
                   <input id="sf-num-characters" type="range" min="2" max="15" x-model.number="$store.pipeline.form.num_characters" aria-label="Number of characters" class="sf-range w-full">
                 </div>
                 <div class="sf-config-pill">
-                  <label for="sf-word-count" class="text-xs text-slate-500 dark:text-slate-400">Words/ch.</label>
+                  <label for="sf-word-count" class="text-xs text-slate-500 dark:text-slate-400">Words/Chapter</label>
                   <span class="text-lg font-bold tabular-nums text-brand-600 dark:text-brand-400" x-text="$store.pipeline.form.word_count"></span>
                   <input id="sf-word-count" type="range" min="500" max="5000" step="100" x-model.number="$store.pipeline.form.word_count" aria-label="Words per chapter" class="sf-range w-full">
                 </div>
@@ -419,7 +415,7 @@
                     <input id="sf-cont-chapters" type="range" min="1" max="50" x-model.number="$store.pipeline.form.num_chapters" aria-label="Additional chapters" class="sf-range w-full">
                   </div>
                   <div class="sf-config-pill">
-                    <label for="sf-cont-word-count" class="text-xs text-slate-500 dark:text-slate-400">Words/ch.</label>
+                    <label for="sf-cont-word-count" class="text-xs text-slate-500 dark:text-slate-400">Words/Chapter</label>
                     <span class="text-lg font-bold tabular-nums text-brand-600 dark:text-brand-400" x-text="$store.pipeline.form.word_count"></span>
                     <input id="sf-cont-word-count" type="range" min="500" max="5000" step="100" x-model.number="$store.pipeline.form.word_count" aria-label="Words per chapter" class="sf-range w-full">
                   </div>
@@ -456,14 +452,18 @@
                     </template>
                   </select>
                 </div>
-                <!-- L1 Consistency Section -->
-                <div class="pt-3 border-t border-surface-200">
-                  <label class="flex items-center gap-2 cursor-pointer mb-2">
-                    <input type="checkbox" x-model="$store.pipeline.form.enable_l1_consistency" class="rounded border-surface-300 text-brand-600 focus:ring-brand-500">
-                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">L1 Consistency Mode</span>
-                    <span class="text-xs text-slate-400">(nhân vật + cốt truyện nhất quán hơn)</span>
+                <!-- Enhanced Consistency Section -->
+                <div class="pt-3 border-t border-surface-200 dark:border-slate-700">
+                  <label class="flex items-center gap-3 cursor-pointer group">
+                    <input type="checkbox" x-model="$store.pipeline.form.enable_l1_consistency" class="w-4 h-4 rounded border-surface-300 text-brand-600 focus:ring-brand-500 focus:ring-offset-0">
+                    <div class="flex-1">
+                      <div class="flex items-center gap-2">
+                        <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Enhanced Consistency</span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">+20% cost</span>
+                      </div>
+                      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Tracks character emotions, plot threads, and causal events for better story coherence</p>
+                    </div>
                   </label>
-                  <p class="text-xs text-slate-500 dark:text-slate-400 ml-6">Bật emotional memory, causal tracking, thread enforcement, scene beats. Tốn thêm ~20% API calls.</p>
                 </div>
               </div>
             </details>
@@ -729,19 +729,18 @@
               </div>
               <h3 class="text-lg font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Your story awaits</h3>
               <p class="text-sm text-slate-400 dark:text-slate-500 max-w-sm mx-auto leading-relaxed">Describe your story idea, choose a genre, and hit <strong class="text-slate-500 dark:text-slate-400">Generate Story</strong> to bring it to life</p>
-              <div class="flex items-center justify-center gap-4 mt-6 text-xs text-slate-400 dark:text-slate-500">
-                <span class="flex items-center gap-1.5">
-                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
+              <!-- Feature pills - improved visibility -->
+              <div class="flex flex-wrap items-center justify-center gap-3 mt-6">
+                <span class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 text-xs font-medium">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
                   Multi-chapter
                 </span>
-                <span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600"></span>
-                <span class="flex items-center gap-1.5">
-                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>
+                <span class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 text-xs font-medium">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>
                   Character AI
                 </span>
-                <span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600"></span>
-                <span class="flex items-center gap-1.5">
-                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75"/></svg>
+                <span class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 text-xs font-medium">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75"/></svg>
                   Drama simulation
                 </span>
               </div>
