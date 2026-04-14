@@ -216,22 +216,40 @@ class BatchChapterGenerator:
             # Tiered context: replaces flat bible_ctx with priority-based 4-tier system
             if getattr(self.config.pipeline, "enable_tiered_context", False):
                 try:
-                    from pipeline.layer1_story.tiered_context_builder import build_tiered_context
+                    from pipeline.layer1_story.tiered_context_builder import (
+                        build_tiered_context, build_compressed_context, should_use_compressed_context,
+                    )
                     # Emotional bridge: pass prev_chapter if enabled
                     prev_ch = None
                     if getattr(self.config.pipeline, "enable_emotional_bridge", False):
                         prev_ch = draft.chapters[-1] if draft.chapters else None
-                    tiered = build_tiered_context(
-                        chapter_num=outline.chapter_number,
-                        chapters=draft.chapters,
-                        outline=outline,
-                        open_threads=list(story_context.open_threads),
-                        story_bible=draft.story_bible,
-                        all_chapter_texts=all_chapter_texts,
-                        max_tokens=getattr(self.config.pipeline, "tiered_context_max_tokens", 3000),
-                        max_promotions=getattr(self.config.pipeline, "tiered_max_promotions", 5),
-                        prev_chapter=prev_ch,
-                    )
+
+                    # Use compressed context for long stories (20+ chapters)
+                    total_chs = len(draft.chapters) + len([o for o in batch if o.chapter_number > len(draft.chapters)])
+                    if should_use_compressed_context(total_chs, threshold=20):
+                        tiered = build_compressed_context(
+                            chapter_num=outline.chapter_number,
+                            chapters=draft.chapters,
+                            outline=outline,
+                            macro_arcs=macro_arcs,
+                            open_threads=list(story_context.open_threads),
+                            story_bible=draft.story_bible,
+                            all_chapter_texts=all_chapter_texts,
+                            max_tokens=getattr(self.config.pipeline, "tiered_context_max_tokens", 4000),
+                            prev_chapter=prev_ch,
+                        )
+                    else:
+                        tiered = build_tiered_context(
+                            chapter_num=outline.chapter_number,
+                            chapters=draft.chapters,
+                            outline=outline,
+                            open_threads=list(story_context.open_threads),
+                            story_bible=draft.story_bible,
+                            all_chapter_texts=all_chapter_texts,
+                            max_tokens=getattr(self.config.pipeline, "tiered_context_max_tokens", 3000),
+                            max_promotions=getattr(self.config.pipeline, "tiered_max_promotions", 5),
+                            prev_chapter=prev_ch,
+                        )
                     if tiered:
                         bible_ctx = tiered
                 except Exception as e:
@@ -347,6 +365,26 @@ class BatchChapterGenerator:
                         memories_block = format_memories_for_prompt(banks, last_n=3)
                         if memories_block and memories_block != "Không có ký ức cảm xúc.":
                             enhancement_context = f"{enhancement_context}\n\n## KÝ ỨC CẢM XÚC NHÂN VẬT:\n{memories_block}"
+                except Exception as e:
+                    logger.debug("Emotional memory injection failed (non-fatal): %s", e)
+
+            # Foreshadowing payoff enforcement (Phase 6)
+            if foreshadowing_plan and getattr(self.config.pipeline, "enable_foreshadowing_enforcement", True):
+                try:
+                    from pipeline.layer1_story.foreshadowing_manager import (
+                        get_overdue_payoffs, get_approaching_payoffs,
+                        format_payoff_enforcement_prompt,
+                    )
+                    overdue = get_overdue_payoffs(foreshadowing_plan, outline.chapter_number, grace_chapters=2)
+                    approaching = get_approaching_payoffs(foreshadowing_plan, outline.chapter_number, lookahead=3)
+                    if overdue or approaching:
+                        payoff_block = format_payoff_enforcement_prompt(
+                            overdue, approaching, outline.chapter_number,
+                        )
+                        if payoff_block:
+                            enhancement_context = f"{enhancement_context}\n\n{payoff_block}" if enhancement_context else payoff_block
+                            if overdue and progress_callback:
+                                progress_callback(f"⚠️ {len(overdue)} foreshadowing quá hạn cần payoff")
                 except Exception as e:
                     logger.debug("Emotional memory injection failed (non-fatal): %s", e)
 

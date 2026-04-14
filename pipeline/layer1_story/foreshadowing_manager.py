@@ -226,3 +226,218 @@ def format_payoffs_for_prompt(payoffs: list[ForeshadowingEntry]) -> str:
     for p in payoffs:
         lines.append(f"- PAYOFF: {p.hint} (đã gieo ở ch.{p.plant_chapter})")
     return "\n".join(lines)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 6: Foreshadowing Payoff Enforcement
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def get_overdue_payoffs(
+    plan: list[ForeshadowingEntry],
+    current_chapter: int,
+    grace_chapters: int = 2,
+) -> list[ForeshadowingEntry]:
+    """Get foreshadowing that should have paid off but hasn't.
+
+    Args:
+        plan: Full foreshadowing plan
+        current_chapter: Current chapter being written
+        grace_chapters: How many chapters past deadline before flagging
+    """
+    overdue = []
+    for f in plan:
+        if f.planted and not f.paid_off:
+            if f.payoff_chapter + grace_chapters < current_chapter:
+                overdue.append(f)
+    return overdue
+
+
+def get_approaching_payoffs(
+    plan: list[ForeshadowingEntry],
+    current_chapter: int,
+    lookahead: int = 3,
+) -> list[ForeshadowingEntry]:
+    """Get payoffs that are approaching (within lookahead chapters)."""
+    approaching = []
+    for f in plan:
+        if f.planted and not f.paid_off:
+            chapters_until = f.payoff_chapter - current_chapter
+            if 0 < chapters_until <= lookahead:
+                approaching.append(f)
+    return approaching
+
+
+def get_payoff_urgency(
+    entry: ForeshadowingEntry,
+    current_chapter: int,
+) -> str:
+    """Calculate urgency level for a payoff."""
+    if entry.paid_off:
+        return "done"
+    if not entry.planted:
+        return "not_planted"
+
+    chapters_until = entry.payoff_chapter - current_chapter
+
+    if chapters_until < 0:
+        return "overdue"
+    elif chapters_until == 0:
+        return "now"
+    elif chapters_until <= 2:
+        return "urgent"
+    elif chapters_until <= 5:
+        return "soon"
+    else:
+        return "later"
+
+
+def format_payoff_enforcement_prompt(
+    overdue: list[ForeshadowingEntry],
+    approaching: list[ForeshadowingEntry],
+    current_chapter: int,
+) -> str:
+    """Format enforcement prompt for chapter writer.
+
+    Stronger language for overdue payoffs, reminder for approaching ones.
+    """
+    lines = []
+
+    if overdue:
+        lines.append("## ⚠️ FORESHADOWING QUÁ HẠN - BẮT BUỘC PAYOFF:")
+        for f in overdue:
+            delay = current_chapter - f.payoff_chapter
+            lines.append(
+                f"- 🚨 '{f.hint}' (gieo ch.{f.plant_chapter}, "
+                f"hẹn ch.{f.payoff_chapter}, trễ {delay} chương) — PHẢI PAYOFF NGAY!"
+            )
+        lines.append("")
+
+    if approaching:
+        lines.append("## 📌 FORESHADOWING SẮP ĐẾN HẠN:")
+        for f in approaching:
+            remaining = f.payoff_chapter - current_chapter
+            lines.append(
+                f"- ⏰ '{f.hint}' (gieo ch.{f.plant_chapter}) → "
+                f"payoff ch.{f.payoff_chapter} (còn {remaining} chương)"
+            )
+
+    return "\n".join(lines) if lines else ""
+
+
+def audit_foreshadowing_plan(
+    plan: list[ForeshadowingEntry],
+    total_chapters: int,
+) -> dict:
+    """Audit foreshadowing plan at end of story. Returns summary."""
+    total = len(plan)
+    if total == 0:
+        return {
+            "total": 0,
+            "planted": 0,
+            "paid_off": 0,
+            "missed": 0,
+            "not_planted": 0,
+            "completion_rate": 1.0,
+            "missed_payoffs": [],
+            "unplanted_seeds": [],
+        }
+
+    planted = sum(1 for f in plan if f.planted)
+    paid_off = sum(1 for f in plan if f.paid_off)
+    missed = [f for f in plan if f.planted and not f.paid_off]
+    not_planted = [f for f in plan if not f.planted]
+
+    completion_rate = paid_off / total if total > 0 else 1.0
+
+    return {
+        "total": total,
+        "planted": planted,
+        "paid_off": paid_off,
+        "missed": len(missed),
+        "not_planted": len(not_planted),
+        "completion_rate": completion_rate,
+        "missed_payoffs": [
+            {
+                "hint": f.hint[:50],
+                "plant_chapter": f.plant_chapter,
+                "payoff_chapter": f.payoff_chapter,
+                "characters": f.characters_involved,
+            }
+            for f in missed
+        ],
+        "unplanted_seeds": [
+            {
+                "hint": f.hint[:50],
+                "plant_chapter": f.plant_chapter,
+            }
+            for f in not_planted
+        ],
+    }
+
+
+def format_audit_warnings(audit: dict) -> list[str]:
+    """Format audit results as warning strings."""
+    warnings = []
+
+    if audit["missed"] > 0:
+        warnings.append(
+            f"⚠️ {audit['missed']} foreshadowing đã gieo nhưng chưa payoff"
+        )
+        for m in audit["missed_payoffs"][:5]:
+            warnings.append(
+                f"  - '{m['hint']}' (ch.{m['plant_chapter']}→ch.{m['payoff_chapter']})"
+            )
+
+    if audit["not_planted"] > 0:
+        warnings.append(
+            f"⚠️ {audit['not_planted']} foreshadowing không được gieo"
+        )
+        for u in audit["unplanted_seeds"][:3]:
+            warnings.append(f"  - '{u['hint']}' (planned ch.{u['plant_chapter']})")
+
+    rate = audit["completion_rate"]
+    if rate < 0.8:
+        warnings.append(
+            f"🚨 Tỷ lệ hoàn thành foreshadowing thấp: {rate:.0%}"
+        )
+
+    return warnings
+
+
+def suggest_late_payoff_chapter(
+    entry: ForeshadowingEntry,
+    current_chapter: int,
+    total_chapters: int,
+) -> int:
+    """Suggest best chapter for late payoff if original deadline missed."""
+    remaining = total_chapters - current_chapter
+    if remaining <= 0:
+        return current_chapter  # Must be now
+
+    # For overdue payoffs, suggest next 2-3 chapters
+    # but avoid cramming at the very end
+    ideal_chapter = current_chapter + min(2, remaining // 2)
+    return min(ideal_chapter, total_chapters - 1)  # Leave room for finale
+
+
+def reschedule_overdue_payoffs(
+    plan: list[ForeshadowingEntry],
+    current_chapter: int,
+    total_chapters: int,
+) -> list[tuple[ForeshadowingEntry, int]]:
+    """Reschedule overdue payoffs to new chapters. Returns [(entry, new_chapter)]."""
+    overdue = get_overdue_payoffs(plan, current_chapter, grace_chapters=0)
+    rescheduled = []
+
+    for i, f in enumerate(overdue):
+        # Spread out rescheduled payoffs
+        new_ch = suggest_late_payoff_chapter(f, current_chapter + i, total_chapters)
+        f.payoff_chapter = new_ch
+        rescheduled.append((f, new_ch))
+        logger.info(
+            "Rescheduled payoff '%s' to ch%d (was ch%d)",
+            f.hint[:40], new_ch, f.payoff_chapter,
+        )
+
+    return rescheduled

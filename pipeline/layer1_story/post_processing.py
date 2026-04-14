@@ -363,6 +363,28 @@ def process_chapter_post_write(
     except Exception as e:
         logger.warning(f"Foreshadowing tracking failed: {e}")
 
+    # --- Arc execution validation (Phase 6, non-fatal) ---
+    if pipeline_config and getattr(pipeline_config, "enable_arc_execution_validation", True):
+        try:
+            from pipeline.layer1_story.arc_execution_validator import (
+                validate_all_arcs, format_arc_warnings,
+            )
+            use_llm = getattr(pipeline_config, "arc_validation_use_llm", False)
+            arc_results = validate_all_arcs(
+                chapter, characters, outline.chapter_number,
+                llm=llm if use_llm else None,
+                use_llm_for_critical=use_llm,
+            )
+            arc_warnings = format_arc_warnings(arc_results)
+            if arc_warnings:
+                story_context.arc_execution_warnings = arc_warnings
+                for w in arc_warnings:
+                    logger.warning("Ch%d arc: %s", outline.chapter_number, w)
+            else:
+                story_context.arc_execution_warnings = []
+        except Exception as e:
+            logger.warning(f"Arc execution validation failed: {e}")
+
     # --- Quality validators (1 cheap LLM call each, non-fatal) ---
 
     # World rules validation

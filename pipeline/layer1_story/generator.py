@@ -356,6 +356,23 @@ class StoryGenerator:
         draft.character_states = list(story_context.character_states)
         draft.plot_events = list(story_context.plot_events)
         draft.open_threads = list(story_context.open_threads)
+
+        # Foreshadowing audit (Phase 6)
+        if foreshadowing_plan and self.config.pipeline.enable_foreshadowing_enforcement:
+            try:
+                from pipeline.layer1_story.foreshadowing_manager import (
+                    audit_foreshadowing_plan, format_audit_warnings,
+                )
+                audit = audit_foreshadowing_plan(foreshadowing_plan, num_chapters)
+                draft.foreshadowing_audit = audit
+                warnings = format_audit_warnings(audit)
+                for w in warnings:
+                    _log(w)
+                if audit["completion_rate"] >= 0.9:
+                    _log(f"✅ Foreshadowing: {audit['paid_off']}/{audit['total']} payoff ({audit['completion_rate']:.0%})")
+            except Exception as e:
+                logger.warning("Foreshadowing audit failed: %s", e)
+
         _log("Layer 1 hoàn tất - Bản thảo truyện đã sẵn sàng!")
         return draft
 

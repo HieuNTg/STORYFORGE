@@ -331,3 +331,218 @@ Lời thoại sau enhance:
             parts.append(expr_guidance.get(profile.emotional_expression, ""))
 
         return "; ".join(p for p in parts if p)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 6: Voice Preservation Enforcement
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class VoicePreservationResult(BaseModel):
+    """Result of voice preservation check."""
+    original_dialogues: list[str] = Field(default_factory=list)
+    enhanced_dialogues: list[str] = Field(default_factory=list)
+    preserved_dialogues: list[str] = Field(default_factory=list)
+    reverted_count: int = 0
+    drift_severity: float = 0.0  # 0.0-1.0
+    violations: list[dict] = Field(default_factory=list)
+
+
+def enforce_voice_preservation(
+    engine: VoiceFingerprintEngine,
+    original_content: str,
+    enhanced_content: str,
+    characters: list,
+    drift_threshold: float = 0.4,
+    revert_threshold: float = 0.3,
+) -> tuple[str, VoicePreservationResult]:
+    """Enforce voice preservation by reverting drifted dialogues.
+
+    Args:
+        engine: Voice fingerprint engine with profiles
+        original_content: Original chapter content
+        enhanced_content: Enhanced chapter content
+        characters: List of characters
+        drift_threshold: Voice drift score above which to warn
+        revert_threshold: Voice drift score above which to revert
+
+    Returns:
+        (preserved_content, result) — content with reverted dialogues + metrics
+    """
+    result = VoicePreservationResult()
+
+    if not engine.profiles:
+        return enhanced_content, result
+
+    preserved_content = enhanced_content
+    total_drift = 0.0
+    char_count = 0
+
+    for char in characters:
+        char_name = getattr(char, "name", "")
+        if not char_name or char_name not in engine.profiles:
+            continue
+
+        # Extract dialogues
+        original_dialogues = engine._extract_dialogues(original_content, char_name)
+        enhanced_dialogues = engine._extract_dialogues(enhanced_content, char_name)
+
+        if not original_dialogues or not enhanced_dialogues:
+            continue
+
+        result.original_dialogues.extend(original_dialogues)
+        result.enhanced_dialogues.extend(enhanced_dialogues)
+
+        # Validate consistency
+        validation = engine.validate_enhanced_dialogue(
+            original_content, enhanced_content, char_name,
+        )
+
+        score = validation.get("score", 1.0)
+        drift = 1.0 - score
+        total_drift += drift
+        char_count += 1
+
+        if drift >= drift_threshold:
+            result.violations.append({
+                "character": char_name,
+                "drift": drift,
+                "issues": validation.get("issues", []),
+            })
+
+            # Revert severely drifted dialogues
+            if drift >= revert_threshold:
+                preserved_content = _revert_dialogues(
+                    preserved_content, original_dialogues, enhanced_dialogues, char_name,
+                )
+                result.reverted_count += 1
+                logger.warning(
+                    f"Voice drift for {char_name}: {drift:.0%} — reverting dialogues"
+                )
+
+    result.drift_severity = total_drift / max(1, char_count)
+    result.preserved_dialogues = _extract_all_dialogues(preserved_content)
+
+    return preserved_content, result
+
+
+def _revert_dialogues(
+    content: str,
+    original_dialogues: list[str],
+    enhanced_dialogues: list[str],
+    character_name: str,
+) -> str:
+    """Revert enhanced dialogues back to original versions.
+
+    Uses fuzzy matching to find and replace drifted dialogues.
+    """
+    if not original_dialogues or not enhanced_dialogues:
+        return content
+
+    reverted = content
+
+    # Simple approach: replace enhanced dialogues with corresponding originals
+    # by position (assumes same dialogue order)
+    for i, enh in enumerate(enhanced_dialogues):
+        if i >= len(original_dialogues):
+            break
+
+        orig = original_dialogues[i]
+
+        # Only revert if significantly different
+        if _similarity_ratio(orig, enh) < 0.7:
+            # Try to replace in content
+            if enh in reverted:
+                reverted = reverted.replace(enh, orig, 1)
+                logger.debug(f"Reverted dialogue for {character_name}: {enh[:30]}... → {orig[:30]}...")
+
+    return reverted
+
+
+def _similarity_ratio(s1: str, s2: str) -> float:
+    """Compute similarity ratio between two strings."""
+    if not s1 or not s2:
+        return 0.0
+
+    # Simple word overlap ratio
+    words1 = set(s1.lower().split())
+    words2 = set(s2.lower().split())
+
+    if not words1 or not words2:
+        return 0.0
+
+    intersection = words1 & words2
+    union = words1 | words2
+
+    return len(intersection) / len(union)
+
+
+def _extract_all_dialogues(content: str) -> list[str]:
+    """Extract all dialogues from content."""
+    dialogues = []
+
+    # Pattern: "dialogue"
+    pattern = r'"([^"]+)"'
+    matches = re.findall(pattern, content)
+    dialogues.extend([m for m in matches if len(m) > 5])
+
+    return list(set(dialogues))[:30]
+
+
+def build_voice_enforcement_prompt(
+    engine: VoiceFingerprintEngine,
+    characters: list,
+    strict: bool = True,
+) -> str:
+    """Build strong voice enforcement prompt for enhancement.
+
+    Args:
+        engine: Voice fingerprint engine
+        characters: Characters in the chapter
+        strict: If True, use stronger enforcement language
+
+    Returns:
+        Prompt block with voice constraints
+    """
+    if not engine.profiles:
+        return ""
+
+    lines = ["## ⚠️ BẮT BUỘC: GIỮ NGUYÊN GIỌNG NÓI NHÂN VẬT"]
+    if strict:
+        lines.append("KHÔNG ĐƯỢC thay đổi phong cách nói của nhân vật. Chỉ tăng kịch tính, KHÔNG thay đổi giọng điệu.")
+    lines.append("")
+
+    for char in characters:
+        char_name = getattr(char, "name", "")
+        profile = engine.profiles.get(char_name)
+        if not profile:
+            continue
+
+        guidance = engine.get_character_voice_guidance(char_name)
+        if guidance:
+            lines.append(f"**{char_name}**: {guidance}")
+
+            # Add sample dialogue as reference
+            if profile.dialogue_samples:
+                sample = profile.dialogue_samples[0][:80]
+                lines.append(f'  Mẫu: "{sample}"')
+
+    if len(lines) <= 2:  # Only header
+        return ""
+
+    return "\n".join(lines)
+
+
+def get_voice_drift_summary(result: VoicePreservationResult) -> dict:
+    """Get summary of voice drift for reporting."""
+    return {
+        "drift_severity": result.drift_severity,
+        "reverted_count": result.reverted_count,
+        "violations": len(result.violations),
+        "violation_chars": [v["character"] for v in result.violations],
+        "status": (
+            "ok" if result.drift_severity < 0.3
+            else "warning" if result.drift_severity < 0.5
+            else "critical"
+        ),
+    }

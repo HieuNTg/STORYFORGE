@@ -101,3 +101,122 @@ class AdaptiveController:
         actual_component = 1.0 - avg_drama  # 0 khi drama=1.0, 1 khi drama=0.0
         blended = 0.6 * math_modifier + 0.4 * actual_component
         return round(blended, 4)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 6: Genre Drama Ceiling Controller
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class DramaCeilingController:
+    """Enforce drama ceiling to prevent melodrama.
+
+    Works alongside AdaptiveController to cap drama levels per genre.
+    """
+
+    def __init__(self, genre: str, chapter_position: float = 0.5):
+        from pipeline.layer2_enhance.drama_patterns import get_genre_drama_ceiling
+        self.genre = genre
+        self.chapter_position = chapter_position
+        self.base_ceiling = get_genre_drama_ceiling(genre)
+        self.ceiling = self._compute_adjusted_ceiling()
+        self.violations: list[dict] = []
+
+    def _compute_adjusted_ceiling(self) -> float:
+        """Compute ceiling adjusted for story position."""
+        ceiling = self.base_ceiling
+
+        # Climax allowance
+        if 0.7 <= self.chapter_position <= 0.9:
+            ceiling = min(0.95, ceiling + 0.10)
+        # Opening/setup — lower ceiling
+        elif self.chapter_position < 0.15:
+            ceiling = max(0.50, ceiling - 0.10)
+
+        return ceiling
+
+    def check_and_cap(self, drama_score: float, chapter_num: int = 0) -> tuple[float, bool]:
+        """Check drama score and cap if needed.
+
+        Returns (capped_score, was_capped).
+        """
+        if drama_score <= self.ceiling:
+            return drama_score, False
+
+        self.violations.append({
+            "chapter": chapter_num,
+            "original": drama_score,
+            "capped_to": self.ceiling,
+            "excess": drama_score - self.ceiling,
+        })
+
+        logger.info(
+            f"[DramaCeiling] Ch{chapter_num}: capped {drama_score:.2f} → {self.ceiling:.2f} "
+            f"(genre={self.genre}, position={self.chapter_position:.0%})"
+        )
+
+        return self.ceiling, True
+
+    def check_melodrama(self, content: str, chapter_num: int = 0) -> tuple[bool, list[str]]:
+        """Check for melodrama in content.
+
+        Returns (is_melodramatic, indicators_found).
+        """
+        from pipeline.layer2_enhance.drama_patterns import detect_melodrama
+
+        is_melodrama, found = detect_melodrama(content, threshold=3)
+
+        if is_melodrama:
+            self.violations.append({
+                "chapter": chapter_num,
+                "type": "melodrama",
+                "indicators": found,
+            })
+            logger.warning(
+                f"[DramaCeiling] Ch{chapter_num}: melodrama detected ({len(found)} indicators)"
+            )
+
+        return is_melodrama, found
+
+    def get_enforcement_prompt(self) -> str:
+        """Get prompt block for drama ceiling enforcement."""
+        from pipeline.layer2_enhance.drama_patterns import format_drama_ceiling_prompt
+        return format_drama_ceiling_prompt(self.genre, self.chapter_position)
+
+    def get_summary(self) -> dict:
+        """Get summary of ceiling enforcement."""
+        capped = [v for v in self.violations if "capped_to" in v]
+        melodrama = [v for v in self.violations if v.get("type") == "melodrama"]
+
+        return {
+            "genre": self.genre,
+            "ceiling": self.ceiling,
+            "position": self.chapter_position,
+            "total_capped": len(capped),
+            "total_melodrama": len(melodrama),
+            "avg_excess": (
+                sum(v["excess"] for v in capped) / len(capped)
+                if capped else 0.0
+            ),
+        }
+
+
+def apply_drama_ceiling_to_events(
+    events: list,
+    genre: str,
+    chapter_position: float = 0.5,
+) -> list:
+    """Apply drama ceiling to simulation events.
+
+    Modifies drama_score in-place and returns modified events.
+    """
+    controller = DramaCeilingController(genre, chapter_position)
+
+    for event in events:
+        if hasattr(event, "drama_score"):
+            original = event.drama_score
+            capped, was_capped = controller.check_and_cap(original)
+            if was_capped:
+                event.drama_score = capped
+
+    return events

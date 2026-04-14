@@ -341,3 +341,233 @@ Trả về JSON:
                     })
 
         return violations
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 6: Thread Resolution Enforcement
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class ThreadResolutionEnforcer:
+    """Force resolution of open threads near story end.
+
+    Works with ThreadWatchdog to ensure all threads are properly closed.
+    """
+
+    FORCE_RESOLUTION_PROMPT = """Bạn là editor chuyên đảm bảo tuyến truyện được giải quyết.
+
+Chương hiện tại: {chapter_number}/{total_chapters}
+Nội dung chương đã enhance:
+{content}
+
+CÁC TUYẾN TRUYỆN BẮT BUỘC PHẢI GIẢI QUYẾT TRONG CHƯƠNG NÀY:
+{threads_to_resolve}
+
+NHIỆM VỤ:
+1. Thêm đoạn văn giải quyết từng tuyến truyện nếu chưa có
+2. Giữ nguyên nội dung gốc, chỉ THÊM không XÓA
+3. Mỗi tuyến cần ít nhất 1-2 câu xác nhận kết thúc
+
+Trả về JSON:
+{{
+  "resolutions_added": [
+    {{
+      "thread_description": "mô tả tuyến",
+      "resolution_text": "đoạn văn giải quyết (2-4 câu)",
+      "insert_after": "câu cuối của đoạn nào để chèn vào sau"
+    }}
+  ],
+  "all_resolved": true/false
+}}"""
+
+    def __init__(self, watchdog: ThreadWatchdog):
+        self.watchdog = watchdog
+        self.llm = LLMClient()
+        self.resolutions_applied: list[dict] = []
+
+    def get_threads_requiring_resolution(
+        self,
+        chapter_number: int,
+        total_chapters: int,
+    ) -> list[PlotThread]:
+        """Get threads that MUST be resolved in this chapter."""
+        must_resolve = []
+
+        for t in self.watchdog.threads.values():
+            if t.status == "resolved":
+                continue
+
+            # Deadline is this chapter
+            if t.expected_resolution_chapter == chapter_number:
+                must_resolve.append(t)
+                continue
+
+            # Critical thread in final 2 chapters
+            if chapter_number >= total_chapters - 1 and t.importance == "critical":
+                must_resolve.append(t)
+                continue
+
+            # Last chapter — ALL open threads
+            if chapter_number == total_chapters and t.status in ("open", "progressing"):
+                must_resolve.append(t)
+                continue
+
+            # Severely overdue (5+ chapters past deadline)
+            if t.expected_resolution_chapter and chapter_number > t.expected_resolution_chapter + 5:
+                must_resolve.append(t)
+
+        return must_resolve
+
+    def format_enforcement_prompt(
+        self,
+        chapter_number: int,
+        total_chapters: int,
+    ) -> str:
+        """Format prompt block for mandatory thread resolution."""
+        must_resolve = self.get_threads_requiring_resolution(chapter_number, total_chapters)
+        if not must_resolve:
+            return ""
+
+        lines = ["## 🚨 BẮT BUỘC: GIẢI QUYẾT CÁC TUYẾN TRUYỆN SAU"]
+        lines.append("Chương này PHẢI đóng các tuyến truyện này. KHÔNG ĐƯỢC bỏ qua.")
+        lines.append("")
+
+        for t in must_resolve:
+            reason = ""
+            if t.expected_resolution_chapter == chapter_number:
+                reason = "đến deadline"
+            elif chapter_number == total_chapters:
+                reason = "chương cuối"
+            elif t.importance == "critical":
+                reason = "critical thread"
+            else:
+                reason = "quá hạn"
+
+            lines.append(f"- **{t.description}** [{reason}]")
+            if t.characters_involved:
+                lines.append(f"  Nhân vật: {', '.join(t.characters_involved[:3])}")
+
+        lines.append("")
+        lines.append("Mỗi tuyến cần được giải quyết RÕRÀNG trong văn bản (không ngầm định).")
+
+        return "\n".join(lines)
+
+    def force_resolution(
+        self,
+        enhanced_content: str,
+        chapter_number: int,
+        total_chapters: int,
+    ) -> tuple[str, list[dict]]:
+        """Force resolution of pending threads by adding resolution text.
+
+        Returns (modified_content, resolutions_added).
+        """
+        must_resolve = self.get_threads_requiring_resolution(chapter_number, total_chapters)
+        if not must_resolve:
+            return enhanced_content, []
+
+        # Check which threads are already resolved in content
+        unresolved = []
+        for t in must_resolve:
+            keywords = t.description.lower().split()[:5]
+            keywords = [kw for kw in keywords if len(kw) > 3]
+            if not keywords:
+                unresolved.append(t)
+                continue
+
+            mentioned = any(kw in enhanced_content.lower() for kw in keywords)
+            if not mentioned:
+                unresolved.append(t)
+
+        if not unresolved:
+            # All threads appear resolved
+            return enhanced_content, []
+
+        # Use LLM to generate resolution text
+        threads_text = "\n".join(
+            f"- {t.description} (nhân vật: {', '.join(t.characters_involved[:2]) or 'chưa rõ'})"
+            for t in unresolved
+        )
+
+        try:
+            result = self.llm.generate_json(
+                system_prompt="Bạn là editor chuyên giải quyết tuyến truyện. Trả về JSON.",
+                user_prompt=self.FORCE_RESOLUTION_PROMPT.format(
+                    chapter_number=chapter_number,
+                    total_chapters=total_chapters,
+                    content=enhanced_content[-3000:],  # Use end of chapter
+                    threads_to_resolve=threads_text,
+                ),
+                temperature=0.7,
+                max_tokens=1000,
+            )
+
+            resolutions = result.get("resolutions_added", [])
+            modified_content = enhanced_content
+
+            for res in resolutions:
+                resolution_text = res.get("resolution_text", "")
+                if not resolution_text:
+                    continue
+
+                # Append resolution near the end (before final paragraph)
+                paragraphs = modified_content.rsplit("\n\n", 1)
+                if len(paragraphs) == 2:
+                    modified_content = f"{paragraphs[0]}\n\n{resolution_text}\n\n{paragraphs[1]}"
+                else:
+                    modified_content = f"{modified_content}\n\n{resolution_text}"
+
+                self.resolutions_applied.append({
+                    "thread": res.get("thread_description", ""),
+                    "chapter": chapter_number,
+                    "text_added": resolution_text[:100],
+                })
+
+                # Mark thread as resolved
+                for t in unresolved:
+                    if t.description[:30].lower() in res.get("thread_description", "").lower():
+                        t.status = "resolved"
+                        t.actual_resolution_chapter = chapter_number
+                        t.resolution_notes = "Force-resolved by ThreadResolutionEnforcer"
+                        break
+
+            logger.info(
+                f"[ThreadEnforcer] Ch{chapter_number}: force-resolved {len(resolutions)} threads"
+            )
+            return modified_content, resolutions
+
+        except Exception as e:
+            logger.warning(f"Thread force resolution failed: {e}")
+            return enhanced_content, []
+
+    def get_enforcement_summary(self) -> dict:
+        """Get summary of enforcement actions taken."""
+        unresolved = [
+            t for t in self.watchdog.threads.values()
+            if t.status not in ("resolved",)
+        ]
+
+        return {
+            "total_threads": len(self.watchdog.threads),
+            "resolved": len(self.watchdog.threads) - len(unresolved),
+            "unresolved": len(unresolved),
+            "force_resolved": len(self.resolutions_applied),
+            "resolution_rate": (
+                (len(self.watchdog.threads) - len(unresolved)) / len(self.watchdog.threads)
+                if self.watchdog.threads else 1.0
+            ),
+            "unresolved_threads": [
+                {"id": t.thread_id, "desc": t.description[:50], "importance": t.importance}
+                for t in unresolved[:5]
+            ],
+        }
+
+
+def should_enforce_resolution(chapter_number: int, total_chapters: int) -> bool:
+    """Determine if resolution enforcement should be applied."""
+    # Enforce in final 3 chapters or last 15% of story
+    if chapter_number >= total_chapters - 2:
+        return True
+    if total_chapters > 10 and chapter_number / total_chapters >= 0.85:
+        return True
+    return False

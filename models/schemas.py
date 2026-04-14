@@ -276,6 +276,7 @@ class StoryContext(BaseModel):
     world_rule_violations: list[str] = Field(default_factory=list, description="Vi phạm quy tắc thế giới phát hiện trong chương")
     dialogue_voice_warnings: list[str] = Field(default_factory=list, description="Cảnh báo giọng nói nhân vật không nhất quán")
     pacing_adjustment: str = Field(default="", description="Pacing correction directive for next chapter")
+    arc_execution_warnings: list[str] = Field(default_factory=list, description="Cảnh báo arc waypoint không được thực hiện trong chương")
     # Phase 5: L1 consistency
     emotional_memory_banks: dict = Field(default_factory=dict, description="Per-character emotional memory banks")
     causal_graph: Any = Field(default=None, description="L1 causal event graph")
@@ -299,6 +300,7 @@ class StoryDraft(BaseModel):
     macro_arcs: list[MacroArc] = Field(default_factory=list, description="High-level story arcs")
     conflict_web: list[ConflictEntry] = Field(default_factory=list, description="All planned conflicts")
     foreshadowing_plan: list[ForeshadowingEntry] = Field(default_factory=list, description="Planned foreshadowing")
+    foreshadowing_audit: dict = Field(default_factory=dict, description="End-of-story foreshadowing completion audit")
     open_threads: list[PlotThread] = Field(default_factory=list, description="Active narrative threads carried across chapters")
 
 

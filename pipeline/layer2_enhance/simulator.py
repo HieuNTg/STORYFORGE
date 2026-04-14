@@ -868,6 +868,15 @@ class DramaSimulator:
         except Exception as e:
             logger.debug(f"causal_chains build lỗi: {e}")
 
+        # Apply drama ceiling to prevent melodrama (Phase 6)
+        try:
+            from pipeline.layer2_enhance.adaptive_intensity import apply_drama_ceiling_to_events
+            chapter_position = current_chapter / max(1, current_chapter + 10)  # Estimate
+            all_events = apply_drama_ceiling_to_events(all_events, genre, chapter_position)
+            _log(f"[DramaCeiling] Applied genre ceiling for {genre}")
+        except Exception as e:
+            logger.debug(f"Drama ceiling application failed (non-fatal): {e}")
+
         result = SimulationResult(
             events=all_events,
             updated_relationships=self.relationships,

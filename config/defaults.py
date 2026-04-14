@@ -141,6 +141,14 @@ class PipelineConfig:
     bible_max_relationships_per_char: int = 8  # was hardcoded 5
     tiered_max_promotions: int = 5  # max chapters promoted from low tier to high tier
 
+    # Phase 6: Arc execution validation
+    enable_arc_execution_validation: bool = True  # Validate arc waypoints in chapter content
+    arc_validation_use_llm: bool = False  # Use LLM for critical/ambiguous cases (adds cost)
+
+    # Phase 6: Foreshadowing payoff enforcement
+    enable_foreshadowing_enforcement: bool = True  # Enforce payoff of planted foreshadowing
+    foreshadowing_grace_chapters: int = 2  # Chapters past deadline before flagging as overdue
+
     # Phase 5: L1 consistency improvements (opt-in, default OFF)
     enable_emotional_memory: bool = False  # Per-character emotion tracking across chapters
     enable_proactive_constraints: bool = False  # forbidden_actions, must_maintain in contracts
@@ -161,6 +169,15 @@ class PipelineConfig:
     l2_consistency_setting: bool = True  # Track locations, objects, timeline
     l2_consistency_threads: bool = True  # Thread watchdog for plot resolution
     l2_consistency_voice: bool = True  # Voice fingerprint for dialogue consistency
+
+    # Phase 6: Voice preservation (reverts drifted dialogues)
+    l2_voice_preservation: bool = True  # Enforce voice preservation post-enhancement
+    l2_voice_drift_threshold: float = 0.4  # Drift level for warning
+    l2_voice_revert_threshold: float = 0.3  # Drift level for automatic revert
+
+    # Phase 6: Drama ceiling (prevents melodrama)
+    l2_drama_ceiling: bool = True  # Apply genre-specific drama ceilings
+    l2_melodrama_detection: bool = True  # Detect and flag melodramatic writing
 
     # Quality gate (inline scoring between layers)
     # Recommended thresholds by genre: romance/comedy=2.3, mystery/thriller=2.5,

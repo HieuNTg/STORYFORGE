@@ -388,6 +388,109 @@ class StoryEnhancer:
             else:
                 _log("✅ Không phát hiện vi phạm nhất quán")
 
+        # Voice preservation enforcement (Phase 6)
+        _voice_enabled = True
+        try:
+            _voice_enabled = bool(ConfigManager().load().pipeline.l2_voice_preservation)
+        except Exception:
+            pass
+        if _voice_enabled:
+            try:
+                from pipeline.layer2_enhance.voice_fingerprint import (
+                    VoiceFingerprintEngine, enforce_voice_preservation, get_voice_drift_summary,
+                )
+                _log("🎤 Checking voice preservation...")
+                voice_engine = VoiceFingerprintEngine()
+                voice_engine.build_from_draft(draft)
+
+                total_reverted = 0
+                total_drift = 0.0
+                characters = getattr(draft, "characters", []) or []
+
+                for orig_ch, enh_ch in zip(draft.chapters, enhanced.chapters):
+                    preserved_content, vp_result = enforce_voice_preservation(
+                        voice_engine,
+                        orig_ch.content or "",
+                        enh_ch.content or "",
+                        characters,
+                        drift_threshold=0.4,
+                        revert_threshold=0.3,
+                    )
+                    if vp_result.reverted_count > 0:
+                        enh_ch.content = preserved_content
+                        total_reverted += vp_result.reverted_count
+                        # Log to changelog
+                        try:
+                            enh_ch.enhancement_changelog = list(
+                                getattr(enh_ch, "enhancement_changelog", []) or []
+                            )
+                            enh_ch.enhancement_changelog.append(
+                                f"[voice:reverted] {vp_result.reverted_count} dialogue(s)"
+                            )
+                        except Exception:
+                            pass
+                    total_drift += vp_result.drift_severity
+
+                avg_drift = total_drift / max(1, len(enhanced.chapters))
+                if total_reverted > 0:
+                    _log(f"🎤 Voice: {total_reverted} dialogues reverted (avg drift: {avg_drift:.0%})")
+                else:
+                    _log(f"✅ Voice preserved (avg drift: {avg_drift:.0%})")
+            except Exception as e:
+                logger.warning(f"Voice preservation failed (non-fatal): {e}")
+
+        # Thread resolution enforcement (Phase 6)
+        _thread_enforce_enabled = True
+        try:
+            _thread_enforce_enabled = bool(ConfigManager().load().pipeline.l2_consistency_threads)
+        except Exception:
+            pass
+        if _thread_enforce_enabled:
+            try:
+                from pipeline.layer2_enhance.thread_watchdog import (
+                    ThreadWatchdog, ThreadResolutionEnforcer, should_enforce_resolution,
+                )
+                total_chapters = len(enhanced.chapters)
+                if should_enforce_resolution(total_chapters, total_chapters):
+                    _log("🔗 Checking thread resolution...")
+                    watchdog = ThreadWatchdog().load_from_draft(draft)
+                    enforcer = ThreadResolutionEnforcer(watchdog)
+
+                    total_forced = 0
+                    for ch in enhanced.chapters:
+                        if should_enforce_resolution(ch.chapter_number, total_chapters):
+                            modified_content, resolutions = enforcer.force_resolution(
+                                ch.content or "",
+                                ch.chapter_number,
+                                total_chapters,
+                            )
+                            if resolutions:
+                                ch.content = modified_content
+                                total_forced += len(resolutions)
+                                try:
+                                    ch.enhancement_changelog = list(
+                                        getattr(ch, "enhancement_changelog", []) or []
+                                    )
+                                    for res in resolutions:
+                                        ch.enhancement_changelog.append(
+                                            f"[thread:resolved] {res.get('thread', '')[:40]}"
+                                        )
+                                except Exception:
+                                    pass
+
+                    summary = enforcer.get_enforcement_summary()
+                    if total_forced > 0:
+                        _log(
+                            f"🔗 Threads: force-resolved {total_forced}, "
+                            f"total {summary['resolved']}/{summary['total_threads']} resolved"
+                        )
+                    elif summary["unresolved"] > 0:
+                        _log(f"⚠️ Threads: {summary['unresolved']} unresolved at story end")
+                    else:
+                        _log("✅ All threads resolved")
+            except Exception as e:
+                logger.warning(f"Thread resolution enforcement failed (non-fatal): {e}")
+
         # Tính điểm kịch tính tổng thể (chuyển từ 0-1 sang 1-5)
         if sim_result.events:
             raw = sum(
