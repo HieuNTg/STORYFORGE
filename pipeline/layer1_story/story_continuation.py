@@ -792,3 +792,126 @@ def regenerate_chapter_impl(
 
     _log(f"Chapter {chapter_number} regenerated successfully!")
     return draft
+
+
+def polish_chapter_impl(
+    generator,
+    draft: StoryDraft,
+    chapter_number: int,
+    user_text: str,
+    title: str = "",
+    polish_level: str = "light",
+    progress_callback=None,
+) -> StoryDraft:
+    """Polish user-written chapter while preserving their voice.
+
+    Args:
+        chapter_number: Which chapter this is (1-indexed)
+        user_text: User's raw chapter text
+        title: Optional chapter title
+        polish_level: 'light' (grammar/flow), 'medium' (+ consistency), 'heavy' (+ style)
+        progress_callback: Progress reporting function
+
+    Returns:
+        Modified StoryDraft with polished chapter
+    """
+    def _log(msg):
+        logger.info(msg)
+        if progress_callback:
+            progress_callback(msg)
+
+    _log(f"Polishing chapter {chapter_number} (level: {polish_level})...")
+
+    # Get story context for consistency checking
+    chars_text = "\n".join(
+        f"- {c.name} ({c.role}): {c.personality}"
+        for c in draft.characters
+    )
+
+    recent_summaries = "\n".join(
+        f"Ch.{ch.chapter_number}: {ch.summary}"
+        for ch in draft.chapters[-5:]
+        if ch.chapter_number < chapter_number
+    ) or "N/A"
+
+    # Build polish prompt based on level
+    if polish_level == "light":
+        polish_instructions = """Nhiệm vụ: Chỉ sửa lỗi ngữ pháp, chính tả và cải thiện độ mượt của văn.
+KHÔNG thay đổi nội dung, cốt truyện, hoặc phong cách viết của tác giả.
+Giữ nguyên giọng văn gốc."""
+    elif polish_level == "medium":
+        polish_instructions = f"""Nhiệm vụ: Sửa lỗi ngữ pháp + đảm bảo tính nhất quán với câu chuyện.
+Nhân vật: {chars_text}
+Bối cảnh các chương trước: {recent_summaries}
+
+Kiểm tra và sửa:
+- Tên nhân vật phải đúng
+- Không có mâu thuẫn với nội dung trước
+- Giữ nguyên giọng văn và ý tưởng của tác giả"""
+    else:  # heavy
+        polish_instructions = f"""Nhiệm vụ: Nâng cấp chất lượng văn học toàn diện.
+Thể loại: {draft.genre}
+Nhân vật: {chars_text}
+Bối cảnh: {recent_summaries}
+
+Cải thiện:
+- Ngữ pháp, chính tả
+- Tính nhất quán
+- Văn phong phù hợp thể loại {draft.genre}
+- Đối thoại tự nhiên hơn
+- Mô tả sinh động hơn
+
+VẪN GIỮ NGUYÊN cốt truyện và ý tưởng chính của tác giả."""
+
+    prompt = f"""Bạn là biên tập viên chuyên nghiệp. Đây là bản thảo của tác giả cần được chau chuốt.
+
+{polish_instructions}
+
+VĂN BẢN GỐC CỦA TÁC GIẢ:
+{user_text}
+
+Trả về JSON:
+{{
+  "polished_text": "văn bản sau khi chau chuốt",
+  "changes_made": ["danh sách các thay đổi đã thực hiện"],
+  "consistency_notes": ["các vấn đề nhất quán phát hiện được (nếu có)"]
+}}"""
+
+    result = generator.llm.generate_json(
+        system_prompt="Bạn là biên tập viên sách tiếng Việt. Trả về JSON.",
+        user_prompt=prompt,
+        temperature=0.3,  # Low temperature for editing
+        model=generator._layer_model,
+    )
+
+    polished_text = result.get("polished_text", user_text)
+    changes_made = result.get("changes_made", [])
+    consistency_notes = result.get("consistency_notes", [])
+
+    # Create or update chapter
+    word_count = len(polished_text.split())
+    chapter = Chapter(
+        chapter_number=chapter_number,
+        title=title or f"Chương {chapter_number}",
+        content=polished_text,
+        word_count=word_count,
+        summary=f"Chương do người dùng viết (polished: {polish_level})",
+    )
+
+    # Handle chapter placement
+    if chapter_number <= len(draft.chapters):
+        # Replace existing chapter
+        draft.chapters[chapter_number - 1] = chapter
+        _log(f"Replaced chapter {chapter_number} with polished version")
+    else:
+        # Append as new chapter
+        draft.chapters.append(chapter)
+        _log(f"Added new chapter {chapter_number}")
+
+    if changes_made:
+        _log(f"Changes made: {len(changes_made)} edits")
+    if consistency_notes:
+        _log(f"Consistency notes: {'; '.join(consistency_notes)}")
+
+    _log(f"Chapter {chapter_number} polished successfully!")
+    return draft

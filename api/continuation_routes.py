@@ -98,6 +98,15 @@ class SelectPathRequest(BaseModel):
     arc_directives: list[ArcDirective] = Field(default_factory=list)
 
 
+class CollaborativeChapterRequest(BaseModel):
+    """Request body for collaborative chapter polishing."""
+    checkpoint: str
+    chapter_number: int = Field(..., ge=1, description="Which chapter this replaces/adds")
+    user_text: str = Field(..., min_length=100, max_length=50000, description="User-written chapter text")
+    title: str = Field("", max_length=200, description="Chapter title")
+    polish_level: str = Field("light", description="'light' (grammar/flow), 'medium' (+ consistency), 'heavy' (+ style)")
+
+
 def _resolve_checkpoint(filename: str) -> pathlib.Path | None:
     """Validate and resolve checkpoint path, preventing traversal."""
     safe_name = pathlib.Path(filename).name
@@ -963,6 +972,103 @@ async def select_path_and_write(request: Request, body: SelectPathRequest):
                 task.cancel()
         except Exception:
             logger.exception("SSE /select-path unexpected error (session=%s)", session_id)
+            if not task.done():
+                task.cancel()
+            raise
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 7: Collaborative Mode - User writes, pipeline polishes
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@router.post("/collaborative-chapter")
+async def collaborative_chapter(body: CollaborativeChapterRequest):
+    """Polish user-written chapter while preserving their voice.
+
+    User provides raw chapter text; pipeline enhances for consistency
+    and prose quality without rewriting the narrative.
+
+    Polish levels:
+    - light: Grammar, punctuation, minor flow improvements
+    - medium: + Prose enhancement, pacing adjustments
+    - heavy: + Scene expansion, deeper character voice (still preserves user intent)
+    """
+    session_id = _extract_session_id(body.checkpoint)
+    if session_id not in ACTIVE_SESSIONS:
+        raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+
+    sess = ACTIVE_SESSIONS[session_id]
+    cont = sess["continuation"]
+
+    if body.polish_level not in ("light", "medium", "heavy"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid polish_level '{body.polish_level}'. Must be 'light', 'medium', or 'heavy'",
+        )
+
+    msg_queue: queue.Queue = queue.Queue()
+
+    def progress_cb(msg: str):
+        msg_queue.put(msg)
+
+    result: list = [None]
+
+    def run_polish():
+        try:
+            draft = cont.polish_chapter(
+                chapter_number=body.chapter_number,
+                user_text=body.user_text,
+                title=body.title,
+                polish_level=body.polish_level,
+                progress_callback=progress_cb,
+            )
+            result[0] = draft
+        except Exception as e:
+            logger.exception("polish_chapter failed")
+            msg_queue.put(f"Error: {e}")
+
+    loop = asyncio.get_event_loop()
+    task = loop.run_in_executor(None, run_polish)
+
+    async def event_generator():
+        try:
+            while not task.done():
+                while not msg_queue.empty():
+                    msg = msg_queue.get_nowait()
+                    yield f"data: {json.dumps({'type': 'progress', 'data': msg})}\n\n"
+                await asyncio.sleep(0.1)
+
+            # Drain remaining messages
+            while not msg_queue.empty():
+                msg = msg_queue.get_nowait()
+                yield f"data: {json.dumps({'type': 'progress', 'data': msg})}\n\n"
+
+            if result[0]:
+                # Return the polished chapter
+                chapter = result[0].chapters[body.chapter_number - 1]
+                output = {
+                    "chapter_number": body.chapter_number,
+                    "title": chapter.title,
+                    "content": chapter.content,
+                    "word_count": len(chapter.content.split()),
+                    "polish_level": body.polish_level,
+                }
+                yield f"data: {json.dumps({'type': 'done', 'data': output}, ensure_ascii=False)}\n\n"
+            else:
+                yield f"data: {json.dumps({'type': 'error', 'data': 'Failed to polish chapter'})}\n\n"
+        except asyncio.CancelledError:
+            logger.info("SSE /collaborative-chapter cancelled (session=%s)", session_id)
+            if not task.done():
+                task.cancel()
+        except Exception:
+            logger.exception("SSE /collaborative-chapter error (session=%s)", session_id)
             if not task.done():
                 task.cancel()
             raise

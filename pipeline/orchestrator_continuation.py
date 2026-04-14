@@ -303,3 +303,38 @@ class StoryContinuation:
         except Exception as e:
             _log(f"Enhancement error: {e}")
             return None
+
+    def polish_chapter(
+        self,
+        chapter_number: int,
+        user_text: str,
+        title: str = "",
+        polish_level: str = "light",
+        progress_callback=None,
+    ) -> StoryDraft:
+        """Polish user-written chapter while preserving their voice.
+
+        Args:
+            chapter_number: Which chapter this is (1-indexed)
+            user_text: User's raw chapter text
+            title: Optional chapter title
+            polish_level: 'light', 'medium', or 'heavy'
+        """
+        if not self.output.story_draft:
+            raise ValueError("No story draft loaded.")
+
+        from pipeline.layer1_story.story_continuation import polish_chapter_impl
+        draft = polish_chapter_impl(
+            generator=self.story_gen,
+            draft=self.output.story_draft,
+            chapter_number=chapter_number,
+            user_text=user_text,
+            title=title,
+            polish_level=polish_level,
+            progress_callback=progress_callback,
+        )
+        self.output.story_draft = draft
+        self.output.enhanced_story = None  # Invalidate L2
+        self.checkpoint_manager.output = self.output
+        self.checkpoint_manager.save(1)
+        return draft
