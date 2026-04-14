@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock, patch
 from models.schemas import SimulationResult, SimulationEvent, Chapter, ChapterScore
 from pipeline.layer2_enhance.knowledge_system import KnowledgeRegistry, KnowledgeItem
-from pipeline.layer2_enhance.causal_chain import CausalGraph, CausalEvent
+from pipeline.layer2_enhance.causal_chain import CausalGraph
 from pipeline.layer2_enhance.scene_enhancer import _format_events_with_causality
 
 

@@ -1,7 +1,7 @@
 """Dialogue Subtext Layer — phân tích says-vs-means và tạo hướng dẫn đối thoại."""
 
 import logging
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from models.schemas import Character, CharacterPsychology
 from services.llm_client import LLMClient
 

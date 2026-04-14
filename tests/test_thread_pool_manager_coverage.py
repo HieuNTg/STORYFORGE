@@ -1,6 +1,5 @@
 """Tests for services/thread_pool_manager.py and services/_thread_pool_impl.py."""
 import threading
-import time
 import pytest
 from unittest.mock import patch
 

@@ -111,7 +111,9 @@ def extract_emotional_memories(
     )
 
     banks: dict[str, CharacterMemoryBank] = {}
-    for entry in result.get("characters", []):
+    # Handle LLM returning list directly instead of {characters} dict
+    char_data = result if isinstance(result, list) else result.get("characters", [])
+    for entry in char_data:
         if not isinstance(entry, dict):
             continue
         name = entry.get("character_name", "").strip()

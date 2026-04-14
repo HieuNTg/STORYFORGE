@@ -877,7 +877,7 @@ class BatchChapterGenerator:
                         )
 
                     # Rebuild contract with failures
-                    from pipeline.layer1_story.chapter_contract_builder import build_contract, format_contract_for_prompt
+                    from pipeline.layer1_story.chapter_contract_builder import build_contract
                     new_contract = build_contract(
                         ch_num, outline,
                         threads=frozen_threads,

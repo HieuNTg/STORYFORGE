@@ -2,10 +2,9 @@
 import json
 import os
 import pytest
-import tempfile
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import patch
 from models.schemas import Chapter, StoryNode, BranchChoice, StoryTree
-from services.story_brancher import StoryBrancher, BRANCHES_DIR
+from services.story_brancher import StoryBrancher
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +181,7 @@ class TestSaveLoadTree:
     def test_save_and_load_roundtrip(self, tmp_path):
         tree = _make_tree("My Story", "fantasy")
         filename = "test_tree.json"
-        save_path = str(tmp_path / filename)
+        str(tmp_path / filename)
 
         with patch("services.story_brancher.BRANCHES_DIR", str(tmp_path)):
             path = StoryBrancher.save_tree(tree, filename)

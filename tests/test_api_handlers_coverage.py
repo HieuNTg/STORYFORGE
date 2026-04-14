@@ -13,11 +13,9 @@ import base64
 import json
 import os
 import sys
-import tempfile
 import time
-import threading
 import pytest
-from unittest.mock import patch, MagicMock, PropertyMock
+from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -231,7 +229,7 @@ class TestConfigRoutesEndpoints:
 
     def test_put_config_with_language(self):
         with patch("api.config_routes.ConfigManager") as MockCM, \
-             patch("api.config_routes.I18n") as MockI18n, \
+             patch("api.config_routes.I18n"), \
              patch("services.llm_client.LLMClient") as MockLLC:
             MockCM.return_value = _mock_config_manager()
             MockLLC.reset = MagicMock()
@@ -1135,7 +1133,9 @@ class TestLLMCache:
         cache = LLMCache(db_path=db_path, ttl_days=1)
         # Insert entry with fake old timestamp
         conn = cache._get_conn()
-        import time, hashlib, json as _json
+        import time
+        import hashlib
+        import json as _json
         old_params = dict(system_prompt="old", user_prompt="old", model="m", temperature=0.5, json_mode=False)
         raw = _json.dumps(old_params, sort_keys=True, ensure_ascii=False)
         key = hashlib.sha256(raw.encode()).hexdigest()
@@ -1644,7 +1644,7 @@ class TestAuthModule:
         # Get the jti from the token
         parts = token.split(".")
         payload = json.loads(auth._b64url_decode(parts[1]))
-        jti = payload["jti"]
+        payload["jti"]
         with patch("services.auth.auth.is_revoked", return_value=True):
             with pytest.raises(ValueError, match="revoked"):
                 auth.verify_token(token)
@@ -1745,7 +1745,6 @@ class TestJWTManager:
         """Token with very old iat should be rejected if MAX_TOKEN_AGE exceeded."""
         from services.auth import jwt_manager as jm
         from services._jwt_helpers import b64url_encode, sign_input
-        import hashlib
         key_bytes = jm.get_current_key()
         old_iat = int(time.time()) - (jm.MAX_TOKEN_AGE + 100)
         payload = {

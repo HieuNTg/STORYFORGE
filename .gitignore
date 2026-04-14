@@ -12,6 +12,7 @@ venv/
 # ── Environment & Secrets ──────────────────────────────────────────
 .env*
 !.env.example
+!.env.staging.example
 
 # ── Runtime Data ───────────────────────────────────────────────────
 data/config.json

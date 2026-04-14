@@ -577,7 +577,7 @@ def write_from_outlines(
                             f"từ '{d.from_state}' → '{d.to_state}'"
                         )
                 if arc_lines:
-                    enhancement_context += f"\n\nCHỈ THỊ ARC NHÂN VẬT CHƯƠNG NÀY:\n" + "\n".join(arc_lines)
+                    enhancement_context += "\n\nCHỈ THỊ ARC NHÂN VẬT CHƯƠNG NÀY:\n" + "\n".join(arc_lines)
 
             _log(f"Writing chapter {outline.chapter_number}: {outline.title}...")
             if stream_callback:

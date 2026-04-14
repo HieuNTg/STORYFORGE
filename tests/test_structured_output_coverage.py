@@ -1,5 +1,4 @@
 """Tests for services/structured_output.py."""
-import json
 import pytest
 from unittest.mock import MagicMock, patch
 from services.structured_output import (
@@ -87,7 +86,7 @@ class TestExtractJson:
         # Since the array parses fine as JSON, the result is the list itself.
         import json as _json
         raw = '[1, 2, {"x": 3}]'
-        parsed = _json.loads(raw)
+        _json.loads(raw)
         # Either the full array comes back (direct parse succeeds), or the inner object
         result = _extract_json(raw)
         # Accept both valid behaviors

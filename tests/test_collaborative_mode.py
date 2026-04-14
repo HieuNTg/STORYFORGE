@@ -1,7 +1,7 @@
 """Tests for collaborative mode (Phase 7) - user writes, pipeline polishes."""
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from models.schemas import StoryDraft, Chapter, Character
 
 
@@ -138,7 +138,7 @@ class TestPolishChapterImpl:
         from pipeline.layer1_story.story_continuation import polish_chapter_impl
 
         progress_msgs = []
-        result = polish_chapter_impl(
+        polish_chapter_impl(
             generator=mock_generator,
             draft=sample_draft,
             chapter_number=1,

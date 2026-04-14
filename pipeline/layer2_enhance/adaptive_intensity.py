@@ -1,7 +1,7 @@
 """Bộ điều khiển cường độ mô phỏng thích nghi — tự động leo thang/hạ nhiệt theo drama."""
 
 import logging
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 

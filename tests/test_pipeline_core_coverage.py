@@ -14,9 +14,8 @@ from __future__ import annotations
 import json
 import os
 import sys
-import threading
 import tempfile
-from unittest.mock import MagicMock, patch, AsyncMock, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -24,12 +23,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 from factories import (
-    build_character, build_chapter, create_test_story,
-    create_enhanced_story, create_test_config,
+    build_character, create_test_story,
+    create_enhanced_story,
 )
 from models.schemas import (
-    PipelineOutput, StoryDraft, EnhancedStory, Chapter, Character,
-    Relationship, RelationType, SimulationResult, SimulationEvent,
+    PipelineOutput, Relationship, RelationType, SimulationResult, SimulationEvent,
     AgentPost, EscalationPattern,
 )
 
@@ -457,7 +455,8 @@ class TestCheckpointManager:
             with patch("pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", tmpdir):
                 mgr.save(1, background=False)
                 # brief wait for background thread if any
-                import time; time.sleep(0.05)
+                import time
+                time.sleep(0.05)
                 result = CheckpointManager.list_checkpoints()
         assert len(result) >= 1
         entry = result[0]
@@ -523,7 +522,7 @@ class TestCheckpointManager:
                 analyzer, simulator, enhancer,
             )
             with patch("pipeline.orchestrator_checkpoint.CheckpointManager.save"):
-                result = mgr.resume(ckpt_path, enable_agents=False, enable_scoring=False)
+                mgr.resume(ckpt_path, enable_agents=False, enable_scoring=False)
             analyzer.analyze.assert_called_once()
             simulator.run_simulation.assert_called_once()
             enhancer.enhance_with_feedback.assert_called_once()
@@ -590,7 +589,7 @@ class TestPipelineExporter:
         with patch("plugins.plugin_manager.apply_export", side_effect=lambda fmt, d: d):
             with patch("services.html_exporter.HTMLExporter.export", return_value="/fake/path.html") as mock_html:
                 with tempfile.TemporaryDirectory() as tmpdir:
-                    files = exporter.export_output(tmpdir, formats=["HTML"])
+                    exporter.export_output(tmpdir, formats=["HTML"])
         mock_html.assert_called_once()
 
     def test_export_epub_calls_epub_exporter(self):
@@ -598,7 +597,7 @@ class TestPipelineExporter:
         with patch("plugins.plugin_manager.apply_export", side_effect=lambda fmt, d: d):
             with patch("services.epub_exporter.EPUBExporter.export", return_value="/fake/path.epub") as mock_epub:
                 with tempfile.TemporaryDirectory() as tmpdir:
-                    files = exporter.export_output(tmpdir, formats=["EPUB"])
+                    exporter.export_output(tmpdir, formats=["EPUB"])
         mock_epub.assert_called_once()
 
     def test_export_zip_returns_zip_path(self):
@@ -845,7 +844,7 @@ class TestImageGenerator:
     def test_generate_with_reference_empty_refs_calls_generate(self):
         gen = self._make_generator(provider="none")
         gen.generate = MagicMock(return_value=None)
-        result = gen.generate_with_reference("prompt", [], "test.png")
+        gen.generate_with_reference("prompt", [], "test.png")
         gen.generate.assert_called_once_with("prompt", "test.png", "1024x1024")
 
     def test_generate_with_reference_seedream_calls_seedream(self):
@@ -858,7 +857,7 @@ class TestImageGenerator:
     def test_generate_with_reference_dalle_falls_back(self):
         gen = self._make_generator(provider="dalle")
         gen.generate = MagicMock(return_value=None)
-        result = gen.generate_with_reference("prompt", ["/tmp/ref.png"], "test.png")
+        gen.generate_with_reference("prompt", ["/tmp/ref.png"], "test.png")
         gen.generate.assert_called_once()
 
     def test_generate_story_images_empty_list(self):

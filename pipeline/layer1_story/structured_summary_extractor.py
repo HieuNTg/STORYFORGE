@@ -1,7 +1,7 @@
 """Structured summary extractor — replaces simple 3-5 sentence summaries with rich data."""
 
 import logging
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from models.schemas import StructuredSummary, PlotThread
 from services import prompts

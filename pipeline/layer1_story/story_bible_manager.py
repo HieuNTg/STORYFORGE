@@ -64,7 +64,7 @@ class StoryBibleManager:
                 bible.active_threads.append(thread)
 
         # Giữ tối đa N thread đang mở (cũ nhất tự động resolved)
-        max_threads = getattr(getattr(self, '_config_pipeline', None), 'bible_max_active_threads', 30)
+        max_threads = getattr(getattr(self, '_config_pipeline', None), 'bible_max_active_threads', 20)
         if len(bible.active_threads) > max_threads:
             overflow = bible.active_threads[:-max_threads]
             for t in overflow:
@@ -73,8 +73,8 @@ class StoryBibleManager:
                 bible.resolved_threads.append(t)
             bible.active_threads = bible.active_threads[-max_threads:]
 
-        # Cập nhật milestone events
-        max_milestones = getattr(getattr(self, '_config_pipeline', None), 'bible_max_milestones', 50)
+        # Cập nhật milestone events (cap at 30 to match other bible limits)
+        max_milestones = getattr(getattr(self, '_config_pipeline', None), 'bible_max_milestones', 30)
         for event in plot_events:
             bible.milestone_events.append(
                 f"Ch{event.chapter_number}: {event.event}"

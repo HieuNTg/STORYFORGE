@@ -1,7 +1,7 @@
 """Tests for services/story_analytics.py — coverage for StoryAnalytics class."""
 import pytest
 from unittest.mock import MagicMock, patch
-from models.schemas import Chapter, StoryDraft, EnhancedStory
+from models.schemas import Chapter
 from services.story_analytics import StoryAnalytics
 
 

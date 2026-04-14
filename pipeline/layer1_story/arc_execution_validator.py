@@ -12,7 +12,6 @@ import re
 from dataclasses import dataclass
 from typing import Optional, TYPE_CHECKING
 
-from models.narrative_schemas import ArcWaypoint
 from models.schemas import Character, Chapter
 
 if TYPE_CHECKING:

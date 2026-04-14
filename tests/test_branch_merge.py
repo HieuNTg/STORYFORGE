@@ -1,7 +1,6 @@
 """Tests for branch merging feature (Phase 6)."""
 
 import pytest
-from unittest.mock import MagicMock, patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient

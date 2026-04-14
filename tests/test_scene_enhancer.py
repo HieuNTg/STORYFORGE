@@ -1,8 +1,6 @@
 """Tests for SceneEnhancer and DramaCurveBalancer (Phase 7 improvements)."""
 
-import pytest
 from unittest.mock import MagicMock, patch
-import math
 
 from pipeline.layer2_enhance.scene_enhancer import (
     DramaCurveTarget,
@@ -286,7 +284,7 @@ class TestSceneEnhancerRetry:
             "curve_directive": "",
         }
 
-        result = enhancer._enhance_single_scene_with_retry(scene, score, context)
+        enhancer._enhance_single_scene_with_retry(scene, score, context)
 
         # Should retry up to retry_max times
         assert enhancer.llm.generate.call_count == 3  # initial + 2 retries

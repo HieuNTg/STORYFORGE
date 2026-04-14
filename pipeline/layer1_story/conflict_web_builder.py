@@ -38,7 +38,9 @@ def generate_conflict_web(
         model=model,
     )
     conflicts = []
-    for c in result.get("conflicts", []):
+    # Handle LLM returning list directly instead of {conflicts} dict
+    conflict_data = result if isinstance(result, list) else result.get("conflicts", [])
+    for c in conflict_data:
         if isinstance(c, dict):
             try:
                 entry = ConflictEntry(**c)
@@ -116,7 +118,8 @@ def update_conflict_status(
             max_tokens=300,
             model_tier="cheap",
         )
-        activated_ids = set(result.get("activated", []))
+        # Handle LLM returning list directly instead of {activated} dict
+        activated_ids = set(result if isinstance(result, list) else result.get("activated", []))
         for c in dormant_with_triggers:
             if c.conflict_id in activated_ids:
                 c.status = "active"

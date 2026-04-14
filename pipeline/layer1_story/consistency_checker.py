@@ -143,7 +143,6 @@ class ConsistencyChecker:
     ) -> list[ConsistencyIssue]:
         """Check a single chapter against previous facts."""
         issues = []
-        ch_num = chapter.chapter_number
         content = chapter.content.lower()
 
         # Check character locations
@@ -189,28 +188,13 @@ class ConsistencyChecker:
         last_chapter: int,
         new_chapter: Chapter,
     ) -> Optional[ConsistencyIssue]:
-        """Check if character's location contradicts previous chapter."""
-        content = new_chapter.content.lower()
-        last_loc_lower = last_location.lower()
+        """Check if character's location contradicts previous chapter.
 
-        # Simple heuristic: if character was at location X and suddenly
-        # mentioned at location Y without travel, flag it
-        # This is a simplified check - LLM enhancement handles complex cases
-
-        # Location keywords that indicate contradiction
-        location_indicators = [
-            "đang ở", "tại", "trong", "at", "in", "inside",
-            "arrived at", "entered", "đến", "vào"
-        ]
-
-        for indicator in location_indicators:
-            if indicator in content:
-                # Found a location indicator - check if it contradicts
-                # This is where we'd do deeper analysis with LLM
-                pass
-
-        # For now, return None (no contradiction detected without LLM)
-        # LLM enhancement will catch actual contradictions
+        Currently returns None - LLM enhancement handles actual contradiction detection.
+        """
+        # Placeholder for future LLM-based location contradiction detection
+        # Variables like content, last_location are available for enhancement
+        _ = (new_chapter.content, last_location, char_name, last_chapter)
         return None
 
     def _check_state_contradiction(
@@ -258,16 +242,12 @@ class ConsistencyChecker:
         chapter: Chapter,
         timeline_events: list,
     ) -> Optional[ConsistencyIssue]:
-        """Check for timeline contradictions."""
-        content = chapter.content.lower()
+        """Check for timeline contradictions.
 
-        # Time contradiction keywords
-        past_indicators = ["trước đó", "hôm qua", "tuần trước", "yesterday", "last week", "before"]
-        future_indicators = ["sẽ", "ngày mai", "tuần sau", "tomorrow", "next week", "will"]
-
-        # Check if chapter references past events that haven't happened yet
-        # This is a simplified check - LLM handles complex temporal reasoning
-
+        Currently returns None - LLM enhancement handles complex temporal reasoning.
+        """
+        # Placeholder for future LLM-based timeline contradiction detection
+        _ = chapter
         return None
 
     def _enhance_issues_with_llm(

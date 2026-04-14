@@ -4,19 +4,23 @@ from __future__ import annotations
 import os
 import sys
 import threading
+from typing import TYPE_CHECKING
 
 import pytest
 from unittest.mock import MagicMock, patch
 
+if TYPE_CHECKING:
+    from pipeline.orchestrator import PipelineOrchestrator
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
-def _make_orchestrator(session_id: str = "test-session") -> "PipelineOrchestrator":
+def _make_orchestrator(session_id: str = "test-session") -> PipelineOrchestrator:
     """Create a PipelineOrchestrator with all external deps mocked."""
     from pipeline.orchestrator import PipelineOrchestrator
     # Patch constructor-level heavy deps
     with patch("pipeline.orchestrator._make_redis_client", side_effect=RuntimeError("no redis")), \
-         patch("pipeline.orchestrator.ConfigManager") as MockCfg, \
+         patch("pipeline.orchestrator.ConfigManager"), \
          patch("pipeline.orchestrator.StoryGenerator"), \
          patch("pipeline.orchestrator.StoryAnalyzer"), \
          patch("pipeline.orchestrator.DramaSimulator"), \

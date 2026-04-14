@@ -603,7 +603,6 @@ class SceneEnhancer:
                 min_drama = curve_min
 
         scenes = self._scenes_from_summary(chapter, summary)
-        skip_note = bool(scenes)
         if not scenes:
             scenes = self.decompose_chapter_content(chapter)
         else:

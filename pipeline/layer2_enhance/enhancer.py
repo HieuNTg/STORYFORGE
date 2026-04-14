@@ -41,7 +41,7 @@ def _build_arc_context(draft, chapter_number: int) -> str:
                 if ch_range:
                     try:
                         parts = str(ch_range).replace(" ", "").split("-")
-                        start = int(parts[0]); end = int(parts[-1])
+                        start, end = int(parts[0]), int(parts[-1])
                         if not (start <= chapter_number <= end):
                             continue
                     except (ValueError, IndexError):
@@ -101,7 +101,7 @@ class StoryEnhancer:
         try:
             from pipeline.layer2_enhance.scene_enhancer import SceneEnhancer
             from pipeline.layer2_enhance.dialogue_subtext import DialogueSubtextAnalyzer
-            from pipeline.layer2_enhance.thematic_tracker import ThematicTracker, ThemeProfile
+            from pipeline.layer2_enhance.thematic_tracker import ThematicTracker
 
             _subtext_guidance = ""
             _thematic_guidance = ""
@@ -473,7 +473,7 @@ class StoryEnhancer:
         if _voice_enabled:
             try:
                 from pipeline.layer2_enhance.voice_fingerprint import (
-                    VoiceFingerprintEngine, enforce_voice_preservation, get_voice_drift_summary,
+                    VoiceFingerprintEngine, enforce_voice_preservation,
                 )
                 _log("🎤 Checking voice preservation...")
                 voice_engine = VoiceFingerprintEngine()

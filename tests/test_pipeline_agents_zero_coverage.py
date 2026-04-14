@@ -20,7 +20,7 @@ import time
 import tempfile
 import base64
 from typing import Optional
-from unittest.mock import MagicMock, patch, PropertyMock, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -202,7 +202,7 @@ class TestDebateOrchestrator:
         reviews = [_make_review("the_editor")]
         # No challenges from editor (returns empty)
         editor.debate_response.return_value = []
-        result = orch.run_debate([editor, non_lite], {}, 2, reviews)
+        orch.run_debate([editor, non_lite], {}, 2, reviews)
         # non_lite should not be called
         non_lite.debate_response.assert_not_called()
 
@@ -367,7 +367,7 @@ class TestDebateOrchestrator:
         agent = self._make_agent("agent_no_review")
         reviews = [_make_review("other_agent")]  # no review for agent_no_review
         agent.debate_response.return_value = []
-        result = orch.run_debate([agent], {}, 2, reviews)
+        orch.run_debate([agent], {}, 2, reviews)
         agent.debate_response.assert_not_called()
 
     def test_round3_budget_abort_raises(self):
@@ -1227,7 +1227,7 @@ class TestRateLimiterFactory:
 
     def test_exports(self):
         from services.rate_limiter_redis import (
-            RateLimiterBase, InMemoryRateLimiter, RedisRateLimiter, get_rate_limiter
+            get_rate_limiter
         )
         assert callable(get_rate_limiter)
 

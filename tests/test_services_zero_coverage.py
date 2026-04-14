@@ -20,7 +20,7 @@ import tempfile
 import threading
 import types
 import unittest
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
@@ -45,7 +45,6 @@ class TestRAGKnowledgeBaseBackupRestore(unittest.TestCase):
         return kb
 
     def test_backup_returns_none_when_persist_dir_missing(self):
-        from services.rag_knowledge_base import RAGKnowledgeBase
         kb = self._make_kb("/nonexistent/path/xyz")
         result = kb.backup()
         self.assertIsNone(result)
@@ -87,7 +86,6 @@ class TestRAGKnowledgeBaseBackupRestore(unittest.TestCase):
             self.assertIsNone(result)
 
     def test_restore_fails_when_backup_missing(self):
-        from services.rag_knowledge_base import RAGKnowledgeBase
         kb = self._make_kb("/tmp/persist")
         result = kb.restore("/nonexistent/backup_dir")
         self.assertFalse(result)
@@ -343,7 +341,6 @@ class TestCharacterVisualExtractor(unittest.TestCase):
         return types.SimpleNamespace(**defaults)
 
     def test_extract_attributes_happy_path(self):
-        from services.character_visual_extractor import _DEFAULT_ATTRIBUTES
         llm = MagicMock()
         llm.generate_json.return_value = {
             "hair": {"color": "black", "style": "long", "details": "wavy"},
@@ -364,7 +361,6 @@ class TestCharacterVisualExtractor(unittest.TestCase):
 
     def test_extract_attributes_partial_llm_response(self):
         """LLM returns only some keys — defaults fill the rest."""
-        from services.character_visual_extractor import _DEFAULT_ATTRIBUTES
         llm = MagicMock()
         llm.generate_json.return_value = {
             "hair": {"color": "red", "style": "short", "details": ""},
@@ -398,7 +394,6 @@ class TestCharacterVisualExtractor(unittest.TestCase):
         self.assertEqual(result["outfit"]["default"], "")
 
     def test_generate_frozen_prompt_full_attributes(self):
-        from services.character_visual_extractor import CharacterVisualExtractor
         ext = self._make_extractor()
         attrs = {
             "hair": {"color": "black", "style": "long", "details": "wavy"},
@@ -853,7 +848,6 @@ class TestThreadPoolManager(unittest.TestCase):
 
     def test_active_count_increments_and_decrements(self):
         from services._thread_pool_impl import ThreadPoolManager
-        import time
         mgr = ThreadPoolManager()
         # Submit a slow task
         event = threading.Event()
@@ -1247,7 +1241,7 @@ class TestDBModelsImportAndStructure(unittest.TestCase):
 
     def test_import_all_models(self):
         from models.db_models import (
-            Base, User, Story, Chapter, PipelineRun, AuditLog, Feedback, Config, _uuid
+            Base, User, Story, Chapter, PipelineRun, AuditLog, Feedback, Config
         )
         self.assertIsNotNone(Base)
         self.assertIsNotNone(User)
@@ -1454,7 +1448,6 @@ class TestDBModelsImportAndStructure(unittest.TestCase):
 
     def test_table_args_index_user(self):
         from models.db_models import User
-        from sqlalchemy import Index
         index_names = {idx.name for idx in User.__table__.indexes}
         self.assertIn("ix_users_username", index_names)
 
@@ -1465,7 +1458,6 @@ class TestDBModelsImportAndStructure(unittest.TestCase):
 
     def test_table_args_unique_constraint_config(self):
         from models.db_models import Config
-        from sqlalchemy import UniqueConstraint
         constraints = {c.name for c in Config.__table__.constraints
                        if hasattr(c, 'name') and c.name}
         self.assertIn("uq_configs_key", constraints)

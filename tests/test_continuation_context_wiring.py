@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 from models.schemas import (
-    StoryDraft, Character, WorldSetting, ChapterOutline, Chapter,
+    StoryDraft, Character, Chapter,
     CharacterState, PlotEvent, StoryContext, ConflictEntry, ForeshadowingEntry,
     StoryBible,
 )

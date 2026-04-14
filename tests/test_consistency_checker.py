@@ -5,8 +5,7 @@ from unittest.mock import MagicMock
 from datetime import datetime
 
 from models.schemas import (
-    StoryDraft, Chapter, Character, CharacterState, PlotEvent,
-    ConsistencyIssue, ConsistencyReport,
+    StoryDraft, Chapter, Character, CharacterState, ConsistencyIssue, ConsistencyReport,
 )
 from pipeline.layer1_story.consistency_checker import (
     ConsistencyChecker, check_consistency,
@@ -192,7 +191,7 @@ class TestConsistencyChecker:
         checker = ConsistencyChecker()
         progress_msgs = []
 
-        report = checker.check_chapters(
+        checker.check_chapters(
             sample_draft, [2],
             progress_callback=lambda m: progress_msgs.append(m),
         )
@@ -364,7 +363,7 @@ class TestConsistencyInContinueFlow:
         ]
 
         progress_msgs = []
-        result = write_from_outlines(
+        write_from_outlines(
             generator=mock_gen,
             draft=draft,
             outlines=outlines,

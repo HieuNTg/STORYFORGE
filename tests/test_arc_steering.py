@@ -1,6 +1,5 @@
 """Tests for character arc steering feature (Phase 4)."""
 
-import json
 import pytest
 import pytest_asyncio
 from unittest.mock import MagicMock, patch

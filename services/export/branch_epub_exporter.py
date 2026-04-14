@@ -2,7 +2,6 @@
 
 import html as _html
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

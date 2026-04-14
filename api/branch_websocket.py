@@ -1,7 +1,6 @@
 """Branch WebSocket API — real-time multi-user collaboration."""
 
 import asyncio
-import json
 import logging
 from typing import Dict, Set
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect

@@ -1,7 +1,6 @@
 """Extract structured visual attributes from character descriptions for consistent image generation."""
 
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

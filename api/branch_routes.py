@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 import tempfile
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse

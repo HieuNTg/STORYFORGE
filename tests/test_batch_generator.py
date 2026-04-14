@@ -1,8 +1,6 @@
 """Tests for BatchChapterGenerator."""
 
-import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
-from dataclasses import dataclass, field
+from unittest.mock import MagicMock, patch
 
 from pipeline.layer1_story.batch_generator import BatchChapterGenerator, FrozenContext
 from models.schemas import StoryContext, StoryDraft, ChapterOutline, Chapter, WorldSetting

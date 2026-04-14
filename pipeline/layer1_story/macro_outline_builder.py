@@ -43,7 +43,9 @@ def generate_macro_arcs(
         model=model,
     )
     arcs = []
-    for a in result.get("macro_arcs", []):
+    # Handle LLM returning list directly instead of {macro_arcs} dict
+    arc_data = result if isinstance(result, list) else result.get("macro_arcs", [])
+    for a in arc_data:
         if isinstance(a, dict):
             try:
                 arcs.append(MacroArc(**a))

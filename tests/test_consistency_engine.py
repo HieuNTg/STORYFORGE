@@ -1,6 +1,5 @@
 """Tests for Layer 2 Consistency Engine (A-E improvements)."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 from pipeline.layer2_enhance.character_state_registry import (

@@ -1,8 +1,8 @@
 """Tests for services/web_reader_generator.py."""
 import pytest
 from unittest.mock import MagicMock
-from models.schemas import Chapter, StoryDraft, EnhancedStory
-from services.web_reader_generator import WebReaderGenerator, READER_WPM, MAX_WORDS
+from models.schemas import Chapter
+from services.web_reader_generator import WebReaderGenerator
 
 
 # ---------------------------------------------------------------------------

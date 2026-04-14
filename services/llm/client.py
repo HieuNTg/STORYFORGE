@@ -422,7 +422,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     entry, messages, effective_temp, eff_max_tokens, json_mode
                 )
                 if use_cache and cache is not None and cache_params is not None and result.strip():
-                    cache.put(result, **cache_params)
+                    # Cache with actual model used (may differ from primary)
+                    actual_model = entry.get("model", effective_model)
+                    cache.put(result, **{**cache_params, "model": actual_model})
                 return result
             except Exception as e:
                 all_errors.append(f"{entry['label']}: {_redact(e)}")
@@ -809,8 +811,8 @@ class LLMClient(StreamingMixin, GenerationMixin):
     ) -> str:
         """Generate using layer-specific provider configuration.
 
-        If layer has specific base_url/api_key configured, uses that provider directly.
-        Otherwise, delegates to standard generate() with layer model override.
+        If layer has specific base_url/api_key configured, prepends that provider
+        to the fallback chain. Otherwise, uses standard generate() with layer model.
 
         Args:
             layer: Pipeline layer (1 for story gen, 2 for drama analysis)
@@ -819,15 +821,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
         layer_cfg = self.get_layer_config(layer)
 
         if layer_cfg.is_layer_specific:
-            # Layer has dedicated provider — use it directly
-            cache_key = f"{layer_cfg.base_url}:{layer_cfg.api_key}"
-            with self._client_lock:
-                if cache_key not in self._providers_cache:
-                    self._providers_cache[cache_key] = _get_provider(
-                        layer_cfg.base_url, layer_cfg.api_key
-                    )
-                provider = self._providers_cache[cache_key]
-
+            # Layer has dedicated provider — prepend to fallback chain
             ConfigManager, _, LLMCache = _imports()
             config = ConfigManager()
             effective_temp = temperature if temperature is not None else config.llm.temperature
@@ -845,12 +839,72 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 {"role": "user", "content": user_prompt},
             ]
 
-            entry = {
-                "provider": provider,
+            # Build chain: layer provider first, then standard fallback chain
+            layer_provider = self._get_or_create_provider(layer_cfg.base_url, layer_cfg.api_key)
+            layer_entry = {
+                "provider": layer_provider,
                 "model": layer_cfg.model,
                 "label": f"layer{layer}:{layer_cfg.model}",
+                "_api_key": layer_cfg.api_key,
             }
-            return self._try_provider(entry, messages, effective_temp, eff_max_tokens, json_mode)
+
+            # Standard fallback chain as backup
+            fallback_chain = self._build_fallback_chain(config, "default", model_override=None)
+
+            # Full chain: layer-specific first, then fallbacks
+            chain = [layer_entry] + fallback_chain
+
+            # Use same retry logic as generate()
+            from services.llm.retry import _redact, _detect_provider, _should_retry, _is_transient, parse_openrouter_reset
+
+            all_errors = []
+            skip_keys: set[str] = set()
+            account_rl_reset: float | None = None
+            fm = get_fallback_manager()
+
+            for entry in chain:
+                entry_key = entry.get("_api_key", "")
+                if entry_key and entry_key in skip_keys:
+                    all_errors.append(f"{entry['label']}: skipped (account rate-limited)")
+                    continue
+                try:
+                    return self._try_provider(entry, messages, effective_temp, eff_max_tokens, json_mode)
+                except Exception as e:
+                    all_errors.append(f"{entry['label']}: {_redact(e)}")
+                    pobj = entry.get("provider")
+                    provider_url = getattr(pobj, "base_url", None)
+                    provider_type = _detect_provider(str(provider_url) if provider_url else "")
+                    should_try_next, suggested_delay = _should_retry(e, provider_type)
+
+                    model_name = entry.get("model", "")
+                    if model_name and not _is_transient(e):
+                        fm.mark_unhealthy(model_name)
+
+                    if entry_key:
+                        err_str = str(e)
+                        if "429" in err_str:
+                            if provider_type == "openrouter" and self._is_account_rate_limit(err_str):
+                                reset_delta = parse_openrouter_reset(err_str)
+                                cooldown = reset_delta if reset_delta is not None else 300.0
+                                if reset_delta is not None:
+                                    account_rl_reset = min(account_rl_reset, reset_delta) if account_rl_reset else reset_delta
+                                self._mark_rate_limited(entry_key, cooldown)
+                                skip_keys.add(entry_key)
+                            elif provider_type == "openrouter":
+                                self._mark_model_rate_limited(model_name, entry_key, 90.0)
+                            else:
+                                self._mark_rate_limited(entry_key, suggested_delay or 60.0)
+                        elif "404" in err_str and provider_type == "openrouter":
+                            self._mark_model_rate_limited(model_name, entry_key, 600.0)
+
+                    if not should_try_next and not _is_transient(e):
+                        raise
+                    logger.warning(f"Provider {entry['label']} failed, trying next...")
+
+            hint = self._build_exhaustion_hint(account_rl_reset, chain)
+            error_msg = "; ".join(all_errors)
+            logger.error(f"All LLM providers failed for layer {layer}: {hint} | details: {error_msg}")
+            raise RuntimeError(f"All LLM providers failed for layer {layer}. {hint}")
 
         # No layer-specific provider — use standard generate with model override
         return self.generate(

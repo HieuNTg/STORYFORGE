@@ -1,8 +1,8 @@
 """Tests for Phase 2.1 zero-cost quality: stale threads, chapter hooks, emotional arc tracking."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from models.schemas import (
-    StoryContext, StructuredSummary, PlotThread, Chapter, ChapterOutline, StoryDraft,
+    StoryContext, StructuredSummary, PlotThread, ChapterOutline,
 )
 from pipeline.layer1_story.plot_thread_tracker import get_stale_threads
 from pipeline.layer1_story.structured_summary_extractor import extract_structured_summary

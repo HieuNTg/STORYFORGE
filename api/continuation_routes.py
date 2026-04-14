@@ -10,12 +10,12 @@ import shutil
 import time
 import uuid
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from api.pipeline_output_builder import build_output_summary
-from models.schemas import ArcDirective, PathPreview, ChapterOutline
+from models.schemas import ArcDirective, ChapterOutline
 from api.pipeline_routes import (
     _active_tasks,
     _orchestrators_lock,
@@ -471,7 +471,6 @@ async def regenerate_chapter(request: Request, body: RegenerateChapterRequest):
 async def generate_outlines(body: OutlinePreviewRequest):
     """Generate continuation outlines for preview/editing (fast JSON response)."""
     from fastapi.responses import JSONResponse
-    from models.schemas import ChapterOutline
 
     checkpoint_path = _resolve_checkpoint(body.checkpoint)
     if checkpoint_path is None:
@@ -525,8 +524,9 @@ async def write_from_outlines_endpoint(request: Request, body: OutlineWriteReque
     try:
         outlines = [ChapterOutline(**o) for o in body.outlines]
     except Exception as e:
+        err_msg = str(e)  # Capture error message before closure
         async def _err():
-            yield f"data: {json.dumps({'type': 'error', 'data': f'Invalid outlines: {e}'})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'data': f'Invalid outlines: {err_msg}'})}\n\n"
         return StreamingResponse(
             _err(),
             media_type="text/event-stream",
@@ -1006,12 +1006,17 @@ async def collaborative_chapter(body: CollaborativeChapterRequest):
     - medium: + Prose enhancement, pacing adjustments
     - heavy: + Scene expansion, deeper character voice (still preserves user intent)
     """
-    session_id = _extract_session_id(body.checkpoint)
-    if session_id not in ACTIVE_SESSIONS:
-        raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+    checkpoint_path = _resolve_checkpoint(body.checkpoint)
+    if checkpoint_path is None:
+        raise HTTPException(status_code=404, detail="Checkpoint not found")
 
-    sess = ACTIVE_SESSIONS[session_id]
-    cont = sess["continuation"]
+    orch = PipelineOrchestrator()
+    draft = orch.continuation.load_from_checkpoint(str(checkpoint_path))
+    if draft is None:
+        raise HTTPException(status_code=404, detail="Failed to load checkpoint")
+
+    session_id = str(uuid.uuid4())
+    cont = orch.continuation
 
     if body.polish_level not in ("light", "medium", "heavy"):
         raise HTTPException(
@@ -1019,7 +1024,7 @@ async def collaborative_chapter(body: CollaborativeChapterRequest):
             detail=f"Invalid polish_level '{body.polish_level}'. Must be 'light', 'medium', or 'heavy'",
         )
 
-    msg_queue: queue.Queue = queue.Queue()
+    msg_queue: _queue.Queue = _queue.Queue()
 
     def progress_cb(msg: str):
         msg_queue.put(msg)
@@ -1103,14 +1108,19 @@ async def check_consistency(body: ConsistencyCheckRequest):
 
     Returns a ConsistencyReport with detected issues and suggested fixes.
     """
-    session_id = _extract_session_id(body.checkpoint)
-    if session_id not in ACTIVE_SESSIONS:
-        raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+    checkpoint_path = _resolve_checkpoint(body.checkpoint)
+    if checkpoint_path is None:
+        raise HTTPException(status_code=404, detail="Checkpoint not found")
 
-    sess = ACTIVE_SESSIONS[session_id]
-    cont = sess["continuation"]
+    orch = PipelineOrchestrator()
+    draft = orch.continuation.load_from_checkpoint(str(checkpoint_path))
+    if draft is None:
+        raise HTTPException(status_code=404, detail="Failed to load checkpoint")
 
-    msg_queue: queue.Queue = queue.Queue()
+    session_id = str(uuid.uuid4())
+    cont = orch.continuation
+
+    msg_queue: _queue.Queue = _queue.Queue()
 
     def progress_cb(msg: str):
         msg_queue.put(msg)

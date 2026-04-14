@@ -2,7 +2,6 @@
 
 from unittest.mock import MagicMock
 
-import pytest
 
 from pipeline.layer2_enhance.causal_chain import (
     CausalEvent, CausalGraph, record_revelation_event, audit_revelation_causality,

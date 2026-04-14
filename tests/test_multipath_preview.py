@@ -1,6 +1,5 @@
 """Tests for multi-path preview feature (Phase 5)."""
 
-import json
 import pytest
 import pytest_asyncio
 from unittest.mock import MagicMock, patch

@@ -1,0 +1,36 @@
+# docker-compose.staging.yml
+# Staging deployment for StoryForge (port 7861)
+# Usage: docker compose -f docker-compose.staging.yml up -d
+
+services:
+  storyforge-staging:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "7861:7860"
+    env_file: .env.staging
+    environment:
+      - STORYFORGE_QUALITY_GATE=true
+      - STORYFORGE_SMART_REVISION=true
+      - STORYFORGE_AGENT_DEBATE=true
+      - LOG_FORMAT=json
+    volumes:
+      - storyforge-staging-data:/app/data
+      - storyforge-staging-output:/app/output
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  storyforge-staging-data:
+  storyforge-staging-output:
