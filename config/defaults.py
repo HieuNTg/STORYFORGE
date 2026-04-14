@@ -26,8 +26,13 @@ class LLMConfig:
     fallback_max_latency_ms: int = 5000   # Switch model if avg latency exceeds this
     fallback_max_cost_per_1k: float = 0.01  # Skip fallback models above this cost/1k tokens
     # Per-layer model routing (optional, falls back to primary model)
+    # Each layer can use a different provider/model combination
     layer1_model: str = ""  # Story generation
+    layer1_base_url: str = ""  # Empty = use primary base_url
+    layer1_api_key: str = ""  # Empty = use primary api_key
     layer2_model: str = ""  # Drama analysis
+    layer2_base_url: str = ""  # Empty = use primary base_url
+    layer2_api_key: str = ""  # Empty = use primary api_key
 
 
 @dataclass

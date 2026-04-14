@@ -1281,6 +1281,41 @@ class TestLLMClient:
             result = client.model_for_layer(99)
         assert result == "fallback-model"
 
+    def test_get_layer_config_with_layer_specific_provider(self):
+        from services.llm.client import LLMClient, LayerConfig
+        with patch("services.llm_client.ConfigManager") as MockCM, \
+             patch("services.llm_client.LLMCache") as MockCache:
+            mock_cm = _mock_config_manager()
+            mock_cm.llm.layer1_model = "claude-3-opus"
+            mock_cm.llm.layer1_base_url = "https://api.anthropic.com/v1"
+            mock_cm.llm.layer1_api_key = "sk-ant-key"
+            MockCM.return_value = mock_cm
+            MockCache.return_value = MagicMock()
+            client = LLMClient()
+            cfg = client.get_layer_config(1)
+        assert isinstance(cfg, LayerConfig)
+        assert cfg.model == "claude-3-opus"
+        assert cfg.base_url == "https://api.anthropic.com/v1"
+        assert cfg.api_key == "sk-ant-key"
+        assert cfg.is_layer_specific is True
+
+    def test_get_layer_config_falls_back_to_primary(self):
+        from services.llm.client import LLMClient, LayerConfig
+        with patch("services.llm_client.ConfigManager") as MockCM, \
+             patch("services.llm_client.LLMCache") as MockCache:
+            mock_cm = _mock_config_manager()
+            mock_cm.llm.layer1_model = ""
+            mock_cm.llm.layer1_base_url = ""
+            mock_cm.llm.layer1_api_key = ""
+            MockCM.return_value = mock_cm
+            MockCache.return_value = MagicMock()
+            client = LLMClient()
+            client._current_model = "gpt-4o-mini"
+            cfg = client.get_layer_config(1)
+        assert isinstance(cfg, LayerConfig)
+        assert cfg.model == "gpt-4o-mini"
+        assert cfg.is_layer_specific is False
+
     def test_mark_rate_limited(self):
         from services.llm.client import LLMClient
         with patch("services.llm_client.ConfigManager") as MockCM, \

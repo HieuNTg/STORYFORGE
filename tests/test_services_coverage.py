@@ -518,6 +518,62 @@ class TestModelFallback:
         manager.record_latency("gpt-4o-mini", 200.0)
         assert "gpt-4o-mini" in manager._latency_samples
 
+    def test_should_skip_model_healthy(self):
+        from services.llm.model_fallback import ModelFallbackManager
+        manager = ModelFallbackManager(max_latency_ms=5000, max_cost_per_1k=0.01)
+        skip, reason = manager.should_skip_model("gpt-4o-mini")
+        assert skip is False
+        assert reason == ""
+
+    def test_should_skip_model_unhealthy(self):
+        from services.llm.model_fallback import ModelFallbackManager
+        manager = ModelFallbackManager()
+        manager.mark_unhealthy("gpt-4o-mini")
+        skip, reason = manager.should_skip_model("gpt-4o-mini")
+        assert skip is True
+        assert "unhealthy" in reason
+
+    def test_should_skip_model_high_latency(self):
+        from services.llm.model_fallback import ModelFallbackManager
+        manager = ModelFallbackManager(max_latency_ms=1000)
+        # Record high latency samples
+        for _ in range(10):
+            manager.record_latency("slow-model", 2000.0)
+        skip, reason = manager.should_skip_model("slow-model")
+        assert skip is True
+        assert "latency" in reason
+
+    def test_should_skip_model_high_cost(self):
+        from services.llm.model_fallback import ModelFallbackManager
+        manager = ModelFallbackManager(max_cost_per_1k=0.01)
+        skip, reason = manager.should_skip_model("expensive-model", cost_per_1k=0.05)
+        assert skip is True
+        assert "cost" in reason
+
+    def test_update_thresholds(self):
+        from services.llm.model_fallback import ModelFallbackManager
+        manager = ModelFallbackManager(max_latency_ms=5000, max_cost_per_1k=0.01)
+        manager.update_thresholds(max_latency_ms=10000, max_cost_per_1k=0.02)
+        assert manager._max_latency_ms == 10000
+        assert manager._max_cost_per_1k == 0.02
+
+    def test_get_stats(self):
+        from services.llm.model_fallback import ModelFallbackManager
+        manager = ModelFallbackManager()
+        manager.record_latency("test-model", 100.0)
+        manager.mark_healthy("test-model")
+        stats = manager.get_stats()
+        assert "health_cache" in stats
+        assert "latency_samples" in stats
+        assert "max_latency_ms" in stats
+
+    def test_singleton_get_fallback_manager(self):
+        from services.llm.model_fallback import get_fallback_manager, reset_fallback_manager
+        reset_fallback_manager()
+        fm1 = get_fallback_manager()
+        fm2 = get_fallback_manager()
+        assert fm1 is fm2
+
 
 # ============================================================
 # services.structured_output

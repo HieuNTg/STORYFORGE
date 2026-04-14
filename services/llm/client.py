@@ -6,6 +6,7 @@ import re
 import sqlite3
 import time
 import threading
+from dataclasses import dataclass
 from typing import Optional
 from services.llm.retry import (
     MAX_RETRIES, BASE_DELAY,
@@ -14,8 +15,18 @@ from services.llm.retry import (
 )
 from services.llm.streaming import StreamingMixin
 from services.llm.generation import GenerationMixin
+from services.llm.model_fallback import get_fallback_manager
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class LayerConfig:
+    """Configuration for a specific pipeline layer."""
+    model: str
+    base_url: str
+    api_key: str
+    is_layer_specific: bool = False  # True if using layer-specific provider
 
 
 # Explicit OpenRouter → Kyma model mapping (Kyma uses different naming)
@@ -202,6 +213,15 @@ class LLMClient(StreamingMixin, GenerationMixin):
             config = ConfigManager()
             if config.llm.cache_enabled:
                 LLMCache(ttl_days=config.llm.cache_ttl_days).evict_expired()
+            # Initialize fallback manager with config thresholds
+            fm = get_fallback_manager(
+                max_latency_ms=getattr(config.llm, "fallback_max_latency_ms", 5000),
+                max_cost_per_1k=getattr(config.llm, "fallback_max_cost_per_1k", 0.01),
+            )
+            fm.update_thresholds(
+                max_latency_ms=getattr(config.llm, "fallback_max_latency_ms", 5000),
+                max_cost_per_1k=getattr(config.llm, "fallback_max_cost_per_1k", 0.01),
+            )
         except (OSError, sqlite3.Error):
             pass
 
@@ -231,19 +251,61 @@ class LLMClient(StreamingMixin, GenerationMixin):
 
         Falls back to primary model if layer-specific model not configured.
         Normalizes model name to match the primary provider format.
+
+        For full provider info (model + base_url + api_key), use get_layer_config().
+        """
+        return self.get_layer_config(layer).model
+
+    def get_layer_config(self, layer: int) -> LayerConfig:
+        """Return full configuration for a pipeline layer.
+
+        Returns LayerConfig with model, base_url, api_key for the layer.
+        Falls back to primary config if layer-specific settings not configured.
         """
         ConfigManager, _, _ = _imports()
         config = ConfigManager()
         primary_model = self._current_model or config.llm.model
-        layer_map = {
-            1: config.llm.layer1_model,
-            2: config.llm.layer2_model,
+        primary_base_url = config.llm.base_url
+        primary_api_key = config.llm.api_key
+
+        # Layer-specific config lookup
+        layer_config_map = {
+            1: {
+                "model": getattr(config.llm, "layer1_model", ""),
+                "base_url": getattr(config.llm, "layer1_base_url", ""),
+                "api_key": getattr(config.llm, "layer1_api_key", ""),
+            },
+            2: {
+                "model": getattr(config.llm, "layer2_model", ""),
+                "base_url": getattr(config.llm, "layer2_base_url", ""),
+                "api_key": getattr(config.llm, "layer2_api_key", ""),
+            },
         }
-        layer_model = layer_map.get(layer, "")
-        if not layer_model:
-            return primary_model
-        # Normalize to match provider format, fallback to primary if incompatible
-        return _normalize_model_for_provider(layer_model, config.llm.base_url, primary_model)
+
+        layer_cfg = layer_config_map.get(layer, {})
+        layer_model = layer_cfg.get("model", "")
+        layer_base_url = layer_cfg.get("base_url", "")
+        layer_api_key = layer_cfg.get("api_key", "")
+
+        # Determine if this is layer-specific or falling back to primary
+        is_layer_specific = bool(layer_model or layer_base_url or layer_api_key)
+
+        # Use layer-specific or fallback to primary
+        effective_model = layer_model or primary_model
+        effective_base_url = layer_base_url or primary_base_url
+        effective_api_key = layer_api_key or primary_api_key
+
+        # Normalize model name to match provider format
+        effective_model = _normalize_model_for_provider(
+            effective_model, effective_base_url, primary_model
+        )
+
+        return LayerConfig(
+            model=effective_model,
+            base_url=effective_base_url,
+            api_key=effective_api_key,
+            is_layer_specific=is_layer_specific,
+        )
 
     def _get_cheap_client(self):
         """Return (provider, model) for cheap/fast model tier."""
@@ -368,6 +430,13 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 provider_url = getattr(pobj, "base_url", None)
                 provider_type = _detect_provider(str(provider_url) if provider_url else "")
                 should_try_next, suggested_delay = _should_retry(e, provider_type)
+
+                # Mark model as unhealthy for fallback manager
+                fm = get_fallback_manager()
+                model_name = entry.get("model", "")
+                if model_name and not _is_transient(e):
+                    fm.mark_unhealthy(model_name)
+
                 if "_api_key" in entry:
                     err_str = str(e)
                     if "429" in err_str:
@@ -381,11 +450,11 @@ class LLMClient(StreamingMixin, GenerationMixin):
                             logger.warning("Account-level rate limit on key %s...%s — cooldown %.0fs, skipping remaining models",
                                            entry_key[:8], entry_key[-4:] if len(entry_key) > 8 else "", cooldown)
                         elif provider_type == "openrouter":
-                            self._mark_model_rate_limited(entry["model"], entry_key, 90.0)
+                            self._mark_model_rate_limited(model_name, entry_key, 90.0)
                         else:
                             self._mark_rate_limited(entry_key, suggested_delay or 60.0)
                     elif "404" in err_str and provider_type == "openrouter":
-                        self._mark_model_rate_limited(entry["model"], entry_key, 600.0)
+                        self._mark_model_rate_limited(model_name, entry_key, 600.0)
                 if not should_try_next and not _is_transient(e):
                     raise
                 logger.warning(f"Provider {entry['label']} failed, trying next...")
@@ -464,141 +533,143 @@ class LLMClient(StreamingMixin, GenerationMixin):
         """Detect OpenRouter account-level rate limits (not model-specific)."""
         return "free-models-per-day" in err_str or "free-models-per-min" in err_str
 
+    def _get_or_create_provider(self, base_url: str, api_key: str):
+        """Get cached provider or create new one. Single lock acquisition."""
+        cache_key = f"{base_url}:{api_key}"
+        with self._client_lock:
+            if cache_key not in self._providers_cache:
+                self._providers_cache[cache_key] = _get_provider(base_url, api_key)
+            return self._providers_cache[cache_key]
+
+    @staticmethod
+    def _detect_provider_type(base_url: str) -> str:
+        """Detect provider type from URL. Returns: openrouter, kyma, or other."""
+        url = base_url.lower()
+        if "openrouter" in url:
+            return "openrouter"
+        if "kymaapi.com" in url:
+            return "kyma"
+        return "other"
+
+    def _can_use_model(self, model: str, api_key: str, fm, cost: float = 0.0) -> tuple[bool, str]:
+        """Check if model can be used (not rate-limited, healthy, within cost)."""
+        if self._is_model_rate_limited(model, api_key):
+            return False, "rate_limited"
+        skip, reason = fm.should_skip_model(model, cost)
+        if skip:
+            return False, reason
+        return True, ""
+
+    def _add_to_chain(
+        self, chain: list, provider, model: str, label: str, api_key: str = ""
+    ) -> None:
+        """Add entry to chain."""
+        entry = {"provider": provider, "model": model, "label": label}
+        if api_key:
+            entry["_api_key"] = api_key
+        chain.append(entry)
+
     def _build_fallback_chain(self, config, model_tier: str, model_override: Optional[str] = None) -> list[dict]:
         chain = []
         api_key_entries = self._resolve_api_keys(config)
+        fm = get_fallback_manager()
 
-        # Collect free models for each provider type (they use different model ID formats)
+        # Resolve primary model
         default_model = self._current_model or config.llm.model
         raw_model = model_override or default_model
-        # Normalize model name to match primary provider format
         primary_model = _normalize_model_for_provider(raw_model, config.llm.base_url, default_model)
+
+        # Detect which provider types we have
+        provider_types = {self._detect_provider_type(e.get("base_url", "")) for e in api_key_entries}
+
+        # Lazy-load model lists
         openrouter_models: list[str] = []
         kyma_models: list[str] = []
-
-        if any("openrouter" in e.get("base_url", "").lower() for e in api_key_entries):
+        if "openrouter" in provider_types:
             openrouter_models = self._get_openrouter_free_models(config, primary_model)
-        if any("kymaapi.com" in e.get("base_url", "").lower() for e in api_key_entries):
+        if "kyma" in provider_types:
             kyma_models = self._get_kyma_models(config, primary_model)
 
+        # Cheap model first if requested
+        cheap_model_name = None
         if model_tier == "cheap" and config.llm.cheap_model:
-            # Cheap model on primary key first
             provider, cheap_model_name = self._get_cheap_client()
-            chain.append({"provider": provider, "model": cheap_model_name, "label": f"cheap:{cheap_model_name}"})
-        else:
-            cheap_model_name = None
+            self._add_to_chain(chain, provider, cheap_model_name, f"cheap:{cheap_model_name}")
 
-        # Round-robin all free models across ALL API keys
+        # Primary + round-robin models across all API keys
         for i, entry in enumerate(api_key_entries):
-            entry_url = entry.get("base_url", "").lower()
-            is_rr_provider = ("openrouter" in entry_url) or ("kymaapi.com" in entry_url)
-            if not is_rr_provider:
-                # Non-OpenRouter key: only add primary model
-                cache_key = f"{entry['base_url']}:{entry['api_key']}"
-                with self._client_lock:
-                    if cache_key not in self._providers_cache:
-                        self._providers_cache[cache_key] = _get_provider(
-                            entry["base_url"], entry["api_key"]
-                        )
-                prov = self._providers_cache[cache_key]
-                api_key = entry["api_key"]
-                key_label = "primary" if i == 0 else f"key-{i+1}"
-                if not self._is_model_rate_limited(primary_model, api_key):
-                    label = f"{key_label}:{primary_model}" if model_override else key_label
-                    chain.append({
-                        "provider": prov, "model": primary_model,
-                        "label": label, "_api_key": api_key,
-                    })
-                continue
-
-            cache_key = f"{entry['base_url']}:{entry['api_key']}"
-            with self._client_lock:
-                if cache_key not in self._providers_cache:
-                    self._providers_cache[cache_key] = _get_provider(
-                        entry["base_url"], entry["api_key"]
-                    )
-            prov = self._providers_cache[cache_key]
-            api_key = entry["api_key"]
+            base_url, api_key = entry["base_url"], entry["api_key"]
+            prov = self._get_or_create_provider(base_url, api_key)
             key_label = "primary" if i == 0 else f"key-{i+1}"
+            ptype = self._detect_provider_type(base_url)
 
-            # For non-cheap tier: primary model first on this key
-            if cheap_model_name is None and not self._is_model_rate_limited(primary_model, api_key):
-                label = f"{key_label}:{primary_model}" if model_override else key_label
-                chain.append({
-                    "provider": prov, "model": primary_model,
-                    "label": label, "_api_key": api_key,
-                })
+            # Add primary model (skip if cheap tier already added it)
+            if cheap_model_name is None:
+                can_use, reason = self._can_use_model(primary_model, api_key, fm)
+                if can_use:
+                    label = f"{key_label}:{primary_model}" if model_override else key_label
+                    self._add_to_chain(chain, prov, primary_model, label, api_key)
+                elif reason:
+                    logger.debug(f"Skipping {primary_model}: {reason}")
 
-            # Select correct model list for this provider
-            entry_models = kyma_models if "kymaapi.com" in entry_url else openrouter_models
+            # Round-robin for OpenRouter/Kyma
+            if ptype in ("openrouter", "kyma"):
+                models = kyma_models if ptype == "kyma" else openrouter_models
+                for model_name in models:
+                    if model_name in (primary_model, cheap_model_name):
+                        continue
+                    can_use, reason = self._can_use_model(model_name, api_key, fm)
+                    if can_use:
+                        self._add_to_chain(chain, prov, model_name, f"{key_label}:rr:{model_name}", api_key)
+                    elif reason:
+                        logger.debug(f"Skipping {model_name}: {reason}")
 
-            # All free models on this key (round-robin)
-            for fm in entry_models:
-                if fm == primary_model and cheap_model_name is None:
-                    continue  # already added above for non-cheap
-                if fm == cheap_model_name:
-                    continue  # already added as first entry
-                if self._is_model_rate_limited(fm, api_key):
-                    continue
-                chain.append({
-                    "provider": prov, "model": fm,
-                    "label": f"{key_label}:rr:{fm}", "_api_key": api_key,
-                })
-
+        # Cheap model as fallback (if not already first)
         if model_tier != "cheap" and config.llm.cheap_model:
             provider, model = self._get_cheap_client()
-            chain.append({"provider": provider, "model": model, "label": f"cheap:{model}"})
+            self._add_to_chain(chain, provider, model, f"cheap:{model}")
 
-        # Fallback keys: round-robin all free models on each fallback key too
+        # Configured fallback models
         existing_combos = {(c["model"], c.get("_api_key", "")) for c in chain}
         for fb in getattr(config.llm, 'fallback_models', []):
             fb_model = fb.get("model", "")
             if not fb_model or fb.get("enabled") is False:
                 continue
+
             fb_base = fb.get("base_url", config.llm.base_url)
             fb_key = fb.get("api_key", config.llm.api_key)
-            cache_key = f"{fb_base}:{fb_key}"
-            with self._client_lock:
-                if cache_key not in self._providers_cache:
-                    self._providers_cache[cache_key] = _get_provider(fb_base, fb_key)
-            fb_prov = self._providers_cache[cache_key]
-            fb_is_kyma = "kymaapi.com" in fb_base.lower()
-            fb_is_openrouter = "openrouter" in fb_base.lower()
-            fb_is_rr = fb_is_kyma or fb_is_openrouter
+            fb_cost = fb.get("cost_per_1k", 0.0)
+            fb_prov = self._get_or_create_provider(fb_base, fb_key)
+            ptype = self._detect_provider_type(fb_base)
 
-            # Add configured fallback model first
+            # Add configured fallback model
             if (fb_model, fb_key) not in existing_combos:
-                if not self._is_model_rate_limited(fb_model, fb_key):
-                    chain.append({
-                        "provider": fb_prov, "model": fb_model,
-                        "label": f"fallback:{fb_model}", "_api_key": fb_key,
-                    })
+                can_use, reason = self._can_use_model(fb_model, fb_key, fm, fb_cost)
+                if can_use:
+                    self._add_to_chain(chain, fb_prov, fb_model, f"fallback:{fb_model}", fb_key)
                     existing_combos.add((fb_model, fb_key))
+                elif reason:
+                    logger.debug(f"Skipping fallback {fb_model}: {reason}")
 
-            # Select correct model list for this fallback provider (lazy-load if needed)
-            if fb_is_kyma:
-                if not kyma_models:
+            # Round-robin on fallback OpenRouter/Kyma keys
+            if ptype in ("openrouter", "kyma"):
+                # Lazy-load if needed
+                if ptype == "kyma" and not kyma_models:
                     kyma_models = self._get_kyma_models(config, primary_model)
-                fb_models = kyma_models
-            elif fb_is_openrouter:
-                if not openrouter_models:
+                elif ptype == "openrouter" and not openrouter_models:
                     openrouter_models = self._get_openrouter_free_models(config, primary_model)
-                fb_models = openrouter_models
-            else:
-                fb_models = []
 
-            # Round-robin all models on this fallback key (OpenRouter/Kyma)
-            if fb_is_rr and fb_models:
-                for fm in fb_models:
-                    if (fm, fb_key) in existing_combos:
+                models = kyma_models if ptype == "kyma" else openrouter_models
+                for model_name in models:
+                    if (model_name, fb_key) in existing_combos:
                         continue
-                    if self._is_model_rate_limited(fm, fb_key):
-                        continue
-                    chain.append({
-                        "provider": fb_prov, "model": fm,
-                        "label": f"fallback:rr:{fm}", "_api_key": fb_key,
-                    })
-                    existing_combos.add((fm, fb_key))
+                    can_use, reason = self._can_use_model(model_name, fb_key, fm)
+                    if can_use:
+                        self._add_to_chain(chain, fb_prov, model_name, f"fallback:rr:{model_name}", fb_key)
+                        existing_combos.add((model_name, fb_key))
+                    elif reason:
+                        logger.debug(f"Skipping fallback {model_name}: {reason}")
+
         return chain
 
     def _get_openrouter_free_models(self, config, primary_model: str) -> list[str]:
@@ -650,8 +721,16 @@ class LLMClient(StreamingMixin, GenerationMixin):
         provider_type = _detect_provider(str(provider_url) if provider_url else "")
 
         def _call():
+            start_time = time.monotonic()
             result = provider.complete(messages, model, temperature, max_tokens, json_mode)
-            logger.info(f"LLM success via {entry['label']}")
+            latency_ms = (time.monotonic() - start_time) * 1000
+
+            # Track latency for fallback decisions
+            fm = get_fallback_manager()
+            fm.record_latency(model, latency_ms)
+            fm.mark_healthy(model)
+
+            logger.info(f"LLM success via {entry['label']} ({latency_ms:.0f}ms)")
             return result
 
         return self._retry_with_backoff(
@@ -715,6 +794,98 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 max_tokens=max_tokens,
                 model_tier=model_tier,
                 model=model,
+            ),
+        )
+
+    def generate_for_layer(
+        self,
+        layer: int,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        json_mode: bool = False,
+        budget_remaining: Optional[int] = None,
+    ) -> str:
+        """Generate using layer-specific provider configuration.
+
+        If layer has specific base_url/api_key configured, uses that provider directly.
+        Otherwise, delegates to standard generate() with layer model override.
+
+        Args:
+            layer: Pipeline layer (1 for story gen, 2 for drama analysis)
+            Other args same as generate()
+        """
+        layer_cfg = self.get_layer_config(layer)
+
+        if layer_cfg.is_layer_specific:
+            # Layer has dedicated provider — use it directly
+            cache_key = f"{layer_cfg.base_url}:{layer_cfg.api_key}"
+            with self._client_lock:
+                if cache_key not in self._providers_cache:
+                    self._providers_cache[cache_key] = _get_provider(
+                        layer_cfg.base_url, layer_cfg.api_key
+                    )
+                provider = self._providers_cache[cache_key]
+
+            ConfigManager, _, LLMCache = _imports()
+            config = ConfigManager()
+            effective_temp = temperature if temperature is not None else config.llm.temperature
+            eff_max_tokens = max_tokens or config.llm.max_tokens
+            if budget_remaining is not None:
+                eff_max_tokens = min(eff_max_tokens, budget_remaining)
+
+            from services.prompts import localize_prompt
+            lang = config.pipeline.language
+            system_prompt = localize_prompt(system_prompt, lang)
+            user_prompt = localize_prompt(user_prompt, lang)
+
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+
+            entry = {
+                "provider": provider,
+                "model": layer_cfg.model,
+                "label": f"layer{layer}:{layer_cfg.model}",
+            }
+            return self._try_provider(entry, messages, effective_temp, eff_max_tokens, json_mode)
+
+        # No layer-specific provider — use standard generate with model override
+        return self.generate(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            json_mode=json_mode,
+            model=layer_cfg.model,
+            budget_remaining=budget_remaining,
+        )
+
+    async def agenerate_for_layer(
+        self,
+        layer: int,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        json_mode: bool = False,
+        budget_remaining: Optional[int] = None,
+    ) -> str:
+        """Async wrapper around generate_for_layer()."""
+        import asyncio
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            lambda: self.generate_for_layer(
+                layer=layer,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                json_mode=json_mode,
+                budget_remaining=budget_remaining,
             ),
         )
 

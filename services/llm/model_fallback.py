@@ -2,6 +2,11 @@
 
 Selects the best available model based on health checks, latency thresholds,
 and cost constraints. Falls back through configured fallback_models list.
+
+Integrated with LLMClient for:
+- Latency tracking per model
+- Health status caching (30s TTL)
+- Cost-based filtering
 """
 
 import logging
@@ -13,6 +18,28 @@ logger = logging.getLogger(__name__)
 
 # Health cache TTL in seconds
 _HEALTH_TTL_SECONDS = 30
+
+# Singleton instance
+_instance: Optional["ModelFallbackManager"] = None
+_instance_lock = threading.Lock()
+
+
+def get_fallback_manager(
+    max_latency_ms: int = 5000, max_cost_per_1k: float = 0.01
+) -> "ModelFallbackManager":
+    """Get or create singleton ModelFallbackManager instance."""
+    global _instance
+    with _instance_lock:
+        if _instance is None:
+            _instance = ModelFallbackManager(max_latency_ms, max_cost_per_1k)
+        return _instance
+
+
+def reset_fallback_manager():
+    """Reset singleton (for tests)."""
+    global _instance
+    with _instance_lock:
+        _instance = None
 
 
 class ModelFallbackManager:
@@ -36,6 +63,14 @@ class ModelFallbackManager:
 
         # track why fallback was triggered
         self._last_fallback_reason: str = ""
+
+    def update_thresholds(self, max_latency_ms: int = None, max_cost_per_1k: float = None):
+        """Update thresholds dynamically (e.g., from config reload)."""
+        with self._lock:
+            if max_latency_ms is not None:
+                self._max_latency_ms = max_latency_ms
+            if max_cost_per_1k is not None:
+                self._max_cost_per_1k = max_cost_per_1k
 
     # ------------------------------------------------------------------
     # Public API
@@ -134,6 +169,41 @@ class ModelFallbackManager:
     def get_fallback_reason(self) -> str:
         """Return reason why fallback was triggered on last select_model call."""
         return self._last_fallback_reason
+
+    def should_skip_model(self, model: str, cost_per_1k: float = 0.0) -> tuple[bool, str]:
+        """Check if a model should be skipped in fallback chain.
+
+        Returns: (should_skip, reason)
+        """
+        # Health check
+        if not self._check_health(model):
+            return True, f"unhealthy:{model}"
+
+        # Latency check
+        avg_lat = self.get_avg_latency(model)
+        if avg_lat > 0 and avg_lat > self._max_latency_ms:
+            return True, f"latency:{model}:{avg_lat:.0f}ms>{self._max_latency_ms}ms"
+
+        # Cost check
+        if cost_per_1k > 0 and cost_per_1k > self._max_cost_per_1k:
+            return True, f"cost:{model}:{cost_per_1k}>${self._max_cost_per_1k}"
+
+        return False, ""
+
+    def clear_model_health(self, model: str):
+        """Clear health cache for a model (force re-evaluation)."""
+        with self._lock:
+            self._health_cache.pop(model, None)
+
+    def get_stats(self) -> dict:
+        """Return current health/latency stats for debugging."""
+        with self._lock:
+            return {
+                "health_cache": dict(self._health_cache),
+                "latency_samples": {k: list(v) for k, v in self._latency_samples.items()},
+                "max_latency_ms": self._max_latency_ms,
+                "max_cost_per_1k": self._max_cost_per_1k,
+            }
 
     # ------------------------------------------------------------------
     # Internal
