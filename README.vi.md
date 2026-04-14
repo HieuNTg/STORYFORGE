@@ -53,14 +53,41 @@ Hầu hết công cụ viết AI tạo ra những câu chuyện phẳng, dễ đ
 ### Engine Truyện
 - **Pipeline 2 lớp** — Tạo truyện → Mô phỏng kịch tính, có checkpoint & tiếp tục, streaming SSE thời gian thực
 - **13 tác nhân AI chuyên biệt** — nhân vật tự trị + nhà phê bình kịch tính, tổng biên tập, phân tích nhịp điệu, kiểm tra phong cách, chuyên gia hội thoại...
-- **Chấm điểm & tự sửa** — đánh giá LLM theo 4 chiều (mạch lạc, nhân vật, kịch tính, văn phong) với vòng lặp tự động nâng chất
-- **Tiếp tục truyện** — thêm chương mới vào truyện đã lưu từ checkpoint, tùy chỉnh số chương và số từ; tùy chọn chạy lại Layer 2 nâng chất toàn bộ truyện
+- **Chấm điểm & tự sửa** — đánh giá LLM theo 6 chiều (mạch lạc, nhân vật, kịch tính, văn phong, chiều sâu chủ đề, chất lượng hội thoại) với vòng lặp tự động nâng chất
 - **Bộ nhớ truyện tích lũy** — kiến thức nhân vật, mối quan hệ và tuyến truyện được tích lũy xuyên suốt các chương thay vì reset, đảm bảo tính liên tục cho truyện nhiều chương
 - **RAG knowledge base** — truy xuất ngữ cảnh xây dựng thế giới qua ChromaDB + sentence-transformers; tải file `.txt`, `.md`, hoặc `.pdf` tham khảo để làm giàu nội dung truyện
+
+### Tiếp Tục Truyện Nâng Cao
+- **Tiếp tục truyện** — thêm chương mới vào truyện đã lưu từ checkpoint, tùy chỉnh số chương và số từ; tùy chọn chạy lại Layer 2 nâng chất toàn bộ truyện
+- **Xem trước đa hướng** — xem trước nhiều hướng phát triển trước khi chọn một
+- **Điều hướng cung nhân vật** — hướng dẫn quỹ đạo phát triển nhân vật qua các chương mới
+- **Xem trước & viết từ outline** — tạo outline chương trước, rồi viết từ outline đã duyệt
+- **Chèn chương** — chèn chương mới giữa truyện với đánh số lại tự động
+- **Tái tạo chương chọn lọc** — tái tạo chương cụ thể mà không ảnh hưởng chương khác
+- **Chế độ cộng tác** — viết cộng tác người-AI với chương xen kẽ
+- **Sửa nhất quán hồi tố** — tự động sửa lỗi liên tục trong chương trước khi chương mới gây ra thay đổi
+
+### Layer 1 — Chất Lượng Tạo Truyện
+- **Hợp đồng chương** — yêu cầu từng chương với xác thực và lan truyền lỗi
+- **Mốc cung nhân vật** — cột mốc cung nhân vật với xác thực
+- **Chèn hội thoại** — chèn hội thoại tự nhiên và xác thực giọng nhất quán
+- **Hệ thống ngữ cảnh phân tầng** — quản lý ngữ cảnh 4 cấp ưu tiên cho truyện dài (đầy đủ/tóm tắt/điểm chính/tối thiểu)
+- **Liên kết tường thuật** — phụ thuộc tuyến, báo trước ngữ nghĩa, theo dõi leo thang xung đột
+- **Vòng phản hồi** — sửa nhịp điệu, xác thực địa điểm, phê bình chọn lọc
+- **Bộ nhớ cảm xúc** — theo dõi trạng thái cảm xúc nhân vật xuyên chương
+- **Đồ thị nhân quả** — theo dõi quan hệ nhân-quả để đảm bảo tính nhất quán cốt truyện
+
+### Layer 2 — Chất Lượng Mô Phỏng Kịch Tính
+- **Cổng hợp đồng** — xác thực từng chương với viết lại một lần khi thất bại
+- **Độ khẩn tuyến** — theo dõi áp lực tâm lý được nối vào hành vi tác nhân
+- **Trách nhiệm nhân quả** — sự kiện tiết lộ, lan truyền chứng nhân, trail kiểm toán LLM
+- **Ngữ cảnh tri thức** — prompt tác nhân được làm giàu với định dạng chuỗi nhân quả
+- **Tín hiệu chất lượng không chi phí** — phát hiện tuyến cũ, hook chương, theo dõi cung cảm xúc
 
 ### Đọc Nhánh Tương Tác
 - **Chọn-hướng-phiêu-lưu** — các nhánh sinh bởi LLM với streaming SSE thời gian thực
 - **Cây SVG tương tác** — bản đồ cây tất cả nhánh với điều hướng goto-node bấm được
+- **Gộp nhánh** — gộp các nhánh phân kỳ với phát hiện và giải quyết xung đột
 - **Giới hạn 10 tầng sâu** — tự động tạo kết thúc khi đạt độ sâu tối đa
 - **Lưu phiên** — trạng thái đọc nhánh lưu vào localStorage, giữ nguyên khi tải lại trang
 - **Chọn chương** — tải bất kỳ truyện nào từ pipeline hiện tại hoặc checkpoint đã lưu vào chế độ nhánh
@@ -70,14 +97,18 @@ Hầu hết công cụ viết AI tạo ra những câu chuyện phẳng, dễ đ
 - **Xuất phong phú** — PDF, EPUB, HTML web reader, ZIP với các chương và gợi ý hình ảnh
 
 ### LLM & Nhà Cung Cấp
-- **Hỗ trợ đa nhà cung cấp LLM** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ model), Ollama (local), hoặc endpoint tùy chỉnh; tự nhận diện nhà cung cấp từ API key
-- **Fallback đa nhà cung cấp** — cấu hình hồ sơ dự phòng tự động chuyển sang nhà cung cấp khác khi bị rate limit hoặc lỗi
+- **Hỗ trợ đa nhà cung cấp LLM** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ model), Kyma API, Ollama (local), hoặc endpoint tùy chỉnh; tự nhận diện nhà cung cấp từ API key
+- **Fallback đa nhà cung cấp** — cấu hình hồ sơ dự phòng tự động chuyển sang nhà cung cấp khác khi bị rate limit hoặc lỗi; tuân thủ header rate-limit reset
+- **Định tuyến model theo provider** — tự động điều chỉnh định dạng model cho từng provider trong chuỗi fallback
+- **Hỗ trợ auto-router** — để hệ thống chọn model tốt nhất cho từng tác vụ dựa trên đánh đổi chi phí/năng lực
 - **Định tuyến model thông minh** — model rẻ cho phân tích, model cao cấp cho viết (~45% tiết kiệm chi phí)
 - **Cache LLM tích hợp** — cache SQLite tránh gọi API lặp lại
 
 ### Giao Diện & Trải Nghiệm
 - **Trang pipeline thiết kế mới** — form Tạo Truyện hiện đại với hero cards, config pills, và form state lưu tự động
+- **Bật/tắt tạo hình ảnh** — bật/tắt tạo hình ảnh ngay từ trang Tạo Truyện
 - **Wizard cài đặt** — hướng dẫn từng bước chọn nhà cung cấp, nhập API key, chọn model với kiểm tra kết nối tự động
+- **Bật/tắt consistency** — bật/tắt module nhất quán Layer 1 từ giao diện
 - **Heroicons SVG** — thay thế toàn bộ emoji bằng Heroicons SVG sắc nét
 - **Giao diện Sáng / Tối** — chuyển đổi theme mượt mà với đồng bộ color-scheme toàn bộ trang
 - **Tiếng Việt & Tiếng Anh** — tạo truyện song ngữ ngay từ đầu
@@ -172,7 +203,7 @@ Mọi cài đặt được quản lý qua tab **Cài đặt** trong giao diện 
 
 Bất kỳ nhà cung cấp nào cung cấp endpoint `/v1/chat/completions` tương thích OpenAI đều hoạt động với StoryForge:
 
-**OpenAI** · **Google Gemini** · **Anthropic** · **OpenRouter** · **Ollama** · **Endpoint tùy chỉnh bất kỳ**
+**OpenAI** · **Google Gemini** · **Anthropic** · **OpenRouter** · **Kyma API** · **Ollama** · **Endpoint tùy chỉnh bất kỳ**
 
 ### Tùy chỉnh prompt tác nhân
 

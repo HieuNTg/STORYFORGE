@@ -53,14 +53,41 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 ### Story Engine
 - **2-layer pipeline** — Story Generation → Drama Simulation, with checkpoint & resume and real-time SSE streaming
 - **13 specialized AI agents** — autonomous character agents plus a drama critic, editor-in-chief, pacing analyzer, style consistency checker, dialogue expert, and more
-- **Quality scoring & auto-revision** — 4-dimension LLM-as-judge (coherence, character, drama, writing style) with an automated re-enhancement loop
-- **Continue story** — append new chapters to existing stories from saved checkpoints, with configurable chapter count and word count; optional Layer 2 re-enhancement on the full story
+- **Quality scoring & auto-revision** — 6-dimension LLM-as-judge (coherence, character, drama, writing style, thematic depth, dialogue quality) with an automated re-enhancement loop
 - **Cumulative story memory** — character knowledge, relationships, and plot threads accumulate across chapters instead of resetting, ensuring multi-chapter continuity
 - **RAG knowledge base** — optional world-building context retrieval via ChromaDB + sentence-transformers; upload `.txt`, `.md`, or `.pdf` reference files to enrich story generation
+
+### Advanced Story Continuation
+- **Continue story** — append new chapters to existing stories from saved checkpoints, with configurable chapter count and word count; optional Layer 2 re-enhancement on the full story
+- **Multi-path preview** — preview multiple continuation directions before committing to one
+- **Character arc steering** — guide character development trajectory across new chapters
+- **Outline preview & write** — generate chapter outlines first, then write from approved outlines
+- **Chapter insertion** — insert new chapters mid-story with automatic renumbering
+- **Selective chapter regeneration** — regenerate specific chapters without affecting others
+- **Collaborative mode** — human-AI collaborative writing with turn-based chapter authoring
+- **Retroactive consistency fix** — automatically fix continuity errors in earlier chapters when new chapters introduce changes
+
+### Layer 1 — Story Generation Quality
+- **Chapter contracts** — per-chapter requirements with validation and failure propagation
+- **Arc waypoints** — character arc milestones with validation
+- **Dialogue injection** — natural dialogue insertion and voice consistency validation
+- **Tiered context system** — 4-level priority context management for long stories (full/summary/key-points/minimal)
+- **Narrative linking** — thread dependencies, semantic foreshadowing, conflict escalation tracking
+- **Feedback loops** — pacing correction, location validation, selective critique
+- **Emotional memory** — character emotional state tracking across chapters
+- **Causal graph** — cause-effect relationship tracking for plot consistency
+
+### Layer 2 — Drama Simulation Quality
+- **Contract gate** — per-chapter validation with single-retry rewrite on failure
+- **Thread urgency** — psychological pressure tracking wired into agent behavior
+- **Causal accountability** — revelation events, witness propagation, LLM audit trail
+- **Knowledge context** — agent prompts enriched with causal chain formatting
+- **Zero-cost quality signals** — stale thread detection, chapter hooks, emotional arc tracking
 
 ### Interactive Branch Reader
 - **Choose-your-own-adventure** — LLM-generated branching paths with real-time SSE streaming
 - **SVG tree visualization** — interactive tree map of all branches with clickable goto-node navigation
+- **Branch merging** — merge divergent branches back together with conflict detection and resolution
 - **10-level depth limit** — automatic ending generation when maximum depth is reached
 - **Session persistence** — branch reader state saved to localStorage, survives page refresh
 - **Chapter selection** — load any story from the current pipeline or saved checkpoints into branch mode
@@ -70,14 +97,18 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 - **Rich export** — PDF, EPUB, HTML web reader, and ZIP with chapters and image prompts
 
 ### LLM & Providers
-- **Multi-provider LLM support** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ models), Ollama (local), or any custom OpenAI-compatible endpoint; auto-detect provider from API key
-- **Multi-provider fallback** — configure fallback profiles that auto-switch between providers on rate limit or failure
+- **Multi-provider LLM support** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ models), Kyma API, Ollama (local), or any custom OpenAI-compatible endpoint; auto-detect provider from API key
+- **Multi-provider fallback** — configure fallback profiles that auto-switch between providers on rate limit or failure; honors rate-limit reset headers
+- **Provider-aware model routing** — automatic model format adaptation per provider in fallback chains
+- **Auto-router support** — let the system pick the best model for each task based on cost/capability tradeoffs
 - **Smart model routing** — assign cheap models to analysis tasks and premium models to writing (~45% cost savings)
 - **Built-in LLM cache** — SQLite-backed cache to avoid redundant API calls
 
 ### UI & Experience
 - **Redesigned pipeline page** — modernized Create Story form with hero cards, config pills, and persistent form state
+- **Image generation toggle** — enable/disable image generation from the Create Story page
 - **Settings wizard** — guided multi-step provider setup with provider-specific model lists, API key masking, and connection testing
+- **Consistency toggle** — enable/disable Layer 1 consistency modules from the UI
 - **Heroicons SVG icons** — all emoji icons replaced with crisp Heroicons SVGs
 - **Dark / Light mode** — polished theme toggle with full color-scheme sync across all pages
 - **Vietnamese & English** — bilingual story generation out of the box
@@ -172,7 +203,7 @@ All settings are managed through the **Settings** tab in the web UI and persiste
 
 Any provider that exposes an OpenAI-compatible `/v1/chat/completions` endpoint works with StoryForge:
 
-**OpenAI** · **Google Gemini** · **Anthropic** · **OpenRouter** · **Ollama** · **Any custom endpoint**
+**OpenAI** · **Google Gemini** · **Anthropic** · **OpenRouter** · **Kyma API** · **Ollama** · **Any custom endpoint**
 
 ### Customizing Agent Prompts
 
