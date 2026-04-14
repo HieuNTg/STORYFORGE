@@ -41,11 +41,35 @@ def generate_characters(
     characters = []
     for c in result.get("characters", []):
         if isinstance(c, dict):
+            # Normalize relationships: handle string, None, list[str], or list[dict]
             rel = c.get("relationships")
             if isinstance(rel, str):
                 c["relationships"] = [s.strip() for s in rel.split(",") if s.strip()] if "," in rel else [rel] if rel.strip() else []
+            elif isinstance(rel, list):
+                # Convert list[dict] to list[str] if needed
+                normalized = []
+                for r in rel:
+                    if isinstance(r, dict):
+                        # Extract meaningful string from dict: "{character}: {description/relation}"
+                        char_name = r.get("character", r.get("name", ""))
+                        desc = r.get("description", r.get("relation", r.get("relationship", "")))
+                        if char_name and desc:
+                            normalized.append(f"{char_name}: {desc}")
+                        elif char_name:
+                            normalized.append(char_name)
+                        elif desc:
+                            normalized.append(desc)
+                    elif isinstance(r, str) and r.strip():
+                        normalized.append(r.strip())
+                c["relationships"] = normalized
             elif rel is None:
                 c["relationships"] = []
+
+            # Ensure personality field exists (required by model)
+            if "personality" not in c or not c.get("personality"):
+                # Try fallback fields
+                c["personality"] = c.get("traits", c.get("character_traits", c.get("description", "Chưa xác định")))
+
             try:
                 characters.append(Character(**c))
             except Exception as e:

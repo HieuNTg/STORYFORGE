@@ -17,7 +17,17 @@ class Character(BaseModel):
     """Nhân vật trong truyện."""
     name: str = Field(description="Tên nhân vật")
     role: str = Field(description="Vai trò: chính/phụ/phản diện")
-    personality: str = Field(description="Tính cách")
+    personality: str = Field(default="Chưa xác định", description="Tính cách")
+
+    @field_validator("personality", mode="before")
+    @classmethod
+    def _coerce_personality(cls, v):
+        """Ensure personality is never empty."""
+        if v and isinstance(v, str) and v.strip():
+            return v.strip()
+        if isinstance(v, list):
+            return ", ".join(str(x) for x in v if x)
+        return "Chưa xác định"
     background: str = Field(default="", description="Tiểu sử")
     motivation: str = Field(default="", description="Động lực")
     appearance: str = Field(default="", description="Ngoại hình")
@@ -33,7 +43,7 @@ class Character(BaseModel):
     @field_validator("relationships", mode="before")
     @classmethod
     def _coerce_relationships(cls, v):
-        """LLM sometimes returns a string instead of list — coerce robustly."""
+        """LLM sometimes returns a string or list[dict] instead of list[str] — coerce robustly."""
         if isinstance(v, str):
             if not v.strip():
                 return []
@@ -45,6 +55,22 @@ class Character(BaseModel):
             return [v.strip()]
         if v is None:
             return []
+        if isinstance(v, list):
+            # Handle list[dict] format: [{"character": "X", "description": "..."}]
+            normalized = []
+            for item in v:
+                if isinstance(item, dict):
+                    char_name = item.get("character", item.get("name", ""))
+                    desc = item.get("description", item.get("relation", item.get("relationship", "")))
+                    if char_name and desc:
+                        normalized.append(f"{char_name}: {desc}")
+                    elif char_name:
+                        normalized.append(str(char_name))
+                    elif desc:
+                        normalized.append(str(desc))
+                elif isinstance(item, str) and item.strip():
+                    normalized.append(item.strip())
+            return normalized
         return v
 
 

@@ -26,6 +26,9 @@ def suggest_titles(
         ),
         model=model,
     )
+    # Handle LLM returning list directly instead of {titles} dict
+    if isinstance(result, list):
+        return result
     return result.get("titles", [])
 
 
@@ -60,7 +63,47 @@ def generate_world(
         user_prompt=world_prompt,
         model=model,
     )
+    # Handle LLM returning list instead of dict - take first element
+    if isinstance(result, list):
+        logger.warning("LLM returned list instead of dict for world, using first element")
+        result = result[0] if result else {}
     return WorldSetting(**result)
+
+
+def _parse_outline_response(result) -> tuple[str, list[ChapterOutline]]:
+    """Parse LLM response into synopsis and outlines, handling various formats."""
+    # Handle LLM returning list directly instead of {synopsis, outlines} dict
+    if isinstance(result, list):
+        logger.warning("LLM returned list instead of dict, assuming direct outlines array (len=%d)", len(result))
+        synopsis = ""
+        outline_data = result
+    else:
+        synopsis = result.get("synopsis", "")
+        outline_data = result.get("outlines", [])
+
+    # Parse outlines with error handling
+    outlines = []
+    for i, o in enumerate(outline_data):
+        if not isinstance(o, dict):
+            logger.warning("Outline item %d is not a dict: %s", i, type(o).__name__)
+            continue
+        try:
+            # Ensure required fields exist with fallbacks
+            if "chapter_number" not in o:
+                o["chapter_number"] = i + 1
+            if "title" not in o:
+                o["title"] = f"Chương {o['chapter_number']}"
+            if "summary" not in o:
+                o["summary"] = o.get("description", o.get("content", ""))
+            outlines.append(ChapterOutline(**o))
+        except Exception as e:
+            logger.warning("Failed to parse outline %d: %s. Keys: %s", i, e, list(o.keys()) if isinstance(o, dict) else "N/A")
+
+    # Debug: log raw data if we got 0 outlines from non-empty input
+    if not outlines and outline_data:
+        logger.error("Got 0 valid outlines from %d items. Sample: %s", len(outline_data), str(outline_data[0])[:500])
+
+    return synopsis, outlines
 
 
 def generate_outline(
@@ -95,14 +138,26 @@ def generate_outline(
             user_prompt = arcs_context + user_prompt
         except Exception as e:
             logger.warning("Failed to inject macro arcs into outline prompt: %s", e)
-    result = llm.generate_json(
-        system_prompt="Bạn là biên kịch tài năng. BẮT BUỘC viết bằng tiếng Việt. Trả về JSON.",
-        user_prompt=user_prompt,
-        temperature=0.9,
-        model=model,
+    synopsis, outlines = _parse_outline_response(
+        llm.generate_json(
+            system_prompt="Bạn là biên kịch tài năng. BẮT BUỘC viết bằng tiếng Việt. Trả về JSON.",
+            user_prompt=user_prompt,
+            temperature=0.9,
+            model=model,
+        )
     )
-    synopsis = result.get("synopsis", "")
-    outlines = [ChapterOutline(**o) for o in result.get("outlines", [])]
+
+    # Retry once with lower temp if we got nothing
+    if not outlines:
+        logger.warning("First outline attempt returned 0 valid outlines, retrying with lower temperature")
+        synopsis, outlines = _parse_outline_response(
+            llm.generate_json(
+                system_prompt="Bạn là biên kịch tài năng. BẮT BUỘC viết bằng tiếng Việt. Trả về JSON với cấu trúc {\"synopsis\": \"...\", \"outlines\": [...]}",
+                user_prompt=user_prompt,
+                temperature=0.7,
+                model=model,
+            )
+        )
 
     # Validate outline count matches requested num_chapters
     if len(outlines) < num_chapters:
@@ -179,7 +234,8 @@ Trả về JSON:
             temperature=0.8,
             model=model,
         )
-        new_outlines = [ChapterOutline(**o) for o in result.get("outlines", [])]
+        # Reuse parser helper for consistent handling
+        _, new_outlines = _parse_outline_response(result)
         all_outlines = list(existing_outlines) + new_outlines
         all_outlines.sort(key=lambda x: x.chapter_number)
 
