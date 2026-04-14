@@ -3,11 +3,269 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
-from models.schemas import ChapterOutline, StoryDraft
+from models.schemas import Chapter, ChapterOutline, StoryDraft
 from services import prompts
 from pipeline.layer1_story.post_processing import process_chapter_post_write
 
 logger = logging.getLogger(__name__)
+
+
+def renumber_chapters(draft: StoryDraft, from_position: int, delta: int = 1) -> None:
+    """Renumber chapters and all references from a position onward.
+
+    Args:
+        draft: StoryDraft to modify in-place
+        from_position: Chapters with number >= this get incremented
+        delta: Amount to increment (default 1 for insertion)
+    """
+    # Renumber chapters
+    for ch in draft.chapters:
+        if ch.chapter_number >= from_position:
+            ch.chapter_number += delta
+
+    # Renumber outlines
+    for outline in draft.outlines:
+        if outline.chapter_number >= from_position:
+            outline.chapter_number += delta
+
+    # Update plot_events chapter references
+    for event in draft.plot_events:
+        if event.chapter_number >= from_position:
+            event.chapter_number += delta
+
+    # Update foreshadowing plant/payoff chapters
+    foreshadowing = getattr(draft, 'foreshadowing_plan', None) or []
+    for f in foreshadowing:
+        if hasattr(f, 'plant_chapter') and f.plant_chapter >= from_position:
+            f.plant_chapter += delta
+        if hasattr(f, 'payoff_chapter') and f.payoff_chapter >= from_position:
+            f.payoff_chapter += delta
+
+    # Update open_threads chapter references
+    threads = getattr(draft, 'open_threads', None) or []
+    for t in threads:
+        if hasattr(t, 'planted_chapter') and t.planted_chapter >= from_position:
+            t.planted_chapter += delta
+        if hasattr(t, 'last_mentioned_chapter') and t.last_mentioned_chapter >= from_position:
+            t.last_mentioned_chapter += delta
+        if hasattr(t, 'resolution_chapter') and t.resolution_chapter and t.resolution_chapter >= from_position:
+            t.resolution_chapter += delta
+
+    # Update macro_arcs chapter ranges
+    arcs = getattr(draft, 'macro_arcs', None) or []
+    for arc in arcs:
+        if hasattr(arc, 'start_chapter') and arc.start_chapter >= from_position:
+            arc.start_chapter += delta
+        if hasattr(arc, 'end_chapter') and arc.end_chapter >= from_position:
+            arc.end_chapter += delta
+
+
+def insert_chapter_impl(
+    generator,
+    draft: StoryDraft,
+    insert_after: int,
+    title: str = "",
+    summary: str = "",
+    word_count: int = 2000,
+    style: str = "",
+    progress_callback=None,
+    stream_callback=None,
+) -> StoryDraft:
+    """Insert a new chapter after the specified position.
+
+    Args:
+        generator: StoryGenerator instance
+        draft: StoryDraft to modify
+        insert_after: Insert after this chapter number (0 = insert at beginning)
+        title: Optional title for the new chapter
+        summary: Optional summary/direction for the new chapter
+        word_count: Target word count
+        style: Writing style override
+        progress_callback: Progress reporting function
+        stream_callback: Streaming content callback
+
+    Returns:
+        Modified StoryDraft with inserted chapter
+    """
+    context_window = generator.config.pipeline.context_window_chapters
+    effective_style = style or generator.config.pipeline.writing_style
+
+    def _log(msg):
+        logger.info(msg)
+        if progress_callback:
+            progress_callback(msg)
+
+    # Validate position
+    total_chapters = len(draft.chapters)
+    if insert_after < 0 or insert_after > total_chapters:
+        raise ValueError(f"Invalid insert_after={insert_after}. Story has {total_chapters} chapters.")
+
+    new_chapter_number = insert_after + 1
+    _log(f"Inserting new chapter at position {new_chapter_number}...")
+
+    # First, renumber all existing chapters from insertion point
+    renumber_chapters(draft, new_chapter_number, delta=1)
+
+    # Build bidirectional context: chapters before AND after insertion point
+    before_context = ""
+    after_context = ""
+
+    if insert_after > 0:
+        # Get summary of chapter(s) before insertion point
+        before_chapters = [ch for ch in draft.chapters if ch.chapter_number < new_chapter_number]
+        before_context = "\n".join(
+            f"Ch.{ch.chapter_number}: {ch.summary}" for ch in before_chapters[-context_window:]
+        )
+
+    # After renumbering, chapters that were after insertion point now have +1 numbers
+    after_chapters = [ch for ch in draft.chapters if ch.chapter_number > new_chapter_number]
+    if after_chapters:
+        after_context = "\n".join(
+            f"Ch.{ch.chapter_number}: {ch.summary}" for ch in after_chapters[:context_window]
+        )
+
+    # Generate outline for inserted chapter using bidirectional context
+    chars_text = "\n".join(
+        f"- {c.name} ({c.role}): {c.personality}" for c in draft.characters
+    )
+
+    outline_prompt = f"""Tạo dàn ý cho chương {new_chapter_number} được chèn vào giữa câu chuyện.
+
+Thể loại: {draft.genre}
+Tiêu đề truyện: {draft.title}
+Nhân vật: {chars_text}
+
+Bối cảnh TRƯỚC vị trí chèn:
+{before_context or "Đây là chương đầu tiên"}
+
+Bối cảnh SAU vị trí chèn:
+{after_context or "Không có chương sau"}
+
+{"Tiêu đề gợi ý: " + title if title else ""}
+{"Hướng dẫn: " + summary if summary else ""}
+
+Yêu cầu: Tạo chương kết nối mạch truyện từ nội dung trước đến nội dung sau.
+Trả về JSON: {{"chapter_number": {new_chapter_number}, "title": "...", "summary": "...", "key_events": [...]}}"""
+
+    _log("Generating outline for inserted chapter...")
+    result = generator.llm.generate_json(
+        system_prompt="Bạn là biên kịch viết truyện tiếng Việt. Trả về JSON.",
+        user_prompt=outline_prompt,
+        temperature=0.9,
+        model=generator._layer_model,
+    )
+
+    outline = ChapterOutline(
+        chapter_number=new_chapter_number,
+        title=result.get("title", title or f"Chương {new_chapter_number}"),
+        summary=result.get("summary", summary or ""),
+        key_events=result.get("key_events", []),
+    )
+
+    # Rebuild context for chapter writing
+    story_context = generator.rebuild_context(draft)
+    story_context.current_chapter = new_chapter_number
+    story_context.total_chapters = total_chapters + 1
+
+    # Get narrative context
+    macro_arcs = getattr(draft, 'macro_arcs', None) or []
+    conflict_web = getattr(draft, 'conflict_web', None) or []
+    foreshadowing_plan = getattr(draft, 'foreshadowing_plan', None) or []
+    premise = getattr(draft, 'premise', None) or {}
+    voice_profiles = getattr(draft, 'voice_profiles', None) or []
+
+    active_conflicts = []
+    seeds = []
+    payoffs = []
+    pacing = ""
+    try:
+        from pipeline.layer1_story.macro_outline_builder import get_arc_for_chapter
+        from pipeline.layer1_story.conflict_web_builder import get_active_conflicts
+        from pipeline.layer1_story.foreshadowing_manager import get_seeds_to_plant, get_payoffs_due
+        from pipeline.layer1_story.pacing_controller import validate_pacing
+        current_arc = get_arc_for_chapter(macro_arcs, new_chapter_number)
+        arc_num = current_arc.arc_number if current_arc else 1
+        active_conflicts = get_active_conflicts(conflict_web, arc_num)
+        seeds = get_seeds_to_plant(foreshadowing_plan, new_chapter_number)
+        payoffs = get_payoffs_due(foreshadowing_plan, new_chapter_number)
+        pacing = validate_pacing(getattr(outline, 'pacing_type', '') or '')
+    except Exception as e:
+        logger.warning("Narrative context resolution failed for ch%d: %s", new_chapter_number, e)
+
+    # Build enhancement context
+    enhancement_context = ""
+    try:
+        from pipeline.layer1_story.enhancement_context_builder import build_enhancement_context
+        enhancement_context = build_enhancement_context(
+            config=generator.config, llm=generator.llm,
+            genre=draft.genre, pacing=pacing,
+            premise=premise, voice_profiles=voice_profiles,
+            outline=outline, characters=draft.characters,
+            world=draft.world, layer_model=generator._layer_model,
+        )
+    except Exception as e:
+        logger.debug("Enhancement context build failed for ch%d: %s", new_chapter_number, e)
+
+    # Write the chapter
+    _log(f"Writing inserted chapter {new_chapter_number}: {outline.title}...")
+    all_chapter_texts = [ch.content for ch in draft.chapters if ch.chapter_number < new_chapter_number and ch.content]
+
+    if stream_callback:
+        chapter = generator.write_chapter_stream(
+            draft.title, draft.genre, effective_style,
+            draft.characters, draft.world, outline,
+            word_count=word_count, context=story_context,
+            stream_callback=stream_callback,
+            open_threads=list(story_context.open_threads),
+            active_conflicts=active_conflicts,
+            foreshadowing_to_plant=seeds,
+            foreshadowing_to_payoff=payoffs,
+            pacing_type=pacing,
+            enhancement_context=enhancement_context,
+        )
+    else:
+        chapter = generator._write_chapter_with_long_context(
+            draft.title, draft.genre, effective_style,
+            draft.characters, draft.world, outline,
+            word_count, story_context, all_chapter_texts,
+            open_threads=list(story_context.open_threads),
+            active_conflicts=active_conflicts,
+            foreshadowing_to_plant=seeds,
+            foreshadowing_to_payoff=payoffs,
+            pacing_type=pacing,
+            enhancement_context=enhancement_context,
+        )
+
+    # Insert chapter and outline at correct positions
+    # Find insertion index (chapters are now renumbered)
+    insert_idx = insert_after  # 0-based index for list insertion
+    draft.chapters.insert(insert_idx, chapter)
+    draft.outlines.insert(insert_idx, outline)
+
+    # Run post-processing
+    self_reviewer = generator._get_self_reviewer() if generator.config.pipeline.enable_self_review else None
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        _log(f"Extracting context for inserted chapter {new_chapter_number}...")
+        process_chapter_post_write(
+            chapter, outline, story_context, draft.characters, context_window,
+            executor, generator.llm,
+            draft, generator.bible_manager,
+            progress_callback, draft.genre, word_count,
+            generator.config.pipeline.enable_self_review, self_reviewer,
+            open_threads=list(story_context.open_threads),
+            foreshadowing_plan=foreshadowing_plan,
+            world_rules=getattr(draft.world, 'rules', None) or [],
+            voice_profiles=voice_profiles,
+        )
+
+    draft.character_states = list(story_context.character_states)
+    draft.plot_events = list(story_context.plot_events)
+    draft.open_threads = list(story_context.open_threads)
+    if story_context.conflict_map:
+        draft.conflict_web = list(story_context.conflict_map)
+
+    _log(f"Chapter {new_chapter_number} inserted successfully! Story now has {len(draft.chapters)} chapters.")
+    return draft
 
 
 def generate_continuation_outlines(

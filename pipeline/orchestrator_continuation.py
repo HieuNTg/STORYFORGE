@@ -161,6 +161,48 @@ class StoryContinuation:
         self.checkpoint_manager.save(1)
         return draft
 
+    def insert_chapter(
+        self,
+        insert_after: int,
+        title: str = "",
+        summary: str = "",
+        word_count: int = 2000,
+        style: str = "",
+        progress_callback=None,
+        stream_callback=None,
+    ) -> StoryDraft:
+        """Insert a new chapter after the specified position.
+
+        Args:
+            insert_after: Insert after this chapter number (0 = insert at beginning)
+            title: Optional title for the new chapter
+            summary: Optional summary/direction for the new chapter
+            word_count: Target word count
+            style: Writing style override
+            progress_callback: Progress reporting function
+            stream_callback: Streaming content callback
+        """
+        if not self.output.story_draft:
+            raise ValueError("No story draft loaded.")
+
+        from pipeline.layer1_story.story_continuation import insert_chapter_impl
+        draft = insert_chapter_impl(
+            generator=self.story_gen,
+            draft=self.output.story_draft,
+            insert_after=insert_after,
+            title=title,
+            summary=summary,
+            word_count=word_count,
+            style=style,
+            progress_callback=progress_callback,
+            stream_callback=stream_callback,
+        )
+        self.output.story_draft = draft
+        self.output.enhanced_story = None  # Invalidate L2
+        self.checkpoint_manager.output = self.output
+        self.checkpoint_manager.save(1)
+        return draft
+
     def update_character(
         self, char_name: str, updates: dict, progress_callback=None
     ) -> StoryDraft:
