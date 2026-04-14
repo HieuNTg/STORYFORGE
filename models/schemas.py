@@ -142,6 +142,36 @@ class MergeResult(BaseModel):
     merge_strategy: str = Field(default="auto", description="Strategy used: 'auto', 'prefer_a', 'prefer_b'")
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 8: Retroactive Consistency Fix
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class ConsistencyIssue(BaseModel):
+    """A detected consistency issue between chapters."""
+    issue_type: str = Field(description="Type: 'character_location', 'timeline', 'fact', 'character_state', 'object'")
+    severity: str = Field(default="warning", description="'error' (blocking), 'warning' (should fix), 'info' (minor)")
+    description: str = Field(description="Human-readable description of the inconsistency")
+    chapter_a: int = Field(description="First chapter number where issue appears")
+    chapter_b: int = Field(description="Second chapter number with contradiction")
+    entity: str = Field(default="", description="Entity involved (character name, object, location)")
+    value_a: str = Field(default="", description="Value/state in chapter_a")
+    value_b: str = Field(default="", description="Contradicting value/state in chapter_b")
+    suggested_fix: str = Field(default="", description="Suggested resolution")
+    auto_fixable: bool = Field(default=False, description="Whether this can be auto-fixed")
+
+
+class ConsistencyReport(BaseModel):
+    """Report from consistency check across chapters."""
+    checked_chapters: list[int] = Field(default_factory=list, description="Chapter numbers that were checked")
+    issues: list[ConsistencyIssue] = Field(default_factory=list)
+    error_count: int = Field(default=0)
+    warning_count: int = Field(default=0)
+    info_count: int = Field(default=0)
+    is_consistent: bool = Field(default=True, description="True if no errors found")
+    checked_at: str = Field(default="", description="Timestamp of check")
+
+
 class PlotEvent(BaseModel):
     """Sự kiện quan trọng để theo dõi tính liên tục."""
     chapter_number: int

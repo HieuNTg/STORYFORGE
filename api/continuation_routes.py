@@ -107,6 +107,12 @@ class CollaborativeChapterRequest(BaseModel):
     polish_level: str = Field("light", description="'light' (grammar/flow), 'medium' (+ consistency), 'heavy' (+ style)")
 
 
+class ConsistencyCheckRequest(BaseModel):
+    """Request body for consistency check."""
+    checkpoint: str
+    chapter_numbers: list[int] = Field(default_factory=list, description="Chapters to check (empty = full story)")
+
+
 def _resolve_checkpoint(filename: str) -> pathlib.Path | None:
     """Validate and resolve checkpoint path, preventing traversal."""
     safe_name = pathlib.Path(filename).name
@@ -1069,6 +1075,96 @@ async def collaborative_chapter(body: CollaborativeChapterRequest):
                 task.cancel()
         except Exception:
             logger.exception("SSE /collaborative-chapter error (session=%s)", session_id)
+            if not task.done():
+                task.cancel()
+            raise
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 8: Retroactive Consistency Fix
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@router.post("/check-consistency")
+async def check_consistency(body: ConsistencyCheckRequest):
+    """Check story for consistency issues.
+
+    Scans chapters for contradictions in:
+    - Character locations
+    - Timeline/sequence
+    - Facts and states
+    - Object states
+
+    Returns a ConsistencyReport with detected issues and suggested fixes.
+    """
+    session_id = _extract_session_id(body.checkpoint)
+    if session_id not in ACTIVE_SESSIONS:
+        raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+
+    sess = ACTIVE_SESSIONS[session_id]
+    cont = sess["continuation"]
+
+    msg_queue: queue.Queue = queue.Queue()
+
+    def progress_cb(msg: str):
+        msg_queue.put(msg)
+
+    result: list = [None]
+
+    def run_check():
+        try:
+            chapters_to_check = body.chapter_numbers if body.chapter_numbers else None
+            report = cont.check_consistency(
+                chapter_numbers=chapters_to_check,
+                progress_callback=progress_cb,
+            )
+            result[0] = report
+        except Exception as e:
+            logger.exception("check_consistency failed")
+            msg_queue.put(f"Error: {e}")
+
+    loop = asyncio.get_event_loop()
+    task = loop.run_in_executor(None, run_check)
+
+    async def event_generator():
+        try:
+            while not task.done():
+                while not msg_queue.empty():
+                    msg = msg_queue.get_nowait()
+                    yield f"data: {json.dumps({'type': 'progress', 'data': msg})}\n\n"
+                await asyncio.sleep(0.1)
+
+            # Drain remaining messages
+            while not msg_queue.empty():
+                msg = msg_queue.get_nowait()
+                yield f"data: {json.dumps({'type': 'progress', 'data': msg})}\n\n"
+
+            if result[0]:
+                report = result[0]
+                output = {
+                    "checked_chapters": report.checked_chapters,
+                    "issues": [issue.model_dump() for issue in report.issues],
+                    "error_count": report.error_count,
+                    "warning_count": report.warning_count,
+                    "info_count": report.info_count,
+                    "is_consistent": report.is_consistent,
+                    "checked_at": report.checked_at,
+                }
+                yield f"data: {json.dumps({'type': 'done', 'data': output}, ensure_ascii=False)}\n\n"
+            else:
+                yield f"data: {json.dumps({'type': 'error', 'data': 'Failed to check consistency'})}\n\n"
+        except asyncio.CancelledError:
+            logger.info("SSE /check-consistency cancelled (session=%s)", session_id)
+            if not task.done():
+                task.cancel()
+        except Exception:
+            logger.exception("SSE /check-consistency error (session=%s)", session_id)
             if not task.done():
                 task.cancel()
             raise

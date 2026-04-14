@@ -625,6 +625,21 @@ def write_from_outlines(
     draft.open_threads = list(story_context.open_threads)
     if story_context.conflict_map:
         draft.conflict_web = list(story_context.conflict_map)
+
+    # Phase 8: Run consistency check on newly written chapters
+    new_chapter_nums = [o.chapter_number for o in outlines]
+    try:
+        from pipeline.layer1_story.consistency_checker import check_consistency
+        report = check_consistency(draft, new_chapter_nums, generator.llm, progress_callback)
+        if report.issues:
+            _log(f"Consistency check: {report.warning_count} warnings, {report.error_count} errors")
+            for issue in report.issues[:3]:  # Log first 3 issues
+                _log(f"  - [{issue.severity}] {issue.description}")
+        else:
+            _log("Consistency check: No issues detected")
+    except Exception as e:
+        logger.warning(f"Consistency check failed (non-blocking): {e}")
+
     _log(f"Writing complete — {len(outlines)} chapters added!")
     return draft
 

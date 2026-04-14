@@ -338,3 +338,37 @@ class StoryContinuation:
         self.checkpoint_manager.output = self.output
         self.checkpoint_manager.save(1)
         return draft
+
+    def check_consistency(
+        self,
+        chapter_numbers: list[int] = None,
+        progress_callback=None,
+    ):
+        """Check story for consistency issues.
+
+        Args:
+            chapter_numbers: Specific chapters to check against previous content.
+                           If None, checks entire story.
+            progress_callback: Progress reporting function
+
+        Returns:
+            ConsistencyReport with detected issues
+        """
+        if not self.output.story_draft:
+            raise ValueError("No story draft loaded.")
+
+        from pipeline.layer1_story.consistency_checker import ConsistencyChecker
+
+        checker = ConsistencyChecker(self.story_gen.llm if self.story_gen else None)
+
+        if chapter_numbers:
+            return checker.check_chapters(
+                self.output.story_draft,
+                chapter_numbers,
+                progress_callback,
+            )
+        else:
+            return checker.check_full_story(
+                self.output.story_draft,
+                progress_callback,
+            )
