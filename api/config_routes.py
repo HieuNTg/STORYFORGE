@@ -77,6 +77,7 @@ PROVIDER_FROM_KEY = [
     ("sk-",     {"name": "OpenAI", "base_url": "https://api.openai.com/v1", "model": "gpt-4o-mini"}),
     ("AIza",    {"name": "Google Gemini", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/", "model": "gemini-2.5-flash"}),
     ("ky-",     {"name": "Kyma", "base_url": "https://kymaapi.com/v1", "model": "qwen-3.6-plus"}),
+    ("kyma-",   {"name": "Kyma", "base_url": "https://kymaapi.com/v1", "model": "qwen-3.6-plus"}),
 ]
 
 

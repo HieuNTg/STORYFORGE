@@ -72,7 +72,8 @@ def _fetch_from_api(api_key: str = "") -> Optional[list[dict]]:
 
 
 def _meets_requirements(model: dict) -> bool:
-    ctx = model.get("context_length", 0) or 0
+    # Kyma uses 'context_window', OpenRouter uses 'context_length'
+    ctx = model.get("context_window") or model.get("context_length") or 0
     if int(ctx) < _MIN_CONTEXT_TOKENS:
         return False
     mid = model.get("id", "").lower()
