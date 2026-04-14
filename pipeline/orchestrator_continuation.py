@@ -72,6 +72,39 @@ class StoryContinuation:
             )
         return draft
 
+    def regenerate_chapter(
+        self,
+        chapter_number: int,
+        word_count: int = 2000,
+        style: str = "",
+        preserve_outline: bool = True,
+        progress_callback=None,
+        stream_callback=None,
+    ) -> StoryDraft:
+        """Regenerate a specific chapter without affecting subsequent chapters."""
+        if not self.output.story_draft:
+            raise ValueError("No story draft loaded.")
+        draft = self.output.story_draft
+        if chapter_number < 1 or chapter_number > len(draft.chapters):
+            raise ValueError(f"Invalid chapter_number {chapter_number}. Story has {len(draft.chapters)} chapters.")
+
+        from pipeline.layer1_story.story_continuation import regenerate_chapter_impl
+        draft = regenerate_chapter_impl(
+            generator=self.story_gen,
+            draft=draft,
+            chapter_number=chapter_number,
+            word_count=word_count,
+            style=style,
+            preserve_outline=preserve_outline,
+            progress_callback=progress_callback,
+            stream_callback=stream_callback,
+        )
+        self.output.story_draft = draft
+        self.output.enhanced_story = None  # Invalidate L2 since chapter changed
+        self.checkpoint_manager.output = self.output
+        self.checkpoint_manager.save(1)
+        return draft
+
     def update_character(
         self, char_name: str, updates: dict, progress_callback=None
     ) -> StoryDraft:
