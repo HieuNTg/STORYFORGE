@@ -31,6 +31,7 @@ interface PipelineForm {
   enable_agents: boolean;
   enable_scoring: boolean;
   enable_media: boolean;
+  enable_l1_consistency: boolean;
 }
 
 interface PipelineResult {
@@ -244,6 +245,7 @@ document.addEventListener('alpine:init', () => {
       idea: '', num_chapters: 5, num_characters: 5, word_count: 2000,
       num_sim_rounds: 3, drama_level: 'cao', shots_per_chapter: 8,
       enable_agents: true, enable_scoring: true, enable_media: false,
+      enable_l1_consistency: false,
     } as PipelineForm,
 
     genres: [] as string[], styles: [] as string[], dramaLevels: [] as string[],

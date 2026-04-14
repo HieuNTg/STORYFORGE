@@ -456,6 +456,15 @@
                     </template>
                   </select>
                 </div>
+                <!-- L1 Consistency Section -->
+                <div class="pt-3 border-t border-surface-200">
+                  <label class="flex items-center gap-2 cursor-pointer mb-2">
+                    <input type="checkbox" x-model="$store.pipeline.form.enable_l1_consistency" class="rounded border-surface-300 text-brand-600 focus:ring-brand-500">
+                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">L1 Consistency Mode</span>
+                    <span class="text-xs text-slate-400">(nhân vật + cốt truyện nhất quán hơn)</span>
+                  </label>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 ml-6">Bật emotional memory, causal tracking, thread enforcement, scene beats. Tốn thêm ~20% API calls.</p>
+                </div>
               </div>
             </details>
 

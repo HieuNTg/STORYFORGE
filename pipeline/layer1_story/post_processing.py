@@ -48,6 +48,8 @@ def process_chapter_post_write(
     foreshadowing_plan=None,
     world_rules=None,
     voice_profiles=None,
+    # Phase 5 wiring
+    pipeline_config=None,
 ) -> tuple:
     """Shared post-write logic: self-review, parallel extraction, context update, bible update.
 
@@ -287,6 +289,43 @@ def process_chapter_post_write(
             logger.warning(f"Stale thread detection failed: {e}")
     except Exception as e:
         logger.warning(f"Plot thread tracking failed: {e}")
+
+    # Emotional memory extraction (Phase 5)
+    if pipeline_config and getattr(pipeline_config, "enable_emotional_memory", False):
+        try:
+            from pipeline.layer1_story.character_memory_bank import (
+                extract_emotional_memories, merge_memory_banks,
+            )
+            char_names = [c.name if hasattr(c, 'name') else str(c) for c in characters]
+            new_banks = extract_emotional_memories(
+                llm, chapter.content, char_names, outline.chapter_number,
+            )
+            if new_banks:
+                existing_banks = getattr(story_context, "emotional_memory_banks", {}) or {}
+                merged = merge_memory_banks(existing_banks, new_banks)
+                story_context.emotional_memory_banks = merged
+                logger.debug("Ch%d emotional memory: %d characters tracked", outline.chapter_number, len(merged))
+        except Exception as e:
+            logger.warning(f"Emotional memory extraction failed: {e}")
+
+    # Causal event extraction (Phase 5)
+    if pipeline_config and getattr(pipeline_config, "enable_l1_causal_graph", False):
+        try:
+            from pipeline.layer1_story.l1_causal_graph import (
+                extract_causal_events, CausalGraph,
+            )
+            char_names = [c.name if hasattr(c, 'name') else str(c) for c in characters]
+            new_events = extract_causal_events(
+                llm, chapter.content, outline.chapter_number, char_names,
+            )
+            if new_events:
+                if not hasattr(story_context, "causal_graph") or story_context.causal_graph is None:
+                    story_context.causal_graph = CausalGraph()
+                for evt in new_events:
+                    story_context.causal_graph.add_event(evt)
+                logger.debug("Ch%d causal events: %d extracted", outline.chapter_number, len(new_events))
+        except Exception as e:
+            logger.warning(f"Causal event extraction failed: {e}")
 
     # Conflict status update (heuristic, no LLM call)
     try:

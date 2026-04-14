@@ -217,6 +217,10 @@ class BatchChapterGenerator:
             if getattr(self.config.pipeline, "enable_tiered_context", False):
                 try:
                     from pipeline.layer1_story.tiered_context_builder import build_tiered_context
+                    # Emotional bridge: pass prev_chapter if enabled
+                    prev_ch = None
+                    if getattr(self.config.pipeline, "enable_emotional_bridge", False):
+                        prev_ch = draft.chapters[-1] if draft.chapters else None
                     tiered = build_tiered_context(
                         chapter_num=outline.chapter_number,
                         chapters=draft.chapters,
@@ -226,6 +230,7 @@ class BatchChapterGenerator:
                         all_chapter_texts=all_chapter_texts,
                         max_tokens=getattr(self.config.pipeline, "tiered_context_max_tokens", 3000),
                         max_promotions=getattr(self.config.pipeline, "tiered_max_promotions", 5),
+                        prev_chapter=prev_ch,
                     )
                     if tiered:
                         bible_ctx = tiered
@@ -274,6 +279,16 @@ class BatchChapterGenerator:
             if getattr(self.config.pipeline, "enable_chapter_contracts", False):
                 try:
                     from pipeline.layer1_story.chapter_contract_builder import build_contract, format_contract_for_prompt
+                    # Proactive constraints: pass world_rules and character_secrets
+                    contract_world_rules = None
+                    contract_secrets = None
+                    if getattr(self.config.pipeline, "enable_proactive_constraints", False):
+                        contract_world_rules = getattr(draft.world, 'rules', None) or []
+                        contract_secrets = {
+                            c.name: getattr(c, 'secret', '')
+                            for c in characters
+                            if hasattr(c, 'secret') and getattr(c, 'secret', '')
+                        }
                     contract = build_contract(
                         outline.chapter_number, outline,
                         threads=list(story_context.open_threads),
@@ -282,6 +297,8 @@ class BatchChapterGenerator:
                         foreshadowing_plan=foreshadowing_plan,
                         characters=characters,
                         previous_failures=_contract_failures,
+                        world_rules=contract_world_rules,
+                        character_secrets=contract_secrets,
                     )
                     contract_text = format_contract_for_prompt(contract)
                 except Exception as e:
@@ -296,16 +313,86 @@ class BatchChapterGenerator:
                 layer_model=self.gen._layer_model,
             )
 
+            # Thread enforcement: inject mandatory threads as hard requirement
+            if getattr(self.config.pipeline, "enable_thread_enforcement", False):
+                try:
+                    from pipeline.layer1_story.plot_thread_tracker import format_mandatory_threads
+                    mandatory = format_mandatory_threads(
+                        list(story_context.open_threads), outline.chapter_number, gap_threshold=8,
+                    )
+                    if mandatory:
+                        enhancement_context = f"{enhancement_context}\n\n{mandatory}" if enhancement_context else mandatory
+                except Exception as e:
+                    logger.debug("Thread enforcement failed (non-fatal): %s", e)
+
+            # Causal dependencies injection
+            if getattr(self.config.pipeline, "enable_l1_causal_graph", False):
+                try:
+                    from pipeline.layer1_story.l1_causal_graph import format_causal_dependencies_for_prompt
+                    causal_graph = getattr(story_context, "causal_graph", None)
+                    if causal_graph:
+                        required = causal_graph.query_required_references(outline.chapter_number, min_age=2)
+                        causal_block = format_causal_dependencies_for_prompt(required)
+                        if causal_block:
+                            enhancement_context = f"{enhancement_context}\n\n{causal_block}" if enhancement_context else causal_block
+                except Exception as e:
+                    logger.debug("Causal dependencies injection failed (non-fatal): %s", e)
+
+            # Emotional memory injection
+            if getattr(self.config.pipeline, "enable_emotional_memory", False):
+                try:
+                    from pipeline.layer1_story.character_memory_bank import format_memories_for_prompt
+                    banks = getattr(story_context, "emotional_memory_banks", None) or {}
+                    if banks:
+                        memories_block = format_memories_for_prompt(banks, last_n=3)
+                        if memories_block and memories_block != "Không có ký ức cảm xúc.":
+                            enhancement_context = f"{enhancement_context}\n\n## KÝ ỨC CẢM XÚC NHÂN VẬT:\n{memories_block}"
+                except Exception as e:
+                    logger.debug("Emotional memory injection failed (non-fatal): %s", e)
+
             # Append scene beats for climax/twist chapters (Fix #12)
-            from pipeline.layer1_story.scene_beat_generator import generate_scene_beats
-            scene_beats = generate_scene_beats(
+            from pipeline.layer1_story.scene_beat_generator import generate_scene_beats, format_beats_for_prompt
+            scene_beats_list = generate_scene_beats(
                 self.llm, outline, characters, world, genre,
                 model_tier=self.gen._layer_model or "cheap",
             )
-            if scene_beats:
-                enhancement_context += scene_beats
+            scene_beats_text = ""
+            if scene_beats_list:
+                scene_beats_text = format_beats_for_prompt(scene_beats_list)
+                enhancement_context = f"{enhancement_context}\n\n{scene_beats_text}" if enhancement_context else scene_beats_text
 
-            if stream_callback:
+            # Scene beat writing: per-beat generation when enabled
+            use_beat_writing = (
+                getattr(self.config.pipeline, "enable_scene_beat_writing", False)
+                and scene_beats_list
+                and not stream_callback  # stream mode not compatible
+            )
+
+            if use_beat_writing:
+                try:
+                    from pipeline.layer1_story.chapter_writer import write_chapter_by_beats
+                    beat_context = {
+                        "previous_summary": "\n".join(story_context.recent_summaries[-2:]),
+                        "characters_text": ", ".join(c.name for c in characters[:5]),
+                        "world_text": getattr(world, 'setting', '') if world else "",
+                    }
+                    chapter_content = write_chapter_by_beats(
+                        self.llm, scene_beats_list, beat_context,
+                        title, genre, style, word_count,
+                        model=self.gen._layer_model,
+                    )
+                    from models.schemas import count_words
+                    chapter = Chapter(
+                        chapter_number=outline.chapter_number,
+                        title=outline.title,
+                        content=chapter_content,
+                        word_count=count_words(chapter_content),
+                    )
+                except Exception as e:
+                    logger.warning("Beat writing failed for ch%d, falling back: %s", outline.chapter_number, e)
+                    use_beat_writing = False
+
+            if not use_beat_writing and stream_callback:
                 chapter = self.gen.write_chapter_stream(
                     title, genre, style, characters, world, outline,
                     word_count=word_count, context=story_context,
@@ -319,7 +406,7 @@ class BatchChapterGenerator:
                     current_arc_context=arc_context,
                     chapter_contract=contract_text,
                 )
-            else:
+            elif not use_beat_writing:
                 chapter = self.gen._write_chapter_with_long_context(
                     title, genre, style, characters, world, outline,
                     word_count, story_context, all_chapter_texts, bible_ctx,
@@ -392,6 +479,7 @@ class BatchChapterGenerator:
                 foreshadowing_plan=foreshadowing_plan,
                 world_rules=getattr(draft.world, 'rules', None) or [],
                 voice_profiles=getattr(draft, 'voice_profiles', None) or [],
+                pipeline_config=self.config.pipeline,
             )
 
             # Post-write contract validation
@@ -627,6 +715,7 @@ class BatchChapterGenerator:
                 foreshadowing_plan=foreshadowing_plan,
                 world_rules=getattr(draft.world, 'rules', None) or [],
                 voice_profiles=getattr(draft, 'voice_profiles', None) or [],
+                pipeline_config=self.config.pipeline,
             )
 
         return chapters_ordered

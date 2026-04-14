@@ -109,6 +109,14 @@ class PipelineRequest(BaseModel):
     enable_scoring: bool = True
     enable_media: bool = False
     lite_mode: bool = False
+    # L1 consistency flags (Phase 5)
+    enable_l1_consistency: bool = False  # Master toggle for all L1 consistency features
+    enable_emotional_memory: bool = False
+    enable_proactive_constraints: bool = False
+    enable_thread_enforcement: bool = False
+    enable_emotional_bridge: bool = False
+    enable_scene_beat_writing: bool = False
+    enable_l1_causal_graph: bool = False
 
 
 class ResumeRequest(BaseModel):
@@ -316,6 +324,30 @@ async def run_pipeline(request: Request, body: PipelineRequest):
         # Enabled per-request via body.lite_mode, or globally via STORYFORGE_LITE_MODE=true.
         if body.lite_mode or os.environ.get("STORYFORGE_LITE_MODE", "").lower() in ("1", "true"):
             orch.config.pipeline.debate_mode = "lite"
+
+        # Apply L1 consistency flags (Phase 5)
+        # Master toggle enables all, individual flags can also be set
+        if body.enable_l1_consistency:
+            orch.config.pipeline.enable_emotional_memory = True
+            orch.config.pipeline.enable_proactive_constraints = True
+            orch.config.pipeline.enable_thread_enforcement = True
+            orch.config.pipeline.enable_emotional_bridge = True
+            orch.config.pipeline.enable_scene_beat_writing = True
+            orch.config.pipeline.enable_l1_causal_graph = True
+        else:
+            # Individual flags (only if master toggle is off)
+            if body.enable_emotional_memory:
+                orch.config.pipeline.enable_emotional_memory = True
+            if body.enable_proactive_constraints:
+                orch.config.pipeline.enable_proactive_constraints = True
+            if body.enable_thread_enforcement:
+                orch.config.pipeline.enable_thread_enforcement = True
+            if body.enable_emotional_bridge:
+                orch.config.pipeline.enable_emotional_bridge = True
+            if body.enable_scene_beat_writing:
+                orch.config.pipeline.enable_scene_beat_writing = True
+            if body.enable_l1_causal_graph:
+                orch.config.pipeline.enable_l1_causal_graph = True
 
         result: list = [None]
 

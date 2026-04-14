@@ -2,7 +2,7 @@
 
 import re
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional
+from typing import Any, Optional
 from enum import Enum
 
 
@@ -212,6 +212,9 @@ class StoryContext(BaseModel):
     world_rule_violations: list[str] = Field(default_factory=list, description="Vi phạm quy tắc thế giới phát hiện trong chương")
     dialogue_voice_warnings: list[str] = Field(default_factory=list, description="Cảnh báo giọng nói nhân vật không nhất quán")
     pacing_adjustment: str = Field(default="", description="Pacing correction directive for next chapter")
+    # Phase 5: L1 consistency
+    emotional_memory_banks: dict = Field(default_factory=dict, description="Per-character emotional memory banks")
+    causal_graph: Any = Field(default=None, description="L1 causal event graph")
 
 
 class StoryDraft(BaseModel):
