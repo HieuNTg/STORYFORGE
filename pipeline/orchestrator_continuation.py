@@ -5,6 +5,7 @@ import logging
 from typing import Optional
 
 from models.schemas import EnhancedStory, PipelineOutput, StoryDraft
+from models.schemas import ChapterOutline
 from pipeline.layer1_story.generator import StoryGenerator
 
 logger = logging.getLogger(__name__)
@@ -101,6 +102,61 @@ class StoryContinuation:
         )
         self.output.story_draft = draft
         self.output.enhanced_story = None  # Invalidate L2 since chapter changed
+        self.checkpoint_manager.output = self.output
+        self.checkpoint_manager.save(1)
+        return draft
+
+    def generate_continuation_outlines(
+        self,
+        additional_chapters: int = 5,
+        progress_callback=None,
+    ) -> list[ChapterOutline]:
+        """Generate outlines for continuation without writing chapters.
+
+        Returns list of ChapterOutline objects for user review/editing.
+        Use write_from_outlines() to write chapters from the (possibly edited) outlines.
+        """
+        if not self.output.story_draft:
+            raise ValueError("No story draft loaded.")
+
+        from pipeline.layer1_story.story_continuation import generate_continuation_outlines
+        outlines = generate_continuation_outlines(
+            generator=self.story_gen,
+            draft=self.output.story_draft,
+            additional_chapters=additional_chapters,
+            progress_callback=progress_callback,
+        )
+        return outlines
+
+    def write_from_outlines(
+        self,
+        outlines: list[ChapterOutline],
+        word_count: int = 2000,
+        style: str = "",
+        progress_callback=None,
+        stream_callback=None,
+    ) -> StoryDraft:
+        """Write chapters from pre-generated (possibly user-edited) outlines.
+
+        This is the second step of the two-step continuation flow:
+        1. generate_continuation_outlines() -> user edits -> 2. write_from_outlines()
+        """
+        if not self.output.story_draft:
+            raise ValueError("No story draft loaded.")
+        if not outlines:
+            raise ValueError("No outlines provided.")
+
+        from pipeline.layer1_story.story_continuation import write_from_outlines
+        draft = write_from_outlines(
+            generator=self.story_gen,
+            draft=self.output.story_draft,
+            outlines=outlines,
+            word_count=word_count,
+            style=style,
+            progress_callback=progress_callback,
+            stream_callback=stream_callback,
+        )
+        self.output.story_draft = draft
         self.checkpoint_manager.output = self.output
         self.checkpoint_manager.save(1)
         return draft

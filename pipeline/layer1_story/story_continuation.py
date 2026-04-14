@@ -10,22 +10,16 @@ from pipeline.layer1_story.post_processing import process_chapter_post_write
 logger = logging.getLogger(__name__)
 
 
-def continue_story(
+def generate_continuation_outlines(
     generator,
     draft: StoryDraft,
     additional_chapters: int = 5,
-    word_count: int = 2000,
-    style: str = "",
     progress_callback=None,
-    stream_callback=None,
-) -> StoryDraft:
-    """Continue writing from existing StoryDraft by adding more chapters.
+) -> list[ChapterOutline]:
+    """Generate outlines for continuation without writing chapters.
 
-    `generator` is a StoryGenerator instance (passed to avoid circular import).
+    Returns list of ChapterOutline objects that can be edited by user before writing.
     """
-    context_window = generator.config.pipeline.context_window_chapters
-    effective_style = style or generator.config.pipeline.writing_style
-
     def _log(msg):
         logger.info(msg)
         if progress_callback:
@@ -52,7 +46,6 @@ def continue_story(
     ) or "N/A"
     world_text = f"{draft.world.name}: {draft.world.description}" if draft.world else "N/A"
 
-    # Format structural context for outline generation
     _macro_arcs = getattr(draft, 'macro_arcs', None) or []
     macro_arcs_text = "\n".join(
         f"- Arc {getattr(a, 'arc_number', i+1)}: {getattr(a, 'title', 'N/A')} "
@@ -99,36 +92,56 @@ def continue_story(
         temperature=0.9,
         model=generator._layer_model,
     )
-    new_outlines = [ChapterOutline(**o) for o in result.get("outlines", [])]
-    if not new_outlines:
-        _log("No outlines generated. Aborting continuation.")
+    outlines = [ChapterOutline(**o) for o in result.get("outlines", [])]
+    _log(f"Generated {len(outlines)} outlines.")
+    return outlines
+
+
+def write_from_outlines(
+    generator,
+    draft: StoryDraft,
+    outlines: list[ChapterOutline],
+    word_count: int = 2000,
+    style: str = "",
+    progress_callback=None,
+    stream_callback=None,
+) -> StoryDraft:
+    """Write chapters from pre-generated (possibly user-edited) outlines.
+
+    Does not generate new outlines - uses provided ones directly.
+    """
+    if not outlines:
         return draft
 
-    draft.outlines.extend(new_outlines)
+    context_window = generator.config.pipeline.context_window_chapters
+    effective_style = style or generator.config.pipeline.writing_style
+
+    def _log(msg):
+        logger.info(msg)
+        if progress_callback:
+            progress_callback(msg)
+
+    # Add outlines to draft
+    draft.outlines.extend(outlines)
     story_context = generator.rebuild_context(draft)
     all_chapter_texts = [ch.content for ch in draft.chapters if ch.content]
-    final_total = len(draft.chapters) + len(new_outlines)
+    final_total = len(draft.chapters) + len(outlines)
     self_reviewer = generator._get_self_reviewer() if generator.config.pipeline.enable_self_review else None
 
-    # NOTE (async-migration): ThreadPoolExecutor is kept here intentionally.
-    # The executor is passed to process_chapter_post_write which runs three LLM extraction
-    # tasks (summarize, extract_character_states, extract_plot_events) in parallel while the
-    # main loop moves to the next chapter. The pattern requires a long-lived executor shared
-    # across the sequential chapter loop. Migration to asyncio requires an async LLMClient
-    # (future work, see async-migration-plan.md #5).
     macro_arcs = getattr(draft, 'macro_arcs', None) or []
     conflict_web = getattr(draft, 'conflict_web', None) or []
     foreshadowing_plan = getattr(draft, 'foreshadowing_plan', None) or []
-
     premise = getattr(draft, "premise", None) or {}
     voice_profiles = getattr(draft, "voice_profiles", None) or []
 
+    _log(f"Writing {len(outlines)} chapters from provided outlines...")
+
     with ThreadPoolExecutor(max_workers=3) as executor:
-        for outline in new_outlines:
+        for outline in outlines:
             story_context.current_chapter = outline.chapter_number
             story_context.total_chapters = final_total
 
-            # Resolve per-chapter narrative context (same as full pipeline)
+            # Resolve per-chapter narrative context
             active_conflicts = []
             seeds = []
             payoffs = []
@@ -147,7 +160,7 @@ def continue_story(
             except Exception as e:
                 logger.warning("Narrative context resolution failed for ch%d: %s", outline.chapter_number, e)
 
-            # Build enhancement context (theme, voice, scene decomposition, show-don't-tell)
+            # Build enhancement context
             enhancement_context = ""
             try:
                 from pipeline.layer1_story.enhancement_context_builder import build_enhancement_context
@@ -199,17 +212,46 @@ def continue_story(
                 open_threads=list(story_context.open_threads),
                 foreshadowing_plan=foreshadowing_plan,
                 world_rules=getattr(draft.world, 'rules', None) or [],
-                voice_profiles=getattr(draft, 'voice_profiles', None) or [],
+                voice_profiles=voice_profiles,
             )
 
     draft.character_states = list(story_context.character_states)
     draft.plot_events = list(story_context.plot_events)
     draft.open_threads = list(story_context.open_threads)
-    # Sync conflict web status back to draft after new chapters
     if story_context.conflict_map:
         draft.conflict_web = list(story_context.conflict_map)
-    _log(f"Continuation complete — {len(new_outlines)} chapters added!")
+    _log(f"Writing complete — {len(outlines)} chapters added!")
     return draft
+
+
+def continue_story(
+    generator,
+    draft: StoryDraft,
+    additional_chapters: int = 5,
+    word_count: int = 2000,
+    style: str = "",
+    progress_callback=None,
+    stream_callback=None,
+) -> StoryDraft:
+    """Continue writing from existing StoryDraft by adding more chapters.
+
+    `generator` is a StoryGenerator instance (passed to avoid circular import).
+    This is a convenience wrapper that generates outlines and writes chapters in one step.
+    For two-step flow (preview → edit → write), use generate_continuation_outlines + write_from_outlines.
+    """
+    # Step 1: Generate outlines
+    new_outlines = generate_continuation_outlines(
+        generator, draft, additional_chapters, progress_callback
+    )
+    if not new_outlines:
+        if progress_callback:
+            progress_callback("No outlines generated. Aborting continuation.")
+        return draft
+
+    # Step 2: Write chapters from outlines
+    return write_from_outlines(
+        generator, draft, new_outlines, word_count, style, progress_callback, stream_callback
+    )
 
 
 def regenerate_chapter_impl(
