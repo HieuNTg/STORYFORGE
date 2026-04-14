@@ -2,16 +2,49 @@
 
 Phase 1: Sequential within batches, frozen context snapshots at batch boundaries.
 Phase 2: asyncio.gather() within batches for true parallelism (gated by feature flag).
+Phase 3: Contract retry + cross-batch causal sync.
 """
 
+import asyncio
 import logging
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
 from typing import Optional, Callable
 
 from models.schemas import StoryDraft, StoryContext, ChapterOutline, Chapter
 from pipeline.layer1_story.post_processing import process_chapter_post_write
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class CausalAccumulator:
+    """Thread-safe accumulator for causal events across parallel chapters.
+
+    Used to sync causal graph updates after parallel batch completes.
+    """
+    events: list[dict] = field(default_factory=list)
+    _lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def add_event(self, chapter_num: int, event_type: str, description: str,
+                  causes: list[int] = None, effects: list[int] = None):
+        with self._lock:
+            self.events.append({
+                "chapter": chapter_num,
+                "type": event_type,
+                "description": description,
+                "causes": causes or [],
+                "effects": effects or [],
+            })
+
+    def get_events_sorted(self) -> list[dict]:
+        with self._lock:
+            return sorted(self.events, key=lambda e: e["chapter"])
+
+    def clear(self):
+        with self._lock:
+            self.events.clear()
 
 
 class FrozenContext:
@@ -43,6 +76,10 @@ class BatchChapterGenerator:
         self.llm = story_generator.llm
         self.batch_size = getattr(self.config.pipeline, "chapter_batch_size", 5)
         self.parallel_enabled = getattr(self.config.pipeline, "parallel_chapters_enabled", False)
+        self.use_asyncio = getattr(self.config.pipeline, "parallel_use_asyncio", True)
+        self.retry_max = getattr(self.config.pipeline, "chapter_retry_max", 2)
+        self.retry_threshold = getattr(self.config.pipeline, "chapter_retry_threshold", 0.6)
+        self.causal_sync = getattr(self.config.pipeline, "parallel_causal_sync", True)
 
     def generate_chapters(
         self,
@@ -520,7 +557,7 @@ class BatchChapterGenerator:
                 pipeline_config=self.config.pipeline,
             )
 
-            # Post-write contract validation
+            # Post-write contract validation with retry (#2 improvement)
             if contract is not None and getattr(self.config.pipeline, "enable_contract_validation", False):
                 try:
                     from pipeline.layer1_story.chapter_contract_builder import validate_contract_compliance
@@ -529,14 +566,86 @@ class BatchChapterGenerator:
                     )
                     _contract_failures = compliance.get("failures", [])
                     score = compliance.get("compliance_score", 0.0)
+
+                    # Retry logic: if score below threshold, rewrite chapter
+                    retry_count = 0
+                    while score < self.retry_threshold and retry_count < self.retry_max:
+                        retry_count += 1
+                        if progress_callback:
+                            progress_callback(
+                                f"⚠️ Ch{outline.chapter_number} compliance {score:.0%} < {self.retry_threshold:.0%}, retry {retry_count}/{self.retry_max}..."
+                            )
+                        logger.info(
+                            "Ch%d retry %d: compliance %.0f%% < %.0f%%, failures: %s",
+                            outline.chapter_number, retry_count, score * 100,
+                            self.retry_threshold * 100, _contract_failures,
+                        )
+
+                        # Rebuild contract with failure feedback
+                        try:
+                            from pipeline.layer1_story.chapter_contract_builder import build_contract, format_contract_for_prompt
+                            contract = build_contract(
+                                outline.chapter_number, outline,
+                                threads=list(story_context.open_threads),
+                                macro_arcs=macro_arcs,
+                                conflicts=conflict_web,
+                                foreshadowing_plan=foreshadowing_plan,
+                                characters=characters,
+                                previous_failures=_contract_failures,
+                            )
+                            contract_text = format_contract_for_prompt(contract)
+                        except Exception as e:
+                            logger.warning("Contract rebuild failed for ch%d retry: %s", outline.chapter_number, e)
+
+                        # Rewrite chapter with updated contract
+                        if stream_callback:
+                            chapter = self.gen.write_chapter_stream(
+                                title, genre, style, characters, world, outline,
+                                word_count=word_count, context=story_context,
+                                stream_callback=stream_callback,
+                                open_threads=list(story_context.open_threads),
+                                active_conflicts=active_conflicts,
+                                foreshadowing_to_plant=seeds,
+                                foreshadowing_to_payoff=payoffs,
+                                pacing_type=pacing,
+                                enhancement_context=enhancement_context,
+                                current_arc_context=arc_context,
+                                chapter_contract=contract_text,
+                            )
+                        else:
+                            chapter = self.gen._write_chapter_with_long_context(
+                                title, genre, style, characters, world, outline,
+                                word_count, story_context, all_chapter_texts, bible_ctx,
+                                open_threads=list(story_context.open_threads),
+                                active_conflicts=active_conflicts,
+                                foreshadowing_to_plant=seeds,
+                                foreshadowing_to_payoff=payoffs,
+                                pacing_type=pacing,
+                                enhancement_context=enhancement_context,
+                                current_arc_context=arc_context,
+                                chapter_contract=contract_text,
+                            )
+
+                        # Update in chapters list
+                        chapters[-1] = chapter
+                        all_chapter_texts[-1] = chapter.content
+
+                        # Re-validate
+                        compliance = validate_contract_compliance(
+                            self.llm, chapter.content, contract, model=self.gen._layer_model,
+                        )
+                        _contract_failures = compliance.get("failures", [])
+                        score = compliance.get("compliance_score", 0.0)
+
                     if score < 0.7:
                         logger.warning(
-                            "Ch%d contract compliance %.0f%% — failures: %s",
+                            "Ch%d final compliance %.0f%% — failures: %s",
                             outline.chapter_number, score * 100, _contract_failures,
                         )
                     elif progress_callback:
                         progress_callback(
                             f"Chương {outline.chapter_number} hợp đồng: {score:.0%}"
+                            + (f" (sau {retry_count} retry)" if retry_count > 0 else "")
                         )
                 except Exception as e:
                     logger.warning("Contract validation failed for ch%d (non-fatal): %s", outline.chapter_number, e)
@@ -568,172 +677,580 @@ class BatchChapterGenerator:
         premise=None,
         voice_profiles=None,
     ) -> list[Chapter]:
-        """Run a single batch in parallel (Phase 2).
+        """Run a single batch in parallel (Phase 2/3).
 
-        All chapters in the batch use the frozen context snapshot.
-        Post-processing runs sequentially after all chapters are written.
+        Improvements:
+        - #1: Uses asyncio.gather() when parallel_use_asyncio=True
+        - #2: Contract validation with retry
+        - #3: Cross-batch causal sync via CausalAccumulator
         """
+        # Route to async or thread-based implementation
+        if self.use_asyncio:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                # Already in async context — run directly
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    future = pool.submit(
+                        asyncio.run,
+                        self._run_batch_async(
+                            batch, frozen, draft, story_context, all_chapter_texts,
+                            title, genre, style, characters, world, word_count,
+                            context_window, executor, self_reviewer, progress_callback,
+                            macro_arcs, conflict_web, foreshadowing_plan, premise, voice_profiles,
+                        )
+                    )
+                    return future.result()
+            else:
+                return asyncio.run(
+                    self._run_batch_async(
+                        batch, frozen, draft, story_context, all_chapter_texts,
+                        title, genre, style, characters, world, word_count,
+                        context_window, executor, self_reviewer, progress_callback,
+                        macro_arcs, conflict_web, foreshadowing_plan, premise, voice_profiles,
+                    )
+                )
+        else:
+            return self._run_batch_threaded(
+                batch, frozen, draft, story_context, all_chapter_texts,
+                title, genre, style, characters, world, word_count,
+                context_window, executor, self_reviewer, progress_callback,
+                macro_arcs, conflict_web, foreshadowing_plan, premise, voice_profiles,
+            )
+
+    async def _run_batch_async(
+        self,
+        batch: list[ChapterOutline],
+        frozen: FrozenContext,
+        draft: StoryDraft,
+        story_context: StoryContext,
+        all_chapter_texts: list[str],
+        title: str,
+        genre: str,
+        style: str,
+        characters: list,
+        world,
+        word_count: int,
+        context_window: int,
+        executor: ThreadPoolExecutor,
+        self_reviewer,
+        progress_callback,
+        macro_arcs=None,
+        conflict_web=None,
+        foreshadowing_plan=None,
+        premise=None,
+        voice_profiles=None,
+    ) -> list[Chapter]:
+        """Async batch execution using asyncio.gather() (#1 improvement)."""
         sibling_summaries = self._build_sibling_context(batch)
-        # Capture frozen threads for parallel use
         frozen_threads = list(story_context.open_threads)
 
-        # Pre-build shared enhancement context (no per-chapter LLM calls)
         from pipeline.layer1_story.enhancement_context_builder import build_shared_enhancement_context
         shared_enhancement = build_shared_enhancement_context(
             self.config, genre, premise=premise, voice_profiles=voice_profiles,
         )
 
-        def _write_one(outline: ChapterOutline) -> Chapter:
-            bible_ctx = ""
-            if draft.story_bible:
-                bible_ctx = self.gen.bible_manager.get_context_for_chapter(
-                    draft.story_bible,
-                    outline.chapter_number,
-                    recent_summaries=frozen.recent_summaries,
-                    character_states=frozen.character_states,
-                )
-            if sibling_summaries:
-                bible_ctx = f"{bible_ctx}\n\n[Sibling outlines in this batch]\n{sibling_summaries}" if bible_ctx else f"[Sibling outlines in this batch]\n{sibling_summaries}"
+        # Causal accumulator for cross-chapter sync (#3 improvement)
+        causal_acc = CausalAccumulator() if self.causal_sync else None
 
-            # Tiered context: replaces flat bible_ctx with priority-based 4-tier system
-            if getattr(self.config.pipeline, "enable_tiered_context", False):
-                try:
-                    from pipeline.layer1_story.tiered_context_builder import build_tiered_context
-                    tiered = build_tiered_context(
-                        chapter_num=outline.chapter_number,
-                        chapters=list(draft.chapters),
-                        outline=outline,
-                        open_threads=frozen_threads,
-                        story_bible=draft.story_bible,
-                        all_chapter_texts=list(frozen.chapter_texts),
-                        max_tokens=getattr(self.config.pipeline, "tiered_context_max_tokens", 3000),
-                        max_promotions=getattr(self.config.pipeline, "tiered_max_promotions", 5),
-                    )
-                    if tiered:
-                        bible_ctx = tiered
-                except Exception as e:
-                    logger.warning("Tiered context failed for ch%d (using bible fallback): %s", outline.chapter_number, e)
-
-            frozen_ctx = StoryContext(total_chapters=story_context.total_chapters)
-            frozen_ctx.current_chapter = outline.chapter_number
-            frozen_ctx.recent_summaries = list(frozen.recent_summaries)
-            frozen_ctx.character_states = list(frozen.character_states)
-            frozen_ctx.plot_events = list(frozen.plot_events)
-
-            # Resolve per-chapter narrative context (non-fatal)
-            active_conflicts = []
-            seeds = []
-            payoffs = []
-            pacing = ""
-            current_arc = None
-            try:
-                from pipeline.layer1_story.macro_outline_builder import get_arc_for_chapter
-                from pipeline.layer1_story.conflict_web_builder import get_active_conflicts
-                from pipeline.layer1_story.foreshadowing_manager import get_seeds_to_plant, get_payoffs_due
-                from pipeline.layer1_story.pacing_controller import validate_pacing
-                current_arc = get_arc_for_chapter(macro_arcs or [], outline.chapter_number)
-                arc_num = current_arc.arc_number if current_arc else 1
-                active_conflicts = get_active_conflicts(conflict_web or [], arc_num)
-                seeds = get_seeds_to_plant(foreshadowing_plan or [], outline.chapter_number)
-                payoffs = get_payoffs_due(foreshadowing_plan or [], outline.chapter_number)
-                pacing = validate_pacing(getattr(outline, "pacing_type", "") or "")
-            except Exception as e:
-                logger.warning("Parallel narrative context resolution failed for ch%d: %s", outline.chapter_number, e)
-
-            # Build arc context string for chapter writing prompt (Fix #11)
-            arc_context = ""
-            if current_arc:
-                arc_context = (
-                    f"Arc {current_arc.arc_number}: {current_arc.name}\n"
-                    f"Xung đột trung tâm: {current_arc.central_conflict}\n"
-                    f"Nhân vật trọng tâm: {', '.join(current_arc.character_focus) if current_arc.character_focus else 'tất cả'}\n"
-                    f"Kết thúc arc: {current_arc.resolution}\n"
-                    f"Cung bậc cảm xúc: {current_arc.emotional_trajectory}"
-                )
-
-            # Add per-chapter scene decomposition on top of shared context
-            per_chapter_enhancement = shared_enhancement
-            if self.config.pipeline.enable_scene_decomposition:
-                try:
-                    from pipeline.layer1_story.scene_decomposer import (
-                        decompose_chapter_scenes, format_scenes_for_prompt, should_decompose,
-                    )
-                    if should_decompose(outline.chapter_number, pacing):
-                        scenes = decompose_chapter_scenes(
-                            self.llm, outline, characters, world, genre, model=self.gen._layer_model,
-                        )
-                        st = format_scenes_for_prompt(scenes)
-                        if st:
-                            per_chapter_enhancement = f"{shared_enhancement}\n\n{st}".strip()
-                except Exception:
-                    pass
-
-            # Append scene beats for climax/twist chapters (Fix #12)
-            from pipeline.layer1_story.scene_beat_generator import generate_scene_beats
-            scene_beats = generate_scene_beats(
-                self.llm, outline, characters, world, genre,
-                model_tier=self.gen._layer_model or "cheap",
+        async def _write_one_async(outline: ChapterOutline) -> tuple[Chapter, dict | None]:
+            """Write single chapter in thread pool, return chapter + contract for retry."""
+            return await asyncio.to_thread(
+                self._write_chapter_parallel,
+                outline, frozen, draft, story_context, frozen_threads,
+                sibling_summaries, shared_enhancement, title, genre, style,
+                characters, world, word_count, macro_arcs, conflict_web,
+                foreshadowing_plan, progress_callback, causal_acc,
             )
-            if scene_beats:
-                per_chapter_enhancement += scene_beats
 
-            # Build chapter contract (parallel: no previous_failures feedback)
-            p_contract_text = ""
-            p_contract = None
-            if getattr(self.config.pipeline, "enable_chapter_contracts", False):
-                try:
+        # Execute all chapters concurrently
+        if progress_callback:
+            progress_callback(f"[ASYNC] Đang viết {len(batch)} chương song song...")
+
+        results = await asyncio.gather(
+            *[_write_one_async(o) for o in batch],
+            return_exceptions=True,
+        )
+
+        # Process results, handle errors
+        chapters = []
+        contracts = {}
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error("Async write failed for chapter %d: %s", batch[i].chapter_number, result)
+                raise result
+            chapter, contract = result
+            chapters.append(chapter)
+            if contract:
+                contracts[chapter.chapter_number] = contract
+
+        # Contract validation with retry (#2 improvement)
+        if contracts and getattr(self.config.pipeline, "enable_contract_validation", False):
+            chapters = await self._validate_and_retry_async(
+                chapters, contracts, batch, frozen, draft, story_context,
+                frozen_threads, sibling_summaries, shared_enhancement,
+                title, genre, style, characters, world, word_count,
+                macro_arcs, conflict_web, foreshadowing_plan, progress_callback,
+            )
+
+        chapters_ordered = sorted(chapters, key=lambda c: c.chapter_number)
+
+        # Causal sync: merge accumulated events into story_context (#3 improvement)
+        if causal_acc and self.causal_sync:
+            self._sync_causal_events(causal_acc, story_context, progress_callback)
+
+        if progress_callback:
+            progress_callback(
+                f"[BATCH] {len(chapters_ordered)} chương viết xong, đang trích xuất context..."
+            )
+
+        # Post-processing (sequential for consistency)
+        for outline, chapter in zip(
+            sorted(batch, key=lambda o: o.chapter_number), chapters_ordered
+        ):
+            all_chapter_texts.append(chapter.content)
+            process_chapter_post_write(
+                chapter, outline, story_context, characters, context_window,
+                executor, self.llm, draft, self.gen.bible_manager,
+                progress_callback, genre, word_count,
+                self.config.pipeline.enable_self_review, self_reviewer,
+                open_threads=frozen_threads,
+                foreshadowing_plan=foreshadowing_plan,
+                world_rules=getattr(draft.world, 'rules', None) or [],
+                voice_profiles=getattr(draft, 'voice_profiles', None) or [],
+                pipeline_config=self.config.pipeline,
+            )
+
+        return chapters_ordered
+
+    async def _validate_and_retry_async(
+        self,
+        chapters: list[Chapter],
+        contracts: dict,
+        batch: list[ChapterOutline],
+        frozen: FrozenContext,
+        draft: StoryDraft,
+        story_context: StoryContext,
+        frozen_threads: list,
+        sibling_summaries: str,
+        shared_enhancement: str,
+        title: str,
+        genre: str,
+        style: str,
+        characters: list,
+        world,
+        word_count: int,
+        macro_arcs,
+        conflict_web,
+        foreshadowing_plan,
+        progress_callback,
+    ) -> list[Chapter]:
+        """Validate contracts and retry failed chapters (#2 improvement)."""
+        from pipeline.layer1_story.chapter_contract_builder import validate_contract_compliance
+
+        outline_map = {o.chapter_number: o for o in batch}
+        chapter_map = {c.chapter_number: c for c in chapters}
+
+        for ch_num, contract in contracts.items():
+            chapter = chapter_map[ch_num]
+            outline = outline_map[ch_num]
+
+            try:
+                compliance = await asyncio.to_thread(
+                    validate_contract_compliance,
+                    self.llm, chapter.content, contract, model=self.gen._layer_model,
+                )
+                score = compliance.get("compliance_score", 0.0)
+                failures = compliance.get("failures", [])
+
+                retry_count = 0
+                while score < self.retry_threshold and retry_count < self.retry_max:
+                    retry_count += 1
+                    if progress_callback:
+                        progress_callback(
+                            f"⚠️ Ch{ch_num} compliance {score:.0%} < {self.retry_threshold:.0%}, "
+                            f"async retry {retry_count}/{self.retry_max}..."
+                        )
+
+                    # Rebuild contract with failures
                     from pipeline.layer1_story.chapter_contract_builder import build_contract, format_contract_for_prompt
-                    p_contract = build_contract(
-                        outline.chapter_number, outline,
+                    new_contract = build_contract(
+                        ch_num, outline,
                         threads=frozen_threads,
                         macro_arcs=macro_arcs,
                         conflicts=conflict_web,
                         foreshadowing_plan=foreshadowing_plan,
                         characters=characters,
+                        previous_failures=failures,
                     )
-                    p_contract_text = format_contract_for_prompt(p_contract)
-                except Exception as e:
-                    logger.warning("Contract build failed for ch%d (non-fatal): %s", outline.chapter_number, e)
 
-            if progress_callback:
-                progress_callback(
-                    f"Đang viết chương {outline.chapter_number}: {outline.title}..."
-                )
+                    # Rewrite chapter
+                    new_chapter, _ = await asyncio.to_thread(
+                        self._write_chapter_parallel,
+                        outline, frozen, draft, story_context, frozen_threads,
+                        sibling_summaries, shared_enhancement, title, genre, style,
+                        characters, world, word_count, macro_arcs, conflict_web,
+                        foreshadowing_plan, progress_callback, None,
+                        override_contract=new_contract,
+                    )
 
-            ch_result = self.gen._write_chapter_with_long_context(
-                title, genre, style, characters, world, outline,
-                word_count, frozen_ctx, list(frozen.chapter_texts), bible_ctx,
-                open_threads=frozen_threads,
-                active_conflicts=active_conflicts,
-                foreshadowing_to_plant=seeds,
-                foreshadowing_to_payoff=payoffs,
-                pacing_type=pacing,
-                enhancement_context=per_chapter_enhancement,
-                current_arc_context=arc_context,
-                chapter_contract=p_contract_text,
+                    chapter_map[ch_num] = new_chapter
+
+                    # Re-validate
+                    compliance = await asyncio.to_thread(
+                        validate_contract_compliance,
+                        self.llm, new_chapter.content, new_contract, model=self.gen._layer_model,
+                    )
+                    score = compliance.get("compliance_score", 0.0)
+                    failures = compliance.get("failures", [])
+
+                if progress_callback:
+                    status = f"Ch{ch_num} compliance: {score:.0%}"
+                    if retry_count > 0:
+                        status += f" (sau {retry_count} retry)"
+                    progress_callback(status)
+
+            except Exception as e:
+                logger.warning("Contract validation failed for ch%d: %s", ch_num, e)
+
+        return list(chapter_map.values())
+
+    def _write_chapter_parallel(
+        self,
+        outline: ChapterOutline,
+        frozen: FrozenContext,
+        draft: StoryDraft,
+        story_context: StoryContext,
+        frozen_threads: list,
+        sibling_summaries: str,
+        shared_enhancement: str,
+        title: str,
+        genre: str,
+        style: str,
+        characters: list,
+        world,
+        word_count: int,
+        macro_arcs,
+        conflict_web,
+        foreshadowing_plan,
+        progress_callback,
+        causal_acc: CausalAccumulator | None,
+        override_contract=None,
+    ) -> tuple[Chapter, dict | None]:
+        """Write a single chapter for parallel execution. Returns (chapter, contract)."""
+        bible_ctx = ""
+        if draft.story_bible:
+            bible_ctx = self.gen.bible_manager.get_context_for_chapter(
+                draft.story_bible,
+                outline.chapter_number,
+                recent_summaries=frozen.recent_summaries,
+                character_states=frozen.character_states,
             )
-            if p_contract is not None:
+        if sibling_summaries:
+            bible_ctx = f"{bible_ctx}\n\n[Sibling outlines in this batch]\n{sibling_summaries}" if bible_ctx else f"[Sibling outlines in this batch]\n{sibling_summaries}"
+
+        # Tiered context
+        if getattr(self.config.pipeline, "enable_tiered_context", False):
+            try:
+                from pipeline.layer1_story.tiered_context_builder import build_tiered_context
+                tiered = build_tiered_context(
+                    chapter_num=outline.chapter_number,
+                    chapters=list(draft.chapters),
+                    outline=outline,
+                    open_threads=frozen_threads,
+                    story_bible=draft.story_bible,
+                    all_chapter_texts=list(frozen.chapter_texts),
+                    max_tokens=getattr(self.config.pipeline, "tiered_context_max_tokens", 3000),
+                    max_promotions=getattr(self.config.pipeline, "tiered_max_promotions", 5),
+                )
+                if tiered:
+                    bible_ctx = tiered
+            except Exception as e:
+                logger.warning("Tiered context failed for ch%d: %s", outline.chapter_number, e)
+
+        frozen_ctx = StoryContext(total_chapters=story_context.total_chapters)
+        frozen_ctx.current_chapter = outline.chapter_number
+        frozen_ctx.recent_summaries = list(frozen.recent_summaries)
+        frozen_ctx.character_states = list(frozen.character_states)
+        frozen_ctx.plot_events = list(frozen.plot_events)
+
+        # Resolve narrative context
+        active_conflicts, seeds, payoffs, pacing, current_arc = [], [], [], "", None
+        try:
+            from pipeline.layer1_story.macro_outline_builder import get_arc_for_chapter
+            from pipeline.layer1_story.conflict_web_builder import get_active_conflicts
+            from pipeline.layer1_story.foreshadowing_manager import get_seeds_to_plant, get_payoffs_due
+            from pipeline.layer1_story.pacing_controller import validate_pacing
+            current_arc = get_arc_for_chapter(macro_arcs or [], outline.chapter_number)
+            arc_num = current_arc.arc_number if current_arc else 1
+            active_conflicts = get_active_conflicts(conflict_web or [], arc_num)
+            seeds = get_seeds_to_plant(foreshadowing_plan or [], outline.chapter_number)
+            payoffs = get_payoffs_due(foreshadowing_plan or [], outline.chapter_number)
+            pacing = validate_pacing(getattr(outline, "pacing_type", "") or "")
+        except Exception as e:
+            logger.warning("Narrative context failed for ch%d: %s", outline.chapter_number, e)
+
+        arc_context = ""
+        if current_arc:
+            arc_context = (
+                f"Arc {current_arc.arc_number}: {current_arc.name}\n"
+                f"Xung đột trung tâm: {current_arc.central_conflict}\n"
+                f"Nhân vật trọng tâm: {', '.join(current_arc.character_focus) if current_arc.character_focus else 'tất cả'}\n"
+                f"Kết thúc arc: {current_arc.resolution}\n"
+                f"Cung bậc cảm xúc: {current_arc.emotional_trajectory}"
+            )
+
+        per_chapter_enhancement = shared_enhancement
+        if self.config.pipeline.enable_scene_decomposition:
+            try:
+                from pipeline.layer1_story.scene_decomposer import (
+                    decompose_chapter_scenes, format_scenes_for_prompt, should_decompose,
+                )
+                if should_decompose(outline.chapter_number, pacing):
+                    scenes = decompose_chapter_scenes(
+                        self.llm, outline, characters, world, genre, model=self.gen._layer_model,
+                    )
+                    st = format_scenes_for_prompt(scenes)
+                    if st:
+                        per_chapter_enhancement = f"{shared_enhancement}\n\n{st}".strip()
+            except Exception:
+                pass
+
+        # Scene beats
+        from pipeline.layer1_story.scene_beat_generator import generate_scene_beats
+        scene_beats = generate_scene_beats(
+            self.llm, outline, characters, world, genre,
+            model_tier=self.gen._layer_model or "cheap",
+        )
+        if scene_beats:
+            per_chapter_enhancement += scene_beats
+
+        # Contract
+        p_contract = override_contract
+        p_contract_text = ""
+        if p_contract is None and getattr(self.config.pipeline, "enable_chapter_contracts", False):
+            try:
+                from pipeline.layer1_story.chapter_contract_builder import build_contract, format_contract_for_prompt
+                p_contract = build_contract(
+                    outline.chapter_number, outline,
+                    threads=frozen_threads,
+                    macro_arcs=macro_arcs,
+                    conflicts=conflict_web,
+                    foreshadowing_plan=foreshadowing_plan,
+                    characters=characters,
+                )
+                p_contract_text = format_contract_for_prompt(p_contract)
+            except Exception as e:
+                logger.warning("Contract build failed for ch%d: %s", outline.chapter_number, e)
+        elif p_contract:
+            from pipeline.layer1_story.chapter_contract_builder import format_contract_for_prompt
+            p_contract_text = format_contract_for_prompt(p_contract)
+
+        if progress_callback:
+            progress_callback(f"Đang viết chương {outline.chapter_number}: {outline.title}...")
+
+        ch_result = self.gen._write_chapter_with_long_context(
+            title, genre, style, characters, world, outline,
+            word_count, frozen_ctx, list(frozen.chapter_texts), bible_ctx,
+            open_threads=frozen_threads,
+            active_conflicts=active_conflicts,
+            foreshadowing_to_plant=seeds,
+            foreshadowing_to_payoff=payoffs,
+            pacing_type=pacing,
+            enhancement_context=per_chapter_enhancement,
+            current_arc_context=arc_context,
+            chapter_contract=p_contract_text,
+        )
+
+        if p_contract is not None:
+            try:
+                ch_result.contract = p_contract
+            except Exception:
+                pass
+
+        # Causal event extraction (#3 improvement)
+        if causal_acc:
+            self._extract_causal_events(ch_result, outline, causal_acc)
+
+        return ch_result, p_contract
+
+    def _extract_causal_events(
+        self,
+        chapter: Chapter,
+        outline: ChapterOutline,
+        causal_acc: CausalAccumulator,
+    ):
+        """Extract causal events from chapter for cross-batch sync."""
+        try:
+            # Simple heuristic: extract key plot points from content
+            # More sophisticated: use LLM to identify cause-effect chains
+            keywords = ["vì thế", "do đó", "kết quả", "dẫn đến", "bởi vì", "nên"]
+            content_lower = chapter.content.lower()
+            for kw in keywords:
+                if kw in content_lower:
+                    causal_acc.add_event(
+                        chapter_num=outline.chapter_number,
+                        event_type="causal_marker",
+                        description=f"Chapter {outline.chapter_number} contains causal keyword: {kw}",
+                    )
+                    break
+        except Exception as e:
+            logger.debug("Causal extraction failed for ch%d: %s", outline.chapter_number, e)
+
+    def _sync_causal_events(
+        self,
+        causal_acc: CausalAccumulator,
+        story_context: StoryContext,
+        progress_callback,
+    ):
+        """Sync accumulated causal events back to story_context."""
+        events = causal_acc.get_events_sorted()
+        if not events:
+            return
+
+        # Merge into story_context.plot_events or a dedicated causal_graph
+        causal_graph = getattr(story_context, "causal_graph", None)
+        if causal_graph and hasattr(causal_graph, "add_event"):
+            for ev in events:
                 try:
-                    ch_result.contract = p_contract
-                except Exception as e:
-                    logger.debug("Attach contract to parallel chapter failed: %s", e)
-            return ch_result
+                    causal_graph.add_event(
+                        chapter=ev["chapter"],
+                        event_type=ev["type"],
+                        description=ev["description"],
+                    )
+                except Exception:
+                    pass
+
+        if progress_callback and events:
+            progress_callback(f"[CAUSAL] Synced {len(events)} causal events from parallel batch")
+
+    def _run_batch_threaded(
+        self,
+        batch: list[ChapterOutline],
+        frozen: FrozenContext,
+        draft: StoryDraft,
+        story_context: StoryContext,
+        all_chapter_texts: list[str],
+        title: str,
+        genre: str,
+        style: str,
+        characters: list,
+        world,
+        word_count: int,
+        context_window: int,
+        executor: ThreadPoolExecutor,
+        self_reviewer,
+        progress_callback,
+        macro_arcs=None,
+        conflict_web=None,
+        foreshadowing_plan=None,
+        premise=None,
+        voice_profiles=None,
+    ) -> list[Chapter]:
+        """Thread-based batch execution (fallback when asyncio disabled)."""
+        sibling_summaries = self._build_sibling_context(batch)
+        frozen_threads = list(story_context.open_threads)
+
+        from pipeline.layer1_story.enhancement_context_builder import build_shared_enhancement_context
+        shared_enhancement = build_shared_enhancement_context(
+            self.config, genre, premise=premise, voice_profiles=voice_profiles,
+        )
+
+        causal_acc = CausalAccumulator() if self.causal_sync else None
 
         max_workers = min(len(batch), 5)
         with ThreadPoolExecutor(max_workers=max_workers) as write_executor:
             futures = {
-                write_executor.submit(_write_one, o): o for o in batch
+                write_executor.submit(
+                    self._write_chapter_parallel,
+                    o, frozen, draft, story_context, frozen_threads,
+                    sibling_summaries, shared_enhancement, title, genre, style,
+                    characters, world, word_count, macro_arcs, conflict_web,
+                    foreshadowing_plan, progress_callback, causal_acc,
+                ): o for o in batch
             }
             chapters = []
+            contracts = {}
             for future in as_completed(futures):
+                outline = futures[future]
                 try:
-                    chapters.append(future.result())
+                    chapter, contract = future.result()
+                    chapters.append(chapter)
+                    if contract:
+                        contracts[chapter.chapter_number] = contract
                 except Exception as e:
-                    outline = futures[future]
-                    logger.error("Parallel write failed for chapter %d: %s", outline.chapter_number, e)
+                    logger.error("Threaded write failed for chapter %d: %s", outline.chapter_number, e)
                     raise
 
+        # Contract validation with retry (#2 improvement)
+        if contracts and getattr(self.config.pipeline, "enable_contract_validation", False):
+            from pipeline.layer1_story.chapter_contract_builder import validate_contract_compliance
+            outline_map = {o.chapter_number: o for o in batch}
+            chapter_map = {c.chapter_number: c for c in chapters}
+
+            for ch_num, contract in contracts.items():
+                chapter = chapter_map[ch_num]
+                outline = outline_map[ch_num]
+                try:
+                    compliance = validate_contract_compliance(
+                        self.llm, chapter.content, contract, model=self.gen._layer_model,
+                    )
+                    score = compliance.get("compliance_score", 0.0)
+                    failures = compliance.get("failures", [])
+
+                    retry_count = 0
+                    while score < self.retry_threshold and retry_count < self.retry_max:
+                        retry_count += 1
+                        if progress_callback:
+                            progress_callback(
+                                f"⚠️ Ch{ch_num} compliance {score:.0%}, retry {retry_count}/{self.retry_max}..."
+                            )
+
+                        from pipeline.layer1_story.chapter_contract_builder import build_contract
+                        new_contract = build_contract(
+                            ch_num, outline,
+                            threads=frozen_threads,
+                            macro_arcs=macro_arcs,
+                            conflicts=conflict_web,
+                            foreshadowing_plan=foreshadowing_plan,
+                            characters=characters,
+                            previous_failures=failures,
+                        )
+
+                        new_chapter, _ = self._write_chapter_parallel(
+                            outline, frozen, draft, story_context, frozen_threads,
+                            sibling_summaries, shared_enhancement, title, genre, style,
+                            characters, world, word_count, macro_arcs, conflict_web,
+                            foreshadowing_plan, progress_callback, None,
+                            override_contract=new_contract,
+                        )
+                        chapter_map[ch_num] = new_chapter
+
+                        compliance = validate_contract_compliance(
+                            self.llm, new_chapter.content, new_contract, model=self.gen._layer_model,
+                        )
+                        score = compliance.get("compliance_score", 0.0)
+                        failures = compliance.get("failures", [])
+
+                    if progress_callback:
+                        status = f"Ch{ch_num} compliance: {score:.0%}"
+                        if retry_count > 0:
+                            status += f" (sau {retry_count} retry)"
+                        progress_callback(status)
+                except Exception as e:
+                    logger.warning("Contract validation failed for ch%d: %s", ch_num, e)
+
+            chapters = list(chapter_map.values())
+
         chapters_ordered = sorted(chapters, key=lambda c: c.chapter_number)
+
+        # Causal sync (#3 improvement)
+        if causal_acc and self.causal_sync:
+            self._sync_causal_events(causal_acc, story_context, progress_callback)
 
         if progress_callback:
             progress_callback(

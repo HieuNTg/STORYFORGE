@@ -350,6 +350,82 @@ class StoryEnhancer:
         # Maintain order
         enhanced.chapters = [results[ch.chapter_number] for ch in draft.chapters]
 
+        # Cross-chapter drama curve balancing (#3 improvement)
+        _curve_enabled = True
+        _curve_type = "rising"
+        try:
+            cfg = ConfigManager().load().pipeline
+            _curve_enabled = bool(getattr(cfg, "l2_drama_curve_balancing", True))
+            _curve_type = str(getattr(cfg, "l2_drama_curve_target", "rising"))
+        except Exception:
+            pass
+
+        if _curve_enabled:
+            try:
+                from pipeline.layer2_enhance.scene_enhancer import DramaCurveBalancer, SceneEnhancer
+                _log("📈 Analyzing drama curve...")
+
+                # Score all chapters to build curve
+                scene_enhancer = SceneEnhancer()
+                chapter_scores: dict[int, float] = {}
+                for ch in enhanced.chapters:
+                    try:
+                        # Quick drama score using cheap model
+                        result = self.llm.generate_json(
+                            system_prompt="Đánh giá kịch tính nhanh. Trả về JSON.",
+                            user_prompt=f"Đánh giá kịch tính nội dung sau (0-1):\n{ch.content[:2000]}\n\n"
+                                        '{"drama_score": 0.6}',
+                            temperature=0.2,
+                            max_tokens=100,
+                            model_tier="cheap",
+                        )
+                        chapter_scores[ch.chapter_number] = float(result.get("drama_score", 0.5))
+                    except Exception:
+                        chapter_scores[ch.chapter_number] = 0.5
+
+                # Build curve balancer
+                balancer = DramaCurveBalancer(curve_type=_curve_type)
+                balancer.set_scores(chapter_scores, total_chapters)
+                summary = balancer.get_summary()
+
+                _log(
+                    f"📈 Drama curve ({_curve_type}): avg={summary['avg_actual']:.2f} "
+                    f"(target={summary['avg_target']:.2f}), {summary['total_adjustments']} adjustments needed"
+                )
+
+                # Re-enhance chapters that need curve adjustment
+                if summary["total_adjustments"] > 0:
+                    _log(f"🔄 Re-enhancing {summary['total_adjustments']} chapters for curve balance...")
+                    chapters_to_reenhance = (
+                        summary.get("chapters_need_boost", []) +
+                        summary.get("chapters_need_reduction", [])
+                    )
+
+                    for ch_num in chapters_to_reenhance:
+                        try:
+                            ch = next(c for c in enhanced.chapters if c.chapter_number == ch_num)
+                            orig = next(c for c in draft.chapters if c.chapter_number == ch_num)
+
+                            # Re-enhance with curve directive
+                            reenhanced = scene_enhancer.enhance_chapter_by_scenes(
+                                chapter=orig,
+                                sim_result=sim_result,
+                                genre=draft.genre,
+                                draft=draft,
+                                curve_balancer=balancer,
+                            )
+
+                            # Update in enhanced list
+                            idx = ch_num - 1
+                            if 0 <= idx < len(enhanced.chapters):
+                                enhanced.chapters[idx] = reenhanced
+                                _log(f"  ✓ Chương {ch_num} curve-adjusted")
+                        except Exception as e:
+                            logger.warning(f"Curve re-enhance ch{ch_num} failed: {e}")
+
+            except Exception as e:
+                logger.warning(f"Drama curve balancing failed (non-fatal): {e}")
+
         # Enhancement diff tracking (non-fatal)
         try:
             from pipeline.layer2_enhance.enhancement_diff_tracker import track_enhancement_diffs

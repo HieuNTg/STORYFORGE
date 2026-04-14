@@ -109,6 +109,10 @@ class PipelineConfig:
     # Parallel chapter generation (batch mode)
     parallel_chapters_enabled: bool = False  # Feature flag — sequential fallback when False
     chapter_batch_size: int = 5  # Chapters per batch
+    parallel_use_asyncio: bool = True  # Use asyncio.gather() instead of ThreadPoolExecutor
+    chapter_retry_max: int = 2  # Max retries for failed contract validation
+    chapter_retry_threshold: float = 0.6  # Contract compliance score below this triggers retry
+    parallel_causal_sync: bool = True  # Sync causal events between parallel chapters post-write
 
     # Layer 1 enhancements (all opt-in, non-fatal)
     enable_theme_premise: bool = True  # Generate thematic anchor before story
@@ -178,6 +182,13 @@ class PipelineConfig:
     # Phase 6: Drama ceiling (prevents melodrama)
     l2_drama_ceiling: bool = True  # Apply genre-specific drama ceilings
     l2_melodrama_detection: bool = True  # Detect and flag melodramatic writing
+
+    # Phase 7: L2 scene enhancement improvements
+    l2_parallel_scenes: bool = True  # Parallel scene enhancement within chapter
+    l2_scene_retry_max: int = 2  # Max retries for weak scenes after enhancement
+    l2_scene_retry_threshold: float = 0.5  # Drama threshold for scene retry
+    l2_drama_curve_balancing: bool = True  # Cross-chapter drama curve optimization
+    l2_drama_curve_target: str = "rising"  # rising | climax_at_end | wave
 
     # Quality gate (inline scoring between layers)
     # Recommended thresholds by genre: romance/comedy=2.3, mystery/thriller=2.5,

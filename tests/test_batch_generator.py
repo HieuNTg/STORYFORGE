@@ -393,3 +393,118 @@ class TestBatchCheckpointAndResume:
         )
 
         assert len(draft.chapters) == 3
+
+
+class TestCausalAccumulator:
+    """Tests for CausalAccumulator (#3 improvement)."""
+
+    def test_add_and_get_events(self):
+        from pipeline.layer1_story.batch_generator import CausalAccumulator
+        acc = CausalAccumulator()
+        acc.add_event(2, "plot", "Event 2")
+        acc.add_event(1, "causal", "Event 1")
+        acc.add_event(3, "twist", "Event 3")
+
+        events = acc.get_events_sorted()
+        assert len(events) == 3
+        assert events[0]["chapter"] == 1
+        assert events[1]["chapter"] == 2
+        assert events[2]["chapter"] == 3
+
+    def test_clear(self):
+        from pipeline.layer1_story.batch_generator import CausalAccumulator
+        acc = CausalAccumulator()
+        acc.add_event(1, "test", "desc")
+        acc.clear()
+        assert acc.get_events_sorted() == []
+
+    def test_thread_safe(self):
+        from pipeline.layer1_story.batch_generator import CausalAccumulator
+        import threading
+        acc = CausalAccumulator()
+
+        def add_events(start):
+            for i in range(10):
+                acc.add_event(start + i, "test", f"event {start + i}")
+
+        threads = [threading.Thread(target=add_events, args=(i * 10,)) for i in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        events = acc.get_events_sorted()
+        assert len(events) == 50
+
+
+class TestNewConfigFlags:
+    """Tests for new config flags (#1, #2, #3)."""
+
+    def test_reads_asyncio_flag(self):
+        gen = _mock_generator(parallel=True)
+        gen.config.pipeline.parallel_use_asyncio = True
+        gen.config.pipeline.chapter_retry_max = 3
+        gen.config.pipeline.chapter_retry_threshold = 0.7
+        gen.config.pipeline.parallel_causal_sync = True
+
+        bg = BatchChapterGenerator(gen)
+
+        assert bg.use_asyncio is True
+        assert bg.retry_max == 3
+        assert bg.retry_threshold == 0.7
+        assert bg.causal_sync is True
+
+    def test_defaults_when_not_set(self):
+        from config.defaults import PipelineConfig
+        gen = _mock_generator()
+        # Use real PipelineConfig to verify defaults
+        gen.config.pipeline = PipelineConfig()
+
+        bg = BatchChapterGenerator(gen)
+
+        assert bg.use_asyncio is True  # default from PipelineConfig
+        assert bg.retry_max == 2  # default from PipelineConfig
+        assert bg.retry_threshold == 0.6  # default from PipelineConfig
+        assert bg.causal_sync is True  # default from PipelineConfig
+
+
+class TestAsyncBatch:
+    """Tests for async batch execution (#1 improvement)."""
+
+    def test_parallel_routes_to_async_or_threaded(self):
+        gen = _mock_generator(parallel=True)
+        gen.config.pipeline.parallel_use_asyncio = False
+        gen.config.pipeline.enable_chapter_contracts = False
+        gen.config.pipeline.enable_tiered_context = False
+        gen.config.pipeline.enable_scene_decomposition = False
+        gen.config.pipeline.enable_contract_validation = False
+        gen._layer_model = "cheap"
+
+        bg = BatchChapterGenerator(gen)
+
+        # Mock the internal methods
+        bg._run_batch_threaded = MagicMock(return_value=[_make_chapter(1)])
+        bg._run_batch_async = MagicMock()
+
+        frozen = FrozenContext(StoryContext(total_chapters=1), [])
+        draft = StoryDraft(
+            title="T", genre="G", synopsis="S",
+            characters=[], world=_WORLD, outlines=[],
+        )
+
+        bg._run_batch_parallel(
+            batch=[_make_outline(1)],
+            frozen=frozen,
+            draft=draft,
+            story_context=StoryContext(total_chapters=1),
+            all_chapter_texts=[],
+            title="T", genre="G", style="S",
+            characters=[], world=_WORLD,
+            word_count=2000, context_window=5,
+            executor=MagicMock(), self_reviewer=None,
+            progress_callback=None,
+        )
+
+        # Should route to threaded when asyncio disabled
+        bg._run_batch_threaded.assert_called_once()
+        bg._run_batch_async.assert_not_called()
