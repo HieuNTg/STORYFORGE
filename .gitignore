@@ -8,11 +8,11 @@ dist/
 build/
 .venv/
 venv/
+.ruff_cache/
 
 # ── Environment & Secrets ──────────────────────────────────────────
 .env*
 !.env.example
-!.env.staging.example
 
 # ── Runtime Data ───────────────────────────────────────────────────
 data/config.json
@@ -20,12 +20,14 @@ data/secrets.json
 data/*.db
 data/*.db-shm
 data/*.db-wal
+data/*_cache.json
 data/auth_profiles.json
 data/onboarding_state.json
 data/.auth_key
 data/audio/
 data/branches/
 data/jwt_keys/
+data/test_timings.json
 output/
 
 # ── Logs ───────────────────────────────────────────────────────────
@@ -34,19 +36,19 @@ logs.txt
 
 # ── Testing & Coverage ────────────────────────────────────────────
 .coverage
+.coverage_*
 coverage.xml
 coverage_html/
 htmlcov/
 .pytest_cache/
 .mutmut-cache/
 test_output.txt
-data/test_timings.json
 
 # ── Node ──────────────────────────────────────────────────────────
 node_modules/
 coverage/
 
-# ── TypeScript build output (generated from .ts source) ──────────
+# ── TypeScript build output ───────────────────────────────────────
 web/js/**/*.js
 web/js/**/*.js.map
 !web/js/__tests__/setup.js
@@ -61,25 +63,25 @@ Thumbs.db
 *.swo
 *~
 
+# ── Temporary files ───────────────────────────────────────────────
+temp_*
+*.tmp
+screenshots/
+docs/screenshots/
+docs/research/
+
 # ── Tool Artifacts ─────────────────────────────────────────────────
 repomix-output.xml
 .repomixignore
 release-manifest.json
 .serena/cache
 
-# ── Claude Code / Gemini ──────────────────────────────────────────
+# ── Claude Code / AI tools ────────────────────────────────────────
 .claude/
 .gemini/
 CLAUDE.md
 prompt.md
 ck.md
 
-# ── Plans (keep templates) ────────────────────────────────────────
-plans/**/*
-!plans/templates/*
-screenshots/*
-docs/screenshots/*
-docs/research/*
-
-# ── TLS / SSL generated files ─────────────────────────────────────
-nginx/ssl/dhparam.pem
+# ── Internal planning docs ────────────────────────────────────────
+plans/
