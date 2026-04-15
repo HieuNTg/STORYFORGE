@@ -93,8 +93,12 @@ def generate_voice_profiles(llm, characters: list[Character], genre: str, model=
                 profiles = result[key]
                 break
         else:
-            logger.warning("generate_voice_profiles: unexpected dict shape, keys=%s", list(result.keys()))
-            return []
+            # LLM may return single profile dict directly (when 1 character)
+            if "name" in result and "vocabulary_level" in result:
+                profiles = [result]
+            else:
+                logger.warning("generate_voice_profiles: unexpected dict shape, keys=%s", list(result.keys()))
+                return []
     else:
         logger.warning("generate_voice_profiles: unexpected result type %s", type(result))
         return []
