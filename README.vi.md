@@ -102,7 +102,7 @@ Hầu hết công cụ viết AI tạo ra những câu chuyện phẳng, dễ đ
 - **Xuất phong phú** — PDF, EPUB, HTML web reader, ZIP với các chương và gợi ý hình ảnh
 
 ### LLM & Nhà Cung Cấp
-- **Hỗ trợ đa nhà cung cấp LLM** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ model), Kyma API, Ollama (local), hoặc endpoint tùy chỉnh; tự nhận diện nhà cung cấp từ API key
+- **Hỗ trợ đa nhà cung cấp LLM** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ model), Z.AI (model miễn phí), Kyma API, Ollama (local), hoặc endpoint tùy chỉnh; tự nhận diện nhà cung cấp từ API key
 - **Fallback đa nhà cung cấp** — cấu hình hồ sơ dự phòng tự động chuyển sang nhà cung cấp khác khi bị rate limit hoặc lỗi; tuân thủ header rate-limit reset
 - **Định tuyến model theo provider** — tự động điều chỉnh định dạng model cho từng provider trong chuỗi fallback
 - **Hỗ trợ auto-router** — để hệ thống chọn model tốt nhất cho từng tác vụ dựa trên đánh đổi chi phí/năng lực
@@ -198,7 +198,7 @@ Mọi cài đặt được quản lý qua tab **Cài đặt** trong giao diện 
 
 Bất kỳ nhà cung cấp nào cung cấp endpoint `/v1/chat/completions` tương thích OpenAI đều hoạt động với StoryForge:
 
-**OpenAI** · **Google Gemini** · **Anthropic** · **OpenRouter** · **Kyma API** · **Ollama** · **Endpoint tùy chỉnh bất kỳ**
+**OpenAI** · **Google Gemini** · **Anthropic** · **OpenRouter** · **Z.AI** · **Kyma API** · **Ollama** · **Endpoint tùy chỉnh bất kỳ**
 
 ### Tùy chỉnh prompt tác nhân
 

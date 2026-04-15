@@ -102,7 +102,7 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 - **Rich export** — PDF, EPUB, HTML web reader, and ZIP with chapters and image prompts
 
 ### LLM & Providers
-- **Multi-provider LLM support** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ models), Kyma API, Ollama (local), or any custom OpenAI-compatible endpoint; auto-detect provider from API key
+- **Multi-provider LLM support** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ models), Z.AI (free models), Kyma API, Ollama (local), or any custom OpenAI-compatible endpoint; auto-detect provider from API key
 - **Multi-provider fallback** — configure fallback profiles that auto-switch between providers on rate limit or failure; honors rate-limit reset headers
 - **Provider-aware model routing** — automatic model format adaptation per provider in fallback chains
 - **Auto-router support** — let the system pick the best model for each task based on cost/capability tradeoffs
@@ -198,7 +198,7 @@ All settings are managed through the **Settings** tab in the web UI and persiste
 
 Any provider that exposes an OpenAI-compatible `/v1/chat/completions` endpoint works with StoryForge:
 
-**OpenAI** · **Google Gemini** · **Anthropic** · **OpenRouter** · **Kyma API** · **Ollama** · **Any custom endpoint**
+**OpenAI** · **Google Gemini** · **Anthropic** · **OpenRouter** · **Z.AI** · **Kyma API** · **Ollama** · **Any custom endpoint**
 
 ### Customizing Agent Prompts
 
