@@ -166,6 +166,7 @@ def build_chapter_prompt(
     enhancement_context: str = "",
     current_arc_context: str = "",
     chapter_contract: str = "",
+    scenes: list[dict] = None,
 ) -> tuple[str, str]:
     """Build system/user prompts for chapter writing. Returns (system_prompt, user_prompt)."""
     chars_text = "\n".join(
@@ -284,6 +285,15 @@ def build_chapter_prompt(
     # Inject chapter contract (unified requirements for this chapter)
     if chapter_contract:
         user_prompt += "\n\n" + chapter_contract
+    # Inject scene structure when provided
+    if scenes:
+        try:
+            from pipeline.layer1_story.scene_decomposer import format_scenes_for_prompt
+            scenes_text = format_scenes_for_prompt(scenes)
+            if scenes_text:
+                user_prompt += "\n\n" + scenes_text
+        except Exception:
+            pass
     # Inject enhancement context (theme premise, voice profiles, scene structure, show-don't-tell)
     if enhancement_context:
         user_prompt += "\n\n" + enhancement_context
@@ -327,6 +337,7 @@ def write_chapter(
     enhancement_context: str = "",
     current_arc_context: str = "",
     chapter_contract: str = "",
+    scenes: list[dict] = None,
 ) -> Chapter:
     """Write a single chapter (non-streaming)."""
     sys_prompt, user_prompt = build_chapter_prompt(
@@ -339,6 +350,7 @@ def write_chapter(
         enhancement_context=enhancement_context,
         current_arc_context=current_arc_context,
         chapter_contract=chapter_contract,
+        scenes=scenes,
     )
     content = llm.generate(
         system_prompt=sys_prompt,
@@ -376,6 +388,7 @@ def write_chapter_stream(
     enhancement_context: str = "",
     current_arc_context: str = "",
     chapter_contract: str = "",
+    scenes: list[dict] = None,
 ) -> Chapter:
     """Write chapter with streaming. Calls stream_callback(partial_text) each chunk."""
     sys_prompt, user_prompt = build_chapter_prompt(
@@ -388,6 +401,7 @@ def write_chapter_stream(
         enhancement_context=enhancement_context,
         current_arc_context=current_arc_context,
         chapter_contract=chapter_contract,
+        scenes=scenes,
     )
 
     full_content = ""
@@ -412,6 +426,7 @@ def write_chapter_stream(
             enhancement_context=enhancement_context,
             current_arc_context=current_arc_context,
             chapter_contract=chapter_contract,
+            scenes=scenes,
         )
 
     return Chapter(

@@ -225,6 +225,72 @@ async def run_full_pipeline(
         self.output.status = "error"
         return self.output
 
+    # ── Structural rewrite: L2 detects issues → L1 rewrites before enhancement ──
+    _structural_rewrite_enabled = getattr(self.config.pipeline, "enable_structural_rewrite", True)
+    if _structural_rewrite_enabled:
+        try:
+            _rewrite_threshold = float(getattr(self.config.pipeline, "structural_rewrite_threshold", 0.7))
+            _max_rewrites = int(getattr(self.config.pipeline, "max_structural_rewrites", 1))
+
+            # Collect arc waypoints from draft characters
+            _sr_arc_wps: list = []
+            for _c in (draft.characters or []):
+                for _wp in (getattr(_c, "arc_waypoints", None) or []):
+                    _wd = _wp.model_dump() if hasattr(_wp, "model_dump") else _wp
+                    if isinstance(_wd, dict):
+                        _wd.setdefault("character", _c.name)
+                        _sr_arc_wps.append(_wd)
+
+            issues_by_chapter = self.enhancer.detect_structural_issues(
+                draft, arc_waypoints=_sr_arc_wps, threshold=_rewrite_threshold
+            )
+
+            if issues_by_chapter:
+                _log(f"[STRUCTURAL] Phát hiện vấn đề cấu trúc trong {len(issues_by_chapter)} chương")
+                _outline_map = {o.chapter_number: o for o in (draft.outlines or [])}
+                _rewrite_count = 0
+
+                for _ch_num, _issues in sorted(issues_by_chapter.items()):
+                    if _rewrite_count >= _max_rewrites * len(draft.chapters):
+                        break
+                    # Build fix hints for L1 rewrite prompt
+                    _fix_hints = "\n".join(f"- {i.fix_hint}" for i in _issues)
+                    _issue_summary = "; ".join(i.description for i in _issues)
+                    _log(f"[STRUCTURAL] Viết lại chương {_ch_num}: {_issue_summary}")
+
+                    try:
+                        _outline = _outline_map.get(_ch_num)
+                        _enhancement_ctx = (
+                            f"[YÊU CẦU SỬA LỖI CẤU TRÚC]\n{_fix_hints}"
+                            if _fix_hints else ""
+                        )
+                        _rewritten_ch = await asyncio.to_thread(
+                            self.story_gen.write_chapter,
+                            title=draft.title,
+                            genre=genre,
+                            style=style,
+                            characters=draft.characters,
+                            world=draft.world,
+                            outline=_outline,
+                            word_count=word_count,
+                            enhancement_context=_enhancement_ctx,
+                        )
+                        # Replace chapter in draft (max 1 rewrite per chapter)
+                        for _idx, _ch in enumerate(draft.chapters):
+                            if _ch.chapter_number == _ch_num:
+                                draft.chapters[_idx] = _rewritten_ch
+                                break
+                        # Track to prevent re-detection loop
+                        self.enhancer._rewritten_chapters.add(_ch_num)
+                        _rewrite_count += 1
+                        _log(f"[STRUCTURAL] Chương {_ch_num} đã viết lại xong")
+                    except Exception as _rw_err:
+                        logger.warning(f"Structural rewrite ch{_ch_num} failed (non-fatal): {_rw_err}")
+            else:
+                _log("[STRUCTURAL] Không phát hiện vấn đề cấu trúc nghiêm trọng")
+        except Exception as _sr_err:
+            logger.warning(f"Structural rewrite phase failed (non-fatal): {_sr_err}")
+
     # ── Layer 2: Drama simulation & story enhancement ────────────────────────
     _log("══════ LAYER 2: MÔ PHỎNG TĂNG KỊCH TÍNH ══════")
     with self._lock:
@@ -232,7 +298,6 @@ async def run_full_pipeline(
     layer_start = time.time()
     try:
         _log("[L2] Đang phân tích cấu trúc truyện...")
-        analysis = await asyncio.to_thread(self.analyzer.analyze, draft)
 
         # Extract theme for L2 enhancement (non-fatal)
         theme_profile = None
@@ -255,11 +320,12 @@ async def run_full_pipeline(
         except Exception as _e:
             logger.warning(f"Plugin apply_genre_rules failed: {_e}")
 
-        _log(f"[L2] Bắt đầu mô phỏng {num_sim_rounds} vòng...")
         _use_signals = bool(getattr(self.config.pipeline, "l2_use_l1_signals", True))
         _arc_wps = []
         _threads_in = None
         _pacing_dir = ""
+        _conflict_web = None
+        _foreshadowing_plan = None
         if _use_signals:
             for c in (draft.characters or []):
                 wps = getattr(c, "arc_waypoints", None) or []
@@ -274,6 +340,24 @@ async def run_full_pipeline(
                 _pacing_dir = str(getattr(_ctx, "pacing_adjustment", "") or "") if _ctx else ""
             except Exception:
                 _pacing_dir = ""
+            _conflict_web = list(getattr(draft, "conflict_web", None) or []) or None
+            _foreshadowing_plan = list(getattr(draft, "foreshadowing_plan", None) or []) or None
+
+        # Adaptive simulation rounds: calculate based on story complexity if enabled
+        if getattr(self.config.pipeline, "adaptive_simulation_rounds", True):
+            from pipeline.layer2_enhance.simulator import calculate_adaptive_rounds
+            num_sim_rounds = calculate_adaptive_rounds(
+                characters=draft.characters or [],
+                threads=_threads_in,
+                conflict_web=_conflict_web,
+            )
+            _log(f"[L2] Bắt đầu mô phỏng {num_sim_rounds} vòng (adaptive)...")
+        else:
+            _log(f"[L2] Bắt đầu mô phỏng {num_sim_rounds} vòng...")
+
+        analysis = await asyncio.to_thread(
+            self.analyzer.analyze, draft, _conflict_web
+        )
         sim_result = await asyncio.to_thread(
             self.simulator.run_simulation,
             characters=draft.characters,
@@ -286,6 +370,8 @@ async def run_full_pipeline(
             arc_waypoints=_arc_wps,
             threads=_threads_in,
             current_chapter=1,
+            conflict_web=_conflict_web,
+            foreshadowing_plan=_foreshadowing_plan,
         )
         self.output.simulation_result = sim_result
 
@@ -555,7 +641,10 @@ def run_layer2_only(
 
     Runs analyzer → simulator → enhancer without touching Layer 1 or 3.
     """
-    analysis = self.analyzer.analyze(draft)
+    _use_signals = bool(getattr(self.config.pipeline, "l2_use_l1_signals", True))
+    _conflict_web = list(getattr(draft, "conflict_web", None) or []) or None if _use_signals else None
+    _foreshadowing_plan = list(getattr(draft, "foreshadowing_plan", None) or []) or None if _use_signals else None
+    analysis = self.analyzer.analyze(draft, _conflict_web)
     sim_result = self.simulator.run_simulation(
         characters=draft.characters,
         relationships=analysis["relationships"],
@@ -563,6 +652,8 @@ def run_layer2_only(
         num_rounds=num_sim_rounds,
         progress_callback=progress_callback,
         drama_intensity=getattr(self.config.pipeline, "drama_intensity", "cao"),
+        conflict_web=_conflict_web,
+        foreshadowing_plan=_foreshadowing_plan,
     )
     return self.enhancer.enhance_with_feedback(
         draft=draft, sim_result=sim_result,

@@ -20,6 +20,13 @@ try:
 except ImportError:
     _CONSISTENCY_AVAILABLE = False
 
+# Structural issue detector (Phase 5)
+try:
+    from pipeline.layer2_enhance.structural_detector import StructuralIssueDetector, StructuralIssue
+    _STRUCTURAL_DETECTOR_AVAILABLE = True
+except ImportError:
+    _STRUCTURAL_DETECTOR_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 MAX_REENHANCE_ROUNDS = 2
@@ -81,6 +88,43 @@ class StoryEnhancer:
         self.llm = LLMClient()
         self._layer_model = self.llm.model_for_layer(self.LAYER)
         self.consistency_engine: Optional["ConsistencyEngine"] = None
+        # Phase 5: track chapters already rewritten at L1 to prevent loops
+        self._rewritten_chapters: set[int] = set()
+
+    def detect_structural_issues(
+        self,
+        draft: StoryDraft,
+        arc_waypoints: Optional[list] = None,
+        threshold: float = 0.7,
+    ) -> dict[int, list]:
+        """Detect structural issues per chapter before enhancement.
+
+        Returns {chapter_number: [StructuralIssue, ...]} for chapters with issues.
+        Only chapters NOT in _rewritten_chapters are checked (loop prevention).
+        Non-fatal: returns empty dict on any error.
+        """
+        if not _STRUCTURAL_DETECTOR_AVAILABLE:
+            return {}
+        try:
+            detector = StructuralIssueDetector(severity_threshold=threshold)
+            outline_map = {o.chapter_number: o for o in (draft.outlines or [])}
+            results: dict[int, list] = {}
+            for chapter in draft.chapters:
+                ch_num = chapter.chapter_number
+                if ch_num in self._rewritten_chapters:
+                    continue
+                outline = outline_map.get(ch_num)
+                issues = detector.detect(
+                    chapter=chapter,
+                    outline=outline,
+                    arc_waypoints=arc_waypoints,
+                )
+                if issues:
+                    results[ch_num] = issues
+            return results
+        except Exception as e:
+            logger.warning(f"Structural detection failed (non-fatal): {e}")
+            return {}
 
     def enhance_chapter(
         self,
@@ -173,106 +217,12 @@ class StoryEnhancer:
                 consistency_constraints=_consistency_constraints,
             )
         except Exception as e:
+            # Graceful degradation: return original chapter on enhancement failure
             logger.warning(
-                f"[DEPRECATED blob fallback] Scene-level enhancement failed: {e}. "
-                "Using legacy whole-chapter rewrite path — scheduled for removal next sprint."
+                f"Scene-level enhancement failed for chapter {chapter.chapter_number}: {e}. "
+                "Returning original chapter."
             )
-        # --- End scene-level enhancement ---
-
-        # Lọc sự kiện liên quan đến chương này
-        relevant_events = [
-            e for e in sim_result.events
-            if str(chapter.chapter_number) in e.suggested_insertion
-            or not e.suggested_insertion
-        ]
-        if not relevant_events:
-            # Phân bổ đều sự kiện theo tổng số chương
-            events_per_chapter = max(1, len(sim_result.events) // max(1, total_chapters))
-            start = (chapter.chapter_number - 1) * events_per_chapter
-            relevant_events = sim_result.events[start:start + events_per_chapter]
-
-        try:
-            from pipeline.layer2_enhance.scene_enhancer import _format_events_with_causality
-            events_text = _format_events_with_causality(sim_result)
-        except Exception:
-            events_text = "\n".join(
-                f"- [{e.event_type}] {e.description} "
-                f"(nhân vật: {', '.join(e.characters_involved)}, kịch tính: {e.drama_score:.1f})"
-                for e in relevant_events[:5]
-            ) or "Không có sự kiện cụ thể - tăng cường xung đột nội tâm."
-
-        suggestions_text = "\n".join(
-            f"- {s}" for s in sim_result.drama_suggestions[:5]
-        ) or "Tăng cường miêu tả cảm xúc và xung đột."
-
-        rel_text = "\n".join(
-            f"- {r.character_a} ↔ {r.character_b}: {r.relation_type.value} "
-            f"(xung đột: {r.tension:.1f})"
-            for r in sim_result.updated_relationships[:10]
-        )
-
-        # Build Layer 1 context for preservation
-        layer1_context = ""
-        if draft:
-            parts = []
-            if hasattr(draft, "foreshadowing_plan") and draft.foreshadowing_plan:
-                seeds = [
-                    f"- {f.hint} (Ch{f.plant_chapter}→Ch{f.payoff_chapter})"
-                    for f in draft.foreshadowing_plan[:5]
-                ]
-                if seeds:
-                    parts.append("Foreshadowing seeds:\n" + "\n".join(seeds))
-            if hasattr(draft, "conflict_web") and draft.conflict_web:
-                conflicts = [
-                    f"- {c.description} [{c.conflict_type}]"
-                    for c in draft.conflict_web[:5]
-                ]
-                if conflicts:
-                    parts.append("Conflict web:\n" + "\n".join(conflicts))
-            if hasattr(draft, "macro_arcs") and draft.macro_arcs:
-                arcs = [
-                    f"- Arc {a.arc_number}: {a.name} (Ch{a.chapter_start}-{a.chapter_end})"
-                    for a in draft.macro_arcs[:3]
-                ]
-                if arcs:
-                    parts.append("Macro arcs:\n" + "\n".join(arcs))
-            layer1_context = "\n".join(parts) if parts else "Không có dữ liệu Layer 1"
-        else:
-            layer1_context = "Không có dữ liệu Layer 1"
-
-        genre_hints = get_genre_enhancement_hints(genre, chapter.chapter_number, total_chapters)
-
-        enhance_prompt = prompts.ENHANCE_CHAPTER.format(
-            original_chapter=chapter.content[:6000],
-            drama_events=events_text,
-            suggestions=suggestions_text,
-            updated_relationships=rel_text,
-            word_count=word_count,
-            genre_style=genre or "kịch tính",
-            genre_hints=genre_hints,
-            strong_points="(sẽ được phân tích trong feedback round)",
-            layer1_context=layer1_context,
-        )
-        enhance_prompt = build_adaptive_enhance_prompt(enhance_prompt, genre)
-        enhance_prompt += "\n\n[NHẮC LẠI: Viết hoàn toàn bằng tiếng Việt. Không dùng tiếng Anh hay ngôn ngữ khác.]"
-
-        enhanced_content = self.llm.generate(
-            system_prompt=(
-                "Bạn là nhà văn tài năng chuyên viết truyện kịch tính bằng tiếng Việt. "
-                "BẮT BUỘC: Toàn bộ output phải viết bằng tiếng Việt, không được dùng ngôn ngữ khác."
-            ),
-            user_prompt=enhance_prompt,
-            max_tokens=8192,
-            model=self._layer_model,
-        )
-
-        return Chapter(
-            chapter_number=chapter.chapter_number,
-            title=chapter.title,
-            content=enhanced_content,
-            word_count=count_words(enhanced_content),
-            summary=chapter.summary,
-        )
+            return chapter
 
     def enhance_story(
         self,

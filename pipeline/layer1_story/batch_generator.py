@@ -436,6 +436,18 @@ class BatchChapterGenerator:
                 scene_beats_text = format_beats_for_prompt(scene_beats_list)
                 enhancement_context = f"{enhancement_context}\n\n{scene_beats_text}" if enhancement_context else scene_beats_text
 
+            # Scene decomposition: decompose chapter into 3-5 scenes before writing
+            chapter_scenes: list[dict] = []
+            if getattr(self.config.pipeline, "enable_scene_decomposition", False):
+                try:
+                    from pipeline.layer1_story.scene_decomposer import decompose_chapter_scenes
+                    chapter_scenes = decompose_chapter_scenes(
+                        self.llm, outline, characters, world, genre,
+                        model=self.gen._layer_model,
+                    )
+                except Exception as e:
+                    logger.warning("Scene decomposition failed for ch%d (non-fatal): %s", outline.chapter_number, e)
+
             # Scene beat writing: per-beat generation when enabled
             use_beat_writing = (
                 getattr(self.config.pipeline, "enable_scene_beat_writing", False)
@@ -480,6 +492,7 @@ class BatchChapterGenerator:
                     enhancement_context=enhancement_context,
                     current_arc_context=arc_context,
                     chapter_contract=contract_text,
+                    scenes=chapter_scenes,
                 )
             elif not use_beat_writing:
                 chapter = self.gen._write_chapter_with_long_context(
@@ -493,6 +506,7 @@ class BatchChapterGenerator:
                     enhancement_context=enhancement_context,
                     current_arc_context=arc_context,
                     chapter_contract=contract_text,
+                    scenes=chapter_scenes,
                 )
 
             if contract is not None:
@@ -611,6 +625,7 @@ class BatchChapterGenerator:
                                 enhancement_context=enhancement_context,
                                 current_arc_context=arc_context,
                                 chapter_contract=contract_text,
+                                scenes=chapter_scenes,
                             )
                         else:
                             chapter = self.gen._write_chapter_with_long_context(
@@ -624,6 +639,7 @@ class BatchChapterGenerator:
                                 enhancement_context=enhancement_context,
                                 current_arc_context=arc_context,
                                 chapter_contract=contract_text,
+                                scenes=chapter_scenes,
                             )
 
                         # Update in chapters list

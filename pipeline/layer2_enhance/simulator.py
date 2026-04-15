@@ -55,6 +55,30 @@ def _get_intensity_config(drama_intensity: str) -> dict:
     return INTENSITY_CONFIG.get(drama_intensity, INTENSITY_CONFIG["cao"])
 
 
+def calculate_adaptive_rounds(
+    characters: list,
+    threads: list = None,
+    conflict_web: list = None,
+    min_rounds: int = 4,
+    max_rounds: int = 10,
+) -> int:
+    """Calculate simulation rounds based on story complexity.
+
+    Formula: base + character_factor + thread_factor + conflict_factor
+    - Base: 4 rounds
+    - Character factor: +1 per 3 characters (up to +2)
+    - Thread factor: +1 per 5 active threads (up to +1)
+    - Conflict factor: +1 per 4 conflicts (up to +2)
+    """
+    base = 4
+    char_factor = min(2, len(characters) // 3)
+    thread_factor = min(1, len(threads or []) // 5)
+    conflict_factor = min(2, len(conflict_web or []) // 4)
+
+    rounds = base + char_factor + thread_factor + conflict_factor
+    return max(min_rounds, min(max_rounds, rounds))
+
+
 ESCALATION_PATTERNS = {
     "phản_bội": {"trigger_tension": 0.7, "intensity_multiplier": 2.0},
     "tiết_lộ": {"trigger_tension": 0.5, "intensity_multiplier": 1.5},
@@ -122,6 +146,8 @@ class DramaSimulator:
         self.knowledge: "KnowledgeRegistry | None" = None
         self.causal_graph: "CausalGraph | None" = None
         self.adaptive: "AdaptiveController | None" = None
+        self.conflict_web: list = []
+        self.foreshadowing_plan: list = []
 
     def setup_agents(
         self,
@@ -130,11 +156,15 @@ class DramaSimulator:
         arc_waypoints: list[dict] | None = None,
         threads: list | None = None,
         current_chapter: int = 1,
+        conflict_web: list | None = None,
+        foreshadowing_plan: list | None = None,
     ):
         """Khởi tạo agent cho mỗi nhân vật."""
         self.agents = {c.name: CharacterAgent(c) for c in characters}
         self.relationships = list(relationships)
         self.threads = list(threads) if threads else []
+        self.conflict_web = list(conflict_web) if conflict_web else []
+        self.foreshadowing_plan = list(foreshadowing_plan) if foreshadowing_plan else []
         self._apply_arc_waypoints(arc_waypoints, current_chapter)
         # Initialize trust network from relationships
         self.trust_network = {}
@@ -142,6 +172,7 @@ class DramaSimulator:
             key = f"{rel.character_a}|{rel.character_b}"
             initial_trust = 70.0 if rel.relation_type.value in _CLOSE_RELATION_TYPES else 40.0
             self.trust_network[key] = TrustNetworkEdge(rel.character_a, rel.character_b, initial_trust)
+        self._apply_conflict_web_tensions()
         logger.info(f"Đã tạo {len(self.agents)} agent nhân vật, {len(self.trust_network)} trust edges")
 
         # Khởi tạo hệ thống tri thức (non-fatal)
@@ -223,6 +254,65 @@ class DramaSimulator:
             if psychology is not None and name in self.agents:
                 self.agents[name].psychology = psychology
         logger.info("Đã trích xuất tâm lý cho tất cả nhân vật")
+
+    def _apply_conflict_web_tensions(self) -> None:
+        """Seed trust-network tension for character pairs found in conflict_web."""
+        if not self.conflict_web:
+            return
+        applied = 0
+        for entry in self.conflict_web:
+            try:
+                if hasattr(entry, "model_dump"):
+                    entry = entry.model_dump()
+                if not isinstance(entry, dict):
+                    chars = list(getattr(entry, "characters", []) or [])
+                    intensity = int(getattr(entry, "intensity", 1))
+                else:
+                    chars = list(entry.get("characters") or [])
+                    intensity = int(entry.get("intensity", 1))
+                if len(chars) < 2:
+                    continue
+                # Scale intensity (1-5) → trust penalty (10-50)
+                trust_penalty = intensity * 10.0
+                for i in range(len(chars)):
+                    for j in range(i + 1, len(chars)):
+                        key_ab = f"{chars[i]}|{chars[j]}"
+                        key_ba = f"{chars[j]}|{chars[i]}"
+                        edge = self.trust_network.get(key_ab) or self.trust_network.get(key_ba)
+                        if edge is None:
+                            edge = TrustNetworkEdge(chars[i], chars[j], 50.0)
+                            self.trust_network[key_ab] = edge
+                        edge.update_trust(-trust_penalty, f"conflict_web seed (intensity={intensity})")
+                        applied += 1
+            except Exception as e:
+                logger.debug(f"conflict_web tension seed skipped: {e}")
+        if applied:
+            logger.info(f"[L2] conflict_web: seeded tension for {applied} pairs")
+
+    def _get_foreshadowing_hints(self, current_chapter: int) -> list[str]:
+        """Return foreshadowing hints whose payoff is due at or before current_chapter."""
+        if not self.foreshadowing_plan:
+            return []
+        hints = []
+        for entry in self.foreshadowing_plan:
+            try:
+                if hasattr(entry, "model_dump"):
+                    entry = entry.model_dump()
+                if not isinstance(entry, dict):
+                    payoff_ch = int(getattr(entry, "payoff_chapter", 0))
+                    planted = bool(getattr(entry, "planted", False))
+                    paid_off = bool(getattr(entry, "paid_off", False))
+                    hint = str(getattr(entry, "hint", ""))
+                else:
+                    payoff_ch = int(entry.get("payoff_chapter", 0))
+                    planted = bool(entry.get("planted", False))
+                    paid_off = bool(entry.get("paid_off", False))
+                    hint = str(entry.get("hint", ""))
+                if planted and not paid_off and payoff_ch <= current_chapter and hint:
+                    hints.append(hint)
+            except Exception as e:
+                logger.debug(f"foreshadowing hint skipped: {e}")
+        return hints
 
     def _apply_arc_waypoints(self, waypoints_list, current_chapter: int):
         if not waypoints_list:
@@ -718,6 +808,8 @@ class DramaSimulator:
         arc_waypoints: list[dict] | None = None,
         threads: list | None = None,
         current_chapter: int = 1,
+        conflict_web: list | None = None,
+        foreshadowing_plan: list | None = None,
     ) -> SimulationResult:
         """Chạy toàn bộ mô phỏng và trả về kết quả."""
 
@@ -732,6 +824,8 @@ class DramaSimulator:
             arc_waypoints=arc_waypoints,
             threads=threads,
             current_chapter=current_chapter,
+            conflict_web=conflict_web,
+            foreshadowing_plan=foreshadowing_plan,
         )
         all_events: list[SimulationEvent] = []
         all_drama_scores: list[float] = []
