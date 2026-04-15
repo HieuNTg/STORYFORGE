@@ -5,7 +5,13 @@ from dataclasses import dataclass, field
 
 @dataclass
 class LLMConfig:
-    """Cấu hình kết nối LLM API."""
+    """Cấu hình kết nối LLM API.
+
+    Free Z.AI models (base_url: https://api.z.ai/api/paas/v4):
+      glm-4.7-flash   - text, 200K context, 128K output
+      glm-4.5-flash   - text, 200K context
+      glm-4.6v-flash  - vision, 200K context
+    """
     api_key: str = ""
     base_url: str = "https://api.openai.com/v1"
     model: str = "gpt-4o-mini"

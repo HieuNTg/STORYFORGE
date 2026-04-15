@@ -59,6 +59,8 @@ def _detect_provider_type(base_url: str) -> str:
         return "openai"
     if "googleapis.com" in url or "generativelanguage" in url:
         return "google"
+    if "z.ai" in url:
+        return "zai"
     return "generic"
 
 
@@ -79,6 +81,9 @@ def _model_matches_provider(model: str, provider: str) -> bool:
         return has_slash
     if provider == "kyma":
         # Kyma uses simple IDs without slashes
+        return not has_slash and not has_colon
+    if provider == "zai":
+        # Z.AI uses simple lowercase IDs: glm-4.7-flash, glm-4.5-flash
         return not has_slash and not has_colon
     if provider in ("openai", "anthropic", "google", "generic"):
         # These use simple model IDs
