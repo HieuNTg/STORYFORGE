@@ -190,7 +190,7 @@ class TestLLMRetry:
         exc = Exception("429 rate limit")
         should_retry, delay = _should_retry(exc, provider="openrouter")
         assert should_retry is True
-        assert delay >= 60.0  # OpenRouter needs longer backoff
+        assert delay == 0  # OpenRouter: skip immediately to next model in chain
 
 
 # ============================================================

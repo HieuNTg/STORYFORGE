@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Optional
 from services.llm.retry import (
     MAX_RETRIES, BASE_DELAY,
-    _redact, _is_transient, _detect_provider, _should_retry,
+    _redact, _is_transient, _is_auth_error, _detect_provider, _should_retry,
     parse_openrouter_reset,
 )
 from services.llm.streaming import StreamingMixin
@@ -117,10 +117,9 @@ def _normalize_model_for_provider(model: str, base_url: str, fallback_model: str
 
         return name
 
-    # Non-OpenRouter format on OpenRouter → can't auto-convert, use fallback
+    # Non-OpenRouter format on OpenRouter → return as-is, caller should check compatibility
     if provider == "openrouter" and "/" not in model:
-        logger.warning(f"Model '{model}' format incompatible with OpenRouter, using fallback")
-        return fallback_model or model
+        return model
 
     return model
 
@@ -412,8 +411,10 @@ class LLMClient(StreamingMixin, GenerationMixin):
         all_errors = []
         skip_keys: set[str] = set()
         account_rl_reset: float | None = None  # seconds-until-reset across all exhausted OR keys
+        logger.debug(f"Fallback chain has {len(chain)} entries")
         for entry in chain:
             entry_key = entry.get("_api_key", "")
+            logger.debug(f"Trying {entry.get('label', '?')} (key: {entry_key[:12] if entry_key else 'none'}...)")
             if entry_key and entry_key in skip_keys:
                 all_errors.append(f"{entry['label']}: skipped (account rate-limited)")
                 continue
@@ -433,10 +434,10 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 provider_type = _detect_provider(str(provider_url) if provider_url else "")
                 should_try_next, suggested_delay = _should_retry(e, provider_type)
 
-                # Mark model as unhealthy for fallback manager
+                # Mark model as unhealthy for fallback manager (skip auth errors - those are config issues)
                 fm = get_fallback_manager()
                 model_name = entry.get("model", "")
-                if model_name and not _is_transient(e):
+                if model_name and not _is_transient(e) and not _is_auth_error(e):
                     fm.mark_unhealthy(model_name)
 
                 if "_api_key" in entry:
@@ -458,9 +459,11 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     elif "404" in err_str and provider_type == "openrouter":
                         self._mark_model_rate_limited(model_name, entry_key, 600.0)
                 if not should_try_next and not _is_transient(e):
+                    logger.error(f"FATAL: Non-retryable error from {entry.get('label', '?')}: {_redact(e)}")
                     raise
                 logger.warning(f"Provider {entry['label']} failed, trying next...")
 
+        logger.debug(f"Chain exhausted. Tried {len(all_errors)} providers, skip_keys={[k[:12]+'...' for k in skip_keys]}")
         hint = self._build_exhaustion_hint(account_rl_reset, chain)
         error_msg = "; ".join(all_errors)
         logger.error(f"All LLM providers failed: {hint} | details: {error_msg}")
@@ -605,8 +608,8 @@ class LLMClient(StreamingMixin, GenerationMixin):
             key_label = "primary" if i == 0 else f"key-{i+1}"
             ptype = self._detect_provider_type(base_url)
 
-            # Add primary model (skip if cheap tier already added it)
-            if cheap_model_name is None:
+            # Add primary model (skip if cheap tier already added it or format mismatch)
+            if cheap_model_name is None and _model_matches_provider(primary_model, ptype):
                 can_use, reason = self._can_use_model(primary_model, api_key, fm)
                 if can_use:
                     label = f"{key_label}:{primary_model}" if model_override else key_label
@@ -651,7 +654,10 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     self._add_to_chain(chain, fb_prov, fb_model, f"fallback:{fb_model}", fb_key)
                     existing_combos.add((fb_model, fb_key))
                 elif reason:
-                    logger.debug(f"Skipping fallback {fb_model}: {reason}")
+                    logger.warning(f"Skipping fallback {fb_model}: {reason}")
+                    # Clear health if unhealthy so next request retries
+                    if "unhealthy" in reason:
+                        fm.clear_model_health(fb_model)
 
             # Round-robin on fallback OpenRouter/Kyma keys
             if ptype in ("openrouter", "kyma"):
@@ -670,7 +676,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
                         self._add_to_chain(chain, fb_prov, model_name, f"fallback:rr:{model_name}", fb_key)
                         existing_combos.add((model_name, fb_key))
                     elif reason:
-                        logger.debug(f"Skipping fallback {model_name}: {reason}")
+                        logger.warning(f"Skipping fallback:rr:{model_name}: {reason}")
 
         return chain
 
@@ -855,7 +861,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
             chain = [layer_entry] + fallback_chain
 
             # Use same retry logic as generate()
-            from services.llm.retry import _redact, _detect_provider, _should_retry, _is_transient, parse_openrouter_reset
+            from services.llm.retry import _redact, _detect_provider, _should_retry, _is_transient, _is_auth_error, parse_openrouter_reset
 
             all_errors = []
             skip_keys: set[str] = set()
@@ -877,7 +883,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     should_try_next, suggested_delay = _should_retry(e, provider_type)
 
                     model_name = entry.get("model", "")
-                    if model_name and not _is_transient(e):
+                    if model_name and not _is_transient(e) and not _is_auth_error(e):
                         fm.mark_unhealthy(model_name)
 
                     if entry_key:

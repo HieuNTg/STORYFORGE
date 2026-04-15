@@ -28,6 +28,15 @@ def _redact(message: str) -> str:
 # Transient error indicators
 _TRANSIENT_CODES = {429, 500, 502, 503, 504}
 
+# Auth errors - not model health issues, just credential problems
+_AUTH_ERROR_CODES = {401, 403}
+
+
+def _is_auth_error(exc: Exception) -> bool:
+    """Check if exception is an auth/credential error (not a model health issue)."""
+    exc_str = str(exc).lower()
+    return any(str(code) in exc_str for code in _AUTH_ERROR_CODES) or "no cookie" in exc_str
+
 
 def _is_transient(exc: Exception) -> bool:
     """Check if exception is transient (worth retrying)."""
