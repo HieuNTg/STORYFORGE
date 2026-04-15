@@ -25,6 +25,9 @@ class LLMConfig:
     # Fallback thresholds — used by ModelFallbackManager
     fallback_max_latency_ms: int = 5000   # Switch model if avg latency exceeds this
     fallback_max_cost_per_1k: float = 0.01  # Skip fallback models above this cost/1k tokens
+    # Chain-level retry when all providers fail (rate-limit storms, outages)
+    chain_retry_max: int = 2  # Max times to retry entire fallback chain
+    chain_retry_base_delay: float = 30.0  # Initial delay (seconds) before chain retry
     # Per-layer model routing (optional, falls back to primary model)
     # Each layer can use a different provider/model combination
     layer1_model: str = ""  # Story generation
@@ -112,7 +115,7 @@ class PipelineConfig:
     smart_revision_threshold: float = 3.5  # 1.0-5.0 scale
 
     # Parallel chapter generation (batch mode)
-    parallel_chapters_enabled: bool = False  # Feature flag — sequential fallback when False
+    parallel_chapters_enabled: bool = True  # Feature flag — parallel chapter generation enabled
     chapter_batch_size: int = 5  # Chapters per batch
     parallel_use_asyncio: bool = True  # Use asyncio.gather() instead of ThreadPoolExecutor
     chapter_retry_max: int = 2  # Max retries for failed contract validation
@@ -194,6 +197,14 @@ class PipelineConfig:
     l2_scene_retry_threshold: float = 0.5  # Drama threshold for scene retry
     l2_drama_curve_balancing: bool = True  # Cross-chapter drama curve optimization
     l2_drama_curve_target: str = "rising"  # rising | climax_at_end | wave
+
+    # Adaptive simulation rounds (Phase 4 - dynamic round calculation)
+    adaptive_simulation_rounds: bool = True  # Dynamic round calculation based on complexity
+
+    # L2→L1 structural rewrite (Phase 5)
+    enable_structural_rewrite: bool = True  # L2 can trigger L1 chapter rewrites
+    structural_rewrite_threshold: float = 0.7  # Severity threshold for rewrite
+    max_structural_rewrites: int = 1  # Per chapter limit
 
     # Quality gate (inline scoring between layers)
     # Recommended thresholds by genre: romance/comedy=2.3, mystery/thriller=2.5,

@@ -408,65 +408,85 @@ class LLMClient(StreamingMixin, GenerationMixin):
             eff_max_tokens = min(eff_max_tokens, budget_remaining)
             logger.debug("budget_remaining=%d → effective max_tokens=%d", budget_remaining, eff_max_tokens)
 
-        all_errors = []
-        skip_keys: set[str] = set()
-        account_rl_reset: float | None = None  # seconds-until-reset across all exhausted OR keys
-        logger.debug(f"Fallback chain has {len(chain)} entries")
-        for entry in chain:
-            entry_key = entry.get("_api_key", "")
-            logger.debug(f"Trying {entry.get('label', '?')} (key: {entry_key[:12] if entry_key else 'none'}...)")
-            if entry_key and entry_key in skip_keys:
-                all_errors.append(f"{entry['label']}: skipped (account rate-limited)")
-                continue
-            try:
-                result = self._try_provider(
-                    entry, messages, effective_temp, eff_max_tokens, json_mode
-                )
-                if use_cache and cache is not None and cache_params is not None and result.strip():
-                    # Cache with actual model used (may differ from primary)
-                    actual_model = entry.get("model", effective_model)
-                    cache.put(result, **{**cache_params, "model": actual_model})
-                return result
-            except Exception as e:
-                all_errors.append(f"{entry['label']}: {_redact(e)}")
-                pobj = entry.get("provider") or entry.get("client")
-                provider_url = getattr(pobj, "base_url", None)
-                provider_type = _detect_provider(str(provider_url) if provider_url else "")
-                should_try_next, suggested_delay = _should_retry(e, provider_type)
+        # Chain-level retry config
+        chain_retry_max = getattr(config.llm, "chain_retry_max", 2)
+        chain_retry_base_delay = getattr(config.llm, "chain_retry_base_delay", 30.0)
 
-                # Mark model as unhealthy for fallback manager (skip auth errors - those are config issues)
-                fm = get_fallback_manager()
-                model_name = entry.get("model", "")
-                if model_name and not _is_transient(e) and not _is_auth_error(e):
-                    fm.mark_unhealthy(model_name)
+        last_chain_error = None
+        for chain_attempt in range(chain_retry_max + 1):
+            if chain_attempt > 0:
+                delay = chain_retry_base_delay * (2 ** (chain_attempt - 1)) + random.uniform(0, 5)
+                logger.warning(f"Chain exhausted, retrying entire chain in {delay:.1f}s (attempt {chain_attempt + 1}/{chain_retry_max + 1})")
+                time.sleep(delay)
+                # Clear rate-limit state for fresh retry
+                self._rate_limited_keys.clear()
+                self._rate_limited_models.clear()
+                chain = self._build_fallback_chain(config, model_tier, model_override=model)
 
-                if "_api_key" in entry:
-                    err_str = str(e)
-                    if "429" in err_str:
-                        if provider_type == "openrouter" and self._is_account_rate_limit(err_str):
-                            reset_delta = parse_openrouter_reset(err_str)
-                            cooldown = reset_delta if reset_delta is not None else 300.0
-                            if reset_delta is not None:
-                                account_rl_reset = min(account_rl_reset, reset_delta) if account_rl_reset else reset_delta
-                            self._mark_rate_limited(entry_key, cooldown)
-                            skip_keys.add(entry_key)
-                            logger.warning("Account-level rate limit on key %s...%s — cooldown %.0fs, skipping remaining models",
-                                           entry_key[:8], entry_key[-4:] if len(entry_key) > 8 else "", cooldown)
-                        elif provider_type == "openrouter":
-                            self._mark_model_rate_limited(model_name, entry_key, 90.0)
-                        else:
-                            self._mark_rate_limited(entry_key, suggested_delay or 60.0)
-                    elif "404" in err_str and provider_type == "openrouter":
-                        self._mark_model_rate_limited(model_name, entry_key, 600.0)
-                if not should_try_next and not _is_transient(e):
-                    logger.error(f"FATAL: Non-retryable error from {entry.get('label', '?')}: {_redact(e)}")
-                    raise
-                logger.warning(f"Provider {entry['label']} failed, trying next...")
+            all_errors = []
+            skip_keys: set[str] = set()
+            account_rl_reset: float | None = None  # seconds-until-reset across all exhausted OR keys
+            logger.debug(f"Fallback chain has {len(chain)} entries (chain attempt {chain_attempt + 1})")
+            for entry in chain:
+                entry_key = entry.get("_api_key", "")
+                logger.debug(f"Trying {entry.get('label', '?')} (key: {entry_key[:12] if entry_key else 'none'}...)")
+                if entry_key and entry_key in skip_keys:
+                    all_errors.append(f"{entry['label']}: skipped (account rate-limited)")
+                    continue
+                try:
+                    result = self._try_provider(
+                        entry, messages, effective_temp, eff_max_tokens, json_mode
+                    )
+                    if use_cache and cache is not None and cache_params is not None and result.strip():
+                        # Cache with actual model used (may differ from primary)
+                        actual_model = entry.get("model", effective_model)
+                        cache.put(result, **{**cache_params, "model": actual_model})
+                    return result
+                except Exception as e:
+                    all_errors.append(f"{entry['label']}: {_redact(e)}")
+                    pobj = entry.get("provider") or entry.get("client")
+                    provider_url = getattr(pobj, "base_url", None)
+                    provider_type = _detect_provider(str(provider_url) if provider_url else "")
+                    should_try_next, suggested_delay = _should_retry(e, provider_type)
 
-        logger.debug(f"Chain exhausted. Tried {len(all_errors)} providers, skip_keys={[k[:12]+'...' for k in skip_keys]}")
+                    # Mark model as unhealthy for fallback manager (skip auth errors - those are config issues)
+                    fm = get_fallback_manager()
+                    model_name = entry.get("model", "")
+                    if model_name and not _is_transient(e) and not _is_auth_error(e):
+                        fm.mark_unhealthy(model_name)
+
+                    if "_api_key" in entry:
+                        err_str = str(e)
+                        if "429" in err_str:
+                            if provider_type == "openrouter" and self._is_account_rate_limit(err_str):
+                                reset_delta = parse_openrouter_reset(err_str)
+                                cooldown = reset_delta if reset_delta is not None else 300.0
+                                if reset_delta is not None:
+                                    account_rl_reset = min(account_rl_reset, reset_delta) if account_rl_reset else reset_delta
+                                self._mark_rate_limited(entry_key, cooldown)
+                                skip_keys.add(entry_key)
+                                logger.warning("Account-level rate limit on key %s...%s — cooldown %.0fs, skipping remaining models",
+                                               entry_key[:8], entry_key[-4:] if len(entry_key) > 8 else "", cooldown)
+                            elif provider_type == "openrouter":
+                                self._mark_model_rate_limited(model_name, entry_key, 90.0)
+                            else:
+                                self._mark_rate_limited(entry_key, suggested_delay or 60.0)
+                        elif "404" in err_str and provider_type == "openrouter":
+                            self._mark_model_rate_limited(model_name, entry_key, 600.0)
+                    if not should_try_next and not _is_transient(e):
+                        logger.error(f"FATAL: Non-retryable error from {entry.get('label', '?')}: {_redact(e)}")
+                        raise
+                    logger.warning(f"Provider {entry['label']} failed, trying next...")
+
+            # Chain exhausted this attempt
+            logger.debug(f"Chain exhausted. Tried {len(all_errors)} providers, skip_keys={[k[:12]+'...' for k in skip_keys]}")
+            last_chain_error = (all_errors, account_rl_reset, chain)
+
+        # All chain retries exhausted
+        all_errors, account_rl_reset, chain = last_chain_error
         hint = self._build_exhaustion_hint(account_rl_reset, chain)
         error_msg = "; ".join(all_errors)
-        logger.error(f"All LLM providers failed: {hint} | details: {error_msg}")
+        logger.error(f"All LLM providers failed after {chain_retry_max + 1} chain attempts: {hint} | details: {error_msg}")
         raise RuntimeError(f"All LLM providers failed. {hint}")
 
     @staticmethod
