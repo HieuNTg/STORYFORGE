@@ -65,6 +65,8 @@ def _detect_provider_name(base_url: str) -> str:
         return "openrouter"
     if "kymaapi.com" in url:
         return "kyma"
+    if "z.ai" in url:
+        return "zai"
     if "localhost" in url or "127.0.0.1" in url:
         return "local"
     return "custom"
