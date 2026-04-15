@@ -131,6 +131,17 @@ function settingsPage() {
         ],
       },
       {
+        id: 'zai', name: 'Z.AI', icon: 'sparkles', hint: 'Free GLM models',
+        url: 'https://api.z.ai/api/paas/v4',
+        keyPlaceholder: 'Your Z.AI API key...',
+        guide: 'Register at <a href="https://z.ai" target="_blank" class="text-brand-600 underline font-medium">z.ai</a> → Get API key. Free models: GLM-4.7-Flash (200K context).',
+        models: [
+          { id: 'glm-4.7-flash', label: 'GLM 4.7 Flash (free, 200K ctx)' },
+          { id: 'glm-4.5-flash', label: 'GLM 4.5 Flash (free, 200K ctx)' },
+          { id: 'glm-4.6v-flash', label: 'GLM 4.6V Flash (free, vision)' },
+        ],
+      },
+      {
         id: 'local', name: 'Local / Ollama', icon: 'computer-desktop', hint: 'Free, self-hosted',
         url: 'http://localhost:11434/v1',
         keyPlaceholder: 'Leave blank or enter token...',
@@ -175,7 +186,7 @@ function settingsPage() {
       } catch (e) { this.message = 'Preset error: ' + (e as Error).message; }
     },
 
-    providerIconIds: { openai: 'chip', gemini: 'sparkles', anthropic: 'academic-cap', openrouter: 'arrows-right-left', kyma: 'bolt', local: 'computer-desktop', custom: 'cog-6-tooth' } as Record<string, string>,
+    providerIconIds: { openai: 'chip', gemini: 'sparkles', anthropic: 'academic-cap', openrouter: 'arrows-right-left', kyma: 'bolt', zai: 'sparkles', local: 'computer-desktop', custom: 'cog-6-tooth' } as Record<string, string>,
 
     openAddProfile(): void {
       this.profileForm = { name: '', base_url: '', api_key: '', model: '', enabled: true };
@@ -267,6 +278,7 @@ function settingsPage() {
         if (p.id === 'anthropic') return url.includes('anthropic.com');
         if (p.id === 'openrouter') return url.includes('openrouter.ai');
         if (p.id === 'kyma') return url.includes('kymaapi.com');
+        if (p.id === 'zai') return url.includes('z.ai');
         if (p.id === 'local') return url.includes('localhost') || url.includes('127.0.0.1');
         return false;
       });
@@ -348,6 +360,7 @@ function settingsPage() {
         else if (url.includes('anthropic.com')) this.selectedProvider = 'anthropic';
         else if (url.includes('openrouter.ai')) this.selectedProvider = 'openrouter';
         else if (url.includes('kymaapi.com')) this.selectedProvider = 'kyma';
+        else if (url.includes('z.ai')) this.selectedProvider = 'zai';
         else if (url.includes('localhost') || url.includes('127.0.0.1')) this.selectedProvider = 'local';
         else this.selectedProvider = 'custom';
       };
