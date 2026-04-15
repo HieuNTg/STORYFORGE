@@ -34,6 +34,7 @@ Import the helpers from middleware.rbac and add them as Depends():
 """
 
 import logging
+import re
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -88,6 +89,9 @@ def _detect_provider_from_key(api_key: str) -> dict | None:
     for prefix, config in PROVIDER_FROM_KEY:
         if api_key.startswith(prefix):
             return config
+    # Z.AI keys: 32 hex chars + dot + alphanumeric (e.g., 1e8d5fd...951.ee3dhU4x...)
+    if re.match(r"^[a-f0-9]{32}\.[A-Za-z0-9]+$", api_key):
+        return {"name": "Z.AI", "base_url": "https://api.z.ai/api/paas/v4", "model": "glm-4.7-flash"}
     return None
 
 
