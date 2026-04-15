@@ -11,6 +11,15 @@ from services.llm_client import LLMClient
 logger = logging.getLogger(__name__)
 
 
+def _get_stale_threshold() -> int:
+    """Get thread stale threshold from config."""
+    try:
+        from config import ConfigManager
+        return getattr(ConfigManager().pipeline, "thread_stale_threshold", 3)
+    except Exception:
+        return 3
+
+
 class PlotThread(BaseModel):
     """Một tuyến truyện cần theo dõi."""
     thread_id: str
@@ -147,7 +156,8 @@ Trả về JSON:
                 continue
 
             # Thread hasn't been mentioned in a while (stale)
-            if t.last_mentioned_chapter > 0 and chapter_number - t.last_mentioned_chapter > 3:
+            stale_threshold = _get_stale_threshold()
+            if t.last_mentioned_chapter > 0 and chapter_number - t.last_mentioned_chapter > stale_threshold:
                 relevant.append(t)
                 continue
 

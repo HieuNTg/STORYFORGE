@@ -165,6 +165,18 @@ Chỉ ghi nhận thông tin CHẮC CHẮN xuất hiện trong văn bản. Nếu 
 
         return "## Trạng thái nhân vật hiện tại\n" + "\n".join(lines)
 
+    def get_all_violations(self) -> list[dict]:
+        """Get all recorded violations across all chapters."""
+        if not hasattr(self, "_violations"):
+            self._violations = []
+        return self._violations
+
+    def record_violation(self, violation: dict) -> None:
+        """Record a violation for tracking."""
+        if not hasattr(self, "_violations"):
+            self._violations = []
+        self._violations.append(violation)
+
     def validate_chapter_states(
         self,
         enhanced_content: str,
@@ -206,13 +218,15 @@ Trả về:
                     if result.get("location_changed") and not result.get("transition_explained"):
                         violation_msg = result.get("violation", "")
                         if violation_msg:
-                            violations.append({
+                            violation = {
                                 "type": "location_continuity",
                                 "character": name,
                                 "chapter": chapter_number,
                                 "description": violation_msg,
                                 "severity": "warning",
-                            })
+                            }
+                            violations.append(violation)
+                            self.record_violation(violation)
 
                 except Exception as e:
                     logger.debug(f"Location validation failed for {name}: {e}")
@@ -226,12 +240,14 @@ Trả về:
                     mentions_injury = any(kw in enhanced_content.lower() for kw in injury_keywords)
                     mentions_healing = any(kw in enhanced_content.lower() for kw in ["hồi phục", "lành", "chữa"])
                     if not mentions_injury and not mentions_healing and name.lower() in enhanced_content.lower():
-                        violations.append({
+                        violation = {
                             "type": "physical_state_continuity",
                             "character": name,
                             "chapter": chapter_number,
                             "description": f"{name} bị thương ('{prev_state.physical_state}') nhưng chương mới không đề cập",
                             "severity": "warning",
-                        })
+                        }
+                        violations.append(violation)
+                        self.record_violation(violation)
 
         return violations

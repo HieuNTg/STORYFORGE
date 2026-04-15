@@ -249,14 +249,64 @@ Vi phạm sẽ gây mâu thuẫn trong truyện.
         # Collect all voice drift characters
         voice_drift = []
         for name in self.character_names:
-            profile = self.voice_engine.profiles.get(name)
-            if profile:
-                # Check if dialogues changed significantly across chapters
-                # This is a simplified check
-                pass
+            try:
+                drift_info = self.voice_engine.get_drift_summary(name)
+                if drift_info and drift_info.get("avg_drift", 0) > 0.3:
+                    voice_drift.append(name)
+            except Exception as e:
+                logger.debug(f"Voice drift check failed for {name}: {e}")
+
+        # Aggregate violations from all sub-engines
+        all_violations = []
+        critical_count = 0
+        warning_count = 0
+
+        # State violations
+        for v in self.state_registry.get_all_violations():
+            violation = ConsistencyViolation(
+                type="character_state",
+                subtype=v.get("type", ""),
+                chapter=v.get("chapter", 0),
+                severity=v.get("severity", "warning"),
+                description=v.get("description", ""),
+            )
+            all_violations.append(violation)
+            if violation.severity == "critical":
+                critical_count += 1
+            else:
+                warning_count += 1
+
+        # Thread violations
+        for thread in unresolved:
+            violation = ConsistencyViolation(
+                type="thread",
+                subtype="unresolved",
+                chapter=thread.get("introduced_chapter", 0),
+                severity="warning" if thread.get("urgency", 0) < 0.8 else "critical",
+                description=f"Thread chưa giải quyết: {thread.get('description', '')}",
+            )
+            all_violations.append(violation)
+            if violation.severity == "critical":
+                critical_count += 1
+            else:
+                warning_count += 1
+
+        # Voice drift as violations
+        for name in voice_drift:
+            violation = ConsistencyViolation(
+                type="voice",
+                subtype="drift",
+                severity="warning",
+                description=f"Giọng nhân vật {name} bị drift đáng kể",
+            )
+            all_violations.append(violation)
+            warning_count += 1
 
         return ConsistencyReport(
-            total_violations=0,  # Will be aggregated by caller
+            total_violations=len(all_violations),
+            critical_count=critical_count,
+            warning_count=warning_count,
+            violations=all_violations,
             unresolved_threads=unresolved,
             voice_drift_characters=voice_drift,
         )

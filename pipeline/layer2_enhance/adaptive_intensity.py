@@ -5,6 +5,30 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
+
+def _get_adaptive_config() -> dict:
+    """Load adaptive config from PipelineConfig if available."""
+    try:
+        from config import ConfigManager
+        cfg = ConfigManager().pipeline
+        return {
+            "drama_threshold": getattr(cfg, "l2_drama_threshold", 0.5),
+            "drama_target": getattr(cfg, "l2_drama_target", 0.65),
+            "min_rounds": getattr(cfg, "l2_min_rounds", 3),
+            "max_rounds": getattr(cfg, "l2_max_rounds", 10),
+            "stall_threshold": getattr(cfg, "l2_stall_threshold", 3),
+        }
+    except Exception:
+        return {
+            "drama_threshold": 0.5,
+            "drama_target": 0.65,
+            "min_rounds": 3,
+            "max_rounds": 10,
+            "stall_threshold": 3,
+        }
+
+
+# Legacy constants for backwards compatibility
 DRAMA_THRESHOLD = 0.5   # Dưới ngưỡng này = vòng yếu
 DRAMA_TARGET = 0.65     # Dừng khi trung bình đạt mức này
 MIN_ROUNDS = 3
@@ -30,26 +54,44 @@ class AdaptiveController:
     ):
         self.base = dict(base_intensity)
         self.current = dict(base_intensity)
-        self.min_rounds = min_rounds
-        self.max_rounds = max_rounds
+
+        # Load config with fallback to defaults
+        _cfg = _get_adaptive_config()
+        self.min_rounds = min_rounds or _cfg["min_rounds"]
+        self.max_rounds = max_rounds or _cfg["max_rounds"]
+        self.drama_threshold = _cfg["drama_threshold"]
+        self.stall_threshold = _cfg["stall_threshold"]  # Rounds with no improvement before force-stop
+
         self.history: list[RoundFeedback] = []
+        self._stall_count = 0  # Track consecutive rounds with no improvement
+
         self.pacing_directive = (pacing_directive or "").strip().lower()
         if self.pacing_directive == "slow_down":
             self.drama_target = 0.55
         elif self.pacing_directive == "escalate":
             self.drama_target = 0.75
         else:
-            self.drama_target = DRAMA_TARGET
+            self.drama_target = _cfg["drama_target"]
         if self.pacing_directive:
             logger.info(f"[Adaptive] pacing={self.pacing_directive} → DRAMA_TARGET={self.drama_target}")
 
     def record_round(self, round_num: int, drama_score: float) -> None:
         """Ghi lại kết quả vòng và điều chỉnh cường độ cho vòng tiếp theo."""
         fb = RoundFeedback(round_number=round_num, drama_score=drama_score)
-        if drama_score < DRAMA_THRESHOLD:
+
+        # Check for stall (no improvement)
+        if self.history:
+            prev_avg = sum(h.drama_score for h in self.history[-3:]) / min(3, len(self.history))
+            if abs(drama_score - prev_avg) < 0.02:  # Less than 2% change
+                self._stall_count += 1
+                fb.note = f"Stall detected ({self._stall_count}/{self.stall_threshold})"
+            else:
+                self._stall_count = 0
+
+        if drama_score < self.drama_threshold:
             self._escalate()
             fb.escalation_applied = True
-            fb.note = f"Vòng yếu ({drama_score:.2f} < {DRAMA_THRESHOLD}), leo thang"
+            fb.note = f"Vòng yếu ({drama_score:.2f} < {self.drama_threshold}), leo thang"
             logger.info(f"[Adaptive] Vòng {round_num}: drama thấp {drama_score:.2f} → leo thang")
         elif drama_score > 0.85:
             self._deescalate()
@@ -61,12 +103,28 @@ class AdaptiveController:
         """True nếu mô phỏng nên chạy thêm một vòng nữa."""
         if round_num <= self.min_rounds:
             return True
+
+        # Hard cap - never exceed max_rounds
         if round_num > self.max_rounds:
+            logger.info(f"[Adaptive] Hit max_rounds={self.max_rounds}, stopping")
             return False
+
+        # Stall detection - stop if no improvement for N rounds
+        if self._stall_count >= self.stall_threshold:
+            logger.info(f"[Adaptive] Stalled for {self._stall_count} rounds, stopping")
+            return False
+
         if not self.history:
             return True
+
         avg = sum(h.drama_score for h in self.history) / len(self.history)
-        return avg < self.drama_target
+
+        # Target reached
+        if avg >= self.drama_target:
+            logger.info(f"[Adaptive] Target reached: avg={avg:.2f} >= {self.drama_target}")
+            return False
+
+        return True
 
     def get_current_config(self) -> dict:
         """Trả về cấu hình cường độ hiện tại (có thể đã được leo thang)."""

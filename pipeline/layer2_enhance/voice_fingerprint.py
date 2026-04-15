@@ -294,6 +294,42 @@ Lời thoại sau enhance:
             "issues": issues,
         }
 
+    def get_drift_summary(self, character_name: str) -> dict:
+        """Get summary of voice drift for a character.
+
+        Returns dict with avg_drift, issues_count, etc.
+        """
+        profile = self.profiles.get(character_name)
+        if not profile:
+            return {"avg_drift": 0.0, "issues_count": 0}
+
+        # Check drift tracking if available
+        drift_history = getattr(self, "_drift_history", {}).get(character_name, [])
+        if not drift_history:
+            return {"avg_drift": 0.0, "issues_count": 0, "character": character_name}
+
+        avg_drift = sum(d.get("drift", 0) for d in drift_history) / len(drift_history)
+        issues_count = sum(len(d.get("issues", [])) for d in drift_history)
+
+        return {
+            "character": character_name,
+            "avg_drift": avg_drift,
+            "issues_count": issues_count,
+            "checks_count": len(drift_history),
+            "status": "ok" if avg_drift < 0.3 else "warning" if avg_drift < 0.5 else "critical",
+        }
+
+    def record_drift_check(self, character_name: str, drift: float, issues: list) -> None:
+        """Record a drift check result for tracking."""
+        if not hasattr(self, "_drift_history"):
+            self._drift_history = {}
+        if character_name not in self._drift_history:
+            self._drift_history[character_name] = []
+        self._drift_history[character_name].append({
+            "drift": drift,
+            "issues": issues,
+        })
+
     def get_character_voice_guidance(self, character_name: str) -> str:
         """Lấy hướng dẫn giọng nói cụ thể cho một nhân vật."""
         profile = self.profiles.get(character_name)

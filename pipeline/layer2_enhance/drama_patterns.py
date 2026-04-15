@@ -55,6 +55,61 @@ GENRE_DRAMA_RULES: dict[str, dict] = {
         "tension_curve": "ascending",
         "key_patterns": ["phục_thù", "lợi_dụng_tiên_tri", "cải_biến"],
     },
+    # ═══ NEW GENRES ═══
+    "Trinh Thám": {
+        "mystery_system": True,
+        "clue_reveal_interval": 3,
+        "red_herring_rate": 0.3,
+        "tension_curve": "ascending_steps",  # Build to revelation
+        "revelation_pacing": "delayed",
+        "key_patterns": ["manh_mối", "nghi_phạm", "tiết_lộ_bí_mật", "plot_twist", "điều_tra"],
+        "avoid_patterns": ["giải_thích_quá_sớm", "hung_thủ_rõ_ràng"],
+    },
+    "Kinh Dị": {
+        "horror_system": True,
+        "scare_interval": 4,
+        "dread_buildup_rate": 0.2,
+        "tension_curve": "escalating_spiral",  # Slow burn with spikes
+        "atmosphere_priority": True,
+        "key_patterns": ["ám_ảnh", "bí_ẩn_rùng_rợn", "nỗi_sợ_tiềm_ẩn", "kinh_hoàng_tiết_lộ"],
+        "avoid_patterns": ["jump_scare_liên_tục", "giải_thích_siêu_nhiên"],
+    },
+    "Hài Hước": {
+        "comedy_system": True,
+        "joke_density": "high",
+        "timing_precision": True,
+        "tension_curve": "wave",  # Light tension, quick release
+        "stakes_level": "low",
+        "key_patterns": ["hiểu_lầm_hài", "tình_huống_ngớ_ngẩn", "phản_ứng_bất_ngờ", "châm_biếm"],
+        "avoid_patterns": ["bi_kịch_hóa", "drama_nặng_nề"],
+    },
+    "Thể Thao": {
+        "competition_system": True,
+        "match_interval": 5,
+        "training_arc": True,
+        "rivalry_dynamics": True,
+        "tension_curve": "ascending",  # Tournament arc structure
+        "key_patterns": ["thi_đấu", "huấn_luyện", "đối_thủ", "chiến_thắng", "thất_bại", "vượt_qua_giới_hạn"],
+        "team_dynamics": True,
+    },
+    "Quân Sự": {
+        "military_system": True,
+        "battle_interval": 8,
+        "strategy_focus": True,
+        "tension_curve": "ascending",
+        "key_patterns": ["chiến_thuật", "trận_chiến", "hy_sinh", "đồng_đội", "chỉ_huy", "phục_kích"],
+        "hierarchy_dynamics": True,
+        "moral_dilemmas": True,
+    },
+    "Khoa Học": {
+        "scifi_system": True,
+        "discovery_interval": 6,
+        "tech_escalation": True,
+        "tension_curve": "ascending",
+        "key_patterns": ["phát_minh", "khám_phá", "công_nghệ", "ngoài_hành_tinh", "tương_lai", "AI"],
+        "worldbuilding_focus": True,
+        "hard_sf_elements": False,  # Default to soft sci-fi
+    },
 }
 
 
@@ -104,12 +159,17 @@ def get_genre_escalation_prompt(genre: str, round_num: int, total_rounds: int) -
     progress = round_num / max(1, total_rounds)
     patterns = rules.get("key_patterns", [])
     curve = rules.get("tension_curve", "ascending")
+    avoid = rules.get("avoid_patterns", [])
 
     parts = [f"Thể loại: {genre}. Mô hình kịch tính: {curve}."]
 
     if patterns:
         parts.append(f"Yếu tố đặc trưng: {', '.join(patterns[:3])}.")
 
+    if avoid:
+        parts.append(f"TRÁNH: {', '.join(avoid[:2])}.")
+
+    # Classic genre rules
     if rules.get("power_escalation") and progress > 0.3:
         parts.append("Nhân vật chính cần đột phá sức mạnh hoặc đối mặt thử thách lớn hơn.")
 
@@ -118,6 +178,46 @@ def get_genre_escalation_prompt(genre: str, round_num: int, total_rounds: int) -
 
     if rules.get("revenge_planning") and progress < 0.5:
         parts.append("Nhân vật chính đang tích lũy lợi thế, chưa nên bộc lộ hết.")
+
+    # New genre rules
+    if rules.get("mystery_system"):
+        if progress < 0.3:
+            parts.append("Giai đoạn đặt câu hỏi — giới thiệu bí ẩn, manh mối đầu tiên.")
+        elif progress < 0.7:
+            parts.append("Giai đoạn điều tra — thêm manh mối, red herrings, nghi phạm.")
+        else:
+            parts.append("Giai đoạn tiết lộ — giải đáp bí ẩn, plot twist.")
+
+    if rules.get("horror_system"):
+        if progress < 0.4:
+            parts.append("Xây dựng bầu không khí — gợi ý mối đe dọa, không tiết lộ hết.")
+        elif progress < 0.8:
+            parts.append("Leo thang dần — mối đe dọa rõ ràng hơn, nhưng vẫn giữ bí ẩn.")
+        else:
+            parts.append("Đỉnh điểm kinh hoàng — đối mặt trực tiếp với nỗi sợ.")
+
+    if rules.get("comedy_system"):
+        parts.append("Giữ nhịp hài hước — timing quan trọng, tránh bi kịch hóa.")
+        if rules.get("stakes_level") == "low":
+            parts.append("Stakes thấp — không có hậu quả nghiêm trọng.")
+
+    if rules.get("competition_system"):
+        if progress < 0.3:
+            parts.append("Giai đoạn huấn luyện — xây dựng kỹ năng, giới thiệu đối thủ.")
+        elif progress < 0.7:
+            parts.append("Các trận đấu — leo thang độ khó, thắng thua xen kẽ.")
+        else:
+            parts.append("Trận chung kết — đối đầu đối thủ mạnh nhất.")
+
+    if rules.get("military_system"):
+        parts.append("Chiến thuật quan trọng — không chỉ bạo lực, cần strategy.")
+        if rules.get("moral_dilemmas"):
+            parts.append("Đặt ra tình huống đạo đức — hy sinh, lựa chọn khó khăn.")
+
+    if rules.get("scifi_system"):
+        parts.append("Khám phá và phát minh — tập trung vào wonder, không chỉ action.")
+        if rules.get("worldbuilding_focus"):
+            parts.append("Mở rộng thế giới — giới thiệu công nghệ/khái niệm mới.")
 
     if progress > 0.7:
         parts.append("Giai đoạn cao trào — tăng cường xung đột, đẩy mâu thuẫn đến đỉnh điểm.")
@@ -143,6 +243,10 @@ GENRE_DRAMA_CEILING: dict[str, float] = {
     "Hài Hước": 0.60,       # Comedy — much lower ceiling
     "Trinh Thám": 0.72,     # Mystery — tension not melodrama
     "Kinh Dị": 0.75,        # Horror — atmospheric not hysterical
+    # ═══ NEW GENRES ═══
+    "Thể Thao": 0.78,       # Sports — competition excitement but grounded
+    "Quân Sự": 0.80,        # Military — battle tension, strategic
+    "Khoa Học": 0.72,       # Sci-fi — wonder over drama
 }
 
 # Melodrama indicators — phrases that signal over-dramatic writing
@@ -160,7 +264,117 @@ MELODRAMA_INDICATORS: list[str] = [
     "la hét điên cuồng",
     "khóc ngất đi",
     "nghẹn ngào không thốt nên lời",
+    # Additional indicators
+    "cả thế giới sụp đổ",
+    "tuyệt vọng tột cùng",
+    "hận thấu xương",
+    "máu chảy như suối",
+    "gào khóc thảm thiết",
+    "đau đớn vô biên",
+    "run rẩy không ngừng",
+    "mắt đỏ như máu",
+    "nộ khí xung thiên",
+    "sát khí bùng phát",
 ]
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Extended Drama Patterns — for richer simulation
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Escalation patterns available across all genres
+ESCALATION_PATTERNS: dict[str, dict] = {
+    "đối_đầu": {
+        "description": "Xung đột trực tiếp giữa hai bên",
+        "drama_boost": 0.15,
+        "requires": ["conflict"],
+    },
+    "phản_bội": {
+        "description": "Đồng minh trở thành kẻ thù",
+        "drama_boost": 0.25,
+        "requires": ["trust", "alliance"],
+    },
+    "tiết_lộ": {
+        "description": "Bí mật được phơi bày",
+        "drama_boost": 0.20,
+        "requires": ["secret"],
+    },
+    "hy_sinh": {
+        "description": "Nhân vật hy sinh vì người khác",
+        "drama_boost": 0.30,
+        "requires": ["stakes", "relationship"],
+    },
+    "hòa_giải": {
+        "description": "Hai bên đối đầu tìm được điểm chung",
+        "drama_boost": 0.10,
+        "requires": ["conflict"],
+    },
+    # ═══ NEW PATTERNS ═══
+    "plot_twist": {
+        "description": "Đảo ngược tình huống bất ngờ",
+        "drama_boost": 0.25,
+        "requires": ["setup"],
+    },
+    "character_return": {
+        "description": "Nhân vật tưởng đã mất quay lại",
+        "drama_boost": 0.20,
+        "requires": ["absence"],
+    },
+    "power_loss": {
+        "description": "Nhân vật mất đi sức mạnh/vị thế",
+        "drama_boost": 0.18,
+        "requires": ["power"],
+    },
+    "liên_minh": {
+        "description": "Kẻ thù cũ trở thành đồng minh",
+        "drama_boost": 0.15,
+        "requires": ["conflict"],
+    },
+    "phát_hiện": {
+        "description": "Khám phá thông tin quan trọng",
+        "drama_boost": 0.12,
+        "requires": ["mystery"],
+    },
+    "bí_ẩn_tiết_lộ": {
+        "description": "Giải đáp bí ẩn lớn",
+        "drama_boost": 0.22,
+        "requires": ["mystery", "buildup"],
+    },
+    "đột_phá": {
+        "description": "Nhân vật vượt qua giới hạn",
+        "drama_boost": 0.18,
+        "requires": ["struggle"],
+    },
+    "thất_bại": {
+        "description": "Nhân vật thất bại nặng nề",
+        "drama_boost": 0.20,
+        "requires": ["stakes"],
+    },
+    "tái_ngộ": {
+        "description": "Gặp lại người quan trọng",
+        "drama_boost": 0.15,
+        "requires": ["separation"],
+    },
+    "countdown": {
+        "description": "Áp lực thời gian",
+        "drama_boost": 0.15,
+        "requires": ["deadline"],
+    },
+}
+
+
+def get_escalation_pattern(pattern_name: str) -> dict | None:
+    """Get details of an escalation pattern."""
+    return ESCALATION_PATTERNS.get(pattern_name)
+
+
+def get_available_patterns_for_context(context: list[str]) -> list[str]:
+    """Get patterns that can be used given current story context."""
+    available = []
+    for name, pattern in ESCALATION_PATTERNS.items():
+        requires = pattern.get("requires", [])
+        if all(req in context for req in requires):
+            available.append(name)
+    return available
 
 
 def get_genre_drama_ceiling(genre: str) -> float:

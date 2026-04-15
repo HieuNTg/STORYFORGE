@@ -24,7 +24,7 @@ os.environ.setdefault("STORYFORGE_SECRET_KEY", "test-secret-key-for-unit-tests")
 
 def _import_auth():
     """Import auth module (avoids top-level import failures if env not set)."""
-    import services.auth as auth  # noqa: PLC0415
+    import services.auth.auth as auth  # noqa: PLC0415
     return auth
 
 

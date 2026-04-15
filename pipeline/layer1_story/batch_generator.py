@@ -14,6 +14,7 @@ from typing import Optional, Callable
 
 from models.schemas import StoryDraft, StoryContext, ChapterOutline, Chapter
 from pipeline.layer1_story.post_processing import process_chapter_post_write
+from services.token_counter import estimate_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -515,7 +516,7 @@ class BatchChapterGenerator:
                 except Exception as e:
                     logger.debug("Attach contract to chapter failed: %s", e)
 
-            chapter_tokens_used = len(chapter.content) // 4
+            chapter_tokens_used = estimate_tokens(chapter.content)
             usage_pct = (chapter_tokens_used / self.gen.token_budget_per_chapter) * 100
             if usage_pct >= 80:
                 logger.warning(

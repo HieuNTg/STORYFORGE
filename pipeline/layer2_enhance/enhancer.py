@@ -295,7 +295,20 @@ class StoryEnhancer:
             pairs = await asyncio.gather(*[_one(ch) for ch in chapters_list])
             return dict(pairs)
 
-        results = asyncio.run(_enhance_all())
+        # Handle nested event loop safely
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # Already in async context - use nest_asyncio or run in thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                future = pool.submit(asyncio.run, _enhance_all())
+                results = future.result()
+        else:
+            results = asyncio.run(_enhance_all())
 
         # Maintain order
         enhanced.chapters = [results[ch.chapter_number] for ch in draft.chapters]

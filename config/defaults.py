@@ -89,7 +89,7 @@ class PipelineConfig:
     seedream_api_url: str = ""
 
     # Self-review (CoT quality check)
-    enable_self_review: bool = False  # Opt-in CoT self-review
+    enable_self_review: bool = True  # CoT self-review for quality
     self_review_threshold: float = 3.0  # Score threshold (1.0-5.0)
 
     # RAG world-building
@@ -112,8 +112,8 @@ class PipelineConfig:
     # Prompt injection defense mode: False = log-only, True = block and raise error
     block_on_injection: bool = False
 
-    # Multi-agent debate prototype
-    enable_agent_debate: bool = False
+    # Multi-agent debate
+    enable_agent_debate: bool = True
     max_debate_rounds: int = 3
 
     # Smart chapter revision (auto-fix weak chapters using agent reviews)
@@ -161,19 +161,19 @@ class PipelineConfig:
 
     # Phase 6: Arc execution validation
     enable_arc_execution_validation: bool = True  # Validate arc waypoints in chapter content
-    arc_validation_use_llm: bool = False  # Use LLM for critical/ambiguous cases (adds cost)
+    arc_validation_use_llm: bool = True  # Use LLM for critical/ambiguous cases
 
     # Phase 6: Foreshadowing payoff enforcement
     enable_foreshadowing_enforcement: bool = True  # Enforce payoff of planted foreshadowing
     foreshadowing_grace_chapters: int = 2  # Chapters past deadline before flagging as overdue
 
-    # Phase 5: L1 consistency improvements (opt-in, default OFF)
-    enable_emotional_memory: bool = False  # Per-character emotion tracking across chapters
-    enable_proactive_constraints: bool = False  # forbidden_actions, must_maintain in contracts
-    enable_thread_enforcement: bool = False  # Hard requirement for stale threads (gap >= 8)
-    enable_emotional_bridge: bool = False  # Inter-chapter emotional continuity
-    enable_scene_beat_writing: bool = False  # Per-beat chapter writing (extends enable_scene_decomposition)
-    enable_l1_causal_graph: bool = False  # Causal event tracking and validation
+    # Phase 5: L1 consistency improvements
+    enable_emotional_memory: bool = True  # Per-character emotion tracking across chapters
+    enable_proactive_constraints: bool = True  # forbidden_actions, must_maintain in contracts
+    enable_thread_enforcement: bool = True  # Hard requirement for stale threads (gap >= 8)
+    enable_emotional_bridge: bool = True  # Inter-chapter emotional continuity
+    enable_scene_beat_writing: bool = True  # Per-beat chapter writing (extends enable_scene_decomposition)
+    enable_l1_causal_graph: bool = True  # Causal event tracking and validation
 
     # L2 enhancement quality signals
     l2_use_l1_signals: bool = True  # wire L1 waypoints/summary/pacing/thread.status into L2
@@ -206,6 +206,26 @@ class PipelineConfig:
 
     # Adaptive simulation rounds (Phase 4 - dynamic round calculation)
     adaptive_simulation_rounds: bool = True  # Dynamic round calculation based on complexity
+    l2_drama_threshold: float = 0.5  # Below = weak round, trigger escalation
+    l2_drama_target: float = 0.65  # Stop when avg drama reaches this
+    l2_min_rounds: int = 3  # Minimum simulation rounds
+    l2_max_rounds: int = 10  # Maximum simulation rounds (hard cap)
+    l2_stall_threshold: int = 3  # Rounds with no improvement before force-stop
+
+    # Batch generation config
+    batch_max_workers: int = 3  # Max parallel workers for batch chapter generation
+    chapter_max_tokens: int = 8192  # Max tokens for chapter writing
+    min_beat_words: int = 200  # Minimum words per beat in beat writing
+    continuity_anchor_chars: int = 200  # Chars from previous chapter for continuity
+    summarize_excerpt_chars: int = 3000  # Chars to use for chapter summary
+    excerpt_max_chars: int = 4000  # Max chars for chapter excerpts
+    tiered_chapter_cap: int = 2000  # Max chars per chapter in tiered context
+
+    # Thread tracking
+    thread_stale_threshold: int = 3  # Chapters without mention before thread is stale
+
+    # Genre-specific drama ceilings (overrides defaults in drama_patterns.py)
+    genre_drama_ceiling_override: dict = field(default_factory=dict)  # genre -> ceiling
 
     # L2→L1 structural rewrite (Phase 5)
     enable_structural_rewrite: bool = True  # L2 can trigger L1 chapter rewrites

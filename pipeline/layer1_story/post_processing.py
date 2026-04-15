@@ -93,7 +93,16 @@ def process_chapter_post_write(
     try:
         new_states = states_f.result(timeout=_TIMEOUT)
         # Arc trajectory context is now passed in extraction prompt (character_generator.py).
-        # TODO: add regression check if arc_position contradicts arc_trajectory direction.
+        # Check for arc regression (position contradicts expected trajectory)
+        if new_states and characters and config.enable_arc_waypoints:
+            try:
+                from pipeline.layer1_story.consistency_validators import detect_arc_drift
+                total_chapters = getattr(story_context, 'total_chapters', chapter_num + 10)
+                arc_warnings = detect_arc_drift(new_states, characters, chapter_num, total_chapters)
+                for w in arc_warnings:
+                    logger.warning(w)
+            except Exception as arc_e:
+                logger.debug(f"Arc drift check failed (non-fatal): {arc_e}")
     except Exception as e:
         logger.warning(f"Character state extraction failed: {e}")
         new_states = []
