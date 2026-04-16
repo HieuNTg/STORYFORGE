@@ -32,6 +32,15 @@ interface PipelineForm {
   enable_scoring: boolean;
   enable_media: boolean;
   enable_l1_consistency: boolean;
+  // Advanced L1 settings
+  enable_emotional_memory: boolean;
+  enable_scene_beat_writing: boolean;
+  enable_l1_causal_graph: boolean;
+  enable_self_review: boolean;
+  enable_agent_debate: boolean;
+  // Advanced L2 settings
+  l2_drama_threshold: number;
+  l2_drama_target: number;
 }
 
 interface PipelineResult {
@@ -265,6 +274,15 @@ document.addEventListener('alpine:init', () => {
       num_sim_rounds: 3, drama_level: 'cao', shots_per_chapter: 8,
       enable_agents: true, enable_scoring: true, enable_media: false,
       enable_l1_consistency: false,
+      // Advanced L1 settings
+      enable_emotional_memory: true,
+      enable_scene_beat_writing: true,
+      enable_l1_causal_graph: true,
+      enable_self_review: true,
+      enable_agent_debate: true,
+      // Advanced L2 settings
+      l2_drama_threshold: 0.5,
+      l2_drama_target: 0.65,
     } as PipelineForm,
 
     genres: [] as string[], styles: [] as string[], dramaLevels: [] as string[],

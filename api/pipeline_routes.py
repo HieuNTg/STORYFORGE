@@ -111,12 +111,17 @@ class PipelineRequest(BaseModel):
     lite_mode: bool = False
     # L1 consistency flags (Phase 5)
     enable_l1_consistency: bool = False  # Master toggle for all L1 consistency features
-    enable_emotional_memory: bool = False
-    enable_proactive_constraints: bool = False
-    enable_thread_enforcement: bool = False
-    enable_emotional_bridge: bool = False
-    enable_scene_beat_writing: bool = False
-    enable_l1_causal_graph: bool = False
+    enable_emotional_memory: bool = True
+    enable_proactive_constraints: bool = True
+    enable_thread_enforcement: bool = True
+    enable_emotional_bridge: bool = True
+    enable_scene_beat_writing: bool = True
+    enable_l1_causal_graph: bool = True
+    enable_self_review: bool = True
+    enable_agent_debate: bool = True
+    # L2 drama settings
+    l2_drama_threshold: float = Field(0.5, ge=0.0, le=1.0)
+    l2_drama_target: float = Field(0.65, ge=0.0, le=1.0)
 
 
 class ResumeRequest(BaseModel):
@@ -131,6 +136,7 @@ def _genre_keys():
         "genre.khoa_huyen", "genre.dong_nhan", "genre.lich_su", "genre.quan_su",
         "genre.linh_di", "genre.trinh_tham", "genre.hai_huoc", "genre.vong_du",
         "genre.di_gioi", "genre.mat_the", "genre.dien_van", "genre.cung_dau",
+        "genre.kinh_di", "genre.the_thao",
     ]
 
 
@@ -348,6 +354,12 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                 orch.config.pipeline.enable_scene_beat_writing = True
             if body.enable_l1_causal_graph:
                 orch.config.pipeline.enable_l1_causal_graph = True
+
+        # Apply additional advanced settings
+        orch.config.pipeline.enable_self_review = body.enable_self_review
+        orch.config.pipeline.enable_agent_debate = body.enable_agent_debate
+        orch.config.pipeline.l2_drama_threshold = body.l2_drama_threshold
+        orch.config.pipeline.l2_drama_target = body.l2_drama_target
 
         result: list = [None]
 
