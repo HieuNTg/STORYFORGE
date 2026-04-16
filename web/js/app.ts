@@ -278,9 +278,13 @@ document.addEventListener('alpine:init', () => {
       idea: '', num_chapters: 5, num_characters: 5, word_count: 2000,
       num_sim_rounds: 3, drama_level: 'cao', shots_per_chapter: 8,
       enable_agents: true, enable_scoring: true, enable_media: false,
+      lite_mode: false, // Skip L2 enhancement
       enable_l1_consistency: false,
       // Advanced L1 settings
       enable_emotional_memory: true,
+      enable_proactive_constraints: true,
+      enable_thread_enforcement: true,
+      enable_emotional_bridge: true,
       enable_scene_beat_writing: true,
       enable_l1_causal_graph: true,
       enable_self_review: true,
