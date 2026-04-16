@@ -41,6 +41,11 @@ interface PipelineForm {
   // Advanced L2 settings
   l2_drama_threshold: number;
   l2_drama_target: number;
+  // Quality settings
+  enable_quality_gate: boolean;
+  quality_gate_threshold: number;
+  enable_smart_revision: boolean;
+  smart_revision_threshold: number;
 }
 
 interface PipelineResult {
@@ -283,6 +288,11 @@ document.addEventListener('alpine:init', () => {
       // Advanced L2 settings
       l2_drama_threshold: 0.5,
       l2_drama_target: 0.65,
+      // Quality settings
+      enable_quality_gate: true,
+      quality_gate_threshold: 2.5,
+      enable_smart_revision: true,
+      smart_revision_threshold: 3.5,
     } as PipelineForm,
 
     genres: [] as string[], styles: [] as string[], dramaLevels: [] as string[],

@@ -122,6 +122,11 @@ class PipelineRequest(BaseModel):
     # L2 drama settings
     l2_drama_threshold: float = Field(0.5, ge=0.0, le=1.0)
     l2_drama_target: float = Field(0.65, ge=0.0, le=1.0)
+    # Quality settings
+    enable_quality_gate: bool = True
+    quality_gate_threshold: float = Field(2.5, ge=1.0, le=5.0)
+    enable_smart_revision: bool = True
+    smart_revision_threshold: float = Field(3.5, ge=1.0, le=5.0)
 
 
 class ResumeRequest(BaseModel):
@@ -360,6 +365,11 @@ async def run_pipeline(request: Request, body: PipelineRequest):
         orch.config.pipeline.enable_agent_debate = body.enable_agent_debate
         orch.config.pipeline.l2_drama_threshold = body.l2_drama_threshold
         orch.config.pipeline.l2_drama_target = body.l2_drama_target
+        # Quality settings
+        orch.config.pipeline.enable_quality_gate = body.enable_quality_gate
+        orch.config.pipeline.quality_gate_threshold = body.quality_gate_threshold
+        orch.config.pipeline.enable_smart_revision = body.enable_smart_revision
+        orch.config.pipeline.smart_revision_threshold = body.smart_revision_threshold
 
         result: list = [None]
 
