@@ -229,11 +229,32 @@ def save_config(body: ConfigUpdate):
 
 @router.post("/test-connection")
 def test_connection():
-    """Test LLM connection with current settings."""
+    """Test LLM connection with current settings + all additional profiles."""
     from services.llm_client import LLMClient
     LLMClient.reset()
-    ok, msg = LLMClient().check_connection()
-    return {"ok": ok, "message": msg}
+    client = LLMClient()
+    cfg = ConfigManager()
+
+    # Test primary
+    ok, msg = client.check_connection()
+    results = [{"name": "Primary", "ok": ok, "message": msg}]
+
+    # Test each profile (fallback_models)
+    for i, fb in enumerate(cfg.llm.fallback_models):
+        if fb.get("enabled") is False:
+            results.append({"name": fb.get("name", f"Profile-{i+1}"), "ok": None, "message": "disabled"})
+            continue
+        base_url = fb.get("base_url", "")
+        api_key = fb.get("api_key", "")
+        model = fb.get("model", "")
+        if not base_url or not api_key or not model:
+            results.append({"name": fb.get("name", f"Profile-{i+1}"), "ok": False, "message": "missing config"})
+            continue
+        fb_ok, fb_msg = client.check_provider(base_url, api_key, model)
+        results.append({"name": fb.get("name", f"Profile-{i+1}"), "ok": fb_ok, "message": fb_msg})
+
+    all_ok = all(r["ok"] for r in results if r["ok"] is not None)
+    return {"ok": all_ok, "message": msg if not all_ok else "All providers OK", "profiles": results}
 
 
 @router.get("/languages")

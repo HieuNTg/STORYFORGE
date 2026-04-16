@@ -16,6 +16,7 @@ CONFIG_FILE = "data/config.json"
 _SECRETS_FILE = "data/secrets.json"
 
 # Maps env var name -> (section, field_name)
+# Note: ZAI_API_KEY is handled directly in client._build_fallback_chain for auto-fallback
 _ENV_MAP: dict[str, tuple[str, str]] = {
     "STORYFORGE_API_KEY": ("llm", "api_key"),
     "STORYFORGE_BASE_URL": ("llm", "base_url"),

@@ -162,6 +162,19 @@ class GenerationMixin:
         except Exception as e:
             return False, f"Lỗi kết nối: {str(e)}"
 
+    def check_provider(self, base_url: str, api_key: str, model: str) -> tuple[bool, str]:
+        """Check connection to a specific provider."""
+        from services.llm.providers import get_provider
+        try:
+            provider = get_provider(base_url=base_url, api_key=api_key)
+            provider.complete(
+                messages=[{"role": "user", "content": "ping"}],
+                model=model, temperature=0.0, max_tokens=5,
+            )
+            return True, "OK"
+        except Exception as e:
+            return False, str(e)[:200]
+
 
 def _repair_json(text: str) -> str:
     """Fix common JSON issues: trailing commas, single quotes, truncation."""

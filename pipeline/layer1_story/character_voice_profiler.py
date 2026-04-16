@@ -94,7 +94,12 @@ def generate_voice_profiles(llm, characters: list[Character], genre: str, model=
                 break
         else:
             # LLM may return single profile dict directly (when 1 character)
-            if "name" in result and "vocabulary_level" in result:
+            # Sometimes LLM omits "name" key — infer from input if only 1 character
+            voice_profile_keys = {"vocabulary_level", "sentence_style", "verbal_tics", "emotional_expression", "dialogue_example"}
+            if "vocabulary_level" in result and voice_profile_keys & set(result.keys()):
+                if "name" not in result and len(characters) == 1:
+                    result["name"] = characters[0].name
+                    logger.debug("generate_voice_profiles: inferred name '%s' for single-character profile", result["name"])
                 profiles = [result]
             else:
                 logger.warning("generate_voice_profiles: unexpected dict shape, keys=%s", list(result.keys()))

@@ -703,6 +703,24 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     elif reason:
                         logger.warning(f"Skipping fallback:rr:{model_name}: {reason}")
 
+        # Auto-add Z.AI from environment if available and not already in chain
+        import os
+        zai_key = os.environ.get("ZAI_API_KEY", "")
+        if zai_key and not any(
+            self._detect_provider_type(e.get("base_url", "")) == "zai"
+            for e in api_key_entries
+        ):
+            zai_base = "https://api.z.ai/api/paas/v4"
+            zai_prov = self._get_or_create_provider(zai_base, zai_key)
+            zai_models = ["glm-4.7-flash", "glm-4.5-flash"]
+            for m in zai_models:
+                if (m, zai_key) not in existing_combos:
+                    can_use, reason = self._can_use_model(m, zai_key, fm)
+                    if can_use:
+                        self._add_to_chain(chain, zai_prov, m, f"zai:{m}", zai_key)
+                        existing_combos.add((m, zai_key))
+                        logger.debug(f"Auto-added Z.AI fallback: {m}")
+
         return chain
 
     def _get_openrouter_free_models(self, config, primary_model: str) -> list[str]:
