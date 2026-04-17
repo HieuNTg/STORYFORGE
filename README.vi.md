@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  Biến một ý tưởng một câu thành câu chuyện hoàn chỉnh, giàu kịch tính với hình ảnh nhất quán nhân vật và phông cảnh điện ảnh.<br />
+  Biến một câu ý tưởng thành tiểu thuyết mạng tiếng Việt hoàn chỉnh, giàu kịch tính với hình ảnh nhất quán nhân vật và phông cảnh điện ảnh.<br />
   Tự host. Bảo mật riêng tư. Hoạt động với mọi LLM tương thích OpenAI.
 </p>
 
@@ -50,9 +50,11 @@ Hầu hết công cụ viết AI tạo ra những câu chuyện phẳng, dễ đ
 
 ### Engine Truyện
 - **Pipeline 2 lớp** — Tạo truyện → Mô phỏng kịch tính, có checkpoint & tiếp tục, streaming SSE thời gian thực
-- **13 tác nhân AI chuyên biệt** — nhân vật tự trị + nhà phê bình kịch tính, tổng biên tập, phân tích nhịp điệu, kiểm tra phong cách, chuyên gia hội thoại...
+- **13 tác nhân AI chuyên biệt** — nhân vật tự trị + nhà phê bình kịch tính, tổng biên tập, phân tích nhịp điệu, kiểm tra phong cách, chuyên gia hội thoại, reader simulator...
 - **Chấm điểm & tự sửa** — đánh giá LLM theo 6 chiều (mạch lạc, nhân vật, kịch tính, văn phong, chiều sâu chủ đề, chất lượng hội thoại) với vòng lặp tự động nâng chất
-- **Bộ nhớ truyện tích lũy** — kiến thức nhân vật, mối quan hệ và tuyến truyện được tích lũy xuyên suốt các chương thay vì reset, đảm bảo tính liên tục cho truyện nhiều chương
+- **Bộ nhớ truyện tích lũy** — kiến thức nhân vật, mối quan hệ và tuyến truyện tích lũy xuyên chương thay vì reset, đảm bảo liên tục cho truyện nhiều chương
+- **Quy tắc đặt tên theo thể loại** — tên Việt mặc định; phong cách Trung (tiên hiệp/kiếm hiệp/tu tiên/wuxia/xianxia) và Fantasy phương Tây/Sci-Fi tự chọn theo genre
+- **Arc scaling** — cột mốc cung nhân vật tự scale theo `num_chapters` để nhịp phát triển nhân vật phù hợp truyện ngắn hay dài
 - **RAG knowledge base** — truy xuất ngữ cảnh xây dựng thế giới qua ChromaDB + sentence-transformers; tải file `.txt`, `.md`, hoặc `.pdf` tham khảo để làm giàu nội dung truyện
 
 ### Tiếp Tục Truyện Nâng Cao
@@ -117,20 +119,26 @@ Hầu hết công cụ viết AI tạo ra những câu chuyện phẳng, dễ đ
 
 ### LLM & Nhà Cung Cấp
 - **Hỗ trợ đa nhà cung cấp LLM** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ model), Z.AI (model miễn phí), Kyma API, Ollama (local), hoặc endpoint tùy chỉnh; tự nhận diện nhà cung cấp từ API key
-- **Fallback đa nhà cung cấp** — cấu hình hồ sơ dự phòng tự động chuyển sang nhà cung cấp khác khi bị rate limit hoặc lỗi; tuân thủ header rate-limit reset
+- **Chuyển đổi rate-limit chủ động** — theo dõi hạn ngạch provider theo thời gian thực; chain tự chuyển sang model kế tiếp *trước khi* dính 429, dùng timing từ reset header để xếp hàng retry
+- **Chờ-và-thử-lại cấp chain** — khi toàn bộ chuỗi fallback hết quota, request sẽ chờ đến lần reset sớm nhất thay vì lỗi luôn
+- **Định tuyến primary theo latency** — model chính chậm sẽ được retry thay vì bị bỏ qua âm thầm, tránh chain rỗng khi mạng chậm tạm thời
 - **Định tuyến model theo provider** — tự động điều chỉnh định dạng model cho từng provider trong chuỗi fallback
 - **Hỗ trợ auto-router** — để hệ thống chọn model tốt nhất cho từng tác vụ dựa trên đánh đổi chi phí/năng lực
 - **Định tuyến model thông minh** — model rẻ cho phân tích, model cao cấp cho viết (~45% tiết kiệm chi phí)
 - **Cache LLM tích hợp** — cache SQLite tránh gọi API lặp lại
 
 ### Giao Diện & Trải Nghiệm
-- **Trang pipeline thiết kế mới** — form Tạo Truyện hiện đại với hero cards, config pills, và form state lưu tự động
-- **Bật/tắt tạo hình ảnh** — bật/tắt tạo hình ảnh ngay từ trang Tạo Truyện
-- **Wizard cài đặt** — hướng dẫn từng bước chọn nhà cung cấp, nhập API key, chọn model với kiểm tra kết nối tự động
-- **Bật/tắt consistency** — bật/tắt module nhất quán Layer 1 từ giao diện
-- **Heroicons SVG** — thay thế toàn bộ emoji bằng Heroicons SVG sắc nét
-- **Giao diện Sáng / Tối** — chuyển đổi theme mượt mà với đồng bộ color-scheme toàn bộ trang
-- **Tiếng Việt & Tiếng Anh** — tạo truyện song ngữ ngay từ đầu
+- **Redesign toàn bộ SPA (v2.3)** — cả 7 trang được build lại trên hệ thống `sf-*` thống nhất: hero viền gradient, step badges, empty-state heroes, story cards, stat tiles, guide steps
+- **Bảng màu Swiss Modernism** — brand `#2563EB` · violet `#8B5CF6` · cam `#F97316` · emerald done `#10B981`, tối ưu tương phản cả hai theme
+- **Copy tiếng Việt** — mọi trang, button, empty state và toast đều được Việt hoá; chỉ giữ tiếng Anh cho tên provider và biến môi trường
+- **Tạo Truyện** — pipeline 6 giai đoạn trực quan, composer ý tưởng có đếm ký tự live, config slider (chương · nhân vật · từ · mức kịch tính), và lưu form state vào `localStorage`
+- **Thư viện** — tìm kiếm live, action continue/delete inline, badge layer (Draft / Enhanced / Complete)
+- **Đọc truyện** — typography tập trung, hiển thị ảnh inline, sidebar điều hướng chương
+- **Phân tích** — dashboard mô phỏng với 4 stat tile và 4 meter chất lượng (mạch lạc, nhân vật, kịch tính, văn phong)
+- **Phân nhánh** — picker chọn nguồn (truyện đang mở hoặc đã lưu) với cây tương tác
+- **Cài đặt** — Quick Setup preset cards (Basic / Optimized / Max Context), grid chọn provider, toggle tạo ảnh
+- **Hướng dẫn** — sơ đồ pipeline với card Layer 1 & Layer 2 và 5 bước onboarding
+- **Sáng / Tối** — toggle theme mượt, đồng bộ color-scheme toàn app; Heroicons SVG xuyên suốt
 
 ### Bảo Mật & Hạ Tầng
 - **Bảo vệ CSRF** — double-submit cookie pattern cho mọi request thay đổi trạng thái
@@ -234,7 +242,7 @@ StoryForge đi kèm 10 prompt tác nhân có thể tùy chỉnh trong `data/prom
                         ┌──────────────────▼──────────────────────┐
                         │       Lớp 2 — Mô phỏng kịch tính        │
                         │  13 Tác nhân AI · Phát lộ xung đột       │
-                        │  Chấm điểm kịch tính · Vòng tự sửa      │
+                        │  Contract Gate · Vòng tự sửa            │
                         └──────────────────┬──────────────────────┘
                                            │
                         ┌──────────────────▼──────────────────────┐

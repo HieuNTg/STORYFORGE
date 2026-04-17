@@ -98,30 +98,200 @@
     }
 
     /* ── Pipeline page redesign ── */
-    .sf-card-hero { border-color: #DBEAFE; }
-    .dark .sf-card-hero { border-color: rgba(59,130,246,0.15); }
+    .sf-card-hero {
+      position: relative; overflow: hidden;
+      border-color: #DBEAFE;
+    }
+    .sf-card-hero::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, #2563EB, #8B5CF6, #F97316);
+      opacity: 0.9;
+    }
+    .dark .sf-card-hero { border-color: rgba(59,130,246,0.2); }
     .sf-textarea-hero {
-      min-height: 140px;
+      min-height: 120px;
       font-size: 0.9375rem;
-      line-height: 1.7;
+      line-height: 1.65;
+      border-width: 1.5px;
     }
     .sf-textarea-hero::placeholder { color: #94a3b8; font-style: italic; }
     .dark .sf-textarea-hero::placeholder { color: #64748b; }
     .sf-config-pill {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      padding: 12px 8px 8px;
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      padding: 10px 8px 8px;
       border-radius: 12px;
       background: #F8FAFC;
       border: 1px solid #E2E8F0;
       text-align: center;
-      transition: border-color 0.2s ease;
+      transition: all 0.18s ease;
     }
-    .sf-config-pill:hover { border-color: #93c5fd; }
+    .sf-config-pill:hover { border-color: #93c5fd; background: #F0F7FF; }
     .dark .sf-config-pill { background: var(--dm-bg); border-color: var(--dm-border); }
-    .dark .sf-config-pill:hover { border-color: rgba(96,165,250,0.3); }
+    .dark .sf-config-pill:hover { border-color: rgba(96,165,250,0.35); background: rgba(37,99,235,0.06); }
+
+    /* ── Segmented pill group (drama level, etc) ── */
+    .sf-pill-group {
+      display: flex; gap: 3px;
+      padding: 3px;
+      background: #F1F5F9;
+      border-radius: 10px;
+    }
+    .sf-pill {
+      flex: 1;
+      padding: 6px 10px;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: #64748b;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+      text-transform: capitalize;
+      background: transparent;
+      border: none;
+    }
+    .sf-pill:hover { color: #1e293b; }
+    .sf-pill.active {
+      background: white;
+      color: #2563EB;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      font-weight: 600;
+    }
+    .dark .sf-pill-group { background: rgba(30,41,59,0.6); }
+    .dark .sf-pill { color: var(--dm-text-muted); }
+    .dark .sf-pill:hover { color: var(--dm-text); }
+    .dark .sf-pill.active { background: var(--dm-bg); color: #60A5FA; }
+
+    /* ── Toggle chip (advanced quick toggles) ── */
+    .sf-toggle-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 10px;
+      font-size: 11.5px;
+      font-weight: 500;
+      border-radius: 8px;
+      border: 1px solid #E2E8F0;
+      background: white;
+      color: #64748b;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .sf-toggle-chip:hover { border-color: #93c5fd; }
+    .sf-toggle-chip.active {
+      background: linear-gradient(135deg, rgba(37,99,235,0.06), rgba(139,92,246,0.06));
+      border-color: #3B82F6;
+      color: #2563EB;
+    }
+    .sf-toggle-chip input { display: none; }
+    .dark .sf-toggle-chip { background: var(--dm-surface); border-color: var(--dm-border); color: var(--dm-text-secondary); }
+    .dark .sf-toggle-chip:hover { border-color: rgba(96,165,250,0.4); }
+    .dark .sf-toggle-chip.active { color: #60A5FA; border-color: #3B82F6; background: rgba(37,99,235,0.12); }
+
+    /* ── Hero CTA with shimmer ── */
+    .sf-cta-hero {
+      position: relative; overflow: hidden;
+      background: linear-gradient(135deg, #2563EB 0%, #4F46E5 50%, #8B5CF6 100%);
+      background-size: 200% 100%;
+      color: white;
+      border-radius: 14px;
+      font-weight: 600;
+      box-shadow: 0 4px 14px rgba(37,99,235,0.25);
+      transition: all 0.28s ease;
+    }
+    .sf-cta-hero:hover:not(:disabled) {
+      background-position: 100% 0;
+      box-shadow: 0 10px 28px rgba(37,99,235,0.4);
+      transform: translateY(-1px);
+    }
+    .sf-cta-hero:active:not(:disabled) { transform: translateY(0); box-shadow: 0 2px 8px rgba(37,99,235,0.3); }
+    .sf-cta-hero::after {
+      content: ''; position: absolute; top: 0; left: -100%;
+      width: 60%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+      transition: left 0.65s ease;
+    }
+    .sf-cta-hero:hover:not(:disabled)::after { left: 150%; }
+
+    /* ── Pipeline phase timeline (compact vertical cells) ── */
+    .sf-phase {
+      display: flex; flex-direction: column; align-items: center; gap: 5px;
+      padding: 10px 4px;
+      border-radius: 10px;
+      transition: all 0.25s ease;
+      text-align: center;
+    }
+    .sf-phase-label {
+      font-size: 10.5px; font-weight: 600;
+      color: #64748b;
+      line-height: 1.1;
+      letter-spacing: 0.01em;
+    }
+    .dark .sf-phase-label { color: var(--dm-text-muted); }
+    .sf-phase-dot {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      font-size: 11px; font-weight: 700;
+      transition: all 0.3s ease;
+    }
+    .sf-phase.idle .sf-phase-dot { background: #F1F5F9; color: #94A3B8; }
+    .sf-phase.active .sf-phase-dot {
+      background: linear-gradient(135deg,#2563EB,#4F46E5);
+      color: white;
+      animation: sf-pulse-ring 2s infinite;
+    }
+    .sf-phase.active .sf-phase-label { color: #2563EB; }
+    .sf-phase.done .sf-phase-dot { background: #10B981; color: white; }
+    .sf-phase.done .sf-phase-label { color: #059669; }
+    .sf-phase.active { background: rgba(37,99,235,0.06); }
+    @keyframes sf-pulse-ring {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0.5); }
+      50% { box-shadow: 0 0 0 6px rgba(37,99,235,0); }
+    }
+    .dark .sf-phase.idle .sf-phase-dot { background: rgba(71,85,105,0.4); color: var(--dm-text-muted); }
+    .dark .sf-phase.active { background: rgba(37,99,235,0.1); }
+    .dark .sf-phase.active .sf-phase-label { color: #60A5FA; }
+    .dark .sf-phase.done .sf-phase-label { color: #34D399; }
+
+    /* ── Example idea chips ── */
+    .sf-example-chip {
+      padding: 11px 12px;
+      background: white;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: left;
+      line-height: 1.4;
+    }
+    .sf-example-chip:hover {
+      border-color: #3B82F6;
+      background: #F0F7FF;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(37,99,235,0.1);
+    }
+    .dark .sf-example-chip { background: var(--dm-surface); border-color: var(--dm-border); }
+    .dark .sf-example-chip:hover { border-color: #60A5FA; background: rgba(37,99,235,0.08); box-shadow: 0 4px 12px rgba(37,99,235,0.15); }
+
+    /* ── Estimate badge (cost / time) ── */
+    .sf-estimate {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10.5px;
+      font-weight: 500;
+      color: #64748b;
+      background: #F1F5F9;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-variant-numeric: tabular-nums;
+    }
+    .dark .sf-estimate { background: rgba(30,41,59,0.6); color: var(--dm-text-muted); }
+
+    /* ── Inline select (genre/style/lang) ── */
+    .sf-select-compact {
+      font-size: 13px; font-weight: 500;
+      padding: 7px 28px 7px 10px;
+      background-position: right 8px center;
+    }
     .sf-empty-state {
       border: 1px dashed #CBD5E1;
       background: linear-gradient(135deg, rgba(248,250,252,0.5), rgba(241,245,249,0.5));
@@ -130,6 +300,179 @@
       border-color: var(--dm-border);
       background: linear-gradient(135deg, rgba(30,41,59,0.3), rgba(15,23,42,0.3));
     }
+
+    /* ── Field label — tighter uppercase ── */
+    .sf-label {
+      font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+    .dark .sf-label { color: #94a3b8; }
+
+    /* ── Hero page header (shared across Library/Settings/etc.) ── */
+    .sf-page-hero {
+      position: relative; overflow: hidden;
+      padding: 18px 20px 16px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(37,99,235,0.06) 0%, rgba(139,92,246,0.05) 50%, rgba(249,115,22,0.04) 100%);
+      border: 1px solid #DBEAFE;
+    }
+    .sf-page-hero::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, #2563EB, #8B5CF6, #F97316);
+    }
+    .dark .sf-page-hero {
+      border-color: rgba(59,130,246,0.2);
+      background: linear-gradient(135deg, rgba(37,99,235,0.1) 0%, rgba(139,92,246,0.07) 50%, rgba(249,115,22,0.05) 100%);
+    }
+    .sf-page-hero h1 {
+      font-size: 1.125rem; font-weight: 700; color: #0F172A;
+      letter-spacing: -0.01em; line-height: 1.2;
+    }
+    .dark .sf-page-hero h1 { color: var(--dm-text); }
+    .sf-page-hero p { font-size: 12.5px; color: #64748b; margin-top: 2px; }
+    .dark .sf-page-hero p { color: var(--dm-text-secondary); }
+
+    /* ── Step badge (numbered section markers) ── */
+    .sf-step-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 50%;
+      font-size: 11px; font-weight: 700;
+      background: linear-gradient(135deg,#2563EB,#4F46E5);
+      color: white;
+      flex-shrink: 0;
+    }
+
+    /* ── Compact story card (Library) ── */
+    .sf-story-card {
+      padding: 14px 16px;
+      border: 1px solid #E2E8F0;
+      background: white;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .sf-story-card::before {
+      content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+      background: linear-gradient(180deg, #2563EB, #8B5CF6);
+      opacity: 0; transition: opacity 0.2s ease;
+    }
+    .sf-story-card:hover {
+      border-color: #93c5fd;
+      box-shadow: 0 6px 18px rgba(37,99,235,0.08);
+      transform: translateY(-1px);
+    }
+    .sf-story-card:hover::before { opacity: 1; }
+    .dark .sf-story-card { background: var(--dm-surface); border-color: var(--dm-border); }
+    .dark .sf-story-card:hover { border-color: rgba(96,165,250,0.4); box-shadow: 0 6px 18px rgba(37,99,235,0.15); }
+
+    /* ── Stat tile (Analytics) ── */
+    .sf-stat-tile {
+      padding: 14px 12px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+      border: 1px solid #E2E8F0;
+      text-align: center;
+      transition: all 0.18s ease;
+    }
+    .sf-stat-tile:hover {
+      border-color: #93c5fd;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(37,99,235,0.08);
+    }
+    .sf-stat-tile .n {
+      font-size: 1.5rem; font-weight: 700;
+      background: linear-gradient(135deg, #2563EB, #8B5CF6);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+    .sf-stat-tile .l { font-size: 10.5px; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+    .dark .sf-stat-tile { background: linear-gradient(135deg, rgba(30,41,59,0.6), rgba(15,23,42,0.6)); border-color: var(--dm-border); }
+    .dark .sf-stat-tile .l { color: var(--dm-text-muted); }
+
+    /* ── Empty state hero (Reader/Export/Analytics empty views) ── */
+    .sf-empty-hero {
+      position: relative; overflow: hidden;
+      padding: 48px 32px;
+      border-radius: 16px;
+      text-align: center;
+      background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%);
+      border: 1px solid #E2E8F0;
+    }
+    .sf-empty-hero::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, #2563EB, #8B5CF6, #F97316);
+    }
+    .sf-empty-hero .ico-wrap {
+      width: 72px; height: 72px; margin: 0 auto 18px;
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, rgba(37,99,235,0.1), rgba(139,92,246,0.1));
+      position: relative;
+    }
+    .sf-empty-hero .ico-wrap::after {
+      content: ''; position: absolute; inset: -4px; border-radius: 24px;
+      background: linear-gradient(135deg, rgba(37,99,235,0.08), rgba(139,92,246,0.08));
+      z-index: -1;
+    }
+    .dark .sf-empty-hero { background: linear-gradient(135deg, var(--dm-surface), var(--dm-bg)); border-color: var(--dm-border); }
+
+    /* ── Export format tile ── */
+    .sf-export-tile {
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      padding: 18px 12px;
+      border-radius: 12px;
+      border: 1.5px solid #E2E8F0;
+      background: white;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .sf-export-tile:hover {
+      border-color: #3B82F6;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgba(37,99,235,0.12);
+    }
+    .sf-export-tile:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .sf-export-tile .ico {
+      width: 36px; height: 36px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .dark .sf-export-tile { background: var(--dm-surface); border-color: var(--dm-border); }
+    .dark .sf-export-tile:hover { border-color: #60A5FA; }
+
+    /* ── Guide step card ── */
+    .sf-guide-step {
+      padding: 16px 18px;
+      border-radius: 12px;
+      background: white;
+      border: 1px solid #E2E8F0;
+      transition: all 0.18s ease;
+      display: flex; gap: 14px; align-items: flex-start;
+    }
+    .sf-guide-step:hover { border-color: #93c5fd; box-shadow: 0 4px 12px rgba(37,99,235,0.06); }
+    .sf-guide-step .sf-step-badge { margin-top: 1px; }
+    .dark .sf-guide-step { background: var(--dm-surface); border-color: var(--dm-border); }
+    .dark .sf-guide-step:hover { border-color: rgba(96,165,250,0.4); }
+
+    /* ── Search input (Library) ── */
+    .sf-search {
+      width: 100%;
+      padding: 9px 12px 9px 38px;
+      border: 1px solid #E2E8F0;
+      border-radius: 10px;
+      background: white;
+      font-size: 13.5px;
+      color: #0F172A;
+      transition: all 0.15s ease;
+    }
+    .sf-search:focus { outline: none; border-color: #3B82F6; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+    .dark .sf-search { background: var(--dm-surface); border-color: var(--dm-border); color: var(--dm-text); }
   </style>
 </head>
 <body class="h-full bg-surface-50 font-sans text-slate-800" x-data x-init="$store.app.init()">
@@ -316,14 +659,44 @@
       <!-- ═══ PIPELINE PAGE ═══ -->
       <template x-if="$store.app.page === 'pipeline'">
       <div class="page-enter" x-data="pipelinePage()" x-init="init()" @keydown.escape.window="branchOpen = false">
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <!-- Left: Form -->
-          <div class="lg:col-span-5 space-y-4">
+        <div class="max-w-3xl mx-auto space-y-4">
+            <!-- Pipeline roadmap — always visible, reflects state -->
+            <div class="card sf-card-hero p-4 pt-[18px]">
+              <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <span class="w-2 h-2 rounded-full" :class="$store.pipeline.status === 'running' ? 'bg-brand-500 animate-pulse' : $store.pipeline.status === 'done' ? 'bg-emerald-500' : 'bg-slate-300'"></span>
+                  <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="$store.pipeline.status === 'running' ? 'Generating your story' : $store.pipeline.status === 'done' ? 'Story ready' : 'Your 6-phase pipeline'"></h3>
+                </div>
+                <span class="sf-estimate" x-show="$store.pipeline.status === 'running' || ($store.pipeline.status === 'idle' && !$store.pipeline.continuationMode)">
+                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  <span x-text="'~' + estimateTime"></span>
+                </span>
+              </div>
+              <div class="grid grid-cols-6 gap-1">
+                <template x-for="(phase, i) in [{n:'Theme', d:'M12 3l2.9 6.3 6.8.6-5.1 4.6 1.5 6.8L12 17.8 5.9 21.3l1.5-6.8L2.3 9.9l6.8-.6L12 3z'},{n:'Chars', d:'M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.1a7.5 7.5 0 0115 0'},{n:'Outline', d:'M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.01v.01H3.75V6.75zM3.75 12h.01v.01H3.75V12zM3.75 17.25h.01v.01H3.75v-.01z'},{n:'Scenes', d:'M3.75 4.5A1.5 1.5 0 015.25 3h13.5a1.5 1.5 0 011.5 1.5v15a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-15zM9 7.5v9M15 7.5v9M3.75 12h16.5'},{n:'Write', d:'M16.86 4.49l2.65 2.65M3 21l4.12-1.13 12.3-12.3a1.87 1.87 0 000-2.65l-2.34-2.34a1.87 1.87 0 00-2.65 0L2.13 14.88 3 21z'},{n:'Enhance', d:'M9.8 3.3l1.4 3.1 3.1 1.4-3.1 1.4L9.8 12.3 8.4 9.2 5.3 7.8l3.1-1.4L9.8 3.3zM16 13l1 2.2 2.2 1-2.2 1L16 19.4l-1-2.2-2.2-1 2.2-1L16 13z'}]" :key="i">
+                  <div class="sf-phase" :class="getPhaseState(i)">
+                    <div class="sf-phase-dot">
+                      <svg x-show="getPhaseState(i) !== 'done'" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" :d="phase.d"/></svg>
+                      <svg x-show="getPhaseState(i) === 'done'" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+                    </div>
+                    <span class="sf-phase-label" x-text="phase.n"></span>
+                  </div>
+                </template>
+              </div>
+              <p x-show="$store.pipeline.currentLog" class="text-xs text-slate-500 dark:text-slate-400 mt-3 truncate font-mono bg-slate-50 dark:bg-slate-800/40 rounded-md px-3 py-1.5" aria-live="polite">
+                <span class="text-brand-500">›</span> <span x-text="$store.pipeline.currentLog"></span>
+              </p>
+            </div>
+
             <!-- Story Idea — Hero element -->
-            <div class="card sf-card-hero p-5 space-y-4">
-              <!-- Char counter (removed duplicate Create Story header - shown in page title) -->
-              <div x-show="!$store.pipeline.continuationMode" class="flex items-center justify-end">
-                <span class="text-xs text-slate-400 dark:text-slate-500 tabular-nums" x-text="($store.pipeline.form.idea || '').length + ' chars'"></span>
+            <div class="card sf-card-hero p-5 pt-[18px] space-y-3">
+              <!-- Hero header: step label + char counter -->
+              <div x-show="!$store.pipeline.continuationMode" class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-gradient-to-br from-brand-500 to-violet-500 text-white text-[10px] font-bold">1</span>
+                  <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200">Your story idea</h2>
+                </div>
+                <span class="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums font-medium" x-text="($store.pipeline.form.idea || '').length + ' / 500'"></span>
               </div>
               <!-- Continuation header -->
               <div x-show="$store.pipeline.continuationMode" class="space-y-3">
@@ -342,38 +715,62 @@
                   </div>
                 </div>
               </div>
-              <!-- New story form fields -->
+              <!-- Idea textarea -->
               <div x-show="!$store.pipeline.continuationMode">
-                <textarea id="sf-idea" x-model="$store.pipeline.form.idea" rows="6" placeholder="Describe your story idea... (e.g. A young warrior discovers an ancient sword that grants immense power but slowly corrupts the soul of its wielder...)" class="w-full border border-surface-200 rounded-xl px-4 py-3 text-sm resize-none leading-relaxed focus:ring-2 focus:ring-brand-500/20 sf-textarea-hero"></textarea>
+                <textarea id="sf-idea" x-model="$store.pipeline.form.idea" rows="4"
+                  placeholder="E.g. A young warrior discovers an ancient sword that grants immense power but slowly corrupts the soul of its wielder..."
+                  class="w-full border border-surface-200 rounded-xl px-4 py-3 text-sm resize-none leading-relaxed focus:ring-2 focus:ring-brand-500/20 sf-textarea-hero"></textarea>
               </div>
-              <div x-show="!$store.pipeline.continuationMode">
-                <!-- Compact inline selectors -->
-                <div class="grid grid-cols-2 gap-3">
+              <!-- Quick example chips (shown only when idea is empty) -->
+              <div x-show="!$store.pipeline.continuationMode && !($store.pipeline.form.idea || '').trim()" x-transition.opacity class="space-y-1.5">
+                <p class="sf-label">Or try one of these</p>
+                <div class="grid grid-cols-2 gap-1.5">
+                  <template x-for="ex in ideaExamples" :key="ex.title">
+                    <button type="button" @click="$store.pipeline.form.idea = ex.idea; $store.pipeline.form.genre = ex.genre"
+                      class="sf-example-chip !py-2 !px-2.5">
+                      <span class="block font-semibold text-slate-700 dark:text-slate-200 text-[11.5px] mb-0.5" x-text="ex.title"></span>
+                      <span class="block text-[10.5px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-tight" x-text="ex.teaser"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+              <!-- Compact meta row: Genre / Style / Language + Title -->
+              <div x-show="!$store.pipeline.continuationMode" class="space-y-2.5 pt-1">
+                <div class="grid grid-cols-3 gap-2">
                   <div>
-                    <label for="sf-genre" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Genre</label>
-                    <select id="sf-genre" x-model="$store.pipeline.form.genre" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm bg-white dark:bg-surface-100 cursor-pointer">
+                    <label for="sf-genre" class="sf-label block mb-1">Genre</label>
+                    <select id="sf-genre" x-model="$store.pipeline.form.genre" class="sf-select-compact w-full border border-surface-200 rounded-lg bg-white dark:bg-surface-100 cursor-pointer">
                       <template x-for="g in $store.pipeline.genres" :key="g">
                         <option :value="g" x-text="g"></option>
                       </template>
                     </select>
                   </div>
                   <div>
-                    <label for="sf-style" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Writing Style</label>
-                    <select id="sf-style" x-model="$store.pipeline.form.style" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm bg-white dark:bg-surface-100 cursor-pointer">
+                    <label for="sf-style" class="sf-label block mb-1">Style</label>
+                    <select id="sf-style" x-model="$store.pipeline.form.style" class="sf-select-compact w-full border border-surface-200 rounded-lg bg-white dark:bg-surface-100 cursor-pointer">
                       <template x-for="s in $store.pipeline.styles" :key="s">
                         <option :value="s" x-text="s"></option>
                       </template>
                     </select>
                   </div>
+                  <div>
+                    <label for="sf-language" class="sf-label block mb-1">Language</label>
+                    <select id="sf-language" x-model="$store.pipeline.form.language" class="sf-select-compact w-full border border-surface-200 rounded-lg bg-white dark:bg-surface-100 cursor-pointer">
+                      <template x-for="lang in $store.pipeline.languages" :key="lang.code">
+                        <option :value="lang.code" x-text="lang.label"></option>
+                      </template>
+                    </select>
+                  </div>
                 </div>
-                <div class="mt-3">
-                  <label for="sf-title" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Title <span class="text-slate-400 dark:text-slate-500 font-normal">(optional)</span></label>
-                  <input id="sf-title" type="text" x-model="$store.pipeline.form.title" placeholder="Leave blank for AI suggestion" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm">
+                <div>
+                  <label for="sf-title" class="sf-label block mb-1">Title <span class="text-slate-400 dark:text-slate-500 font-normal normal-case tracking-normal">— optional</span></label>
+                  <input id="sf-title" type="text" x-model="$store.pipeline.form.title" placeholder="Leave blank for AI suggestion"
+                    class="w-full border border-surface-200 rounded-lg px-3 py-1.5 text-sm">
                 </div>
               </div>
               <!-- Continuation: style selector -->
               <div x-show="$store.pipeline.continuationMode">
-                <label for="sf-cont-style" class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Writing Style</label>
+                <label for="sf-cont-style" class="sf-label block mb-1">Writing Style</label>
                 <select id="sf-cont-style" x-model="$store.pipeline.form.style" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm bg-white dark:bg-surface-100 cursor-pointer">
                   <template x-for="s in $store.pipeline.styles" :key="s">
                     <option :value="s" x-text="s"></option>
@@ -384,10 +781,16 @@
 
             <!-- Config — compact pill-style sliders -->
             <div class="card p-5 space-y-3">
-              <h2 class="font-semibold text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2">
-                <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"/></svg>
-                Configuration
-              </h2>
+              <div class="flex items-center justify-between">
+                <h2 class="font-semibold text-sm text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                  <span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-gradient-to-br from-brand-500 to-violet-500 text-white text-[10px] font-bold">2</span>
+                  Configuration
+                </h2>
+                <span class="sf-estimate" x-show="!$store.pipeline.continuationMode">
+                  <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  <span x-text="'~' + estimateTime + ' · ' + estimateCost"></span>
+                </span>
+              </div>
               <!-- New story: 3 sliders -->
               <div x-show="!$store.pipeline.continuationMode" class="grid grid-cols-3 gap-3">
                 <div class="sf-config-pill">
@@ -405,6 +808,33 @@
                   <span class="text-lg font-bold tabular-nums text-brand-600 dark:text-brand-400" x-text="$store.pipeline.form.word_count"></span>
                   <input id="sf-word-count" type="range" min="500" max="5000" step="100" x-model.number="$store.pipeline.form.word_count" aria-label="Words per chapter" class="sf-range w-full">
                 </div>
+              </div>
+              <!-- Drama level — segmented pills -->
+              <div x-show="!$store.pipeline.continuationMode">
+                <p class="sf-label mb-1.5">Drama level</p>
+                <div class="sf-pill-group" role="tablist" aria-label="Drama level">
+                  <template x-for="d in $store.pipeline.dramaLevels" :key="d">
+                    <button type="button" role="tab" class="sf-pill" :class="{ active: $store.pipeline.form.drama_level === d }" @click="$store.pipeline.form.drama_level = d" x-text="d"></button>
+                  </template>
+                </div>
+              </div>
+              <!-- Quick toggles — most impactful booleans surfaced -->
+              <div x-show="!$store.pipeline.continuationMode" class="flex flex-wrap gap-1.5 pt-1">
+                <label class="sf-toggle-chip" :class="{ active: $store.pipeline.form.enable_l1_consistency }">
+                  <input type="checkbox" x-model="$store.pipeline.form.enable_l1_consistency">
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.04A12 12 0 013.6 6a12 12 0 00-.6 3.75c0 5.6 3.8 10.3 9 11.6 5.2-1.3 9-6 9-11.6 0-1.3-.2-2.6-.6-3.75h-.2a12 12 0 01-8.2-3.3z"/></svg>
+                  <span>Enhanced Consistency</span>
+                </label>
+                <label class="sf-toggle-chip" :class="{ active: $store.pipeline.form.enable_media }">
+                  <input type="checkbox" x-model="$store.pipeline.form.enable_media">
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.16-5.16a2.25 2.25 0 013.18 0l5.16 5.16m-1.5-1.5 1.41-1.41a2.25 2.25 0 013.18 0L21 15.75m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z"/></svg>
+                  <span>Generate Images</span>
+                </label>
+                <label class="sf-toggle-chip" :class="{ active: $store.pipeline.form.lite_mode }">
+                  <input type="checkbox" x-model="$store.pipeline.form.lite_mode">
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75"/></svg>
+                  <span>Lite Mode</span>
+                </label>
               </div>
               <!-- Continuation: 2 sliders + enhancement toggle -->
               <div x-show="$store.pipeline.continuationMode" class="space-y-3">
@@ -634,223 +1064,150 @@
               </div>
             </div>
 
-            <!-- Advanced (collapsible) — hidden in continuation mode -->
+            <!-- Advanced (collapsible, single-level) — hidden in continuation mode -->
             <details x-show="!$store.pipeline.continuationMode" class="card overflow-hidden">
-              <summary class="px-5 py-3 cursor-pointer text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-surface-50 dark:hover:bg-surface-100 select-none flex items-center justify-between">
+              <summary class="px-5 py-3 cursor-pointer text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-surface-50 dark:hover:bg-surface-100 select-none flex items-center justify-between">
                 <span class="flex items-center gap-2">
-                  <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0Z"/></svg>
+                  <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0Z"/></svg>
                   Advanced Settings
+                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-medium">Pro</span>
                 </span>
-                <svg class="w-4 h-4 text-slate-400 transition-transform duration-200 details-chevron" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+                <svg class="w-4 h-4 text-slate-400 transition-transform duration-200 details-chevron" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
               </summary>
-              <div class="border-t border-surface-200 px-5 py-4 space-y-4">
+              <div class="border-t border-surface-200 dark:border-slate-700 px-5 py-4 space-y-4">
+                <!-- Simulation rounds — inline compact slider -->
                 <div>
-                  <div class="flex justify-between items-center text-sm mb-1.5">
-                    <label for="sf-num-sim-rounds" class="text-slate-600 dark:text-slate-300">Simulation Rounds</label>
-                    <span class="text-xs font-bold tabular-nums text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30 px-2 py-0.5 rounded-full min-w-[28px] text-center" x-text="$store.pipeline.form.num_sim_rounds"></span>
+                  <div class="flex justify-between items-center mb-1.5">
+                    <label for="sf-num-sim-rounds" class="sf-label">Simulation Rounds</label>
+                    <span class="text-xs font-bold tabular-nums text-brand-600 dark:text-brand-400" x-text="$store.pipeline.form.num_sim_rounds"></span>
                   </div>
                   <input id="sf-num-sim-rounds" type="range" min="1" max="10" x-model.number="$store.pipeline.form.num_sim_rounds" aria-label="Simulation rounds" class="sf-range w-full">
                 </div>
-                <div>
-                  <label for="sf-drama-level" class="block text-sm text-slate-600 dark:text-slate-300 mb-1.5">Drama Level</label>
-                  <select id="sf-drama-level" x-model="$store.pipeline.form.drama_level" class="w-full border border-surface-200 rounded-lg px-3 py-2 text-sm bg-white dark:bg-surface-100 capitalize cursor-pointer">
-                    <template x-for="d in $store.pipeline.dramaLevels" :key="d">
-                      <option :value="d" x-text="d"></option>
-                    </template>
-                  </select>
-                </div>
-                <!-- Enhanced Consistency Section -->
-                <div class="pt-3 border-t border-surface-200 dark:border-slate-700">
-                  <label class="flex items-center gap-3 cursor-pointer group">
-                    <input type="checkbox" x-model="$store.pipeline.form.enable_l1_consistency" class="w-4 h-4 rounded border-surface-300 text-brand-600 focus:ring-brand-500 focus:ring-offset-0">
-                    <div class="flex-1">
-                      <div class="flex items-center gap-2">
-                        <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Enhanced Consistency</span>
-                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">+20% cost</span>
-                      </div>
-                      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Tracks character emotions, plot threads, and causal events for better story coherence</p>
-                    </div>
-                  </label>
-                </div>
-                <!-- Image Generation Section -->
-                <div class="pt-3 border-t border-surface-200 dark:border-slate-700">
-                  <label class="flex items-center gap-3 cursor-pointer group">
-                    <input type="checkbox" x-model="$store.pipeline.form.enable_media" class="w-4 h-4 rounded border-surface-300 text-brand-600 focus:ring-brand-500 focus:ring-offset-0">
-                    <div class="flex-1">
-                      <div class="flex items-center gap-2">
-                        <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Generate Images</span>
-                        <svg class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
-                      </div>
-                      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Create AI illustrations for each chapter (requires image provider in Settings)</p>
-                    </div>
-                  </label>
+
+                <!-- Layer 1 toggles -->
+                <div class="space-y-2 pt-3 border-t border-surface-100 dark:border-slate-800">
+                  <p class="sf-label">Layer 1 — Story</p>
+                  <div class="flex flex-wrap gap-1.5">
+                    <label class="sf-toggle-chip" :class="{ active: $store.pipeline.form.enable_emotional_memory }">
+                      <input type="checkbox" x-model="$store.pipeline.form.enable_emotional_memory">
+                      <span>Emotional Memory</span>
+                    </label>
+                    <label class="sf-toggle-chip" :class="{ active: $store.pipeline.form.enable_emotional_bridge }">
+                      <input type="checkbox" x-model="$store.pipeline.form.enable_emotional_bridge">
+                      <span>Emotional Bridge</span>
+                    </label>
+                    <label class="sf-toggle-chip" :class="{ active: $store.pipeline.form.enable_scene_beat_writing }">
+                      <input type="checkbox" x-model="$store.pipeline.form.enable_scene_beat_writing">
+                      <span>Scene Beats</span>
+                    </label>
+                    <label class="sf-toggle-chip" :class="{ active: $store.pipeline.form.enable_l1_causal_graph }">
+                      <input type="checkbox" x-model="$store.pipeline.form.enable_l1_causal_graph">
+                      <span>Causal Graph</span>
+                    </label>
+                    <label class="sf-toggle-chip" :class="{ active: $store.pipeline.form.enable_proactive_constraints }">
+                      <input type="checkbox" x-model="$store.pipeline.form.enable_proactive_constraints">
+                      <span>Proactive Constraints</span>
+                    </label>
+                    <label class="sf-toggle-chip" :class="{ active: $store.pipeline.form.enable_thread_enforcement }">
+                      <input type="checkbox" x-model="$store.pipeline.form.enable_thread_enforcement">
+                      <span>Thread Enforcement</span>
+                    </label>
+                    <label class="sf-toggle-chip" :class="{ active: $store.pipeline.form.enable_self_review }">
+                      <input type="checkbox" x-model="$store.pipeline.form.enable_self_review">
+                      <span>Self Review</span>
+                    </label>
+                  </div>
                 </div>
 
-                <!-- Advanced Settings Section -->
-                <details class="pt-3 border-t border-surface-200 dark:border-slate-700">
-                  <summary class="flex items-center gap-2 cursor-pointer text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200">
-                    <svg class="w-4 h-4 transition-transform" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
-                    Advanced Settings
-                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">Pro</span>
-                  </summary>
-                  <div class="mt-3 space-y-3 pl-6">
-                    <!-- Pipeline Mode -->
-                    <div class="space-y-2">
-                      <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Pipeline Mode</p>
-                      <label class="flex items-center gap-2 cursor-pointer text-xs">
-                        <input type="checkbox" x-model="$store.pipeline.form.lite_mode" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600">
-                        <span class="text-slate-600 dark:text-slate-300">Lite Mode</span>
-                        <span class="text-slate-400 dark:text-slate-500">— Skip L2 enhancement (faster, less dramatic)</span>
-                      </label>
-                    </div>
-                    <!-- L1 Features -->
-                    <div class="space-y-2 pt-2 border-t border-surface-100 dark:border-slate-800">
-                      <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Layer 1 — Story Generation</p>
-                      <label class="flex items-center gap-2 cursor-pointer text-xs">
-                        <input type="checkbox" x-model="$store.pipeline.form.enable_emotional_memory" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600">
-                        <span class="text-slate-600 dark:text-slate-300">Emotional Memory</span>
-                        <span class="text-slate-400 dark:text-slate-500">— Track character emotions across chapters</span>
-                      </label>
-                      <label class="flex items-center gap-2 cursor-pointer text-xs">
-                        <input type="checkbox" x-model="$store.pipeline.form.enable_emotional_bridge" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600">
-                        <span class="text-slate-600 dark:text-slate-300">Emotional Bridge</span>
-                        <span class="text-slate-400 dark:text-slate-500">— Smooth emotion transitions between chapters</span>
-                      </label>
-                      <label class="flex items-center gap-2 cursor-pointer text-xs">
-                        <input type="checkbox" x-model="$store.pipeline.form.enable_scene_beat_writing" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600">
-                        <span class="text-slate-600 dark:text-slate-300">Scene Beat Writing</span>
-                        <span class="text-slate-400 dark:text-slate-500">— Write chapters beat-by-beat</span>
-                      </label>
-                      <label class="flex items-center gap-2 cursor-pointer text-xs">
-                        <input type="checkbox" x-model="$store.pipeline.form.enable_l1_causal_graph" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600">
-                        <span class="text-slate-600 dark:text-slate-300">Causal Graph</span>
-                        <span class="text-slate-400 dark:text-slate-500">— Track cause-effect relationships</span>
-                      </label>
-                      <label class="flex items-center gap-2 cursor-pointer text-xs">
-                        <input type="checkbox" x-model="$store.pipeline.form.enable_proactive_constraints" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600">
-                        <span class="text-slate-600 dark:text-slate-300">Proactive Constraints</span>
-                        <span class="text-slate-400 dark:text-slate-500">— Enforce story rules during generation</span>
-                      </label>
-                      <label class="flex items-center gap-2 cursor-pointer text-xs">
-                        <input type="checkbox" x-model="$store.pipeline.form.enable_thread_enforcement" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600">
-                        <span class="text-slate-600 dark:text-slate-300">Thread Enforcement</span>
-                        <span class="text-slate-400 dark:text-slate-500">— Ensure narrative thread consistency</span>
-                      </label>
-                      <label class="flex items-center gap-2 cursor-pointer text-xs">
-                        <input type="checkbox" x-model="$store.pipeline.form.enable_self_review" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600">
-                        <span class="text-slate-600 dark:text-slate-300">Self Review</span>
-                        <span class="text-slate-400 dark:text-slate-500">— Auto-critique generated chapters</span>
-                      </label>
-                    </div>
-                    <!-- L2 Features -->
-                    <div class="space-y-2 pt-2 border-t border-surface-100 dark:border-slate-800">
-                      <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Layer 2 — Drama Enhancement</p>
-                      <label class="flex items-center gap-2 cursor-pointer text-xs">
-                        <input type="checkbox" x-model="$store.pipeline.form.enable_agent_debate" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600">
-                        <span class="text-slate-600 dark:text-slate-300">Agent Debate</span>
-                        <span class="text-slate-400 dark:text-slate-500">— Multi-agent discussion for drama</span>
-                      </label>
-                      <div class="flex items-center gap-3">
-                        <span class="text-xs text-slate-600 dark:text-slate-300 min-w-[100px]">Drama Threshold</span>
-                        <input type="range" min="0.3" max="0.8" step="0.05" x-model.number="$store.pipeline.form.l2_drama_threshold" class="sf-range flex-1">
-                        <span class="text-xs text-slate-500 tabular-nums w-8" x-text="$store.pipeline.form.l2_drama_threshold.toFixed(2)"></span>
-                      </div>
-                      <div class="flex items-center gap-3">
-                        <span class="text-xs text-slate-600 dark:text-slate-300 min-w-[100px]">Drama Target</span>
-                        <input type="range" min="0.5" max="0.9" step="0.05" x-model.number="$store.pipeline.form.l2_drama_target" class="sf-range flex-1">
-                        <span class="text-xs text-slate-500 tabular-nums w-8" x-text="$store.pipeline.form.l2_drama_target.toFixed(2)"></span>
-                      </div>
-                    </div>
-                    <!-- Quality Settings -->
-                    <div class="space-y-2 pt-2 border-t border-surface-100 dark:border-slate-800">
-                      <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Quality Control</p>
-                      <label class="flex items-center gap-2 cursor-pointer text-xs">
-                        <input type="checkbox" x-model="$store.pipeline.form.enable_quality_gate" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600">
-                        <span class="text-slate-600 dark:text-slate-300">Quality Gate</span>
-                        <span class="text-slate-400 dark:text-slate-500">— Retry if quality below threshold</span>
-                      </label>
-                      <div class="flex items-center gap-3" x-show="$store.pipeline.form.enable_quality_gate">
-                        <span class="text-xs text-slate-600 dark:text-slate-300 min-w-[100px]">Gate Threshold</span>
-                        <input type="range" min="1.5" max="4.0" step="0.1" x-model.number="$store.pipeline.form.quality_gate_threshold" class="sf-range flex-1">
-                        <span class="text-xs text-slate-500 tabular-nums w-8" x-text="$store.pipeline.form.quality_gate_threshold.toFixed(1)"></span>
-                      </div>
-                      <label class="flex items-center gap-2 cursor-pointer text-xs">
-                        <input type="checkbox" x-model="$store.pipeline.form.enable_smart_revision" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600">
-                        <span class="text-slate-600 dark:text-slate-300">Smart Revision</span>
-                        <span class="text-slate-400 dark:text-slate-500">— Auto-fix weak chapters</span>
-                      </label>
-                      <div class="flex items-center gap-3" x-show="$store.pipeline.form.enable_smart_revision">
-                        <span class="text-xs text-slate-600 dark:text-slate-300 min-w-[100px]">Revision Threshold</span>
-                        <input type="range" min="2.0" max="4.5" step="0.1" x-model.number="$store.pipeline.form.smart_revision_threshold" class="sf-range flex-1">
-                        <span class="text-xs text-slate-500 tabular-nums w-8" x-text="$store.pipeline.form.smart_revision_threshold.toFixed(1)"></span>
-                      </div>
-                    </div>
-                    <!-- Post-Enhancement Features -->
-                    <div class="space-y-2 pt-3 border-t border-surface-200 dark:border-surface-700">
-                      <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Post-Enhancement</p>
-                      <label class="flex items-center gap-2 cursor-pointer text-xs">
-                        <input type="checkbox" x-model="$store.pipeline.form.enable_sensory_polish" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600">
-                        <span class="text-slate-600 dark:text-slate-300">Sensory Polish (L3)</span>
-                        <span class="text-slate-400 dark:text-slate-500">— Add sensory details</span>
-                      </label>
-                      <label class="flex items-center gap-2 cursor-pointer text-xs">
-                        <input type="checkbox" x-model="$store.pipeline.form.enable_reader_simulation" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600">
-                        <span class="text-slate-600 dark:text-slate-300">Reader Simulation</span>
-                        <span class="text-slate-400 dark:text-slate-500">— Identify weak chapters</span>
-                      </label>
-                      <label class="flex items-center gap-2 cursor-pointer text-xs">
-                        <input type="checkbox" x-model="$store.pipeline.form.enable_incremental_publish" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600">
-                        <span class="text-slate-600 dark:text-slate-300">Incremental Publish</span>
-                        <span class="text-slate-400 dark:text-slate-500">— Stream chapters as done</span>
-                      </label>
-                    </div>
+                <!-- Layer 2 toggles + sliders -->
+                <div class="space-y-2 pt-3 border-t border-surface-100 dark:border-slate-800">
+                  <p class="sf-label">Layer 2 — Drama</p>
+                  <div class="flex flex-wrap gap-1.5">
+                    <label class="sf-toggle-chip" :class="{ active: $store.pipeline.form.enable_agent_debate }">
+                      <input type="checkbox" x-model="$store.pipeline.form.enable_agent_debate">
+                      <span>Agent Debate</span>
+                    </label>
                   </div>
-                </details>
+                  <div class="flex items-center gap-3 pt-1">
+                    <span class="text-xs text-slate-500 dark:text-slate-400 min-w-[110px]">Drama Threshold</span>
+                    <input type="range" min="0.3" max="0.8" step="0.05" x-model.number="$store.pipeline.form.l2_drama_threshold" class="sf-range flex-1">
+                    <span class="text-xs font-bold tabular-nums text-brand-600 dark:text-brand-400 w-9" x-text="$store.pipeline.form.l2_drama_threshold.toFixed(2)"></span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <span class="text-xs text-slate-500 dark:text-slate-400 min-w-[110px]">Drama Target</span>
+                    <input type="range" min="0.5" max="0.9" step="0.05" x-model.number="$store.pipeline.form.l2_drama_target" class="sf-range flex-1">
+                    <span class="text-xs font-bold tabular-nums text-brand-600 dark:text-brand-400 w-9" x-text="$store.pipeline.form.l2_drama_target.toFixed(2)"></span>
+                  </div>
+                </div>
+
+                <!-- Quality -->
+                <div class="space-y-2 pt-3 border-t border-surface-100 dark:border-slate-800">
+                  <p class="sf-label">Quality</p>
+                  <div class="flex flex-wrap gap-1.5">
+                    <label class="sf-toggle-chip" :class="{ active: $store.pipeline.form.enable_quality_gate }">
+                      <input type="checkbox" x-model="$store.pipeline.form.enable_quality_gate">
+                      <span>Quality Gate</span>
+                    </label>
+                    <label class="sf-toggle-chip" :class="{ active: $store.pipeline.form.enable_smart_revision }">
+                      <input type="checkbox" x-model="$store.pipeline.form.enable_smart_revision">
+                      <span>Smart Revision</span>
+                    </label>
+                  </div>
+                  <div class="flex items-center gap-3 pt-1" x-show="$store.pipeline.form.enable_quality_gate">
+                    <span class="text-xs text-slate-500 dark:text-slate-400 min-w-[110px]">Gate Threshold</span>
+                    <input type="range" min="1.5" max="4.0" step="0.1" x-model.number="$store.pipeline.form.quality_gate_threshold" class="sf-range flex-1">
+                    <span class="text-xs font-bold tabular-nums text-brand-600 dark:text-brand-400 w-9" x-text="$store.pipeline.form.quality_gate_threshold.toFixed(1)"></span>
+                  </div>
+                  <div class="flex items-center gap-3" x-show="$store.pipeline.form.enable_smart_revision">
+                    <span class="text-xs text-slate-500 dark:text-slate-400 min-w-[110px]">Revision Threshold</span>
+                    <input type="range" min="2.0" max="4.5" step="0.1" x-model.number="$store.pipeline.form.smart_revision_threshold" class="sf-range flex-1">
+                    <span class="text-xs font-bold tabular-nums text-brand-600 dark:text-brand-400 w-9" x-text="$store.pipeline.form.smart_revision_threshold.toFixed(1)"></span>
+                  </div>
+                </div>
+
+                <!-- Post-enhancement -->
+                <div class="space-y-2 pt-3 border-t border-surface-100 dark:border-slate-800">
+                  <p class="sf-label">Post-Enhancement</p>
+                  <div class="flex flex-wrap gap-1.5">
+                    <label class="sf-toggle-chip" :class="{ active: $store.pipeline.form.enable_sensory_polish }">
+                      <input type="checkbox" x-model="$store.pipeline.form.enable_sensory_polish">
+                      <span>Sensory Polish</span>
+                    </label>
+                    <label class="sf-toggle-chip" :class="{ active: $store.pipeline.form.enable_reader_simulation }">
+                      <input type="checkbox" x-model="$store.pipeline.form.enable_reader_simulation">
+                      <span>Reader Simulation</span>
+                    </label>
+                    <label class="sf-toggle-chip" :class="{ active: $store.pipeline.form.enable_incremental_publish }">
+                      <input type="checkbox" x-model="$store.pipeline.form.enable_incremental_publish">
+                      <span>Incremental Publish</span>
+                    </label>
+                  </div>
+                </div>
               </div>
             </details>
 
-            <!-- Run button -->
-            <button
-              @click="runPipeline()"
-              :disabled="$store.pipeline.status === 'running'"
-              :aria-busy="$store.pipeline.status === 'running'"
-              aria-label="Run story generation pipeline"
-              aria-describedby="sf-pipeline-error-msg"
-              class="btn-primary w-full py-3.5 rounded-xl font-semibold text-sm transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <span x-show="$store.pipeline.status !== 'running'" class="inline-flex items-center gap-2">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z"/></svg>
-                <span x-text="$store.pipeline.continuationMode ? 'Continue Story' : 'Generate Story'"></span>
-              </span>
-              <span x-show="$store.pipeline.status === 'running'" class="flex items-center justify-center gap-2">
-                <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                Generating...
-              </span>
-            </button>
-          </div>
-
-          <!-- Right: Progress + Output -->
-          <div class="lg:col-span-7 space-y-4">
-            <!-- Progress stepper -->
-            <div class="card p-4">
-              <div class="flex gap-2">
-                <template x-for="(step, i) in [{label: 'Story', icon: 'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25'}, {label: 'Simulation', icon: 'M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75'}]" :key="i">
-                  <div
-                    class="progress-step flex-1 h-12 rounded-xl flex items-center justify-center gap-2 text-xs font-semibold"
-                    :class="{
-                      'bg-green-500/10 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-800': $store.pipeline.progress > i+1,
-                      'bg-brand-600 text-white shadow-md shadow-brand-500/25': $store.pipeline.progress === i+1,
-                      'bg-surface-50 dark:bg-surface-100 text-slate-400 border border-surface-200': $store.pipeline.progress < i+1,
-                    }"
-                  >
-                    <svg x-show="$store.pipeline.progress <= i+1" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" :d="step.icon"/></svg>
-                    <svg x-show="$store.pipeline.progress > i+1" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-                    <span x-text="step.label"></span>
-                  </div>
-                </template>
-              </div>
-              <p x-show="$store.pipeline.currentLog" class="text-center text-xs text-slate-500 dark:text-slate-400 mt-2.5 truncate" aria-live="polite" x-text="$store.pipeline.currentLog"></p>
+            <!-- Run button — inline CTA with estimate -->
+            <div>
+              <button
+                @click="runPipeline()"
+                :disabled="$store.pipeline.status === 'running'"
+                :aria-busy="$store.pipeline.status === 'running'"
+                aria-label="Run story generation pipeline"
+                aria-describedby="sf-pipeline-error-msg"
+                class="sf-cta-hero w-full py-3.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+              >
+                <span x-show="$store.pipeline.status !== 'running'" class="inline-flex items-center gap-2.5">
+                  <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"/></svg>
+                  <span class="text-[15px]" x-text="$store.pipeline.continuationMode ? 'Continue Story' : 'Generate Story'"></span>
+                  <span x-show="!$store.pipeline.continuationMode" class="text-[11px] font-medium px-2 py-0.5 rounded-md bg-white/15 text-white/90 tabular-nums" x-text="'~' + estimateTime + ' · ' + estimateCost"></span>
+                </span>
+                <span x-show="$store.pipeline.status === 'running'" class="flex items-center justify-center gap-2.5">
+                  <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                  <span class="text-[15px]">Generating…</span>
+                </span>
+              </button>
             </div>
+
 
             <!-- Live preview -->
             <div x-show="$store.pipeline.status === 'running' && $store.pipeline.livePreview" class="card p-5" x-cloak>
@@ -1061,32 +1418,6 @@
               </div>
             </div>
 
-            <!-- Empty state -->
-            <div x-show="$store.pipeline.status === 'idle' && !$store.pipeline.result" class="card sf-empty-state p-12 text-center">
-              <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-brand-500/10 to-violet-500/10 dark:from-brand-400/10 dark:to-violet-400/10 flex items-center justify-center">
-                <svg class="w-8 h-8 text-brand-500 dark:text-brand-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/>
-                </svg>
-              </div>
-              <h3 class="text-lg font-semibold text-slate-600 dark:text-slate-300 mb-1.5">Your story awaits</h3>
-              <p class="text-sm text-slate-400 dark:text-slate-500 max-w-sm mx-auto leading-relaxed">Describe your story idea, choose a genre, and hit <strong class="text-slate-500 dark:text-slate-400">Generate Story</strong> to bring it to life</p>
-              <!-- Feature pills - improved visibility -->
-              <div class="flex flex-wrap items-center justify-center gap-3 mt-6">
-                <span class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-50 dark:bg-brand-900/20 text-brand-600 dark:text-brand-400 text-xs font-medium">
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
-                  Multi-chapter
-                </span>
-                <span class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 text-xs font-medium">
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>
-                  Character AI
-                </span>
-                <span class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 text-xs font-medium">
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75"/></svg>
-                  Drama simulation
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
       </template>
@@ -1094,11 +1425,11 @@
       <!-- ═══ SETTINGS PAGE ═══ -->
       <template x-if="$store.app.page === 'settings'">
       <div class="page-enter" x-data="settingsPage()">
-        <div class="max-w-2xl mx-auto space-y-6">
+        <div class="max-w-3xl mx-auto space-y-4">
 
           <!-- Loading skeleton while config loads -->
           <template x-if="!Alpine.store('settings').config">
-            <div class="space-y-6">
+            <div class="space-y-4">
               <div class="card p-5 space-y-4 animate-pulse">
                 <div class="h-5 bg-surface-200 rounded w-40"></div>
                 <div class="h-4 bg-surface-100 rounded w-64"></div>
@@ -1112,51 +1443,53 @@
                 <div class="h-5 bg-surface-200 rounded w-32"></div>
                 <div class="h-10 bg-surface-100 rounded-lg"></div>
               </div>
-              <div class="card p-5 space-y-4 animate-pulse">
-                <div class="h-5 bg-surface-200 rounded w-36"></div>
-                <div class="h-10 bg-surface-100 rounded-lg"></div>
-              </div>
             </div>
           </template>
 
           <!-- Settings form (visible when config loaded) -->
-          <div x-show="Alpine.store('settings').config" x-cloak>
+          <div x-show="Alpine.store('settings').config" x-cloak class="space-y-4">
+
+          <!-- Hero header -->
+          <div class="sf-page-hero">
+            <h1>Cài đặt</h1>
+            <p>Chọn nhà cung cấp AI, nhập API key và tuỳ chỉnh mô hình tạo sinh.</p>
+          </div>
 
           <!-- Quick Setup: Model Presets -->
-          <div class="card p-5 space-y-4 border-brand-200 bg-brand-50/30">
-            <div class="flex items-center gap-2 mb-1">
-              <span class="text-xl">⚡</span>
-              <h2 class="font-semibold text-base text-slate-700">Quick Setup — Free Model Presets</h2>
+          <div class="card sf-card-hero p-5 pt-[18px]">
+            <div class="flex items-center gap-2 mb-1.5">
+              <span class="sf-step-badge">★</span>
+              <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Thiết lập nhanh — preset miễn phí</h3>
             </div>
-            <p class="text-sm text-slate-500">One-click setup with free OpenRouter models. Just add your API key below.</p>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Một click cài model miễn phí qua OpenRouter — chỉ cần thêm API key bên dưới.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <button @click="applyModelPreset('openrouter-free-basic')"
-                class="flex flex-col gap-1 p-3 rounded-xl border-2 border-surface-200 hover:border-brand-400 hover:bg-white transition-all cursor-pointer text-left">
-                <span class="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z"/></svg>
+                class="flex flex-col gap-1 p-3 rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 hover:border-brand-400 hover:shadow-sm transition-all cursor-pointer text-left">
+                <span class="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z"/></svg>
                   Basic
                 </span>
-                <span class="text-xs text-slate-500">Qwen 3.6 Plus for all layers</span>
+                <span class="text-[11px] text-slate-500 dark:text-slate-400">Qwen 3.6 Plus cho mọi layer</span>
               </button>
               <button @click="applyModelPreset('openrouter-free-optimized')"
-                class="flex flex-col gap-1 p-3 rounded-xl border-2 border-brand-300 bg-white ring-1 ring-brand-100 hover:border-brand-500 transition-all cursor-pointer text-left">
-                <span class="flex items-center gap-1.5 text-sm font-semibold text-brand-700">
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+                class="flex flex-col gap-1 p-3 rounded-xl border-2 border-brand-400 bg-gradient-to-br from-brand-50 to-violet-50 dark:from-brand-900/20 dark:to-violet-900/20 shadow-sm hover:border-brand-500 transition-all cursor-pointer text-left">
+                <span class="flex items-center gap-1.5 text-sm font-bold text-brand-700 dark:text-brand-400">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
                   Optimized
                 </span>
-                <span class="text-xs text-slate-500">Qwen 3.6 + Nemotron per layer</span>
-                <span class="text-[10px] text-brand-500 font-medium">RECOMMENDED</span>
+                <span class="text-[11px] text-slate-500 dark:text-slate-400">Qwen 3.6 + Nemotron theo layer</span>
+                <span class="text-[9px] font-bold tracking-wider text-orange-500 uppercase">Khuyên dùng</span>
               </button>
               <button @click="applyModelPreset('openrouter-free-max')"
-                class="flex flex-col gap-1 p-3 rounded-xl border-2 border-surface-200 hover:border-brand-400 hover:bg-white transition-all cursor-pointer text-left">
-                <span class="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg>
+                class="flex flex-col gap-1 p-3 rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 hover:border-brand-400 hover:shadow-sm transition-all cursor-pointer text-left">
+                <span class="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  <svg class="w-4 h-4 text-violet-500" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg>
                   Max Context
                 </span>
-                <span class="text-xs text-slate-500">Qwen 3.6 1M + Nemotron 120B</span>
+                <span class="text-[11px] text-slate-500 dark:text-slate-400">Qwen 3.6 1M + Nemotron 120B</span>
               </button>
             </div>
-            <div x-show="presetApplied" x-transition class="text-sm text-green-600 font-medium flex items-center gap-1">
+            <div x-show="presetApplied" x-transition class="text-sm text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5 mt-3">
               <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
               <span x-text="presetApplied"></span>
             </div>
@@ -1164,12 +1497,12 @@
 
           <!-- Provider & API Key (unified) -->
           <div class="card p-5 space-y-5">
-            <div>
-              <h2 class="font-semibold text-base text-slate-700 flex items-center gap-2">
-                <svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008z"/></svg>
-                Provider & API Key
-              </h2>
-              <p class="text-sm text-slate-500 mt-1">Select your AI provider, enter the API key, and pick a model.</p>
+            <div class="flex items-center gap-2">
+              <span class="sf-step-badge">1</span>
+              <div>
+                <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Nhà cung cấp & API Key</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Chọn provider, nhập API key, pick model.</p>
+              </div>
             </div>
 
             <!-- Provider grid -->
@@ -1356,11 +1689,13 @@
 
           <!-- Image Generation Settings -->
           <div class="card p-5 space-y-4">
-            <div class="flex items-center gap-2 mb-1">
-              <svg class="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42"/></svg>
-              <h2 class="font-semibold text-base text-slate-700">Image Generation</h2>
+            <div class="flex items-center gap-2">
+              <span class="sf-step-badge">2</span>
+              <div>
+                <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Tạo hình minh hoạ</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Chọn provider tạo ảnh AI và phong cách mặc định.</p>
+              </div>
             </div>
-            <p class="text-sm text-slate-500">Configure AI image generation for story illustrations.</p>
 
             <!-- Image Provider -->
             <div>
@@ -1412,21 +1747,23 @@
           </div>
 
           <!-- Save + Test -->
-          <div class="flex flex-wrap items-center gap-3">
-            <button @click="save()" :disabled="saving" class="btn-primary px-6 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer disabled:opacity-50">
-              <span x-show="!saving">Save Settings</span>
-              <span x-show="saving">Saving...</span>
+          <div class="flex flex-wrap items-center gap-2">
+            <button @click="save()" :disabled="saving" class="sf-cta-hero inline-flex items-center gap-2 px-6 py-2.5 text-sm cursor-pointer disabled:opacity-50">
+              <svg x-show="!saving" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <svg x-show="saving" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              <span x-text="saving ? 'Đang lưu...' : 'Lưu cài đặt'"></span>
             </button>
-            <button @click="testConn()" :disabled="testing" class="px-6 py-2.5 rounded-lg text-sm font-medium border border-surface-200 hover:border-brand-500 hover:text-brand-600 transition-all cursor-pointer disabled:opacity-50">
-              <span x-show="!testing">Test Connection</span>
-              <span x-show="testing">Testing...</span>
+            <button @click="testConn()" :disabled="testing" class="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-medium border border-surface-200 dark:border-surface-700 text-slate-600 dark:text-slate-300 hover:border-brand-400 hover:text-brand-600 transition-colors cursor-pointer disabled:opacity-50">
+              <svg x-show="!testing" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              <svg x-show="testing" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              <span x-text="testing ? 'Đang test...' : 'Test kết nối'"></span>
             </button>
           </div>
           <!-- Status message -->
-          <div x-show="message" x-transition class="flex items-center gap-2 px-4 py-3 rounded-lg text-sm"
-            :class="message.startsWith('Error') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'">
-            <svg x-show="!message.startsWith('Error')" class="w-5 h-5 text-green-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
-            <svg x-show="message.startsWith('Error')" class="w-5 h-5 text-red-500 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+          <div x-show="message" x-transition class="flex items-center gap-2 px-4 py-3 rounded-xl text-sm"
+            :class="message.startsWith('Error') ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800' : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'">
+            <svg x-show="!message.startsWith('Error')" class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+            <svg x-show="message.startsWith('Error')" class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
             <span x-text="message"></span>
           </div>
 
@@ -1525,93 +1862,121 @@
 
       <!-- ═══ LIBRARY PAGE ═══ -->
       <div x-show="$store.app.page === 'library'" x-cloak class="page-enter" x-data="libraryPage()">
-        <div class="max-w-4xl mx-auto space-y-4">
+        <div class="max-w-3xl mx-auto space-y-4">
+
+          <!-- Hero header -->
+          <div class="sf-page-hero">
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex-1 min-w-0">
+                <h1>Thư viện truyện</h1>
+                <p x-text="stories.length > 0 ? (stories.length + ' truyện đã lưu — click để mở, hover để xem hành động') : 'Tất cả checkpoint được tự động lưu tại đây'"></p>
+              </div>
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <button @click="loadStories()" :disabled="loading"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-surface-200 bg-white/70 text-slate-600 hover:border-brand-400 hover:text-brand-600 transition-colors cursor-pointer disabled:opacity-50">
+                  <svg class="w-3.5 h-3.5" :class="loading && 'animate-spin'" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+                  Refresh
+                </button>
+                <button @click="$store.app.navigate('pipeline')"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-600 text-white hover:bg-brand-700 transition-colors cursor-pointer">
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                  Tạo mới
+                </button>
+              </div>
+            </div>
+          </div>
 
           <!-- Error banner -->
           <template x-if="error">
             <div class="card p-4 border-red-200 bg-red-50 text-red-700 text-sm" x-text="error"></div>
           </template>
 
-          <!-- Header with refresh -->
-          <div class="flex items-center justify-between">
-            <p class="text-sm text-slate-500" x-show="stories.length > 0" x-text="stories.length + ' saved ' + (stories.length === 1 ? 'story' : 'stories')"></p>
-            <button @click="loadStories()" :disabled="loading" class="text-sm text-brand-600 hover:text-brand-700 font-medium cursor-pointer disabled:opacity-50">
-              Refresh
-            </button>
+          <!-- Search bar -->
+          <div x-show="stories.length > 3" x-cloak class="relative">
+            <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+            <input type="text" x-model="searchQuery" class="sf-search" placeholder="Tìm theo tiêu đề, thể loại...">
           </div>
 
           <!-- Loading state -->
           <template x-if="loading && stories.length === 0">
-            <div class="space-y-3">
+            <div class="space-y-2.5">
               <template x-for="i in 3" :key="i">
-                <div class="card p-5 skeleton-pulse h-24"></div>
+                <div class="sf-story-card skeleton-pulse" style="height:68px"></div>
               </template>
             </div>
           </template>
 
           <!-- Empty state -->
           <template x-if="!loading && stories.length === 0 && !error">
-            <div class="card p-16 text-center">
-              <div class="w-20 h-20 mx-auto mb-5 rounded-2xl bg-amber-50 flex items-center justify-center">
-                <svg class="w-10 h-10 text-amber-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z"/></svg>
+            <div class="sf-empty-hero">
+              <div class="ico-wrap">
+                <svg class="w-9 h-9 text-brand-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z"/></svg>
               </div>
-              <h3 class="text-lg font-semibold text-slate-500 mb-1">No Saved Stories</h3>
-              <p class="text-sm text-slate-400 max-w-xs mx-auto">Generate a story first — checkpoints are saved automatically</p>
-              <button @click="$store.app.navigate('pipeline')" class="mt-5 btn-primary px-6 py-2.5 rounded-lg text-sm font-medium cursor-pointer inline-flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                Create Story
+              <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1.5">Thư viện còn trống</h3>
+              <p class="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-6">Tạo truyện đầu tiên — checkpoint sẽ tự động lưu vào đây sau mỗi phase.</p>
+              <button @click="$store.app.navigate('pipeline')" class="sf-cta-hero inline-flex items-center gap-2 px-6 py-2.5 text-sm cursor-pointer">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                Bắt đầu tạo truyện
               </button>
             </div>
           </template>
 
           <!-- Story list -->
           <template x-if="stories.length > 0">
-            <div class="space-y-3">
-              <template x-for="story in stories" :key="story.path">
-                <div class="card p-5 hover:border-brand-300 hover:shadow-md transition-all duration-200 cursor-pointer group" @click="openStory(story.path)">
-                  <div class="flex items-start gap-4">
-                    <div class="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0 group-hover:bg-brand-100 transition-colors">
-                      <svg class="w-5 h-5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
+            <div class="space-y-2.5">
+              <template x-for="story in filteredStories" :key="story.path">
+                <div class="sf-story-card group" @click="openStory(story.path)">
+                  <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-50 to-violet-50 dark:from-brand-900/20 dark:to-violet-900/20 flex items-center justify-center flex-shrink-0">
+                      <svg class="w-4.5 h-4.5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
                     </div>
                     <div class="flex-1 min-w-0">
-                      <div class="flex items-center gap-2 mb-1">
-                        <h3 class="font-semibold text-slate-700 truncate" x-text="story.title || story.path"></h3>
-                        <span class="flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium" :class="layerColor(story.current_layer)" x-text="layerLabel(story.current_layer)"></span>
+                      <div class="flex items-center gap-2 mb-0.5">
+                        <h3 class="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate" x-text="story.title || story.path"></h3>
+                        <span class="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide" :class="layerColor(story.current_layer)" x-text="layerLabel(story.current_layer)"></span>
                       </div>
-                      <div class="flex items-center gap-3 text-xs text-slate-400">
-                        <span x-show="story.genre" x-text="story.genre"></span>
-                        <span x-text="story.chapter_count + ' chapters'"></span>
+                      <div class="flex items-center gap-2.5 text-[11px] text-slate-400 dark:text-slate-500">
+                        <span x-show="story.genre" class="inline-flex items-center gap-1">
+                          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/></svg>
+                          <span x-text="story.genre"></span>
+                        </span>
+                        <span class="inline-flex items-center gap-1">
+                          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.01v.01H3.75V6.75z"/></svg>
+                          <span x-text="story.chapter_count + ' chương'"></span>
+                        </span>
                         <span x-text="story.modified"></span>
+                        <span class="text-slate-300 dark:text-slate-600">·</span>
                         <span x-text="story.size_kb + ' KB'"></span>
                       </div>
                     </div>
-                    <div class="flex items-center gap-2 flex-shrink-0">
-                      <!-- Loading spinner for this story -->
+                    <div class="flex items-center gap-0.5 flex-shrink-0">
                       <template x-if="loadingStory === story.path">
                         <svg class="w-5 h-5 animate-spin text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                       </template>
-                      <!-- Continue button on hover -->
                       <button
                         @click.stop="continueStory(story)"
-                        class="p-1.5 rounded-lg text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
-                        title="Continue story with new chapters"
+                        class="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                        title="Viết tiếp chương mới"
                       >
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z"/></svg>
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z"/></svg>
                       </button>
-                      <!-- Open button on hover -->
-                      <span class="text-xs text-brand-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity">Open</span>
-                      <!-- Delete button -->
+                      <span class="text-xs text-brand-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity px-1">Mở</span>
                       <button
                         @click.stop="confirmDelete === story.path ? deleteStory(story.path) : confirmDelete = story.path"
-                        class="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
-                        :class="{ 'opacity-100 text-red-500 bg-red-50': confirmDelete === story.path }"
-                        :title="confirmDelete === story.path ? 'Click again to confirm delete' : 'Delete story'"
+                        class="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                        :class="{ '!opacity-100 text-red-500 bg-red-50 dark:bg-red-900/20': confirmDelete === story.path }"
+                        :title="confirmDelete === story.path ? 'Click lần nữa để xác nhận xóa' : 'Xóa truyện'"
                       >
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
                       </button>
                     </div>
                   </div>
                 </div>
+              </template>
+
+              <!-- Empty search result -->
+              <template x-if="filteredStories.length === 0 && searchQuery">
+                <div class="text-center py-8 text-sm text-slate-400">Không tìm thấy truyện nào khớp "<span x-text="searchQuery" class="font-medium"></span>"</div>
               </template>
             </div>
           </template>
@@ -1620,42 +1985,62 @@
 
       <!-- ═══ READER PAGE ═══ -->
       <div x-show="$store.app.page === 'reader'" x-cloak class="page-enter" x-data="readerPage()">
+        <div class="max-w-3xl mx-auto">
         <template x-if="!story">
-          <div class="card p-16 text-center">
-            <div class="w-20 h-20 mx-auto mb-5 rounded-2xl bg-emerald-50 flex items-center justify-center">
-              <svg class="w-10 h-10 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
+          <div class="sf-empty-hero">
+            <div class="ico-wrap" style="background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(37,99,235,0.1));">
+              <svg class="w-9 h-9 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
             </div>
-            <h3 class="text-lg font-semibold text-slate-500 mb-1">Nothing to Read Yet</h3>
-            <p class="text-sm text-slate-400 max-w-xs mx-auto">Generate a story first, then come back to read it chapter by chapter</p>
-            <button @click="$store.app.navigate('pipeline')" class="mt-5 btn-primary px-6 py-2.5 rounded-lg text-sm font-medium cursor-pointer inline-flex items-center gap-2">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-              Create Story
-            </button>
+            <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1.5">Chưa có truyện để đọc</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-6">Tạo truyện trước, rồi quay lại đây để đọc từng chương với giao diện được tối ưu cho mắt.</p>
+            <div class="flex items-center justify-center gap-2 flex-wrap">
+              <button @click="$store.app.navigate('pipeline')" class="sf-cta-hero inline-flex items-center gap-2 px-6 py-2.5 text-sm cursor-pointer">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                Tạo truyện mới
+              </button>
+              <button @click="$store.app.navigate('library')" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium border border-surface-200 dark:border-surface-700 text-slate-600 dark:text-slate-300 hover:border-brand-400 hover:text-brand-600 transition-colors cursor-pointer">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6"/></svg>
+                Thư viện
+              </button>
+            </div>
           </div>
         </template>
         <template x-if="story">
-          <div class="max-w-3xl mx-auto">
-            <!-- Title -->
-            <div class="card p-6 mb-4 text-center">
-              <h2 class="text-2xl font-bold text-slate-800" x-text="story.title"></h2>
-              <div class="flex items-center justify-center gap-4 mt-3">
-                <span class="text-sm text-slate-500" x-text="chapters.length + ' chapters'"></span>
-                <div class="flex items-center gap-2">
-                  <span class="text-xs text-slate-400">Font size</span>
-                  <button @click="fontSize = Math.max(14, fontSize - 2)" aria-label="Decrease font size" class="w-7 h-7 rounded bg-surface-100 text-slate-500 text-sm font-bold cursor-pointer hover:bg-surface-200">-</button>
-                  <span class="text-xs text-slate-500 w-6 text-center" x-text="fontSize"></span>
-                  <button @click="fontSize = Math.min(28, fontSize + 2)" aria-label="Increase font size" class="w-7 h-7 rounded bg-surface-100 text-slate-500 text-sm font-bold cursor-pointer hover:bg-surface-200">+</button>
+          <div>
+            <!-- Title hero -->
+            <div class="card sf-card-hero p-5 pt-[18px] mb-4">
+              <div class="flex items-start justify-between gap-4 flex-wrap">
+                <div class="flex-1 min-w-0">
+                  <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100 leading-tight" x-text="story.title"></h2>
+                  <div class="flex items-center gap-3 mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    <span class="inline-flex items-center gap-1">
+                      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12"/></svg>
+                      <span x-text="chapters.length + ' chương'"></span>
+                    </span>
+                    <span x-show="currentChapter" class="inline-flex items-center gap-1">
+                      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5l16.5-15M3.75 4.5h16.5"/></svg>
+                      <span x-text="'Đang đọc Ch.' + ((currentChapter && currentChapter.number) || (chapter+1))"></span>
+                    </span>
+                  </div>
                 </div>
-                <button x-show="canContinue" @click="continueStory()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer">
-                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z"/></svg>
-                  Continue Story
-                </button>
+                <div class="flex items-center gap-2">
+                  <div class="inline-flex items-center gap-1 bg-surface-50 dark:bg-surface-800 rounded-lg px-2 py-1">
+                    <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Aa</span>
+                    <button @click="fontSize = Math.max(14, fontSize - 2)" aria-label="Giảm cỡ chữ" class="w-6 h-6 rounded text-slate-500 dark:text-slate-400 text-sm font-bold cursor-pointer hover:bg-white dark:hover:bg-surface-700">−</button>
+                    <span class="text-[11px] text-slate-600 dark:text-slate-300 w-5 text-center font-mono" x-text="fontSize"></span>
+                    <button @click="fontSize = Math.min(28, fontSize + 2)" aria-label="Tăng cỡ chữ" class="w-6 h-6 rounded text-slate-500 dark:text-slate-400 text-sm font-bold cursor-pointer hover:bg-white dark:hover:bg-surface-700">+</button>
+                  </div>
+                  <button x-show="canContinue" @click="continueStory()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors cursor-pointer">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z"/></svg>
+                    Viết tiếp
+                  </button>
+                </div>
               </div>
             </div>
             <!-- Chapter selector -->
-            <div class="flex gap-2 flex-wrap mb-4">
+            <div class="flex gap-1.5 flex-wrap mb-4">
               <template x-for="(ch, idx) in chapters" :key="idx">
-                <button @click="chapter = idx" class="px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors" :class="chapter === idx ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 border border-surface-200 hover:border-brand-500'" x-text="'Ch.' + ch.number"></button>
+                <button @click="chapter = idx" class="px-2.5 py-1 rounded-md text-[11px] font-semibold cursor-pointer transition-all" :class="chapter === idx ? 'bg-gradient-to-br from-brand-600 to-violet-600 text-white shadow-sm' : 'bg-white dark:bg-surface-800 text-slate-600 dark:text-slate-400 border border-surface-200 dark:border-surface-700 hover:border-brand-400'" x-text="'Ch.' + ch.number"></button>
               </template>
             </div>
             <!-- Content -->
@@ -1723,43 +2108,66 @@
 
           </div>
         </template>
+        </div>
       </div>
 
       <!-- ═══ EXPORT PAGE ═══ -->
       <div x-show="$store.app.page === 'export'" x-cloak class="page-enter" x-data="exportPage()">
-        <div class="max-w-2xl mx-auto space-y-4">
-          <div x-show="!hasStory" class="card p-16 text-center">
-            <div class="w-20 h-20 mx-auto mb-5 rounded-2xl bg-violet-50 flex items-center justify-center">
-              <svg class="w-10 h-10 text-violet-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+        <div class="max-w-3xl mx-auto space-y-4">
+          <div x-show="!hasStory" class="sf-empty-hero">
+            <div class="ico-wrap" style="background: linear-gradient(135deg, rgba(139,92,246,0.12), rgba(249,115,22,0.1));">
+              <svg class="w-9 h-9 text-violet-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
             </div>
-            <h3 class="text-lg font-semibold text-slate-500 mb-1">No Story to Export</h3>
-            <p class="text-sm text-slate-400 max-w-xs mx-auto">Run the pipeline first to generate a story, then export to PDF, EPUB, or ZIP</p>
-            <button @click="$store.app.navigate('pipeline')" class="mt-5 btn-primary px-6 py-2.5 rounded-lg text-sm font-medium cursor-pointer inline-flex items-center gap-2">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-              Create Story
+            <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1.5">Chưa có truyện để xuất</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-6">Tạo truyện trước — sau đó bạn có thể xuất ra PDF cho in ấn, EPUB cho Kindle, hoặc ZIP để lưu trữ.</p>
+            <button @click="$store.app.navigate('pipeline')" class="sf-cta-hero inline-flex items-center gap-2 px-6 py-2.5 text-sm cursor-pointer">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+              Tạo truyện mới
             </button>
           </div>
           <template x-if="hasStory">
             <div class="space-y-4">
+              <!-- Hero header -->
+              <div class="sf-page-hero">
+                <h1>Xuất truyện</h1>
+                <p>Chọn định dạng phù hợp — PDF cho in giấy, EPUB cho đọc số, ZIP để lưu toàn bộ.</p>
+              </div>
               <!-- Document formats -->
               <div class="card p-5">
-                <h3 class="font-semibold text-slate-700 mb-4">Export Documents</h3>
-                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  <button @click="exportFormat('pdf')" :disabled="exporting" class="flex flex-col items-center gap-2 p-4 rounded-xl border border-surface-200 hover:border-brand-500 hover:bg-brand-50 transition-all cursor-pointer disabled:opacity-50">
-                    <svg class="w-8 h-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
-                    <span class="text-sm font-medium" x-text="exporting === 'pdf' ? 'Exporting...' : 'PDF'"></span>
+                <div class="flex items-center gap-2 mb-4">
+                  <span class="sf-step-badge">1</span>
+                  <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn định dạng</h3>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                  <button @click="exportFormat('pdf')" :disabled="exporting" class="sf-export-tile">
+                    <div class="ico" style="background: linear-gradient(135deg, rgba(239,68,68,0.12), rgba(249,115,22,0.08));">
+                      <svg class="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+                    </div>
+                    <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'pdf' ? 'Đang xuất...' : 'PDF'"></span>
+                    <span class="text-[10px] text-slate-400">In ấn · A4</span>
                   </button>
-                  <button @click="exportFormat('epub')" :disabled="exporting" class="flex flex-col items-center gap-2 p-4 rounded-xl border border-surface-200 hover:border-brand-500 hover:bg-brand-50 transition-all cursor-pointer disabled:opacity-50">
-                    <svg class="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
-                    <span class="text-sm font-medium" x-text="exporting === 'epub' ? 'Exporting...' : 'EPUB'"></span>
+                  <button @click="exportFormat('epub')" :disabled="exporting" class="sf-export-tile">
+                    <div class="ico" style="background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(37,99,235,0.08));">
+                      <svg class="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
+                    </div>
+                    <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'epub' ? 'Đang xuất...' : 'EPUB'"></span>
+                    <span class="text-[10px] text-slate-400">Kindle · đọc số</span>
                   </button>
-                  <button @click="exportZip()" :disabled="exporting" class="flex flex-col items-center gap-2 p-4 rounded-xl border border-surface-200 hover:border-brand-500 hover:bg-brand-50 transition-all cursor-pointer disabled:opacity-50">
-                    <svg class="w-8 h-8 text-brand-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
-                    <span class="text-sm font-medium" x-text="exporting === 'zip' ? 'Exporting...' : 'ZIP (All)'"></span>
+                  <button @click="exportZip()" :disabled="exporting" class="sf-export-tile">
+                    <div class="ico" style="background: linear-gradient(135deg, rgba(37,99,235,0.12), rgba(139,92,246,0.08));">
+                      <svg class="w-5 h-5 text-brand-600" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+                    </div>
+                    <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'zip' ? 'Đang xuất...' : 'ZIP'"></span>
+                    <span class="text-[10px] text-slate-400">Tất cả · lưu trữ</span>
                   </button>
                 </div>
               </div>
-              <p x-show="message" class="text-sm text-center" :class="message.startsWith('Error') ? 'text-red-500' : 'text-green-600'" x-text="message"></p>
+              <div x-show="message" x-transition class="flex items-center gap-2 px-4 py-3 rounded-lg text-sm"
+                :class="message.startsWith('Error') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'">
+                <svg x-show="!message.startsWith('Error')" class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+                <svg x-show="message.startsWith('Error')" class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+                <span x-text="message"></span>
+              </div>
             </div>
           </template>
         </div>
@@ -1768,56 +2176,68 @@
       <!-- ═══ ANALYTICS PAGE ═══ -->
       <template x-if="$store.app.page === 'analytics'">
       <div class="page-enter" x-data="analyticsPage()">
+        <div class="max-w-3xl mx-auto space-y-4">
         <template x-if="!result">
-          <div class="card p-16 text-center">
-            <div class="w-20 h-20 mx-auto mb-5 rounded-2xl bg-sky-50 flex items-center justify-center">
-              <svg class="w-10 h-10 text-sky-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+          <div class="sf-empty-hero">
+            <div class="ico-wrap" style="background: linear-gradient(135deg, rgba(37,99,235,0.12), rgba(139,92,246,0.1));">
+              <svg class="w-9 h-9 text-brand-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
             </div>
-            <h3 class="text-lg font-semibold text-slate-500 mb-1">No Analytics Data</h3>
-            <p class="text-sm text-slate-400 max-w-xs mx-auto">Generate a story first to see word counts, quality scores, and reading time</p>
-            <button @click="$store.app.navigate('pipeline')" class="mt-5 btn-primary px-6 py-2.5 rounded-lg text-sm font-medium cursor-pointer inline-flex items-center gap-2">
-              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-              Create Story
+            <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1.5">Chưa có dữ liệu phân tích</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-6">Tạo truyện trước — sau đó xem thống kê số chữ, thời gian đọc và điểm chất lượng từng chương.</p>
+            <button @click="$store.app.navigate('pipeline')" class="sf-cta-hero inline-flex items-center gap-2 px-6 py-2.5 text-sm cursor-pointer">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+              Tạo truyện mới
             </button>
           </div>
         </template>
         <template x-if="result && stats">
           <div class="space-y-4">
-            <!-- Stats cards -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div class="card p-4 text-center hover:border-brand-300 hover:shadow-sm transition-all">
-                <div class="text-3xl font-bold text-brand-600" x-text="stats.totalChapters"></div>
-                <div class="text-xs text-slate-500 mt-1">Chapters</div>
+            <!-- Hero header -->
+            <div class="sf-page-hero">
+              <h1>Phân tích truyện</h1>
+              <p>Thống kê tổng quan về số chữ, thời gian đọc và chất lượng từng lớp xử lý.</p>
+            </div>
+            <!-- Stats tiles -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div class="sf-stat-tile">
+                <div class="n" x-text="stats.totalChapters"></div>
+                <div class="l">Chương</div>
               </div>
-              <div class="card p-4 text-center hover:border-brand-300 hover:shadow-sm transition-all">
-                <div class="text-3xl font-bold text-brand-600" x-text="stats.totalWords.toLocaleString()"></div>
-                <div class="text-xs text-slate-500 mt-1">Total Words</div>
+              <div class="sf-stat-tile">
+                <div class="n" x-text="stats.totalWords.toLocaleString()"></div>
+                <div class="l">Tổng chữ</div>
               </div>
-              <div class="card p-4 text-center hover:border-brand-300 hover:shadow-sm transition-all">
-                <div class="text-3xl font-bold text-brand-600" x-text="stats.avgWords.toLocaleString()"></div>
-                <div class="text-xs text-slate-500 mt-1">Avg Words/Ch</div>
+              <div class="sf-stat-tile">
+                <div class="n" x-text="stats.avgWords.toLocaleString()"></div>
+                <div class="l">TB / chương</div>
               </div>
-              <div class="card p-4 text-center hover:border-brand-300 hover:shadow-sm transition-all">
-                <div class="text-3xl font-bold text-brand-600" x-text="'~' + stats.readingTime + ' min'"></div>
-                <div class="text-xs text-slate-500 mt-1">Reading Time</div>
+              <div class="sf-stat-tile">
+                <div class="n" x-text="'~' + stats.readingTime"></div>
+                <div class="l">Phút đọc</div>
               </div>
             </div>
             <!-- Quality scores -->
             <template x-if="stats.quality && stats.quality.length > 0">
               <div class="card p-5">
-                <h3 class="font-semibold text-slate-700 mb-4">Quality Scores</h3>
+                <div class="flex items-center gap-2 mb-4">
+                  <span class="sf-step-badge">Q</span>
+                  <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Điểm chất lượng</h3>
+                </div>
                 <template x-for="qs in stats.quality" :key="qs.layer">
-                  <div class="mb-4">
-                    <div class="text-sm font-medium text-slate-600 mb-2" x-text="'Layer ' + qs.layer + ' — Overall: ' + qs.overall.toFixed(1) + '/5'"></div>
-                    <div class="grid grid-cols-4 gap-3">
-                      <template x-for="[label, val, color] in [['Coherence',qs.coherence,'bg-blue-500'],['Character',qs.character,'bg-green-500'],['Drama',qs.drama,'bg-orange-500'],['Writing',qs.writing,'bg-purple-500']]" :key="label">
+                  <div class="mb-4 last:mb-0">
+                    <div class="flex items-center justify-between mb-2">
+                      <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400" x-text="'Layer ' + qs.layer"></span>
+                      <span class="text-sm font-bold text-slate-700 dark:text-slate-200" x-text="qs.overall.toFixed(1) + ' / 5'"></span>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <template x-for="[label, val, color] in [['Mạch lạc',qs.coherence,'#2563EB'],['Nhân vật',qs.character,'#10B981'],['Kịch tính',qs.drama,'#F97316'],['Văn phong',qs.writing,'#8B5CF6']]" :key="label">
                         <div>
                           <div class="flex justify-between text-xs mb-1">
-                            <span class="text-slate-500" x-text="label"></span>
-                            <span class="font-medium" x-text="val.toFixed(1)"></span>
+                            <span class="text-slate-500 dark:text-slate-400" x-text="label"></span>
+                            <span class="font-semibold text-slate-700 dark:text-slate-300" x-text="val.toFixed(1)"></span>
                           </div>
-                          <div class="h-2 bg-surface-100 rounded-full overflow-hidden">
-                            <div class="h-full rounded-full transition-all" :class="color" :style="'width:' + (val/5*100) + '%'"></div>
+                          <div class="h-1.5 bg-surface-100 dark:bg-surface-800 rounded-full overflow-hidden">
+                            <div class="h-full rounded-full transition-all" :style="'width:' + (val/5*100) + '%; background:' + color"></div>
                           </div>
                         </div>
                       </template>
@@ -1828,11 +2248,15 @@
             </template>
             <!-- Simulation stats -->
             <div x-show="stats.hasSimulation" class="card p-5">
-              <h3 class="font-semibold text-slate-700 mb-2">Simulation</h3>
-              <p class="text-sm text-slate-600" x-text="stats.eventsCount + ' drama events generated'"></p>
+              <div class="flex items-center gap-2 mb-2">
+                <span class="sf-step-badge">S</span>
+                <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Mô phỏng kịch tính</h3>
+              </div>
+              <p class="text-sm text-slate-600 dark:text-slate-400" x-text="stats.eventsCount + ' sự kiện kịch tính được tạo'"></p>
             </div>
           </div>
         </template>
+        </div>
       </div>
       </template>
 
@@ -1843,15 +2267,15 @@
 
           <!-- Empty state: no current story and no saved stories -->
           <template x-if="!hasCurrentStory && !loadingStories && stories.length === 0">
-            <div class="card p-16 text-center">
-              <div class="w-20 h-20 mx-auto mb-5 rounded-2xl bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center">
-                <svg class="w-10 h-10 text-rose-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>
+            <div class="sf-empty-hero">
+              <div class="ico-wrap" style="background: linear-gradient(135deg, rgba(249,115,22,0.12), rgba(139,92,246,0.1));">
+                <svg class="w-9 h-9 text-orange-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>
               </div>
-              <h3 class="text-lg font-semibold text-slate-500 dark:text-slate-400 mb-1">No Story to Branch</h3>
-              <p class="text-sm text-slate-400 dark:text-slate-500 max-w-xs mx-auto">Generate a story first, then explore alternate storylines from any chapter</p>
-              <button @click="$store.app.navigate('pipeline')" class="mt-5 btn-primary px-6 py-2.5 rounded-lg text-sm font-medium cursor-pointer inline-flex items-center gap-2">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                Create Story
+              <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1.5">Chưa có truyện để phân nhánh</h3>
+              <p class="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-6">Tạo truyện trước, rồi khám phá các hướng đi thay thế từ bất kỳ chương nào. AI sẽ viết song song nhiều phiên bản.</p>
+              <button @click="$store.app.navigate('pipeline')" class="sf-cta-hero inline-flex items-center gap-2 px-6 py-2.5 text-sm cursor-pointer">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+                Tạo truyện mới
               </button>
             </div>
           </template>
@@ -1860,21 +2284,30 @@
           <template x-if="hasCurrentStory || stories.length > 0">
             <div class="space-y-4">
 
+              <!-- Hero header -->
+              <div class="sf-page-hero">
+                <h1>Phân nhánh truyện</h1>
+                <p>Chọn một chương rồi cho AI viết tiếp theo hướng khác — khám phá các kết cục song song.</p>
+              </div>
+
               <!-- Story source card -->
               <div class="card p-5">
-                <div class="flex items-center justify-between mb-3">
-                  <h3 class="font-semibold text-slate-700 dark:text-slate-200">Story Branching</h3>
-                  <div class="flex gap-2">
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                  <div class="flex items-center gap-2">
+                    <span class="sf-step-badge">1</span>
+                    <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn nguồn truyện</h3>
+                  </div>
+                  <div class="flex gap-1.5">
                     <template x-if="hasCurrentStory">
-                      <button @click="useCurrent()" class="px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors"
-                        :class="storySource === 'current' ? 'bg-brand-600 text-white' : 'bg-surface-100 dark:bg-surface-800 text-slate-600 dark:text-slate-400 hover:bg-surface-200 dark:hover:bg-surface-700'">
-                        Current Story
+                      <button @click="useCurrent()" class="px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all"
+                        :class="storySource === 'current' ? 'bg-gradient-to-br from-brand-600 to-violet-600 text-white shadow-sm' : 'bg-surface-50 dark:bg-surface-800 text-slate-600 dark:text-slate-400 border border-surface-200 dark:border-surface-700 hover:border-brand-400'">
+                        Đang mở
                       </button>
                     </template>
                     <template x-if="stories.length > 0">
-                      <button @click="showStoryPicker = !showStoryPicker" class="px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-colors"
-                        :class="storySource === 'saved' ? 'bg-brand-600 text-white' : 'bg-surface-100 dark:bg-surface-800 text-slate-600 dark:text-slate-400 hover:bg-surface-200 dark:hover:bg-surface-700'">
-                        <span x-text="loadingStories ? 'Loading...' : 'Saved Stories (' + stories.length + ')'"></span>
+                      <button @click="showStoryPicker = !showStoryPicker" class="px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all"
+                        :class="storySource === 'saved' ? 'bg-gradient-to-br from-brand-600 to-violet-600 text-white shadow-sm' : 'bg-surface-50 dark:bg-surface-800 text-slate-600 dark:text-slate-400 border border-surface-200 dark:border-surface-700 hover:border-brand-400'">
+                        <span x-text="loadingStories ? 'Đang tải...' : 'Đã lưu (' + stories.length + ')'"></span>
                       </button>
                     </template>
                   </div>
@@ -1883,8 +2316,8 @@
                 <!-- Active story title -->
                 <template x-if="hasAnyStory">
                   <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                    <span class="font-medium text-slate-700 dark:text-slate-300" x-text="storyTitle"></span>
-                    — select a chapter to start branching
+                    <span class="font-semibold text-slate-700 dark:text-slate-200" x-text="storyTitle"></span>
+                    — chọn chương để bắt đầu phân nhánh
                   </p>
                 </template>
 
@@ -2202,50 +2635,114 @@
 
       <!-- ═══ GUIDE PAGE ═══ -->
       <div x-show="$store.app.page === 'guide'" x-cloak class="page-enter">
-        <div class="max-w-3xl mx-auto space-y-6">
-          <div class="card p-6">
-            <h2 class="text-xl font-bold text-slate-800 mb-4">How to Use StoryForge</h2>
-            <div class="space-y-6 text-sm text-slate-700 leading-relaxed">
-              <div>
-                <h3 class="font-semibold text-base text-slate-800 mb-2">How does the pipeline work?</h3>
-                <div class="flex gap-2 items-center text-xs font-medium mb-3 flex-wrap">
-                  <span class="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700">Idea</span>
-                  <span class="text-slate-300">&rarr;</span>
-                  <span class="px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700">Layer 1: Story Generation</span>
-                  <span class="text-slate-300">&rarr;</span>
-                  <span class="px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700">Layer 2: Simulation</span>
+        <div class="max-w-3xl mx-auto space-y-4">
+          <!-- Hero header -->
+          <div class="sf-page-hero">
+            <h1>Hướng dẫn sử dụng</h1>
+            <p>Pipeline 2 tầng biến ý tưởng thành truyện dài — từ outline đến kịch tính cao trào.</p>
+          </div>
+
+          <!-- Pipeline flow diagram -->
+          <div class="card sf-card-hero p-5 pt-[18px]">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="sf-step-badge">∞</span>
+              <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Pipeline hoạt động thế nào?</h3>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap text-xs font-semibold">
+              <span class="px-3 py-1.5 rounded-lg bg-gradient-to-br from-brand-50 to-brand-100 dark:from-brand-900/30 dark:to-brand-800/30 text-brand-700 dark:text-brand-400 border border-brand-200 dark:border-brand-800">Ý tưởng</span>
+              <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+              <span class="px-3 py-1.5 rounded-lg bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-900/30 dark:to-violet-800/30 text-violet-700 dark:text-violet-400 border border-violet-200 dark:border-violet-800">Layer 1 · Story Generation</span>
+              <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+              <span class="px-3 py-1.5 rounded-lg bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/30 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800">Layer 2 · Drama Simulation</span>
+            </div>
+          </div>
+
+          <!-- Layer cards -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div class="card p-5">
+              <div class="flex items-center gap-2 mb-3">
+                <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-violet-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">L1</div>
+                <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Story Generation</h3>
+              </div>
+              <ul class="space-y-1.5 text-[13px] text-slate-600 dark:text-slate-400">
+                <li class="flex gap-2"><svg class="w-3.5 h-3.5 mt-0.5 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>Tạo nhân vật: tính cách, backstory, động cơ</li>
+                <li class="flex gap-2"><svg class="w-3.5 h-3.5 mt-0.5 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>Xây thế giới & bối cảnh</li>
+                <li class="flex gap-2"><svg class="w-3.5 h-3.5 mt-0.5 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>Outline chi tiết + viết từng chương song song</li>
+              </ul>
+            </div>
+            <div class="card p-5">
+              <div class="flex items-center gap-2 mb-3">
+                <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">L2</div>
+                <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Drama Simulation</h3>
+              </div>
+              <ul class="space-y-1.5 text-[13px] text-slate-600 dark:text-slate-400">
+                <li class="flex gap-2"><svg class="w-3.5 h-3.5 mt-0.5 text-orange-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>Mỗi nhân vật thành AI agent tự chủ</li>
+                <li class="flex gap-2"><svg class="w-3.5 h-3.5 mt-0.5 text-orange-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>Agents tương tác, đối đầu, phản bội</li>
+                <li class="flex gap-2"><svg class="w-3.5 h-3.5 mt-0.5 text-orange-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>Viết lại truyện với điểm drama cao hơn</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Steps -->
+          <div class="card p-5">
+            <div class="flex items-center gap-2 mb-4">
+              <span class="sf-step-badge">▶</span>
+              <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">5 bước sử dụng</h3>
+            </div>
+            <div class="space-y-2">
+              <div class="sf-guide-step">
+                <span class="sf-step-badge">1</span>
+                <div class="text-[13px] flex-1">
+                  <div class="font-semibold text-slate-700 dark:text-slate-200">Cài đặt API</div>
+                  <div class="text-slate-500 dark:text-slate-400">Vào <strong class="text-brand-600">Cài đặt</strong> → nhập API Key và chọn model</div>
                 </div>
               </div>
-              <div>
-                <h3 class="font-semibold text-slate-800 mb-1">Layer 1: Story Generation</h3>
-                <ul class="list-disc list-inside space-y-1 text-slate-600">
-                  <li>Create characters with personality, backstory, and motivation</li>
-                  <li>Build world context and setting</li>
-                  <li>Generate detailed outline + write each chapter automatically</li>
-                </ul>
+              <div class="sf-guide-step">
+                <span class="sf-step-badge">2</span>
+                <div class="text-[13px] flex-1">
+                  <div class="font-semibold text-slate-700 dark:text-slate-200">Nhập ý tưởng</div>
+                  <div class="text-slate-500 dark:text-slate-400">Vào <strong class="text-brand-600">Tạo truyện</strong> → nhập ý tưởng hoặc chọn mẫu có sẵn</div>
+                </div>
               </div>
-              <div>
-                <h3 class="font-semibold text-slate-800 mb-1">Layer 2: Drama Simulation</h3>
-                <ul class="list-disc list-inside space-y-1 text-slate-600">
-                  <li>Each character becomes an autonomous AI agent</li>
-                  <li>Agents interact, confront, and betray each other</li>
-                  <li>Rewrites the story with a higher drama score</li>
-                </ul>
+              <div class="sf-guide-step">
+                <span class="sf-step-badge">3</span>
+                <div class="text-[13px] flex-1">
+                  <div class="font-semibold text-slate-700 dark:text-slate-200">Tuỳ chỉnh</div>
+                  <div class="text-slate-500 dark:text-slate-400">Chọn thể loại, số chương, độ dài — hoặc giữ mặc định</div>
+                </div>
               </div>
-              <div>
-                <h3 class="font-semibold text-slate-800 mb-1">How to Use</h3>
-                <ol class="list-decimal list-inside space-y-1 text-slate-600">
-                  <li>Go to <strong>Settings</strong> → enter API Key and choose a model</li>
-                  <li>Go to <strong>Create Story</strong> → enter your idea</li>
-                  <li>Adjust parameters if needed</li>
-                  <li>Click <strong>Run Pipeline</strong> and wait</li>
-                  <li>View results, export files, read the story</li>
-                </ol>
+              <div class="sf-guide-step">
+                <span class="sf-step-badge">4</span>
+                <div class="text-[13px] flex-1">
+                  <div class="font-semibold text-slate-700 dark:text-slate-200">Chạy pipeline</div>
+                  <div class="text-slate-500 dark:text-slate-400">Click <strong class="text-brand-600">Tạo truyện</strong> — AI sẽ chạy qua 6 phase</div>
+                </div>
               </div>
-              <div>
-                <h3 class="font-semibold text-slate-800 mb-1">Compatible APIs</h3>
-                <p class="text-slate-600">Supports: OpenAI, DeepSeek, Gemini, Groq, Together AI, OpenRouter, Ollama, and any provider with a <code class="bg-surface-100 px-1.5 py-0.5 rounded text-xs">/v1/chat/completions</code> endpoint</p>
+              <div class="sf-guide-step">
+                <span class="sf-step-badge">5</span>
+                <div class="text-[13px] flex-1">
+                  <div class="font-semibold text-slate-700 dark:text-slate-200">Đọc & xuất</div>
+                  <div class="text-slate-500 dark:text-slate-400">Đọc ngay, xuất PDF/EPUB, hoặc phân nhánh sang hướng khác</div>
+                </div>
               </div>
+            </div>
+          </div>
+
+          <!-- Compatible APIs -->
+          <div class="card p-5">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="sf-step-badge">API</span>
+              <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">API tương thích</h3>
+            </div>
+            <div class="flex flex-wrap gap-1.5">
+              <span class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">OpenAI</span>
+              <span class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800">DeepSeek</span>
+              <span class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800">Gemini</span>
+              <span class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800">Groq</span>
+              <span class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-800">Together AI</span>
+              <span class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-pink-50 dark:bg-pink-900/20 text-pink-700 dark:text-pink-400 border border-pink-200 dark:border-pink-800">OpenRouter</span>
+              <span class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-50 dark:bg-slate-900/20 text-slate-700 dark:text-slate-400 border border-slate-200 dark:border-slate-800">Ollama</span>
+              <span class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-surface-50 dark:bg-surface-900 text-slate-600 dark:text-slate-400 border border-surface-200 dark:border-surface-700">+ bất kỳ <code class="font-mono text-[10px]">/v1/chat/completions</code></span>
             </div>
           </div>
         </div>

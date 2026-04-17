@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  Turn a one-sentence idea into a complete, drama-rich story with character-consistent images and cinematic scene backgrounds.<br />
+  Turn a one-sentence idea into a complete, drama-rich Vietnamese web novel with character-consistent images and cinematic scene backgrounds.<br />
   Self-hosted. Privacy-first. Works with any OpenAI-compatible LLM.
 </p>
 
@@ -51,10 +51,12 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 ### Story Engine
 - **2-layer pipeline** — Story Generation → Drama Simulation, with checkpoint & resume and real-time SSE streaming
 - **L3 Sensory Polish** — optional post-enhancement layer for vivid sensory details and immersive prose
-- **14 specialized AI agents** — autonomous character agents plus a drama critic, editor-in-chief, pacing analyzer, style consistency checker, dialogue expert, reader simulator, and more
+- **13 specialized AI agents** — autonomous character agents plus a drama critic, editor-in-chief, pacing analyzer, style consistency checker, dialogue expert, reader simulator, and more
 - **Reader Simulator agent** — simulates reader reactions to provide quality feedback before finalization
 - **Quality scoring & auto-revision** — 6-dimension LLM-as-judge (coherence, character, drama, writing style, thematic depth, dialogue quality) with an automated re-enhancement loop
 - **Cumulative story memory** — character knowledge, relationships, and plot threads accumulate across chapters instead of resetting, ensuring multi-chapter continuity
+- **Genre-aware naming conventions** — Vietnamese names by default; Chinese (tiên hiệp/kiếm hiệp/tu tiên/wuxia/xianxia) and Western fantasy/sci-fi styles auto-selected from genre
+- **Arc scaling** — character arc waypoints scale automatically with `num_chapters` to keep character development paced for short or long stories
 - **RAG knowledge base** — optional world-building context retrieval via ChromaDB + sentence-transformers; upload `.txt`, `.md`, or `.pdf` reference files to enrich story generation
 
 ### Advanced Story Continuation
@@ -111,20 +113,26 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 
 ### LLM & Providers
 - **Multi-provider LLM support** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ models), Z.AI (free models), Kyma API, Ollama (local), or any custom OpenAI-compatible endpoint; auto-detect provider from API key
-- **Multi-provider fallback** — configure fallback profiles that auto-switch between providers on rate limit or failure; honors rate-limit reset headers
+- **Preemptive rate-limit switching** — live monitoring of provider quota; the chain switches to the next model *before* hitting 429, using reset-header timing to queue retries
+- **Chain-level wait-and-retry** — when the entire fallback chain exhausts quota, requests wait for the earliest reset rather than failing
+- **Latency-aware primary routing** — slow primary models are retried instead of silently skipped, preventing empty chains on transient slowness
 - **Provider-aware model routing** — automatic model format adaptation per provider in fallback chains
 - **Auto-router support** — let the system pick the best model for each task based on cost/capability tradeoffs
 - **Smart model routing** — assign cheap models to analysis tasks and premium models to writing (~45% cost savings)
 - **Built-in LLM cache** — SQLite-backed cache to avoid redundant API calls
 
 ### UI & Experience
-- **Redesigned pipeline page** — modernized Create Story form with hero cards, config pills, and persistent form state
-- **Image generation toggle** — enable/disable image generation from the Create Story page
-- **Settings wizard** — guided multi-step provider setup with provider-specific model lists, API key masking, and connection testing
-- **Consistency toggle** — enable/disable Layer 1 consistency modules from the UI
-- **Heroicons SVG icons** — all emoji icons replaced with crisp Heroicons SVGs
-- **Dark / Light mode** — polished theme toggle with full color-scheme sync across all pages
-- **Vietnamese & English** — bilingual story generation out of the box
+- **Full SPA redesign (v2.3)** — all 7 pages rebuilt on a unified `sf-*` design system: hero gradient borders, step badges, empty-state heroes, story cards, stat tiles, and guide steps
+- **Swiss Modernism palette** — brand `#2563EB` · violet `#8B5CF6` · orange `#F97316` · emerald done `#10B981`, tuned for readable contrast in both themes
+- **Vietnamese-first copy** — every page, button, empty state, and toast is localized; English strings only surface where technical (provider names, env vars)
+- **Create Story** — 6-phase pipeline visualizer, idea composer with live char count, slider-based config (chapters · characters · words · drama level), and persistent form state in `localStorage`
+- **Library** — search-as-you-type filter, inline continue/delete actions, layer badge (Draft / Enhanced / Complete)
+- **Reader** — distraction-free typography, image inline display, chapter sidebar navigation
+- **Analytics** — simulation dashboard with 4 stat tiles and 4 quality-score meters (coherence, character, drama, writing style)
+- **Branching** — source picker for open or saved stories with interactive tree overlay
+- **Settings** — Quick Setup preset cards (Basic / Optimized / Max Context), provider picker grid, image generation toggles
+- **Guide** — pipeline flow diagram with Layer 1 & Layer 2 cards and 5-step onboarding
+- **Dark / Light mode** — polished theme toggle with full color-scheme sync; Heroicons SVGs throughout
 
 ### Security & Infrastructure
 - **CSRF protection** — double-submit cookie pattern on all state-changing requests
@@ -228,7 +236,7 @@ StoryForge ships with 10 customizable agent prompts in `data/prompts/agent_promp
                         ┌──────────────────▼──────────────────────┐
                         │       Layer 2 — Drama Simulation         │
                         │  13 AI Agents · Conflict Emergence       │
-                        │  Drama Scoring · Auto-Revision Loop      │
+                        │  Contract Gate · Auto-Revision Loop      │
                         └──────────────────┬──────────────────────┘
                                            │
                         ┌──────────────────▼──────────────────────┐
