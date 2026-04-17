@@ -360,6 +360,8 @@ class StoryGenerator:
         draft.character_states = list(story_context.character_states)
         draft.plot_events = list(story_context.plot_events)
         draft.open_threads = list(story_context.open_threads)
+        # Attach story_context so orchestrator can surface context health (Sprint 1 Task 1)
+        draft.context = story_context
 
         # Foreshadowing audit (Phase 6)
         if foreshadowing_plan and self.config.pipeline.enable_foreshadowing_enforcement:

@@ -23,6 +23,11 @@ class StoryAnalyzer:
         conflict_web: optional L1 ConflictEntry list; merged with LLM relationships
         (higher tension wins on duplicate pairs).
         """
+        try:
+            from services.trace_context import set_module
+            set_module("l2_analyzer")
+        except Exception:
+            pass
         chars_text = "\n".join(
             f"- {c.name} ({c.role}): {c.personality}, Động lực: {c.motivation}"
             for c in draft.characters

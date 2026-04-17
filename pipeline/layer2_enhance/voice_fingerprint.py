@@ -8,21 +8,9 @@ import logging
 import re
 from pydantic import BaseModel, Field
 from services.llm_client import LLMClient
+from models.schemas import VoiceProfile  # unified schema (Sprint 2 Task 2)
 
 logger = logging.getLogger(__name__)
-
-
-class VoiceProfile(BaseModel):
-    """Hồ sơ giọng nói của nhân vật."""
-    name: str
-    avg_sentence_length: float = 0.0  # words per sentence
-    vocabulary_level: str = ""  # simple | moderate | sophisticated | archaic
-    formality: str = ""  # casual | neutral | formal | mixed
-    speech_quirks: list[str] = Field(default_factory=list)  # catchphrases, patterns
-    emotional_expression: str = ""  # reserved | moderate | expressive
-    dialogue_samples: list[str] = Field(default_factory=list)  # representative quotes
-    accent_markers: list[str] = Field(default_factory=list)  # dialect, accent indicators
-    typical_topics: list[str] = Field(default_factory=list)  # what they talk about
 
 
 class VoiceFingerprintEngine:
@@ -149,16 +137,23 @@ Lời thoại sau enhance:
                 model_tier="cheap",
             )
 
+            # Unified VoiceProfile: emotional_expression is dict; coerce legacy str result
+            _ee = result.get("emotional_expression", "moderate")
+            ee_dict: dict[str, str] = _ee if isinstance(_ee, dict) else {"general": str(_ee or "")}
+            _tics = result.get("speech_quirks", []) or []
             profile = VoiceProfile(
                 name=character_name,
                 avg_sentence_length=avg_len,
                 vocabulary_level=result.get("vocabulary_level", "moderate"),
                 formality=result.get("formality", "neutral"),
-                speech_quirks=result.get("speech_quirks", []) or [],
-                emotional_expression=result.get("emotional_expression", "moderate"),
+                speech_quirks=_tics,
+                verbal_tics=list(_tics),
+                emotional_expression=ee_dict,
                 dialogue_samples=all_dialogues[:5],
+                dialogue_examples=all_dialogues[:5],
                 accent_markers=result.get("accent_markers", []) or [],
                 typical_topics=result.get("typical_topics", []) or [],
+                source="L2-extract",
             )
 
             self.profiles[character_name] = profile
@@ -178,20 +173,70 @@ Lời thoại sau enhance:
             self.profiles[character_name] = profile
             return profile
 
-    def build_from_draft(self, draft, progress_callback=None) -> "VoiceFingerprintEngine":
-        """Xây dựng voice profiles cho tất cả nhân vật."""
+    def build_from_draft(self, draft, progress_callback=None, dedup_l1: bool = True) -> "VoiceFingerprintEngine":
+        """Build voice profiles. When dedup_l1 AND draft.voice_profiles present,
+        skip per-character LLM extraction and reuse L1 profiles + zero-LLM observed supplement.
+        """
         characters = getattr(draft, "characters", []) or []
         chapters = getattr(draft, "chapters", []) or []
 
+        l1_profiles = getattr(draft, "voice_profiles", None) or []
+        l1_map = {p.get("name", ""): p for p in l1_profiles if isinstance(p, dict) and p.get("name")}
+
+        self.llm_calls_saved = 0
+
         for char in characters:
             char_name = getattr(char, "name", "")
-            if char_name:
+            if not char_name:
+                continue
+            if dedup_l1 and char_name in l1_map:
+                # Reuse L1 prescriptive profile — no LLM call
+                l1 = l1_map[char_name]
+                ee = l1.get("emotional_expression", {})
+                if not isinstance(ee, dict):
+                    ee = {"general": str(ee or "")}
+                tics = list(l1.get("verbal_tics") or l1.get("speech_quirks") or [])
+                examples = list(l1.get("dialogue_examples") or l1.get("dialogue_example") or l1.get("dialogue_samples") or [])
+                profile = VoiceProfile(
+                    name=char_name,
+                    vocabulary_level=l1.get("vocabulary_level", ""),
+                    sentence_style=l1.get("sentence_style", ""),
+                    verbal_tics=tics,
+                    speech_quirks=tics,
+                    emotional_expression=ee,
+                    dialogue_examples=examples,
+                    dialogue_samples=examples,
+                    source="L1",
+                )
+                # Stats enrichment (zero LLM)
+                samples = self._gather_samples(char_name, chapters)
+                if samples:
+                    supplement_observed(profile, samples)
+                self.profiles[char_name] = profile
+                self.llm_calls_saved += 1
+                if progress_callback:
+                    progress_callback(f"[VoiceFingerprint] Reused L1 profile for {char_name} (no LLM)")
+            else:
                 self.extract_profile(char_name, chapters)
                 if progress_callback:
                     progress_callback(f"[VoiceFingerprint] Extracted profile for {char_name}")
 
-        logger.info(f"VoiceFingerprintEngine: {len(self.profiles)} profiles created")
+        logger.info(
+            f"VoiceFingerprintEngine: {len(self.profiles)} profiles, "
+            f"{self.llm_calls_saved} LLM calls saved via L1 dedup"
+        )
         return self
+
+    def _gather_samples(self, char_name: str, chapters: list, max_per_chapter: int = 3, cap: int = 10) -> list[str]:
+        """Collect dialogue samples across chapters for observed-stats supplement."""
+        samples: list[str] = []
+        for ch in chapters or []:
+            content = getattr(ch, "content", "") or ""
+            found = self._extract_dialogues(content, char_name)
+            samples.extend(found[:max_per_chapter])
+            if len(samples) >= cap:
+                break
+        return samples[:cap]
 
     def format_constraints_for_chapter(self) -> str:
         """Tạo text ràng buộc giọng nói cho enhance prompt."""
@@ -567,6 +612,57 @@ def build_voice_enforcement_prompt(
         return ""
 
     return "\n".join(lines)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Sprint 2 Task 2 — Zero-LLM observed stats supplement
+# ══════════════════════════════════════════════════════════════════════════════
+
+_FORMAL_PARTICLES_VN = {"thưa", "kính", "xin phép", "ngài", "quý"}
+_CASUAL_PARTICLES_VN = {"ừ", "ờ", "hả", "nhé", "nha", "vậy đó", "mày", "tao"}
+
+
+def _infer_formality_vn(samples: list[str]) -> str:
+    """Heuristic formality detector for Vietnamese dialogue samples.
+
+    Pure regex/token counting — no LLM. Returns one of casual/neutral/formal/mixed.
+    """
+    if not samples:
+        return ""
+    formal_hits = 0
+    casual_hits = 0
+    for s in samples:
+        low = (s or "").lower()
+        formal_hits += sum(1 for p in _FORMAL_PARTICLES_VN if p in low)
+        casual_hits += sum(1 for p in _CASUAL_PARTICLES_VN if p in low)
+    if formal_hits and casual_hits:
+        return "mixed"
+    if formal_hits > casual_hits:
+        return "formal"
+    if casual_hits > formal_hits:
+        return "casual"
+    return "neutral"
+
+
+def supplement_observed(
+    profile: VoiceProfile,
+    dialogue_samples: list[str],
+    max_samples: int = 5,
+) -> VoiceProfile:
+    """Merge observed stats into L1-prescribed profile. No LLM call.
+
+    Populates observed_avg_sentence_length, observed_formality, observed_samples.
+    Flips source to 'L1+L2' when samples available.
+    """
+    if not dialogue_samples:
+        return profile
+    lens = [len(re.findall(r"\w+", s)) for s in dialogue_samples]
+    profile.observed_avg_sentence_length = round(sum(lens) / len(lens), 2) if lens else 0.0
+    profile.observed_samples = dialogue_samples[:max_samples]
+    profile.observed_formality = _infer_formality_vn(dialogue_samples)
+    if profile.source == "L1":
+        profile.source = "L1+L2"
+    return profile
 
 
 def get_voice_drift_summary(result: VoicePreservationResult) -> dict:

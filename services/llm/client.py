@@ -6,6 +6,7 @@ import re
 import sqlite3
 import time
 import threading
+import uuid
 from dataclasses import dataclass
 from typing import Optional
 from services.llm.retry import (
@@ -179,6 +180,72 @@ def _get_provider(base_url: str, api_key: str):
     """
     from services.llm.providers import get_provider
     return get_provider(base_url=base_url, api_key=api_key)
+
+
+def _estimate_tokens(text: str) -> int:
+    if not text:
+        return 0
+    return max(1, len(text) // 4)
+
+
+def _record_trace_call(
+    *,
+    model: str,
+    model_tier: str,
+    messages: list,
+    result: str,
+    duration_ms: int,
+    success: bool,
+    error: str = "",
+) -> None:
+    """Append LLMCall into active PipelineTrace. No-op if no trace is active."""
+    try:
+        from services.trace_context import get_trace, get_chapter, get_module, LLMCall
+        from services.llm_pricing import compute_cost
+    except Exception:
+        return
+    trace = get_trace()
+    if trace is None:
+        return
+    try:
+        chapter = get_chapter()
+        module = get_module() or "unknown"
+        prompt_text = "".join((m.get("content") or "") for m in messages if isinstance(m, dict))
+        prompt_tokens = _estimate_tokens(prompt_text)
+        completion_tokens = _estimate_tokens(result) if success else 0
+        total = prompt_tokens + completion_tokens
+        cost = compute_cost(model, prompt_tokens, completion_tokens)
+        call = LLMCall(
+            call_id=uuid.uuid4().hex[:8],
+            trace_id=trace.trace_id,
+            chapter_number=chapter,
+            module=module,
+            model=model,
+            model_tier=model_tier or "primary",
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total,
+            cost_usd=cost,
+            duration_ms=duration_ms,
+            success=success,
+            error=error,
+        )
+        trace.add_call(call)
+        logger.info(
+            "[LLM] trace=%s call=%s ch=%s mod=%s model=%s tokens=%d+%d cost=$%.4f %dms %s",
+            trace.trace_id,
+            call.call_id,
+            chapter if chapter is not None else "-",
+            module,
+            model,
+            prompt_tokens,
+            completion_tokens,
+            cost,
+            duration_ms,
+            "OK" if success else "ERR",
+        )
+    except Exception as e:
+        logger.debug("Trace record failed: %s", e)
 
 
 class LLMClient(StreamingMixin, GenerationMixin):
@@ -770,19 +837,33 @@ class LLMClient(StreamingMixin, GenerationMixin):
         model = entry["model"]
         provider_url = getattr(provider, "base_url", None)
         provider_type = _detect_provider(str(provider_url) if provider_url else "")
+        # Tier label for trace: "cheap" / "fallback" / "primary" / ...
+        tier_label = entry.get("label", "").split(":", 1)[0] or "primary"
 
         def _call():
             start_time = time.monotonic()
-            result = provider.complete(messages, model, temperature, max_tokens, json_mode)
-            latency_ms = (time.monotonic() - start_time) * 1000
+            try:
+                result = provider.complete(messages, model, temperature, max_tokens, json_mode)
+                latency_ms = (time.monotonic() - start_time) * 1000
 
-            # Track latency for fallback decisions
-            fm = get_fallback_manager()
-            fm.record_latency(model, latency_ms)
-            fm.mark_healthy(model)
+                # Track latency for fallback decisions
+                fm = get_fallback_manager()
+                fm.record_latency(model, latency_ms)
+                fm.mark_healthy(model)
 
-            logger.info(f"LLM success via {entry['label']} ({latency_ms:.0f}ms)")
-            return result
+                logger.info(f"LLM success via {entry['label']} ({latency_ms:.0f}ms)")
+                _record_trace_call(
+                    model=model, model_tier=tier_label, messages=messages, result=result,
+                    duration_ms=int(latency_ms), success=True, error="",
+                )
+                return result
+            except Exception as exc:
+                latency_ms = (time.monotonic() - start_time) * 1000
+                _record_trace_call(
+                    model=model, model_tier=tier_label, messages=messages, result="",
+                    duration_ms=int(latency_ms), success=False, error=str(exc)[:200],
+                )
+                raise
 
         return self._retry_with_backoff(
             _call, label=f"Provider {entry['label']}", provider=provider_type

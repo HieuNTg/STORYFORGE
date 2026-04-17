@@ -4,6 +4,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 
 from models.schemas import ChapterOutline, Chapter, StoryDraft, StoryContext, count_words
+from pipeline.layer1_story.extraction_guard import tracked_extraction
 
 if __name__ == "__main__":
     pass  # not a script
@@ -83,41 +84,22 @@ def process_chapter_post_write(
     events_f = executor.submit(extract_plot_events, llm, chapter.content, outline.chapter_number)
 
     _TIMEOUT = 120
-    try:
+    ch_num = outline.chapter_number
+
+    summary = ""
+    with tracked_extraction(story_context, ch_num, "summary"):
         summary = summary_f.result(timeout=_TIMEOUT)
-    except Exception as e:
-        logger.warning(f"Summary extraction failed: {e}")
-        summary = ""
-        summary_f.cancel()
 
-    try:
+    new_states = []
+    with tracked_extraction(story_context, ch_num, "character_states"):
         new_states = states_f.result(timeout=_TIMEOUT)
-        # Arc trajectory context is now passed in extraction prompt (character_generator.py).
-        # Check for arc regression (position contradicts expected trajectory)
-        if new_states and characters and config.enable_arc_waypoints:
-            try:
-                from pipeline.layer1_story.consistency_validators import detect_arc_drift
-                total_chapters = getattr(story_context, 'total_chapters', chapter_num + 10)
-                arc_warnings = detect_arc_drift(new_states, characters, chapter_num, total_chapters)
-                for w in arc_warnings:
-                    logger.warning(w)
-            except Exception as arc_e:
-                logger.debug(f"Arc drift check failed (non-fatal): {arc_e}")
-    except Exception as e:
-        logger.warning(f"Character state extraction failed: {e}")
-        new_states = []
-        states_f.cancel()
 
-    try:
+    new_events = []
+    with tracked_extraction(story_context, ch_num, "plot_events"):
         new_events = events_f.result(timeout=_TIMEOUT)
-        # Tag critical events based on keywords (non-LLM, cheap heuristic)
         for e in new_events:
             if any(kw in e.event.lower() for kw in _CRITICAL_KEYWORDS):
                 e.critical = True
-    except Exception as e:
-        logger.warning(f"Plot event extraction failed: {e}")
-        new_events = []
-        events_f.cancel()
 
     # Update rolling context
     chapter.summary = summary
@@ -177,7 +159,7 @@ def process_chapter_post_write(
         logger.warning(f"Consistency validation failed: {e}")
 
     # Extract world state changes (permanent, irreversible changes to the setting)
-    try:
+    with tracked_extraction(story_context, ch_num, "world_state"):
         world_changes_result = llm.generate_json(
             system_prompt="Trích xuất thay đổi thế giới. Trả về JSON.",
             user_prompt=(
@@ -200,21 +182,17 @@ def process_chapter_post_write(
                     seen.add(change)
             # Cap at 30 world state changes
             story_context.world_state_changes = story_context.world_state_changes[-30:]
-    except Exception as e:
-        logger.warning(f"World state extraction failed: {e}")
 
     # Extract timeline positions and character locations (1 cheap LLM call)
     prev_locations = dict(story_context.character_locations)
-    try:
+    new_loc = story_context.character_locations
+    with tracked_extraction(story_context, ch_num, "timeline_location"):
         new_tl, new_loc = extract_timeline_and_locations(
             llm, chapter.content, outline.chapter_number,
             story_context.timeline_positions, story_context.character_locations,
         )
         story_context.timeline_positions = new_tl
         story_context.character_locations = new_loc
-    except Exception as e:
-        logger.warning(f"Timeline/location extraction failed: {e}")
-        new_loc = story_context.character_locations
 
     # Location transition validation (pure Python, zero LLM cost)
     # Store separately — world_rule_violations may be overwritten by quality validators later
@@ -241,7 +219,7 @@ def process_chapter_post_write(
     # --- New narrative tracking (non-fatal, sequential) ---
 
     # Structured summary extraction
-    try:
+    with tracked_extraction(story_context, ch_num, "structured_summary"):
         from pipeline.layer1_story.structured_summary_extractor import extract_structured_summary
         structured, brief = extract_structured_summary(
             llm, chapter.content, outline.chapter_number,
@@ -270,11 +248,9 @@ def process_chapter_post_write(
                 logger.info("Pacing mismatch ch%d: %s", outline.chapter_number, adjustment)
         except Exception as pace_err:
             logger.debug("Pacing feedback failed (non-fatal): %s", pace_err)
-    except Exception as e:
-        logger.warning(f"Structured summary extraction failed: {e}")
 
     # Plot thread tracking
-    try:
+    with tracked_extraction(story_context, ch_num, "plot_threads"):
         from pipeline.layer1_story.plot_thread_tracker import extract_plot_threads, update_threads
         thread_result = extract_plot_threads(
             llm, chapter.content, outline.chapter_number,
@@ -296,12 +272,10 @@ def process_chapter_post_write(
             ]
         except Exception as e:
             logger.warning(f"Stale thread detection failed: {e}")
-    except Exception as e:
-        logger.warning(f"Plot thread tracking failed: {e}")
 
     # Emotional memory extraction (Phase 5)
     if pipeline_config and getattr(pipeline_config, "enable_emotional_memory", False):
-        try:
+        with tracked_extraction(story_context, ch_num, "emotional_memory"):
             from pipeline.layer1_story.character_memory_bank import (
                 extract_emotional_memories, merge_memory_banks,
             )
@@ -314,40 +288,34 @@ def process_chapter_post_write(
                 merged = merge_memory_banks(existing_banks, new_banks)
                 story_context.emotional_memory_banks = merged
                 logger.debug("Ch%d emotional memory: %d characters tracked", outline.chapter_number, len(merged))
-        except Exception as e:
-            logger.warning(f"Emotional memory extraction failed: {e}")
 
     # Causal event extraction (Phase 5)
     if pipeline_config and getattr(pipeline_config, "enable_l1_causal_graph", False):
-        try:
+        with tracked_extraction(story_context, ch_num, "causal_events"):
             from pipeline.layer1_story.l1_causal_graph import (
                 extract_causal_events, CausalGraph,
             )
             char_names = [c.name if hasattr(c, 'name') else str(c) for c in characters]
-            new_events = extract_causal_events(
+            causal_new_events = extract_causal_events(
                 llm, chapter.content, outline.chapter_number, char_names,
             )
-            if new_events:
+            if causal_new_events:
                 if not hasattr(story_context, "causal_graph") or story_context.causal_graph is None:
                     story_context.causal_graph = CausalGraph()
-                for evt in new_events:
+                for evt in causal_new_events:
                     story_context.causal_graph.add_event(evt)
-                logger.debug("Ch%d causal events: %d extracted", outline.chapter_number, len(new_events))
-        except Exception as e:
-            logger.warning(f"Causal event extraction failed: {e}")
+                logger.debug("Ch%d causal events: %d extracted", outline.chapter_number, len(causal_new_events))
 
     # Conflict status update (heuristic, no LLM call)
-    try:
+    with tracked_extraction(story_context, ch_num, "conflict_status"):
         from pipeline.layer1_story.conflict_web_builder import update_conflict_status
         if story_context.conflict_map:
             update_conflict_status(
                 story_context.conflict_map, chapter.content, outline.chapter_number, llm=llm,
             )
-    except Exception as e:
-        logger.warning(f"Conflict status update failed: {e}")
 
     # Mark foreshadowing as planted/paid off (semantic when available, keyword fallback)
-    try:
+    with tracked_extraction(story_context, ch_num, "foreshadowing"):
         from pipeline.layer1_story.foreshadowing_manager import (
             mark_planted, mark_paid_off, get_seeds_to_plant, get_payoffs_due,
             verify_seeds_semantic, verify_payoffs_semantic,
@@ -369,12 +337,10 @@ def process_chapter_post_write(
                     mark_paid_off(foreshadowing_plan, outline.chapter_number)
             else:
                 mark_paid_off(foreshadowing_plan, outline.chapter_number)
-    except Exception as e:
-        logger.warning(f"Foreshadowing tracking failed: {e}")
 
     # --- Arc execution validation (Phase 6, non-fatal) ---
     if pipeline_config and getattr(pipeline_config, "enable_arc_execution_validation", True):
-        try:
+        with tracked_extraction(story_context, ch_num, "arc_execution"):
             from pipeline.layer1_story.arc_execution_validator import (
                 validate_all_arcs, format_arc_warnings,
             )
@@ -391,21 +357,17 @@ def process_chapter_post_write(
                     logger.warning("Ch%d arc: %s", outline.chapter_number, w)
             else:
                 story_context.arc_execution_warnings = []
-        except Exception as e:
-            logger.warning(f"Arc execution validation failed: {e}")
 
     # --- Quality validators (1 cheap LLM call each, non-fatal) ---
 
     # World rules validation
-    try:
+    with tracked_extraction(story_context, ch_num, "world_rules"):
         if world_rules:
             from pipeline.layer1_story.quality_validators import validate_world_rules
             violations = validate_world_rules(llm, chapter.content, world_rules, outline.chapter_number)
             story_context.world_rule_violations = violations
             if violations:
                 logger.warning("Ch%d world rule violations: %s", outline.chapter_number, violations)
-    except Exception as e:
-        logger.warning(f"World rules validation failed: {e}")
 
     # Merge location warnings into world_rule_violations (after world rule check)
     if _location_warnings:
@@ -414,7 +376,7 @@ def process_chapter_post_write(
         )[-5:]
 
     # Dialogue voice validation
-    try:
+    with tracked_extraction(story_context, ch_num, "dialogue_voice"):
         if voice_profiles:
             from pipeline.layer1_story.quality_validators import validate_dialogue_voice
             voice_warnings = validate_dialogue_voice(llm, chapter.content, voice_profiles, outline.chapter_number)
@@ -422,8 +384,6 @@ def process_chapter_post_write(
             story_context.dialogue_voice_warnings = voice_warnings
             if voice_warnings:
                 logger.warning("Ch%d voice warnings: %s", outline.chapter_number, voice_warnings)
-    except Exception as e:
-        logger.warning(f"Dialogue voice validation failed: {e}")
 
     # Pacing history tracking
     story_context.pacing_history.append(getattr(outline, "pacing_type", None) or "rising")

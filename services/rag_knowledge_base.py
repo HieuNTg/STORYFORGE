@@ -263,6 +263,101 @@ class RAGKnowledgeBase:
             logger.warning(f"RAG query failed: {e}")
             return []
 
+    def index_chapter(
+        self,
+        chapter_number: int,
+        content: str,
+        characters: list[str] | None = None,
+        threads: list[str] | None = None,
+        summary: str = "",
+        chunk_size: int = 500,
+        overlap: int = 50,
+    ) -> int:
+        """Chunk + embed a generated chapter with rich metadata. Returns chunks added.
+
+        Metadata fields: source="generated", chapter_number, chunk_index, characters
+        (comma-joined), threads (comma-joined), summary (capped 200 chars).
+        """
+        if not self._available or not content or not content.strip():
+            return 0
+        chunks = _chunk_text(content, chunk_size=chunk_size, overlap=overlap)
+        if not chunks:
+            return 0
+        chars_str = ",".join(characters or [])
+        threads_str = ",".join(threads or [])
+        summary_str = (summary or "")[:200]
+        metadatas = [
+            {
+                "source": "generated",
+                "chapter_number": int(chapter_number),
+                "chunk_index": i,
+                "characters": chars_str,
+                "threads": threads_str,
+                "summary": summary_str,
+            }
+            for i in range(len(chunks))
+        ]
+        added = self.add_documents(chunks, metadatas)
+        if added:
+            logger.debug(
+                f"RAG: indexed {added} chunks for ch{chapter_number} "
+                f"(chars={len(characters or [])}, threads={len(threads or [])})"
+            )
+        return added
+
+    def query_structured(
+        self,
+        question: str,
+        n_results: int = 5,
+        where: dict | None = None,
+        exclude_chapter: int | None = None,
+    ) -> list[dict]:
+        """Return chunks with metadata. Use this in pipeline (richer than `query`).
+
+        Each returned item: {"text": str, "metadata": dict, "distance": float}.
+        `where` is a Chroma metadata filter; `exclude_chapter` drops hits whose
+        metadata.chapter_number matches (post-filter, since $ne support varies).
+        """
+        if not self._available or not question or not question.strip():
+            return []
+        count = self.count()
+        if count == 0:
+            return []
+        n = min(n_results, count)
+        try:
+            kwargs = {"query_texts": [question], "n_results": n}
+            if where:
+                kwargs["where"] = where
+            results = self._collection.query(**kwargs)
+        except Exception as e:
+            logger.warning(f"RAG query_structured failed (where={where}): {e}")
+            # Retry without where filter — Chroma $contains syntax varies by version
+            if where:
+                try:
+                    results = self._collection.query(query_texts=[question], n_results=n)
+                except Exception as e2:
+                    logger.warning(f"RAG query_structured fallback failed: {e2}")
+                    return []
+            else:
+                return []
+
+        docs = (results.get("documents") or [[]])[0]
+        metas = (results.get("metadatas") or [[]])[0]
+        dists_wrapper = results.get("distances") or [[]]
+        dists = dists_wrapper[0] if dists_wrapper else [0.0] * len(docs)
+        if len(dists) != len(docs):
+            dists = [0.0] * len(docs)
+
+        out: list[dict] = []
+        for doc, meta, dist in zip(docs, metas, dists):
+            if not doc:
+                continue
+            meta = meta or {}
+            if exclude_chapter is not None and meta.get("chapter_number") == exclude_chapter:
+                continue
+            out.append({"text": doc, "metadata": meta, "distance": float(dist or 0.0)})
+        return out
+
     def clear(self) -> None:
         """Delete all documents from the collection."""
         if not self._available:

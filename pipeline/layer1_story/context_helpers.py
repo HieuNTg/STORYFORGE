@@ -23,6 +23,112 @@ def get_rag_kb(persist_dir: str):
     return _rag_kb
 
 
+def reset_rag_kb_singleton() -> None:
+    """Test hook — drop the process-wide RAG singleton so next get_rag_kb() rebuilds."""
+    global _rag_kb
+    _rag_kb = None
+
+
+def _rank_focus_characters(characters: list, max_n: int) -> list:
+    """Pick up to max_n focus characters. Prefers protagonist/antagonist/main,
+    falls back to original order so single-role casts still emit queries."""
+    if not characters:
+        return []
+    priority_roles = {"protagonist", "antagonist", "main"}
+    primary = [c for c in characters if getattr(c, "role", "").lower() in priority_roles]
+    if len(primary) >= max_n:
+        return primary[:max_n]
+    # Pad from remaining in original order, skipping duplicates
+    seen = {id(c) for c in primary}
+    for c in characters:
+        if id(c) in seen:
+            continue
+        primary.append(c)
+        if len(primary) >= max_n:
+            break
+    return primary[:max_n]
+
+
+def build_rag_context(
+    rag_kb,
+    outline: ChapterOutline,
+    characters: list | None = None,
+    open_threads: list | None = None,
+    per_char_queries: int = 3,
+    per_thread_queries: int = 3,
+    n_per_query: int = 2,
+    merge_cap: int = 8,
+) -> str:
+    """Multi-query semantic retrieval: fan out by summary + focus char + open thread.
+
+    Dedups by (chapter_number, chunk_index), ranks ascending by embedding distance,
+    and caps the merged set at `merge_cap`. Returns an already-formatted block ready
+    to be appended to the chapter prompt, or "" when no hits / RAG unavailable.
+    """
+    if rag_kb is None or not getattr(rag_kb, "is_available", False):
+        return ""
+    if not outline or not getattr(outline, "summary", ""):
+        return ""
+
+    queries: list[tuple[str, str, dict | None]] = []
+    queries.append(("summary", outline.summary, None))
+
+    focus_chars = _rank_focus_characters(characters or [], per_char_queries)
+    for c in focus_chars:
+        name = getattr(c, "name", "") or ""
+        if not name:
+            continue
+        motivation = getattr(c, "motivation", "") or getattr(c, "personality", "") or ""
+        q = f"{name}: {motivation}".strip(": ").strip()
+        if not q:
+            continue
+        queries.append((f"char_{name}", q, {"characters": {"$contains": name}}))
+
+    for t in (open_threads or [])[:per_thread_queries]:
+        # PlotThread uses thread_id (not title); accept either for robustness
+        tid = getattr(t, "thread_id", None) or getattr(t, "title", "") or ""
+        desc = getattr(t, "description", "") or ""
+        if not tid and not desc:
+            continue
+        qstr = f"{tid}: {desc}".strip(": ").strip()
+        queries.append((f"thread_{tid or 'untitled'}", qstr, None))
+
+    seen_keys: set[str] = set()
+    merged: list[dict] = []
+    for tag, q, where in queries:
+        if not q:
+            continue
+        hits = rag_kb.query_structured(
+            question=q,
+            n_results=n_per_query,
+            where=where,
+            exclude_chapter=outline.chapter_number,
+        )
+        for h in hits:
+            meta = h.get("metadata", {}) or {}
+            key = f"{meta.get('chapter_number', '?')}_{meta.get('chunk_index', '?')}"
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            enriched = dict(h)
+            enriched["query_tag"] = tag
+            merged.append(enriched)
+
+    merged.sort(key=lambda h: h.get("distance", 0.0))
+    merged = merged[:merge_cap]
+    if not merged:
+        return ""
+
+    lines = []
+    for h in merged:
+        meta = h.get("metadata", {}) or {}
+        ch = meta.get("chapter_number", "?")
+        tag = h.get("query_tag", "")
+        text = (h.get("text") or "").strip()
+        lines.append(f"[ch{ch} — {tag}] {text}")
+    return "\n---\n".join(lines)
+
+
 def write_chapter_with_long_context(
     llm,
     long_context_client,

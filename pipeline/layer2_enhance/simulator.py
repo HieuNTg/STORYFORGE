@@ -812,6 +812,12 @@ class DramaSimulator:
         foreshadowing_plan: list | None = None,
     ) -> SimulationResult:
         """Chạy toàn bộ mô phỏng và trả về kết quả."""
+        try:
+            from services.trace_context import set_chapter, set_module
+            set_chapter(current_chapter)
+            set_module("l2_simulator")
+        except Exception:
+            pass
 
         def _log(msg):
             logger.info(msg)

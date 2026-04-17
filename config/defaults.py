@@ -95,6 +95,15 @@ class PipelineConfig:
     # RAG world-building
     rag_enabled: bool = False
     rag_persist_dir: str = "data/rag"
+    # RAG — semantic retrieval over generated chapters (Sprint 2 Task 1).
+    # Gated behind rag_enabled master switch; no effect when rag_enabled=False.
+    rag_index_chapters: bool = True             # auto-index each chapter after write
+    rag_multi_query: bool = True                # fan-out per char + per thread + summary
+    rag_per_char_queries: int = 3               # top-N focus characters to query
+    rag_per_thread_queries: int = 3             # top-N open threads to query
+    rag_n_results_per_query: int = 2            # hits per sub-query
+    rag_merge_cap: int = 8                      # max merged chunks injected into prompt
+    rag_max_tokens: int = 1000                  # soft cap for RAG block in prompt
 
     # Character-consistent images
     enable_character_consistency: bool = False
@@ -180,6 +189,21 @@ class PipelineConfig:
     l2_causal_audit: bool = True  # post-L2 causality verification (Phase B)
     l2_thread_pressure: bool = True  # thread.urgency → psychology pressure (Phase C)
     l2_contract_gate: bool = True  # post-L2 contract validation + optional rewrite (Phase E)
+
+    # Sprint 1 Task 3 — Simulator → Enhancer drama contract enforcement
+    enable_simulator_contracts: bool = True
+    enable_contract_retry: bool = True
+    contract_retry_max: int = 1
+    contract_drama_tolerance: float = 0.15
+    contract_cheap_validation: bool = True
+
+    # Sprint 2 Task 2 — Voice contract + L1↔L2 dedup
+    enable_voice_contract: bool = True               # Build per-chapter voice contracts from L1 profiles
+    enable_voice_contract_retry: bool = True         # Refine-with-hint on drift (vs. binary revert)
+    voice_contract_retry_max: int = 1
+    voice_min_compliance: float = 0.75               # Pass threshold per chapter
+    voice_dedup_l1_l2: bool = True                   # Skip L2 re-extract when L1 profile present
+    voice_binary_revert_floor: float = 0.5           # Below this compliance → last-resort revert
 
     # L2 Consistency Engine (character state, setting, threads, voice)
     l2_consistency_engine: bool = True  # Enable A-E consistency improvements

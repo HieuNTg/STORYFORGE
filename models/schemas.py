@@ -1,7 +1,7 @@
 """Mô hình dữ liệu cho toàn bộ pipeline."""
 
 import re
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Any, Optional
 from enum import Enum
 
@@ -120,6 +120,40 @@ class Chapter(BaseModel):
     structured_summary: Optional[StructuredSummary] = Field(default=None, description="Rich structured summary")
     enhancement_changelog: list[str] = Field(default_factory=list, description="Log các thay đổi trong quá trình tăng cường kịch tính")
     contract: Optional["ChapterContract"] = Field(default=None, description="L1-generated per-chapter requirements contract")
+    # Sprint 1 Task 3: L2 drama-contract validation (dict to avoid forward-ref cycles)
+    contract_validation: Optional[dict] = Field(default=None, description="L2 drama contract validation result")
+    # Sprint 2 Task 2: L2 voice-contract validation (dict to avoid cycles)
+    voice_validation: Optional[dict] = Field(default=None, description="L2 voice contract validation result")
+
+
+class VoiceProfile(BaseModel):
+    """Unified voice profile: L1 prescribes, L2 observes.
+
+    Backward-compatible superset of former L1 dict and former L2 VoiceProfile.
+    Extra fields allowed so legacy serialized stories still load.
+    """
+    model_config = ConfigDict(extra="allow")
+
+    name: str
+    # L1 prescriptive
+    vocabulary_level: str = ""                      # formal | casual | archaic | mixed | simple | moderate | sophisticated
+    sentence_style: str = ""                        # short_punchy | long_flowing | fragmented | poetic
+    verbal_tics: list[str] = Field(default_factory=list)
+    emotional_expression: dict[str, str] = Field(default_factory=dict)  # anger/joy/sadness → how expressed
+    dialogue_examples: list[str] = Field(default_factory=list)
+    # L2 observed (post-generation; zero-LLM stats)
+    observed_avg_sentence_length: float = 0.0
+    observed_formality: str = ""                    # casual | neutral | formal | mixed
+    observed_samples: list[str] = Field(default_factory=list)
+    # Legacy L2 fields (optional, deprecated — kept for serialization compat)
+    avg_sentence_length: float = 0.0
+    formality: str = ""
+    speech_quirks: list[str] = Field(default_factory=list)
+    dialogue_samples: list[str] = Field(default_factory=list)
+    accent_markers: list[str] = Field(default_factory=list)
+    typical_topics: list[str] = Field(default_factory=list)
+    # Meta
+    source: str = "L1"                              # "L1" | "L1+L2"
 
 
 class CharacterState(BaseModel):
@@ -280,6 +314,20 @@ class StoryBible(BaseModel):
     character_locations: dict[str, str] = Field(default_factory=dict, description="Vị trí nhân vật {tên: địa điểm}")
 
 
+class ExtractionHealth(BaseModel):
+    """Telemetry record for a post-chapter extraction attempt.
+
+    Tracked by `tracked_extraction` contextmanager. Enables circuit-breaker
+    logic to halt pipeline when context gets corrupted by repeated failures,
+    instead of silently continuing with empty fallback state.
+    """
+    chapter_number: int
+    extraction_type: str  # "summary" | "character_states" | "plot_events" | "world_state" | "timeline_location" | "structured_summary" | "plot_threads" | "emotional_memory" | "causal_events" | "conflict_status" | "foreshadowing" | "arc_execution" | "world_rules" | "dialogue_voice"
+    success: bool = False
+    error: str = ""
+    duration_ms: int = 0
+
+
 class StoryContext(BaseModel):
     """Rolling context cho việc viết chương."""
     recent_summaries: list[str] = Field(default_factory=list)
@@ -306,6 +354,18 @@ class StoryContext(BaseModel):
     # Phase 5: L1 consistency
     emotional_memory_banks: dict = Field(default_factory=dict, description="Per-character emotional memory banks")
     causal_graph: Any = Field(default=None, description="L1 causal event graph")
+    # Sprint 1 Task 1: Context Health tracking
+    extraction_health: list[ExtractionHealth] = Field(default_factory=list, description="Telemetry for post-chapter extraction attempts")
+    consecutive_failures: int = Field(default=0, description="Counter for circuit breaker tripping")
+
+    def compute_health_score(self, lookback: int = 10) -> float:
+        recent = self.extraction_health[-lookback * 6:]
+        if not recent:
+            return 1.0
+        return sum(1 for e in recent if e.success) / len(recent)
+
+    def failed_extractions_in_last_chapter(self, chapter_num: int) -> list[ExtractionHealth]:
+        return [e for e in self.extraction_health if e.chapter_number == chapter_num and not e.success]
 
 
 class StoryDraft(BaseModel):
@@ -328,6 +388,7 @@ class StoryDraft(BaseModel):
     foreshadowing_plan: list[ForeshadowingEntry] = Field(default_factory=list, description="Planned foreshadowing")
     foreshadowing_audit: dict = Field(default_factory=dict, description="End-of-story foreshadowing completion audit")
     open_threads: list[PlotThread] = Field(default_factory=list, description="Active narrative threads carried across chapters")
+    context: Optional[StoryContext] = Field(default=None, description="Rolling StoryContext with extraction_health telemetry")
 
 
 # === Layer 2: Mô phỏng tăng kịch tính ===
@@ -413,6 +474,10 @@ class SimulationResult(BaseModel):
     knowledge_state: dict[str, list[str]] = Field(default_factory=dict, description="Per-character knowledge at end of simulation")
     causal_chains: list[list[str]] = Field(default_factory=list, description="Top causal chains as event_id lists")
     actual_rounds: int = Field(default=0, description="Actual rounds run (may differ from requested)")
+    # Sprint 1 Task 3: per-chapter drama contracts (dict stored raw for Pydantic-agnostic propagation)
+    chapter_contracts: dict = Field(default_factory=dict, description="chapter_number → DramaContract dict")
+    # Sprint 2 Task 2: per-chapter voice contracts (dict stored raw)
+    voice_contracts: dict = Field(default_factory=dict, description="chapter_number → VoiceContract dict")
 
 
 class EnhancedStory(BaseModel):
@@ -595,6 +660,11 @@ class PipelineOutput(BaseModel):
     analytics: dict = Field(default_factory=dict)
     knowledge_graph_summary: str = ""
     progress_events: list = Field(default_factory=list)
+    # Sprint 1 Task 1: Context Health surfacing
+    context_health_score: float = Field(default=1.0, description="Final context health score (0.0-1.0)")
+    extraction_failures: list[ExtractionHealth] = Field(default_factory=list, description="All failed extraction attempts")
+    # Sprint 1 Task 2: Trace + cost/token telemetry summary
+    trace: dict = Field(default_factory=dict, description="Pipeline trace summary (trace_id, totals, per-module/chapter cost breakdown)")
 
 
 try:

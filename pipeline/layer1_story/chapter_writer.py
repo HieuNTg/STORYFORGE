@@ -193,12 +193,44 @@ def build_chapter_prompt(
 
     # Append RAG context if enabled
     if config.pipeline.rag_enabled and rag_kb is not None and rag_kb.is_available:
-        query_text = f"chapter {outline.chapter_number} {outline.summary}"
-        rag_docs = rag_kb.query(query_text, n_results=3)
-        if rag_docs:
-            rag_section = prompts.RAG_CONTEXT_SECTION.format(
-                rag_context="\n---\n".join(rag_docs)
-            )
+        import time as _time
+        from services.trace_context import get_module, set_module, get_trace
+        rag_section_text = ""
+        _hits_count = 0
+        _prev_module = get_module()
+        set_module("rag_retrieval")
+        _t0 = _time.perf_counter()
+        try:
+            if getattr(config.pipeline, "rag_multi_query", False):
+                # Sprint 2 Task 1: multi-query retrieval (per char + per thread + summary)
+                from pipeline.layer1_story.context_helpers import build_rag_context
+                rag_section_text = build_rag_context(
+                    rag_kb,
+                    outline,
+                    characters=characters,
+                    open_threads=open_threads,
+                    per_char_queries=getattr(config.pipeline, "rag_per_char_queries", 3),
+                    per_thread_queries=getattr(config.pipeline, "rag_per_thread_queries", 3),
+                    n_per_query=getattr(config.pipeline, "rag_n_results_per_query", 2),
+                    merge_cap=getattr(config.pipeline, "rag_merge_cap", 8),
+                )
+                if rag_section_text:
+                    _hits_count = len(rag_section_text.split("\n---\n"))
+            else:
+                query_text = f"chapter {outline.chapter_number} {outline.summary}"
+                rag_docs = rag_kb.query(query_text, n_results=3)
+                if rag_docs:
+                    rag_section_text = "\n---\n".join(rag_docs)
+                    _hits_count = len(rag_docs)
+        finally:
+            _dur_ms = (_time.perf_counter() - _t0) * 1000.0
+            _tr = get_trace()
+            if _tr is not None:
+                _tr.rag_stats.record_retrieval(_hits_count, _dur_ms)
+            set_module(_prev_module or "chapter_writer")
+
+        if rag_section_text:
+            rag_section = prompts.RAG_CONTEXT_SECTION.format(rag_context=rag_section_text)
             context_text = context_text + "\n\n" + rag_section
 
     # Knowledge graph entity context (gated behind rag_enabled)

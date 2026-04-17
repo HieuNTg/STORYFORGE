@@ -310,6 +310,7 @@ class TestGeneratorRAGIntegration(unittest.TestCase):
         generator.config = MagicMock()
         generator.config.pipeline.rag_enabled = True
         generator.config.pipeline.rag_persist_dir = "data/rag"
+        generator.config.pipeline.rag_multi_query = False
 
         chars, world, outline = self._make_minimal_objects()
         sys_p, user_p = generator._build_chapter_prompt(
@@ -347,6 +348,7 @@ class TestGeneratorRAGIntegration(unittest.TestCase):
         generator.config = MagicMock()
         generator.config.pipeline.rag_enabled = True
         generator.config.pipeline.rag_persist_dir = "data/rag"
+        generator.config.pipeline.rag_multi_query = False
 
         chars, world, outline = self._make_minimal_objects()
         sys_p, user_p = generator._build_chapter_prompt(

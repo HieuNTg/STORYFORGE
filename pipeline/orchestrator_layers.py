@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from models.schemas import EnhancedStory, PipelineOutput, StoryDraft
 from plugins import plugin_manager
+from services.trace_context import PipelineTrace, set_trace, clear_trace, set_module, set_chapter
 
 if TYPE_CHECKING:
     from pipeline.orchestrator import PipelineOrchestrator
@@ -60,6 +61,11 @@ async def run_full_pipeline(
     enhanced = None
     pipeline_start = time.time()
 
+    # Trace instrumentation (Sprint 1 Task 2)
+    trace = PipelineTrace(session_id=getattr(self, "session_id", "") or "")
+    set_trace(trace)
+    _log(f"[TRACE] Pipeline trace_id={trace.trace_id}")
+
     from services.progress_tracker import ProgressTracker
     tracker = ProgressTracker(callback=_log)
 
@@ -87,6 +93,7 @@ async def run_full_pipeline(
     _log("══════ LAYER 1: TẠO TRUYỆN ══════")
     with self._lock:
         self.output.current_layer = 1
+    set_module("layer1")
     layer_start = time.time()
     try:
         draft = await asyncio.to_thread(
@@ -101,6 +108,20 @@ async def run_full_pipeline(
             self.output.story_draft = draft
             self.output.progress = 0.33
         _log(f"Layer 1 hoàn tất trong {time.time() - layer_start:.1f}s")
+
+        # Surface context health (Sprint 1 Task 1)
+        try:
+            _l1_ctx = getattr(draft, "context", None)
+            if _l1_ctx is not None:
+                self.output.context_health_score = _l1_ctx.compute_health_score()
+                self.output.extraction_failures = [e for e in _l1_ctx.extraction_health if not e.success]
+                _log(
+                    f"[HEALTH] Context health: {self.output.context_health_score:.0%} "
+                    f"({len(self.output.extraction_failures)} failed extractions)"
+                )
+        except Exception as _h_err:
+            logger.warning(f"Context health surface failed (non-fatal): {_h_err}")
+
         await asyncio.to_thread(self.checkpoint.save, 1)
 
         # Optional quality scoring
@@ -295,6 +316,8 @@ async def run_full_pipeline(
     _log("══════ LAYER 2: MÔ PHỎNG TĂNG KỊCH TÍNH ══════")
     with self._lock:
         self.output.current_layer = 2
+    set_module("layer2")
+    set_chapter(None)
     layer_start = time.time()
     try:
         _log("[L2] Đang phân tích cấu trúc truyện...")
@@ -508,6 +531,56 @@ async def run_full_pipeline(
         except Exception as e:
             logger.warning(f"L2 analytics extension failed: {e}")
 
+        # Sprint 1 Task 3: contract validation stats
+        try:
+            from pipeline.layer2_enhance.chapter_contract import (
+                ContractValidation, aggregate_contract_stats,
+            )
+            _validations = []
+            for _ch in (enhanced.chapters or []):
+                _cv = getattr(_ch, "contract_validation", None)
+                if isinstance(_cv, dict) and _cv:
+                    try:
+                        _validations.append(ContractValidation(**_cv))
+                    except Exception:
+                        continue
+            if _validations:
+                self.output.analytics.setdefault("layer2", {})
+                self.output.analytics["layer2"]["contract_stats"] = aggregate_contract_stats(_validations)
+                _log(
+                    f"[CONTRACT] stats: {self.output.analytics['layer2']['contract_stats']}"
+                )
+        except Exception as e:
+            logger.warning(f"Contract stats aggregation failed: {e}")
+
+        # Sprint 2 Task 2: voice validation stats
+        try:
+            from pipeline.layer2_enhance.chapter_contract import (
+                VoiceValidation, aggregate_voice_stats,
+            )
+            _v_validations = []
+            for _ch in (enhanced.chapters or []):
+                _vv = getattr(_ch, "voice_validation", None)
+                if isinstance(_vv, dict) and _vv:
+                    try:
+                        _v_validations.append(VoiceValidation(**_vv))
+                    except Exception:
+                        continue
+            # Rough LLM-calls-saved estimate: N characters × N chapters (old per-char-per-chapter path)
+            _chars = len(getattr(draft, "characters", []) or [])
+            _chaps = len(getattr(draft, "chapters", []) or [])
+            _saved = _chars * _chaps if getattr(draft, "voice_profiles", None) else 0
+            if _v_validations or _saved:
+                self.output.analytics.setdefault("layer2", {})
+                self.output.analytics["layer2"]["voice_stats"] = aggregate_voice_stats(
+                    _v_validations, llm_calls_saved=_saved,
+                )
+                _log(
+                    f"[VOICE] stats: {self.output.analytics['layer2']['voice_stats']}"
+                )
+        except Exception as e:
+            logger.warning(f"Voice stats aggregation failed: {e}")
+
         # Multi-agent review panel for Layer 2
         if enable_agents:
             _log("[AGENTS] Phòng ban đang đánh giá Layer 2...")
@@ -604,6 +677,17 @@ async def run_full_pipeline(
 
     # Attach raw progress events to output for API consumers
     self.output.progress_events = [e.__dict__ for e in tracker.events]
+
+    # Attach pipeline trace summary (Sprint 1 Task 2)
+    try:
+        self.output.trace = trace.summary()
+        _log(
+            f"[TRACE] {trace.trace_id} | {len(trace.calls)} calls | "
+            f"{trace.total_tokens()} tokens | ${trace.total_cost():.4f}"
+        )
+    except Exception as _t_err:
+        logger.warning(f"Trace summary failed (non-fatal): {_t_err}")
+    clear_trace()
     return self.output
 
 

@@ -140,6 +140,12 @@ class StoryEnhancer:
         Args:
             total_chapters: Tổng số chương trong truyện (để phân bổ sự kiện đều).
         """
+        try:
+            from services.trace_context import set_chapter, set_module
+            set_chapter(getattr(chapter, "chapter_number", None))
+            set_module("l2_enhancer")
+        except Exception:
+            pass
 
         # --- Scene-level enhancement (Phase 4) ---
         try:
@@ -206,7 +212,7 @@ class StoryEnhancer:
                 except Exception as _ce:
                     logger.debug(f"Consistency constraints failed: {_ce}")
 
-            return scene_enhancer.enhance_chapter_by_scenes(
+            enhanced_chapter = scene_enhancer.enhance_chapter_by_scenes(
                 chapter, sim_result, genre, draft,
                 subtext_guidance=_subtext_guidance,
                 thematic_guidance=_thematic_guidance,
@@ -223,6 +229,246 @@ class StoryEnhancer:
                 "Returning original chapter."
             )
             return chapter
+
+        # Sprint 1 Task 3: drama contract validation + optional retry
+        enhanced_chapter = self._apply_contract_validation(
+            enhanced_chapter=enhanced_chapter,
+            original=chapter,
+            sim_result=sim_result,
+            genre=genre,
+            draft=draft,
+            subtext_guidance=_subtext_guidance,
+            thematic_guidance=_thematic_guidance,
+            chapter_summary=_chapter_summary,
+            thread_state=_thread_state,
+            arc_context=_arc_context,
+            pacing_directive=_pacing_directive,
+            consistency_constraints=_consistency_constraints,
+        )
+        # Sprint 2 Task 2: voice contract validation + refine-with-hint (graduated revert)
+        enhanced_chapter = self._apply_voice_validation(
+            enhanced_chapter=enhanced_chapter,
+            original=chapter,
+            sim_result=sim_result,
+            genre=genre,
+            draft=draft,
+            subtext_guidance=_subtext_guidance,
+            thematic_guidance=_thematic_guidance,
+            chapter_summary=_chapter_summary,
+            thread_state=_thread_state,
+            arc_context=_arc_context,
+            pacing_directive=_pacing_directive,
+            consistency_constraints=_consistency_constraints,
+        )
+        return enhanced_chapter
+
+    def _apply_contract_validation(
+        self,
+        *,
+        enhanced_chapter,
+        original,
+        sim_result,
+        genre,
+        draft,
+        subtext_guidance,
+        thematic_guidance,
+        chapter_summary,
+        thread_state,
+        arc_context,
+        pacing_directive,
+        consistency_constraints,
+    ):
+        """Validate enhanced chapter against DramaContract; retry once on miss."""
+        contracts_raw = getattr(sim_result, "chapter_contracts", None) or {}
+        ch_num = enhanced_chapter.chapter_number
+        raw = contracts_raw.get(ch_num) or contracts_raw.get(str(ch_num))
+        if not raw:
+            return enhanced_chapter
+
+        try:
+            from pipeline.layer2_enhance.chapter_contract import (
+                DramaContract, validate_chapter_against_contract, build_retry_hint,
+            )
+            from pipeline.layer2_enhance.scene_enhancer import SceneEnhancer
+            contract = DramaContract(**raw) if isinstance(raw, dict) else raw
+
+            try:
+                cfg = ConfigManager().load().pipeline
+            except Exception:
+                cfg = None
+
+            tolerance = float(getattr(cfg, "contract_drama_tolerance", 0.15)) if cfg else 0.15
+            contract.drama_tolerance = tolerance
+            cheap = bool(getattr(cfg, "contract_cheap_validation", True)) if cfg else True
+            retry_enabled = bool(getattr(cfg, "enable_contract_retry", True)) if cfg else True
+            retry_max = int(getattr(cfg, "contract_retry_max", 1)) if cfg else 1
+
+            validation = validate_chapter_against_contract(
+                self.llm, enhanced_chapter.content, contract,
+                model_tier="cheap" if cheap else "default",
+            )
+            logger.info(
+                "[CONTRACT] ch%d pass=%s compliance=%.2f drama=%.2f/%.2f",
+                ch_num, validation.passed, validation.compliance_score,
+                validation.drama_actual, contract.drama_target,
+            )
+
+            if not validation.passed and retry_enabled and retry_max > 0:
+                hint = build_retry_hint(validation)
+                logger.info("[CONTRACT] ch%d retry with hint: %s", ch_num, hint.replace("\n", " | "))
+                try:
+                    scene_enhancer = SceneEnhancer()
+                    injected_guidance = (subtext_guidance or "") + "\n\n[RETRY HINT]\n" + hint
+                    retried = scene_enhancer.enhance_chapter_by_scenes(
+                        original, sim_result, genre, draft,
+                        subtext_guidance=injected_guidance,
+                        thematic_guidance=thematic_guidance,
+                        chapter_summary=chapter_summary,
+                        thread_state=thread_state,
+                        arc_context=arc_context,
+                        pacing_directive=pacing_directive,
+                        consistency_constraints=consistency_constraints,
+                    )
+                    retry_validation = validate_chapter_against_contract(
+                        self.llm, retried.content, contract,
+                        model_tier="cheap" if cheap else "default",
+                    )
+                    retry_validation.retry_attempted = True
+                    if retry_validation.compliance_score >= validation.compliance_score:
+                        enhanced_chapter = retried
+                        validation = retry_validation
+                    logger.info(
+                        "[CONTRACT] ch%d retry pass=%s compliance=%.2f",
+                        ch_num, validation.passed, validation.compliance_score,
+                    )
+                except Exception as _re:
+                    logger.warning(f"Contract retry ch{ch_num} failed: {_re}")
+
+            try:
+                enhanced_chapter.contract_validation = validation.model_dump()
+            except Exception:
+                pass
+        except Exception as _ve:
+            logger.warning(f"Contract validation ch{ch_num} failed (non-fatal): {_ve}")
+
+        return enhanced_chapter
+
+    def _apply_voice_validation(
+        self,
+        *,
+        enhanced_chapter,
+        original,
+        sim_result,
+        genre,
+        draft,
+        subtext_guidance,
+        thematic_guidance,
+        chapter_summary,
+        thread_state,
+        arc_context,
+        pacing_directive,
+        consistency_constraints,
+    ):
+        """Sprint 2 Task 2: validate voice → refine-with-hint; binary revert last-resort (<floor)."""
+        contracts_raw = getattr(sim_result, "voice_contracts", None) or {}
+        ch_num = enhanced_chapter.chapter_number
+        raw = contracts_raw.get(ch_num) or contracts_raw.get(str(ch_num))
+        if not raw:
+            return enhanced_chapter
+
+        try:
+            from pipeline.layer2_enhance.chapter_contract import (
+                VoiceContract, validate_chapter_voice, build_voice_retry_hint,
+            )
+            from pipeline.layer2_enhance.scene_enhancer import SceneEnhancer
+            contract = VoiceContract(**raw) if isinstance(raw, dict) else raw
+
+            try:
+                cfg = ConfigManager().load().pipeline
+            except Exception:
+                cfg = None
+
+            if cfg is not None and not bool(getattr(cfg, "enable_voice_contract", True)):
+                return enhanced_chapter
+
+            min_comp = float(getattr(cfg, "voice_min_compliance", 0.75)) if cfg else 0.75
+            contract.min_compliance = min_comp
+            retry_enabled = bool(getattr(cfg, "enable_voice_contract_retry", True)) if cfg else True
+            retry_max = int(getattr(cfg, "voice_contract_retry_max", 1)) if cfg else 1
+            revert_floor = float(getattr(cfg, "voice_binary_revert_floor", 0.5)) if cfg else 0.5
+
+            validation = validate_chapter_voice(self.llm, enhanced_chapter.content, contract)
+            logger.info(
+                "[VOICE] ch%d pass=%s compliance=%.2f drifted=%s",
+                ch_num, validation.passed, validation.overall_compliance,
+                validation.drifted_characters,
+            )
+
+            if not validation.passed and retry_enabled and retry_max > 0:
+                hint = build_voice_retry_hint(validation)
+                logger.info("[VOICE] ch%d refine with hint: %s", ch_num, hint.replace("\n", " | "))
+                try:
+                    scene_enhancer = SceneEnhancer()
+                    injected = (subtext_guidance or "") + "\n\n[VOICE HINT]\n" + hint
+                    refined = scene_enhancer.enhance_chapter_by_scenes(
+                        original, sim_result, genre, draft,
+                        subtext_guidance=injected,
+                        thematic_guidance=thematic_guidance,
+                        chapter_summary=chapter_summary,
+                        thread_state=thread_state,
+                        arc_context=arc_context,
+                        pacing_directive=pacing_directive,
+                        consistency_constraints=consistency_constraints,
+                    )
+                    retry_val = validate_chapter_voice(self.llm, refined.content, contract)
+                    retry_val.retry_attempted = True
+                    if retry_val.overall_compliance >= validation.overall_compliance:
+                        enhanced_chapter = refined
+                        validation = retry_val
+                    logger.info(
+                        "[VOICE] ch%d refine pass=%s compliance=%.2f",
+                        ch_num, validation.passed, validation.overall_compliance,
+                    )
+                except Exception as _re:
+                    logger.warning(f"Voice refine ch{ch_num} failed: {_re}")
+
+            # Last-resort binary revert — only catastrophic drift
+            if not validation.passed and validation.overall_compliance < revert_floor:
+                try:
+                    from pipeline.layer2_enhance.voice_fingerprint import (
+                        VoiceFingerprintEngine, enforce_voice_preservation,
+                    )
+                    engine = VoiceFingerprintEngine()
+                    engine.build_from_draft(draft, dedup_l1=True)
+                    characters = [c for c in (getattr(draft, "characters", []) or [])
+                                  if getattr(c, "name", "") in validation.drifted_characters]
+                    if characters:
+                        preserved, vp_res = enforce_voice_preservation(
+                            engine,
+                            original.content or "",
+                            enhanced_chapter.content or "",
+                            characters,
+                            drift_threshold=0.4,
+                            revert_threshold=0.3,
+                        )
+                        if vp_res.reverted_count > 0:
+                            enhanced_chapter.content = preserved
+                            validation.binary_reverted = True
+                            logger.warning(
+                                "[VOICE] ch%d catastrophic (%.2f<%.2f) → binary reverted %d dialogue(s)",
+                                ch_num, validation.overall_compliance, revert_floor, vp_res.reverted_count,
+                            )
+                except Exception as _be:
+                    logger.warning(f"Voice binary revert ch{ch_num} failed: {_be}")
+
+            try:
+                enhanced_chapter.voice_validation = validation.model_dump()
+            except Exception:
+                pass
+        except Exception as _ve:
+            logger.warning(f"Voice validation ch{ch_num} failed (non-fatal): {_ve}")
+
+        return enhanced_chapter
 
     def enhance_story(
         self,
@@ -263,6 +509,47 @@ class StoryEnhancer:
             genre=draft.genre,
             enhancement_notes=[],
         )
+
+        # Sprint 1 Task 3: build per-chapter drama contracts from sim_result
+        try:
+            _cfg = ConfigManager().load().pipeline
+            _contracts_on = bool(getattr(_cfg, "enable_simulator_contracts", True))
+        except Exception:
+            _contracts_on = True
+        if _contracts_on and not getattr(sim_result, "chapter_contracts", None):
+            try:
+                from pipeline.layer2_enhance.chapter_contract import build_chapter_contracts
+                _ch_nums = [c.chapter_number for c in draft.chapters]
+                _contracts = build_chapter_contracts(sim_result, _ch_nums)
+                sim_result.chapter_contracts = {
+                    k: v.model_dump() for k, v in _contracts.items()
+                }
+                _log(f"[CONTRACT] Built {len(_contracts)} drama contracts")
+            except Exception as _ce:
+                logger.warning(f"build_chapter_contracts failed (non-fatal): {_ce}")
+
+        # Sprint 2 Task 2: build per-chapter voice contracts from L1 voice_profiles
+        try:
+            _voice_on = bool(getattr(_cfg, "enable_voice_contract", True))
+        except Exception:
+            _voice_on = True
+        if _voice_on and not getattr(sim_result, "voice_contracts", None):
+            try:
+                from pipeline.layer2_enhance.chapter_contract import build_voice_contracts
+                _vp = getattr(draft, "voice_profiles", None) or []
+                if _vp:
+                    _min_comp = float(getattr(_cfg, "voice_min_compliance", 0.75))
+                    _outlines = getattr(draft, "outlines", []) or []
+                    _vcs = build_voice_contracts(
+                        _vp,
+                        _outlines,
+                        characters=getattr(draft, "characters", []) or [],
+                        min_compliance=_min_comp,
+                    )
+                    sim_result.voice_contracts = {k: v.model_dump() for k, v in _vcs.items()}
+                    _log(f"[VOICE] Built {len(_vcs)} voice contracts")
+            except Exception as _ve:
+                logger.warning(f"build_voice_contracts failed (non-fatal): {_ve}")
 
         total_chapters = len(draft.chapters)
         max_workers = ConfigManager().llm.max_parallel_workers

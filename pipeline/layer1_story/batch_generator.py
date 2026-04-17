@@ -60,6 +60,58 @@ class FrozenContext:
         self.chapter_texts = list(all_chapter_texts)
 
 
+def _index_chapter_into_rag(
+    config,
+    chapter: Chapter,
+    outline: ChapterOutline,
+    characters: list,
+    open_threads: list | None,
+) -> int:
+    """Post-write hook: push chapter chunks into the shared RAG singleton.
+
+    Gated by rag_enabled AND rag_index_chapters flags. Silent no-op if RAG
+    unavailable (never blocks pipeline). Returns chunks added (for analytics).
+    """
+    if not getattr(config.pipeline, "rag_enabled", False):
+        return 0
+    if not getattr(config.pipeline, "rag_index_chapters", False):
+        return 0
+    try:
+        import time as _time
+        from pipeline.layer1_story.context_helpers import get_rag_kb
+        from services.trace_context import get_module, set_module, get_trace
+        kb = get_rag_kb(config.pipeline.rag_persist_dir)
+        if kb is None or not getattr(kb, "is_available", False):
+            return 0
+        _prev = get_module()
+        set_module("rag_index")
+        try:
+            chars = [getattr(c, "name", "") for c in (characters or []) if getattr(c, "name", "")]
+            threads = [
+                (getattr(t, "thread_id", None) or getattr(t, "title", ""))
+                for t in (open_threads or [])
+                if (getattr(t, "thread_id", None) or getattr(t, "title", ""))
+            ]
+            _t0 = _time.perf_counter()
+            chunks_added = kb.index_chapter(
+                chapter_number=chapter.chapter_number,
+                content=chapter.content,
+                characters=chars,
+                threads=threads,
+                summary=getattr(outline, "summary", "") or "",
+            )
+            _dur_ms = (_time.perf_counter() - _t0) * 1000.0
+            _tr = get_trace()
+            if _tr is not None:
+                _tr.rag_stats.record_index(int(chunks_added or 0), _dur_ms)
+            return chunks_added
+        finally:
+            set_module(_prev or "chapter_writer")
+    except Exception as e:
+        logger.debug(f"RAG index failed for ch{chapter.chapter_number} (non-fatal): {e}")
+        return 0
+
+
 class BatchChapterGenerator:
     """Generate chapters in batches with frozen context snapshots.
 
@@ -193,6 +245,9 @@ class BatchChapterGenerator:
                 for ch in batch_chapters:
                     draft.chapters.append(ch)
 
+                # Context health check (Sprint 1 Task 1)
+                self._check_context_health(story_context, batch_idx, _log)
+
                 if batch_checkpoint_callback:
                     try:
                         batch_checkpoint_callback(batch_idx + 1, len(batches))
@@ -200,6 +255,38 @@ class BatchChapterGenerator:
                         logger.warning("Batch checkpoint callback failed: %s", e)
 
         return list(draft.chapters)
+
+    def _check_context_health(self, story_context, batch_idx: int, _log) -> None:
+        """Monitor extraction_health; halt pipeline when context corruption crosses threshold.
+
+        Halt rule: 3 consecutive chapters each having >=3 failed extractions.
+        That requires ~9+ failures concentrated in recent chapters — well above
+        transient LLM noise, so won't false-positive on single rate-limit blips.
+        """
+        score = story_context.compute_health_score(lookback=10)
+        _log(f"[HEALTH] batch {batch_idx + 1} health={score:.0%}")
+
+        if score < 0.7:
+            _log(
+                f"[HEALTH] ⚠️ Context health {score:.0%} < 70% — recent extractions "
+                f"failing frequently, subsequent chapters may build on stale state"
+            )
+
+        # Circuit breaker: 3 consecutive recent chapters w/ >=3 failures each
+        recent_chapters = sorted({e.chapter_number for e in story_context.extraction_health[-60:]})[-3:]
+        if len(recent_chapters) < 3:
+            return
+        bad_chapters = sum(
+            1 for ch in recent_chapters
+            if len(story_context.failed_extractions_in_last_chapter(ch)) >= 3
+        )
+        if bad_chapters >= 3:
+            raise RuntimeError(
+                f"Context corruption detected: 3 consecutive chapters ({recent_chapters}) "
+                f"with >=3 extraction failures each. Health score: {score:.0%}. "
+                f"Pipeline halted to prevent building on corrupted state. "
+                f"Check LLM connectivity / rate limits / API key."
+            )
 
     def _split_batches(self, outlines: list[ChapterOutline]) -> list[list[ChapterOutline]]:
         """Split outlines into batches of configured size."""
@@ -241,6 +328,12 @@ class BatchChapterGenerator:
 
         for outline in batch:
             story_context.current_chapter = outline.chapter_number
+            try:
+                from services.trace_context import set_chapter, set_module
+                set_chapter(outline.chapter_number)
+                set_module("chapter_writer")
+            except Exception:
+                pass
 
             bible_ctx = ""
             if draft.story_bible:
@@ -528,6 +621,12 @@ class BatchChapterGenerator:
             chapters.append(chapter)
             all_chapter_texts.append(chapter.content)
 
+            # Sprint 2 Task 1: auto-index chapter into semantic RAG
+            _index_chapter_into_rag(
+                self.config, chapter, outline, characters,
+                list(story_context.open_threads) if story_context else None,
+            )
+
             if progress_callback:
                 progress_callback(
                     f"Đang trích xuất context chương {outline.chapter_number}..."
@@ -805,6 +904,16 @@ class BatchChapterGenerator:
             if contract:
                 contracts[chapter.chapter_number] = contract
 
+        # Sprint 2 Task 1: serial-index post-gather to avoid ChromaDB write contention
+        for ch in chapters:
+            outline_for_ch = next((o for o in batch if o.chapter_number == ch.chapter_number), None)
+            if outline_for_ch is None:
+                continue
+            _index_chapter_into_rag(
+                self.config, ch, outline_for_ch, characters,
+                list(frozen_threads) if frozen_threads else None,
+            )
+
         # Contract validation with retry (#2 improvement)
         if contracts and getattr(self.config.pipeline, "enable_contract_validation", False):
             chapters = await self._validate_and_retry_async(
@@ -959,6 +1068,12 @@ class BatchChapterGenerator:
         override_contract=None,
     ) -> tuple[Chapter, dict | None]:
         """Write a single chapter for parallel execution. Returns (chapter, contract)."""
+        try:
+            from services.trace_context import set_chapter, set_module
+            set_chapter(outline.chapter_number)
+            set_module("chapter_writer")
+        except Exception:
+            pass
         bible_ctx = ""
         if draft.story_bible:
             bible_ctx = self.gen.bible_manager.get_context_for_chapter(
