@@ -1,5 +1,8 @@
 """Native Anthropic provider."""
+import logging
 from typing import Iterator
+
+logger = logging.getLogger(__name__)
 
 
 class AnthropicProvider:
@@ -13,6 +16,7 @@ class AnthropicProvider:
                 kwargs["base_url"] = base_url
             self.client = Anthropic(**kwargs)
             self._base_url = base_url
+            self._api_key = api_key
         except ImportError:
             raise ImportError(
                 "Anthropic SDK not installed. Run: pip install anthropic"
@@ -21,6 +25,22 @@ class AnthropicProvider:
     @property
     def base_url(self):
         return self._base_url
+
+    def _extract_rate_limits(self, response) -> None:
+        """Extract rate limit headers from response."""
+        try:
+            # Anthropic SDK exposes headers via response._request_id or raw response
+            raw_response = getattr(response, "_response", None)
+            if not raw_response:
+                return
+            headers = dict(raw_response.headers) if hasattr(raw_response, "headers") else {}
+            if not headers:
+                return
+            from services.llm.provider_status import get_provider_status_manager
+            mgr = get_provider_status_manager()
+            mgr.extract_rate_limits("anthropic", self._api_key, headers)
+        except Exception as e:
+            logger.debug(f"Rate limit extraction failed: {e}")
 
     def _split_messages(self, messages: list[dict]) -> tuple[str, list[dict]]:
         """Extract system prompt and filter to user/assistant messages."""
@@ -45,6 +65,7 @@ class AnthropicProvider:
         if system_msg:
             kwargs["system"] = system_msg
         response = self.client.messages.create(**kwargs)
+        self._extract_rate_limits(response)
         content = response.content[0].text
         if not content or not content.strip():
             raise RuntimeError(f"LLM returned empty content (model={model})")
