@@ -69,19 +69,33 @@ Hầu hết công cụ viết AI tạo ra những câu chuyện phẳng, dễ đ
 ### Layer 1 — Chất Lượng Tạo Truyện
 - **Hợp đồng chương** — yêu cầu từng chương với xác thực và lan truyền lỗi
 - **Mốc cung nhân vật** — cột mốc cung nhân vật với xác thực
+- **Bộ nhớ vòng cung nhân vật** — cache trạng thái cung nhân vật để truy xuất nhanh xuyên chương
 - **Chèn hội thoại** — chèn hội thoại tự nhiên và xác thực giọng nhất quán
 - **Hệ thống ngữ cảnh phân tầng** — quản lý ngữ cảnh 4 cấp ưu tiên cho truyện dài (đầy đủ/tóm tắt/điểm chính/tối thiểu)
 - **Liên kết tường thuật** — phụ thuộc tuyến, báo trước ngữ nghĩa, theo dõi leo thang xung đột
 - **Vòng phản hồi** — sửa nhịp điệu, xác thực địa điểm, phê bình chọn lọc
+- **Kiểm soát nhịp độ** — điều chỉnh tốc độ kể chuyện và phân bổ sự kiện giữa các chương
+- **Tự phê bình** — tự đánh giá và sửa lỗi nội dung trước khi hoàn thành chương
 - **Bộ nhớ cảm xúc** — theo dõi trạng thái cảm xúc nhân vật xuyên chương
 - **Đồ thị nhân quả** — theo dõi quan hệ nhân-quả để đảm bảo tính nhất quán cốt truyện
 
 ### Layer 2 — Chất Lượng Mô Phỏng Kịch Tính
 - **Cổng hợp đồng** — xác thực từng chương với viết lại một lần khi thất bại
+- **Xử lý song song** — mô phỏng nhiều tác nhân đồng thời để tăng tốc độ
+- **Kiểm tra trước tính nhất quán** — xác thực nội dung trước khi chạy mô phỏng đầy đủ
+- **Ràng buộc kiến thức** — giới hạn kiến thức tác nhân theo ngữ cảnh câu chuyện
 - **Độ khẩn tuyến** — theo dõi áp lực tâm lý được nối vào hành vi tác nhân
 - **Trách nhiệm nhân quả** — sự kiện tiết lộ, lan truyền chứng nhân, trail kiểm toán LLM
 - **Ngữ cảnh tri thức** — prompt tác nhân được làm giàu với định dạng chuỗi nhân quả
 - **Tín hiệu chất lượng không chi phí** — phát hiện tuyến cũ, hook chương, theo dõi cung cảm xúc
+
+### L3 Đánh Bóng Giác Quan (tùy chọn)
+- **Làm giàu giác quan** — bổ sung chi tiết thị giác, thính giác, xúc giác cho cảnh
+- **Hậu xử lý nâng cao** — đánh bóng văn phong sau khi hoàn thành Layer 2
+
+### Mô Phỏng Độc Giả
+- **Phản hồi chất lượng** — mô phỏng phản ứng độc giả để đánh giá tác động truyện
+- **Phân tích trải nghiệm đọc** — đo lường sự hấp dẫn và điểm yếu từ góc nhìn người đọc
 
 ### Đọc Nhánh Tương Tác
 - **Chọn-hướng-phiêu-lưu** — các nhánh sinh bởi LLM với streaming SSE thời gian thực và hiệu ứng text sống động

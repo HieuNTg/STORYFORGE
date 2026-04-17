@@ -7,6 +7,77 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **Phase E: Contract Gate** — Validate enhanced chapters against `ChapterContract` (Phase 1 constraints); auto-rewrite if ≥2 critical failures or (≥1 critical + ≥2 warnings); integrated post-causal-audit; feature-flagged `config.pipeline.l2_contract_gate` (default True)
+
+### Removed
+- Layer 3 video storyboarding pipeline
+- TTS/voice narration (edge-tts)
+- Audio player component
+- Video composer and exporter
+
+### Changed
+- Thread-safe SSE streaming (RLock + snapshot pattern)
+- 98 RBAC + rate limiter middleware tests
+- Graceful pipeline shutdown handler
+- Form label accessibility (16 inputs)
+- PostgreSQL streaming replication standby
+- Redis Sentinel failover configuration
+- Real staging deployment in CI
+
+### Changed
+- Pipeline is now 2-layer: Story Generation → Drama Simulation
+- Image generation focuses on character consistency + scene backgrounds
+- Dependency pins relaxed to allow patch updates
+- Dashboard uses production CSS build instead of Tailwind CDN
+- CI security scanning now blocks pipeline on CVE findings
+
+---
+
+## [1.1.0] — 2026-04-17
+
+### Added
+
+**L1 Improvements**
+- **NarrativeContextBlock** — unified prompt context for consistent chapter generation
+- **Self-critique with rollback** — automatic rollback on score regression
+- **Per-character arc memory cache** — improved character consistency across chapters
+- **Consistency block-and-rewrite thresholds** — configurable quality gates
+- **Pacing enforcement** — LLM classification for scene pacing (`pacing_enforcer.py`)
+
+**L2 Improvements**
+- **Parallel feedback rewrite** — `asyncio.gather` for concurrent chapter processing
+- **Knowledge constraints** — prevent hallucination with grounded context
+- **Inline contract/voice validation** — real-time validation during enhancement
+- **Agent chain-of-thought reasoning** — improved multi-agent debate quality
+- **Per-chapter drama intensity** — adaptive drama based on `pacing_type`
+- **Coherence pre-check block-and-inject** — catch inconsistencies before enhancement
+
+**Pipeline Features**
+- **Per-chapter L2 retry** — exponential backoff on transient failures
+- **L3 sensory polish layer** (opt-in) — prose refinement pass
+- **Reader simulator agent** (opt-in) — engagement prediction
+- **Incremental chapter streaming callback** — real-time chapter delivery
+
+**New Config Flags**
+- `l2_chapter_retry_max`, `l2_chapter_retry_backoff` — retry configuration
+- `enable_sensory_polish`, `sensory_polish_model` — L3 polish layer
+- `enable_reader_simulation`, `reader_engagement_threshold` — reader simulation
+- `enable_incremental_publish` — streaming chapter output
+- `chapter_critique_every_n_chapters`, `chapter_critique_rollback` — critique controls
+- `enable_pacing_enforcement`, `pacing_enforcement_confidence` — pacing enforcement
+
+**New Files**
+- `pipeline/layer1_story/pacing_enforcer.py`
+- `pipeline/layer1_story/narrative_context_block.py`
+- `pipeline/layer2_enhance/sensory_polish.py`
+- `pipeline/agents/reader_simulator.py`
+
+---
+
 ## [1.0.0] — 2026-04-02
 
 ### Added
@@ -88,34 +159,5 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Backup, restore, and rollback scripts
 - Locust load tests and pytest benchmark suite
 
----
-
-## [Unreleased]
-
-### Added
-
-- **Phase E: Contract Gate** — Validate enhanced chapters against `ChapterContract` (Phase 1 constraints); auto-rewrite if ≥2 critical failures or (≥1 critical + ≥2 warnings); integrated post-causal-audit; feature-flagged `config.pipeline.l2_contract_gate` (default True)
-
-### Removed
-- Layer 3 video storyboarding pipeline
-- TTS/voice narration (edge-tts)
-- Audio player component
-- Video composer and exporter
-
-### Changed
-- Thread-safe SSE streaming (RLock + snapshot pattern)
-- 98 RBAC + rate limiter middleware tests
-- Graceful pipeline shutdown handler
-- Form label accessibility (16 inputs)
-- PostgreSQL streaming replication standby
-- Redis Sentinel failover configuration
-- Real staging deployment in CI
-
-### Changed
-- Pipeline is now 2-layer: Story Generation → Drama Simulation
-- Image generation focuses on character consistency + scene backgrounds
-- Dependency pins relaxed to allow patch updates
-- Dashboard uses production CSS build instead of Tailwind CDN
-- CI security scanning now blocks pipeline on CVE findings
-
+[1.1.0]: https://github.com/your-org/storyforge/releases/tag/v1.1.0
 [1.0.0]: https://github.com/your-org/storyforge/releases/tag/v1.0.0

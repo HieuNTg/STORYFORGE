@@ -2,7 +2,7 @@
 
 ## Overview
 
-StoryForge is a 2-layer AI story generation pipeline with a FastAPI backend, Alpine.js frontend, and production-ready monitoring stack.
+StoryForge is a 3-layer AI story generation pipeline with a FastAPI backend, Alpine.js frontend, and production-ready monitoring stack.
 
 ```
 User Input
@@ -10,6 +10,8 @@ User Input
 ┌─────────────────────────────────────┐
 │   Layer 1: Story Generation         │
 │   (Characters, World, Chapters)     │
+│   + NarrativeContextBlock           │
+│   + Pacing Enforcer + Self-Critique │
 └────────────┬────────────────────────┘
              ↓
 ┌─────────────────────────────────────┐
@@ -17,6 +19,12 @@ User Input
 │   (13 AI Agents, Conflict Analysis) │
 │   + Phase B: Causal Accountability  │
 │   (Knowledge Graph, Revelation Audit)│
+│   + Parallel Feedback Rewrite       │
+└────────────┬────────────────────────┘
+             ↓
+┌─────────────────────────────────────┐
+│   Layer 3: Sensory Polish (Optional)│
+│   (Prose refinement, imagery, flow) │
 └────────────┬────────────────────────┘
              ↓
 ┌─────────────────────────────────────┐
@@ -140,12 +148,14 @@ Layer 1 generates story structure in stages:
    ├─ Outline critique + revision loop
    ├─ Scene decomposition
    ├─ Character voice profiling
-   └─ Theme premise anchoring
+   ├─ Theme premise anchoring
+   └─ Arc progression cache (waypoint tracking)
    ↓
 3. Chapter Writing (per-chapter)
-   ├─ Format context (story bible or rolling summaries)
+   ├─ NarrativeContextBlock assembly (unified context)
+   ├─ Pacing enforcer validation
    ├─ Call LLM with adaptive prompt
-   ├─ Optional self-review & revision
+   ├─ Self-critique with rollback (quality gate)
    ├─ Extract: summary, character states, plot events
    ├─ Consistency validation (zero-cost heuristics)
    ├─ Story bible update (timeline, locations, threads)
@@ -161,6 +171,10 @@ Layer 1 generates story structure in stages:
 - `generator.py` — Main orchestrator, calls batch_generator or story_continuation
 - `batch_generator.py` — Parallel chapter generation with quality gates
 - `chapter_writer.py` — Chapter text generation with context formatting
+- `narrative_context_block.py` — Unified context assembly for LLM prompts
+- `pacing_enforcer.py` — Pacing validation and enforcement
+- `chapter_self_critique.py` — Self-critique with rollback on quality regression
+- `arc_waypoint_generator.py` — Arc progression cache and waypoint tracking
 - `consistency_validators.py` — Non-fatal post-write validation (timeline, names, arc drift)
 - `story_bible_manager.py` — Long-term memory for 100+ chapter stories
 - `post_processing.py` — Summary, state, event extraction + context updates
@@ -173,6 +187,12 @@ Layer 1 generates story structure in stages:
 - Scene decomposition (pacing control)
 - Show-don't-tell enforcement (narrative quality)
 - Chapter self-critique (consistency review)
+
+**Quality Enhancements** (Phase 2):
+- NarrativeContextBlock for unified context assembly
+- Pacing enforcer module for rhythm validation
+- Self-critique with rollback on quality regression
+- Arc progression cache for waypoint tracking
 
 ## Core Services Architecture
 
@@ -194,11 +214,15 @@ services/               → Business logic
   ├── browser_auth/         → DEPRECATED in v3.x, removed in v4.0
   └── deepseek_web_client.py → DEPRECATED in v3.x, removed in v4.0
 
-pipeline/               → 2-layer generation engine
+pipeline/               → 3-layer generation engine
   ├── orchestrator.py       → Checkpoint & resume logic
   ├── layer1_story/         → Story generation agents
   ├── layer2_enhance/       → Drama simulation (13 agents)
+  ├── layer3_polish/        → Optional sensory polish (L3)
   └── agents/               → Stateless AI agent implementations
+                            ├─ Character agents (voice-aware)
+                            ├─ Conflict agents (escalation)
+                            └─ Reader Simulator (engagement prediction)
 
 middleware/             → Cross-cutting concerns
   ├── auth.py               → JWT token validation
@@ -328,6 +352,62 @@ Story Bible is now mandatory (no opt-out):
 - "slow_down" → DRAMA_TARGET = 0.55 (subdued conflict)
 - "escalate" → DRAMA_TARGET = 0.75 (heightened drama)
 - "" (default) → DRAMA_TARGET = 0.65 (standard)
+
+### 5. L2 Quality Enhancements
+
+**Parallel Feedback Rewrite**:
+- Multiple agent feedback streams processed concurrently
+- Reduces latency by parallelizing enhancement suggestions
+- Aggregates feedback before final rewrite pass
+
+**Knowledge Constraints**:
+- Agents operate within character knowledge boundaries
+- Prevents omniscient narrator leakage into character dialogue
+- Cross-references KnowledgeRegistry during enhancement
+
+**Coherence Pre-check**:
+- Validates chapter coherence before enhancement begins
+- Early exit if chapter already meets quality thresholds
+- Reduces unnecessary LLM calls for high-quality L1 output
+
+**Agent Reasoning (CoT)**:
+- Chain-of-thought prompting for agent decisions
+- Explicit reasoning traces for conflict escalation choices
+- Improves drama quality through structured deliberation
+
+## Layer 3: Sensory Polish (Optional)
+
+L3 is an optional post-L2 layer for prose refinement:
+
+```
+L2 Enhanced Chapter
+    ↓
+┌─────────────────────────────────────┐
+│   L3: Sensory Polish                │
+│   (Optional, gated by feature flag) │
+└────────────┬────────────────────────┘
+    ↓
+[Prose Refinement]
+    ├─ Sensory detail injection (sight, sound, smell, touch, taste)
+    ├─ Rhythm and flow optimization
+    ├─ Imagery enhancement
+    └─ Sentence variety analysis
+    ↓
+[Quality Validation]
+    ├─ Word count preservation check
+    ├─ Voice consistency validation
+    └─ Semantic drift detection
+    ↓
+Polished Chapter
+```
+
+**Feature Flag**: `config.pipeline.enable_l3_sensory_polish` (default: False)
+
+**Key Characteristics**:
+- Non-destructive: preserves L2 drama and L1 plot structure
+- Focused on prose quality, not content changes
+- Minimal LLM cost (single refinement pass)
+- Optional bypass for genre/style preferences
 
 ## P3 Sprint Architecture Changes
 

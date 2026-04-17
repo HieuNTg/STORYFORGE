@@ -50,7 +50,9 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 
 ### Story Engine
 - **2-layer pipeline** — Story Generation → Drama Simulation, with checkpoint & resume and real-time SSE streaming
-- **13 specialized AI agents** — autonomous character agents plus a drama critic, editor-in-chief, pacing analyzer, style consistency checker, dialogue expert, and more
+- **L3 Sensory Polish** — optional post-enhancement layer for vivid sensory details and immersive prose
+- **14 specialized AI agents** — autonomous character agents plus a drama critic, editor-in-chief, pacing analyzer, style consistency checker, dialogue expert, reader simulator, and more
+- **Reader Simulator agent** — simulates reader reactions to provide quality feedback before finalization
 - **Quality scoring & auto-revision** — 6-dimension LLM-as-judge (coherence, character, drama, writing style, thematic depth, dialogue quality) with an automated re-enhancement loop
 - **Cumulative story memory** — character knowledge, relationships, and plot threads accumulate across chapters instead of resetting, ensuring multi-chapter continuity
 - **RAG knowledge base** — optional world-building context retrieval via ChromaDB + sentence-transformers; upload `.txt`, `.md`, or `.pdf` reference files to enrich story generation
@@ -69,15 +71,21 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 ### Layer 1 — Story Generation Quality
 - **Chapter contracts** — per-chapter requirements with validation and failure propagation
 - **Arc waypoints** — character arc milestones with validation
+- **Arc memory cache** — persistent cache for arc state across generation runs
 - **Dialogue injection** — natural dialogue insertion and voice consistency validation
 - **Tiered context system** — 4-level priority context management for long stories (full/summary/key-points/minimal)
 - **Narrative linking** — thread dependencies, semantic foreshadowing, conflict escalation tracking
+- **Pacing enforcement** — automatic pacing analysis with corrective rewriting
+- **Self-critique with rollback** — LLM self-evaluation with automatic rollback on quality failure
 - **Feedback loops** — pacing correction, location validation, selective critique
 - **Emotional memory** — character emotional state tracking across chapters
 - **Causal graph** — cause-effect relationship tracking for plot consistency
 
 ### Layer 2 — Drama Simulation Quality
 - **Contract gate** — per-chapter validation with single-retry rewrite on failure
+- **Parallel processing** — concurrent chapter enhancement for faster throughput
+- **Coherence pre-check** — validates consistency before enhancement begins
+- **Knowledge constraints** — agent prompts bounded by character knowledge graphs
 - **Thread urgency** — psychological pressure tracking wired into agent behavior
 - **Causal accountability** — revelation events, witness propagation, LLM audit trail
 - **Knowledge context** — agent prompts enriched with causal chain formatting

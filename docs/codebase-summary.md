@@ -467,6 +467,50 @@ Layer 2 drama simulator now reads 4 L1 signals for enhanced narrative control. F
 
 **Migration**: Use API key auth (STORYFORGE_API_KEY env var)
 
+## Sprint 4: Pipeline Quality Improvements
+
+### L1 Enhancements
+
+| Feature | Module | Description |
+|---------|--------|-------------|
+| NarrativeContextBlock | `narrative_context_block.py` | Unified prompt context (contract + scenes + arcs) |
+| Pacing Enforcement | `pacing_enforcer.py` | LLM classification + rewrite on mismatch |
+| Self-Critique Rollback | `chapter_self_critique.py` | Revert if rewrite regresses score |
+| Arc Memory Cache | `arc_waypoint_generator.py` | Per-character arc progression tracking |
+| Consistency Rewrite | `chapter_writer.py` | Block-and-rewrite on threshold violations |
+
+**New Config Flags**: `chapter_critique_every_n_chapters`, `chapter_critique_rollback`, `enable_pacing_enforcement`, `pacing_enforcement_confidence`
+
+### L2 Enhancements
+
+| Feature | Location | Description |
+|---------|----------|-------------|
+| Parallel Feedback | `enhancer.py` | asyncio.gather for weak chapter rewrites |
+| Knowledge Constraints | `_build_knowledge_constraints()` | Prevent hallucinating facts characters don't know |
+| Coherence Pre-check | `_precheck_coherence()` | Inject constraints before enhancement |
+| Agent Reasoning | `simulator.py` | Chain-of-thought in agent prompts |
+| Per-chapter Drama | `scene_enhancer.py` | Drama targets based on pacing_type |
+| Chapter Retry | `enhancer.py` | Exponential backoff on failure |
+
+**New Config Flags**: `l2_chapter_retry_max`, `l2_chapter_retry_backoff`
+
+### Post-Enhancement Features
+
+| Feature | Module | Description |
+|---------|--------|-------------|
+| L3 Sensory Polish | `sensory_polish.py` | Add sensory details to prose (opt-in) |
+| Reader Simulator | `reader_simulator.py` | Engagement scoring per chapter (opt-in) |
+| Incremental Publish | `chapter_done_callback` | Stream chapters as enhanced |
+
+**New Config Flags**: `enable_sensory_polish`, `enable_reader_simulation`, `enable_incremental_publish`
+
+### New Files (Sprint 4)
+
+- `pipeline/layer1_story/pacing_enforcer.py` — Pacing classification & rewrite
+- `pipeline/layer1_story/narrative_context_block.py` — Unified context builder
+- `pipeline/layer2_enhance/sensory_polish.py` — L3 sensory enhancement
+- `pipeline/agents/reader_simulator.py` — Reader experience simulation
+
 ## Key Files to Know
 
 | File | LOC | Purpose |
