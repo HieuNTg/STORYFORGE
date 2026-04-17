@@ -60,6 +60,205 @@ class FrozenContext:
         self.chapter_texts = list(all_chapter_texts)
 
 
+def _rewrite_for_consistency_violations(
+    pipeline_config,
+    llm,
+    chapter: Chapter,
+    outline: ChapterOutline,
+    story_context: StoryContext,
+    layer_model: str | None,
+    progress_callback: Callable | None = None,
+) -> None:
+    """L1-D: Rewrite chapter when consistency validators flagged violations above threshold.
+
+    Reads name_warnings / arc_drift_warnings from story_context + location warnings
+    stashed on story_context.world_rule_violations. Mutates chapter.content in place.
+    """
+    if not getattr(pipeline_config, "enable_consistency_rewrite", False):
+        return
+
+    name_threshold = int(getattr(pipeline_config, "consistency_name_warning_threshold", 3))
+    arc_threshold = int(getattr(pipeline_config, "consistency_arc_drift_threshold", 2))
+    loc_threshold = int(getattr(pipeline_config, "consistency_location_warning_threshold", 2))
+
+    issues: list[str] = []
+    name_warnings = list(story_context.name_warnings or [])
+    arc_warnings = list(story_context.arc_drift_warnings or [])
+    # Location warnings may live in world_rule_violations — filter by prefix
+    loc_warnings = [w for w in (story_context.world_rule_violations or []) if w.startswith("[VỊ TRÍ]")]
+
+    trigger = (
+        len(name_warnings) >= name_threshold
+        or len(arc_warnings) >= arc_threshold
+        or len(loc_warnings) >= loc_threshold
+    )
+    if not trigger:
+        return
+
+    issues.extend(name_warnings)
+    issues.extend(arc_warnings)
+    issues.extend(loc_warnings)
+
+    try:
+        from pipeline.layer1_story.chapter_self_critique import rewrite_for_consistency
+        from models.schemas import count_words
+
+        if progress_callback:
+            progress_callback(
+                f"Ch{outline.chapter_number}: viết lại để sửa {len(issues)} lỗi nhất quán..."
+            )
+        revised = rewrite_for_consistency(llm, chapter.content, issues, model=layer_model)
+        if not revised or revised == chapter.content:
+            return
+        chapter.content = revised
+        chapter.word_count = count_words(revised)
+        # Clear warnings — they were based on the now-discarded content.
+        # Keep loc_warnings from world_rule_violations untouched (may include non-location rules)
+        story_context.name_warnings = []
+        story_context.arc_drift_warnings = []
+        if loc_warnings:
+            story_context.world_rule_violations = [
+                w for w in story_context.world_rule_violations if not w.startswith("[VỊ TRÍ]")
+            ]
+        if progress_callback:
+            progress_callback(f"Ch{outline.chapter_number}: đã viết lại (consistency)")
+    except Exception as e:
+        logger.warning(
+            "Consistency rewrite failed for ch%d (non-fatal): %s",
+            outline.chapter_number, e,
+        )
+
+
+def _enforce_pacing(
+    pipeline_config,
+    llm,
+    chapter: Chapter,
+    outline: ChapterOutline,
+    layer_model: str | None,
+    progress_callback: Callable | None = None,
+) -> None:
+    """L1-F: Classify chapter pacing; if confident mismatch, rewrite.
+
+    Mutates chapter.content/word_count in place. Non-fatal.
+    """
+    if not getattr(pipeline_config, "enable_pacing_enforcement", False):
+        return
+    target = (getattr(outline, "pacing_type", "") or "").strip().lower()
+    if not target:
+        return
+    try:
+        from pipeline.layer1_story.pacing_enforcer import verify_pacing, rewrite_for_pacing
+        from models.schemas import count_words
+
+        verdict = verify_pacing(llm, chapter.content, target, model=layer_model)
+        if not verdict or verdict.get("match", True):
+            return
+        conf_threshold = float(getattr(pipeline_config, "pacing_enforcement_confidence", 0.7))
+        if float(verdict.get("confidence", 0.0)) < conf_threshold:
+            logger.debug(
+                "Ch%d pacing mismatch under threshold (target=%s, detected=%s, conf=%.2f)",
+                outline.chapter_number, target, verdict.get("detected"), verdict.get("confidence", 0.0),
+            )
+            return
+        if not getattr(pipeline_config, "pacing_mismatch_rewrite", False):
+            if progress_callback:
+                progress_callback(
+                    f"⚠️ Ch{outline.chapter_number} pacing lệch "
+                    f"(muốn {target}, thực {verdict.get('detected')}) — không rewrite"
+                )
+            return
+        if progress_callback:
+            progress_callback(
+                f"Ch{outline.chapter_number}: viết lại cho khớp nhịp '{target}'..."
+            )
+        revised = rewrite_for_pacing(
+            llm, chapter.content, target,
+            verdict.get("detected", ""), verdict.get("reason", ""),
+            model=layer_model,
+        )
+        if revised and revised != chapter.content:
+            chapter.content = revised
+            chapter.word_count = count_words(revised)
+            if progress_callback:
+                progress_callback(f"Ch{outline.chapter_number}: đã viết lại (pacing)")
+    except Exception as e:
+        logger.warning(
+            "Pacing enforcement failed for ch%d (non-fatal): %s",
+            outline.chapter_number, e,
+        )
+
+
+def _verify_and_rewrite_missing_payoffs(
+    pipeline_config,
+    llm,
+    chapter: Chapter,
+    outline: ChapterOutline,
+    story_context: StoryContext,
+    foreshadowing_plan: list | None,
+    layer_model: str | None,
+    progress_callback: Callable | None = None,
+) -> None:
+    """L1-E: Targeted rewrite when post_processing flagged missing payoffs.
+
+    Mutates chapter.content + story_context.foreshadowing_payoff_missing in place.
+    Gated by pipeline_config.foreshadowing_payoff_rewrite_on_miss.
+    """
+    if not getattr(pipeline_config, "foreshadowing_payoff_rewrite_on_miss", False):
+        return
+    if not story_context.foreshadowing_payoff_missing:
+        return
+
+    try:
+        from pipeline.layer1_story.chapter_self_critique import rewrite_for_missing_payoffs
+        from pipeline.layer1_story.foreshadowing_manager import (
+            get_payoffs_due, verify_payoffs_semantic,
+        )
+        from models.schemas import count_words
+
+        missing = list(story_context.foreshadowing_payoff_missing)
+        if progress_callback:
+            progress_callback(
+                f"Ch{outline.chapter_number}: viết lại để thực hiện {len(missing)} payoff..."
+            )
+        revised = rewrite_for_missing_payoffs(
+            llm, chapter.content, missing, model=layer_model,
+        )
+        if not revised or revised == chapter.content:
+            return
+
+        chapter.content = revised
+        chapter.word_count = count_words(revised)
+
+        # Re-verify against rewritten content
+        due_after = get_payoffs_due(foreshadowing_plan or [], outline.chapter_number)
+        if due_after:
+            verify_payoffs_semantic(
+                llm, chapter.content, due_after,
+                model=layer_model,
+                threshold=float(getattr(pipeline_config, "semantic_foreshadowing_threshold", 0.7)),
+            )
+            still_missing = [p for p in due_after if not p.paid_off]
+            story_context.foreshadowing_payoff_missing = [
+                {
+                    "hint": p.hint,
+                    "confidence": p.planted_confidence or 0.0,
+                    "payoff_chapter": p.payoff_chapter,
+                    "plant_chapter": p.plant_chapter,
+                }
+                for p in still_missing
+            ]
+            if still_missing and progress_callback:
+                progress_callback(
+                    f"⚠️ Ch{outline.chapter_number}: {len(still_missing)} payoff "
+                    f"vẫn chưa đạt ngưỡng sau rewrite"
+                )
+    except Exception as e:
+        logger.warning(
+            "Payoff rewrite failed for ch%d (non-fatal): %s",
+            outline.chapter_number, e,
+        )
+
+
 def _index_chapter_into_rag(
     config,
     chapter: Chapter,
@@ -637,24 +836,59 @@ class BatchChapterGenerator:
                 try:
                     from pipeline.layer1_story.chapter_self_critique import (
                         critique_chapter, rewrite_weak_sections, should_critique,
+                        aggregate_critique_score,
                     )
+                    every_n = int(getattr(self.config.pipeline, "chapter_critique_every_n_chapters", 0) or 0)
                     if should_critique(outline.chapter_number, story_context.total_chapters,
-                                       macro_arcs=macro_arcs, pacing_type=pacing):
+                                       macro_arcs=macro_arcs, pacing_type=pacing,
+                                       every_n_chapters=every_n):
                         outline_text = f"{outline.title}: {outline.summary}"
                         crit = critique_chapter(
                             self.llm, chapter.content, outline_text,
                             characters, genre, pacing, model=self.gen._layer_model,
                         )
                         if crit:
+                            original_content = chapter.content
+                            score_before = aggregate_critique_score(crit)
                             revised = rewrite_weak_sections(
                                 self.llm, chapter.content, crit,
                                 model=self.gen._layer_model,
                             )
-                            if revised != chapter.content:
+                            if revised != original_content:
                                 from models.schemas import count_words
                                 chapter.content = revised
                                 chapter.word_count = count_words(revised)
-                                if progress_callback:
+                                # L1-B rollback: re-score revised; revert if aggregate drops.
+                                if getattr(self.config.pipeline, "chapter_critique_rollback", False):
+                                    try:
+                                        crit_after = critique_chapter(
+                                            self.llm, revised, outline_text,
+                                            characters, genre, pacing, model=self.gen._layer_model,
+                                        )
+                                        score_after = aggregate_critique_score(crit_after) if crit_after else score_before
+                                        threshold = float(getattr(
+                                            self.config.pipeline, "chapter_critique_rollback_threshold", 0.3
+                                        ))
+                                        if score_after + threshold < score_before:
+                                            chapter.content = original_content
+                                            chapter.word_count = count_words(original_content)
+                                            if progress_callback:
+                                                progress_callback(
+                                                    f"⚠️ Ch{outline.chapter_number} rollback self-critique "
+                                                    f"({score_before:.2f} → {score_after:.2f})"
+                                                )
+                                            logger.info(
+                                                "Ch%d critique rollback: %.2f → %.2f",
+                                                outline.chapter_number, score_before, score_after,
+                                            )
+                                        elif progress_callback:
+                                            progress_callback(
+                                                f"Chương {outline.chapter_number} cải thiện "
+                                                f"({score_before:.2f} → {score_after:.2f})"
+                                            )
+                                    except Exception as e:
+                                        logger.debug("Rollback rescore failed (keeping revised): %s", e)
+                                elif progress_callback:
                                     progress_callback(f"Chương {outline.chapter_number} đã cải thiện qua self-critique")
                 except Exception as e:
                     logger.warning("Chapter self-critique failed for ch%d (non-fatal): %s", outline.chapter_number, e)
@@ -669,6 +903,22 @@ class BatchChapterGenerator:
                 world_rules=getattr(draft.world, 'rules', None) or [],
                 voice_profiles=getattr(draft, 'voice_profiles', None) or [],
                 pipeline_config=self.config.pipeline,
+            )
+
+            _verify_and_rewrite_missing_payoffs(
+                self.config.pipeline, self.llm, chapter, outline,
+                story_context, foreshadowing_plan,
+                self.gen._layer_model, progress_callback,
+            )
+
+            _rewrite_for_consistency_violations(
+                self.config.pipeline, self.llm, chapter, outline,
+                story_context, self.gen._layer_model, progress_callback,
+            )
+
+            _enforce_pacing(
+                self.config.pipeline, self.llm, chapter, outline,
+                self.gen._layer_model, progress_callback,
             )
 
             # Post-write contract validation with retry (#2 improvement)
@@ -949,6 +1199,21 @@ class BatchChapterGenerator:
                 world_rules=getattr(draft.world, 'rules', None) or [],
                 voice_profiles=getattr(draft, 'voice_profiles', None) or [],
                 pipeline_config=self.config.pipeline,
+            )
+            _verify_and_rewrite_missing_payoffs(
+                self.config.pipeline, self.llm, chapter, outline,
+                story_context, foreshadowing_plan,
+                self.gen._layer_model, progress_callback,
+            )
+
+            _rewrite_for_consistency_violations(
+                self.config.pipeline, self.llm, chapter, outline,
+                story_context, self.gen._layer_model, progress_callback,
+            )
+
+            _enforce_pacing(
+                self.config.pipeline, self.llm, chapter, outline,
+                self.gen._layer_model, progress_callback,
             )
 
         return chapters_ordered
@@ -1403,6 +1668,21 @@ class BatchChapterGenerator:
                 world_rules=getattr(draft.world, 'rules', None) or [],
                 voice_profiles=getattr(draft, 'voice_profiles', None) or [],
                 pipeline_config=self.config.pipeline,
+            )
+            _verify_and_rewrite_missing_payoffs(
+                self.config.pipeline, self.llm, chapter, outline,
+                story_context, foreshadowing_plan,
+                self.gen._layer_model, progress_callback,
+            )
+
+            _rewrite_for_consistency_violations(
+                self.config.pipeline, self.llm, chapter, outline,
+                story_context, self.gen._layer_model, progress_callback,
+            )
+
+            _enforce_pacing(
+                self.config.pipeline, self.llm, chapter, outline,
+                self.gen._layer_model, progress_callback,
             )
 
         return chapters_ordered

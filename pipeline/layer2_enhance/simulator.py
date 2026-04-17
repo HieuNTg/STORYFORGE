@@ -434,13 +434,18 @@ class DramaSimulator:
         c = agent.character
 
         try:
+            # L2-D: Agent reasoning loop — require chain-of-thought before action
             result = self.llm.generate_json(
                 system_prompt=(
                     f"Bạn đang nhập vai {name} trong một mô phỏng tương tác. "
-                    f"Hãy hành động theo tính cách và TÂM TRẠNG hiện tại. "
+                    f"TRƯỚC KHI hành động, hãy suy nghĩ từng bước: "
+                    f"1) Tình huống hiện tại ảnh hưởng đến {name} như thế nào? "
+                    f"2) Mục tiêu và nỗi sợ của {name} đòi hỏi hành động gì? "
+                    f"3) Hành động này có hệ quả gì? "
+                    f"Sau đó hành động theo tính cách và TÂM TRẠNG hiện tại. "
                     f"LUÔN viết nội dung bằng tiếng Việt. "
-                    f"Trả về JSON với: content, action_type, target, sentiment, "
-                    f"new_mood (tâm trạng mới), trust_change (số từ -30 đến +10 cho target)."
+                    f"Trả về JSON với: reasoning (suy nghĩ ngắn 1-2 câu), content, action_type, "
+                    f"target, sentiment, new_mood (tâm trạng mới), trust_change (số từ -30 đến +10 cho target)."
                 ),
                 user_prompt=prompts.AGENT_PERSONA.format(
                     character_name=name,
@@ -460,6 +465,10 @@ class DramaSimulator:
                 temperature=self._intensity.get("temperature", 0.95),
             )
 
+            # Log agent reasoning if present (L2-D)
+            reasoning = result.get("reasoning", "")
+            if reasoning:
+                logger.debug(f"[L2-D] {name} reasoning: {reasoning[:120]}")
             post = AgentPost(
                 agent_name=name,
                 content=result.get("content") or "...",
@@ -471,6 +480,7 @@ class DramaSimulator:
             metadata = {
                 "new_mood": result.get("new_mood", ""),
                 "trust_change": result.get("trust_change", 0),
+                "reasoning": reasoning,
             }
             return post, metadata
         except Exception as e:
@@ -515,9 +525,11 @@ class DramaSimulator:
     def _run_reaction(self, agent: CharacterAgent, triggering_post: AgentPost, round_num: int, context: str) -> AgentPost | None:
         """Generate a reaction from agent to a triggering post."""
         try:
+            # L2-D: Agent reasoning loop for reactions
             result = self.llm.generate_json(
                 system_prompt=(
                     f"Bạn là {agent.character.name}. Phản ứng với hành động của {triggering_post.agent_name}. "
+                    f"TRƯỚC KHI phản ứng, suy nghĩ: hành động này làm bạn cảm thấy thế nào? Bạn nên phản ứng ra sao để bảo vệ lợi ích? "
                     f"Trạng thái: {agent.get_emotional_context()}. LUÔN viết bằng tiếng Việt. Trả về JSON."
                 ),
                 user_prompt=(
@@ -525,10 +537,14 @@ class DramaSimulator:
                     f"{triggering_post.content}\n"
                     f"Tính cách bạn: {agent.character.personality}\n"
                     f"Động lực: {agent.character.motivation}\n"
-                    f"Hãy phản ứng tự nhiên. JSON: content, action_type, sentiment, new_mood, trust_change"
+                    f"Hãy phản ứng tự nhiên. JSON: reasoning (suy nghĩ 1 câu), content, action_type, sentiment, new_mood, trust_change"
                 ),
                 temperature=0.9,
             )
+            # Log reaction reasoning (L2-D)
+            reasoning = result.get("reasoning", "")
+            if reasoning:
+                logger.debug(f"[L2-D] {agent.character.name} reaction reasoning: {reasoning[:120]}")
             new_mood = result.get("new_mood", "")
             if new_mood:
                 agent.emotion.update(new_mood)

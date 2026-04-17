@@ -207,6 +207,50 @@ def process_chapter_post_write(
     except Exception as e:
         logger.debug("Location validation failed (non-fatal): %s", e)
 
+    # L1-E: Post-write foreshadowing payoff verification.
+    # Previously: verify_payoffs_semantic existed but was never called — planted seeds
+    # whose payoff chapter == current chapter could slip through with no check.
+    _verify_payoff_enabled = getattr(pipeline_config, "enable_foreshadowing_payoff_verify", False) \
+        if pipeline_config else False
+    if _verify_payoff_enabled and foreshadowing_plan:
+        try:
+            from pipeline.layer1_story.foreshadowing_manager import (
+                get_payoffs_due, verify_payoffs_semantic,
+            )
+            _threshold = float(getattr(pipeline_config, "semantic_foreshadowing_threshold", 0.7))
+            _due = get_payoffs_due(foreshadowing_plan, outline.chapter_number)
+            if _due:
+                with tracked_extraction(story_context, ch_num, "foreshadowing"):
+                    verify_payoffs_semantic(
+                        llm, chapter.content, _due,
+                        model=None, threshold=_threshold,
+                    )
+                _missing = [p for p in _due if not p.paid_off]
+                if _missing:
+                    story_context.foreshadowing_payoff_missing = [
+                        {
+                            "hint": p.hint,
+                            "confidence": p.planted_confidence or 0.0,
+                            "payoff_chapter": p.payoff_chapter,
+                            "plant_chapter": p.plant_chapter,
+                        }
+                        for p in _missing
+                    ]
+                    logger.warning(
+                        "Ch%d: %d payoff(s) due but not detected: %s",
+                        outline.chapter_number, len(_missing),
+                        [p.hint[:40] for p in _missing],
+                    )
+                    if progress_callback:
+                        progress_callback(
+                            f"⚠️ Ch{outline.chapter_number}: {len(_missing)} payoff chưa được thực hiện"
+                        )
+                else:
+                    # Clear stale missing list when all payoffs detected
+                    story_context.foreshadowing_payoff_missing = []
+        except Exception as e:
+            logger.warning(f"Foreshadowing payoff verification failed (non-fatal): {e}")
+
     # Update Story Bible (always-on)
     if draft.story_bible and bible_manager:
         bible_manager.update_after_chapter(
@@ -357,6 +401,14 @@ def process_chapter_post_write(
                     logger.warning("Ch%d arc: %s", outline.chapter_number, w)
             else:
                 story_context.arc_execution_warnings = []
+            # L1-C: append to per-character arc progression cache
+            try:
+                from pipeline.layer1_story.arc_waypoint_generator import update_arc_progression_cache
+                update_arc_progression_cache(
+                    story_context.arc_progression_cache, arc_results, outline.chapter_number,
+                )
+            except Exception as e:
+                logger.debug("arc_progression_cache update failed (non-fatal): %s", e)
 
     # --- Quality validators (1 cheap LLM call each, non-fatal) ---
 

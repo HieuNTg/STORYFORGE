@@ -585,11 +585,31 @@ class SceneEnhancer:
         min_drama = self.MIN_DRAMA
         curve_directive = ""
 
-        # Apply pacing directive
+        # L2-E: Per-chapter drama intensity based on pacing_type from outline
+        _PACING_DRAMA_TARGETS = {
+            "climax": 0.85, "twist": 0.80, "rising": 0.70, "fast": 0.75,
+            "setup": 0.45, "cooldown": 0.50, "falling": 0.50, "slow": 0.45,
+            "resolution": 0.55, "": 0.60,  # default
+        }
+        try:
+            # Try to get pacing_type from chapter's outline if attached
+            _ch_pacing = ""
+            if hasattr(chapter, "pacing_type"):
+                _ch_pacing = getattr(chapter, "pacing_type", "") or ""
+            if not _ch_pacing and pacing_directive:
+                # pacing_directive is sometimes the pacing_type
+                _ch_pacing = pacing_directive if pacing_directive in _PACING_DRAMA_TARGETS else ""
+            if _ch_pacing in _PACING_DRAMA_TARGETS:
+                min_drama = _PACING_DRAMA_TARGETS[_ch_pacing]
+                logger.debug(f"Ch{chapter.chapter_number}: pacing='{_ch_pacing}' → min_drama={min_drama:.2f}")
+        except Exception:
+            pass
+
+        # Apply pacing directive adjustments (fine-tuning)
         if pacing_directive == "slow_down":
-            min_drama = max(0.3, self.MIN_DRAMA - 0.1)
+            min_drama = max(0.3, min_drama - 0.1)
         elif pacing_directive == "escalate":
-            min_drama = min(0.9, self.MIN_DRAMA + 0.1)
+            min_drama = min(0.9, min_drama + 0.1)
 
         # Apply curve balancer adjustments (#3 improvement)
         if curve_balancer:

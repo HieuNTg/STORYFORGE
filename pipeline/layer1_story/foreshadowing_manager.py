@@ -178,12 +178,25 @@ def verify_payoffs_semantic(
             hint = r.get("hint", "")
             conf = float(r.get("confidence", 0.0))
             payoff = hint_to_payoff.get(hint)
-            if payoff and conf >= threshold:
-                payoff.paid_off = True
+            if payoff:
+                # Store confidence on entry (reuse planted_confidence slot for payoff too)
+                payoff.planted_confidence = max(payoff.planted_confidence or 0.0, conf)
+                if conf >= threshold:
+                    payoff.paid_off = True
+                else:
+                    logger.info(
+                        "Payoff '%s' semantic confidence %.0f%% (below %.0f%% threshold)",
+                        hint[:40], conf * 100, threshold * 100,
+                    )
     except Exception as e:
-        logger.warning("Semantic payoff verification failed, falling back: %s", e)
+        # Bug fix: previously blindly marked all as paid_off on LLM failure.
+        # Fall back to keyword check so unpaid stays unpaid.
+        logger.warning("Semantic payoff verification failed, keyword fallback: %s", e)
         for p in payoffs:
-            p.paid_off = True
+            _keyword_check(p, chapter_content)
+            # _keyword_check sets .planted; copy to .paid_off when matched
+            if p.planted_confidence and p.planted_confidence >= 0.3:
+                p.paid_off = True
 
 
 def _keyword_check(entry: ForeshadowingEntry, content: str) -> None:

@@ -198,22 +198,141 @@ def rewrite_weak_sections(
     return current_content
 
 
+REWRITE_FOR_CONSISTENCY = """\
+Bạn là biên tập viên khó tính. Hãy sửa các lỗi nhất quán trong chương sau.
+
+## Lỗi phát hiện
+{issues}
+
+## Toàn bộ chương
+{content}
+
+## Nhiệm vụ
+Viết lại chương để sửa HẾT các lỗi trên. Yêu cầu:
+- GIỮ NGUYÊN cốt truyện, sự kiện chính, và nhân vật.
+- Sửa chính xác tên nhân vật theo dạng chuẩn đã cho.
+- Giải quyết các vấn đề về vị trí/thời gian (thêm chi tiết di chuyển nếu cần).
+- Điều chỉnh arc position của nhân vật theo tiến trình truyện (nếu được nêu).
+- Độ dài tương đương chương gốc (±10%).
+- Chỉ trả về TOÀN BỘ nội dung chương đã sửa, không chú thích.
+"""
+
+
+def rewrite_for_consistency(
+    llm: "LLMClient",
+    content: str,
+    issues: list[str],
+    model: str | None = None,
+) -> str:
+    """L1-D: Targeted rewrite when consistency validators flag violations above threshold.
+
+    `issues` is a deduplicated list of warning strings from validate_character_names,
+    validate_location_transitions, detect_arc_drift. Returns rewritten content or
+    original on failure (non-fatal).
+    """
+    if not issues or not content:
+        return content
+
+    user_prompt = REWRITE_FOR_CONSISTENCY.format(
+        issues="\n".join(f"- {s}" for s in issues),
+        content=content,
+    )
+    try:
+        rewritten = llm.generate(
+            system_prompt="Bạn là biên tập viên. Chỉ trả về nội dung chương đã sửa.",
+            user_prompt=user_prompt,
+            model=model,
+            max_tokens=8192,
+        )
+        if isinstance(rewritten, str) and len(rewritten) > max(100, int(len(content) * 0.5)):
+            return rewritten
+        logger.warning(
+            "rewrite_for_consistency: response too short (%d chars), keeping original",
+            len(rewritten) if isinstance(rewritten, str) else 0,
+        )
+    except Exception as exc:
+        logger.warning("rewrite_for_consistency failed (non-fatal): %s", exc)
+    return content
+
+
+REWRITE_FOR_PAYOFF = """\
+Bạn là nhà văn chuyên nghiệp. Hãy viết lại chương truyện để THỰC HIỆN các foreshadowing sau đây.
+
+## Foreshadowing bắt buộc phải được trả (payoff) trong chương này
+{payoffs_list}
+
+## Toàn bộ chương hiện tại
+{content}
+
+## Nhiệm vụ
+Viết lại chương để thực hiện các payoff trên một cách tự nhiên. Yêu cầu:
+- GIỮ NGUYÊN các sự kiện chính và nhân vật đã có.
+- Chèn thêm/viết lại các phân cảnh để payoff từng foreshadowing một cách rõ ràng.
+- Không biến payoff thành lời thoại dư thừa — phải gắn với hành động/tình tiết.
+- Độ dài tương đương chương gốc (±15%).
+- Chỉ trả về TOÀN BỘ nội dung chương đã viết lại, không chú thích hay giải thích.
+"""
+
+
+def rewrite_for_missing_payoffs(
+    llm: "LLMClient",
+    content: str,
+    missing_payoffs: list,
+    model: str | None = None,
+) -> str:
+    """Targeted rewrite when foreshadowing payoffs were due but not detected.
+
+    `missing_payoffs` is a list of dicts with keys: hint, plant_chapter, payoff_chapter.
+    Returns rewritten content, or original on failure (non-fatal).
+    """
+    if not missing_payoffs or not content:
+        return content
+
+    payoffs_list = "\n".join(
+        f"- '{p.get('hint', '')}' (gieo ở ch.{p.get('plant_chapter', '?')})"
+        for p in missing_payoffs
+    )
+    user_prompt = REWRITE_FOR_PAYOFF.format(payoffs_list=payoffs_list, content=content)
+
+    try:
+        rewritten = llm.generate(
+            system_prompt="Bạn là nhà văn chuyên nghiệp. Chỉ trả về nội dung chương.",
+            user_prompt=user_prompt,
+            model=model,
+            max_tokens=8192,
+        )
+        if isinstance(rewritten, str) and len(rewritten) > max(100, int(len(content) * 0.5)):
+            return rewritten
+        logger.warning(
+            "rewrite_for_missing_payoffs: response too short (%d chars), keeping original",
+            len(rewritten) if isinstance(rewritten, str) else 0,
+        )
+    except Exception as exc:
+        logger.warning("rewrite_for_missing_payoffs failed (non-fatal): %s", exc)
+
+    return content
+
+
 def should_critique(
     chapter_number: int,
     total_chapters: int,
     macro_arcs=None,
     pacing_type: str = "",
+    every_n_chapters: int = 0,
 ) -> bool:
     """Selective critique: first/last 3, arc boundaries, climax/twist chapters.
 
     Expected: ~15-25% of chapters critiqued in a 100-chapter story.
     Short stories (<=20): always critique.
+    `every_n_chapters` (>0) forces critique on chapters where (chapter_number % N == 0).
     """
     if total_chapters <= 20:
         return True
     if chapter_number <= 3 or chapter_number >= total_chapters - 2:
         return True
     if pacing_type in ("climax", "twist"):
+        return True
+    if every_n_chapters and every_n_chapters > 0 and chapter_number % every_n_chapters == 0:
         return True
     if macro_arcs:
         for arc in macro_arcs:
@@ -224,3 +343,19 @@ def should_critique(
             if chapter_number == start + 1 or chapter_number == end - 1:
                 return True
     return False
+
+
+def aggregate_critique_score(critique: dict) -> float:
+    """Average score across the 5 critique dimensions. Returns 0.0 if no scores."""
+    if not isinstance(critique, dict):
+        return 0.0
+    dims = ("voice_consistency", "pacing_match", "plot_advancement", "sensory_richness", "cliffhanger_quality")
+    scores: list[float] = []
+    for d in dims:
+        e = critique.get(d, {})
+        if isinstance(e, dict) and e.get("score") is not None:
+            try:
+                scores.append(float(e["score"]))
+            except (TypeError, ValueError):
+                pass
+    return sum(scores) / len(scores) if scores else 0.0

@@ -139,3 +139,63 @@ def format_arc_stages_for_prompt(
     if not lines:
         return ""
     return "## MỤC TIÊU ARC NHÂN VẬT CHƯƠNG NÀY:\n" + "\n".join(lines)
+
+
+def update_arc_progression_cache(
+    cache: dict[str, list[dict]],
+    results: list,
+    chapter_number: int,
+    cap_per_character: int = 15,
+) -> None:
+    """L1-C: Append arc validation results to per-character cache. Mutates in place.
+
+    `results` is the list returned by validate_all_arcs (ArcValidationResult objects).
+    Cache shape: {character_name: [{chapter, stage_name, progress_pct, emotion, found, confidence, severity}]}
+    """
+    for r in results or []:
+        name = getattr(r, "character", "") or ""
+        if not name:
+            continue
+        entry = {
+            "chapter": int(getattr(r, "chapter_number", chapter_number) or chapter_number),
+            "stage_name": getattr(r, "expected_stage", "") or "",
+            "emotion": getattr(r, "expected_emotion", "") or "",
+            "found": bool(getattr(r, "found", False)),
+            "confidence": float(getattr(r, "confidence", 0.0) or 0.0),
+            "severity": getattr(r, "severity", "") or "",
+        }
+        history = cache.get(name) or []
+        # Deduplicate: overwrite existing entry for same chapter
+        history = [e for e in history if e.get("chapter") != entry["chapter"]]
+        history.append(entry)
+        cache[name] = sorted(history, key=lambda e: e.get("chapter", 0))[-cap_per_character:]
+
+
+def format_arc_progression_for_prompt(
+    cache: dict[str, list[dict]],
+    characters: list[Character],
+    current_chapter: int,
+    lookback: int = 3,
+) -> str:
+    """Format last N chapters of arc progression per character for chapter writer prompt.
+
+    Helps the writer avoid arc regression and maintain continuity.
+    """
+    if not cache:
+        return ""
+    lines: list[str] = []
+    for c in characters:
+        history = cache.get(c.name) or []
+        recent = [e for e in history if e.get("chapter", 0) < current_chapter][-lookback:]
+        if not recent:
+            continue
+        parts = []
+        for e in recent:
+            marker = "✓" if e.get("found") else "✗"
+            parts.append(
+                f"ch{e.get('chapter')}:{e.get('stage_name') or '?'}{marker}"
+            )
+        lines.append(f"- {c.name}: " + " → ".join(parts))
+    if not lines:
+        return ""
+    return "## LỊCH SỬ ARC GẦN ĐÂY (tránh lùi giai đoạn):\n" + "\n".join(lines)

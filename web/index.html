@@ -785,6 +785,25 @@
                         <span class="text-xs text-slate-500 tabular-nums w-8" x-text="$store.pipeline.form.smart_revision_threshold.toFixed(1)"></span>
                       </div>
                     </div>
+                    <!-- Post-Enhancement Features -->
+                    <div class="space-y-2 pt-3 border-t border-surface-200 dark:border-surface-700">
+                      <p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Post-Enhancement</p>
+                      <label class="flex items-center gap-2 cursor-pointer text-xs">
+                        <input type="checkbox" x-model="$store.pipeline.form.enable_sensory_polish" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600">
+                        <span class="text-slate-600 dark:text-slate-300">Sensory Polish (L3)</span>
+                        <span class="text-slate-400 dark:text-slate-500">— Add sensory details</span>
+                      </label>
+                      <label class="flex items-center gap-2 cursor-pointer text-xs">
+                        <input type="checkbox" x-model="$store.pipeline.form.enable_reader_simulation" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600">
+                        <span class="text-slate-600 dark:text-slate-300">Reader Simulation</span>
+                        <span class="text-slate-400 dark:text-slate-500">— Identify weak chapters</span>
+                      </label>
+                      <label class="flex items-center gap-2 cursor-pointer text-xs">
+                        <input type="checkbox" x-model="$store.pipeline.form.enable_incremental_publish" class="w-3.5 h-3.5 rounded border-surface-300 text-brand-600">
+                        <span class="text-slate-600 dark:text-slate-300">Incremental Publish</span>
+                        <span class="text-slate-400 dark:text-slate-500">— Stream chapters as done</span>
+                      </label>
+                    </div>
                   </div>
                 </details>
               </div>

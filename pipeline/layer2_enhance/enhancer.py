@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from typing import Optional
 from models.schemas import (
     StoryDraft, SimulationResult, EnhancedStory, Chapter, count_words,
@@ -77,6 +78,82 @@ def _extract_pacing_directive(draft, chapter_number: int) -> str:
     except Exception:
         pass
     return ""
+
+
+def _extract_pacing_type(draft, chapter_number: int) -> str:
+    """L2-E: Extract pacing_type from outline for per-chapter drama intensity."""
+    if draft is None:
+        return ""
+    try:
+        outlines = list(getattr(draft, "outlines", []) or [])
+        for o in outlines:
+            if getattr(o, "chapter_number", None) == chapter_number:
+                return str(getattr(o, "pacing_type", "") or "")
+    except Exception:
+        pass
+    return ""
+
+
+def _precheck_coherence(llm, chapter, draft, prev_chapters: list) -> str:
+    """L2-F: Quick coherence pre-check before enhancement.
+
+    Returns constraint text to inject into enhancement prompt.
+    Identifies potential timeline/character/setting violations in the original chapter.
+    """
+    if not prev_chapters:
+        return ""
+    try:
+        prev_summary = "\n".join(
+            f"Ch{c.chapter_number}: {getattr(c, 'summary', '') or c.content[:150]}"
+            for c in prev_chapters[-3:]
+        )
+        char_names = [c.name for c in getattr(draft, "characters", []) or []][:8]
+
+        prompt = f"""Kiểm tra nhanh chương {chapter.chapter_number} với context trước:
+{prev_summary}
+
+Nhân vật: {', '.join(char_names)}
+Chương hiện tại: {chapter.content[:1500]}
+
+Liệt kê TỐI ĐA 3 vấn đề nhất quán tiềm ẩn (timeline, vị trí, trạng thái nhân vật).
+Trả về JSON: {{"issues": ["issue1", "issue2"]}} hoặc {{"issues": []}} nếu OK."""
+
+        result = llm.generate_json(
+            system_prompt="Biên tập viên kiểm tra nhất quán. Trả về JSON ngắn gọn.",
+            user_prompt=prompt,
+            temperature=0.1,
+            model_tier="cheap",
+            max_tokens=300,
+        )
+        issues = result.get("issues", [])
+        if not issues:
+            return ""
+        lines = [f"- TRÁNH: {i}" for i in issues[:3]]
+        return "## CẢNH BÁO NHẤT QUÁN (phải duy trì):\n" + "\n".join(lines)
+    except Exception as e:
+        logger.debug(f"Coherence pre-check failed (non-fatal): {e}")
+        return ""
+
+
+def _build_knowledge_constraints(sim_result, draft) -> str:
+    """L2-B: Build knowledge constraints from sim_result.knowledge_state.
+
+    Prevents L2 from hallucinating facts characters shouldn't know.
+    """
+    knowledge_state = getattr(sim_result, "knowledge_state", None) or {}
+    if not knowledge_state:
+        knowledge_state = getattr(draft, "_knowledge_state", None) or {}
+    if not knowledge_state:
+        return ""
+    lines: list[str] = []
+    for char_name, facts in knowledge_state.items():
+        if not facts:
+            continue
+        facts_text = "; ".join(str(f)[:80] for f in facts[:5])
+        lines.append(f"- {char_name} BIẾT: {facts_text}")
+    if not lines:
+        return ""
+    return "## KIẾN THỨC NHÂN VẬT (KHÔNG được tiết lộ điều nhân vật chưa biết):\n" + "\n".join(lines[:10])
 
 
 class StoryEnhancer:
@@ -202,6 +279,9 @@ class StoryEnhancer:
                     _thread_state = list(getattr(draft, "open_threads", []) or []) + list(getattr(draft, "resolved_threads", []) or [])
                     _arc_context = _build_arc_context(draft, chapter.chapter_number)
                 _pacing_directive = _extract_pacing_directive(draft, chapter.chapter_number)
+            # L2-E: Use pacing_type from outline as fallback for per-chapter drama intensity
+            if not _pacing_directive:
+                _pacing_directive = _extract_pacing_type(draft, chapter.chapter_number)
             # Get consistency constraints if engine is available
             _consistency_constraints = ""
             if self.consistency_engine:
@@ -211,6 +291,29 @@ class StoryEnhancer:
                     )
                 except Exception as _ce:
                     logger.debug(f"Consistency constraints failed: {_ce}")
+            # L2-B: Append knowledge constraints to prevent hallucinating facts
+            _knowledge_enabled = True
+            try:
+                _knowledge_enabled = bool(ConfigManager().load().pipeline.l2_knowledge_constraints)
+            except Exception:
+                pass
+            if _knowledge_enabled:
+                try:
+                    _knowledge_block = _build_knowledge_constraints(sim_result, draft)
+                    if _knowledge_block:
+                        _consistency_constraints = (_consistency_constraints + "\n\n" + _knowledge_block).strip()
+                except Exception as _ke:
+                    logger.debug(f"Knowledge constraints failed: {_ke}")
+            # L2-F: Coherence pre-check — inject constraints for potential violations
+            try:
+                _prev_chapters = []
+                if draft and hasattr(draft, "chapters"):
+                    _prev_chapters = [c for c in draft.chapters if c.chapter_number < chapter.chapter_number]
+                _coherence_block = _precheck_coherence(self.llm, chapter, draft, _prev_chapters)
+                if _coherence_block:
+                    _consistency_constraints = (_consistency_constraints + "\n\n" + _coherence_block).strip()
+            except Exception as _coh_e:
+                logger.debug(f"Coherence pre-check failed: {_coh_e}")
 
             enhanced_chapter = scene_enhancer.enhance_chapter_by_scenes(
                 chapter, sim_result, genre, draft,
@@ -477,8 +580,14 @@ class StoryEnhancer:
         word_count: int = 2000,
         progress_callback=None,
         theme_profile=None,
+        chapter_done_callback=None,
     ) -> EnhancedStory:
-        """Tăng cường kịch tính cho toàn bộ truyện."""
+        """Tăng cường kịch tính cho toàn bộ truyện.
+
+        Args:
+            chapter_done_callback: Optional callback(Chapter) called when each chapter is done.
+                                   P-C: enables incremental streaming to client.
+        """
 
         # Cache theme profile on draft so enhance_chapter can access it
         if theme_profile is not None:
@@ -572,6 +681,12 @@ class StoryEnhancer:
                         chapter, sim_result, word_count, total_chapters, draft.genre, draft,
                     )
                     _log(f"✨ Chương {ch_num} đã tăng cường xong")
+                    # P-C: Incremental publish — notify when chapter is done
+                    if chapter_done_callback:
+                        try:
+                            chapter_done_callback(result)
+                        except Exception as _cb_e:
+                            logger.debug(f"Chapter done callback failed: {_cb_e}")
                     return ch_num, result
                 except Exception as e:
                     logger.warning(f"Lỗi enhance chương {ch_num}: {e}")
@@ -891,41 +1006,132 @@ class StoryEnhancer:
             if not weak_analyses:
                 _log(f"✅ Feedback round {round_num}: all chapters pass drama threshold")
                 break
-            _log(f"🔄 Feedback round {round_num}: re-enhancing {len(weak_analyses)} weak chapters (targeted)")
+            _log(f"🔄 Feedback round {round_num}: re-enhancing {len(weak_analyses)} weak chapters (parallel)")
+
+            # L2-A: Parallel feedback rewrite — process all weak chapters concurrently.
+            async def _rewrite_weak_parallel() -> dict[int, Chapter]:
+                loop = asyncio.get_running_loop()
+
+                def _rewrite_one(analysis: dict) -> tuple[int, Chapter | None]:
+                    ch_num = analysis["chapter_number"]
+                    idx = ch_num - 1
+                    if idx < 0 or idx >= len(enhanced.chapters):
+                        return ch_num, None
+                    # P-F: Per-chapter L2 retry with backoff
+                    _retry_max = 2
+                    _backoff = 1.5
+                    try:
+                        cfg = ConfigManager().load().pipeline
+                        _retry_max = int(getattr(cfg, "l2_chapter_retry_max", 2))
+                        _backoff = float(getattr(cfg, "l2_chapter_retry_backoff", 1.5))
+                    except Exception:
+                        pass
+                    _delay = 1.0
+                    for attempt in range(_retry_max + 1):
+                        try:
+                            genre_hints = get_genre_enhancement_hints(genre, ch_num, len(enhanced.chapters))
+                            weak_text = "\n".join(f"- {wp}" for wp in analysis.get("weak_points", []))
+                            strong_text = "\n".join(f"- {sp}" for sp in analysis.get("strong_points", []))
+                            rewrite_prompt = prompt_templates.REENHANCE_CHAPTER.format(
+                                chapter_content=enhanced.chapters[idx].content[:6000],
+                                weak_points=weak_text or "Kịch tính chung còn yếu",
+                                strong_points=strong_text or "Không có điểm mạnh nổi bật",
+                                genre_hints=genre_hints,
+                                suggestions="\n".join(sim_result.drama_suggestions[:3]),
+                                word_count=word_count,
+                            )
+                            rewrite_prompt += "\n\n[NHẮC LẠI: Viết hoàn toàn bằng tiếng Việt. Không dùng tiếng Anh hay ngôn ngữ khác.]"
+                            rewritten = self.llm.generate(
+                                system_prompt=(
+                                    "Bạn là nhà văn tài năng chuyên viết truyện bằng tiếng Việt. "
+                                    "BẮT BUỘC: Toàn bộ output phải viết bằng tiếng Việt, không được dùng ngôn ngữ khác."
+                                ),
+                                user_prompt=rewrite_prompt,
+                                max_tokens=8192,
+                                model=self._layer_model,
+                            )
+                            return ch_num, Chapter(
+                                chapter_number=ch_num,
+                                title=enhanced.chapters[idx].title,
+                                content=rewritten,
+                                word_count=count_words(rewritten),
+                                summary=enhanced.chapters[idx].summary,
+                            )
+                        except Exception as e:
+                            if attempt < _retry_max:
+                                logger.warning(f"Feedback rewrite ch{ch_num} attempt {attempt+1} failed: {e}, retrying in {_delay:.1f}s")
+                                time.sleep(_delay)
+                                _delay *= _backoff
+                            else:
+                                logger.warning(f"Feedback rewrite ch{ch_num} failed after {_retry_max+1} attempts: {e}")
+                                return ch_num, None
+                    return ch_num, None
+
+                async def _one(analysis: dict) -> tuple[int, Chapter | None]:
+                    return await loop.run_in_executor(None, _rewrite_one, analysis)
+
+                pairs = await asyncio.gather(*[_one(a) for a in weak_analyses])
+                return {ch_num: ch for ch_num, ch in pairs if ch is not None}
+
+            try:
+                try:
+                    _loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    _loop = None
+                if _loop and _loop.is_running():
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as pool:
+                        future = pool.submit(asyncio.run, _rewrite_weak_parallel())
+                        rewritten_map = future.result()
+                else:
+                    rewritten_map = asyncio.run(_rewrite_weak_parallel())
+            except Exception as e:
+                logger.warning(f"Parallel feedback rewrite failed: {e}")
+                rewritten_map = {}
+
             for analysis in weak_analyses:
                 ch_num = analysis["chapter_number"]
                 idx = ch_num - 1
-                if 0 <= idx < len(enhanced.chapters):
-                    # Targeted rewriting with specific weak/strong points
-                    genre_hints = get_genre_enhancement_hints(genre, ch_num, len(enhanced.chapters))
-                    weak_text = "\n".join(f"- {wp}" for wp in analysis.get("weak_points", []))
-                    strong_text = "\n".join(f"- {sp}" for sp in analysis.get("strong_points", []))
-
-                    rewrite_prompt = prompt_templates.REENHANCE_CHAPTER.format(
-                        chapter_content=enhanced.chapters[idx].content[:6000],
-                        weak_points=weak_text or "Kịch tính chung còn yếu",
-                        strong_points=strong_text or "Không có điểm mạnh nổi bật",
-                        genre_hints=genre_hints,
-                        suggestions="\n".join(sim_result.drama_suggestions[:3]),
-                        word_count=word_count,
-                    )
-                    rewrite_prompt += "\n\n[NHẮC LẠI: Viết hoàn toàn bằng tiếng Việt. Không dùng tiếng Anh hay ngôn ngữ khác.]"
-                    rewritten = self.llm.generate(
-                        system_prompt=(
-                            "Bạn là nhà văn tài năng chuyên viết truyện bằng tiếng Việt. "
-                            "BẮT BUỘC: Toàn bộ output phải viết bằng tiếng Việt, không được dùng ngôn ngữ khác."
-                        ),
-                        user_prompt=rewrite_prompt,
-                        max_tokens=8192,
-                        model=self._layer_model,
-                    )
-                    enhanced.chapters[idx] = Chapter(
-                        chapter_number=ch_num,
-                        title=enhanced.chapters[idx].title,
-                        content=rewritten,
-                        word_count=count_words(rewritten),
-                        summary=enhanced.chapters[idx].summary,
-                    )
+                if ch_num in rewritten_map:
+                    rewritten_ch = rewritten_map[ch_num]
+                    # L2-C: Inline contract + voice validation after feedback rewrite
+                    try:
+                        contracts_raw = getattr(sim_result, "chapter_contracts", None) or {}
+                        raw_contract = contracts_raw.get(ch_num) or contracts_raw.get(str(ch_num))
+                        if raw_contract:
+                            from pipeline.layer2_enhance.chapter_contract import (
+                                DramaContract, validate_chapter_against_contract,
+                            )
+                            contract = DramaContract(**raw_contract) if isinstance(raw_contract, dict) else raw_contract
+                            val = validate_chapter_against_contract(
+                                self.llm, rewritten_ch.content, contract, model_tier="cheap",
+                            )
+                            try:
+                                rewritten_ch.contract_validation = val.model_dump()
+                            except Exception:
+                                pass
+                            if not val.passed:
+                                logger.info(f"[L2-C] ch{ch_num} feedback-rewrite contract: {val.compliance_score:.2f}")
+                    except Exception as _cv:
+                        logger.debug(f"Inline contract validation ch{ch_num}: {_cv}")
+                    try:
+                        voice_raw = getattr(sim_result, "voice_contracts", None) or {}
+                        raw_voice = voice_raw.get(ch_num) or voice_raw.get(str(ch_num))
+                        if raw_voice:
+                            from pipeline.layer2_enhance.chapter_contract import (
+                                VoiceContract, validate_chapter_voice,
+                            )
+                            vc = VoiceContract(**raw_voice) if isinstance(raw_voice, dict) else raw_voice
+                            vv = validate_chapter_voice(self.llm, rewritten_ch.content, vc)
+                            try:
+                                rewritten_ch.voice_validation = vv.model_dump()
+                            except Exception:
+                                pass
+                            if not vv.passed:
+                                logger.info(f"[L2-C] ch{ch_num} feedback-rewrite voice: {vv.overall_compliance:.2f}")
+                    except Exception as _vv:
+                        logger.debug(f"Inline voice validation ch{ch_num}: {_vv}")
+                    enhanced.chapters[idx] = rewritten_ch
                     _log(f"  ✓ Chương {ch_num}: score {analysis['score']:.2f} → re-enhanced")
 
         # Coherence validation (non-fatal)

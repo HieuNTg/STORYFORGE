@@ -314,33 +314,19 @@ def build_chapter_prompt(
         pacing_directive=pacing_directive,
     )
     user_prompt = build_adaptive_write_prompt(user_prompt, genre, pacing_type=resolved_pacing)
-    # Inject chapter contract (unified requirements for this chapter)
-    if chapter_contract:
-        user_prompt += "\n\n" + chapter_contract
-    # Inject scene structure when provided
-    if scenes:
-        try:
-            from pipeline.layer1_story.scene_decomposer import format_scenes_for_prompt
-            scenes_text = format_scenes_for_prompt(scenes)
-            if scenes_text:
-                user_prompt += "\n\n" + scenes_text
-        except Exception:
-            pass
-    # Inject enhancement context (theme premise, voice profiles, scene structure, show-don't-tell)
-    if enhancement_context:
-        user_prompt += "\n\n" + enhancement_context
-    # Fallback voice injection: if characters have speech_pattern but enhancement_context
-    # doesn't contain voice profile section, inject dialogue context directly
-    if dialogue_context and "PHONG CÁCH NÓI CHUYỆN" not in (enhancement_context or ""):
-        user_prompt += "\n\n" + dialogue_context
-    # Inject arc waypoint targets — independent of current_arc_context (macro arcs)
-    try:
-        from pipeline.layer1_story.arc_waypoint_generator import format_arc_stages_for_prompt
-        arc_stage_text = format_arc_stages_for_prompt(characters, outline.chapter_number)
-        if arc_stage_text:
-            user_prompt += "\n\n" + arc_stage_text
-    except Exception:
-        pass
+    # L1-A: Unified NarrativeContextBlock — single ordered block for non-core directives.
+    from pipeline.layer1_story.narrative_context_block import build_narrative_block
+    narrative_block = build_narrative_block(
+        characters=characters,
+        outline=outline,
+        context=context,
+        chapter_contract=chapter_contract,
+        scenes=scenes,
+        enhancement_context=enhancement_context,
+        dialogue_context=dialogue_context,
+    ).render()
+    if narrative_block:
+        user_prompt += "\n\n" + narrative_block
     # Reinforce Vietnamese at end of prompt (after all context) to prevent
     # language drift in later chapters where context is very long
     user_prompt += "\n\n[NHẮC LẠI: Viết hoàn toàn bằng tiếng Việt. Không dùng tiếng Anh hay ngôn ngữ khác.]"

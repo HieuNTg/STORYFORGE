@@ -127,6 +127,10 @@ class PipelineRequest(BaseModel):
     quality_gate_threshold: float = Field(2.5, ge=1.0, le=5.0)
     enable_smart_revision: bool = True
     smart_revision_threshold: float = Field(3.5, ge=1.0, le=5.0)
+    # P-A/B/C: Post-enhancement features
+    enable_sensory_polish: bool = False  # L3 sensory details
+    enable_reader_simulation: bool = False  # Reader feedback
+    enable_incremental_publish: bool = False  # Stream chapters as enhanced
 
 
 class ResumeRequest(BaseModel):
@@ -370,6 +374,10 @@ async def run_pipeline(request: Request, body: PipelineRequest):
         orch.config.pipeline.quality_gate_threshold = body.quality_gate_threshold
         orch.config.pipeline.enable_smart_revision = body.enable_smart_revision
         orch.config.pipeline.smart_revision_threshold = body.smart_revision_threshold
+        # P-A/B/C: Post-enhancement features
+        orch.config.pipeline.enable_sensory_polish = body.enable_sensory_polish
+        orch.config.pipeline.enable_reader_simulation = body.enable_reader_simulation
+        orch.config.pipeline.enable_incremental_publish = body.enable_incremental_publish
 
         result: list = [None]
 

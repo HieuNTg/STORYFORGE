@@ -145,6 +145,14 @@ class PipelineConfig:
     enable_scene_decomposition: bool = True  # Break chapters into scenes before writing
     enable_show_dont_tell: bool = True  # Inject show-don't-tell guidance into prompts
     enable_chapter_critique: bool = True  # Post-write selective self-critique (climax, arc boundaries, first/last)
+    # L1-B: Critique frequency + rollback-on-regression
+    chapter_critique_every_n_chapters: int = 5  # Force critique every N chapters (0 disables this trigger)
+    chapter_critique_rollback: bool = True  # Re-score after rewrite; revert if aggregate drops
+    chapter_critique_rollback_threshold: float = 0.3  # Revert if avg_after < avg_before - threshold
+    # L1-F: Pacing as hard contract constraint (was advisory)
+    enable_pacing_enforcement: bool = True  # Post-write pacing classification + rewrite on mismatch
+    pacing_enforcement_confidence: float = 0.7  # Min classifier confidence before triggering rewrite
+    pacing_mismatch_rewrite: bool = True  # If confidence ≥ threshold AND mismatch, trigger rewrite
 
     # Phase 1 quality improvements
     enable_arc_waypoints: bool = True  # Structured character arc tracking per chapter
@@ -175,6 +183,14 @@ class PipelineConfig:
     # Phase 6: Foreshadowing payoff enforcement
     enable_foreshadowing_enforcement: bool = True  # Enforce payoff of planted foreshadowing
     foreshadowing_grace_chapters: int = 2  # Chapters past deadline before flagging as overdue
+    enable_foreshadowing_payoff_verify: bool = True  # Post-write semantic verification + targeted rewrite if payoff missing
+    foreshadowing_payoff_rewrite_on_miss: bool = True  # Trigger targeted rewrite when due payoff not detected
+
+    # L1-D: Consistency block-and-rewrite (was warn-only)
+    enable_consistency_rewrite: bool = True  # Rewrite chapter when consistency violations exceed thresholds
+    consistency_name_warning_threshold: int = 3  # Rewrite if >= N name warnings
+    consistency_location_warning_threshold: int = 2  # Rewrite if >= N location transition warnings
+    consistency_arc_drift_threshold: int = 2  # Rewrite if >= N arc drift warnings
 
     # Phase 5: L1 consistency improvements
     enable_emotional_memory: bool = True  # Per-character emotion tracking across chapters
@@ -187,6 +203,7 @@ class PipelineConfig:
     # L2 enhancement quality signals
     l2_use_l1_signals: bool = True  # wire L1 waypoints/summary/pacing/thread.status into L2
     l2_causal_audit: bool = True  # post-L2 causality verification (Phase B)
+    l2_agent_reasoning: bool = True  # L2-D: chain-of-thought reasoning before agent actions
     l2_thread_pressure: bool = True  # thread.urgency → psychology pressure (Phase C)
     l2_contract_gate: bool = True  # post-L2 contract validation + optional rewrite (Phase E)
 
@@ -214,6 +231,7 @@ class PipelineConfig:
 
     # Phase 6: Voice preservation (reverts drifted dialogues)
     l2_voice_preservation: bool = True  # Enforce voice preservation post-enhancement
+    l2_knowledge_constraints: bool = True  # L2-B: inject character knowledge facts to prevent hallucination
     l2_voice_drift_threshold: float = 0.4  # Drift level for warning
     l2_voice_revert_threshold: float = 0.3  # Drift level for automatic revert
 
@@ -225,6 +243,8 @@ class PipelineConfig:
     l2_parallel_scenes: bool = True  # Parallel scene enhancement within chapter
     l2_scene_retry_max: int = 2  # Max retries for weak scenes after enhancement
     l2_scene_retry_threshold: float = 0.5  # Drama threshold for scene retry
+    l2_chapter_retry_max: int = 2  # Max retries for failed chapter enhancement (P-F)
+    l2_chapter_retry_backoff: float = 1.5  # Exponential backoff multiplier for chapter retry
     l2_drama_curve_balancing: bool = True  # Cross-chapter drama curve optimization
     l2_drama_curve_target: str = "rising"  # rising | climax_at_end | wave
 
@@ -274,6 +294,17 @@ class PipelineConfig:
 
     # Sprint 3 Task 3: Cross-chapter ArcMilestone contract
     enable_arc_milestones: bool = False  # Opt-in — generates + tracks arc-level beats
+
+    # L3 Sensory Polish (P-A) — optional post-L2 prose enhancement
+    enable_sensory_polish: bool = False  # Opt-in — adds sensory details to prose
+    sensory_polish_model: str = ""  # Empty = use primary model
+
+    # Reader Simulator (P-B) — simulates reader experience for quality feedback
+    enable_reader_simulation: bool = False  # Opt-in — runs after L2 enhancement
+    reader_engagement_threshold: float = 0.5  # Flag chapters below this score
+
+    # Incremental L2 Publish (P-C) — stream chapters as they're enhanced
+    enable_incremental_publish: bool = False  # Opt-in — emits chapter_enhanced events
 
 
 # Presets live in config/presets.py — imported here for convenience.

@@ -294,6 +294,39 @@ class StoryContinuation:
                 progress_callback=lambda m: _log(f"[L2] {m}"),
             )
 
+            # P-A: L3 Sensory Polish (optional post-L2 enhancement)
+            try:
+                from config import ConfigManager
+                cfg = ConfigManager().load().pipeline
+                if getattr(cfg, "enable_sensory_polish", False):
+                    from pipeline.layer2_enhance.sensory_polish import apply_sensory_polish
+                    _log("Applying sensory polish (L3)...")
+                    enhanced = apply_sensory_polish(
+                        enhanced, enabled=True,
+                        progress_callback=lambda m: _log(m),
+                    )
+            except Exception as _sp_e:
+                logger.debug(f"Sensory polish skipped: {_sp_e}")
+
+            # P-B: Reader Simulation (optional quality feedback)
+            try:
+                from config import ConfigManager
+                cfg = ConfigManager().load().pipeline
+                if getattr(cfg, "enable_reader_simulation", False):
+                    from pipeline.agents.reader_simulator import run_reader_simulation
+                    _log("Running reader simulation...")
+                    feedbacks = run_reader_simulation(
+                        enhanced, enabled=True,
+                        progress_callback=lambda m: _log(m),
+                    )
+                    if feedbacks:
+                        weak = [f.chapter_number for f in feedbacks if f.engagement_score < 0.5]
+                        if weak:
+                            _log(f"Reader flagged weak chapters: {weak}")
+                        enhanced._reader_feedbacks = feedbacks
+            except Exception as _rs_e:
+                logger.debug(f"Reader simulation skipped: {_rs_e}")
+
             self.output.enhanced_story = enhanced
             self.checkpoint_manager.output = self.output
             self.checkpoint_manager.save(2)

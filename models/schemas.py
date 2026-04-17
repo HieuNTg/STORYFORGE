@@ -370,6 +370,12 @@ class StoryContext(BaseModel):
     dialogue_voice_warnings: list[str] = Field(default_factory=list, description="Cảnh báo giọng nói nhân vật không nhất quán")
     pacing_adjustment: str = Field(default="", description="Pacing correction directive for next chapter")
     arc_execution_warnings: list[str] = Field(default_factory=list, description="Cảnh báo arc waypoint không được thực hiện trong chương")
+    # L1-C: Per-character arc progression cache (chapter-by-chapter history)
+    arc_progression_cache: dict[str, list[dict]] = Field(
+        default_factory=dict,
+        description="Per-character arc execution log {name: [{chapter, stage_name, progress_pct, emotion, found, confidence, severity}]}",
+    )
+    foreshadowing_payoff_missing: list[dict] = Field(default_factory=list, description="Payoffs due but not detected in chapter content — {hint, confidence, payoff_chapter}")
     # Phase 5: L1 consistency
     emotional_memory_banks: dict = Field(default_factory=dict, description="Per-character emotional memory banks")
     causal_graph: Any = Field(default=None, description="L1 causal event graph")
