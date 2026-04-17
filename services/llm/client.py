@@ -109,19 +109,21 @@ def _normalize_model_for_provider(model: str, base_url: str, fallback_model: str
 
     # OpenRouter format on non-OpenRouter provider → extract base model name
     if "/" in model:
-        # Check explicit mapping first (for Kyma)
-        if provider == "kyma" and model in _OPENROUTER_TO_KYMA:
-            return _OPENROUTER_TO_KYMA[model]
-
-        # Generic extraction: qwen/qwen3.6-plus:free → qwen3.6-plus
-        name = model.split("/")[-1].split(":")[0]
-
-        # Kyma-specific: try regex normalization as fallback
+        # Kyma has an explicit mapping + regex normalization path.
         if provider == "kyma":
+            if model in _OPENROUTER_TO_KYMA:
+                return _OPENROUTER_TO_KYMA[model]
+            name = model.split("/")[-1].split(":")[0]
             # qwen3.6-plus → qwen-3.6-plus (add hyphen between letter and digit)
             name = re.sub(r"([a-zA-Z])(\d)", r"\1-\2", name)
+            return name
 
-        return name
+        # For native providers (google/openai/anthropic/zai/generic), stripping
+        # the OpenRouter slug yields a model name that does not exist on the
+        # target provider (e.g. hermes-3-llama-3.1-405b on Gemini → 404).
+        # Caller is responsible for supplying the right (base_url, api_key);
+        # return the model unchanged so the mismatch surfaces upstream.
+        return model
 
     # Non-OpenRouter format on OpenRouter → return as-is, caller should check compatibility
     if provider == "openrouter" and "/" not in model:
@@ -366,7 +368,30 @@ class LLMClient(StreamingMixin, GenerationMixin):
         effective_base_url = layer_base_url or primary_base_url
         effective_api_key = layer_api_key or primary_api_key
 
-        # Normalize model name to match provider format
+        # If user set layer_model but no explicit layer_base_url/layer_api_key,
+        # auto-resolve a compatible backend from their configured pools
+        # (fallback_models[], api_keys[]) instead of misrouting onto the
+        # primary provider. Fail loudly if nothing matches.
+        if layer_model and not layer_base_url:
+            primary_provider_type = _detect_provider_type(primary_base_url)
+            if not _model_matches_provider(layer_model, primary_provider_type):
+                resolved = self._find_backend_for_model(config, layer_model)
+                if resolved is not None:
+                    effective_base_url = resolved["base_url"]
+                    effective_api_key = resolved["api_key"]
+                else:
+                    raise RuntimeError(
+                        f"layer{layer}_model '{layer_model}' is not compatible "
+                        f"with primary base_url '{primary_base_url}' "
+                        f"(detected provider: {primary_provider_type}). "
+                        f"No matching backend found in fallback_models[] or api_keys[]. "
+                        f"Either (a) set layer{layer}_base_url + layer{layer}_api_key, "
+                        f"(b) add a compatible entry to fallback_models, "
+                        f"or (c) change layer{layer}_model to match the primary provider."
+                    )
+
+        # Normalize model name to match provider format (only converts when
+        # format conversion is well-defined, e.g. OpenRouter slug → Kyma slug)
         effective_model = _normalize_model_for_provider(
             effective_model, effective_base_url, primary_model
         )
@@ -377,6 +402,51 @@ class LLMClient(StreamingMixin, GenerationMixin):
             api_key=effective_api_key,
             is_layer_specific=is_layer_specific,
         )
+
+    def _find_backend_for_model(self, config, model: str) -> Optional[dict]:
+        """Scan user's configured pools for a backend compatible with `model`.
+
+        Priority:
+        1. Exact model match in fallback_models[] (explicit routing wins).
+        2. Provider-type match in fallback_models[] (same format, any entry).
+        3. Provider-type match in api_keys[] (secondary keys on any base_url).
+        Returns {base_url, api_key} or None.
+        """
+        fallbacks = getattr(config.llm, "fallback_models", []) or []
+
+        # 1. Exact model match
+        for fb in fallbacks:
+            if not isinstance(fb, dict) or fb.get("enabled") is False:
+                continue
+            if fb.get("model") == model:
+                return {
+                    "base_url": fb.get("base_url", config.llm.base_url),
+                    "api_key": fb.get("api_key", config.llm.api_key),
+                }
+
+        # 2. Provider-type match in fallback_models
+        for fb in fallbacks:
+            if not isinstance(fb, dict) or fb.get("enabled") is False:
+                continue
+            fb_base = fb.get("base_url", "")
+            fb_ptype = _detect_provider_type(fb_base)
+            if _model_matches_provider(model, fb_ptype):
+                return {
+                    "base_url": fb_base,
+                    "api_key": fb.get("api_key", config.llm.api_key),
+                }
+
+        # 3. Provider-type match in secondary api_keys
+        for item in getattr(config.llm, "api_keys", []) or []:
+            if isinstance(item, dict):
+                base_url = item.get("base_url", config.llm.base_url)
+                api_key = item.get("key", item.get("api_key", ""))
+            else:
+                continue
+            if _model_matches_provider(model, _detect_provider_type(base_url)):
+                return {"base_url": base_url, "api_key": api_key}
+
+        return None
 
     def _get_cheap_client(self):
         """Return (provider, model) for cheap/fast model tier."""
@@ -640,13 +710,13 @@ class LLMClient(StreamingMixin, GenerationMixin):
 
     @staticmethod
     def _detect_provider_type(base_url: str) -> str:
-        """Detect provider type from URL. Returns: openrouter, kyma, or other."""
-        url = base_url.lower()
-        if "openrouter" in url:
-            return "openrouter"
-        if "kymaapi.com" in url:
-            return "kyma"
-        return "other"
+        """Detect provider type from URL. Delegates to module-level helper
+        so callers get the full taxonomy (openrouter, kyma, anthropic, openai,
+        google, zai, generic) — needed so `_model_matches_provider` can
+        correctly reject cross-provider model slugs (e.g. OpenRouter slug on
+        a Gemini base_url) instead of silently routing them to a 404.
+        """
+        return _detect_provider_type(base_url)
 
     def _can_use_model(self, model: str, api_key: str, fm, cost: float = 0.0) -> tuple[bool, str]:
         """Check if model can be used (not rate-limited, healthy, within cost)."""
@@ -674,7 +744,29 @@ class LLMClient(StreamingMixin, GenerationMixin):
         # Resolve primary model
         default_model = self._current_model or config.llm.model
         raw_model = model_override or default_model
-        primary_model = _normalize_model_for_provider(raw_model, config.llm.base_url, default_model)
+
+        # If the caller asked for a specific model that doesn't match the
+        # primary provider's format (e.g. OpenRouter slug on a Gemini
+        # base_url), promote the model's own backend to the front of the
+        # resolve order so it's tried first. Without this, the chain would
+        # skip the model entirely (format mismatch) and the caller's
+        # explicit choice would be silently ignored.
+        if model_override:
+            primary_ptype = _detect_provider_type(config.llm.base_url)
+            if not _model_matches_provider(model_override, primary_ptype):
+                resolved = self._find_backend_for_model(config, model_override)
+                if resolved is not None:
+                    promoted = {"base_url": resolved["base_url"], "api_key": resolved["api_key"]}
+                    # Deduplicate: drop existing entry with same (base_url, api_key)
+                    api_key_entries = [promoted] + [
+                        e for e in api_key_entries
+                        if not (e.get("base_url") == promoted["base_url"]
+                                and e.get("api_key") == promoted["api_key"])
+                    ]
+
+        primary_model = _normalize_model_for_provider(
+            raw_model, api_key_entries[0]["base_url"] if api_key_entries else config.llm.base_url, default_model
+        )
 
         # Detect which provider types we have
         provider_types = {self._detect_provider_type(e.get("base_url", "")) for e in api_key_entries}
