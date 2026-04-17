@@ -5,6 +5,7 @@ from typing import Optional, TYPE_CHECKING
 
 from models.schemas import Character, CharacterState
 from services import prompts
+from services.naming_conventions import get_naming_instruction
 
 if TYPE_CHECKING:
     from services.llm_client import LLMClient
@@ -35,6 +36,7 @@ def generate_characters(
         user_prompt=prompts.GENERATE_CHARACTERS.format(
             genre=genre, title=title, idea=idea,
             num_characters=num_characters,
+            naming_instruction=get_naming_instruction(genre),
         ),
         model=model,
     )

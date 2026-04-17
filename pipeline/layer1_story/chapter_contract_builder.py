@@ -97,8 +97,16 @@ def build_contract(
 
 
 def format_contract_for_prompt(contract: ChapterContract) -> str:
-    """Format contract as Vietnamese prompt section. Capped at ~1200 chars."""
-    parts = [f"## HỢP ĐỒNG CHƯƠNG {contract.chapter_number}"]
+    """Format contract as Vietnamese prompt section. Capped at ~1600 chars."""
+    parts = []
+
+    if contract.previous_contract_failures:
+        parts.append(f"## 🔴 LẦN VIẾT TRƯỚC CỦA CHƯƠNG {contract.chapter_number} ĐÃ BỎ LỠ — BẮT BUỘC SỬA NGAY LẦN NÀY:")
+        for f in contract.previous_contract_failures[:8]:
+            parts.append(f"  ❗ {f}")
+        parts.append("→ Viết lại chương đảm bảo KHẮC PHỤC TẤT CẢ các điểm trên. Không được lặp lại lỗi cũ.\n")
+
+    parts.append(f"## HỢP ĐỒNG CHƯƠNG {contract.chapter_number}")
     parts.append("Chương này BẮT BUỘC phải hoàn thành:")
 
     if contract.must_advance_threads:
@@ -116,10 +124,6 @@ def format_contract_for_prompt(contract: ChapterContract) -> str:
         parts.append(f"• Cảm xúc cuối chương: {contract.emotional_endpoint}")
     if contract.must_mention_characters:
         parts.append(f"• Nhân vật PHẢI xuất hiện: {', '.join(contract.must_mention_characters[:5])}")
-    if contract.previous_contract_failures:
-        parts.append("⚠ CHƯƠNG TRƯỚC ĐÃ BỎ LỠ:")
-        for f in contract.previous_contract_failures[:3]:
-            parts.append(f"  - {f}")
 
     # Proactive constraint section
     has_constraints = (
@@ -137,8 +141,8 @@ def format_contract_for_prompt(contract: ChapterContract) -> str:
             parts.append(f"QUY TẮC THẾ GIỚI: {rule}")
 
     result = "\n".join(parts)
-    if len(result) > 1200:
-        result = result[:1197] + "..."
+    if len(result) > 1600:
+        result = result[:1597] + "..."
     return result
 
 

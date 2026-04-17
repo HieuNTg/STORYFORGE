@@ -111,9 +111,12 @@ def extract_causal_events(
             max_tokens=600,
             model_tier="cheap",
         )
+        if not isinstance(result, dict):
+            logger.warning("extract_causal_events ch%d: expected dict, got %s", chapter_num, type(result).__name__)
+            return []
         raw_events = result.get("events", [])[:5]
     except Exception as exc:
-        logger.warning("extract_causal_events failed for ch%d: %s", chapter_num, exc)
+        logger.debug("extract_causal_events failed for ch%d: %s", chapter_num, exc)
         return []
 
     causal_events: list[CausalEvent] = []

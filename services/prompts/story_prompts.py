@@ -17,11 +17,12 @@ Trả về JSON: {{"titles": ["tiêu đề 1", "tiêu đề 2", ...]}}"""
 GENERATE_CHARACTERS = """Bạn là nhà văn chuyên xây dựng nhân vật cho truyện {genre}.
 Tiêu đề truyện: {title}
 Ý tưởng: {idea}
-
+{naming_instruction}
 Hãy tạo {num_characters} nhân vật với thông tin chi tiết.
 Đảm bảo có xung đột nội tâm, mối quan hệ phức tạp giữa các nhân vật.
 Mỗi nhân vật cần có arc phát triển rõ ràng, xung đột nội tâm, và bí mật.
 BẮT BUỘC: Toàn bộ nội dung (tên, tính cách, tiểu sử...) phải viết bằng tiếng Việt.
+BẮT BUỘC: Tên nhân vật PHẢI tuân theo QUY TẮC ĐẶT TÊN ở trên.
 
 QUAN TRỌNG: "relationships" PHẢI là một JSON array (danh sách), KHÔNG được là chuỗi text.
 Mỗi mối quan hệ là một phần tử riêng trong mảng.
@@ -50,9 +51,10 @@ Trả về JSON:
 GENERATE_WORLD = """Bạn là kiến trúc sư thế giới cho truyện {genre}.
 Tiêu đề: {title}
 Nhân vật: {characters}
-
+{naming_instruction}
 Hãy xây dựng bối cảnh thế giới chi tiết, phong phú.
 BẮT BUỘC: Viết toàn bộ bằng tiếng Việt.
+BẮT BUỘC: Tên thế giới, địa danh PHẢI tuân theo QUY TẮC ĐẶT TÊN ở trên.
 
 Trả về JSON:
 {{

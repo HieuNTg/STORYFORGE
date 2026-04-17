@@ -5,6 +5,7 @@ from typing import Optional, TYPE_CHECKING
 
 from models.schemas import Character, WorldSetting, ChapterOutline
 from services import prompts
+from services.naming_conventions import get_naming_instruction
 
 if TYPE_CHECKING:
     from services.llm_client import LLMClient
@@ -47,6 +48,7 @@ def generate_world(
     )
     world_prompt = prompts.GENERATE_WORLD.format(
         genre=genre, title=title, characters=chars_text,
+        naming_instruction=get_naming_instruction(genre),
     )
 
     # Prepend RAG context if enabled

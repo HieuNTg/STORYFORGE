@@ -100,6 +100,7 @@ class PipelineRequest(BaseModel):
     title: str = Field("", max_length=200)
     genre: str = Field("Tiên Hiệp", max_length=100)
     style: str = Field("Miêu tả chi tiết", max_length=100)
+    language: str = Field("vi", max_length=10)
     num_chapters: int = Field(5, ge=1, le=50)
     num_characters: int = Field(5, ge=1, le=30)
     word_count: int = Field(2000, ge=100, le=20000)
@@ -151,7 +152,7 @@ def _genre_keys():
 
 @router.get("/genres")
 def get_genres():
-    """Return genre, style, drama level choices."""
+    """Return genre, style, drama level, and language choices."""
     return {
         "genres": [_t(k) for k in _genre_keys()],
         "styles": [_t(k) for k in [
@@ -159,6 +160,10 @@ def get_genres():
             "style.romance", "style.dark",
         ]],
         "drama_levels": [_t(k) for k in ["drama.low", "drama.medium", "drama.high"]],
+        "languages": [
+            {"code": "vi", "label": "Tiếng Việt"},
+            {"code": "en", "label": "English"},
+        ],
     }
 
 
@@ -378,6 +383,8 @@ async def run_pipeline(request: Request, body: PipelineRequest):
         orch.config.pipeline.enable_sensory_polish = body.enable_sensory_polish
         orch.config.pipeline.enable_reader_simulation = body.enable_reader_simulation
         orch.config.pipeline.enable_incremental_publish = body.enable_incremental_publish
+        # Language setting
+        orch.config.pipeline.language = body.language
 
         result: list = [None]
 

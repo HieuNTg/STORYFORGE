@@ -120,11 +120,14 @@ def extract_emotional_memories(
         if not name:
             continue
         try:
-            memories = [
-                EmotionalMemory(**m)
-                for m in entry.get("emotional_memories", [])
-                if isinstance(m, dict)
-            ]
+            raw_memories = entry.get("emotional_memories", [])
+            memories = []
+            for m in raw_memories:
+                if not isinstance(m, dict):
+                    continue
+                if m.get("target_character") is None:
+                    m["target_character"] = ""
+                memories.append(EmotionalMemory(**m))
             banks[name] = CharacterMemoryBank(
                 character_name=name,
                 emotional_memories=memories,
