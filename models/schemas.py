@@ -290,6 +290,25 @@ class ForeshadowingEntry(BaseModel):
     planted_confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Semantic confidence that seed was planted")
 
 
+class ArcMilestone(BaseModel):
+    """Sprint 3 Task 3: an arc-level milestone that spans chapters.
+
+    Milestones represent major story beats within a MacroArc (e.g. 'First defeat',
+    'Mentor revealed'). They are required-by a chapter and checked across the arc's
+    chapter range to detect structural drift — chapters missing their expected beats.
+    """
+    milestone_id: str = Field(description="Unique milestone id, e.g. 'm1_a1'")
+    arc_number: int = Field(description="Parent MacroArc.arc_number")
+    description: str = Field(description="Milestone description — what must happen")
+    required_by_chapter: int = Field(description="Latest chapter by which milestone must land")
+    keywords: list[str] = Field(default_factory=list, description="Heuristic match keywords")
+    characters_involved: list[str] = Field(default_factory=list)
+    status: str = Field(default="pending", description="pending/hit/missed")
+    hit_chapter: int = Field(default=0, description="Chapter where milestone was detected")
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    evidence: str = Field(default="", description="Snippet/evidence of milestone hit")
+
+
 class StoryArc(BaseModel):
     """Một arc trong truyện dài."""
     arc_number: int = 0
@@ -387,8 +406,12 @@ class StoryDraft(BaseModel):
     conflict_web: list[ConflictEntry] = Field(default_factory=list, description="All planned conflicts")
     foreshadowing_plan: list[ForeshadowingEntry] = Field(default_factory=list, description="Planned foreshadowing")
     foreshadowing_audit: dict = Field(default_factory=dict, description="End-of-story foreshadowing completion audit")
+    arc_milestones: list[ArcMilestone] = Field(default_factory=list, description="Sprint 3 Task 3: arc-level milestones")
+    arc_milestone_audit: dict = Field(default_factory=dict, description="Sprint 3 Task 3: arc milestone drift report")
     open_threads: list[PlotThread] = Field(default_factory=list, description="Active narrative threads carried across chapters")
     context: Optional[StoryContext] = Field(default=None, description="Rolling StoryContext with extraction_health telemetry")
+    # Sprint 3 Task 1: Unified knowledge graph (serialized form — dict produced by StoryKnowledgeGraph.to_dict)
+    knowledge_graph: dict = Field(default_factory=dict, description="Unified KG merging characters/threads/conflicts/foreshadowing")
 
 
 # === Layer 2: Mô phỏng tăng kịch tính ===
@@ -659,6 +682,8 @@ class PipelineOutput(BaseModel):
     quality_scores: list[StoryScore] = Field(default_factory=list)
     analytics: dict = Field(default_factory=dict)
     knowledge_graph_summary: str = ""
+    # Sprint 3 Task 1: Full serialized unified KG (nodes + edges) — kept alongside summary for back-compat
+    knowledge_graph: dict = Field(default_factory=dict, description="Unified KG serialized form (see services.knowledge_graph.StoryKnowledgeGraph.to_dict)")
     progress_events: list = Field(default_factory=list)
     # Sprint 1 Task 1: Context Health surfacing
     context_health_score: float = Field(default=1.0, description="Final context health score (0.0-1.0)")

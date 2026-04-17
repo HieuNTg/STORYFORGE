@@ -264,6 +264,17 @@ class PipelineConfig:
     quality_gate_chapter_threshold: float = 2.0  # Per-chapter floor
     quality_gate_max_retries: int = 1
 
+    # Sprint 3 Task 1: Unified knowledge graph (merges conflict_web + threads + foreshadowing + arcs)
+    enable_unified_kg: bool = False  # Opt-in — replaces legacy build_from_story_draft when True
+
+    # Sprint 3 Task 2: Per-chapter checkpoint (resume from last completed chapter)
+    enable_chapter_checkpoint: bool = False  # Opt-in — writes per_chapter/{slug}_ch{N}_layer{L}.json
+    chapter_checkpoint_keep_last: int = 5  # Auto-prune older per-chapter files beyond this count
+    chapter_checkpoint_every_n_batches: int = 1  # Checkpoint cadence (1 = every batch)
+
+    # Sprint 3 Task 3: Cross-chapter ArcMilestone contract
+    enable_arc_milestones: bool = False  # Opt-in — generates + tracks arc-level beats
+
 
 # Presets live in config/presets.py — imported here for convenience.
 from .presets import PIPELINE_PRESETS, MODEL_PRESETS  # noqa: E402

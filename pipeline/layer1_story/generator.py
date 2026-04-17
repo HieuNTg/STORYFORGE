@@ -189,7 +189,8 @@ class StoryGenerator:
 
     def generate_full_story(self, title, genre, idea, style="Miêu tả chi tiết",
                              num_chapters=10, num_characters=5, word_count=2000,
-                             progress_callback=None, stream_callback=None) -> StoryDraft:
+                             progress_callback=None, stream_callback=None,
+                             batch_checkpoint_callback=None, resume_from_batch=0) -> StoryDraft:
         """Generate complete story from start to finish."""
 
         def _log(msg):
@@ -324,12 +325,26 @@ class StoryGenerator:
         except Exception as e:
             logger.warning("Foreshadowing plan generation failed (non-fatal): %s", e)
 
+        # Sprint 3 Task 3: Generate arc milestones
+        arc_milestones = []
+        if self.config.pipeline.enable_arc_milestones and macro_arcs:
+            try:
+                _log("Đang sinh arc milestones...")
+                from pipeline.layer1_story.arc_milestone_manager import generate_arc_milestones
+                arc_milestones = generate_arc_milestones(
+                    self.llm, macro_arcs, synopsis, genre, model=self._layer_model,
+                )
+                _log(f"Đã tạo {len(arc_milestones)} arc milestones")
+            except Exception as e:
+                logger.warning("Arc milestone generation failed (non-fatal): %s", e)
+
         draft = StoryDraft(title=title, genre=genre, synopsis=synopsis,
                            characters=characters, world=world, outlines=outlines,
                            premise=premise, voice_profiles=voice_profiles)
         draft.macro_arcs = macro_arcs
         draft.conflict_web = conflict_web
         draft.foreshadowing_plan = foreshadowing_plan
+        draft.arc_milestones = arc_milestones
         story_context = StoryContext(total_chapters=len(outlines))
         if not self.config.pipeline.story_bible_enabled:
             logger.warning("story_bible_enabled=False is deprecated; Story Bible is now always-on for consistency.")
@@ -355,6 +370,8 @@ class StoryGenerator:
             foreshadowing_plan=foreshadowing_plan,
             premise=premise,
             voice_profiles=voice_profiles,
+            batch_checkpoint_callback=batch_checkpoint_callback,
+            resume_from_batch=resume_from_batch,
         )
 
         draft.character_states = list(story_context.character_states)
@@ -362,6 +379,21 @@ class StoryGenerator:
         draft.open_threads = list(story_context.open_threads)
         # Attach story_context so orchestrator can surface context health (Sprint 1 Task 1)
         draft.context = story_context
+
+        # Sprint 3 Task 3: Check + audit arc milestones across all chapters
+        if arc_milestones:
+            try:
+                from pipeline.layer1_story.arc_milestone_manager import (
+                    audit_arc_milestones, check_milestones_in_chapter, format_milestone_warnings,
+                )
+                for ch in draft.chapters:
+                    check_milestones_in_chapter(arc_milestones, ch)
+                audit = audit_arc_milestones(arc_milestones, final_chapter=num_chapters)
+                draft.arc_milestone_audit = audit
+                for w in format_milestone_warnings(audit):
+                    _log(w)
+            except Exception as e:
+                logger.warning("Arc milestone audit failed (non-fatal): %s", e)
 
         # Foreshadowing audit (Phase 6)
         if foreshadowing_plan and self.config.pipeline.enable_foreshadowing_enforcement:

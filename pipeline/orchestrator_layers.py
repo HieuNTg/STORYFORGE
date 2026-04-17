@@ -96,6 +96,23 @@ async def run_full_pipeline(
     set_module("layer1")
     layer_start = time.time()
     try:
+        # Sprint 3 Task 2: per-chapter checkpoint callback (opt-in)
+        _l1_chkpt_cb = None
+        if getattr(self.config.pipeline, "enable_chapter_checkpoint", False):
+            _bs = getattr(self.config.pipeline, "chapter_batch_size", 5)
+            _every = max(1, getattr(self.config.pipeline, "chapter_checkpoint_every_n_batches", 1))
+            _keep = getattr(self.config.pipeline, "chapter_checkpoint_keep_last", 5)
+            self.checkpoint._chapter_keep_last = _keep
+
+            def _l1_chkpt_cb(batch_done, total_batches):
+                if batch_done % _every != 0 and batch_done != total_batches:
+                    return
+                last_ch = min(batch_done * _bs, num_chapters)
+                try:
+                    self.checkpoint.save_chapter(chapter_number=last_ch, layer=1, background=True)
+                except Exception as e:
+                    logger.warning(f"Chapter checkpoint save failed (non-fatal): {e}")
+
         draft = await asyncio.to_thread(
             self.story_gen.generate_full_story,
             title=title, genre=genre, idea=idea, style=style,
@@ -103,6 +120,7 @@ async def run_full_pipeline(
             word_count=word_count,
             progress_callback=lambda m: _log(f"[L1] {m}"),
             stream_callback=stream_callback,
+            batch_checkpoint_callback=_l1_chkpt_cb,
         )
         with self._lock:
             self.output.story_draft = draft
@@ -214,12 +232,22 @@ async def run_full_pipeline(
         except Exception as e:
             logger.warning(f"Analytics Layer 1 failed: {e}")
 
-        # Build knowledge graph to track character/location relationships
+        # Build knowledge graph to track character/location relationships.
+        # Sprint 3 Task 1: when enable_unified_kg is on, merge conflict_web + threads +
+        # foreshadowing + macro_arcs into a single graph and persist full serialized form.
         try:
             from services.knowledge_graph import StoryKnowledgeGraph
-            kg = await asyncio.to_thread(StoryKnowledgeGraph().build_from_story_draft, draft)
+            use_unified = bool(getattr(self.config.pipeline, "enable_unified_kg", False))
+            builder = (StoryKnowledgeGraph().build_unified if use_unified
+                       else StoryKnowledgeGraph().build_from_story_draft)
+            kg = await asyncio.to_thread(builder, draft)
             self.output.knowledge_graph_summary = kg.to_summary()
-            _log(f"[KG] Knowledge graph: {kg.node_count()} nodes, {kg.edge_count()} edges")
+            if use_unified:
+                serialized = kg.to_dict()
+                self.output.knowledge_graph = serialized
+                draft.knowledge_graph = serialized
+            _log(f"[KG] Knowledge graph: {kg.node_count()} nodes, {kg.edge_count()} edges"
+                 f"{' (unified)' if use_unified else ''}")
         except Exception as e:
             logger.warning(f"Knowledge graph build failed: {e}")
 
