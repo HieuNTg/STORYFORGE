@@ -288,11 +288,11 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 LLMCache(ttl_days=config.llm.cache_ttl_days).evict_expired()
             # Initialize fallback manager with config thresholds
             fm = get_fallback_manager(
-                max_latency_ms=getattr(config.llm, "fallback_max_latency_ms", 5000),
+                max_latency_ms=getattr(config.llm, "fallback_max_latency_ms", 120000),
                 max_cost_per_1k=getattr(config.llm, "fallback_max_cost_per_1k", 0.01),
             )
             fm.update_thresholds(
-                max_latency_ms=getattr(config.llm, "fallback_max_latency_ms", 5000),
+                max_latency_ms=getattr(config.llm, "fallback_max_latency_ms", 120000),
                 max_cost_per_1k=getattr(config.llm, "fallback_max_cost_per_1k", 0.01),
             )
         except (OSError, sqlite3.Error):
@@ -798,13 +798,21 @@ class LLMClient(StreamingMixin, GenerationMixin):
             ptype = self._detect_provider_type(base_url)
 
             # Add primary model (skip if cheap tier already added it or format mismatch)
+            # Primary model (i==0) is ALWAYS added — latency/health checks only for fallbacks
             if cheap_model_name is None and _model_matches_provider(primary_model, ptype):
-                can_use, reason = self._can_use_model(primary_model, api_key, fm)
-                if can_use:
+                is_primary = (i == 0)
+                if is_primary:
+                    # Always add primary model — it's the user's configured choice
                     label = f"{key_label}:{primary_model}" if model_override else key_label
                     self._add_to_chain(chain, prov, primary_model, label, api_key)
-                elif reason:
-                    logger.warning(f"Skipping primary model {primary_model}: {reason}")
+                else:
+                    # Secondary keys: check if model is usable
+                    can_use, reason = self._can_use_model(primary_model, api_key, fm)
+                    if can_use:
+                        label = f"{key_label}:{primary_model}"
+                        self._add_to_chain(chain, prov, primary_model, label, api_key)
+                    elif reason:
+                        logger.debug(f"Skipping {primary_model} on {key_label}: {reason}")
             elif cheap_model_name is None:
                 logger.debug(f"Model {primary_model} doesn't match provider {ptype}")
 

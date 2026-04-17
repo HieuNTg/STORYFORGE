@@ -29,7 +29,7 @@ class LLMConfig:
     fallback_models: list = field(default_factory=list)
     # Each entry: {"base_url": "...", "model": "...", "api_key": "..."}
     # Fallback thresholds — used by ModelFallbackManager
-    fallback_max_latency_ms: int = 5000   # Switch model if avg latency exceeds this
+    fallback_max_latency_ms: int = 120000  # Switch model if avg latency exceeds 2min
     fallback_max_cost_per_1k: float = 0.01  # Skip fallback models above this cost/1k tokens
     # Chain-level retry when all providers fail (rate-limit storms, outages)
     chain_retry_max: int = 2  # Max times to retry entire fallback chain

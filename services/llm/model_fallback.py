@@ -25,7 +25,7 @@ _instance_lock = threading.Lock()
 
 
 def get_fallback_manager(
-    max_latency_ms: int = 5000, max_cost_per_1k: float = 0.01
+    max_latency_ms: int = 120000, max_cost_per_1k: float = 0.01
 ) -> "ModelFallbackManager":
     """Get or create singleton ModelFallbackManager instance."""
     global _instance
@@ -49,7 +49,7 @@ class ModelFallbackManager:
     Latency is tracked as a rolling average (last 10 samples).
     """
 
-    def __init__(self, max_latency_ms: int = 5000, max_cost_per_1k: float = 0.01):
+    def __init__(self, max_latency_ms: int = 120000, max_cost_per_1k: float = 0.01):
         self._max_latency_ms = max_latency_ms
         self._max_cost_per_1k = max_cost_per_1k
         self._lock = threading.Lock()
