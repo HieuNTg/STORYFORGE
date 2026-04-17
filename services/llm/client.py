@@ -568,7 +568,10 @@ class LLMClient(StreamingMixin, GenerationMixin):
             all_errors = []
             skip_keys: set[str] = set()
             account_rl_reset: float | None = None  # seconds-until-reset across all exhausted OR keys
-            logger.debug(f"Fallback chain has {len(chain)} entries (chain attempt {chain_attempt + 1})")
+            if not chain:
+                logger.error(f"Fallback chain is EMPTY (chain attempt {chain_attempt + 1}) — check config/model availability")
+            else:
+                logger.debug(f"Fallback chain has {len(chain)} entries (chain attempt {chain_attempt + 1})")
             for entry in chain:
                 entry_key = entry.get("_api_key", "")
                 logger.debug(f"Trying {entry.get('label', '?')} (key: {entry_key[:12] if entry_key else 'none'}...)")
@@ -719,25 +722,14 @@ class LLMClient(StreamingMixin, GenerationMixin):
         return _detect_provider_type(base_url)
 
     def _can_use_model(
-        self, model: str, api_key: str, fm, cost: float = 0.0, base_url: str = ""
+        self, model: str, api_key: str, fm, cost: float = 0.0
     ) -> tuple[bool, str]:
-        """Check if model can be used (not rate-limited, healthy, within cost, quota ok)."""
+        """Check if model can be used (not rate-limited, healthy, within cost)."""
         if self._is_model_rate_limited(model, api_key):
             return False, "rate_limited"
         skip, reason = fm.should_skip_model(model, cost)
         if skip:
             return False, reason
-        # Preemptive quota check
-        if base_url:
-            ptype = _detect_provider_type(base_url)
-            try:
-                from services.llm.provider_status import get_provider_status_manager
-                mgr = get_provider_status_manager()
-                if mgr.is_quota_low(ptype, api_key, threshold=0.05):
-                    logger.debug(f"Skipping {model}: quota low on {ptype}")
-                    return False, "quota_low"
-            except Exception:
-                pass  # Don't block on quota check failures
         return True, ""
 
     def _add_to_chain(
@@ -807,12 +799,14 @@ class LLMClient(StreamingMixin, GenerationMixin):
 
             # Add primary model (skip if cheap tier already added it or format mismatch)
             if cheap_model_name is None and _model_matches_provider(primary_model, ptype):
-                can_use, reason = self._can_use_model(primary_model, api_key, fm, base_url=base_url)
+                can_use, reason = self._can_use_model(primary_model, api_key, fm)
                 if can_use:
                     label = f"{key_label}:{primary_model}" if model_override else key_label
                     self._add_to_chain(chain, prov, primary_model, label, api_key)
                 elif reason:
-                    logger.debug(f"Skipping {primary_model}: {reason}")
+                    logger.warning(f"Skipping primary model {primary_model}: {reason}")
+            elif cheap_model_name is None:
+                logger.debug(f"Model {primary_model} doesn't match provider {ptype}")
 
             # Round-robin for OpenRouter/Kyma
             if ptype in ("openrouter", "kyma"):
@@ -820,7 +814,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 for model_name in models:
                     if model_name in (primary_model, cheap_model_name):
                         continue
-                    can_use, reason = self._can_use_model(model_name, api_key, fm, base_url=base_url)
+                    can_use, reason = self._can_use_model(model_name, api_key, fm)
                     if can_use:
                         self._add_to_chain(chain, prov, model_name, f"{key_label}:rr:{model_name}", api_key)
                     elif reason:
@@ -846,7 +840,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
 
             # Add configured fallback model
             if (fb_model, fb_key) not in existing_combos:
-                can_use, reason = self._can_use_model(fb_model, fb_key, fm, fb_cost, base_url=fb_base)
+                can_use, reason = self._can_use_model(fb_model, fb_key, fm, fb_cost, )
                 if can_use:
                     self._add_to_chain(chain, fb_prov, fb_model, f"fallback:{fb_model}", fb_key)
                     existing_combos.add((fb_model, fb_key))
@@ -868,7 +862,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 for model_name in models:
                     if (model_name, fb_key) in existing_combos:
                         continue
-                    can_use, reason = self._can_use_model(model_name, fb_key, fm, base_url=fb_base)
+                    can_use, reason = self._can_use_model(model_name, fb_key, fm, )
                     if can_use:
                         self._add_to_chain(chain, fb_prov, model_name, f"fallback:rr:{model_name}", fb_key)
                         existing_combos.add((model_name, fb_key))
@@ -887,7 +881,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
             zai_models = ["glm-4.7-flash", "glm-4.5-flash"]
             for m in zai_models:
                 if (m, zai_key) not in existing_combos:
-                    can_use, reason = self._can_use_model(m, zai_key, fm, base_url=zai_base)
+                    can_use, reason = self._can_use_model(m, zai_key, fm)
                     if can_use:
                         self._add_to_chain(chain, zai_prov, m, f"zai:{m}", zai_key)
                         existing_combos.add((m, zai_key))
