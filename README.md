@@ -227,53 +227,19 @@ StoryForge ships with 10 customizable agent prompts in `data/prompts/agent_promp
 
 ## Architecture
 
-```
-                        ┌─────────────────────────────────────────┐
-  User Prompt  ────────▶│         Layer 1 — Story Generation      │
-                        │  Characters · World · Chapters · Context │
-                        └──────────────────┬──────────────────────┘
-                                           │
-                        ┌──────────────────▼──────────────────────┐
-                        │       Layer 2 — Drama Simulation         │
-                        │  13 AI Agents · Conflict Emergence       │
-                        │  Contract Gate · Auto-Revision Loop      │
-                        └──────────────────┬──────────────────────┘
-                                           │
-                        ┌──────────────────▼──────────────────────┐
-                        │         Image Generation                  │
-                        │  Character Consistency · Scene Backgrounds│
-                        └──────────────────┬──────────────────────┘
-                                           │
-                              PDF · EPUB · HTML · ZIP
-```
-
 ```mermaid
 flowchart LR
-    idea([User Idea]) --> L1
-
-    subgraph L1 [Layer 1 — Story Generation]
-        direction TB
-        chars[Characters & World] --> chapters[Full Chapters]
-    end
-
-    L1 --> L2
-
-    subgraph L2 [Layer 2 — Drama Simulation]
-        direction TB
-        agents[13 AI Agents] --> conflicts[Conflict & Alliance]
-        conflicts --> score[Quality Score]
-        score -- below threshold --> agents
-    end
-
-    L2 --> IMG
-
-    subgraph IMG [Image Generation]
-        direction TB
-        portraits[Character Portraits] --> scenes[Scene Backgrounds]
-    end
-
-    IMG --> export([PDF / EPUB / HTML / ZIP])
+    idea([Idea]) --> L1[Layer 1<br/>Story Generation]
+    L1 --> L2[Layer 2<br/>Drama Enhancement]
+    L2 --> media[Images · Export]
+    media --> out([PDF · EPUB · HTML · ZIP])
 ```
+
+- **Layer 1** builds characters, outline, conflict web, foreshadowing, then writes chapters in parallel batches.
+- **Layer 2** runs a multi-agent drama simulation, rewrites scenes with voice preservation, and validates chapter contracts.
+- **Quality gates, structural rewrites, and smart revision loops** kick in between layers to catch weak chapters automatically.
+
+See [**docs/system-architecture.md**](docs/system-architecture.md) for the full pipeline flow, signal integration, and retry semantics.
 
 ---
 

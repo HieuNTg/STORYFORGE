@@ -2,38 +2,140 @@
 
 ## Overview
 
-StoryForge is a 3-layer AI story generation pipeline with a FastAPI backend, Alpine.js frontend, and production-ready monitoring stack.
+StoryForge is a 2-layer AI story generation pipeline (plus optional L3 sensory polish) with a FastAPI backend, Alpine.js frontend, and production-ready monitoring stack.
+
+**Entry point:** `PipelineOrchestrator.run_full_pipeline()` → `pipeline/orchestrator_layers.py::run_full_pipeline()` (async; blocking LLM calls offloaded via `asyncio.to_thread`).
+
+### Full pipeline flow (as implemented)
 
 ```
-User Input
-    ↓
-┌─────────────────────────────────────┐
-│   Layer 1: Story Generation         │
-│   (Characters, World, Chapters)     │
-│   + NarrativeContextBlock           │
-│   + Pacing Enforcer + Self-Critique │
-└────────────┬────────────────────────┘
-             ↓
-┌─────────────────────────────────────┐
-│   Layer 2: Drama Simulation         │
-│   (13 AI Agents, Conflict Analysis) │
-│   + Phase B: Causal Accountability  │
-│   (Knowledge Graph, Revelation Audit)│
-│   + Parallel Feedback Rewrite       │
-└────────────┬────────────────────────┘
-             ↓
-┌─────────────────────────────────────┐
-│   Layer 3: Sensory Polish (Optional)│
-│   (Prose refinement, imagery, flow) │
-└────────────┬────────────────────────┘
-             ↓
-┌─────────────────────────────────────┐
-│   Image Generation                  │
-│   (Character Consistency + Scenes)  │
-└────────────┬────────────────────────┘
-             ↓
-        Export (PDF/EPUB/HTML/ZIP)
+┌─ PRE-FLIGHT ────────────────────────────────────────────────┐
+│  LLMClient.check_connection  |  PipelineTrace  |  Tracker   │
+│  AgentRegistry boot (opt, enable_agents=True)               │
+└─────────────────────────────────────────────────────────────┘
+                               │
+┌─ LAYER 1 — STORY GENERATION (pipeline/layer1_story) ────────┐
+│  theme_premise_generator                                    │
+│  → character_generator + voice_profiler                     │
+│  → outline_builder + outline_critic                         │
+│  → conflict_web_builder + foreshadowing_manager             │
+│  → scene_decomposer + scene_beat_generator                  │
+│  → chapter_writer (asyncio.gather, chapter_batch_size=5,    │
+│    optional per-batch checkpoint callback)                  │
+│  → post_processing                                          │
+│  ── save checkpoint(1)                                      │
+│  ── context.compute_health_score() + extraction_failures    │
+│  ── QualityScorer.score_story(layer=1) (opt)                │
+│  ── QualityGate.check() → 1 retry of full L1 (opt)          │
+│  ── StoryAnalytics (words, reading time, dialogue ratio)    │
+│  ── StoryKnowledgeGraph.build_from_story_draft / unified    │
+│  ── AgentRegistry.run_review_cycle(layer=1) (opt)           │
+└─────────────────────────────────────────────────────────────┘
+                               │
+┌─ STRUCTURAL REWRITE BRIDGE (L2 diagnoses → L1 rewrites) ────┐
+│  Flag: enable_structural_rewrite (default True)             │
+│  enhancer.detect_structural_issues(draft, arc_waypoints,    │
+│    threshold=structural_rewrite_threshold)                  │
+│  → per weak chapter: story_gen.write_chapter() with         │
+│    fix_hints packed into enhancement_context                │
+│  → replace chapter in draft, mark _rewritten_chapters       │
+│  Cap: max_structural_rewrites × len(chapters)               │
+└─────────────────────────────────────────────────────────────┘
+                               │
+┌─ LAYER 2 — DRAMA ENHANCEMENT (pipeline/layer2_enhance) ─────┐
+│  ThematicTracker.extract_theme(draft)                       │
+│  plugin_manager.apply_genre_rules(genre, base_rules)        │
+│                                                             │
+│  L1 → L2 signals (flag: l2_use_l1_signals):                 │
+│    • arc_waypoints (flattened from draft.characters)        │
+│    • threads (open + resolved)                              │
+│    • pacing_adjustment (from draft.context)                 │
+│    • conflict_web                                           │
+│    • foreshadowing_plan                                     │
+│    • voice_fingerprints (via draft.voice_profiles)          │
+│                                                             │
+│  calculate_adaptive_rounds(characters, threads,             │
+│    conflict_web) → 4–10 rounds (flag: adaptive_sim_rounds)  │
+│                                                             │
+│  analyzer.analyze(draft, conflict_web)                      │
+│    → relationships + structural analysis                    │
+│  simulator.run_simulation(...)                              │
+│    → multi-agent debate                                     │
+│    → knowledge_registry + causal_graph                      │
+│    → exposed to draft via draft._knowledge_registry /       │
+│      draft._causal_graph (Phase B causal audit)             │
+│  enhancer.enhance_with_feedback(draft, sim_result,          │
+│    theme_profile)                                           │
+│    → scene-level rewrite + voice preservation               │
+│    → ChapterContract validation (Phase E contract_gate)     │
+│                                                             │
+│  ── save checkpoint(2)                                      │
+│  ── QualityScorer(layer=2) + QualityGate 1-retry (opt)      │
+│  ── Analytics + contract_stats + voice_stats                │
+│  ── AgentRegistry.run_review_cycle(layer=2) (opt)           │
+│  ── SmartRevisionService.revise_weak_chapters (opt,         │
+│    flag: enable_smart_revision)                             │
+│                                                             │
+│  L2 failure → fallback to original draft,                   │
+│    output.status="partial", drama_score=0.0                 │
+└─────────────────────────────────────────────────────────────┘
+                               │
+┌─ LAYER 3 — SENSORY POLISH (optional) ───────────────────────┐
+│  Flag: enable_layer3. Prose refinement, imagery, flow       │
+└─────────────────────────────────────────────────────────────┘
+                               │
+┌─ POST ──────────────────────────────────────────────────────┐
+│  MediaProducer.run(draft, enhanced) — character portraits + │
+│    scene backgrounds (opt, enable_media + image_provider)   │
+│  trace.summary() attached to output.trace                   │
+│  progress_events attached to output                         │
+│  Output persisted to Redis under session key (24h TTL)      │
+│  Export: PDF · EPUB · HTML · ZIP                            │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+```mermaid
+flowchart TB
+    idea([User Idea]) --> pre[Pre-flight: LLM check · Trace · Agents]
+    pre --> L1
+
+    subgraph L1 [Layer 1 — Story Generation]
+        direction TB
+        theme[Theme + Premise] --> chars[Characters + Voice Profiles]
+        chars --> outline[Outline + Critic]
+        outline --> web[Conflict Web + Foreshadowing]
+        web --> scenes[Scene Decomposer + Beats]
+        scenes --> chapters[Chapter Writer · parallel batches]
+        chapters --> post[Post-processing]
+    end
+
+    L1 --> gate1[Checkpoint · Health · Scorer · Gate · KG · Agent Review]
+    gate1 --> bridge{Structural issues?}
+    bridge -- yes --> rewrite[L1 rewrites weak chapters<br/>with L2 fix_hints] --> L2
+    bridge -- no --> L2
+
+    subgraph L2 [Layer 2 — Drama Enhancement]
+        direction TB
+        theme2[ThematicTracker] --> signals[L1 Signals: arcs · threads · conflict<br/>foreshadowing · pacing · voice]
+        signals --> rounds[Adaptive Rounds 4–10]
+        rounds --> analyzer[Analyzer]
+        analyzer --> sim[Simulator · multi-agent debate<br/>+ causal_graph + knowledge_registry]
+        sim --> enhancer[Enhancer · scene rewrite<br/>+ voice preservation + contract_gate]
+    end
+
+    L2 --> gate2[Checkpoint · Scorer · Gate · Agent Review · SmartRevision]
+    gate2 --> L3[L3 Sensory Polish · optional]
+    L3 --> media[Media · Trace · Redis persist]
+    media --> export([PDF · EPUB · HTML · ZIP])
+```
+
+**Retry / rewrite loops in play:**
+- **QualityGate** (per layer): 1 full-layer retry if score < threshold
+- **Structural rewrite**: L2 detects → L1 rewrites weak chapters (capped)
+- **SmartRevision**: per-chapter fix after L2 using agent reviews
+- **Contract gate**: per-chapter single-retry rewrite inside enhancer
+
+**Failure semantics:** L1 hard-fails abort the pipeline; L2 failures are non-fatal (fallback to draft, `status="partial"`).
 
 ## Phase E: Contract Gate Architecture
 

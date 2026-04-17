@@ -233,53 +233,19 @@ StoryForge đi kèm 10 prompt tác nhân có thể tùy chỉnh trong `data/prom
 
 ## Kiến trúc
 
-```
-                        ┌─────────────────────────────────────────┐
-  Ý tưởng người dùng ──▶│        Lớp 1 — Tạo truyện              │
-                        │  Nhân vật · Thế giới · Chương · Bối cảnh│
-                        └──────────────────┬──────────────────────┘
-                                           │
-                        ┌──────────────────▼──────────────────────┐
-                        │       Lớp 2 — Mô phỏng kịch tính        │
-                        │  13 Tác nhân AI · Phát lộ xung đột       │
-                        │  Contract Gate · Vòng tự sửa            │
-                        └──────────────────┬──────────────────────┘
-                                           │
-                        ┌──────────────────▼──────────────────────┐
-                        │           Tạo hình ảnh                    │
-                        │  Chân dung nhất quán · Phông cảnh điện ảnh│
-                        └──────────────────┬──────────────────────┘
-                                           │
-                              PDF · EPUB · HTML · ZIP
-```
-
 ```mermaid
 flowchart LR
-    idea([Ý tưởng]) --> L1
-
-    subgraph L1 [Lớp 1 — Tạo truyện]
-        direction TB
-        chars[Nhân vật & Thế giới] --> chapters[Các chương hoàn chỉnh]
-    end
-
-    L1 --> L2
-
-    subgraph L2 [Lớp 2 — Mô phỏng kịch tính]
-        direction TB
-        agents[13 Tác nhân AI] --> conflicts[Xung đột & Liên minh]
-        conflicts --> score[Điểm chất lượng]
-        score -- dưới ngưỡng --> agents
-    end
-
-    L2 --> IMG
-
-    subgraph IMG [Tạo hình ảnh]
-        direction TB
-        portraits[Chân dung nhân vật] --> scenes[Phông cảnh điện ảnh]
-    end
-
-    IMG --> export([PDF / EPUB / HTML / ZIP])
+    idea([Ý tưởng]) --> L1[Lớp 1<br/>Tạo truyện]
+    L1 --> L2[Lớp 2<br/>Tăng kịch tính]
+    L2 --> media[Hình ảnh · Xuất bản]
+    media --> out([PDF · EPUB · HTML · ZIP])
 ```
+
+- **Lớp 1** xây dựng nhân vật, outline, conflict web, foreshadowing rồi viết chương song song theo batch.
+- **Lớp 2** chạy mô phỏng kịch tính đa tác nhân, viết lại cảnh với bảo toàn giọng văn và validate chapter contract.
+- **Quality gate, rewrite cấu trúc, và vòng smart revision** tự động kích hoạt giữa các lớp để bắt chương yếu.
+
+Xem [**docs/system-architecture.md**](docs/system-architecture.md) để biết luồng pipeline đầy đủ, tích hợp tín hiệu L1↔L2, và semantics retry.
 
 ---
 
