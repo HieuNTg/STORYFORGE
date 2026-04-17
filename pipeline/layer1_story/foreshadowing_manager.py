@@ -418,6 +418,56 @@ def format_audit_warnings(audit: dict) -> list[str]:
     return warnings
 
 
+def get_foreshadowing_status(
+    plan: list[ForeshadowingEntry],
+    chapter_number: int,
+) -> str:
+    """Bug #5: Get foreshadowing status summary for prompt injection.
+
+    Returns a formatted string showing:
+    - Seeds planted in previous chapters (waiting for payoff)
+    - Payoffs already delivered
+    - Seeds to plant this chapter
+    - Payoffs due this chapter
+    """
+    if not plan:
+        return ""
+
+    planted_waiting = []
+    paid_off = []
+    to_plant = []
+    to_payoff = []
+
+    for f in plan:
+        if f.plant_chapter < chapter_number and f.planted:
+            if f.paid_off:
+                paid_off.append(f)
+            else:
+                planted_waiting.append(f)
+        if f.plant_chapter == chapter_number and not f.planted:
+            to_plant.append(f)
+        if f.payoff_chapter == chapter_number and not f.paid_off:
+            to_payoff.append(f)
+
+    lines = []
+    if planted_waiting:
+        lines.append("## FORESHADOWING ĐÃ GIEO (chờ payoff):")
+        for f in planted_waiting[:5]:
+            lines.append(f"- Ch{f.plant_chapter}: \"{f.hint}\" → payoff ch{f.payoff_chapter}")
+
+    if to_plant:
+        lines.append("## CẦN GIEO CHƯƠNG NÀY:")
+        for f in to_plant:
+            lines.append(f"- \"{f.hint}\"")
+
+    if to_payoff:
+        lines.append("## CẦN PAYOFF CHƯƠNG NÀY:")
+        for f in to_payoff:
+            lines.append(f"- \"{f.hint}\" (đã gieo ch{f.plant_chapter})")
+
+    return "\n".join(lines) if lines else ""
+
+
 def suggest_late_payoff_chapter(
     entry: ForeshadowingEntry,
     current_chapter: int,

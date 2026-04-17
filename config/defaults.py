@@ -200,6 +200,14 @@ class PipelineConfig:
     enable_scene_beat_writing: bool = True  # Per-beat chapter writing (extends enable_scene_decomposition)
     enable_l1_causal_graph: bool = True  # Causal event tracking and validation
 
+    # New L1 validators (Feature #12-16)
+    enable_dialogue_voice_check: bool = True  # Bug #6: Voice profile enforcement
+    enable_pov_drift_check: bool = True  # Feature #12: POV consistency within chapters
+    enable_timeline_validation: bool = True  # Feature #13: Temporal consistency
+    enable_secret_tracking: bool = True  # Feature #14: Character secret reveal tracking
+    enable_thematic_resonance: bool = True  # Feature #15: Theme presence tracking
+    enable_dialogue_attribution_check: bool = True  # Feature #16: Clear dialogue attribution
+
     # L2 enhancement quality signals
     l2_use_l1_signals: bool = True  # wire L1 waypoints/summary/pacing/thread.status into L2
     l2_causal_audit: bool = True  # post-L2 causality verification (Phase B)

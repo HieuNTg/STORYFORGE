@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from models.schemas import EnhancedStory, PipelineOutput, StoryDraft
 from plugins import plugin_manager
+from pipeline.pipeline_utils import verify_draft_integrity, DraftIntegrityError
 from services.trace_context import PipelineTrace, set_trace, clear_trace, set_module, set_chapter
 
 if TYPE_CHECKING:
@@ -271,6 +272,25 @@ async def run_full_pipeline(
 
     if not draft or not draft.chapters:
         _log("[ERROR] Layer 1 produced no chapters. Cannot proceed.")
+        self.output.status = "error"
+        return self.output
+
+    # Bug #2: Draft integrity validation gate before L2
+    try:
+        integrity = verify_draft_integrity(
+            draft,
+            require_chapters=True,
+            require_outlines=True,
+            require_characters=True,
+            min_chapters=1,
+        )
+        if not integrity["valid"]:
+            _log(f"[INTEGRITY] ⚠️ Draft có vấn đề: {'; '.join(integrity['errors'])}")
+        for warn in integrity.get("warnings", []):
+            _log(f"[INTEGRITY] {warn}")
+        _log(f"[INTEGRITY] {integrity['chapter_count']} chapters, {integrity['character_count']} characters")
+    except DraftIntegrityError as e:
+        _log(f"[INTEGRITY] Draft integrity check failed: {e}")
         self.output.status = "error"
         return self.output
 

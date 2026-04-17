@@ -985,6 +985,23 @@ class StoryEnhancer:
             if progress_callback:
                 progress_callback(msg)
 
+        # Bug #10: Ensure knowledge registry exists (mandatory for state tracking)
+        if getattr(draft, "_knowledge_registry", None) is None:
+            try:
+                from pipeline.layer2_enhance.knowledge_system import KnowledgeRegistry
+                draft._knowledge_registry = KnowledgeRegistry()
+                # Seed with initial character states if available
+                for ch in (draft.characters or []):
+                    draft._knowledge_registry.register_fact(
+                        character=ch.name,
+                        fact_type="initial_state",
+                        content=f"{ch.role}: {ch.personality}",
+                        chapter=0,
+                    )
+                _log("[KR] Đã khởi tạo knowledge registry")
+            except Exception as e:
+                logger.warning(f"Knowledge registry init failed (non-fatal): {e}")
+
         # Reset consistency engine for fresh build
         self.consistency_engine = None
 

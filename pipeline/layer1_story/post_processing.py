@@ -78,28 +78,45 @@ def process_chapter_post_write(
             chapter.content = revised_content
             chapter.word_count = count_words(revised_content)
 
-    # Parallel extraction
-    summary_f = executor.submit(summarize_chapter, llm, chapter.content)
-    states_f = executor.submit(extract_character_states, llm, chapter.content, characters)
-    events_f = executor.submit(extract_plot_events, llm, chapter.content, outline.chapter_number)
-
-    _TIMEOUT = 120
+    # Bug #8: Check extraction cache before running LLM
+    from pipeline.pipeline_utils import ChapterExtractionCache
+    _cache = ChapterExtractionCache()
     ch_num = outline.chapter_number
 
+    cached_summary = _cache.get_summary(ch_num, chapter.content)
+    cached_events = _cache.get_plot_events(ch_num, chapter.content)
+
+    # Parallel extraction (skip cached)
+    summary_f = None if cached_summary else executor.submit(summarize_chapter, llm, chapter.content)
+    states_f = executor.submit(extract_character_states, llm, chapter.content, characters)
+    events_f = None if cached_events else executor.submit(extract_plot_events, llm, chapter.content, outline.chapter_number)
+
+    _TIMEOUT = 120
+
     summary = ""
-    with tracked_extraction(story_context, ch_num, "summary"):
-        summary = summary_f.result(timeout=_TIMEOUT)
+    if cached_summary:
+        summary = cached_summary
+        logger.debug(f"Ch{ch_num}: using cached summary")
+    else:
+        with tracked_extraction(story_context, ch_num, "summary"):
+            summary = summary_f.result(timeout=_TIMEOUT)
+            _cache.set_summary(ch_num, chapter.content, summary)
 
     new_states = []
     with tracked_extraction(story_context, ch_num, "character_states"):
         new_states = states_f.result(timeout=_TIMEOUT)
 
     new_events = []
-    with tracked_extraction(story_context, ch_num, "plot_events"):
-        new_events = events_f.result(timeout=_TIMEOUT)
-        for e in new_events:
-            if any(kw in e.event.lower() for kw in _CRITICAL_KEYWORDS):
-                e.critical = True
+    if cached_events:
+        new_events = cached_events
+        logger.debug(f"Ch{ch_num}: using cached plot_events")
+    else:
+        with tracked_extraction(story_context, ch_num, "plot_events"):
+            new_events = events_f.result(timeout=_TIMEOUT)
+            _cache.set_plot_events(ch_num, chapter.content, new_events)
+    for e in new_events:
+        if any(kw in e.event.lower() for kw in _CRITICAL_KEYWORDS):
+            e.critical = True
 
     # Update rolling context
     chapter.summary = summary
@@ -157,6 +174,162 @@ def process_chapter_post_write(
             logger.warning(w)
     except Exception as e:
         logger.warning(f"Consistency validation failed: {e}")
+
+    # Bug #6: Dialogue voice consistency check (uses cheap LLM tier)
+    _voice_check_enabled = getattr(pipeline_config, "enable_dialogue_voice_check", False) \
+        if pipeline_config else False
+    if _voice_check_enabled and voice_profiles:
+        try:
+            from pipeline.layer1_story.dialogue_consistency_checker import dialogue_consistency_check
+            passed, warning = dialogue_consistency_check(
+                llm, chapter.content, characters,
+                threshold=0.7,
+            )
+            if not passed and warning:
+                story_context.voice_consistency_warnings = getattr(
+                    story_context, "voice_consistency_warnings", []
+                ) or []
+                story_context.voice_consistency_warnings.append({
+                    "chapter": outline.chapter_number,
+                    "warning": warning,
+                })
+                if progress_callback:
+                    progress_callback(f"⚠️ Ch{outline.chapter_number}: voice consistency issue")
+        except Exception as e:
+            logger.debug(f"Dialogue voice check failed (non-fatal): {e}")
+
+    # Feature #12: POV drift detection
+    _pov_check_enabled = getattr(pipeline_config, "enable_pov_drift_check", False) \
+        if pipeline_config else False
+    if _pov_check_enabled:
+        try:
+            from pipeline.layer1_story.pov_drift_detector import validate_chapter_pov
+            passed, warning = validate_chapter_pov(llm, chapter.content, characters)
+            if not passed and warning:
+                story_context.pov_drift_warnings = getattr(
+                    story_context, "pov_drift_warnings", []
+                ) or []
+                story_context.pov_drift_warnings.append({
+                    "chapter": outline.chapter_number,
+                    "warning": warning,
+                })
+                if progress_callback:
+                    progress_callback(f"⚠️ Ch{outline.chapter_number}: POV drift detected")
+        except Exception as e:
+            logger.debug(f"POV drift check failed (non-fatal): {e}")
+
+    # Feature #16: Dialogue attribution validation
+    _attr_check_enabled = getattr(pipeline_config, "enable_dialogue_attribution_check", False) \
+        if pipeline_config else False
+    if _attr_check_enabled:
+        try:
+            from pipeline.layer1_story.dialogue_attribution_validator import (
+                validate_dialogue_attribution, detect_rapid_exchange,
+            )
+            attr_result = validate_dialogue_attribution(llm, chapter.content, characters)
+            rapid = detect_rapid_exchange(chapter.content)
+            if attr_result["clarity_score"] < 0.7 or rapid:
+                story_context.dialogue_attribution_warnings = getattr(
+                    story_context, "dialogue_attribution_warnings", []
+                ) or []
+                story_context.dialogue_attribution_warnings.append({
+                    "chapter": outline.chapter_number,
+                    "clarity_score": attr_result["clarity_score"],
+                    "unclear_count": len(attr_result["unclear_lines"]),
+                    "rapid_exchanges": len(rapid),
+                })
+        except Exception as e:
+            logger.debug(f"Dialogue attribution check failed (non-fatal): {e}")
+
+    # Feature #13: Timeline validation
+    _timeline_enabled = getattr(pipeline_config, "enable_timeline_validation", False) \
+        if pipeline_config else False
+    if _timeline_enabled:
+        try:
+            from pipeline.layer1_story.timeline_validator import (
+                validate_chapter_timeline, create_timeline_state, format_timeline_warning,
+            )
+            # Get or create timeline state
+            timeline_state = getattr(story_context, "timeline_state", None)
+            if timeline_state is None:
+                timeline_state = create_timeline_state()
+                story_context.timeline_state = timeline_state
+
+            tl_result = validate_chapter_timeline(
+                llm, chapter.content, outline.chapter_number, timeline_state,
+            )
+            if not tl_result["valid"]:
+                story_context.timeline_warnings = getattr(
+                    story_context, "timeline_warnings", []
+                ) or []
+                story_context.timeline_warnings.extend(tl_result["contradictions"])
+                if progress_callback:
+                    progress_callback(f"⚠️ Ch{outline.chapter_number}: timeline contradiction")
+        except Exception as e:
+            logger.debug(f"Timeline validation failed (non-fatal): {e}")
+
+    # Feature #14: Secret tracking
+    _secret_enabled = getattr(pipeline_config, "enable_secret_tracking", False) \
+        if pipeline_config else False
+    if _secret_enabled:
+        try:
+            from pipeline.layer1_story.character_secret_tracker import (
+                check_secret_reveal, initialize_secrets,
+            )
+            # Get or create secret registry
+            secret_registry = getattr(story_context, "secret_registry", None)
+            if secret_registry is None:
+                secret_registry = initialize_secrets(characters)
+                story_context.secret_registry = secret_registry
+
+            secret_result = check_secret_reveal(
+                llm, chapter.content, outline.chapter_number, secret_registry,
+            )
+            if secret_result["premature"]:
+                story_context.premature_reveals = getattr(
+                    story_context, "premature_reveals", []
+                ) or []
+                story_context.premature_reveals.extend(secret_result["premature"])
+                if progress_callback:
+                    progress_callback(
+                        f"⚠️ Ch{outline.chapter_number}: {len(secret_result['premature'])} premature reveal(s)"
+                    )
+        except Exception as e:
+            logger.debug(f"Secret tracking failed (non-fatal): {e}")
+
+    # Feature #15: Thematic resonance
+    _thematic_enabled = getattr(pipeline_config, "enable_thematic_resonance", False) \
+        if pipeline_config else False
+    if _thematic_enabled:
+        try:
+            from pipeline.layer1_story.thematic_resonance_tracker import (
+                analyze_theme_presence, detect_thematic_drift,
+                initialize_thematic_state, format_thematic_guidance,
+            )
+            # Get or create thematic state
+            thematic_state = getattr(story_context, "thematic_state", None)
+            if thematic_state is None:
+                premise = getattr(draft, "premise", None)
+                thematic_state = initialize_thematic_state(premise)
+                story_context.thematic_state = thematic_state
+
+            if thematic_state.core_themes:
+                presences = analyze_theme_presence(
+                    llm, chapter.content, outline.chapter_number,
+                    thematic_state.core_themes,
+                )
+                for p in presences:
+                    thematic_state.add_presence(p)
+
+                drift = detect_thematic_drift(
+                    thematic_state, outline.chapter_number, story_context.total_chapters,
+                )
+                if drift["drifting"]:
+                    story_context.thematic_drift_warning = format_thematic_guidance(
+                        drift, thematic_state, outline.chapter_number,
+                    )
+        except Exception as e:
+            logger.debug(f"Thematic resonance tracking failed (non-fatal): {e}")
 
     # Extract world state changes (permanent, irreversible changes to the setting)
     with tracked_extraction(story_context, ch_num, "world_state"):
@@ -279,6 +452,25 @@ def process_chapter_post_write(
             story_context.emotional_history.append(structured.actual_emotional_arc)
             # Store 10 for future analysis; chapter_writer shows last 3
             story_context.emotional_history = story_context.emotional_history[-10:]
+
+            # Bug #11: Detect emotional whiplash
+            try:
+                from pipeline.pipeline_utils import detect_emotional_whiplash, format_whiplash_warning
+                whiplash_events = detect_emotional_whiplash(
+                    story_context.emotional_history, threshold=1.2, window=3,
+                )
+                if whiplash_events:
+                    warning = format_whiplash_warning(whiplash_events)
+                    story_context.emotional_whiplash_warning = warning
+                    if progress_callback:
+                        progress_callback(
+                            f"⚠️ Ch{outline.chapter_number}: emotional whiplash detected"
+                        )
+                else:
+                    story_context.emotional_whiplash_warning = ""
+            except Exception as wh_err:
+                logger.debug("Emotional whiplash detection failed (non-fatal): %s", wh_err)
+
         # Pacing feedback loop: compare intended vs actual, compute correction
         try:
             from pipeline.layer1_story.pacing_controller import compute_pacing_adjustment

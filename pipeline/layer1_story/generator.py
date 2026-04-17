@@ -6,6 +6,7 @@ from models.schemas import Character, Chapter, StoryDraft, StoryContext
 from services.llm_client import LLMClient
 from services.input_sanitizer import sanitize_story_input
 from config import ConfigManager
+from pipeline.pipeline_utils import llm_call_with_retry, LLMCallError
 from pipeline.layer1_story.story_bible_manager import StoryBibleManager
 from pipeline.layer1_story.character_generator import generate_characters, extract_character_states
 from pipeline.layer1_story.chapter_writer import (
@@ -218,7 +219,13 @@ class StoryGenerator:
                 logger.warning("Theme premise generation failed (non-fatal): %s", e)
 
         _log(f"Đang tạo nhân vật cho '{title}'...")
-        characters = self.generate_characters(title, genre, idea, num_characters)
+        # Bug #1: Critical call with retry
+        characters = llm_call_with_retry(
+            lambda: self.generate_characters(title, genre, idea, num_characters),
+            max_retries=2,
+            critical=True,
+            operation_name="generate_characters",
+        )
 
         # --- Enhancement 2: Character voice profiles ---
         voice_profiles = []
@@ -235,7 +242,13 @@ class StoryGenerator:
             except Exception as e:
                 logger.warning("Voice profile generation failed (non-fatal): %s", e)
         _log("Đang xây dựng bối cảnh thế giới...")
-        world = self.generate_world(title, genre, characters)
+        # Bug #1: Critical call with retry
+        world = llm_call_with_retry(
+            lambda: self.generate_world(title, genre, characters),
+            max_retries=2,
+            critical=True,
+            operation_name="generate_world",
+        )
         # Step 4a: Generate macro arcs (structural backbone)
         macro_arcs = []
         try:
@@ -267,7 +280,13 @@ class StoryGenerator:
                 logger.warning("Arc waypoint generation failed (non-fatal): %s", e)
 
         _log(f"Đang tạo dàn ý {num_chapters} chương...")
-        synopsis, outlines = self.generate_outline(title, genre, characters, world, idea, num_chapters, macro_arcs=macro_arcs)
+        # Bug #1: Critical call with retry
+        synopsis, outlines = llm_call_with_retry(
+            lambda: self.generate_outline(title, genre, characters, world, idea, num_chapters, macro_arcs=macro_arcs),
+            max_retries=2,
+            critical=True,
+            operation_name="generate_outline",
+        )
 
         # --- Outline-arc coherence validation ---
         if self.config.pipeline.enable_outline_arc_validation and macro_arcs:
@@ -299,20 +318,54 @@ class StoryGenerator:
             except Exception as e:
                 logger.warning("Outline critique failed (non-fatal): %s", e)
 
-        # Step 4b: Generate conflict web
+        # BUG FIX #7: Sync revised outlines back to draft
+        # Previously draft.outlines was set before critique, chapters wrote to pre-critique outlines
+        draft = StoryDraft(title=title, genre=genre, synopsis=synopsis,
+                           characters=characters, world=world, outlines=outlines,
+                           premise=premise, voice_profiles=voice_profiles)
+
+        # Bug #3: Parallelize conflict_web + arc_milestones, then foreshadowing (depends on conflict_web)
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
         conflict_web = []
-        try:
-            _log("Đang xây dựng mạng lưới xung đột...")
+        arc_milestones = []
+
+        def _gen_conflict_web():
             from pipeline.layer1_story.conflict_web_builder import generate_conflict_web
-            conflict_web = generate_conflict_web(
+            return generate_conflict_web(
                 self.llm, title, genre, characters, macro_arcs,
                 model=self._layer_model,
             )
-            _log(f"Đã tạo {len(conflict_web)} xung đột")
-        except Exception as e:
-            logger.warning("Conflict web generation failed (non-fatal): %s", e)
 
-        # Step 4c: Generate foreshadowing plan
+        def _gen_arc_milestones():
+            if not (self.config.pipeline.enable_arc_milestones and macro_arcs):
+                return []
+            from pipeline.layer1_story.arc_milestone_manager import generate_arc_milestones
+            return generate_arc_milestones(
+                self.llm, macro_arcs, synopsis, genre, model=self._layer_model,
+            )
+
+        _log("Đang xây dựng mạng lưới xung đột + arc milestones (song song)...")
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = {
+                executor.submit(_gen_conflict_web): "conflict_web",
+                executor.submit(_gen_arc_milestones): "arc_milestones",
+            }
+            for future in as_completed(futures):
+                task_name = futures[future]
+                try:
+                    result = future.result()
+                    if task_name == "conflict_web":
+                        conflict_web = result or []
+                        _log(f"Đã tạo {len(conflict_web)} xung đột")
+                    else:
+                        arc_milestones = result or []
+                        if arc_milestones:
+                            _log(f"Đã tạo {len(arc_milestones)} arc milestones")
+                except Exception as e:
+                    logger.warning(f"{task_name} generation failed (non-fatal): %s", e)
+
+        # Foreshadowing depends on conflict_web, so runs after parallel phase
         foreshadowing_plan = []
         try:
             _log("Đang lên kế hoạch foreshadowing...")
@@ -325,22 +378,7 @@ class StoryGenerator:
         except Exception as e:
             logger.warning("Foreshadowing plan generation failed (non-fatal): %s", e)
 
-        # Sprint 3 Task 3: Generate arc milestones
-        arc_milestones = []
-        if self.config.pipeline.enable_arc_milestones and macro_arcs:
-            try:
-                _log("Đang sinh arc milestones...")
-                from pipeline.layer1_story.arc_milestone_manager import generate_arc_milestones
-                arc_milestones = generate_arc_milestones(
-                    self.llm, macro_arcs, synopsis, genre, model=self._layer_model,
-                )
-                _log(f"Đã tạo {len(arc_milestones)} arc milestones")
-            except Exception as e:
-                logger.warning("Arc milestone generation failed (non-fatal): %s", e)
-
-        draft = StoryDraft(title=title, genre=genre, synopsis=synopsis,
-                           characters=characters, world=world, outlines=outlines,
-                           premise=premise, voice_profiles=voice_profiles)
+        # Update draft with L1 signals (draft already created after outline critique)
         draft.macro_arcs = macro_arcs
         draft.conflict_web = conflict_web
         draft.foreshadowing_plan = foreshadowing_plan

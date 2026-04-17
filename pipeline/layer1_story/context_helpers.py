@@ -1,6 +1,12 @@
-"""Context helpers: RAG KB lazy singleton and long-context chapter writing."""
+"""Context helpers: RAG KB lazy singleton and long-context chapter writing.
 
+Bug #4 fix: Added RAG batch cache to prevent re-querying same context within batch.
+"""
+
+import hashlib
 import logging
+import threading
+from typing import Optional
 
 from models.schemas import Chapter, ChapterOutline, StoryContext, count_words
 
@@ -8,6 +14,83 @@ logger = logging.getLogger(__name__)
 
 # Lazy singleton — only instantiated when rag_enabled=True
 _rag_kb = None
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Bug #4: RAG Batch Cache — prevents re-querying similar context within batch
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class RAGBatchCache:
+    """Batch-scoped cache for RAG query results.
+
+    Key: hash(outline_summary + character_names + thread_ids)
+    Automatically clears between batches via reset_batch().
+    """
+
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._cache = {}
+                    cls._instance._batch_id = 0
+        return cls._instance
+
+    @staticmethod
+    def _make_key(
+        outline_summary: str,
+        char_names: list[str],
+        thread_ids: list[str],
+    ) -> str:
+        """Generate cache key from query parameters."""
+        parts = [
+            outline_summary[:200],
+            "|".join(sorted(char_names)[:5]),
+            "|".join(sorted(thread_ids)[:5]),
+        ]
+        combined = "::".join(parts)
+        return hashlib.md5(combined.encode()).hexdigest()[:16]
+
+    def get(
+        self,
+        outline_summary: str,
+        char_names: list[str],
+        thread_ids: list[str],
+    ) -> Optional[str]:
+        """Get cached RAG result if exists."""
+        key = self._make_key(outline_summary, char_names, thread_ids)
+        return self._cache.get(key)
+
+    def set(
+        self,
+        outline_summary: str,
+        char_names: list[str],
+        thread_ids: list[str],
+        result: str,
+    ) -> None:
+        """Cache RAG result."""
+        key = self._make_key(outline_summary, char_names, thread_ids)
+        self._cache[key] = result
+
+    def reset_batch(self) -> None:
+        """Clear cache for new batch. Call at batch boundary."""
+        with self._lock:
+            self._cache.clear()
+            self._batch_id += 1
+            logger.debug(f"RAG batch cache cleared (batch {self._batch_id})")
+
+    @property
+    def hit_rate(self) -> float:
+        """For analytics."""
+        return 0.0  # Could track hits/misses if needed
+
+
+def get_rag_batch_cache() -> RAGBatchCache:
+    """Get the RAG batch cache singleton."""
+    return RAGBatchCache()
 
 
 def get_rag_kb(persist_dir: str):
@@ -64,11 +147,25 @@ def build_rag_context(
     Dedups by (chapter_number, chunk_index), ranks ascending by embedding distance,
     and caps the merged set at `merge_cap`. Returns an already-formatted block ready
     to be appended to the chapter prompt, or "" when no hits / RAG unavailable.
+
+    Bug #4: Uses batch cache to prevent re-querying same context within batch.
     """
     if rag_kb is None or not getattr(rag_kb, "is_available", False):
         return ""
     if not outline or not getattr(outline, "summary", ""):
         return ""
+
+    # Bug #4: Check batch cache first
+    char_names = [getattr(c, "name", "") for c in (characters or []) if getattr(c, "name", "")]
+    thread_ids = [
+        getattr(t, "thread_id", "") or getattr(t, "title", "")
+        for t in (open_threads or [])
+    ]
+    cache = get_rag_batch_cache()
+    cached = cache.get(outline.summary, char_names, thread_ids)
+    if cached is not None:
+        logger.debug(f"RAG cache hit for chapter {outline.chapter_number}")
+        return cached
 
     queries: list[tuple[str, str, dict | None]] = []
     queries.append(("summary", outline.summary, None))
@@ -126,7 +223,14 @@ def build_rag_context(
         tag = h.get("query_tag", "")
         text = (h.get("text") or "").strip()
         lines.append(f"[ch{ch} — {tag}] {text}")
-    return "\n---\n".join(lines)
+
+    result = "\n---\n".join(lines)
+
+    # Bug #4: Cache result for batch
+    cache.set(outline.summary, char_names, thread_ids, result)
+    logger.debug(f"RAG cache set for chapter {outline.chapter_number}")
+
+    return result
 
 
 def write_chapter_with_long_context(

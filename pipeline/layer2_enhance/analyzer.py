@@ -74,11 +74,17 @@ class StoryAnalyzer:
         if conflict_web:
             relationships = self._merge_conflict_web(relationships, conflict_web)
 
+        # Bug #9: Extract conflict escalation arcs for L2 enhancer
+        escalation_arcs = []
+        if conflict_web:
+            escalation_arcs = self._extract_escalation_arcs(conflict_web)
+
         return {
             "relationships": relationships,
             "conflict_points": result.get("conflict_points", []),
             "untapped_drama": result.get("untapped_drama", []),
             "character_weaknesses": result.get("character_weaknesses", {}),
+            "escalation_arcs": escalation_arcs,
         }
 
     @staticmethod
@@ -134,4 +140,45 @@ class StoryAnalyzer:
             except Exception as e:
                 logger.debug(f"conflict_web merge skipped: {e}")
         return merged
+
+    @staticmethod
+    def _extract_escalation_arcs(conflict_web: list) -> list[dict]:
+        """Bug #9: Extract conflict escalation trajectories for L2 preservation.
+
+        Returns list of dicts with:
+        - conflict_id
+        - characters
+        - status (dormant/active/escalating/resolved)
+        - current_intensity
+        - escalation_timeline
+        - arc_range
+        """
+        arcs = []
+        for entry in conflict_web:
+            try:
+                if hasattr(entry, "model_dump"):
+                    e = entry.model_dump()
+                elif isinstance(entry, dict):
+                    e = entry
+                else:
+                    continue
+
+                # Only include conflicts with meaningful escalation
+                timeline = e.get("escalation_timeline") or []
+                status = e.get("status", "dormant")
+                intensity = e.get("intensity", 1)
+
+                if timeline or status in ("active", "escalating"):
+                    arcs.append({
+                        "conflict_id": e.get("conflict_id", ""),
+                        "characters": e.get("characters", []),
+                        "description": e.get("description", ""),
+                        "status": status,
+                        "current_intensity": intensity,
+                        "escalation_timeline": timeline,
+                        "arc_range": e.get("arc_range", ""),
+                    })
+            except Exception as ex:
+                logger.debug(f"escalation arc extraction skipped: {ex}")
+        return arcs
 

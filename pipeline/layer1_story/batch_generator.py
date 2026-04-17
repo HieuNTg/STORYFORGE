@@ -14,6 +14,7 @@ from typing import Optional, Callable
 
 from models.schemas import StoryDraft, StoryContext, ChapterOutline, Chapter
 from pipeline.layer1_story.post_processing import process_chapter_post_write
+from pipeline.layer1_story.context_helpers import get_rag_batch_cache
 from services.token_counter import estimate_tokens
 
 logger = logging.getLogger(__name__)
@@ -389,6 +390,8 @@ class BatchChapterGenerator:
                     continue
 
                 frozen = FrozenContext(story_context, all_chapter_texts)
+                # Bug #4: Reset RAG cache at batch boundary
+                get_rag_batch_cache().reset_batch()
                 _log(f"[BATCH] Batch {batch_idx + 1}/{len(batches)} ({len(batch)} chương)")
 
                 if self.parallel_enabled and not stream_callback:
@@ -698,6 +701,16 @@ class BatchChapterGenerator:
                 except Exception as e:
                     logger.debug("Emotional memory injection failed (non-fatal): %s", e)
 
+            # Bug #5: Inject foreshadowing status summary
+            if foreshadowing_plan:
+                try:
+                    from pipeline.layer1_story.foreshadowing_manager import get_foreshadowing_status
+                    foreshadowing_status = get_foreshadowing_status(foreshadowing_plan, outline.chapter_number)
+                    if foreshadowing_status:
+                        enhancement_context = f"{enhancement_context}\n\n{foreshadowing_status}" if enhancement_context else foreshadowing_status
+                except Exception as e:
+                    logger.debug("Foreshadowing status injection failed (non-fatal): %s", e)
+
             # Foreshadowing payoff enforcement (Phase 6)
             if foreshadowing_plan and getattr(self.config.pipeline, "enable_foreshadowing_enforcement", True):
                 try:
@@ -716,7 +729,7 @@ class BatchChapterGenerator:
                             if overdue and progress_callback:
                                 progress_callback(f"⚠️ {len(overdue)} foreshadowing quá hạn cần payoff")
                 except Exception as e:
-                    logger.debug("Emotional memory injection failed (non-fatal): %s", e)
+                    logger.debug("Foreshadowing payoff enforcement failed (non-fatal): %s", e)
 
             # Append scene beats for climax/twist chapters (Fix #12)
             from pipeline.layer1_story.scene_beat_generator import generate_scene_beats, format_beats_for_prompt
