@@ -265,28 +265,31 @@ def delete_checkpoint(filename: str):
 
 
 @router.get("/stories")
-def list_stories(limit: int = 20, offset: int = 0):
+def list_stories(limit: int = 20, offset: int = 0, enhanced_only: bool = True):
     """List saved stories (checkpoints) with pagination.
 
     Args:
         limit: Maximum number of items to return (default 20).
         offset: Number of items to skip (default 0).
+        enhanced_only: If True, only return layer2 (enhanced) checkpoints.
 
     Returns paginated story list with total count for client-side pagination.
     """
     from pipeline.orchestrator import PipelineOrchestrator
     all_checkpoints = PipelineOrchestrator.list_checkpoints()
+    if enhanced_only:
+        all_checkpoints = [c for c in all_checkpoints if "_layer2" in c.get("file", "")]
     total = len(all_checkpoints)
     page = all_checkpoints[offset: offset + limit]
     items = [
         {
-            "filename": c["file"],
+            "filename": c.get("file", ""),
             "title": c.get("title", ""),
             "genre": c.get("genre", ""),
             "chapter_count": c.get("chapter_count", 0),
             "current_layer": c.get("current_layer", 0),
-            "size_kb": c["size_kb"],
-            "modified": c["modified"],
+            "size_kb": c.get("size_kb", 0),
+            "modified": c.get("modified", ""),
         }
         for c in page
     ]
@@ -386,12 +389,25 @@ async def run_pipeline(request: Request, body: PipelineRequest):
         # Language setting
         orch.config.pipeline.language = body.language
 
+        # Auto-generate title from idea if not provided
+        story_title = body.title.strip() if body.title else ""
+        if not story_title:
+            try:
+                from pipeline.layer1_story.outline_builder import generate_title_from_idea
+                from services.llm_client import LLMClient
+                llm = LLMClient()
+                story_title = generate_title_from_idea(llm, body.genre, idea)
+                logger.info(f"Auto-generated title: {story_title}")
+            except Exception as e:
+                logger.warning(f"Title generation failed, using fallback: {e}")
+                story_title = f"Truyện {body.genre}"
+
         result: list = [None]
 
         async def _run_async():
             try:
                 result[0] = await orch.run_full_pipeline(
-                    title=body.title or f"Truyện {body.genre}",
+                    title=story_title,
                     genre=body.genre,
                     idea=idea,
                     style=body.style,

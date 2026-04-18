@@ -338,3 +338,40 @@ class PipelineOrchestrator:
         self.output = self.continuation.output
         self._sync_output()
         return result
+
+    def generate_continuation_outlines(
+        self,
+        additional_chapters: int = 5,
+        progress_callback=None,
+        arc_directives: list = None,
+    ) -> list:
+        """Generate outlines for continuation without writing chapters."""
+        self._sync_output()
+        return self.continuation.generate_continuation_outlines(
+            additional_chapters=additional_chapters,
+            progress_callback=progress_callback,
+            arc_directives=arc_directives,
+        )
+
+    def write_from_outlines(
+        self,
+        outlines: list,
+        word_count: int = 2000,
+        style: str = "",
+        progress_callback=None,
+        stream_callback=None,
+        arc_directives: list = None,
+    ) -> Optional[StoryDraft]:
+        """Write chapters from pre-generated outlines."""
+        self._sync_output()
+        result = self.continuation.write_from_outlines(
+            outlines=outlines,
+            word_count=word_count,
+            style=style,
+            progress_callback=progress_callback,
+            stream_callback=stream_callback,
+            arc_directives=arc_directives,
+        )
+        self.output = self.continuation.output
+        self._sync_output()
+        return result

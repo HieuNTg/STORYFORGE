@@ -21,6 +21,7 @@ interface PipelineForm {
   title: string;
   genre: string;
   style: string;
+  language: string;
   idea: string;
   num_chapters: number;
   num_characters: number;
@@ -75,7 +76,6 @@ interface ConnectionTestResponse {
 const NAV_ITEMS: NavItem[] = [
   { id: 'pipeline',  label: 'Create Story',  icon: 'pencil-square',         group: 'main'   },
   { id: 'library',   label: 'Library',       icon: 'building-library',       group: 'main'   },
-  { id: 'reader',    label: 'Reader',        icon: 'book-open',              group: 'main'   },
   { id: 'export',    label: 'Export',        icon: 'arrow-down-tray',        group: 'main'   },
   { id: 'analytics', label: 'Analytics',    icon: 'chart-bar',              group: 'main'   },
   { id: 'branching', label: 'Branching',    icon: 'arrows-pointing-out',    group: 'main'   },
@@ -274,7 +274,7 @@ document.addEventListener('alpine:init', () => {
 
     // Form defaults
     form: {
-      title: '', genre: 'Tiên Hiệp', style: 'Miêu tả chi tiết',
+      title: '', genre: 'Tiên Hiệp', style: 'Miêu tả chi tiết', language: 'vi',
       idea: '', num_chapters: 5, num_characters: 5, word_count: 2000,
       num_sim_rounds: 3, drama_level: 'cao', shots_per_chapter: 8,
       enable_agents: true, enable_scoring: true, enable_media: false,
@@ -300,6 +300,11 @@ document.addEventListener('alpine:init', () => {
     } as PipelineForm,
 
     genres: [] as string[], styles: [] as string[], dramaLevels: [] as string[],
+    languages: [
+      { code: 'vi', name: 'Tiếng Việt' },
+      { code: 'en', name: 'English' },
+      { code: 'zh', name: '中文' },
+    ] as Array<{ code: string; name: string }>,
     templates: {} as Record<string, unknown>,
 
     async loadChoices(): Promise<void> {

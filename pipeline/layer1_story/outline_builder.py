@@ -33,6 +33,25 @@ def suggest_titles(
     return result.get("titles", [])
 
 
+def generate_title_from_idea(
+    llm: "LLMClient",
+    genre: str,
+    idea: str,
+    model: Optional[str] = None,
+) -> str:
+    """Generate a creative title based on story idea."""
+    result = llm.generate_json(
+        system_prompt="Bạn là nhà văn sáng tạo. BẮT BUỘC viết bằng tiếng Việt. Trả về JSON.",
+        user_prompt=prompts.GENERATE_TITLE_FROM_IDEA.format(
+            genre=genre, idea=idea
+        ),
+        model=model,
+    )
+    if isinstance(result, str):
+        return result
+    return result.get("title", f"Truyện {genre}")
+
+
 def generate_world(
     llm: "LLMClient",
     config,

@@ -14,6 +14,21 @@ BẮT BUỘC: Viết tiêu đề bằng tiếng Việt.
 Trả về JSON: {{"titles": ["tiêu đề 1", "tiêu đề 2", ...]}}"""
 
 # vi-only
+GENERATE_TITLE_FROM_IDEA = """Bạn là nhà văn sáng tạo chuyên viết truyện {genre}.
+Dựa trên ý tưởng sau, hãy tạo MỘT tiêu đề hấp dẫn, độc đáo cho câu truyện:
+
+Thể loại: {genre}
+Ý tưởng: {idea}
+
+YÊU CẦU:
+- Tiêu đề phải gợi tò mò, hấp dẫn người đọc
+- Phản ánh được nội dung/chủ đề chính của truyện
+- Ngắn gọn, dễ nhớ (tối đa 10 từ)
+- BẮT BUỘC viết bằng tiếng Việt
+
+Trả về JSON: {{"title": "tiêu đề truyện"}}"""
+
+# vi-only
 GENERATE_CHARACTERS = """Bạn là nhà văn chuyên xây dựng nhân vật cho truyện {genre}.
 Tiêu đề truyện: {title}
 Ý tưởng: {idea}

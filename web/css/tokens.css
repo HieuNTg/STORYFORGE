@@ -84,10 +84,10 @@
     --sf-color-surface-100: #1E293B;
     --sf-color-surface-200: #334155;
 
-    /* Text overrides */
-    --sf-color-text-primary:   #F1F5F9;
-    --sf-color-text-secondary: #CBD5E1;
-    --sf-color-text-muted:     #64748B;
+    /* Text overrides - improved contrast */
+    --sf-color-text-primary:   #F8FAFC;
+    --sf-color-text-secondary: #E2E8F0;
+    --sf-color-text-muted:     #94A3B8;
 
     /* Brand colors unchanged — work in both themes */
   }
@@ -99,15 +99,15 @@
    Priority: .dark class > @media (specificity wins on :root).
 */
 .dark {
-  /* Surface */
+  /* Surface - slightly lighter for better contrast */
   --sf-color-surface-50:  #0F172A;
   --sf-color-surface-100: #1E293B;
   --sf-color-surface-200: #334155;
 
-  /* Text */
-  --sf-color-text-primary:   #F1F5F9;
-  --sf-color-text-secondary: #CBD5E1;
-  --sf-color-text-muted:     #64748B;
+  /* Text - improved contrast for accessibility */
+  --sf-color-text-primary:   #F8FAFC;
+  --sf-color-text-secondary: #E2E8F0;
+  --sf-color-text-muted:     #94A3B8;
 
   /* Shadows — subtler in dark mode */
   --sf-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
@@ -117,10 +117,10 @@
   /* ── Semantic dark mode tokens (consumed by index.html dark overrides) ── */
   --dm-bg:            #0f172a;
   --dm-surface:       #1e293b;
-  --dm-border:        #334155;
-  --dm-text:          #e2e8f0;
-  --dm-text-secondary:#cbd5e1;
-  --dm-text-muted:    #64748b;
+  --dm-border:        #475569;
+  --dm-text:          #f8fafc;
+  --dm-text-secondary:#e2e8f0;
+  --dm-text-muted:    #94a3b8;
 }
 
 /* ── Focus-visible ring — keyboard navigation indicator ──

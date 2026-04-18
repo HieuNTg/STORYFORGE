@@ -124,7 +124,7 @@ function branchingPage() {
     async fetchStories() {
       this.loadingStories = true;
       try {
-        const res: StoriesResponse = await API.get('/v1/pipeline/stories?limit=50');
+        const res: StoriesResponse = await API.get('/pipeline/stories?limit=50');
         this.stories = res.items || [];
       } catch {
         this.stories = [];
@@ -137,7 +137,7 @@ function branchingPage() {
       this.loadingCheckpoint = true;
       this.loadError = '';
       try {
-        const data: BranchingPipelineResult = await API.get(`/v1/pipeline/checkpoints/${encodeURIComponent(filename)}`);
+        const data: BranchingPipelineResult = await API.get(`/pipeline/checkpoints/${encodeURIComponent(filename)}`);
         this.loadedStory = data;
         this.storySource = 'saved';
         this.selectedChapter = null;

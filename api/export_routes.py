@@ -49,6 +49,35 @@ def _get_orch(session_id: str):
     return orch
 
 
+def _load_story_from_checkpoint(filename: str) -> Optional["_DBStoryWrapper"]:
+    """Load story from checkpoint file and wrap it for export handlers."""
+    from models.schemas import PipelineOutput
+    import json
+
+    checkpoint_dir = (_PROJECT_ROOT / "output" / "checkpoints").resolve()
+    safe_name = pathlib.Path(filename).name
+    checkpoint_path = (checkpoint_dir / safe_name).resolve()
+
+    try:
+        checkpoint_path.relative_to(checkpoint_dir)
+    except ValueError:
+        logger.warning(f"Path traversal attempt in checkpoint load: {filename}")
+        return None
+
+    if not checkpoint_path.exists():
+        logger.warning(f"Checkpoint file not found: {checkpoint_path}")
+        return None
+
+    try:
+        with open(checkpoint_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        output = PipelineOutput.model_validate(data)
+        return _DBStoryWrapper(output)
+    except Exception as e:
+        logger.warning(f"Failed to load checkpoint {filename}: {e}")
+        return None
+
+
 async def _load_story_from_db(story_id: str) -> Optional["_DBStoryWrapper"]:
     """Load story from database by ID and wrap it for export handlers."""
     try:
@@ -112,10 +141,14 @@ class _DBStoryWrapper:
 
 
 async def _get_story_data(session_id: str):
-    """Get story data from memory or database."""
+    """Get story data from memory, checkpoint file, or database."""
     orch = _get_orch(session_id)
     if orch:
         return orch
+    if session_id.endswith(".json"):
+        ckpt = _load_story_from_checkpoint(session_id)
+        if ckpt:
+            return ckpt
     return await _load_story_from_db(session_id)
 
 

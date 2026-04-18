@@ -115,7 +115,7 @@
       border-width: 1.5px;
     }
     .sf-textarea-hero::placeholder { color: #94a3b8; font-style: italic; }
-    .dark .sf-textarea-hero::placeholder { color: #64748b; }
+    .dark .sf-textarea-hero::placeholder { color: #94a3b8; }
     .sf-config-pill {
       display: flex; flex-direction: column; align-items: center; gap: 4px;
       padding: 10px 8px 8px;
@@ -154,13 +154,18 @@
     .sf-pill.active {
       background: white;
       color: #2563EB;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 0 0 2px rgba(37,99,235,0.15);
       font-weight: 600;
     }
-    .dark .sf-pill-group { background: rgba(30,41,59,0.6); }
-    .dark .sf-pill { color: var(--dm-text-muted); }
-    .dark .sf-pill:hover { color: var(--dm-text); }
-    .dark .sf-pill.active { background: var(--dm-bg); color: #60A5FA; }
+    .dark .sf-pill-group { background: rgba(30,41,59,0.8); }
+    .dark .sf-pill { color: #94A3B8; }
+    .dark .sf-pill:hover { color: #E2E8F0; background: rgba(255,255,255,0.05); }
+    .dark .sf-pill.active {
+      background: linear-gradient(135deg, #1E40AF, #3B82F6);
+      color: #FFFFFF;
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(59,130,246,0.4);
+    }
 
     /* ── Toggle chip (advanced quick toggles) ── */
     .sf-toggle-chip {
@@ -182,7 +187,7 @@
       color: #2563EB;
     }
     .sf-toggle-chip input { display: none; }
-    .dark .sf-toggle-chip { background: var(--dm-surface); border-color: var(--dm-border); color: var(--dm-text-secondary); }
+    .dark .sf-toggle-chip { background: var(--dm-surface); border-color: var(--dm-border); color: #E2E8F0; }
     .dark .sf-toggle-chip:hover { border-color: rgba(96,165,250,0.4); }
     .dark .sf-toggle-chip.active { color: #60A5FA; border-color: #3B82F6; background: rgba(37,99,235,0.12); }
 
@@ -225,7 +230,7 @@
       line-height: 1.1;
       letter-spacing: 0.01em;
     }
-    .dark .sf-phase-label { color: var(--dm-text-muted); }
+    .dark .sf-phase-label { color: #CBD5E1; }
     .sf-phase-dot {
       width: 26px; height: 26px;
       border-radius: 50%;
@@ -248,7 +253,7 @@
       0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0.5); }
       50% { box-shadow: 0 0 0 6px rgba(37,99,235,0); }
     }
-    .dark .sf-phase.idle .sf-phase-dot { background: rgba(71,85,105,0.4); color: var(--dm-text-muted); }
+    .dark .sf-phase.idle .sf-phase-dot { background: rgba(51,65,85,0.7); color: #E2E8F0; }
     .dark .sf-phase.active { background: rgba(37,99,235,0.1); }
     .dark .sf-phase.active .sf-phase-label { color: #60A5FA; }
     .dark .sf-phase.done .sf-phase-label { color: #34D399; }
@@ -284,7 +289,7 @@
       border-radius: 6px;
       font-variant-numeric: tabular-nums;
     }
-    .dark .sf-estimate { background: rgba(30,41,59,0.6); color: var(--dm-text-muted); }
+    .dark .sf-estimate { background: rgba(30,41,59,0.6); color: #CBD5E1; }
 
     /* ── Inline select (genre/style/lang) ── */
     .sf-select-compact {
@@ -307,7 +312,7 @@
       text-transform: uppercase;
       color: #64748b;
     }
-    .dark .sf-label { color: #94a3b8; }
+    .dark .sf-label { color: #CBD5E1; }
 
     /* ── Hero page header (shared across Library/Settings/etc.) ── */
     .sf-page-hero {
@@ -683,7 +688,7 @@
                   </div>
                 </template>
               </div>
-              <p x-show="$store.pipeline.currentLog" class="text-xs text-slate-500 dark:text-slate-400 mt-3 truncate font-mono bg-slate-50 dark:bg-slate-800/40 rounded-md px-3 py-1.5" aria-live="polite">
+              <p x-show="$store.pipeline.currentLog" class="text-xs text-slate-500 dark:text-slate-300 mt-3 truncate font-mono bg-slate-50 dark:bg-slate-800/40 rounded-md px-3 py-1.5" aria-live="polite">
                 <span class="text-brand-500">›</span> <span x-text="$store.pipeline.currentLog"></span>
               </p>
             </div>
@@ -696,7 +701,7 @@
                   <span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-gradient-to-br from-brand-500 to-violet-500 text-white text-[10px] font-bold">1</span>
                   <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200">Your story idea</h2>
                 </div>
-                <span class="text-[11px] text-slate-400 dark:text-slate-500 tabular-nums font-medium" x-text="($store.pipeline.form.idea || '').length + ' / 500'"></span>
+                <span class="text-[11px] text-slate-400 dark:text-slate-300 tabular-nums font-medium" x-text="($store.pipeline.form.idea || '').length + ' / 500'"></span>
               </div>
               <!-- Continuation header -->
               <div x-show="$store.pipeline.continuationMode" class="space-y-3">
@@ -729,7 +734,7 @@
                     <button type="button" @click="$store.pipeline.form.idea = ex.idea; $store.pipeline.form.genre = ex.genre"
                       class="sf-example-chip !py-2 !px-2.5">
                       <span class="block font-semibold text-slate-700 dark:text-slate-200 text-[11.5px] mb-0.5" x-text="ex.title"></span>
-                      <span class="block text-[10.5px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-tight" x-text="ex.teaser"></span>
+                      <span class="block text-[10.5px] text-slate-500 dark:text-slate-300 line-clamp-2 leading-tight" x-text="ex.teaser"></span>
                     </button>
                   </template>
                 </div>
@@ -757,13 +762,13 @@
                     <label for="sf-language" class="sf-label block mb-1">Language</label>
                     <select id="sf-language" x-model="$store.pipeline.form.language" class="sf-select-compact w-full border border-surface-200 rounded-lg bg-white dark:bg-surface-100 cursor-pointer">
                       <template x-for="lang in $store.pipeline.languages" :key="lang.code">
-                        <option :value="lang.code" x-text="lang.label"></option>
+                        <option :value="lang.code" :selected="lang.code === $store.pipeline.form.language" x-text="lang.name"></option>
                       </template>
                     </select>
                   </div>
                 </div>
                 <div>
-                  <label for="sf-title" class="sf-label block mb-1">Title <span class="text-slate-400 dark:text-slate-500 font-normal normal-case tracking-normal">— optional</span></label>
+                  <label for="sf-title" class="sf-label block mb-1">Title <span class="text-slate-400 dark:text-slate-300 font-normal normal-case tracking-normal">— optional</span></label>
                   <input id="sf-title" type="text" x-model="$store.pipeline.form.title" placeholder="Leave blank for AI suggestion"
                     class="w-full border border-surface-200 rounded-lg px-3 py-1.5 text-sm">
                 </div>
@@ -794,17 +799,17 @@
               <!-- New story: 3 sliders -->
               <div x-show="!$store.pipeline.continuationMode" class="grid grid-cols-3 gap-3">
                 <div class="sf-config-pill">
-                  <label for="sf-num-chapters" class="text-xs text-slate-500 dark:text-slate-400">Chapters</label>
+                  <label for="sf-num-chapters" class="text-xs text-slate-500 dark:text-slate-300">Chapters</label>
                   <span class="text-lg font-bold tabular-nums text-brand-600 dark:text-brand-400" x-text="$store.pipeline.form.num_chapters"></span>
                   <input id="sf-num-chapters" type="range" min="1" max="50" x-model.number="$store.pipeline.form.num_chapters" aria-label="Number of chapters" class="sf-range w-full">
                 </div>
                 <div class="sf-config-pill">
-                  <label for="sf-num-characters" class="text-xs text-slate-500 dark:text-slate-400">Characters</label>
+                  <label for="sf-num-characters" class="text-xs text-slate-500 dark:text-slate-300">Characters</label>
                   <span class="text-lg font-bold tabular-nums text-brand-600 dark:text-brand-400" x-text="$store.pipeline.form.num_characters"></span>
                   <input id="sf-num-characters" type="range" min="2" max="15" x-model.number="$store.pipeline.form.num_characters" aria-label="Number of characters" class="sf-range w-full">
                 </div>
                 <div class="sf-config-pill">
-                  <label for="sf-word-count" class="text-xs text-slate-500 dark:text-slate-400">Words/Chapter</label>
+                  <label for="sf-word-count" class="text-xs text-slate-500 dark:text-slate-300">Words/Chapter</label>
                   <span class="text-lg font-bold tabular-nums text-brand-600 dark:text-brand-400" x-text="$store.pipeline.form.word_count"></span>
                   <input id="sf-word-count" type="range" min="500" max="5000" step="100" x-model.number="$store.pipeline.form.word_count" aria-label="Words per chapter" class="sf-range w-full">
                 </div>
@@ -840,12 +845,12 @@
               <div x-show="$store.pipeline.continuationMode" class="space-y-3">
                 <div class="grid grid-cols-2 gap-3">
                   <div class="sf-config-pill">
-                    <label for="sf-cont-chapters" class="text-xs text-slate-500 dark:text-slate-400">New Chapters</label>
+                    <label for="sf-cont-chapters" class="text-xs text-slate-500 dark:text-slate-300">New Chapters</label>
                     <span class="text-lg font-bold tabular-nums text-brand-600 dark:text-brand-400" x-text="$store.pipeline.form.num_chapters"></span>
                     <input id="sf-cont-chapters" type="range" min="1" max="50" x-model.number="$store.pipeline.form.num_chapters" aria-label="Additional chapters" class="sf-range w-full">
                   </div>
                   <div class="sf-config-pill">
-                    <label for="sf-cont-word-count" class="text-xs text-slate-500 dark:text-slate-400">Words/Chapter</label>
+                    <label for="sf-cont-word-count" class="text-xs text-slate-500 dark:text-slate-300">Words/Chapter</label>
                     <span class="text-lg font-bold tabular-nums text-brand-600 dark:text-brand-400" x-text="$store.pipeline.form.word_count"></span>
                     <input id="sf-cont-word-count" type="range" min="500" max="5000" step="100" x-model.number="$store.pipeline.form.word_count" aria-label="Words per chapter" class="sf-range w-full">
                   </div>
@@ -857,7 +862,7 @@
 
                 <!-- Advanced Continuation Tools -->
                 <div class="pt-3 border-t border-surface-100 dark:border-surface-700 space-y-2">
-                  <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Advanced Tools</p>
+                  <p class="text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wide">Advanced Tools</p>
                   <div class="flex flex-wrap gap-2">
                     <button @click="$store.pipeline.generatePaths()" :disabled="$store.pipeline.status === 'running'"
                       class="text-xs px-3 py-1.5 rounded-lg bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 hover:bg-violet-200 dark:hover:bg-violet-800/40 cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5">
@@ -902,7 +907,7 @@
                   <div class="border border-surface-200 dark:border-surface-700 rounded-lg p-4 hover:border-violet-400 dark:hover:border-violet-600 transition-colors cursor-pointer"
                        @click="$store.pipeline.selectPath(path.id)">
                     <h4 class="font-medium text-sm text-slate-700 dark:text-slate-200 mb-1" x-text="path.title"></h4>
-                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-2" x-text="path.summary"></p>
+                    <p class="text-xs text-slate-500 dark:text-slate-300 mb-2" x-text="path.summary"></p>
                     <div class="flex flex-wrap gap-1">
                       <template x-for="(outline, i) in path.outlines.slice(0, 3)" :key="i">
                         <span class="text-xs px-2 py-0.5 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded" x-text="'Ch.' + outline.chapter_number + ': ' + outline.title"></span>
@@ -945,7 +950,7 @@
                     <template x-if="$store.pipeline.editingOutlineIdx !== idx">
                       <div>
                         <h4 class="font-medium text-sm text-slate-700 dark:text-slate-200" x-text="outline.title"></h4>
-                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1" x-text="outline.summary"></p>
+                        <p class="text-xs text-slate-500 dark:text-slate-300 mt-1" x-text="outline.summary"></p>
                       </div>
                     </template>
                     <template x-if="$store.pipeline.editingOutlineIdx === idx">
@@ -1070,7 +1075,7 @@
                 <span class="flex items-center gap-2">
                   <svg class="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0Z"/></svg>
                   Advanced Settings
-                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-medium">Pro</span>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300 font-medium">Pro</span>
                 </span>
                 <svg class="w-4 h-4 text-slate-400 transition-transform duration-200 details-chevron" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
               </summary>
@@ -1129,12 +1134,12 @@
                     </label>
                   </div>
                   <div class="flex items-center gap-3 pt-1">
-                    <span class="text-xs text-slate-500 dark:text-slate-400 min-w-[110px]">Drama Threshold</span>
+                    <span class="text-xs text-slate-500 dark:text-slate-300 min-w-[110px]">Drama Threshold</span>
                     <input type="range" min="0.3" max="0.8" step="0.05" x-model.number="$store.pipeline.form.l2_drama_threshold" class="sf-range flex-1">
                     <span class="text-xs font-bold tabular-nums text-brand-600 dark:text-brand-400 w-9" x-text="$store.pipeline.form.l2_drama_threshold.toFixed(2)"></span>
                   </div>
                   <div class="flex items-center gap-3">
-                    <span class="text-xs text-slate-500 dark:text-slate-400 min-w-[110px]">Drama Target</span>
+                    <span class="text-xs text-slate-500 dark:text-slate-300 min-w-[110px]">Drama Target</span>
                     <input type="range" min="0.5" max="0.9" step="0.05" x-model.number="$store.pipeline.form.l2_drama_target" class="sf-range flex-1">
                     <span class="text-xs font-bold tabular-nums text-brand-600 dark:text-brand-400 w-9" x-text="$store.pipeline.form.l2_drama_target.toFixed(2)"></span>
                   </div>
@@ -1154,12 +1159,12 @@
                     </label>
                   </div>
                   <div class="flex items-center gap-3 pt-1" x-show="$store.pipeline.form.enable_quality_gate">
-                    <span class="text-xs text-slate-500 dark:text-slate-400 min-w-[110px]">Gate Threshold</span>
+                    <span class="text-xs text-slate-500 dark:text-slate-300 min-w-[110px]">Gate Threshold</span>
                     <input type="range" min="1.5" max="4.0" step="0.1" x-model.number="$store.pipeline.form.quality_gate_threshold" class="sf-range flex-1">
                     <span class="text-xs font-bold tabular-nums text-brand-600 dark:text-brand-400 w-9" x-text="$store.pipeline.form.quality_gate_threshold.toFixed(1)"></span>
                   </div>
                   <div class="flex items-center gap-3" x-show="$store.pipeline.form.enable_smart_revision">
-                    <span class="text-xs text-slate-500 dark:text-slate-400 min-w-[110px]">Revision Threshold</span>
+                    <span class="text-xs text-slate-500 dark:text-slate-300 min-w-[110px]">Revision Threshold</span>
                     <input type="range" min="2.0" max="4.5" step="0.1" x-model.number="$store.pipeline.form.smart_revision_threshold" class="sf-range flex-1">
                     <span class="text-xs font-bold tabular-nums text-brand-600 dark:text-brand-400 w-9" x-text="$store.pipeline.form.smart_revision_threshold.toFixed(1)"></span>
                   </div>
@@ -1461,7 +1466,7 @@
               <span class="sf-step-badge">★</span>
               <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Thiết lập nhanh — preset miễn phí</h3>
             </div>
-            <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">Một click cài model miễn phí qua OpenRouter — chỉ cần thêm API key bên dưới.</p>
+            <p class="text-sm text-slate-500 dark:text-slate-300 mb-4">Một click cài model miễn phí qua OpenRouter — chỉ cần thêm API key bên dưới.</p>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <button @click="applyModelPreset('openrouter-free-basic')"
                 class="flex flex-col gap-1 p-3 rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 hover:border-brand-400 hover:shadow-sm transition-all cursor-pointer text-left">
@@ -1469,7 +1474,7 @@
                   <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z"/></svg>
                   Basic
                 </span>
-                <span class="text-[11px] text-slate-500 dark:text-slate-400">Qwen 3.6 Plus cho mọi layer</span>
+                <span class="text-[11px] text-slate-500 dark:text-slate-300">Qwen 3.6 Plus cho mọi layer</span>
               </button>
               <button @click="applyModelPreset('openrouter-free-optimized')"
                 class="flex flex-col gap-1 p-3 rounded-xl border-2 border-brand-400 bg-gradient-to-br from-brand-50 to-violet-50 dark:from-brand-900/20 dark:to-violet-900/20 shadow-sm hover:border-brand-500 transition-all cursor-pointer text-left">
@@ -1477,7 +1482,7 @@
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
                   Optimized
                 </span>
-                <span class="text-[11px] text-slate-500 dark:text-slate-400">Qwen 3.6 + Nemotron theo layer</span>
+                <span class="text-[11px] text-slate-500 dark:text-slate-300">Qwen 3.6 + Nemotron theo layer</span>
                 <span class="text-[9px] font-bold tracking-wider text-orange-500 uppercase">Khuyên dùng</span>
               </button>
               <button @click="applyModelPreset('openrouter-free-max')"
@@ -1486,7 +1491,7 @@
                   <svg class="w-4 h-4 text-violet-500" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/></svg>
                   Max Context
                 </span>
-                <span class="text-[11px] text-slate-500 dark:text-slate-400">Qwen 3.6 1M + Nemotron 120B</span>
+                <span class="text-[11px] text-slate-500 dark:text-slate-300">Qwen 3.6 1M + Nemotron 120B</span>
               </button>
             </div>
             <div x-show="presetApplied" x-transition class="text-sm text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5 mt-3">
@@ -1501,7 +1506,7 @@
               <span class="sf-step-badge">1</span>
               <div>
                 <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Nhà cung cấp & API Key</h3>
-                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Chọn provider, nhập API key, pick model.</p>
+                <p class="text-xs text-slate-500 dark:text-slate-300 mt-0.5">Chọn provider, nhập API key, pick model.</p>
               </div>
             </div>
 
@@ -1693,7 +1698,7 @@
               <span class="sf-step-badge">2</span>
               <div>
                 <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Tạo hình minh hoạ</h3>
-                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Chọn provider tạo ảnh AI và phong cách mặc định.</p>
+                <p class="text-xs text-slate-500 dark:text-slate-300 mt-0.5">Chọn provider tạo ảnh AI và phong cách mặc định.</p>
               </div>
             </div>
 
@@ -1860,16 +1865,19 @@
       </div>
       </template>
 
-      <!-- ═══ LIBRARY PAGE ═══ -->
+      <!-- ═══ LIBRARY PAGE (combined with Reader) ═══ -->
       <div x-show="$store.app.page === 'library'" x-cloak class="page-enter" x-data="libraryPage()">
         <div class="max-w-3xl mx-auto space-y-4">
 
+          <!-- ══ LIST VIEW ══ -->
+          <template x-if="!isReading">
+          <div class="space-y-4">
           <!-- Hero header -->
           <div class="sf-page-hero">
             <div class="flex items-start justify-between gap-3">
               <div class="flex-1 min-w-0">
                 <h1>Thư viện truyện</h1>
-                <p x-text="stories.length > 0 ? (stories.length + ' truyện đã lưu — click để mở, hover để xem hành động') : 'Tất cả checkpoint được tự động lưu tại đây'"></p>
+                <p x-text="stories.length > 0 ? (stories.length + ' truyện đã lưu — click để mở đọc') : 'Tất cả checkpoint được tự động lưu tại đây'"></p>
               </div>
               <div class="flex items-center gap-2 flex-shrink-0">
                 <button @click="loadStories()" :disabled="loading"
@@ -1913,7 +1921,7 @@
                 <svg class="w-9 h-9 text-brand-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z"/></svg>
               </div>
               <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1.5">Thư viện còn trống</h3>
-              <p class="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-6">Tạo truyện đầu tiên — checkpoint sẽ tự động lưu vào đây sau mỗi phase.</p>
+              <p class="text-sm text-slate-500 dark:text-slate-300 max-w-sm mx-auto mb-6">Tạo truyện đầu tiên — checkpoint sẽ tự động lưu vào đây sau mỗi phase.</p>
               <button @click="$store.app.navigate('pipeline')" class="sf-cta-hero inline-flex items-center gap-2 px-6 py-2.5 text-sm cursor-pointer">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
                 Bắt đầu tạo truyện
@@ -1935,7 +1943,7 @@
                         <h3 class="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate" x-text="story.title || story.path"></h3>
                         <span class="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide" :class="layerColor(story.current_layer)" x-text="layerLabel(story.current_layer)"></span>
                       </div>
-                      <div class="flex items-center gap-2.5 text-[11px] text-slate-400 dark:text-slate-500">
+                      <div class="flex items-center gap-2.5 text-[11px] text-slate-400 dark:text-slate-300">
                         <span x-show="story.genre" class="inline-flex items-center gap-1">
                           <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/></svg>
                           <span x-text="story.genre"></span>
@@ -1980,57 +1988,40 @@
               </template>
             </div>
           </template>
-        </div>
-      </div>
-
-      <!-- ═══ READER PAGE ═══ -->
-      <div x-show="$store.app.page === 'reader'" x-cloak class="page-enter" x-data="readerPage()">
-        <div class="max-w-3xl mx-auto">
-        <template x-if="!story">
-          <div class="sf-empty-hero">
-            <div class="ico-wrap" style="background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(37,99,235,0.1));">
-              <svg class="w-9 h-9 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
-            </div>
-            <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1.5">Chưa có truyện để đọc</h3>
-            <p class="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-6">Tạo truyện trước, rồi quay lại đây để đọc từng chương với giao diện được tối ưu cho mắt.</p>
-            <div class="flex items-center justify-center gap-2 flex-wrap">
-              <button @click="$store.app.navigate('pipeline')" class="sf-cta-hero inline-flex items-center gap-2 px-6 py-2.5 text-sm cursor-pointer">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                Tạo truyện mới
-              </button>
-              <button @click="$store.app.navigate('library')" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium border border-surface-200 dark:border-surface-700 text-slate-600 dark:text-slate-300 hover:border-brand-400 hover:text-brand-600 transition-colors cursor-pointer">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6"/></svg>
-                Thư viện
-              </button>
-            </div>
           </div>
-        </template>
-        <template x-if="story">
+          </template>
+
+          <!-- ══ READER VIEW ══ -->
+          <template x-if="isReading">
           <div>
-            <!-- Title hero -->
+            <!-- Back button + Title hero -->
             <div class="card sf-card-hero p-5 pt-[18px] mb-4">
               <div class="flex items-start justify-between gap-4 flex-wrap">
                 <div class="flex-1 min-w-0">
+                  <button @click="backToList()" class="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-brand-600 mb-2 cursor-pointer">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
+                    Quay lại thư viện
+                  </button>
                   <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100 leading-tight" x-text="story.title"></h2>
-                  <div class="flex items-center gap-3 mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                  <div class="flex items-center gap-3 mt-1.5 text-xs text-slate-500 dark:text-slate-300">
                     <span class="inline-flex items-center gap-1">
                       <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12"/></svg>
                       <span x-text="chapters.length + ' chương'"></span>
                     </span>
                     <span x-show="currentChapter" class="inline-flex items-center gap-1">
                       <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5l16.5-15M3.75 4.5h16.5"/></svg>
-                      <span x-text="'Đang đọc Ch.' + ((currentChapter && currentChapter.number) || (chapter+1))"></span>
+                      <span x-text="'Đang đọc Ch.' + (chapter+1)"></span>
                     </span>
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
                   <div class="inline-flex items-center gap-1 bg-surface-50 dark:bg-surface-800 rounded-lg px-2 py-1">
-                    <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Aa</span>
-                    <button @click="fontSize = Math.max(14, fontSize - 2)" aria-label="Giảm cỡ chữ" class="w-6 h-6 rounded text-slate-500 dark:text-slate-400 text-sm font-bold cursor-pointer hover:bg-white dark:hover:bg-surface-700">−</button>
-                    <span class="text-[11px] text-slate-600 dark:text-slate-300 w-5 text-center font-mono" x-text="fontSize"></span>
-                    <button @click="fontSize = Math.min(28, fontSize + 2)" aria-label="Tăng cỡ chữ" class="w-6 h-6 rounded text-slate-500 dark:text-slate-400 text-sm font-bold cursor-pointer hover:bg-white dark:hover:bg-surface-700">+</button>
+                    <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wide">Aa</span>
+                    <button @click="fontSize = Math.max(14, fontSize - 2)" class="w-6 h-6 rounded text-slate-500 text-sm font-bold cursor-pointer hover:bg-white">−</button>
+                    <span class="text-[11px] text-slate-600 w-5 text-center font-mono" x-text="fontSize"></span>
+                    <button @click="fontSize = Math.min(28, fontSize + 2)" class="w-6 h-6 rounded text-slate-500 text-sm font-bold cursor-pointer hover:bg-white">+</button>
                   </div>
-                  <button x-show="canContinue" @click="continueStory()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors cursor-pointer">
+                  <button @click="continueStory()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z"/></svg>
                     Viết tiếp
                   </button>
@@ -2040,102 +2031,78 @@
             <!-- Chapter selector -->
             <div class="flex gap-1.5 flex-wrap mb-4">
               <template x-for="(ch, idx) in chapters" :key="idx">
-                <button @click="chapter = idx" class="px-2.5 py-1 rounded-md text-[11px] font-semibold cursor-pointer transition-all" :class="chapter === idx ? 'bg-gradient-to-br from-brand-600 to-violet-600 text-white shadow-sm' : 'bg-white dark:bg-surface-800 text-slate-600 dark:text-slate-400 border border-surface-200 dark:border-surface-700 hover:border-brand-400'" x-text="'Ch.' + ch.number"></button>
+                <button @click="chapter = idx" class="px-2.5 py-1 rounded-md text-[11px] font-semibold cursor-pointer transition-all" :class="chapter === idx ? 'bg-gradient-to-br from-brand-600 to-violet-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-surface-200 hover:border-brand-400'" x-text="'Ch.' + (ch.number || idx+1)"></button>
               </template>
             </div>
             <!-- Content -->
             <div class="card p-6 md:p-10">
               <template x-if="currentChapter">
                 <div>
-                  <h3 class="text-xl font-bold text-slate-800 mb-4" x-text="'Chapter ' + currentChapter.number + ': ' + currentChapter.title.replace(/\*\*/g, '').replace(/^#+\s*/gm, '')"></h3>
-                  <div class="text-slate-700 whitespace-pre-wrap leading-[1.9]" :style="'font-size:' + fontSize + 'px'" x-html="currentChapter.content.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
+                  <h3 class="text-xl font-bold text-slate-800 mb-4" x-text="'Chương ' + (currentChapter.number || chapter+1) + ': ' + (currentChapter.title || '').replace(/\*\*/g, '').replace(/^#+\s*/gm, '')"></h3>
+                  <div class="text-slate-700 whitespace-pre-wrap leading-[1.9]" :style="'font-size:' + fontSize + 'px'" x-html="(currentChapter.content || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
                 </div>
               </template>
             </div>
             <!-- Navigation -->
             <div class="flex justify-between mt-4">
-              <button @click="prev()" :disabled="chapter === 0" aria-label="Previous chapter" class="px-4 py-2 rounded-lg text-sm font-medium border border-surface-200 hover:border-brand-500 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">Previous</button>
-              <span class="text-sm text-slate-400 self-center" aria-live="polite" x-text="(chapter+1) + '/' + chapters.length"></span>
-              <button @click="next()" :disabled="chapter >= chapters.length - 1" aria-label="Next chapter" class="px-4 py-2 rounded-lg text-sm font-medium border border-surface-200 hover:border-brand-500 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">Next</button>
+              <button @click="prev()" :disabled="chapter === 0" class="px-4 py-2 rounded-lg text-sm font-medium border border-surface-200 hover:border-brand-500 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">Trước</button>
+              <span class="text-sm text-slate-400 self-center" x-text="(chapter+1) + '/' + chapters.length"></span>
+              <button @click="next()" :disabled="chapter >= chapters.length - 1" class="px-4 py-2 rounded-lg text-sm font-medium border border-surface-200 hover:border-brand-500 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">Sau</button>
             </div>
-
-            <!-- ═══ FEEDBACK WIDGET ═══ -->
-            <div class="card p-5 mt-4" x-data="feedbackWidget(story?.id || '', chapter)">
-              <div class="flex items-center justify-between mb-3">
-                <h4 class="text-sm font-semibold text-slate-700">Rate this chapter</h4>
-                <button x-show="!submitted" @click="showDetails = !showDetails" class="text-xs text-brand-600 hover:underline cursor-pointer" x-text="showDetails ? 'Simple' : 'Detailed'"></button>
-              </div>
-              <!-- Overall stars -->
-              <div x-show="!submitted" class="flex items-center gap-1 mb-2" role="group" aria-label="Overall chapter rating">
-                <template x-for="n in [1,2,3,4,5]" :key="n">
-                  <button @click="setRating(n)" @mouseenter="hoverRating = n" @mouseleave="hoverRating = 0"
-                    class="text-2xl cursor-pointer transition-colors"
-                    :class="starState(n) === 'filled' ? 'text-yellow-400' : 'text-slate-300'"
-                    x-text="'★'" :aria-label="n + ' stars'"></button>
-                </template>
-                <span class="ml-2 text-xs text-slate-400" x-show="rating > 0" x-text="rating + '/5'"></span>
-              </div>
-              <!-- Dimension breakdown -->
-              <div x-show="showDetails && !submitted" class="space-y-1 mb-3">
-                <template x-for="(label, dim) in dimensionLabels" :key="dim">
-                  <div class="flex items-center gap-2">
-                    <span class="text-xs text-slate-500 w-20" x-text="label"></span>
-                    <template x-for="n in [1,2,3,4,5]" :key="dim+n">
-                      <button @click="setScore(dim, n)" @mouseenter="hoverScores[dim] = n" @mouseleave="hoverScores[dim] = 0"
-                        class="text-lg cursor-pointer transition-colors"
-                        :class="dimStarState(dim, n) === 'filled' ? 'text-yellow-400' : 'text-slate-300'"
-                        :aria-label="label + ' ' + n + ' stars'"
-                        x-text="'★'"></button>
-                    </template>
-                  </div>
-                </template>
-              </div>
-              <!-- Comment -->
-              <div x-show="!submitted">
-                <label for="sf-feedback-comment" class="sr-only">Optional comment</label>
-                <textarea id="sf-feedback-comment" x-model="comment" placeholder="Optional comment..." rows="2" class="w-full px-3 py-2 text-sm border border-surface-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none mb-2"></textarea>
-                <div class="flex items-center gap-2">
-                  <button @click="submit()" :disabled="!canSubmit" class="px-4 py-1.5 text-sm font-medium rounded-lg btn-primary disabled:opacity-40 cursor-pointer">Submit</button>
-                  <span x-show="error" class="text-xs text-red-500" x-text="error"></span>
-                </div>
-              </div>
-              <!-- Success -->
-              <div x-show="submitted" class="text-center py-2">
-                <p class="text-sm text-green-600 font-medium">Thanks for your feedback!</p>
-                <button @click="reset()" class="text-xs text-brand-600 hover:underline mt-1 cursor-pointer">Rate again</button>
-              </div>
-            </div>
-
           </div>
-        </template>
+          </template>
+
         </div>
       </div>
+
+      <!-- ═══ READER PAGE (redirects to library) ═══ -->
+      <div x-show="$store.app.page === 'reader'" x-cloak x-init="$store.app.navigate('library')"></div>
 
       <!-- ═══ EXPORT PAGE ═══ -->
       <div x-show="$store.app.page === 'export'" x-cloak class="page-enter" x-data="exportPage()">
         <div class="max-w-3xl mx-auto space-y-4">
-          <div x-show="!hasStory" class="sf-empty-hero">
+          <!-- Loading state -->
+          <div x-show="loading" class="flex items-center justify-center py-12">
+            <svg class="w-6 h-6 animate-spin text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+          </div>
+          <!-- Empty state: no session AND no saved stories -->
+          <div x-show="!loading && !sessionId && stories.length === 0" class="sf-empty-hero">
             <div class="ico-wrap" style="background: linear-gradient(135deg, rgba(139,92,246,0.12), rgba(249,115,22,0.1));">
               <svg class="w-9 h-9 text-violet-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
             </div>
             <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1.5">Chưa có truyện để xuất</h3>
-            <p class="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-6">Tạo truyện trước — sau đó bạn có thể xuất ra PDF cho in ấn, EPUB cho Kindle, hoặc ZIP để lưu trữ.</p>
+            <p class="text-sm text-slate-500 dark:text-slate-300 max-w-sm mx-auto mb-6">Tạo truyện trước — sau đó bạn có thể xuất ra PDF cho in ấn, EPUB cho Kindle, hoặc ZIP để lưu trữ.</p>
             <button @click="$store.app.navigate('pipeline')" class="sf-cta-hero inline-flex items-center gap-2 px-6 py-2.5 text-sm cursor-pointer">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
               Tạo truyện mới
             </button>
           </div>
-          <template x-if="hasStory">
+          <!-- Main export UI -->
+          <template x-if="!loading && (sessionId || stories.length > 0)">
             <div class="space-y-4">
               <!-- Hero header -->
               <div class="sf-page-hero">
                 <h1>Xuất truyện</h1>
-                <p>Chọn định dạng phù hợp — PDF cho in giấy, EPUB cho đọc số, ZIP để lưu toàn bộ.</p>
+                <p>Chọn truyện và định dạng phù hợp — PDF cho in giấy, EPUB cho đọc số, ZIP để lưu toàn bộ.</p>
+              </div>
+              <!-- Story selector -->
+              <div class="card p-5">
+                <div class="flex items-center gap-2 mb-4">
+                  <span class="sf-step-badge">1</span>
+                  <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn truyện</h3>
+                </div>
+                <select x-model="selectedStory" class="sf-input w-full">
+                  <option value="" x-show="sessionId">[Truyện hiện tại]</option>
+                  <option value="" x-show="!sessionId" disabled>-- Chọn truyện --</option>
+                  <template x-for="s in stories" :key="s.filename">
+                    <option :value="s.filename" x-text="`${s.title || s.filename} (${s.chapter_count} chương)`"></option>
+                  </template>
+                </select>
               </div>
               <!-- Document formats -->
               <div class="card p-5">
                 <div class="flex items-center gap-2 mb-4">
-                  <span class="sf-step-badge">1</span>
+                  <span class="sf-step-badge">2</span>
                   <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn định dạng</h3>
                 </div>
                 <div class="grid grid-cols-3 gap-3">
@@ -2177,13 +2144,51 @@
       <template x-if="$store.app.page === 'analytics'">
       <div class="page-enter" x-data="analyticsPage()">
         <div class="max-w-3xl mx-auto space-y-4">
-        <template x-if="!result">
+        <!-- Story selector -->
+        <div class="sf-page-hero">
+          <h1>Phân tích truyện</h1>
+          <p>Thống kê tổng quan về số chữ, thời gian đọc và chất lượng từng lớp xử lý.</p>
+        </div>
+        <div class="card p-5">
+          <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div class="flex items-center gap-2">
+              <span class="sf-step-badge">1</span>
+              <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn truyện</h3>
+            </div>
+            <div class="flex gap-1.5">
+              <template x-if="hasCurrentResult">
+                <button @click="useCurrent()" class="px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all"
+                  :class="storySource === 'current' ? 'bg-gradient-to-br from-brand-600 to-violet-600 text-white shadow-sm' : 'bg-surface-50 dark:bg-surface-800 text-slate-600 dark:text-slate-300 border border-surface-200 dark:border-surface-700 hover:border-brand-400'">
+                  Đang mở
+                </button>
+              </template>
+              <template x-if="stories.length > 0">
+                <select @change="$event.target.value && loadStory($event.target.value)" class="px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all bg-surface-50 dark:bg-surface-800 text-slate-600 dark:text-slate-300 border border-surface-200 dark:border-surface-700">
+                  <option value="">Chọn từ thư viện...</option>
+                  <template x-for="story in stories" :key="story.filename">
+                    <option :value="story.filename" :selected="selectedStory === story.filename" x-text="story.title + ' (' + story.chapter_count + ' ch.)'"></option>
+                  </template>
+                </select>
+              </template>
+            </div>
+          </div>
+          <template x-if="result">
+            <p class="text-sm text-slate-500 dark:text-slate-300">
+              Đang phân tích: <span class="font-semibold text-slate-700 dark:text-slate-200" x-text="currentStoryTitle"></span>
+            </p>
+          </template>
+          <template x-if="loadingCheckpoint">
+            <p class="text-sm text-slate-400">Đang tải truyện...</p>
+          </template>
+        </div>
+        <!-- Empty state when no story selected -->
+        <template x-if="!result && !loadingCheckpoint && stories.length === 0">
           <div class="sf-empty-hero">
             <div class="ico-wrap" style="background: linear-gradient(135deg, rgba(37,99,235,0.12), rgba(139,92,246,0.1));">
               <svg class="w-9 h-9 text-brand-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
             </div>
-            <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1.5">Chưa có dữ liệu phân tích</h3>
-            <p class="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-6">Tạo truyện trước — sau đó xem thống kê số chữ, thời gian đọc và điểm chất lượng từng chương.</p>
+            <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1.5">Chưa có truyện</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-300 max-w-sm mx-auto mb-6">Tạo truyện mới để xem thống kê phân tích.</p>
             <button @click="$store.app.navigate('pipeline')" class="sf-cta-hero inline-flex items-center gap-2 px-6 py-2.5 text-sm cursor-pointer">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
               Tạo truyện mới
@@ -2192,11 +2197,6 @@
         </template>
         <template x-if="result && stats">
           <div class="space-y-4">
-            <!-- Hero header -->
-            <div class="sf-page-hero">
-              <h1>Phân tích truyện</h1>
-              <p>Thống kê tổng quan về số chữ, thời gian đọc và chất lượng từng lớp xử lý.</p>
-            </div>
             <!-- Stats tiles -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div class="sf-stat-tile">
@@ -2226,14 +2226,14 @@
                 <template x-for="qs in stats.quality" :key="qs.layer">
                   <div class="mb-4 last:mb-0">
                     <div class="flex items-center justify-between mb-2">
-                      <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400" x-text="'Layer ' + qs.layer"></span>
+                      <span class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300" x-text="'Layer ' + qs.layer"></span>
                       <span class="text-sm font-bold text-slate-700 dark:text-slate-200" x-text="qs.overall.toFixed(1) + ' / 5'"></span>
                     </div>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <template x-for="[label, val, color] in [['Mạch lạc',qs.coherence,'#2563EB'],['Nhân vật',qs.character,'#10B981'],['Kịch tính',qs.drama,'#F97316'],['Văn phong',qs.writing,'#8B5CF6']]" :key="label">
                         <div>
                           <div class="flex justify-between text-xs mb-1">
-                            <span class="text-slate-500 dark:text-slate-400" x-text="label"></span>
+                            <span class="text-slate-500 dark:text-slate-300" x-text="label"></span>
                             <span class="font-semibold text-slate-700 dark:text-slate-300" x-text="val.toFixed(1)"></span>
                           </div>
                           <div class="h-1.5 bg-surface-100 dark:bg-surface-800 rounded-full overflow-hidden">
@@ -2252,7 +2252,7 @@
                 <span class="sf-step-badge">S</span>
                 <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Mô phỏng kịch tính</h3>
               </div>
-              <p class="text-sm text-slate-600 dark:text-slate-400" x-text="stats.eventsCount + ' sự kiện kịch tính được tạo'"></p>
+              <p class="text-sm text-slate-600 dark:text-slate-300" x-text="stats.eventsCount + ' sự kiện kịch tính được tạo'"></p>
             </div>
           </div>
         </template>
@@ -2272,7 +2272,7 @@
                 <svg class="w-9 h-9 text-orange-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>
               </div>
               <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1.5">Chưa có truyện để phân nhánh</h3>
-              <p class="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-6">Tạo truyện trước, rồi khám phá các hướng đi thay thế từ bất kỳ chương nào. AI sẽ viết song song nhiều phiên bản.</p>
+              <p class="text-sm text-slate-500 dark:text-slate-300 max-w-sm mx-auto mb-6">Tạo truyện trước, rồi khám phá các hướng đi thay thế từ bất kỳ chương nào. AI sẽ viết song song nhiều phiên bản.</p>
               <button @click="$store.app.navigate('pipeline')" class="sf-cta-hero inline-flex items-center gap-2 px-6 py-2.5 text-sm cursor-pointer">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
                 Tạo truyện mới
@@ -2300,13 +2300,13 @@
                   <div class="flex gap-1.5">
                     <template x-if="hasCurrentStory">
                       <button @click="useCurrent()" class="px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all"
-                        :class="storySource === 'current' ? 'bg-gradient-to-br from-brand-600 to-violet-600 text-white shadow-sm' : 'bg-surface-50 dark:bg-surface-800 text-slate-600 dark:text-slate-400 border border-surface-200 dark:border-surface-700 hover:border-brand-400'">
+                        :class="storySource === 'current' ? 'bg-gradient-to-br from-brand-600 to-violet-600 text-white shadow-sm' : 'bg-surface-50 dark:bg-surface-800 text-slate-600 dark:text-slate-300 border border-surface-200 dark:border-surface-700 hover:border-brand-400'">
                         Đang mở
                       </button>
                     </template>
                     <template x-if="stories.length > 0">
                       <button @click="showStoryPicker = !showStoryPicker" class="px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all"
-                        :class="storySource === 'saved' ? 'bg-gradient-to-br from-brand-600 to-violet-600 text-white shadow-sm' : 'bg-surface-50 dark:bg-surface-800 text-slate-600 dark:text-slate-400 border border-surface-200 dark:border-surface-700 hover:border-brand-400'">
+                        :class="storySource === 'saved' ? 'bg-gradient-to-br from-brand-600 to-violet-600 text-white shadow-sm' : 'bg-surface-50 dark:bg-surface-800 text-slate-600 dark:text-slate-300 border border-surface-200 dark:border-surface-700 hover:border-brand-400'">
                         <span x-text="loadingStories ? 'Đang tải...' : 'Đã lưu (' + stories.length + ')'"></span>
                       </button>
                     </template>
@@ -2315,7 +2315,7 @@
 
                 <!-- Active story title -->
                 <template x-if="hasAnyStory">
-                  <p class="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                  <p class="text-sm text-slate-500 dark:text-slate-300 mb-4">
                     <span class="font-semibold text-slate-700 dark:text-slate-200" x-text="storyTitle"></span>
                     — chọn chương để bắt đầu phân nhánh
                   </p>
@@ -2340,16 +2340,16 @@
                         <div>
                           <span class="text-sm font-medium text-slate-700 dark:text-slate-200" x-text="story.title || story.filename"></span>
                           <div class="flex gap-2 mt-0.5">
-                            <span class="text-xs text-slate-400 dark:text-slate-500" x-text="story.genre"></span>
-                            <span class="text-xs text-slate-400 dark:text-slate-500" x-text="story.chapter_count + ' chapters'"></span>
+                            <span class="text-xs text-slate-400 dark:text-slate-300" x-text="story.genre"></span>
+                            <span class="text-xs text-slate-400 dark:text-slate-300" x-text="story.chapter_count + ' chapters'"></span>
                           </div>
                         </div>
-                        <span class="text-xs text-slate-400 dark:text-slate-500" x-text="story.modified"></span>
+                        <span class="text-xs text-slate-400 dark:text-slate-300" x-text="story.modified"></span>
                       </div>
                     </button>
                   </template>
                   <template x-if="!loadingCheckpoint && stories.length === 0">
-                    <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-500">No saved stories found</div>
+                    <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-300">No saved stories found</div>
                   </template>
                 </div>
 
@@ -2361,14 +2361,14 @@
                         class="px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all"
                         :class="selectedChapter === idx
                           ? 'bg-brand-600 text-white ring-2 ring-brand-300 dark:ring-brand-700'
-                          : 'bg-surface-100 dark:bg-surface-800 text-slate-600 dark:text-slate-400 hover:bg-surface-200 dark:hover:bg-surface-700'"
+                          : 'bg-surface-100 dark:bg-surface-800 text-slate-600 dark:text-slate-300 hover:bg-surface-200 dark:hover:bg-surface-700'"
                         x-text="'Ch.' + (ch.number || (idx + 1)) + ': ' + (ch.title || 'Untitled')">
                       </button>
                     </template>
                   </div>
                 </template>
                 <template x-if="hasAnyStory && chapters.length === 0">
-                  <p class="text-sm text-slate-400 dark:text-slate-500">This story has no chapters.</p>
+                  <p class="text-sm text-slate-400 dark:text-slate-300">This story has no chapters.</p>
                 </template>
               </div>
 
@@ -2393,7 +2393,7 @@
                   <template x-if="loading && !currentNode">
                     <div class="card p-8 text-center">
                       <svg class="animate-spin h-8 w-8 mx-auto mb-3 text-brand-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-                      <p class="text-sm text-slate-500 dark:text-slate-400">Starting branch session...</p>
+                      <p class="text-sm text-slate-500 dark:text-slate-300">Starting branch session...</p>
                     </div>
                   </template>
 
@@ -2407,7 +2407,7 @@
                         <div class="flex items-center gap-3">
                           <button @click="wsConnected ? disconnectWebSocket() : connectWebSocket()"
                             class="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg transition-colors cursor-pointer"
-                            :class="wsConnected ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-surface-100 dark:bg-surface-800 text-slate-500 dark:text-slate-400 hover:bg-surface-200'">
+                            :class="wsConnected ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-surface-100 dark:bg-surface-800 text-slate-500 dark:text-slate-300 hover:bg-surface-200'">
                             <span class="w-2 h-2 rounded-full" :class="wsConnected ? 'bg-green-500' : 'bg-slate-400'"></span>
                             <span x-text="wsConnected ? userCount + ' online' : 'Connect'"></span>
                           </button>
@@ -2415,32 +2415,32 @@
                         <!-- Right: Quick actions -->
                         <div class="flex items-center gap-1">
                           <button @click="undo()" :disabled="!canUndo || loading" title="Undo"
-                            class="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-surface-100 dark:hover:bg-surface-800 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer">
+                            class="p-1.5 rounded-lg text-slate-500 dark:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-800 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"/></svg>
                           </button>
                           <button @click="redo()" :disabled="!canRedo || loading" title="Redo"
-                            class="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-surface-100 dark:hover:bg-surface-800 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer">
+                            class="p-1.5 rounded-lg text-slate-500 dark:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-800 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 15l6-6m0 0l-6-6m6 6H9a6 6 0 000 12h3"/></svg>
                           </button>
                           <span class="w-px h-4 bg-surface-200 dark:bg-surface-700 mx-1"></span>
                           <button @click="showBookmarks = !showBookmarks; if(showBookmarks) loadBookmarks()" title="Bookmarks"
                             class="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 cursor-pointer"
-                            :class="showBookmarks ? 'text-brand-600 bg-brand-50 dark:bg-brand-900/30' : 'text-slate-500 dark:text-slate-400'">
+                            :class="showBookmarks ? 'text-brand-600 bg-brand-50 dark:bg-brand-900/30' : 'text-slate-500 dark:text-slate-300'">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z"/></svg>
                           </button>
                           <button @click="showAnalytics = !showAnalytics; if(showAnalytics) loadAnalytics()" title="Analytics"
                             class="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 cursor-pointer"
-                            :class="showAnalytics ? 'text-brand-600 bg-brand-50 dark:bg-brand-900/30' : 'text-slate-500 dark:text-slate-400'">
+                            :class="showAnalytics ? 'text-brand-600 bg-brand-50 dark:bg-brand-900/30' : 'text-slate-500 dark:text-slate-300'">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
                           </button>
                           <button @click="showMinimap = !showMinimap; if(showMinimap) loadMinimap()" title="Minimap"
                             class="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-800 cursor-pointer"
-                            :class="showMinimap ? 'text-brand-600 bg-brand-50 dark:bg-brand-900/30' : 'text-slate-500 dark:text-slate-400'">
+                            :class="showMinimap ? 'text-brand-600 bg-brand-50 dark:bg-brand-900/30' : 'text-slate-500 dark:text-slate-300'">
                             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z"/></svg>
                           </button>
                           <span class="w-px h-4 bg-surface-200 dark:bg-surface-700 mx-1"></span>
                           <button @click="exportEpub()" :disabled="exportingEpub" title="Export EPUB"
-                            class="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-surface-100 dark:hover:bg-surface-800 disabled:opacity-50 cursor-pointer">
+                            class="p-1.5 rounded-lg text-slate-500 dark:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-800 disabled:opacity-50 cursor-pointer">
                             <svg x-show="!exportingEpub" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
                             <svg x-show="exportingEpub" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                           </button>
@@ -2491,7 +2491,7 @@
                       <!-- Minimap Panel -->
                       <div x-show="showMinimap && minimapData" x-transition class="card p-2 bg-surface-50 dark:bg-surface-800/50">
                         <div class="flex items-center justify-between mb-2">
-                          <span class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Minimap</span>
+                          <span class="text-xs font-semibold text-slate-500 dark:text-slate-300 uppercase">Minimap</span>
                           <div class="flex items-center gap-1">
                             <button @click="zoomOut()" class="p-1 rounded hover:bg-surface-200 dark:hover:bg-surface-700 cursor-pointer text-slate-500">
                               <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 12h-15"/></svg>
@@ -2524,8 +2524,8 @@
 
                       <!-- Breadcrumb + stats -->
                       <div class="flex items-center justify-between flex-wrap gap-2">
-                        <div class="flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 flex-wrap">
-                          <span class="font-medium text-slate-500 dark:text-slate-400">Root</span>
+                        <div class="flex items-center gap-1 text-xs text-slate-400 dark:text-slate-300 flex-wrap">
+                          <span class="font-medium text-slate-500 dark:text-slate-300">Root</span>
                           <template x-for="(h, i) in history" :key="i">
                             <span class="flex items-center gap-1">
                               <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
@@ -2533,7 +2533,7 @@
                             </span>
                           </template>
                         </div>
-                        <span class="text-xs tabular-nums" :class="depth >= 8 ? 'text-amber-500 font-medium' : 'text-slate-400 dark:text-slate-500'" x-text="'Depth: ' + depth + '/10'"></span>
+                        <span class="text-xs tabular-nums" :class="depth >= 8 ? 'text-amber-500 font-medium' : 'text-slate-400 dark:text-slate-300'" x-text="'Depth: ' + depth + '/10'"></span>
                       </div>
 
                       <!-- Node content card -->
@@ -2555,7 +2555,7 @@
                       <!-- Choices -->
                       <template x-if="currentNode.choices && currentNode.choices.length > 0">
                         <div class="space-y-2">
-                          <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Choose your path</p>
+                          <p class="text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wide">Choose your path</p>
                           <template x-for="(choice, i) in currentNode.choices" :key="i">
                             <button @click="choose(i)"
                               :disabled="loading"
@@ -2576,12 +2576,12 @@
                       <!-- Navigation -->
                       <div class="flex items-center gap-3">
                         <button @click="goBack()" :disabled="isAtRoot || loading"
-                          class="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors bg-surface-100 dark:bg-surface-800 text-slate-600 dark:text-slate-400 hover:bg-surface-200 dark:hover:bg-surface-700 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5">
+                          class="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors bg-surface-100 dark:bg-surface-800 text-slate-600 dark:text-slate-300 hover:bg-surface-200 dark:hover:bg-surface-700 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5">
                           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
                           Go Back
                         </button>
                         <button @click="close(); $dispatch('branch-close')"
-                          class="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors text-slate-500 dark:text-slate-400 hover:bg-surface-100 dark:hover:bg-surface-800">
+                          class="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors text-slate-500 dark:text-slate-300 hover:bg-surface-100 dark:hover:bg-surface-800">
                           End Session
                         </button>
                       </div>
@@ -2589,13 +2589,13 @@
                       <!-- Tree visualization -->
                       <div x-data="treeVisualizer()" x-effect="setSession(sessionId)">
                         <button @click="toggleTree(sessionId)"
-                          class="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors bg-surface-100 dark:bg-surface-800 text-slate-600 dark:text-slate-400 hover:bg-surface-200 dark:hover:bg-surface-700 inline-flex items-center gap-1.5">
+                          class="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors bg-surface-100 dark:bg-surface-800 text-slate-600 dark:text-slate-300 hover:bg-surface-200 dark:hover:bg-surface-700 inline-flex items-center gap-1.5">
                           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 01-1.125-1.125v-3.75zM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-8.25zM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-2.25z"/></svg>
                           <span x-text="showTree ? 'Hide Tree' : 'Show Tree'"></span>
                         </button>
                         <div x-show="showTree" x-transition class="mt-3 card overflow-x-auto">
                           <template x-if="treeLoading">
-                            <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-500">Loading tree...</div>
+                            <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-300">Loading tree...</div>
                           </template>
                           <template x-if="treeLayout && treeLayout.nodes.length > 0">
                             <svg :viewBox="viewBox" class="min-w-full" :style="'min-height:' + treeLayout.height + 'px'" xmlns="http://www.w3.org/2000/svg">
@@ -2616,7 +2616,7 @@
                             <div class="p-4 text-center text-sm text-red-500 dark:text-red-400" x-text="treeError"></div>
                           </template>
                           <template x-if="!treeLoading && !treeError && (!treeLayout || treeLayout.nodes.length === 0)">
-                            <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-500">No tree data available. Try navigating first.</div>
+                            <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-300">No tree data available. Try navigating first.</div>
                           </template>
                         </div>
                       </div>
@@ -2664,7 +2664,7 @@
                 <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-violet-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">L1</div>
                 <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Story Generation</h3>
               </div>
-              <ul class="space-y-1.5 text-[13px] text-slate-600 dark:text-slate-400">
+              <ul class="space-y-1.5 text-[13px] text-slate-600 dark:text-slate-300">
                 <li class="flex gap-2"><svg class="w-3.5 h-3.5 mt-0.5 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>Tạo nhân vật: tính cách, backstory, động cơ</li>
                 <li class="flex gap-2"><svg class="w-3.5 h-3.5 mt-0.5 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>Xây thế giới & bối cảnh</li>
                 <li class="flex gap-2"><svg class="w-3.5 h-3.5 mt-0.5 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>Outline chi tiết + viết từng chương song song</li>
@@ -2675,7 +2675,7 @@
                 <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">L2</div>
                 <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Drama Simulation</h3>
               </div>
-              <ul class="space-y-1.5 text-[13px] text-slate-600 dark:text-slate-400">
+              <ul class="space-y-1.5 text-[13px] text-slate-600 dark:text-slate-300">
                 <li class="flex gap-2"><svg class="w-3.5 h-3.5 mt-0.5 text-orange-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>Mỗi nhân vật thành AI agent tự chủ</li>
                 <li class="flex gap-2"><svg class="w-3.5 h-3.5 mt-0.5 text-orange-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>Agents tương tác, đối đầu, phản bội</li>
                 <li class="flex gap-2"><svg class="w-3.5 h-3.5 mt-0.5 text-orange-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>Viết lại truyện với điểm drama cao hơn</li>
@@ -2694,35 +2694,35 @@
                 <span class="sf-step-badge">1</span>
                 <div class="text-[13px] flex-1">
                   <div class="font-semibold text-slate-700 dark:text-slate-200">Cài đặt API</div>
-                  <div class="text-slate-500 dark:text-slate-400">Vào <strong class="text-brand-600">Cài đặt</strong> → nhập API Key và chọn model</div>
+                  <div class="text-slate-500 dark:text-slate-300">Vào <strong class="text-brand-600">Cài đặt</strong> → nhập API Key và chọn model</div>
                 </div>
               </div>
               <div class="sf-guide-step">
                 <span class="sf-step-badge">2</span>
                 <div class="text-[13px] flex-1">
                   <div class="font-semibold text-slate-700 dark:text-slate-200">Nhập ý tưởng</div>
-                  <div class="text-slate-500 dark:text-slate-400">Vào <strong class="text-brand-600">Tạo truyện</strong> → nhập ý tưởng hoặc chọn mẫu có sẵn</div>
+                  <div class="text-slate-500 dark:text-slate-300">Vào <strong class="text-brand-600">Tạo truyện</strong> → nhập ý tưởng hoặc chọn mẫu có sẵn</div>
                 </div>
               </div>
               <div class="sf-guide-step">
                 <span class="sf-step-badge">3</span>
                 <div class="text-[13px] flex-1">
                   <div class="font-semibold text-slate-700 dark:text-slate-200">Tuỳ chỉnh</div>
-                  <div class="text-slate-500 dark:text-slate-400">Chọn thể loại, số chương, độ dài — hoặc giữ mặc định</div>
+                  <div class="text-slate-500 dark:text-slate-300">Chọn thể loại, số chương, độ dài — hoặc giữ mặc định</div>
                 </div>
               </div>
               <div class="sf-guide-step">
                 <span class="sf-step-badge">4</span>
                 <div class="text-[13px] flex-1">
                   <div class="font-semibold text-slate-700 dark:text-slate-200">Chạy pipeline</div>
-                  <div class="text-slate-500 dark:text-slate-400">Click <strong class="text-brand-600">Tạo truyện</strong> — AI sẽ chạy qua 6 phase</div>
+                  <div class="text-slate-500 dark:text-slate-300">Click <strong class="text-brand-600">Tạo truyện</strong> — AI sẽ chạy qua 6 phase</div>
                 </div>
               </div>
               <div class="sf-guide-step">
                 <span class="sf-step-badge">5</span>
                 <div class="text-[13px] flex-1">
                   <div class="font-semibold text-slate-700 dark:text-slate-200">Đọc & xuất</div>
-                  <div class="text-slate-500 dark:text-slate-400">Đọc ngay, xuất PDF/EPUB, hoặc phân nhánh sang hướng khác</div>
+                  <div class="text-slate-500 dark:text-slate-300">Đọc ngay, xuất PDF/EPUB, hoặc phân nhánh sang hướng khác</div>
                 </div>
               </div>
             </div>
@@ -2741,8 +2741,8 @@
               <span class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800">Groq</span>
               <span class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-800">Together AI</span>
               <span class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-pink-50 dark:bg-pink-900/20 text-pink-700 dark:text-pink-400 border border-pink-200 dark:border-pink-800">OpenRouter</span>
-              <span class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-50 dark:bg-slate-900/20 text-slate-700 dark:text-slate-400 border border-slate-200 dark:border-slate-800">Ollama</span>
-              <span class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-surface-50 dark:bg-surface-900 text-slate-600 dark:text-slate-400 border border-surface-200 dark:border-surface-700">+ bất kỳ <code class="font-mono text-[10px]">/v1/chat/completions</code></span>
+              <span class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-50 dark:bg-slate-900/20 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800">Ollama</span>
+              <span class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-surface-50 dark:bg-surface-900 text-slate-600 dark:text-slate-300 border border-surface-200 dark:border-surface-700">+ bất kỳ <code class="font-mono text-[10px]">/v1/chat/completions</code></span>
             </div>
           </div>
         </div>
@@ -2755,7 +2755,6 @@
   <script src="/static/js/storage-manager.js"></script>
   <script src="/static/js/api-client.js"></script>
   <script src="/static/js/pages/library.js"></script>
-  <script src="/static/js/pages/reader.js"></script>
   <script src="/static/js/pages/export.js"></script>
   <script src="/static/js/pages/analytics.js"></script>
   <script src="/static/js/pages/branching.js"></script>
