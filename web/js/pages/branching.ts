@@ -40,6 +40,27 @@ interface StoriesResponse {
   total: number;
 }
 
+interface Bookmark {
+  id: string;
+  node_id: string;
+  label: string;
+  created_at: string;
+}
+
+interface BranchAnalytics {
+  total_nodes: number;
+  total_choices: number;
+  max_depth: number;
+  popular_paths: Array<{ path: string[]; count: number }>;
+}
+
+interface MergePreview {
+  node_a: { id: string; content: string };
+  node_b: { id: string; content: string };
+  conflicts: string[];
+  common_ancestor: string | null;
+}
+
 function branchingPage() {
   return {
     selectedChapter: null as number | null,
@@ -52,6 +73,26 @@ function branchingPage() {
     loadError: '',
     restoringSession: false,
     pendingRestoreSessionId: null as string | null,
+
+    // Advanced features
+    bookmarks: [] as Bookmark[],
+    analytics: null as BranchAnalytics | null,
+    showBookmarksPanel: false,
+    showAnalyticsPanel: false,
+    showMergeDialog: false,
+    mergeNodeA: '',
+    mergeNodeB: '',
+    mergeStrategy: 'auto' as 'auto' | 'prefer_a' | 'prefer_b',
+    mergePreview: null as MergePreview | null,
+    mergeLoading: false,
+    mergeError: '',
+
+    // Auto-explore
+    showAutoExplore: false,
+    autoExploreNumPaths: 3,
+    autoExploreDepth: 2,
+    autoExplorePaths: [] as Array<{ id: string; nodes: Array<{ content: string; choices: string[] }> }>,
+    autoExploreLoading: false,
 
     init() {
       this.fetchStories();
@@ -194,6 +235,132 @@ function branchingPage() {
         world_summary: worldSummary,
         conflict_summary: conflictSummary,
       };
+    },
+
+    // ── Bookmarks ──────────────────────────────────────────────────────────
+
+    async loadBookmarks(sessionId: string): Promise<void> {
+      try {
+        const res = await API.get<{ bookmarks: Bookmark[] }>(`/branch/${sessionId}/bookmarks`);
+        this.bookmarks = res.bookmarks || [];
+      } catch {
+        this.bookmarks = [];
+      }
+    },
+
+    async addBookmark(sessionId: string, nodeId: string, label: string): Promise<void> {
+      try {
+        await API.post(`/branch/${sessionId}/bookmarks`, { node_id: nodeId, label });
+        await this.loadBookmarks(sessionId);
+      } catch (e) {
+        console.error('Failed to add bookmark:', e);
+      }
+    },
+
+    async removeBookmark(sessionId: string, bookmarkId: string): Promise<void> {
+      try {
+        await API.del(`/branch/${sessionId}/bookmarks/${bookmarkId}`);
+        await this.loadBookmarks(sessionId);
+      } catch (e) {
+        console.error('Failed to remove bookmark:', e);
+      }
+    },
+
+    async gotoBookmark(sessionId: string, bookmarkId: string): Promise<void> {
+      try {
+        await API.post(`/branch/${sessionId}/bookmarks/${bookmarkId}/goto`);
+        document.dispatchEvent(new CustomEvent('branch:refresh'));
+      } catch (e) {
+        console.error('Failed to goto bookmark:', e);
+      }
+    },
+
+    // ── Analytics ──────────────────────────────────────────────────────────
+
+    async loadAnalytics(sessionId: string): Promise<void> {
+      try {
+        this.analytics = await API.get<BranchAnalytics>(`/branch/${sessionId}/analytics`);
+      } catch {
+        this.analytics = null;
+      }
+    },
+
+    // ── Merge ──────────────────────────────────────────────────────────────
+
+    async loadMergePreview(sessionId: string): Promise<void> {
+      if (!this.mergeNodeA || !this.mergeNodeB) {
+        this.mergeError = 'Select two nodes to merge';
+        return;
+      }
+      this.mergeLoading = true;
+      this.mergeError = '';
+      try {
+        this.mergePreview = await API.get<MergePreview>(
+          `/branch/${sessionId}/merge/preview?node_a=${this.mergeNodeA}&node_b=${this.mergeNodeB}`
+        );
+      } catch (e) {
+        this.mergeError = (e as Error).message || 'Failed to load preview';
+        this.mergePreview = null;
+      } finally {
+        this.mergeLoading = false;
+      }
+    },
+
+    async executeMerge(sessionId: string): Promise<void> {
+      this.mergeLoading = true;
+      this.mergeError = '';
+      try {
+        await API.post(`/branch/${sessionId}/merge`, {
+          node_a_id: this.mergeNodeA,
+          node_b_id: this.mergeNodeB,
+          strategy: this.mergeStrategy,
+        });
+        this.showMergeDialog = false;
+        this.mergePreview = null;
+        document.dispatchEvent(new CustomEvent('branch:refresh'));
+      } catch (e) {
+        this.mergeError = (e as Error).message || 'Merge failed';
+      } finally {
+        this.mergeLoading = false;
+      }
+    },
+
+    // ── Auto-explore ───────────────────────────────────────────────────────
+
+    async runAutoExplore(sessionId: string): Promise<void> {
+      this.autoExploreLoading = true;
+      this.autoExplorePaths = [];
+      try {
+        const res = await API.post<{ paths: Array<{ id: string; nodes: Array<{ content: string; choices: string[] }> }> }>(
+          `/branch/${sessionId}/auto-explore`,
+          { num_paths: this.autoExploreNumPaths, depth: this.autoExploreDepth }
+        );
+        this.autoExplorePaths = res.paths || [];
+      } catch (e) {
+        console.error('Auto-explore failed:', e);
+      } finally {
+        this.autoExploreLoading = false;
+      }
+    },
+
+    // ── Undo/Redo ──────────────────────────────────────────────────────────
+
+    async undo(sessionId: string): Promise<void> {
+      try {
+        await API.post(`/branch/${sessionId}/undo`);
+        document.dispatchEvent(new CustomEvent('branch:refresh'));
+      } catch (e) {
+        console.error('Undo failed:', e);
+      }
+    },
+
+    async redo(sessionId: string): Promise<void> {
+      try {
+        await API.post(`/branch/${sessionId}/redo`);
+        document.dispatchEvent(new CustomEvent('branch:refresh'));
+      } catch (e) {
+        console.error('Redo failed:', e);
+      }
     },
   };
 }

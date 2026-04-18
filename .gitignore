@@ -86,3 +86,4 @@ ck.md
 # ── Internal planning docs ────────────────────────────────────────
 plans/
 gemini_resp.json
+data/provider_status/
