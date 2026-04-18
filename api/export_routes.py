@@ -3,6 +3,7 @@
 import logging
 import os
 import pathlib
+from typing import Optional
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 
@@ -48,10 +49,80 @@ def _get_orch(session_id: str):
     return orch
 
 
-@router.post("/files/{session_id}")
-def export_files(session_id: str, formats: list[str] = ["TXT", "Markdown", "JSON"]):
-    """Export story files in requested formats."""
+async def _load_story_from_db(story_id: str) -> Optional["_DBStoryWrapper"]:
+    """Load story from database by ID and wrap it for export handlers."""
+    try:
+        from services.infra.database import get_session
+        from models.db_models import Story, Chapter as DBChapter
+        from models.schemas import Chapter, StoryDraft, PipelineOutput
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+
+        async with get_session() as session:
+            if session is None:
+                return None
+            result = await session.execute(
+                select(Story)
+                .options(selectinload(Story.chapters))
+                .where(Story.id == story_id)
+            )
+            story = result.scalar_one_or_none()
+            if not story:
+                return None
+
+            chapters = [
+                Chapter(
+                    chapter_number=ch.chapter_number,
+                    title=ch.title or f"Chương {ch.chapter_number}",
+                    content=ch.content or "",
+                    word_count=ch.word_count or len((ch.content or "").split()),
+                )
+                for ch in sorted(story.chapters, key=lambda c: c.chapter_number)
+            ]
+
+            story_draft = StoryDraft(
+                title=story.title,
+                genre=story.genre or "",
+                synopsis=story.synopsis or "",
+                chapters=chapters,
+            )
+
+            output = PipelineOutput(story_draft=story_draft, status="complete")
+            return _DBStoryWrapper(output)
+    except Exception as e:
+        logger.warning(f"Failed to load story from DB: {e}")
+        return None
+
+
+class _DBStoryWrapper:
+    """Minimal wrapper to provide orch_state-like interface for export handlers."""
+
+    def __init__(self, output: "PipelineOutput"):
+        self.output = output
+
+    def export_output(self, formats: list[str]) -> Optional[list[str]]:
+        from pipeline.orchestrator_export import PipelineExporter
+        exporter = PipelineExporter(self.output)
+        return exporter.export_output(formats=formats) or None
+
+    def export_zip(self, formats: list[str]) -> Optional[str]:
+        from pipeline.orchestrator_export import PipelineExporter
+        exporter = PipelineExporter(self.output)
+        return exporter.export_zip(formats=formats) or None
+
+
+async def _get_story_data(session_id: str):
+    """Get story data from memory or database."""
     orch = _get_orch(session_id)
+    if orch:
+        return orch
+    return await _load_story_from_db(session_id)
+
+
+@router.post("/files/{session_id}")
+async def export_files(session_id: str, formats: list[str] = ["TXT", "Markdown", "JSON"]):
+    """Export story files in requested formats."""
+    orch = await _get_story_data(session_id)
     if not orch:
         return JSONResponse({"error": "Chưa có truyện"}, status_code=404)
     from services.handlers import handle_export_files
@@ -70,9 +141,9 @@ def export_files(session_id: str, formats: list[str] = ["TXT", "Markdown", "JSON
 
 
 @router.post("/zip/{session_id}")
-def export_zip(session_id: str):
+async def export_zip(session_id: str):
     """Export all files as ZIP."""
-    orch = _get_orch(session_id)
+    orch = await _get_story_data(session_id)
     if not orch:
         return JSONResponse({"error": "Chưa có truyện"}, status_code=404)
     from services.i18n import I18n
@@ -85,9 +156,9 @@ def export_zip(session_id: str):
 
 
 @router.post("/pdf/{session_id}")
-def export_pdf(session_id: str):
+async def export_pdf(session_id: str):
     """Export story as PDF."""
-    orch = _get_orch(session_id)
+    orch = await _get_story_data(session_id)
     if not orch:
         return JSONResponse({"error": "Chưa có truyện"}, status_code=404)
     from services.i18n import I18n
@@ -99,9 +170,9 @@ def export_pdf(session_id: str):
 
 
 @router.post("/epub/{session_id}")
-def export_epub(session_id: str):
+async def export_epub(session_id: str):
     """Export story as EPUB."""
-    orch = _get_orch(session_id)
+    orch = await _get_story_data(session_id)
     if not orch:
         return JSONResponse({"error": "Chưa có truyện"}, status_code=404)
     from services.i18n import I18n
