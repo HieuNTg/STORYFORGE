@@ -21,9 +21,47 @@ function exportPage() {
       return this.selectedStory || this.sessionId || '';
     },
 
+    /** Title of the currently-active pipeline result, if any. */
+    _resultTitle(): string {
+      const r = Alpine.store('app').pipelineResult as { enhanced?: { title?: string }; draft?: { title?: string } } | null;
+      return (r?.enhanced?.title || r?.draft?.title || '').trim();
+    },
+
+    /** Find checkpoint filename whose title matches the active pipeline result. */
+    _matchCheckpointByTitle(): string {
+      const title = this._resultTitle();
+      if (!title) return '';
+      const hit = this.stories.find(s => (s.title || '').trim() === title);
+      return hit?.filename || '';
+    },
+
+    /** Resolve the story title for naming the downloaded file. */
+    _downloadTitle(): string {
+      if (this.selectedStory) {
+        const hit = this.stories.find(s => s.filename === this.selectedStory);
+        if (hit?.title) return hit.title;
+      }
+      const t = this._resultTitle();
+      if (t) return t;
+      return 'storyforge';
+    },
+
+    /** Windows-safe filename: strip reserved chars, trim, cap length. */
+    _safeFilename(base: string, ext: string): string {
+      const cleaned = base.replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim();
+      const out = (cleaned || 'storyforge').slice(0, 120);
+      return `${out}.${ext}`;
+    },
+
     async init(): Promise<void> {
       this.message = '';
       await this.loadStories();
+      // If the in-memory session UUID may be stale (server restart / timeout),
+      // auto-select the matching checkpoint so exports don't 404.
+      if (!this.selectedStory && this.sessionId) {
+        const match = this._matchCheckpointByTitle();
+        if (match) this.selectedStory = match;
+      }
     },
 
     async loadStories(): Promise<void> {
@@ -37,6 +75,23 @@ function exportPage() {
       this.loading = false;
     },
 
+    /** Try /export/<format>/<id>; on 404 fall back to the matching checkpoint. */
+    async _downloadWithFallback(format: string, filename: string): Promise<void> {
+      try {
+        await API.download(`/export/${format}/${encodeURIComponent(this.exportId)}`, filename);
+        return;
+      } catch (e) {
+        const msg = (e as Error).message || '';
+        const is404 = msg.includes('404');
+        const usingSession = !this.selectedStory && !!this.sessionId;
+        if (!is404 || !usingSession) throw e;
+        const match = this._matchCheckpointByTitle();
+        if (!match) throw e;
+        this.selectedStory = match;
+        await API.download(`/export/${format}/${encodeURIComponent(match)}`, filename);
+      }
+    },
+
     async exportFormat(format: string): Promise<void> {
       if (!this.exportId) {
         this.message = 'Vui lòng chọn truyện để xuất.';
@@ -45,8 +100,8 @@ function exportPage() {
       this.exporting = format;
       this.message = '';
       try {
-        const filename = 'storyforge.' + format.toLowerCase();
-        await API.download(`/export/${format}/${encodeURIComponent(this.exportId)}`, filename);
+        const filename = this._safeFilename(this._downloadTitle(), format.toLowerCase());
+        await this._downloadWithFallback(format, filename);
         this.message = `Xuất ${format.toUpperCase()} thành công!`;
         setTimeout(() => { if (!this.message.startsWith('Error')) this.message = ''; }, 5000);
       } catch (e) {
@@ -63,7 +118,8 @@ function exportPage() {
       this.exporting = 'zip';
       this.message = '';
       try {
-        await API.download(`/export/zip/${encodeURIComponent(this.exportId)}`, 'storyforge_export.zip');
+        const filename = this._safeFilename(this._downloadTitle(), 'zip');
+        await this._downloadWithFallback('zip', filename);
         this.message = 'Xuất ZIP thành công!';
         setTimeout(() => { if (!this.message.startsWith('Error')) this.message = ''; }, 5000);
       } catch (e) {
