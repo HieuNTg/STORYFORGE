@@ -701,7 +701,7 @@
                   <span class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-gradient-to-br from-brand-500 to-violet-500 text-white text-[10px] font-bold">1</span>
                   <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200">Your story idea</h2>
                 </div>
-                <span class="text-[11px] text-slate-400 dark:text-slate-300 tabular-nums font-medium" x-text="($store.pipeline.form.idea || '').length + ' / 500'"></span>
+                <span class="text-[11px] text-slate-400 dark:text-slate-300 tabular-nums font-medium" x-text="($store.pipeline.form.idea || '').length + ' / 20000'"></span>
               </div>
               <!-- Continuation header -->
               <div x-show="$store.pipeline.continuationMode" class="space-y-3">
@@ -722,7 +722,7 @@
               </div>
               <!-- Idea textarea -->
               <div x-show="!$store.pipeline.continuationMode">
-                <textarea id="sf-idea" x-model="$store.pipeline.form.idea" rows="4"
+                <textarea id="sf-idea" x-model="$store.pipeline.form.idea" rows="4" maxlength="20000"
                   placeholder="E.g. A young warrior discovers an ancient sword that grants immense power but slowly corrupts the soul of its wielder..."
                   class="w-full border border-surface-200 rounded-xl px-4 py-3 text-sm resize-none leading-relaxed focus:ring-2 focus:ring-brand-500/20 sf-textarea-hero"></textarea>
               </div>

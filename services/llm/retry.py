@@ -126,8 +126,10 @@ def _should_retry(exc: Exception, provider: str) -> tuple[bool, float]:
 
     # 429 rate limit — use Retry-After header if available, else provider defaults
     if "429" in exc_str:
-        if provider in ("openrouter", "kyma"):
-            return True, 0  # Skip immediately to next model in chain
+        # Daily-quota exhaustion on these providers cannot recover within a single
+        # request; skip to the next model/key instead of sleeping on the same one.
+        if provider in ("openrouter", "kyma", "google"):
+            return True, 0
         retry_after = _parse_retry_after(exc)
         if retry_after is not None:
             return True, retry_after

@@ -20,26 +20,26 @@ _INJECTION_PATTERNS = [
     # System prompt extraction
     (re.compile(r"(?:ignore|forget|disregard)\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions?|prompts?|rules?|context)", re.IGNORECASE), "system_override"),
     (re.compile(r"(?:what|show|reveal|repeat|print|output)\s+(?:is\s+)?(?:your|the|my)\s+(?:system\s+)?(?:prompt|instructions?|rules?)", re.IGNORECASE), "prompt_extraction"),
-    # Role override
-    (re.compile(r"you\s+are\s+(?:now|no\s+longer)\s+a", re.IGNORECASE), "role_override"),
-    (re.compile(r"(?:act|behave|pretend|roleplay)\s+as\s+(?:a\s+)?(?:different|new)", re.IGNORECASE), "role_override"),
+    # Role override — require imperative-to-assistant context, not narrative prose
+    (re.compile(r"(?:^|[.!?]\s+)you\s+are\s+(?:now\s+)?(?:no\s+longer\s+)?(?:a\s+)?(?:\w+\s+){0,2}(?:ai|assistant|model|chatbot|system|llm|gpt|claude|bot)\b", re.IGNORECASE), "role_override"),
+    (re.compile(r"(?:^|[.!?]\s+)(?:act|behave|pretend|roleplay)\s+as\s+(?:a\s+)?(?:different|new)\s+(?:assistant|ai|model|chatbot|system|llm|gpt|claude|bot)", re.IGNORECASE), "role_override"),
     # Instruction injection
     (re.compile(r"\[(?:SYSTEM|INST|ADMIN)\]", re.IGNORECASE), "tag_injection"),
     (re.compile(r"<\|(?:im_start|system|endoftext)\|>", re.IGNORECASE), "token_injection"),
     # Output manipulation
     (re.compile(r"(?:do\s+not|don'?t|never)\s+(?:score|rate|evaluate|check|validate)", re.IGNORECASE), "scoring_bypass"),
     (re.compile(r"(?:skip|bypass|disable)\s+(?:quality|safety|content)\s+(?:check|filter|gate|review)", re.IGNORECASE), "safety_bypass"),
-    # Vietnamese patterns — system override
-    (re.compile(r"bỏ\s+qua\s+(?:tất\s+cả\s+)?(?:hướng\s+dẫn|lệnh|quy\s+tắc)", re.IGNORECASE), "system_override"),
-    (re.compile(r"(?:hãy\s+)?quên\s+(?:đi\s+)?(?:các\s+)?(?:quy\s+tắc|hướng\s+dẫn|lệnh|ngữ\s+cảnh)", re.IGNORECASE), "system_override"),
-    # Vietnamese patterns — role override
-    (re.compile(r"(?:hãy\s+)?(?:đóng\s+vai|giả\s+vờ(?:\s+(?:là|bạn\s+là))?|giả\s+làm)", re.IGNORECASE), "role_override"),
-    (re.compile(r"bạn\s+không\s+phải\s+tuân\s+theo", re.IGNORECASE), "role_override"),
-    # Vietnamese patterns — scoring bypass
-    (re.compile(r"đừng\s+(?:đánh\s+giá|kiểm\s+tra|chấm\s+điểm)", re.IGNORECASE), "scoring_bypass"),
-    # Vietnamese patterns — prompt extraction
-    (re.compile(r"(?:prompt|hướng\s+dẫn|quy\s+tắc)\s+(?:hệ\s+thống|system)", re.IGNORECASE), "prompt_extraction"),
-    (re.compile(r"xuất\s+ra\s+(?:toàn\s+bộ\s+)?prompt", re.IGNORECASE), "prompt_extraction"),
+    # Vietnamese patterns — system override (require override-target qualifier)
+    (re.compile(r"bỏ\s+qua\s+(?:tất\s+cả\s+)?(?:các\s+)?(?:hướng\s+dẫn|lệnh|quy\s+tắc|chỉ\s+dẫn|prompt)\s+(?:trước(?:\s+đó)?|ở\s+trên|phía\s+trên|bên\s+trên|gốc|ban\s+đầu)", re.IGNORECASE), "system_override"),
+    (re.compile(r"(?:hãy\s+)?quên\s+(?:đi\s+)?(?:các\s+)?(?:quy\s+tắc|hướng\s+dẫn|lệnh|ngữ\s+cảnh|prompt|chỉ\s+dẫn)\s+(?:trước(?:\s+đó)?|ở\s+trên|phía\s+trên|bên\s+trên|gốc|ban\s+đầu)", re.IGNORECASE), "system_override"),
+    # Vietnamese patterns — role override (require target = assistant/AI/LLM)
+    (re.compile(r"(?:hãy\s+)?(?:đóng\s+vai|giả\s+vờ|giả\s+làm)(?:\s+(?:là|bạn\s+là))?\s+(?:một\s+)?(?:trợ\s+lý|AI|mô\s+hình|chatbot|LLM|GPT|Claude|bot|hệ\s+thống\s+AI)", re.IGNORECASE), "role_override"),
+    (re.compile(r"bạn\s+không\s+phải\s+tuân\s+theo\s+(?:các\s+)?(?:quy\s+tắc|hướng\s+dẫn|lệnh)", re.IGNORECASE), "role_override"),
+    # Vietnamese patterns — scoring bypass (require override-target qualifier)
+    (re.compile(r"đừng\s+(?:đánh\s+giá|kiểm\s+tra|chấm\s+điểm)\s+(?:chất\s+lượng\s+)?(?:nội\s+dung|đầu\s+ra|câu\s+trả\s+lời|phản\s+hồi|output|câu\s+chuyện|truyện)", re.IGNORECASE), "scoring_bypass"),
+    # Vietnamese patterns — prompt extraction (require extraction verb)
+    (re.compile(r"(?:xuất|hiển\s+thị|tiết\s+lộ|in\s+ra|lặp\s+lại|cho\s+(?:tôi\s+)?xem|nói\s+ra|liệt\s+kê)\s+(?:toàn\s+bộ\s+)?(?:prompt|hướng\s+dẫn|quy\s+tắc|chỉ\s+dẫn)(?:\s+(?:hệ\s+thống|system|gốc|ban\s+đầu))?", re.IGNORECASE), "prompt_extraction"),
+    (re.compile(r"(?:cho\s+tôi\s+biết|tiết\s+lộ|nói\s+cho\s+tôi)\s+(?:system\s+prompt|prompt\s+hệ\s+thống)", re.IGNORECASE), "prompt_extraction"),
 ]
 
 

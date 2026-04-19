@@ -779,10 +779,13 @@ class LLMClient(StreamingMixin, GenerationMixin):
         # Lazy-load model lists
         openrouter_models: list[str] = []
         kyma_models: list[str] = []
+        gemini_models: list[str] = []
         if "openrouter" in provider_types:
             openrouter_models = self._get_openrouter_free_models(config, primary_model)
         if "kyma" in provider_types:
             kyma_models = self._get_kyma_models(config, primary_model)
+        if "google" in provider_types:
+            gemini_models = self._get_gemini_models(config, primary_model)
 
         # Cheap model first if requested
         cheap_model_name = None
@@ -816,9 +819,14 @@ class LLMClient(StreamingMixin, GenerationMixin):
             elif cheap_model_name is None:
                 logger.debug(f"Model {primary_model} doesn't match provider {ptype}")
 
-            # Round-robin for OpenRouter/Kyma
-            if ptype in ("openrouter", "kyma"):
-                models = kyma_models if ptype == "kyma" else openrouter_models
+            # Round-robin for OpenRouter/Kyma/Google (each has separate per-model quotas)
+            if ptype in ("openrouter", "kyma", "google"):
+                if ptype == "kyma":
+                    models = kyma_models
+                elif ptype == "google":
+                    models = gemini_models
+                else:
+                    models = openrouter_models
                 for model_name in models:
                     if model_name in (primary_model, cheap_model_name):
                         continue
@@ -858,15 +866,22 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     if "unhealthy" in reason:
                         fm.clear_model_health(fb_model)
 
-            # Round-robin on fallback OpenRouter/Kyma keys
-            if ptype in ("openrouter", "kyma"):
+            # Round-robin on fallback OpenRouter/Kyma/Google keys
+            if ptype in ("openrouter", "kyma", "google"):
                 # Lazy-load if needed
                 if ptype == "kyma" and not kyma_models:
                     kyma_models = self._get_kyma_models(config, primary_model)
                 elif ptype == "openrouter" and not openrouter_models:
                     openrouter_models = self._get_openrouter_free_models(config, primary_model)
+                elif ptype == "google" and not gemini_models:
+                    gemini_models = self._get_gemini_models(config, primary_model)
 
-                models = kyma_models if ptype == "kyma" else openrouter_models
+                if ptype == "kyma":
+                    models = kyma_models
+                elif ptype == "google":
+                    models = gemini_models
+                else:
+                    models = openrouter_models
                 for model_name in models:
                     if (model_name, fb_key) in existing_combos:
                         continue
@@ -930,6 +945,36 @@ class LLMClient(StreamingMixin, GenerationMixin):
             return ordered
         except Exception as e:
             logger.warning("Failed to fetch Kyma models for round-robin: %s", e)
+            return []
+
+    def _get_gemini_models(self, config, primary_model: str) -> list[str]:
+        """Get all available Gemini models, primary first.
+
+        Each Gemini model ID has a SEPARATE free-tier quota — when the primary
+        hits 429 RESOURCE_EXHAUSTED we can still succeed on another model.
+        """
+        try:
+            from services.gemini_model_discovery import get_gemini_models
+            # Prefer the key that will actually call Gemini. Primary base_url
+            # may not be Google — scan api_keys for a google entry first.
+            google_key = ""
+            if _detect_provider_type(config.llm.base_url) == "google":
+                google_key = config.llm.api_key
+            else:
+                for item in getattr(config.llm, "api_keys", []) or []:
+                    if isinstance(item, dict) and _detect_provider_type(item.get("base_url", "")) == "google":
+                        google_key = item.get("key", item.get("api_key", ""))
+                        break
+            models = get_gemini_models(api_key=google_key)
+            ordered = []
+            if primary_model in models:
+                ordered.append(primary_model)
+            for m in models:
+                if m != primary_model:
+                    ordered.append(m)
+            return ordered
+        except Exception as e:
+            logger.warning("Failed to fetch Gemini models for round-robin: %s", e)
             return []
 
     def _try_provider(self, entry: dict, messages: list, temperature: float,

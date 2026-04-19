@@ -118,7 +118,14 @@ class GenerationMixin:
         model_tier: str = "default",
         model: Optional[str] = None,
     ):
-        """Call LLM with streaming."""
+        """Call LLM with streaming + chain-level fallback.
+
+        Iterates the same fallback chain used by generate(). The first entry to
+        produce any chunk "wins" and its stream is consumed to completion.
+        Entries that fail before yielding anything (auth, 429 quota, connection
+        error) are skipped with proper rate-limit marking. Mid-stream failures
+        re-raise (can't safely retry without duplicating already-yielded tokens).
+        """
         config = _config_manager()()
         effective_temp = temperature if temperature is not None else config.llm.temperature
 
@@ -132,21 +139,75 @@ class GenerationMixin:
             {"role": "user", "content": user_prompt},
         ]
 
-        if model_tier == "cheap" and config.llm.cheap_model:
-            provider, effective_model = self._get_cheap_client()
-        else:
-            provider = self._get_client()
-            effective_model = model or self._current_model or config.llm.model
-
         eff_max_tokens = max_tokens or config.llm.max_tokens
+        chain = self._build_fallback_chain(config, model_tier, model_override=model)
+        if not chain:
+            raise RuntimeError("LLM fallback chain is empty — check config/model availability")
 
-        def _api_gen():
-            yield from provider.stream(messages, effective_model, effective_temp, eff_max_tokens)
+        from services.llm.retry import (
+            _redact, _detect_provider, _should_retry, _is_transient, _is_auth_error,
+        )
+        from services.llm.model_fallback import get_fallback_manager
 
-        yield from self._stream_with_chunk_timeout(
-            self._stream_with_retry(_api_gen, "API stream"),
-            chunk_timeout=30,
-            first_chunk_timeout=60,
+        all_errors: list[str] = []
+        total_yielded = 0
+        for entry in chain:
+            provider = entry.get("provider") or entry.get("client")
+            entry_model = entry["model"]
+            entry_key = entry.get("_api_key", "")
+            provider_url = getattr(provider, "base_url", None)
+            provider_type = _detect_provider(str(provider_url) if provider_url else "")
+
+            def _api_gen(p=provider, m=entry_model):
+                yield from p.stream(messages, m, effective_temp, eff_max_tokens)
+
+            entry_yielded = 0
+            try:
+                for chunk in self._stream_with_chunk_timeout(
+                    self._stream_with_retry(_api_gen, f"stream:{entry['label']}"),
+                    chunk_timeout=30,
+                    first_chunk_timeout=60,
+                ):
+                    entry_yielded += 1
+                    total_yielded += 1
+                    yield chunk
+                logger.info(f"Stream success via {entry['label']} ({entry_yielded} chunks)")
+                return
+            except Exception as e:
+                all_errors.append(f"{entry['label']}: {_redact(e)}")
+                if entry_yielded > 0 or total_yielded > 0:
+                    logger.error(
+                        f"Stream failed mid-stream on {entry['label']} after "
+                        f"{entry_yielded} chunks: {_redact(e)}"
+                    )
+                    raise
+
+                # Mark unhealthy (except for transient/auth errors)
+                fm = get_fallback_manager()
+                if entry_model and not _is_transient(e) and not _is_auth_error(e):
+                    fm.mark_unhealthy(entry_model)
+
+                # Rate-limit marking on 429
+                err_str = str(e)
+                if entry_key and "429" in err_str:
+                    if provider_type == "openrouter" and self._is_account_rate_limit(err_str):
+                        self._mark_rate_limited(entry_key, 300.0)
+                    elif provider_type in ("openrouter", "kyma"):
+                        self._mark_model_rate_limited(entry_model, entry_key, 90.0)
+                    else:
+                        # Google/other: model-level cooldown, keep key usable for other models
+                        self._mark_model_rate_limited(entry_model, entry_key, 60.0)
+
+                should_try_next, _ = _should_retry(e, provider_type)
+                if not should_try_next and not _is_transient(e):
+                    logger.error(f"FATAL streaming error on {entry['label']}: {_redact(e)}")
+                    raise
+                logger.warning(
+                    f"Stream {entry['label']} failed before first chunk, trying next: {_redact(e)}"
+                )
+
+        raise RuntimeError(
+            f"All LLM providers failed (streaming). Errors: {'; '.join(all_errors)}"
         )
 
     def check_connection(self) -> tuple[bool, str]:

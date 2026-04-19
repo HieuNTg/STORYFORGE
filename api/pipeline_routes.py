@@ -96,7 +96,7 @@ def _t(key, **kw):
 
 class PipelineRequest(BaseModel):
     """Request body for running the pipeline."""
-    idea: str = Field("", max_length=5000)
+    idea: str = Field("", max_length=20000)
     title: str = Field("", max_length=200)
     genre: str = Field("Tiên Hiệp", max_length=100)
     style: str = Field("Miêu tả chi tiết", max_length=100)

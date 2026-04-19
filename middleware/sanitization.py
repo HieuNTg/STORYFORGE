@@ -79,7 +79,13 @@ class SanitizationMiddleware(BaseHTTPMiddleware):
 
             strings = _extract_strings(payload)
             for text in strings:
-                sanitize_input(text)  # raises InjectionBlockedError if blocked
+                try:
+                    sanitize_input(text)  # raises InjectionBlockedError if blocked
+                except InjectionBlockedError:
+                    # Log the matched string (truncated) before re-raising
+                    preview = text[:120].replace("\n", " ")
+                    logger.warning("Sanitization blocked string — path=%s preview=%r", path, preview)
+                    raise
 
         except InjectionBlockedError as exc:
             logger.warning("Sanitization middleware blocked request: %s — path=%s", exc, path)

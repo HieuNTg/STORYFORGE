@@ -8,6 +8,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -91,6 +92,34 @@ def register_exception_handlers(app) -> None:
                 error=exc.detail if isinstance(exc.detail, str) else str(exc.detail),
                 request_id=request_id,
             ).model_dump(exclude_none=True),
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        """Log which field/rule failed; return detail so the UI can display it."""
+        request_id = getattr(request.state, "request_id", None)
+        errors = exc.errors()
+        # Log compact summary: loc + msg + input-length for each error
+        summary = []
+        for err in errors:
+            loc = ".".join(str(p) for p in err.get("loc", []))
+            msg = err.get("msg", "")
+            input_val = err.get("input")
+            input_info = f" len={len(input_val)}" if isinstance(input_val, (str, list, dict)) else ""
+            summary.append(f"{loc}: {msg}{input_info}")
+        _log.warning(
+            "Validation failed %s [request_id=%s]: %s",
+            request.url.path,
+            request_id,
+            " | ".join(summary),
+        )
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": "Validation failed",
+                "detail": errors,
+                "request_id": request_id,
+            },
         )
 
     @app.exception_handler(Exception)
