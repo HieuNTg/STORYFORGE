@@ -21,6 +21,37 @@ def sanitize_story_html(content: str) -> str:
     return _nh3.clean(content, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, link_rel=None)
 
 
+import re as _re
+
+_PREAMBLE_PATTERNS = [
+    _re.compile(r"^\s*(dưới đây|sau đây|đây là|dưới đấy)[^\n]*?(viết lại|bản viết|nâng cấp|cải thiện|phiên bản|cảnh|đoạn)[^\n]*\n+", _re.IGNORECASE),
+    _re.compile(r"^\s*(lưu ý|ghi chú|chú thích)[:\-][^\n]*\n+", _re.IGNORECASE),
+]
+_SCAFFOLD_LABEL = _re.compile(
+    r"^\s*\*{0,2}(BỐI CẢNH|NHÂN VẬT|ĐỊA ĐIỂM|THỜI GIAN|NỘI DUNG|CẢNH|TÓM TẮT|GHI CHÚ|HƯỚNG DẪN)\b[^\n]*:\*{0,2}\s*",
+    _re.IGNORECASE,
+)
+_SECTION_DIVIDER = _re.compile(r"^\s*(\*{3,}|-{3,}|={3,}|#{1,6}\s*\*{3,})\s*$")
+
+
+def strip_llm_scaffolding(text: str) -> str:
+    """Remove LLM preamble and scene-scaffolding labels that leak into prose."""
+    if not text:
+        return text
+    out = text
+    for pat in _PREAMBLE_PATTERNS:
+        out = pat.sub("", out, count=1)
+    lines = out.splitlines()
+    cleaned: list[str] = []
+    for ln in lines:
+        if _SECTION_DIVIDER.match(ln):
+            continue
+        stripped = _SCAFFOLD_LABEL.sub("", ln, count=1)
+        cleaned.append(stripped)
+    result = "\n".join(cleaned)
+    return _re.sub(r"\n{3,}", "\n\n", result).strip()
+
+
 def excerpt_text(text: str, max_chars: int = 4000, head_ratio: float = 0.67) -> str:
     """Return a head+tail excerpt of text for use in prompts.
 

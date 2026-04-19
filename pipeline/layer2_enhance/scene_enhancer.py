@@ -12,6 +12,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 from models.schemas import Chapter, SimulationResult, count_words
 from services.llm_client import LLMClient
+from services.text_utils import strip_llm_scaffolding
 
 logger = logging.getLogger(__name__)
 
@@ -360,7 +361,7 @@ class SceneEnhancer:
 
         if not weak_scenes:
             # No weak scenes, return original
-            stitched = "\n\n".join(s.get("content", "") for s in scenes)
+            stitched = "\n\n".join(strip_llm_scaffolding(s.get("content", "")) for s in scenes)
             return Chapter(
                 chapter_number=chapter.chapter_number,
                 title=chapter.title,
@@ -394,11 +395,11 @@ class SceneEnhancer:
         for scene in scenes:
             snum = scene.get("scene_number", 1)
             if snum in enhanced_map:
-                enhanced_parts.append(enhanced_map[snum])
+                enhanced_parts.append(strip_llm_scaffolding(enhanced_map[snum]))
             else:
-                enhanced_parts.append(scene.get("content", ""))
+                enhanced_parts.append(strip_llm_scaffolding(scene.get("content", "")))
 
-        stitched = "\n\n".join(enhanced_parts)
+        stitched = "\n\n".join(p for p in enhanced_parts if p)
         return Chapter(
             chapter_number=chapter.chapter_number,
             title=chapter.title,
@@ -494,7 +495,9 @@ class SceneEnhancer:
                 new_content = self.llm.generate(
                     system_prompt=(
                         "Bạn là nhà văn tài năng. "
-                        "BẮT BUỘC viết toàn bộ bằng tiếng Việt."
+                        "BẮT BUỘC viết toàn bộ bằng tiếng Việt. "
+                        "CHỈ trả về văn xuôi của cảnh, KHÔNG thêm lời dẫn, nhãn 'BỐI CẢNH/NHÂN VẬT', "
+                        "dấu '***' hay bất kỳ siêu dữ liệu nào."
                     ),
                     user_prompt=ENHANCE_SCENE.format(
                         genre=context["genre"],
@@ -510,6 +513,7 @@ class SceneEnhancer:
                     ),
                     max_tokens=4096,
                 )
+                new_content = strip_llm_scaffolding(new_content)
 
                 # Check if enhanced scene is good enough (re-score)
                 if attempt < self.retry_max:
