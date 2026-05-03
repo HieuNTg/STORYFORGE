@@ -188,10 +188,13 @@ def get_checkpoints():
     """List available checkpoints with metadata for library."""
     from pipeline.orchestrator import PipelineOrchestrator
     from services.continuation_history import latest_event
+    from services.resume_status import derive_resume_status
     from services.usage_history import usage_summary
     ckpts = PipelineOrchestrator.list_checkpoints()
-    return {"checkpoints": [
-        {
+    items = []
+    for c in ckpts:
+        resume = derive_resume_status(c)
+        items.append({
             "label": f"{c['file']} ({c['modified']}, {c['size_kb']}KB)",
             "path": c['file'],
             "title": c.get('title', ''),
@@ -202,9 +205,12 @@ def get_checkpoints():
             "modified": c['modified'],
             "latest_continuation": latest_event(c['file']),
             "usage_summary": usage_summary(c['file']),
-        }
-        for c in ckpts
-    ]}
+            # Piece N: resume-from-chapter affordance.
+            "interrupted": resume["interrupted"],
+            "resume_from_chapter": resume["resume_from_chapter"],
+            "target_chapters": resume["target_chapters"],
+        })
+    return {"checkpoints": items}
 
 
 @router.get("/checkpoints/{filename}")

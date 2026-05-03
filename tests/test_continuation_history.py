@@ -232,3 +232,130 @@ def test_slug_matches_checkpoint_manager_rule():
     # Truncation: title >30 chars gets cut at 30 before sanitization.
     long = "x" * 50
     assert slug_for_title(long) == "x" * 30
+
+
+# --------------------------------------------------------------------------- Piece N: resume status
+
+
+def test_resume_status_flags_interrupted_when_chapters_below_target(tmp_path):
+    """chapters_written < outline_count and no recent continuation → interrupted."""
+    from services.resume_status import derive_resume_status
+
+    ckpt = {
+        "file": "stuck_layer1.json",
+        "chapter_count": 3,
+        "outline_count": 10,
+    }
+    status = derive_resume_status(ckpt)
+    assert status == {
+        "interrupted": True,
+        "resume_from_chapter": 4,
+        "target_chapters": 10,
+    }
+
+
+def test_resume_status_clear_when_complete(tmp_path):
+    """chapters_written >= outline_count → never interrupted."""
+    from services.resume_status import derive_resume_status
+
+    ckpt = {"file": "done_layer1.json", "chapter_count": 10, "outline_count": 10}
+    status = derive_resume_status(ckpt)
+    assert status["interrupted"] is False
+    assert status["resume_from_chapter"] is None
+    assert status["target_chapters"] == 10
+
+
+def test_resume_status_clear_when_recent_continuation(tmp_path):
+    """A successful continuation in the last 6h suppresses the affordance."""
+    from services.resume_status import derive_resume_status
+
+    record_continuation(title="Recovered", previous_chapter_count=3, new_chapter_count=4, layer=1)
+    ckpt = {
+        "file": f"{slug_for_title('Recovered')}_layer1.json",
+        "chapter_count": 4,  # still below target …
+        "outline_count": 10,  # … but recent event means user already resumed.
+    }
+    status = derive_resume_status(ckpt)
+    assert status["interrupted"] is False
+    assert status["resume_from_chapter"] is None
+
+
+def test_resume_status_interrupted_when_history_is_old(tmp_path, monkeypatch):
+    """Stale (>6h) history events do NOT cover an ongoing interrupt."""
+    from services.resume_status import derive_resume_status
+
+    # Write an event manually with a stale timestamp (10h ago).
+    sidecar = sidecar_path_for("Stale_layer1.json")
+    sidecar.write_text(
+        json.dumps({"events": [{
+            "ts": "2020-01-01T00:00:00Z",
+            "previous_chapter_count": 1,
+            "new_chapter_count": 2,
+            "added": 1,
+        }]}),
+        encoding="utf-8",
+    )
+
+    ckpt = {"file": "Stale_layer1.json", "chapter_count": 2, "outline_count": 10}
+    status = derive_resume_status(ckpt)
+    assert status["interrupted"] is True
+    assert status["resume_from_chapter"] == 3
+
+
+def test_resume_status_clear_when_target_unknown():
+    """Old checkpoints without outlines → outline_count=0 → not interrupted."""
+    from services.resume_status import derive_resume_status
+
+    ckpt = {"file": "legacy_layer1.json", "chapter_count": 0, "outline_count": 0}
+    status = derive_resume_status(ckpt)
+    assert status["interrupted"] is False
+
+
+def test_pipeline_checkpoints_attaches_resume_fields(monkeypatch, tmp_path):
+    """The list endpoint must surface interrupted/resume_from_chapter/target_chapters."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from api import pipeline_routes
+
+    monkeypatch.setattr(continuation_history, "checkpoint_dir", lambda: tmp_path)
+
+    fake_ckpts = [
+        # Story stuck at chapter 4 of 10; no history → interrupted.
+        {
+            "file": "stuck_layer1.json",
+            "modified": "2026-05-03 21:00",
+            "size_kb": 3,
+            "title": "Stuck",
+            "genre": "x",
+            "chapter_count": 4,
+            "current_layer": 1,
+            "outline_count": 10,
+        },
+        # Story complete; 5 == 5 → not interrupted.
+        {
+            "file": "complete_layer1.json",
+            "modified": "2026-05-03 21:00",
+            "size_kb": 3,
+            "title": "Done",
+            "genre": "x",
+            "chapter_count": 5,
+            "current_layer": 1,
+            "outline_count": 5,
+        },
+    ]
+
+    with patch("pipeline.orchestrator.PipelineOrchestrator.list_checkpoints", return_value=fake_ckpts):
+        app = FastAPI()
+        app.include_router(pipeline_routes.router)
+        client = TestClient(app)
+        r = client.get("/pipeline/checkpoints")
+    assert r.status_code == 200
+    by_path = {c["path"]: c for c in r.json()["checkpoints"]}
+
+    assert by_path["stuck_layer1.json"]["interrupted"] is True
+    assert by_path["stuck_layer1.json"]["resume_from_chapter"] == 5
+    assert by_path["stuck_layer1.json"]["target_chapters"] == 10
+
+    assert by_path["complete_layer1.json"]["interrupted"] is False
+    assert by_path["complete_layer1.json"]["resume_from_chapter"] is None
+    assert by_path["complete_layer1.json"]["target_chapters"] == 5

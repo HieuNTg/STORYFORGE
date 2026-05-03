@@ -28,6 +28,10 @@ interface StoryCheckpoint {
   size_kb?: number;
   latest_continuation?: ContinuationEvent | null;
   usage_summary?: UsageSummary | null;
+  // Piece N: resume-from-chapter fields (server-derived).
+  interrupted?: boolean;
+  resume_from_chapter?: number | null;
+  target_chapters?: number;
   [key: string]: unknown;
 }
 
@@ -386,6 +390,39 @@ function libraryPage() {
         genre: s.genre || '',
       });
       Alpine.store('app').navigate('pipeline');
+    },
+
+    // Piece N: resume an interrupted story by pre-filling the continuation form
+    // with the missing-chapter delta, then handing off to the pipeline page.
+    resumeStory(story: StoryCheckpoint): void {
+      if (!story?.path) return;
+      const target = story.target_chapters || 0;
+      const written = story.chapter_count || 0;
+      const delta = Math.max(1, target - written);
+      const pipelineStore = Alpine.store('pipeline') as
+        { form?: { num_chapters?: number }; startContinuation: (m: object) => void };
+      // Pre-fill the form so the pipeline page lands ready-to-run.
+      if (pipelineStore.form) {
+        pipelineStore.form.num_chapters = delta;
+      }
+      pipelineStore.startContinuation({
+        checkpoint: story.path,
+        title: story.title || story.path,
+        chapterCount: written,
+        genre: story.genre || '',
+      });
+      Alpine.store('app').navigate('pipeline');
+    },
+
+    // Piece N: surface "interrupted" pill when the server-derived flag is set.
+    // We trust the server fields; the helper just guards against undefined.
+    interruptedInfo(story: StoryCheckpoint):
+      { resumeFrom: number; target: number } | null {
+      if (!story.interrupted || !story.resume_from_chapter) return null;
+      return {
+        resumeFrom: story.resume_from_chapter,
+        target: story.target_chapters || 0,
+      };
     },
 
     async generateImages(story: StoryCheckpoint): Promise<void> {

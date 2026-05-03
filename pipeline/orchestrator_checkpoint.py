@@ -202,6 +202,7 @@ class CheckpointManager:
                     "genre": "",
                     "chapter_count": 0,
                     "current_layer": 0,
+                    "outline_count": 0,
                 }
                 # Extract metadata from checkpoint JSON (partial read)
                 try:
@@ -214,6 +215,10 @@ class CheckpointManager:
                     chapters = enhanced.get("chapters") or draft.get("chapters") or []
                     entry["chapter_count"] = len(chapters)
                     entry["current_layer"] = data.get("current_layer", 0)
+                    # Outline length doubles as the original target chapter count —
+                    # used by /pipeline/checkpoints to derive the "interrupted" flag.
+                    outlines = draft.get("outlines") or []
+                    entry["outline_count"] = len(outlines)
                 except Exception:
                     pass
                 checkpoints.append(entry)
