@@ -41,6 +41,29 @@ interface CharacterProfile {
   reference_url?: string | null;
 }
 
+interface ChapterQuality {
+  chapter_number: number;
+  title: string;
+  scoring_layer: number;
+  scores: Record<string, number>;
+  notes: string;
+}
+
+interface OverallQuality {
+  scoring_layer: number;
+  overall: number;
+  avg_coherence: number;
+  avg_character: number;
+  avg_drama: number;
+  avg_writing: number;
+  weakest_chapter: number;
+}
+
+interface QualityResponse {
+  overall: OverallQuality | null;
+  chapters: ChapterQuality[];
+}
+
 function libraryPage() {
   return {
     // Library state
@@ -62,6 +85,8 @@ function libraryPage() {
     fontSize: 18 as number,
     characterProfiles: [] as CharacterProfile[],
     showCharacterPanel: false as boolean,
+    qualityScores: null as QualityResponse | null,
+    showQualityPanel: false as boolean,
 
     // Computed: current view mode
     get isReading(): boolean {
@@ -122,13 +147,15 @@ function libraryPage() {
         this.selectedStory = data;
         this.chapter = 0;
         this.characterProfiles = [];
+        this.qualityScores = null;
         // Also update global stores for compatibility
         Alpine.store('pipeline').result = data;
         Alpine.store('pipeline').status = 'done';
         Alpine.store('pipeline').progress = 4;
         Alpine.store('app').pipelineResult = data;
-        // Fire-and-forget: don't block reader render on profiles
+        // Fire-and-forget: don't block reader render on profiles or quality
         this.loadCharacterProfiles(filename);
+        this.loadQuality(filename);
       } catch (e) {
         this.error = 'Failed to load story: ' + (e as Error).message;
       }
@@ -146,11 +173,37 @@ function libraryPage() {
       }
     },
 
+    async loadQuality(filename: string): Promise<void> {
+      try {
+        const data = await API.get<QualityResponse>(
+          '/quality/' + encodeURIComponent(filename)
+        );
+        this.qualityScores = data;
+      } catch {
+        // Older checkpoints / 404 → silently leave panel hidden.
+        this.qualityScores = null;
+      }
+    },
+
+    chapterScore(chapterNumber: number): ChapterQuality | null {
+      const list = this.qualityScores?.chapters || [];
+      return list.find((c) => c.chapter_number === chapterNumber) || null;
+    },
+
+    scoreColor(value: number): string {
+      // 1-5 scale: ≥3.75 green, 2.5-3.75 amber, <2.5 red.
+      if (value >= 3.75) return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      if (value >= 2.5) return 'bg-amber-100 text-amber-700 border-amber-200';
+      return 'bg-rose-100 text-rose-700 border-rose-200';
+    },
+
     backToList(): void {
       this.selectedStory = null;
       this.chapter = 0;
       this.characterProfiles = [];
       this.showCharacterPanel = false;
+      this.qualityScores = null;
+      this.showQualityPanel = false;
     },
 
     async deleteStory(filename: string): Promise<void> {
