@@ -47,6 +47,11 @@ class StoryContinuation:
         if not self.output.story_draft:
             raise ValueError("No story draft loaded. Load checkpoint first.")
         previous_count = len(self.output.story_draft.chapters)
+        # Trace so usage_history can attribute the new chapters' LLM cost
+        # back to the same checkpoint sidecar. No-op if a trace is already set.
+        from services.trace_context import PipelineTrace, get_trace, set_trace
+        if get_trace() is None:
+            set_trace(PipelineTrace(title=self.output.story_draft.title or "", layer=1))
         draft = self.story_gen.continue_story(
             draft=self.output.story_draft,
             additional_chapters=additional_chapters,

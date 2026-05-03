@@ -246,6 +246,23 @@ def _record_trace_call(
             duration_ms,
             "OK" if success else "ERR",
         )
+        # Per-story usage sidecar (Piece L). Only successful calls count
+        # toward cost — failed attempts didn't actually consume billable
+        # tokens at the provider. Title comes from the trace; if absent
+        # (e.g. one-off scripts running outside the orchestrator), skip.
+        if success and getattr(trace, "title", ""):
+            try:
+                from services.usage_history import record_usage
+                record_usage(
+                    title=trace.title,
+                    model=model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    layer=getattr(trace, "layer", 1) or 1,
+                    cost_usd=cost,
+                )
+            except Exception as ue:  # noqa: BLE001 — sidecar must never propagate
+                logger.debug("Usage sidecar hook failed: %s", ue)
     except Exception as e:
         logger.debug("Trace record failed: %s", e)
 

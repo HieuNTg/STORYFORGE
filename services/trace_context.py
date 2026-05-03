@@ -96,6 +96,10 @@ class RagEventStats:
 class PipelineTrace:
     trace_id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     session_id: str = ""
+    # Story title — used by services.usage_history to attribute LLM calls to
+    # the correct ``<slug>_layer{L}.usage.json`` sidecar. Empty disables write.
+    title: str = ""
+    layer: int = 1
     calls: list[LLMCall] = field(default_factory=list)
     rag_stats: RagEventStats = field(default_factory=RagEventStats)
 

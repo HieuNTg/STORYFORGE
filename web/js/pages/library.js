@@ -27,6 +27,7 @@ function libraryPage() {
         showCharacterPanel: false,
         qualityScores: null,
         showQualityPanel: false,
+        readerUsage: null,
         latestContinuation: null,
         jumpDismissed: false,
         // Computed: current view mode
@@ -151,6 +152,40 @@ function libraryPage() {
                 return 'bg-amber-100 text-amber-700 border-amber-200';
             return 'bg-rose-100 text-rose-700 border-rose-200';
         },
+        // ── Usage cost pill (Piece L) ──────────────────────────────────────────
+        usageForStory(story) {
+            const u = story.usage_summary;
+            if (!u || u.call_count <= 0)
+                return null;
+            return u;
+        },
+        formatTokens(n) {
+            if (n >= 1000000)
+                return `${(n / 1000000).toFixed(1)}M`;
+            if (n >= 1000)
+                return `${Math.round(n / 1000)}k`;
+            return String(n);
+        },
+        formatUsageLabel(u) {
+            const tokens = `${this.formatTokens(u.total_tokens)} tokens`;
+            const calls = `${u.call_count} calls`;
+            // Unknown-model sidecars yield cost=0 with tokens>0 — show tokens only.
+            if (u.total_cost_usd <= 0)
+                return `${tokens} · ${calls}`;
+            const dollars = u.total_cost_usd >= 1
+                ? `$${u.total_cost_usd.toFixed(2)}`
+                : `$${u.total_cost_usd.toFixed(3)}`;
+            return `${dollars} · ${tokens} · ${calls}`;
+        },
+        usagePillClass(u) {
+            if (u.total_cost_usd <= 0)
+                return 'bg-slate-100 text-slate-600 border-slate-200';
+            if (u.total_cost_usd < 0.5)
+                return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+            if (u.total_cost_usd < 2)
+                return 'bg-amber-100 text-amber-700 border-amber-200';
+            return 'bg-rose-100 text-rose-700 border-rose-200';
+        },
         async openStory(filename) {
             this.loadingStory = filename;
             this.error = '';
@@ -177,6 +212,7 @@ function libraryPage() {
                 // Fire-and-forget: don't block reader render on profiles or quality
                 this.loadCharacterProfiles(filename);
                 this.loadQuality(filename);
+                this.loadUsage(filename);
             }
             catch (e) {
                 this.error = 'Failed to load story: ' + e.message;
@@ -202,6 +238,16 @@ function libraryPage() {
                 this.qualityScores = null;
             }
         },
+        async loadUsage(filename) {
+            try {
+                const data = await API.get('/usage/story/' + encodeURIComponent(filename));
+                const t = data?.totals;
+                this.readerUsage = t && t.call_count > 0 ? t : null;
+            }
+            catch {
+                this.readerUsage = null;
+            }
+        },
         chapterScore(chapterNumber) {
             const list = this.qualityScores?.chapters || [];
             return list.find((c) => c.chapter_number === chapterNumber) || null;
@@ -221,6 +267,7 @@ function libraryPage() {
             this.showCharacterPanel = false;
             this.qualityScores = null;
             this.showQualityPanel = false;
+            this.readerUsage = null;
             this.latestContinuation = null;
             this.jumpDismissed = false;
         },

@@ -1,17 +1,21 @@
 """Token usage API routes — exposes TokenCostTracker data over HTTP.
 
 Endpoints:
-    GET  /api/v1/usage/{story_id}  — cost breakdown for one story
-    GET  /api/v1/usage/session     — session-wide summary
-    DELETE /api/v1/usage/session   — reset session tracking
+    GET  /api/v1/usage/{story_id}        — cost breakdown for one story
+    GET  /api/v1/usage/session           — session-wide summary
+    DELETE /api/v1/usage/session         — reset session tracking
+    GET  /api/v1/usage/story/{filename}  — per-checkpoint sidecar (Piece L)
 """
 
 from __future__ import annotations
+
+import pathlib
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from services.token_cost_tracker import TokenCostTracker
+from services.usage_history import read_usage
 
 router = APIRouter(prefix="/usage", tags=["usage"])
 
@@ -108,3 +112,27 @@ async def get_story_usage(story_id: str) -> StoryCostResponse:
         by_agent=_to_breakdown(summary.by_agent),
         by_model=_to_breakdown(summary.by_model),
     )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Per-story usage sidecar (Piece L) — reads ``<checkpoint>.usage.json``
+# ──────────────────────────────────────────────────────────────────────────
+
+
+@router.get("/story/{filename}")
+def get_story_usage_sidecar(filename: str) -> dict:
+    """Return ``{events, totals}`` for a checkpoint, or empty totals if missing.
+
+    Always 200 — older stories without a sidecar return zeroed totals so the
+    frontend can render uniformly. Filename validation blocks path traversal.
+    """
+    safe = pathlib.Path(filename).name
+    if not safe or ".." in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    data = read_usage(safe)
+    if data is None:
+        return {
+            "events": [],
+            "totals": {"total_tokens": 0, "total_cost_usd": 0.0, "call_count": 0},
+        }
+    return data

@@ -1981,6 +1981,14 @@
                             <span x-text="'Vừa viết tiếp +' + recentContinuationFor(story).added + ' chương · ' + relativeTimeVi(recentContinuationFor(story).ts)"></span>
                           </span>
                         </template>
+                        <template x-if="usageForStory(story)">
+                          <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-medium"
+                                :class="usagePillClass(usageForStory(story))"
+                                :title="'Chi phí LLM ước tính cho truyện này'">
+                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            <span x-text="formatUsageLabel(usageForStory(story))"></span>
+                          </span>
+                        </template>
                       </div>
                     </div>
                     <div class="flex items-center gap-0.5 flex-shrink-0">
@@ -2121,6 +2129,13 @@
                       </div>
                       <template x-if="chapterScore(currentChapter.chapter_number || currentChapter.number || chapter+1).notes">
                         <div class="mt-2 pt-2 border-t border-surface-200 text-slate-600 leading-relaxed" x-text="chapterScore(currentChapter.chapter_number || currentChapter.number || chapter+1).notes"></div>
+                      </template>
+                      <template x-if="readerUsage">
+                        <div class="mt-2 pt-2 border-t border-surface-200 text-slate-500 text-[11px]"
+                             x-text="(readerUsage.total_cost_usd > 0
+                               ? 'Chi phí tạo: $' + readerUsage.total_cost_usd.toFixed(readerUsage.total_cost_usd >= 1 ? 2 : 3)
+                               : 'Sử dụng LLM') + ' (' + readerUsage.call_count + ' LLM calls, ' + formatTokens(readerUsage.total_tokens) + ' tokens)'">
+                        </div>
                       </template>
                     </div>
                   </template>

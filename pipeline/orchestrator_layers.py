@@ -63,7 +63,11 @@ async def run_full_pipeline(
     pipeline_start = time.time()
 
     # Trace instrumentation (Sprint 1 Task 2)
-    trace = PipelineTrace(session_id=getattr(self, "session_id", "") or "")
+    trace = PipelineTrace(
+        session_id=getattr(self, "session_id", "") or "",
+        title=title or "",
+        layer=1,
+    )
     set_trace(trace)
     _log(f"[TRACE] Pipeline trace_id={trace.trace_id}")
 
@@ -366,6 +370,8 @@ async def run_full_pipeline(
         self.output.current_layer = 2
     set_module("layer2")
     set_chapter(None)
+    # Route subsequent LLM calls into the L2 usage sidecar.
+    trace.layer = 2
     layer_start = time.time()
     try:
         _log("[L2] Đang phân tích cấu trúc truyện...")
