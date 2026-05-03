@@ -38,6 +38,7 @@ interface CharacterProfile {
   frozen_prompt: string;
   prompt_version?: number | null;
   has_reference_image: boolean;
+  reference_url?: string | null;
 }
 
 function libraryPage() {
@@ -52,6 +53,7 @@ function libraryPage() {
     generatingImages: null as string | null,
     generatingChapterImage: null as number | null,
     rebuildingProfile: null as string | null,
+    uploadingReference: null as string | null,
     imageStatus: '' as string,
 
     // Reader state
@@ -257,6 +259,7 @@ function libraryPage() {
           frozen_prompt: data.frozen_prompt,
           prompt_version: data.prompt_version,
           has_reference_image: data.has_reference_image,
+          reference_url: data.reference_url,
         };
         if (idx >= 0) this.characterProfiles.splice(idx, 1, next);
         else this.characterProfiles.push(next);
@@ -264,6 +267,44 @@ function libraryPage() {
         this.error = 'Tạo lại hồ sơ thất bại: ' + (e as Error).message;
       }
       this.rebuildingProfile = null;
+    },
+
+    async uploadReference(name: string, file: File | null): Promise<void> {
+      const filename = this.selectedStory?.filename;
+      if (!filename || !name || !file || this.uploadingReference) return;
+      this.uploadingReference = name;
+      this.error = '';
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        const csrf = document.cookie.match(/(?:^|; )csrf_token=([^;]*)/);
+        const headers: Record<string, string> = {};
+        if (csrf) headers['X-CSRF-Token'] = decodeURIComponent(csrf[1]);
+        const res = await fetch(
+          '/api/images/' + encodeURIComponent(filename) +
+            '/profiles/' + encodeURIComponent(name) + '/reference',
+          { method: 'POST', headers, body: form },
+        );
+        if (!res.ok) {
+          let detail = `Upload: ${res.status}`;
+          try { const body = await res.json(); if (body.detail) detail = body.detail; } catch { /* ignore */ }
+          throw new Error(detail);
+        }
+        const data = await res.json() as CharacterProfile;
+        const idx = this.characterProfiles.findIndex((p) => p.name === data.name);
+        const next: CharacterProfile = {
+          name: data.name,
+          frozen_prompt: data.frozen_prompt,
+          prompt_version: data.prompt_version,
+          has_reference_image: data.has_reference_image,
+          reference_url: data.reference_url,
+        };
+        if (idx >= 0) this.characterProfiles.splice(idx, 1, next);
+        else this.characterProfiles.push(next);
+      } catch (e) {
+        this.error = 'Tải ảnh tham chiếu thất bại: ' + (e as Error).message;
+      }
+      this.uploadingReference = null;
     },
 
     layerLabel(layer: number): string {

@@ -15,10 +15,18 @@ import pathlib
 import urllib.parse
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 
 from api.export_routes import _PROJECT_ROOT, _get_story_data
+
+# Reference-image upload constraints
+_REF_MAX_BYTES = 8 * 1024 * 1024  # 8 MB
+_REF_ALLOWED_TYPES = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+}
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/images", tags=["images"])
@@ -44,6 +52,7 @@ class CharacterProfile(BaseModel):
     frozen_prompt: str
     prompt_version: Optional[int] = None
     has_reference_image: bool = False
+    reference_url: Optional[str] = None
 
 
 class CharacterProfilesResponse(BaseModel):
@@ -55,7 +64,40 @@ class CharacterProfileRebuildResponse(BaseModel):
     frozen_prompt: str
     prompt_version: Optional[int] = None
     has_reference_image: bool = False
+    reference_url: Optional[str] = None
     rebuilt: bool = True
+
+
+class CharacterReferenceUploadResponse(BaseModel):
+    name: str
+    frozen_prompt: str
+    prompt_version: Optional[int] = None
+    has_reference_image: bool = True
+    reference_url: str
+
+
+def _session_basename(session_id: str) -> str:
+    """Strip any path/extension to a filesystem-safe slug for grouping uploads."""
+    base = pathlib.Path(session_id).stem or session_id
+    return "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in base).strip("_") or "session"
+
+
+def _safe_char_name(name: str) -> str:
+    return "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in name).strip("_") or "char"
+
+
+def _reference_url_for(rel_path: str) -> Optional[str]:
+    """Convert a stored reference path into a /media URL if it lives under output/images."""
+    if not rel_path:
+        return None
+    p = pathlib.Path(rel_path)
+    images_root = (_PROJECT_ROOT / "output" / "images").resolve()
+    try:
+        resolved = p.resolve() if p.is_absolute() else (_PROJECT_ROOT / p).resolve()
+        rel = resolved.relative_to(images_root)
+    except (ValueError, OSError):
+        return None
+    return "/media/" + rel.as_posix()
 
 
 def _persist_to_checkpoint(session_id: str, output) -> None:
@@ -160,12 +202,14 @@ async def get_character_profiles(session_id: str):
         if not raw:
             continue
         ref = raw.get("reference_image") or ""
+        has_ref = bool(ref) and pathlib.Path(ref).exists()
         profiles.append(
             CharacterProfile(
                 name=name,
                 frozen_prompt=raw.get("frozen_prompt") or raw.get("description") or "",
                 prompt_version=raw.get("prompt_version"),
-                has_reference_image=bool(ref) and pathlib.Path(ref).exists(),
+                has_reference_image=has_ref,
+                reference_url=_reference_url_for(ref) if has_ref else None,
             )
         )
 
@@ -225,12 +269,118 @@ async def rebuild_character_profile(session_id: str, character_name: str):
 
         raw = store.load_profile(target.name) or {}
         ref = raw.get("reference_image") or ""
+        has_ref = bool(ref) and pathlib.Path(ref).exists()
         return CharacterProfileRebuildResponse(
             name=target.name,
             frozen_prompt=raw.get("frozen_prompt") or frozen_prompt,
             prompt_version=raw.get("prompt_version"),
-            has_reference_image=bool(ref) and pathlib.Path(ref).exists(),
+            has_reference_image=has_ref,
+            reference_url=_reference_url_for(ref) if has_ref else None,
             rebuilt=True,
+        )
+    finally:
+        async with _in_flight_lock:
+            _in_flight.discard(in_flight_key)
+
+
+@router.post(
+    "/{session_id}/profiles/{character_name}/reference",
+    response_model=CharacterReferenceUploadResponse,
+)
+async def upload_character_reference(
+    session_id: str,
+    character_name: str,
+    file: UploadFile = File(...),
+):
+    """Upload a reference image for a character.
+
+    Accepts PNG/JPEG/WEBP up to 8 MB. The file is stored under
+    ``output/images/references/<session>/<character>.<ext>`` so it is reachable
+    via the ``/media`` static mount. The on-disk profile's ``reference_image``
+    field is updated in place — no LLM extraction runs (use the rebuild route
+    for that).
+    """
+    decoded_name = urllib.parse.unquote(character_name)
+    in_flight_key = f"{session_id}::ref::{decoded_name}"
+    async with _in_flight_lock:
+        if in_flight_key in _in_flight:
+            raise HTTPException(status_code=409, detail="Reference upload already in progress")
+        _in_flight.add(in_flight_key)
+
+    try:
+        content_type = (file.content_type or "").lower()
+        if content_type not in _REF_ALLOWED_TYPES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported content type: {content_type or 'unknown'}. Use PNG, JPEG, or WEBP.",
+            )
+
+        # Read with a hard cap — UploadFile streams from a SpooledTemporaryFile,
+        # so we don't trust Content-Length alone.
+        data = await file.read(_REF_MAX_BYTES + 1)
+        if len(data) > _REF_MAX_BYTES:
+            raise HTTPException(status_code=413, detail="File too large (max 8 MB)")
+        if not data:
+            raise HTTPException(status_code=400, detail="Empty file")
+
+        orch = await _get_story_data(session_id)
+        if not orch or not orch.output:
+            raise HTTPException(status_code=404, detail="Session or checkpoint not found")
+
+        draft = orch.output.story_draft
+        characters = list(draft.characters) if draft and draft.characters else []
+        target = next(
+            (c for c in characters
+             if (getattr(c, "name", "") or "").lower() == decoded_name.lower()),
+            None,
+        )
+        if target is None:
+            raise HTTPException(status_code=404, detail=f"Character '{decoded_name}' not found")
+
+        # Resolve storage path with traversal guard
+        ext = _REF_ALLOWED_TYPES[content_type]
+        refs_root = (_PROJECT_ROOT / "output" / "images" / "references").resolve()
+        session_dir = (refs_root / _session_basename(session_id)).resolve()
+        try:
+            session_dir.relative_to(refs_root)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid session path")
+        session_dir.mkdir(parents=True, exist_ok=True)
+        target_path = (session_dir / f"{_safe_char_name(target.name)}{ext}").resolve()
+        try:
+            target_path.relative_to(refs_root)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid character path")
+
+        # Replace any older reference for this character that used a different ext.
+        for old in session_dir.glob(f"{_safe_char_name(target.name)}.*"):
+            if old != target_path:
+                try:
+                    old.unlink()
+                except OSError:
+                    pass
+
+        target_path.write_bytes(data)
+
+        # Update the profile's reference_image without re-running the LLM extractor.
+        # If no profile exists yet, seed a minimal one so the reference is retained.
+        from services.character_visual_profile import CharacterVisualProfileStore
+        store = CharacterVisualProfileStore()
+        rel_path = target_path.relative_to(_PROJECT_ROOT).as_posix()
+        if not store.set_reference_image(target.name, rel_path):
+            desc = store.build_visual_description(target)
+            store.save_enhanced_profile(target.name, desc, {}, "", "")
+            store.set_reference_image(target.name, rel_path)
+
+        _persist_to_checkpoint(session_id, orch.output)
+
+        raw = store.load_profile(target.name) or {}
+        return CharacterReferenceUploadResponse(
+            name=target.name,
+            frozen_prompt=raw.get("frozen_prompt") or raw.get("description") or "",
+            prompt_version=raw.get("prompt_version"),
+            has_reference_image=True,
+            reference_url=_reference_url_for(rel_path) or "",
         )
     finally:
         async with _in_flight_lock:

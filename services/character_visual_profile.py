@@ -104,6 +104,22 @@ class CharacterVisualProfileStore:
             logger.warning("Failed to load profile for %s: %s", name, e)
             return None
 
+    def set_reference_image(self, name: str, image_path: str) -> bool:
+        """Update only the reference_image field on an existing profile.
+
+        Avoids re-running the LLM extractor when the user has just uploaded a
+        reference image. Returns False if no profile exists yet (caller should
+        create one via save_enhanced_profile first).
+        """
+        profile = self.load_profile(name)
+        if not profile:
+            return False
+        profile["reference_image"] = image_path
+        profile["updated_at"] = datetime.now().isoformat()
+        with open(self._profile_path(name), "w", encoding="utf-8") as f:
+            json.dump(profile, f, ensure_ascii=False, indent=2)
+        return True
+
     def get_reference_image(self, name: str) -> Optional[str]:
         """Get path to character reference image."""
         profile = self.load_profile(name)

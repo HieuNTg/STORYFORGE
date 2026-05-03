@@ -212,6 +212,7 @@ def test_profiles_returns_stored_profiles(client):
             "frozen_prompt": "FROZEN_HERO",
             "prompt_version": 2,
             "has_reference_image": False,
+            "reference_url": None,
         }
     ]
 
@@ -342,6 +343,109 @@ def test_rebuild_profile_url_decoded_name(client, tmp_path, monkeypatch):
         r = client.post(f"/images/sess-r6/profiles/{encoded}/rebuild")
     assert r.status_code == 200, r.text
     assert r.json()["name"] == "Anh Hùng"
+
+
+def _png_bytes(size_bytes: int = 128) -> bytes:
+    """Return a tiny PNG-ish blob of `size_bytes` total length."""
+    header = b"\x89PNG\r\n\x1a\n"
+    pad = b"\x00" * max(0, size_bytes - len(header))
+    return header + pad
+
+
+def test_upload_reference_404_when_session_missing(client):
+    with patch("api.image_routes._get_story_data", return_value=None):
+        r = client.post(
+            "/images/missing/profiles/Hero/reference",
+            files={"file": ("hero.png", _png_bytes(), "image/png")},
+        )
+    assert r.status_code == 404
+
+
+def test_upload_reference_404_when_character_not_found(client):
+    char = Character(name="Hero", role="chính", appearance="tall", personality="brave")
+    orch = _build_orch(num_chapters=1, characters=[char])
+    with patch("api.image_routes._get_story_data", return_value=orch):
+        r = client.post(
+            "/images/sess-u1/profiles/Ghost/reference",
+            files={"file": ("g.png", _png_bytes(), "image/png")},
+        )
+    assert r.status_code == 404
+    assert "Ghost" in r.json()["detail"]
+
+
+def test_upload_reference_400_wrong_content_type(client):
+    char = Character(name="Hero", role="chính", appearance="tall", personality="brave")
+    orch = _build_orch(num_chapters=1, characters=[char])
+    with patch("api.image_routes._get_story_data", return_value=orch):
+        r = client.post(
+            "/images/sess-u2/profiles/Hero/reference",
+            files={"file": ("hero.gif", b"GIF89a", "image/gif")},
+        )
+    assert r.status_code == 400
+
+
+def test_upload_reference_413_oversized(client, tmp_path, monkeypatch):
+    char = Character(name="Hero", role="chính", appearance="tall", personality="brave")
+    orch = _build_orch(num_chapters=1, characters=[char])
+    monkeypatch.chdir(tmp_path)
+    # Patch _PROJECT_ROOT so writes (if reached) stay in tmp_path
+    monkeypatch.setattr("api.image_routes._PROJECT_ROOT", tmp_path)
+
+    big = _png_bytes(8 * 1024 * 1024 + 100)
+    with patch("api.image_routes._get_story_data", return_value=orch):
+        r = client.post(
+            "/images/sess-u3/profiles/Hero/reference",
+            files={"file": ("big.png", big, "image/png")},
+        )
+    assert r.status_code == 413
+
+
+def test_upload_reference_success_writes_file_and_updates_profile(
+    client, tmp_path, monkeypatch
+):
+    char = Character(name="Hero", role="chính", appearance="tall", personality="brave")
+    orch = _build_orch(num_chapters=1, characters=[char])
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("api.image_routes._PROJECT_ROOT", tmp_path)
+
+    payload = _png_bytes(256)
+    with patch("api.image_routes._get_story_data", return_value=orch):
+        r = client.post(
+            "/images/sess-u4/profiles/Hero/reference",
+            files={"file": ("hero.png", payload, "image/png")},
+        )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["name"] == "Hero"
+    assert body["has_reference_image"] is True
+    assert body["reference_url"].startswith("/media/references/sess-u4/Hero")
+
+    # File written to expected path
+    expected = tmp_path / "output" / "images" / "references" / "sess-u4" / "Hero.png"
+    assert expected.exists()
+    assert expected.read_bytes() == payload
+
+    # Profile updated with reference_image (relative path)
+    profile_path = tmp_path / "output" / "characters" / "Hero" / "profile.json"
+    assert profile_path.exists()
+    import json as _json
+    profile = _json.loads(profile_path.read_text(encoding="utf-8"))
+    assert profile["reference_image"].endswith("Hero.png")
+
+
+def test_upload_reference_in_flight_guard(client):
+    char = Character(name="Hero", role="chính", appearance="tall", personality="brave")
+    orch = _build_orch(num_chapters=1, characters=[char])
+    _in_flight.add("sess-u5::ref::Hero")
+    try:
+        with patch("api.image_routes._get_story_data", return_value=orch):
+            r = client.post(
+                "/images/sess-u5/profiles/Hero/reference",
+                files={"file": ("h.png", _png_bytes(), "image/png")},
+            )
+        assert r.status_code == 409
+    finally:
+        _in_flight.discard("sess-u5::ref::Hero")
 
 
 def test_generate_single_chapter_in_flight_isolated_from_full(client):
