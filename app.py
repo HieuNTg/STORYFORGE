@@ -270,6 +270,11 @@ def main():
     # Then mount web/ for remaining static files
     main_app.mount("/static", StaticFiles(directory=web_dir), name="static")
 
+    # Generated chapter images
+    images_dir = os.path.join(base_dir, "output", "images")
+    os.makedirs(images_dir, exist_ok=True)
+    main_app.mount("/media", StaticFiles(directory=images_dir), name="media")
+
     # Serve index.html at root
     @main_app.get("/")
     async def serve_index():

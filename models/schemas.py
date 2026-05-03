@@ -124,6 +124,8 @@ class Chapter(BaseModel):
     contract_validation: Optional[dict] = Field(default=None, description="L2 drama contract validation result")
     # Sprint 2 Task 2: L2 voice-contract validation (dict to avoid cycles)
     voice_validation: Optional[dict] = Field(default=None, description="L2 voice contract validation result")
+    # Per-chapter generated images, served via /media static mount as basenames
+    images: list[str] = Field(default_factory=list, description="Generated image filenames (relative to /media mount)")
 
 
 class VoiceProfile(BaseModel):

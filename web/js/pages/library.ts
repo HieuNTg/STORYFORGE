@@ -162,11 +162,22 @@ function libraryPage() {
       this.imageStatus = '';
       this.error = '';
       try {
-        const data = await API.post<{ count: number; message: string; image_paths: string[] }>(
+        const data = await API.post<{ count: number; message: string; image_paths: string[]; chapter_images?: Record<string, string[]> }>(
           '/images/' + encodeURIComponent(story.path) + '/generate',
           {}
         );
         this.imageStatus = data.message || `Đã tạo ${data.count} ảnh`;
+        // If we are currently reading this story, splice the new images onto loaded chapters.
+        if (this.selectedStory && this.selectedStory.filename === story.path && data.chapter_images) {
+          const map = data.chapter_images;
+          const target = (this.selectedStory.enhanced || this.selectedStory.draft);
+          target?.chapters?.forEach((ch: StoryChapter) => {
+            const n = (ch as { chapter_number?: number }).chapter_number;
+            if (n != null && map[String(n)]) {
+              (ch as { images?: string[] }).images = map[String(n)];
+            }
+          });
+        }
       } catch (e) {
         this.error = 'Tạo ảnh thất bại: ' + (e as Error).message;
       }

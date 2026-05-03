@@ -254,9 +254,10 @@ def handle_update_character(orch, name: str, personality: str, motivation: str, 
 
 
 def handle_generate_images(orch_state, provider: str = "none", t=None) -> tuple:
-    """Generate scene images from story chapters.
+    """Generate one image per chapter, persist filenames onto chapter.images.
 
-    Returns (image_paths_list, status_msg).
+    Returns (image_paths_list, status_msg). Paths are basenames relative to
+    the /media static mount.
     """
     if orch_state is None:
         msg = t("msg.no_story") if t else "No story loaded."
@@ -270,11 +271,9 @@ def handle_generate_images(orch_state, provider: str = "none", t=None) -> tuple:
         from services.image_generator import ImageGenerator
         from services.image_prompt_generator import ImagePromptGenerator
 
-        # Pull character context from L1 draft (consistent face/clothing across chapters)
         draft = orch_state.output.story_draft if orch_state.output else None
         characters = list(getattr(draft, "characters", []) or []) if draft else []
 
-        # Load frozen visual prompts when available (built by MediaProducer)
         visual_profiles: dict[str, str] = {}
         try:
             from services.character_visual_profile import CharacterVisualProfileStore
@@ -285,24 +284,32 @@ def handle_generate_images(orch_state, provider: str = "none", t=None) -> tuple:
                     visual_profiles[c.name] = fp
         except Exception as _vp_e:
             logger.debug("Visual profile lookup skipped: %s", _vp_e)
+        if characters and not visual_profiles:
+            logger.info(
+                "No frozen visual profiles found for %d character(s); "
+                "post-hoc images will not be character-consistent.",
+                len(characters),
+            )
 
         prompt_gen = ImagePromptGenerator()
         image_gen = ImageGenerator(provider=provider)
 
-        image_prompts = [
-            prompt_gen.generate_from_chapter(
+        all_paths: list[str] = []
+        for ch in story.chapters:
+            prompts = prompt_gen.generate_from_chapter(
                 ch,
                 characters=characters or None,
                 num_images=1,
                 visual_profiles=visual_profiles or None,
             )
-            for ch in story.chapters
-        ]
-        flat_prompts = [p for prompts in image_prompts for p in prompts]
+            if not prompts:
+                continue
+            ch_paths = image_gen.generate_story_images(prompts, chapter_number=ch.chapter_number)
+            ch.images = [os.path.basename(p) for p in ch_paths]
+            all_paths.extend(ch_paths)
 
-        paths = image_gen.generate_story_images(flat_prompts)
-        msg = t("msg_images_generated") if t else f"Generated {len(paths)} image(s)."
-        return paths, msg
+        msg = t("msg_images_generated") if t else f"Generated {len(all_paths)} image(s)."
+        return all_paths, msg
     except Exception as e:
         logger.error("Image generation error: %s", e)
         msg = f"Error: {e}"

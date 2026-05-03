@@ -2057,6 +2057,9 @@
               <template x-if="currentChapter">
                 <div>
                   <h3 class="text-xl font-bold text-slate-800 mb-4" x-text="'Chương ' + (currentChapter.number || chapter+1) + ': ' + (currentChapter.title || '').replace(/\*\*/g, '').replace(/^#+\s*/gm, '')"></h3>
+                  <template x-if="currentChapter.images && currentChapter.images.length">
+                    <img :src="'/media/' + currentChapter.images[0]" :alt="'Minh hoạ chương ' + (currentChapter.number || chapter+1)" class="w-full rounded-lg mb-6 shadow-sm" loading="lazy" />
+                  </template>
                   <div class="text-slate-700 whitespace-pre-wrap leading-[1.9]" :style="'font-size:' + fontSize + 'px'" x-html="(currentChapter.content || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
                 </div>
               </template>
