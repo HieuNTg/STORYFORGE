@@ -1,10 +1,8 @@
 """Unit tests for StructuralIssueDetector (Phase 5: L2→L1 rewrite trigger)."""
 
-import pytest
 from unittest.mock import MagicMock
 from pipeline.layer2_enhance.structural_detector import (
     StructuralIssueDetector,
-    StructuralIssue,
     StructuralIssueType,
 )
 

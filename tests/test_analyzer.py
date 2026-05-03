@@ -1,7 +1,7 @@
 """Tests for StoryAnalyzer - conflict_web merge logic."""
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from models.schemas import (
     Character, Relationship, RelationType, ConflictEntry, StoryDraft,

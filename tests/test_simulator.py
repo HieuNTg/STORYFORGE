@@ -1,7 +1,7 @@
 """Tests for DramaSimulator - conflict_web and foreshadowing_plan signal preservation."""
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from models.schemas import Character, Relationship, RelationType, ConflictEntry, ForeshadowingEntry
 from pipeline.layer2_enhance.simulator import DramaSimulator, calculate_adaptive_rounds

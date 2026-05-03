@@ -18,7 +18,6 @@ from unittest.mock import MagicMock
 from models.schemas import Chapter, EnhancedStory, PipelineOutput, StoryDraft
 from pipeline.orchestrator_checkpoint import (
     CHAPTER_CHECKPOINT_SUBDIR,
-    CHECKPOINT_DIR,
     CheckpointManager,
     _chapter_checkpoint_dir,
     _prune_chapter_checkpoints,

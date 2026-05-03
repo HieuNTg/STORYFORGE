@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from models.schemas import Character, Chapter
 from pipeline.layer2_enhance.voice_fingerprint import VoiceFingerprintEngine
