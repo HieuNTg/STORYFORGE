@@ -270,6 +270,12 @@ document.addEventListener('alpine:init', () => {
     runStartedAt: null as number | null,
     runFinishedAt: null as number | null,
 
+    // Piece Q: transient handoff flag — when the post-resume success ribbon's
+    // reader CTA is clicked, openReaderFromRibbon() sets this so library's
+    // openStory() can call jumpToNewChapter() right after the story loads.
+    // Consumed (cleared) by library.openStory; survives clearResumeRibbon.
+    pendingJumpAfterOpen: false as boolean,
+
     // Advanced continuation features
     multiPathMode: false as boolean,
     paths: [] as Array<{ id: string; title: string; summary: string; outlines: Array<{ chapter_number: number; title: string; summary: string; key_events: string[] }> }>,
@@ -604,6 +610,7 @@ document.addEventListener('alpine:init', () => {
       this.continuationMeta = null;
       this.runStartedAt = null;
       this.runFinishedAt = null;
+      this.pendingJumpAfterOpen = false;
       // Reset advanced features
       this.multiPathMode = false;
       this.paths = [];

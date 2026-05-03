@@ -209,6 +209,14 @@ function libraryPage() {
                 Alpine.store('pipeline').status = 'done';
                 Alpine.store('pipeline').progress = 4;
                 Alpine.store('app').pipelineResult = data;
+                // Piece Q: consume one-shot deep-link flag from the post-resume ribbon
+                // CTA. jumpToNewChapter() reads firstNewChapter (derived from the just-
+                // populated latestContinuation) and snaps to the first new chapter.
+                const pipelineStore = Alpine.store('pipeline');
+                if (pipelineStore.pendingJumpAfterOpen) {
+                    pipelineStore.pendingJumpAfterOpen = false;
+                    this.jumpToNewChapter();
+                }
                 // Fire-and-forget: don't block reader render on profiles or quality
                 this.loadCharacterProfiles(filename);
                 this.loadQuality(filename);

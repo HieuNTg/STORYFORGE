@@ -123,11 +123,20 @@ function pipelinePage() {
      * Piece P: open the reader for the just-finished story and clear the
      * resume ribbon. Mirrors library.openStory() — we set the page first so
      * the library's x-init can pick up the filename and load it.
+     *
+     * Piece Q: also flag pendingJumpAfterOpen so library.openStory() jumps
+     * straight to the first newly-added chapter after the story loads.
      */
     openReaderFromRibbon(): void {
-      const result = (Alpine.store('pipeline') as { result: { filename?: string } | null }).result;
-      const filename = result?.filename;
-      (Alpine.store('pipeline') as { clearResumeRibbon(): void }).clearResumeRibbon();
+      const pipelineStore = Alpine.store('pipeline') as
+        { result: { filename?: string } | null;
+          pendingJumpAfterOpen: boolean;
+          clearResumeRibbon(): void };
+      const filename = pipelineStore.result?.filename;
+      // Set BEFORE clearResumeRibbon — clearResumeRibbon nukes continuationMeta
+      // but we need this flag to survive into library.openStory.
+      pipelineStore.pendingJumpAfterOpen = true;
+      pipelineStore.clearResumeRibbon();
       Alpine.store('app').navigate('library');
       if (filename) {
         // Defer so the library page mounts before openStory is called.

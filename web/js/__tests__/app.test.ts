@@ -105,6 +105,8 @@ function createPipelineStore() {
     // Piece P: timing for the post-resume success ribbon
     runStartedAt: null as number | null,
     runFinishedAt: null as number | null,
+    // Piece Q: deep-link flag handed off from the ribbon CTA to library.openStory
+    pendingJumpAfterOpen: false as boolean,
     form: {
       idea: '',
       title: '',
@@ -145,6 +147,7 @@ function createPipelineStore() {
       this.continuationMeta = null
       this.runStartedAt = null
       this.runFinishedAt = null
+      this.pendingJumpAfterOpen = false
     },
   }
 }
@@ -467,5 +470,65 @@ describe('Piece P: post-resume success ribbon', () => {
     expect(formatElapsedVi(1000, null)).toBe('')
     // Negative diff (clock skew) is treated as missing.
     expect(formatElapsedVi(2000, 1000)).toBe('')
+  })
+})
+
+// ============================================================================
+// Piece Q: deep-link jump to first new chapter after resume
+// ============================================================================
+
+// Mirrors the openReaderFromRibbon → library.openStory handoff. The CTA sets
+// pendingJumpAfterOpen on the pipeline store; library.openStory reads it once
+// and triggers jumpToNewChapter(). Pure flag-handoff logic — DOM/SPA nav not
+// in scope.
+describe('Piece Q: pendingJumpAfterOpen handoff', () => {
+  it('openReaderFromRibbon flips the flag so library.openStory can consume it', () => {
+    const store = createPipelineStore()
+    expect(store.pendingJumpAfterOpen).toBe(false)
+
+    // Simulate the CTA: set flag, then clearResumeRibbon (must NOT clobber flag)
+    store.pendingJumpAfterOpen = true
+    store.continuationMeta = {
+      checkpoint: 'tale.json', title: 'Tale', chapterCount: 4, genre: 'x',
+      resumeFromChapter: 5, targetChapters: 10,
+    }
+    store.clearResumeRibbon()
+
+    // Ribbon dismissed but the deep-link intent survives the navigation.
+    expect(store.continuationMeta).toBeNull()
+    expect(store.pendingJumpAfterOpen).toBe(true)
+  })
+
+  it('library.openStory consumes the flag exactly once', () => {
+    const store = createPipelineStore()
+    store.pendingJumpAfterOpen = true
+
+    // Mirror library.openStory consumption:
+    //   if (pipelineStore.pendingJumpAfterOpen) {
+    //     pipelineStore.pendingJumpAfterOpen = false
+    //     this.jumpToNewChapter()
+    //   }
+    let jumpedTimes = 0
+    const consume = (): void => {
+      if (store.pendingJumpAfterOpen) {
+        store.pendingJumpAfterOpen = false
+        jumpedTimes += 1
+      }
+    }
+
+    consume()
+    expect(jumpedTimes).toBe(1)
+    expect(store.pendingJumpAfterOpen).toBe(false)
+
+    // Second openStory call (e.g., user navigates back) must NOT re-jump.
+    consume()
+    expect(jumpedTimes).toBe(1)
+  })
+
+  it('reset() clears pendingJumpAfterOpen', () => {
+    const store = createPipelineStore()
+    store.pendingJumpAfterOpen = true
+    store.reset()
+    expect(store.pendingJumpAfterOpen).toBe(false)
   })
 })
