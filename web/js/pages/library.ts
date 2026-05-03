@@ -42,6 +42,8 @@ function libraryPage() {
     loadingStory: null as string | null,
     confirmDelete: null as string | null,
     searchQuery: '' as string,
+    generatingImages: null as string | null,
+    imageStatus: '' as string,
 
     // Reader state
     selectedStory: null as LoadedStory | null,
@@ -152,6 +154,24 @@ function libraryPage() {
         genre: s.genre || '',
       });
       Alpine.store('app').navigate('pipeline');
+    },
+
+    async generateImages(story: StoryCheckpoint): Promise<void> {
+      if (!story?.path) return;
+      this.generatingImages = story.path;
+      this.imageStatus = '';
+      this.error = '';
+      try {
+        const data = await API.post<{ count: number; message: string; image_paths: string[] }>(
+          '/images/' + encodeURIComponent(story.path) + '/generate',
+          {}
+        );
+        this.imageStatus = data.message || `Đã tạo ${data.count} ảnh`;
+      } catch (e) {
+        this.error = 'Tạo ảnh thất bại: ' + (e as Error).message;
+      }
+      this.generatingImages = null;
+      setTimeout(() => { this.imageStatus = ''; }, 5000);
     },
 
     layerLabel(layer: number): string {

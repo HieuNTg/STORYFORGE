@@ -1899,6 +1899,11 @@
             <div class="card p-4 border-red-200 bg-red-50 text-red-700 text-sm" x-text="error"></div>
           </template>
 
+          <!-- Image-gen status banner -->
+          <template x-if="imageStatus">
+            <div class="card p-4 border-violet-200 bg-violet-50 text-violet-700 text-sm" x-text="imageStatus"></div>
+          </template>
+
           <!-- Search bar -->
           <div x-show="stories.length > 3" x-cloak class="relative">
             <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
@@ -1967,6 +1972,19 @@
                         title="Viết tiếp chương mới"
                       >
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z"/></svg>
+                      </button>
+                      <button
+                        @click.stop="generateImages(story)"
+                        :disabled="generatingImages === story.path"
+                        class="p-1.5 rounded-lg text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 opacity-0 group-hover:opacity-100 transition-all cursor-pointer disabled:opacity-50"
+                        title="Tạo ảnh minh hoạ cho từng chương"
+                      >
+                        <template x-if="generatingImages === story.path">
+                          <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        </template>
+                        <template x-if="generatingImages !== story.path">
+                          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>
+                        </template>
                       </button>
                       <span class="text-xs text-brand-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity px-1">Mở</span>
                       <button

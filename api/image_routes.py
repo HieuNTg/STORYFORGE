@@ -1,7 +1,7 @@
 """Image generation API routes — wraps services.handlers.handle_generate_images.
 
-Exposes the existing image-generation handler that was previously only callable
-from internal code. Provider is read from PipelineConfig (or override via body).
+Accepts either an active in-memory session id OR a checkpoint filename
+(*.json) so library/reader pages can trigger image generation post-hoc.
 """
 
 import logging
@@ -10,7 +10,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from api.pipeline_routes import _orchestrators
+from api.export_routes import _get_story_data
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/images", tags=["images"])
@@ -28,15 +28,16 @@ class GenerateImagesResponse(BaseModel):
 
 
 @router.post("/{session_id}/generate", response_model=GenerateImagesResponse)
-def generate_images(session_id: str, body: GenerateImagesRequest = GenerateImagesRequest()):
-    """Generate one image per chapter for the given orchestrator session.
+async def generate_images(session_id: str, body: GenerateImagesRequest = GenerateImagesRequest()):
+    """Generate one image per chapter for the given session or checkpoint.
 
-    Reads provider from request body when set, otherwise from
-    config.pipeline.image_provider (default "none" which short-circuits).
+    `session_id` may be an active orchestrator session UUID or a checkpoint
+    filename (e.g. ``story_<id>.json``). Provider falls back to
+    ``config.pipeline.image_provider`` (default ``"none"`` short-circuits).
     """
-    orch = _orchestrators.get(session_id)
+    orch = await _get_story_data(session_id)
     if not orch or not orch.output:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail="Session or checkpoint not found")
 
     provider = body.provider
     if not provider:
