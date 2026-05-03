@@ -6,7 +6,7 @@ from models.schemas import Character, Chapter, StoryDraft, StoryContext
 from services.llm_client import LLMClient
 from services.input_sanitizer import sanitize_story_input
 from config import ConfigManager
-from pipeline.pipeline_utils import llm_call_with_retry, LLMCallError
+from pipeline.pipeline_utils import llm_call_with_retry
 from pipeline.layer1_story.story_bible_manager import StoryBibleManager
 from pipeline.layer1_story.character_generator import generate_characters, extract_character_states
 from pipeline.layer1_story.chapter_writer import (

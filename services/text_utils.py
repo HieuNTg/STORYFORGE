@@ -1,5 +1,7 @@
 """Shared text utility functions."""
 
+import re as _re
+
 try:
     import nh3 as _nh3
     _HAS_NH3 = True
@@ -19,9 +21,6 @@ def sanitize_story_html(content: str) -> str:
     if not _HAS_NH3:
         return content
     return _nh3.clean(content, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, link_rel=None)
-
-
-import re as _re
 
 _PREAMBLE_PATTERNS = [
     _re.compile(r"^\s*(dưới đây|sau đây|đây là|dưới đấy)[^\n]*?(viết lại|bản viết|nâng cấp|cải thiện|phiên bản|cảnh|đoạn)[^\n]*\n+", _re.IGNORECASE),

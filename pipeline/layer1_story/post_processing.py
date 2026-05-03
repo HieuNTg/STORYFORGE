@@ -247,7 +247,7 @@ def process_chapter_post_write(
     if _timeline_enabled:
         try:
             from pipeline.layer1_story.timeline_validator import (
-                validate_chapter_timeline, create_timeline_state, format_timeline_warning,
+                validate_chapter_timeline, create_timeline_state,
             )
             # Get or create timeline state
             timeline_state = getattr(story_context, "timeline_state", None)

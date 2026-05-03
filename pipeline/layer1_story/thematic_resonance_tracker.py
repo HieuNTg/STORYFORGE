@@ -226,7 +226,7 @@ def format_thematic_guidance(
         dominant = drift_result["dominant_theme"]
         others = [t for t in state.core_themes if t != dominant]
         if others:
-            lines.append(f"## 📊 CÂN BẰNG CHỦ ĐỀ:")
+            lines.append("## 📊 CÂN BẰNG CHỦ ĐỀ:")
             lines.append(f"- Chủ đề mạnh: {dominant}")
             lines.append(f"- Cần tăng: {', '.join(others[:2])}")
 

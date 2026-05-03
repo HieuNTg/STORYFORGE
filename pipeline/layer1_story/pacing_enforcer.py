@@ -6,7 +6,6 @@ L1-F: Pacing was advisory in contracts. Now verified post-write; mismatch trigge
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import TYPE_CHECKING
 

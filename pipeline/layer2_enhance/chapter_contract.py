@@ -13,7 +13,6 @@ through the whole scene-enhancement chain.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -106,7 +105,6 @@ def build_chapter_contracts(sim_result, chapter_numbers: list[int]) -> dict[int,
         # Causal refs: for each event in this chapter with cause_event_id, find
         # source event and map back to its chapter via suggested_insertion
         causal_refs: list[int] = []
-        event_by_id = {getattr(e, "event_type", "") + str(i): e for i, e in enumerate(events)}  # fallback no-op
         for e in ch_events:
             cause_id = getattr(e, "cause_event_id", "") or ""
             if not cause_id:

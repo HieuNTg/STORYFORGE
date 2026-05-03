@@ -3,8 +3,11 @@
 import logging
 import os
 import pathlib
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from fastapi import APIRouter, HTTPException
+
+if TYPE_CHECKING:
+    from models.schemas import PipelineOutput
 from fastapi.responses import FileResponse, JSONResponse
 
 from api.pipeline_routes import _orchestrators
@@ -82,7 +85,7 @@ async def _load_story_from_db(story_id: str) -> Optional["_DBStoryWrapper"]:
     """Load story from database by ID and wrap it for export handlers."""
     try:
         from services.infra.database import get_session
-        from models.db_models import Story, Chapter as DBChapter
+        from models.db_models import Story
         from models.schemas import Chapter, StoryDraft, PipelineOutput
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload

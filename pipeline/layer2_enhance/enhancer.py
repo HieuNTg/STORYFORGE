@@ -8,9 +8,7 @@ from models.schemas import (
     StoryDraft, SimulationResult, EnhancedStory, Chapter, count_words,
 )
 from services.llm_client import LLMClient
-from services import prompts
 from services import prompts as prompt_templates
-from services.adaptive_prompts import build_adaptive_enhance_prompt
 from pipeline.layer2_enhance.genre_drama_rules import get_genre_enhancement_hints
 from config import ConfigManager
 
@@ -23,7 +21,7 @@ except ImportError:
 
 # Structural issue detector (Phase 5)
 try:
-    from pipeline.layer2_enhance.structural_detector import StructuralIssueDetector, StructuralIssue
+    from pipeline.layer2_enhance.structural_detector import StructuralIssueDetector
     _STRUCTURAL_DETECTOR_AVAILABLE = True
 except ImportError:
     _STRUCTURAL_DETECTOR_AVAILABLE = False

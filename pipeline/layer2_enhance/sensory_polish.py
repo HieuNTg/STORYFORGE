@@ -5,7 +5,6 @@ Optional final pass after drama enhancement.
 """
 
 import logging
-from typing import Optional
 from models.schemas import Chapter, EnhancedStory, count_words
 from services.llm_client import LLMClient
 
