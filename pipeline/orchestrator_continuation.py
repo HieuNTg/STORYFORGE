@@ -287,11 +287,43 @@ class StoryContinuation:
             )
             self.output.simulation_result = sim_result
 
+            # P-C: Incremental publish — save checkpoint per chapter as L2
+            # finishes each one, so clients can poll partial state instead of
+            # waiting for the full enhancement pass. Mirrors L1 per-chapter
+            # checkpoint flow gated by enable_chapter_checkpoint.
+            from config import ConfigManager
+            _incremental_publish = False
+            try:
+                _incremental_publish = bool(
+                    getattr(ConfigManager().load().pipeline, "enable_incremental_publish", False)
+                )
+            except Exception:
+                pass
+
+            def _on_chapter_done(ch):
+                if not _incremental_publish:
+                    return
+                try:
+                    if self.output.enhanced_story is None:
+                        self.output.enhanced_story = EnhancedStory(
+                            title=draft.title, genre=draft.genre, chapters=[],
+                        )
+                    self.output.enhanced_story.chapters = [
+                        c for c in self.output.enhanced_story.chapters
+                        if c.chapter_number != ch.chapter_number
+                    ] + [ch]
+                    self.output.enhanced_story.chapters.sort(key=lambda c: c.chapter_number)
+                    self.checkpoint_manager.output = self.output
+                    self.checkpoint_manager.save_chapter(ch.chapter_number, layer=2)
+                except Exception as _pub_e:
+                    logger.debug(f"Incremental publish (ch {ch.chapter_number}) skipped: {_pub_e}")
+
             _log("Enhancing story with dramatic elements...")
             enhanced = self.enhancer.enhance_with_feedback(
                 draft=draft, sim_result=sim_result,
                 word_count=word_count,
                 progress_callback=lambda m: _log(f"[L2] {m}"),
+                chapter_done_callback=_on_chapter_done,
             )
 
             # P-A: L3 Sensory Polish (optional post-L2 enhancement)
@@ -326,19 +358,6 @@ class StoryContinuation:
                         enhanced._reader_feedbacks = feedbacks
             except Exception as _rs_e:
                 logger.debug(f"Reader simulation skipped: {_rs_e}")
-
-            # P-C: Incremental publish — UI/API exposes the flag but runtime
-            # streaming is not yet wired. Warn so users see why the toggle has
-            # no effect instead of silently ignoring it.
-            try:
-                from config import ConfigManager
-                if getattr(ConfigManager().load().pipeline, "enable_incremental_publish", False):
-                    _log(
-                        "[WARN] enable_incremental_publish=True but streaming "
-                        "publish is not implemented yet — flag has no effect."
-                    )
-            except Exception:
-                pass
 
             self.output.enhanced_story = enhanced
             self.checkpoint_manager.output = self.output

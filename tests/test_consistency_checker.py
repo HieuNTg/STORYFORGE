@@ -357,6 +357,9 @@ class TestConsistencyInContinueFlow:
             current_chapter=2, total_chapters=2,
         )
         mock_gen.llm.generate.return_value = "Generated chapter content"
+        mock_gen._write_chapter_with_long_context.return_value = Chapter(
+            chapter_number=2, title="Ch2", content="Generated chapter content"
+        )
 
         outlines = [
             ChapterOutline(chapter_number=2, title="Ch2", summary="Summary"),
