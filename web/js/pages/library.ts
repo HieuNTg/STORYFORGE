@@ -51,6 +51,7 @@ function libraryPage() {
     searchQuery: '' as string,
     generatingImages: null as string | null,
     generatingChapterImage: null as number | null,
+    rebuildingProfile: null as string | null,
     imageStatus: '' as string,
 
     // Reader state
@@ -237,6 +238,32 @@ function libraryPage() {
       }
       this.generatingChapterImage = null;
       setTimeout(() => { this.imageStatus = ''; }, 5000);
+    },
+
+    async rebuildCharacterProfile(name: string): Promise<void> {
+      const filename = this.selectedStory?.filename;
+      if (!filename || !name || this.rebuildingProfile) return;
+      this.rebuildingProfile = name;
+      this.error = '';
+      try {
+        const data = await API.post<CharacterProfile & { rebuilt: boolean }>(
+          '/images/' + encodeURIComponent(filename) +
+            '/profiles/' + encodeURIComponent(name) + '/rebuild',
+          {}
+        );
+        const idx = this.characterProfiles.findIndex((p) => p.name === data.name);
+        const next: CharacterProfile = {
+          name: data.name,
+          frozen_prompt: data.frozen_prompt,
+          prompt_version: data.prompt_version,
+          has_reference_image: data.has_reference_image,
+        };
+        if (idx >= 0) this.characterProfiles.splice(idx, 1, next);
+        else this.characterProfiles.push(next);
+      } catch (e) {
+        this.error = 'Tạo lại hồ sơ thất bại: ' + (e as Error).message;
+      }
+      this.rebuildingProfile = null;
     },
 
     layerLabel(layer: number): string {

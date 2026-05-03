@@ -12,6 +12,7 @@ import asyncio
 import json
 import logging
 import pathlib
+import urllib.parse
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
@@ -47,6 +48,14 @@ class CharacterProfile(BaseModel):
 
 class CharacterProfilesResponse(BaseModel):
     profiles: list[CharacterProfile]
+
+
+class CharacterProfileRebuildResponse(BaseModel):
+    name: str
+    frozen_prompt: str
+    prompt_version: Optional[int] = None
+    has_reference_image: bool = False
+    rebuilt: bool = True
 
 
 def _persist_to_checkpoint(session_id: str, output) -> None:
@@ -161,3 +170,68 @@ async def get_character_profiles(session_id: str):
         )
 
     return CharacterProfilesResponse(profiles=profiles)
+
+
+@router.post(
+    "/{session_id}/profiles/{character_name}/rebuild",
+    response_model=CharacterProfileRebuildResponse,
+)
+async def rebuild_character_profile(session_id: str, character_name: str):
+    """Re-extract attributes + frozen prompt for a single character.
+
+    The on-disk store overwrites in place via ``save_enhanced_profile`` (prompt_version
+    auto-bumps when the frozen prompt actually changes), so no explicit invalidate
+    primitive is needed. The in-flight key is per-(session, character) so different
+    characters can rebuild concurrently.
+    """
+    decoded_name = urllib.parse.unquote(character_name)
+    in_flight_key = f"{session_id}::profile::{decoded_name}"
+    async with _in_flight_lock:
+        if in_flight_key in _in_flight:
+            raise HTTPException(status_code=409, detail="Profile rebuild already in progress")
+        _in_flight.add(in_flight_key)
+
+    try:
+        orch = await _get_story_data(session_id)
+        if not orch or not orch.output:
+            raise HTTPException(status_code=404, detail="Session or checkpoint not found")
+
+        draft = orch.output.story_draft
+        characters = list(draft.characters) if draft and draft.characters else []
+        target = next(
+            (c for c in characters
+             if (getattr(c, "name", "") or "").lower() == decoded_name.lower()),
+            None,
+        )
+        if target is None:
+            raise HTTPException(status_code=404, detail=f"Character '{decoded_name}' not found")
+
+        from services.character_visual_extractor import CharacterVisualExtractor
+        from services.character_visual_profile import CharacterVisualProfileStore
+
+        extractor = CharacterVisualExtractor()
+        store = CharacterVisualProfileStore()
+
+        # extract_and_generate is sync + LLM-bound — run off-loop
+        attributes, frozen_prompt = await asyncio.to_thread(
+            extractor.extract_and_generate, target
+        )
+        desc = store.build_visual_description(target)
+        # save_enhanced_profile overwrites the existing JSON and bumps prompt_version
+        # if frozen_prompt actually changed.
+        store.save_enhanced_profile(target.name, desc, attributes, frozen_prompt, "")
+
+        _persist_to_checkpoint(session_id, orch.output)
+
+        raw = store.load_profile(target.name) or {}
+        ref = raw.get("reference_image") or ""
+        return CharacterProfileRebuildResponse(
+            name=target.name,
+            frozen_prompt=raw.get("frozen_prompt") or frozen_prompt,
+            prompt_version=raw.get("prompt_version"),
+            has_reference_image=bool(ref) and pathlib.Path(ref).exists(),
+            rebuilt=True,
+        )
+    finally:
+        async with _in_flight_lock:
+            _in_flight.discard(in_flight_key)

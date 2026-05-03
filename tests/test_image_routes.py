@@ -230,6 +230,120 @@ def test_profiles_empty_when_no_profiles_stored(client):
     assert r.json() == {"profiles": []}
 
 
+def test_rebuild_profile_404_when_session_missing(client):
+    with patch("api.image_routes._get_story_data", return_value=None):
+        r = client.post("/images/missing/profiles/Hero/rebuild")
+    assert r.status_code == 404
+
+
+def test_rebuild_profile_404_when_character_not_found(client):
+    char = Character(name="Hero", role="chính", appearance="tall", personality="brave")
+    orch = _build_orch(num_chapters=1, characters=[char])
+    with patch("api.image_routes._get_story_data", return_value=orch):
+        r = client.post("/images/sess-r1/profiles/Ghost/rebuild")
+    assert r.status_code == 404
+    assert "Ghost" in r.json()["detail"]
+
+
+def test_rebuild_profile_success(client, tmp_path, monkeypatch):
+    char = Character(name="Hero", role="chính", appearance="tall", personality="brave")
+    orch = _build_orch(num_chapters=1, characters=[char])
+    monkeypatch.chdir(tmp_path)
+
+    fake_extractor = MagicMock()
+    fake_extractor.extract_and_generate.return_value = (
+        {"hair": {"color": "dark"}}, "REBUILT_PROMPT"
+    )
+    extractor_cls = MagicMock(return_value=fake_extractor)
+
+    with patch("api.image_routes._get_story_data", return_value=orch), \
+         patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls):
+        r = client.post("/images/sess-r2/profiles/Hero/rebuild")
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["name"] == "Hero"
+    assert body["frozen_prompt"] == "REBUILT_PROMPT"
+    assert body["rebuilt"] is True
+    assert body["has_reference_image"] is False
+    # Extractor invoked exactly once for the requested character
+    assert fake_extractor.extract_and_generate.call_count == 1
+    # Profile persisted to disk
+    assert (tmp_path / "output" / "characters" / "Hero" / "profile.json").exists()
+
+
+def test_rebuild_profile_case_insensitive_match(client, tmp_path, monkeypatch):
+    char = Character(name="Hero", role="chính", appearance="tall", personality="brave")
+    orch = _build_orch(num_chapters=1, characters=[char])
+    monkeypatch.chdir(tmp_path)
+
+    fake_extractor = MagicMock()
+    fake_extractor.extract_and_generate.return_value = ({}, "P")
+    extractor_cls = MagicMock(return_value=fake_extractor)
+
+    with patch("api.image_routes._get_story_data", return_value=orch), \
+         patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls):
+        r = client.post("/images/sess-r3/profiles/hero/rebuild")
+    assert r.status_code == 200
+    # Response uses canonical character name from the story
+    assert r.json()["name"] == "Hero"
+
+
+def test_rebuild_profile_in_flight_guard_same_character(client):
+    char = Character(name="Hero", role="chính", appearance="tall", personality="brave")
+    orch = _build_orch(num_chapters=1, characters=[char])
+    _in_flight.add("sess-r4::profile::Hero")
+    try:
+        with patch("api.image_routes._get_story_data", return_value=orch):
+            r = client.post("/images/sess-r4/profiles/Hero/rebuild")
+        assert r.status_code == 409
+    finally:
+        _in_flight.discard("sess-r4::profile::Hero")
+
+
+def test_rebuild_profile_concurrent_different_characters(client, tmp_path, monkeypatch):
+    """An in-flight rebuild for one character must NOT block another character."""
+    chars = [
+        Character(name="Hero", role="chính", appearance="tall", personality="brave"),
+        Character(name="Villain", role="phản diện", appearance="dark", personality="cruel"),
+    ]
+    orch = _build_orch(num_chapters=1, characters=chars)
+    monkeypatch.chdir(tmp_path)
+
+    fake_extractor = MagicMock()
+    fake_extractor.extract_and_generate.return_value = ({}, "P")
+    extractor_cls = MagicMock(return_value=fake_extractor)
+
+    # Pretend Hero is already being rebuilt — Villain should still succeed
+    _in_flight.add("sess-r5::profile::Hero")
+    try:
+        with patch("api.image_routes._get_story_data", return_value=orch), \
+             patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls):
+            r = client.post("/images/sess-r5/profiles/Villain/rebuild")
+        assert r.status_code == 200, r.text
+        assert r.json()["name"] == "Villain"
+    finally:
+        _in_flight.discard("sess-r5::profile::Hero")
+
+
+def test_rebuild_profile_url_decoded_name(client, tmp_path, monkeypatch):
+    """Character names with spaces/unicode arrive URL-encoded — must decode."""
+    char = Character(name="Anh Hùng", role="chính", appearance="tall", personality="brave")
+    orch = _build_orch(num_chapters=1, characters=[char])
+    monkeypatch.chdir(tmp_path)
+
+    fake_extractor = MagicMock()
+    fake_extractor.extract_and_generate.return_value = ({}, "P")
+    extractor_cls = MagicMock(return_value=fake_extractor)
+
+    encoded = "Anh%20H%C3%B9ng"
+    with patch("api.image_routes._get_story_data", return_value=orch), \
+         patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls):
+        r = client.post(f"/images/sess-r6/profiles/{encoded}/rebuild")
+    assert r.status_code == 200, r.text
+    assert r.json()["name"] == "Anh Hùng"
+
+
 def test_generate_single_chapter_in_flight_isolated_from_full(client):
     """In-flight key for a single chapter must not collide with full-story key."""
     orch = _build_orch(2)
