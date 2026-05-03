@@ -64,6 +64,15 @@ interface QualityResponse {
   chapters: ChapterQuality[];
 }
 
+interface QualitySummary {
+  overall: number;
+  weakest_chapter: number;
+  weakest_score: number;
+  scoring_layer: number;
+}
+
+type QualityFilter = 'all' | 'scored' | 'unscored';
+
 function libraryPage() {
   return {
     // Library state
@@ -73,6 +82,8 @@ function libraryPage() {
     loadingStory: null as string | null,
     confirmDelete: null as string | null,
     searchQuery: '' as string,
+    qualityFilter: 'all' as QualityFilter,
+    qualitySummaries: {} as Record<string, QualitySummary | null>,
     generatingImages: null as string | null,
     generatingChapterImage: null as number | null,
     rebuildingProfile: null as string | null,
@@ -108,16 +119,23 @@ function libraryPage() {
     },
 
     get filteredStories(): StoryCheckpoint[] {
-      if (!this.searchQuery) return this.stories;
       const q = this.searchQuery.toLowerCase();
-      return this.stories.filter((s: StoryCheckpoint) =>
-        (s.title || s.path).toLowerCase().includes(q) ||
-        (s.genre || '').toLowerCase().includes(q)
-      );
+      return this.stories.filter((s: StoryCheckpoint) => {
+        if (q) {
+          const matchesSearch =
+            (s.title || s.path).toLowerCase().includes(q) ||
+            (s.genre || '').toLowerCase().includes(q);
+          if (!matchesSearch) return false;
+        }
+        if (this.qualityFilter === 'all') return true;
+        const summary = this.qualitySummaries[s.path];
+        if (this.qualityFilter === 'scored') return !!summary;
+        return !summary;  // 'unscored'
+      });
     },
 
     init(): void {
-      this.loadStories();
+      this.loadStories().then(() => this.loadQualitySummaries());
     },
 
     async loadStories(): Promise<void> {
@@ -131,6 +149,26 @@ function libraryPage() {
         this.stories = [];
       }
       this.loading = false;
+    },
+
+    async loadQualitySummaries(): Promise<void> {
+      try {
+        const data = await API.get<{ summaries?: Record<string, QualitySummary | null> }>('/quality');
+        this.qualitySummaries = data.summaries || {};
+      } catch {
+        // Silent — summaries are an enhancement; library still works without them.
+        this.qualitySummaries = {};
+      }
+    },
+
+    qualityForStory(path: string): QualitySummary | null {
+      return this.qualitySummaries[path] || null;
+    },
+
+    overallPillClass(value: number): string {
+      if (value >= 4) return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+      if (value >= 3) return 'bg-amber-100 text-amber-700 border-amber-200';
+      return 'bg-rose-100 text-rose-700 border-rose-200';
     },
 
     async openStory(filename: string): Promise<void> {

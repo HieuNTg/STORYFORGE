@@ -1904,10 +1904,17 @@
             <div class="card p-4 border-violet-200 bg-violet-50 text-violet-700 text-sm" x-text="imageStatus"></div>
           </template>
 
-          <!-- Search bar -->
-          <div x-show="stories.length > 3" x-cloak class="relative">
-            <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
-            <input type="text" x-model="searchQuery" class="sf-search" placeholder="Tìm theo tiêu đề, thể loại...">
+          <!-- Search bar + quality filter -->
+          <div x-show="stories.length > 3" x-cloak class="flex gap-2">
+            <div class="relative flex-1">
+              <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+              <input type="text" x-model="searchQuery" class="sf-search w-full" placeholder="Tìm theo tiêu đề, thể loại...">
+            </div>
+            <select x-model="qualityFilter" class="sf-search px-3 text-xs flex-shrink-0" title="Lọc theo trạng thái chấm điểm">
+              <option value="all">Tất cả</option>
+              <option value="scored">Đã chấm</option>
+              <option value="unscored">Chưa chấm</option>
+            </select>
           </div>
 
           <!-- Loading state -->
@@ -1960,6 +1967,14 @@
                         <span x-text="story.modified"></span>
                         <span class="text-slate-300 dark:text-slate-600">·</span>
                         <span x-text="story.size_kb + ' KB'"></span>
+                        <template x-if="qualityForStory(story.path)">
+                          <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-medium"
+                                :class="overallPillClass(qualityForStory(story.path).overall)">
+                            <span x-text="'Tổng: ' + qualityForStory(story.path).overall.toFixed(1) + '/5'"></span>
+                            <span class="opacity-60">·</span>
+                            <span x-text="'Yếu nhất: ch.' + qualityForStory(story.path).weakest_chapter + ' (' + qualityForStory(story.path).weakest_score.toFixed(1) + ')'"></span>
+                          </span>
+                        </template>
                       </div>
                     </div>
                     <div class="flex items-center gap-0.5 flex-shrink-0">

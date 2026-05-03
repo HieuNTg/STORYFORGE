@@ -9,9 +9,15 @@ session UUID or a checkpoint filename (``*.json``), reusing the same
 This endpoint NEVER triggers scoring — checkpoints without scores return an
 empty ``chapters`` list and a null ``overall``, so the reader can degrade
 gracefully on legacy stories generated before scoring was enabled.
+
+Also exposes ``GET /quality/`` (batch summary), used by the library list to
+show overall + weakest-chapter pills without opening each story.
 """
 
+import json
 import logging
+import os
+import pathlib
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
@@ -21,6 +27,11 @@ from api.export_routes import _get_story_data
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/quality", tags=["quality"])
+
+_PROJECT_ROOT = pathlib.Path(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+).resolve()
+_CHECKPOINT_DIR = _PROJECT_ROOT / "output" / "checkpoints"
 
 
 class OverallQuality(BaseModel):
@@ -72,18 +83,17 @@ def _score_to_dict(cs) -> dict[str, float]:
     }
 
 
-@router.get("/{session_id}", response_model=QualityResponse)
-async def get_quality(session_id: str) -> QualityResponse:
-    """Return per-chapter quality scores for a session or checkpoint.
+def _normalize_quality(output) -> Optional[QualityResponse]:
+    """L2-wins normalization: merge L1+L2 scores, prefer the highest layer.
 
-    Merge rule when both L1 and L2 scoring ran: prefer the highest scoring_layer
-    per chapter (L2 latest wins). Chapters without any score are omitted.
+    Returns ``QualityResponse(overall=None, chapters=[])`` when there are no
+    scores at all (the per-session endpoint surfaces this; the summary endpoint
+    converts it to ``None``).
+
+    Returns ``None`` only when ``output`` itself is missing (defensive).
     """
-    orch = await _get_story_data(session_id)
-    if not orch or not orch.output:
-        raise HTTPException(status_code=404, detail="Session or checkpoint not found")
-
-    output = orch.output
+    if output is None:
+        return None
     quality_scores = list(output.quality_scores or [])
     if not quality_scores:
         return QualityResponse(overall=None, chapters=[])
@@ -122,5 +132,73 @@ async def get_quality(session_id: str) -> QualityResponse:
         avg_writing=latest.avg_writing,
         weakest_chapter=latest.weakest_chapter,
     )
-
     return QualityResponse(overall=overall, chapters=chapters)
+
+
+def _summarize_quality(output) -> Optional[dict]:
+    """Compact per-story summary for the library list: overall + weakest only.
+
+    Returns ``None`` for unscored stories so the frontend can render a neutral
+    "unscored" state. Reuses ``_normalize_quality`` so the L2-wins rule is
+    defined exactly once.
+    """
+    normalized = _normalize_quality(output)
+    if normalized is None or normalized.overall is None:
+        return None
+    overall = normalized.overall
+    # Weakest chapter score: look it up from the merged chapter list.
+    weakest_score = 0.0
+    for ch in normalized.chapters:
+        if ch.chapter_number == overall.weakest_chapter:
+            weakest_score = float(ch.scores.get("overall", 0.0))
+            break
+    return {
+        "overall": round(overall.overall, 2),
+        "weakest_chapter": overall.weakest_chapter,
+        "weakest_score": round(weakest_score, 2),
+        "scoring_layer": overall.scoring_layer,
+    }
+
+
+@router.get("")
+@router.get("/")
+def get_quality_summaries() -> dict:
+    """Batch summary for the library list — one entry per checkpoint file.
+
+    Scans ``output/checkpoints/*.json`` and returns ``{filename: summary | null}``.
+    A ``null`` value means either parsing failed (logged) or the story has no
+    quality scores. The endpoint never 500s on a single bad file.
+    """
+    summaries: dict[str, Optional[dict]] = {}
+    if not _CHECKPOINT_DIR.exists():
+        return {"summaries": summaries}
+
+    from models.schemas import PipelineOutput
+
+    for path in sorted(_CHECKPOINT_DIR.glob("*.json")):
+        name = path.name
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            output = PipelineOutput.model_validate(data)
+            summaries[name] = _summarize_quality(output)
+        except Exception as e:
+            logger.info(f"quality summary skip {name}: {e}")
+            summaries[name] = None
+    return {"summaries": summaries}
+
+
+@router.get("/{session_id}", response_model=QualityResponse)
+async def get_quality(session_id: str) -> QualityResponse:
+    """Return per-chapter quality scores for a session or checkpoint.
+
+    Merge rule when both L1 and L2 scoring ran: prefer the highest scoring_layer
+    per chapter (L2 latest wins). Chapters without any score are omitted.
+    """
+    orch = await _get_story_data(session_id)
+    if not orch or not orch.output:
+        raise HTTPException(status_code=404, detail="Session or checkpoint not found")
+
+    normalized = _normalize_quality(orch.output)
+    # _normalize_quality only returns None when output is None (we guarded above).
+    return normalized or QualityResponse(overall=None, chapters=[])
