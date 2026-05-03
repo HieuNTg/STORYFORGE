@@ -1975,6 +1975,12 @@
                             <span x-text="'Yếu nhất: ch.' + qualityForStory(story.path).weakest_chapter + ' (' + qualityForStory(story.path).weakest_score.toFixed(1) + ')'"></span>
                           </span>
                         </template>
+                        <template x-if="recentContinuationFor(story)">
+                          <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-medium bg-emerald-50 text-emerald-700 border-emerald-200">
+                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z"/></svg>
+                            <span x-text="'Vừa viết tiếp +' + recentContinuationFor(story).added + ' chương · ' + relativeTimeVi(recentContinuationFor(story).ts)"></span>
+                          </span>
+                        </template>
                       </div>
                     </div>
                     <div class="flex items-center gap-0.5 flex-shrink-0">
@@ -2061,6 +2067,17 @@
                 </div>
               </div>
             </div>
+            <!-- Jump-to-new-chapter pill (advisory; refresh re-shows it) -->
+            <template x-if="showJumpToNew">
+              <div class="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800">
+                <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z"/></svg>
+                <span class="flex-1" x-text="'Có ' + latestContinuation.added + ' chương mới (Ch.' + firstNewChapter + ' trở đi)'"></span>
+                <button @click="jumpToNewChapter()" class="px-2.5 py-1 rounded-md font-semibold bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer">Xem chương mới</button>
+                <button @click="jumpDismissed = true" class="p-1 rounded text-emerald-600 hover:bg-emerald-100 cursor-pointer" title="Đóng">
+                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+            </template>
             <!-- Chapter selector -->
             <div class="flex gap-1.5 flex-wrap mb-4">
               <template x-for="(ch, idx) in chapters" :key="idx">

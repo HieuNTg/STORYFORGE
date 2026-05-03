@@ -3,6 +3,13 @@
  * Combines library (story list) + reader (chapter view) into one page.
  */
 
+interface ContinuationEvent {
+  ts: string;
+  previous_chapter_count: number;
+  new_chapter_count: number;
+  added: number;
+}
+
 interface StoryCheckpoint {
   path: string;
   title?: string;
@@ -13,6 +20,7 @@ interface StoryCheckpoint {
   created_at?: string;
   modified?: string;
   size_kb?: number;
+  latest_continuation?: ContinuationEvent | null;
   [key: string]: unknown;
 }
 
@@ -98,6 +106,8 @@ function libraryPage() {
     showCharacterPanel: false as boolean,
     qualityScores: null as QualityResponse | null,
     showQualityPanel: false as boolean,
+    latestContinuation: null as ContinuationEvent | null,
+    jumpDismissed: false as boolean,
 
     // Computed: current view mode
     get isReading(): boolean {
@@ -165,6 +175,53 @@ function libraryPage() {
       return this.qualitySummaries[path] || null;
     },
 
+    // Continuation pill: only show event if it landed within the last 7 days.
+    recentContinuationFor(story: StoryCheckpoint): ContinuationEvent | null {
+      const ev = story.latest_continuation;
+      if (!ev || !ev.ts) return null;
+      const t = Date.parse(ev.ts);
+      if (!Number.isFinite(t)) return null;
+      const ageDays = (Date.now() - t) / 86_400_000;
+      return ageDays >= 0 && ageDays <= 7 ? ev : null;
+    },
+
+    // Compact "X giờ trước" / "X ngày trước" — small enough to inline.
+    relativeTimeVi(iso: string): string {
+      const t = Date.parse(iso);
+      if (!Number.isFinite(t)) return '';
+      const diff = Math.max(0, Date.now() - t);
+      const minutes = Math.floor(diff / 60_000);
+      if (minutes < 1) return 'vừa xong';
+      if (minutes < 60) return `${minutes} phút trước`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours} giờ trước`;
+      const days = Math.floor(hours / 24);
+      return `${days} ngày trước`;
+    },
+
+    // Reader jump-to-new-chapter: returns 1-indexed chapter number of first new chapter.
+    get firstNewChapter(): number | null {
+      const ev = this.latestContinuation;
+      if (!ev) return null;
+      const ageDays = (Date.now() - Date.parse(ev.ts)) / 86_400_000;
+      if (!Number.isFinite(ageDays) || ageDays > 7) return null;
+      return ev.previous_chapter_count + 1;
+    },
+
+    get showJumpToNew(): boolean {
+      if (this.jumpDismissed || !this.firstNewChapter) return false;
+      // Hide once the user has already navigated to/past the first new chapter.
+      return this.chapter + 1 < this.firstNewChapter;
+    },
+
+    jumpToNewChapter(): void {
+      const target = this.firstNewChapter;
+      if (target == null) return;
+      const idx = Math.min(target - 1, Math.max(0, this.chapters.length - 1));
+      this.chapter = idx;
+      this.jumpDismissed = true;
+    },
+
     overallPillClass(value: number): string {
       if (value >= 4) return 'bg-emerald-100 text-emerald-700 border-emerald-200';
       if (value >= 3) return 'bg-amber-100 text-amber-700 border-amber-200';
@@ -186,6 +243,9 @@ function libraryPage() {
         this.chapter = 0;
         this.characterProfiles = [];
         this.qualityScores = null;
+        this.jumpDismissed = false;
+        this.latestContinuation =
+          this.stories.find((s) => s.path === filename)?.latest_continuation || null;
         // Also update global stores for compatibility
         Alpine.store('pipeline').result = data;
         Alpine.store('pipeline').status = 'done';
@@ -242,6 +302,8 @@ function libraryPage() {
       this.showCharacterPanel = false;
       this.qualityScores = null;
       this.showQualityPanel = false;
+      this.latestContinuation = null;
+      this.jumpDismissed = false;
     },
 
     async deleteStory(filename: string): Promise<void> {

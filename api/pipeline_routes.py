@@ -187,6 +187,7 @@ def get_templates():
 def get_checkpoints():
     """List available checkpoints with metadata for library."""
     from pipeline.orchestrator import PipelineOrchestrator
+    from services.continuation_history import latest_event
     ckpts = PipelineOrchestrator.list_checkpoints()
     return {"checkpoints": [
         {
@@ -198,6 +199,7 @@ def get_checkpoints():
             "current_layer": c.get('current_layer', 0),
             "size_kb": c['size_kb'],
             "modified": c['modified'],
+            "latest_continuation": latest_event(c['file']),
         }
         for c in ckpts
     ]}

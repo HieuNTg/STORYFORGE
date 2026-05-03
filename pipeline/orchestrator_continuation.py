@@ -46,6 +46,7 @@ class StoryContinuation:
         """Continue writing from current StoryDraft."""
         if not self.output.story_draft:
             raise ValueError("No story draft loaded. Load checkpoint first.")
+        previous_count = len(self.output.story_draft.chapters)
         draft = self.story_gen.continue_story(
             draft=self.output.story_draft,
             additional_chapters=additional_chapters,
@@ -58,6 +59,17 @@ class StoryContinuation:
         self.output.story_draft = draft
         self.checkpoint_manager.output = self.output
         self.checkpoint_manager.save(1)
+        # Advisory sidecar — never fail the continuation if this breaks.
+        try:
+            from services.continuation_history import record_continuation
+            record_continuation(
+                title=draft.title,
+                previous_chapter_count=previous_count,
+                new_chapter_count=len(draft.chapters),
+                layer=1,
+            )
+        except Exception as e:
+            logger.warning("Continuation history sidecar skipped: %s", e)
         return draft
 
     def remove_chapters(self, from_chapter: int, progress_callback=None) -> StoryDraft:
@@ -151,6 +163,7 @@ class StoryContinuation:
         if not outlines:
             raise ValueError("No outlines provided.")
 
+        previous_count = len(self.output.story_draft.chapters)
         from pipeline.layer1_story.story_continuation import write_from_outlines
         draft = write_from_outlines(
             generator=self.story_gen,
@@ -165,6 +178,16 @@ class StoryContinuation:
         self.output.story_draft = draft
         self.checkpoint_manager.output = self.output
         self.checkpoint_manager.save(1)
+        try:
+            from services.continuation_history import record_continuation
+            record_continuation(
+                title=draft.title,
+                previous_chapter_count=previous_count,
+                new_chapter_count=len(draft.chapters),
+                layer=1,
+            )
+        except Exception as e:
+            logger.warning("Continuation history sidecar skipped: %s", e)
         return draft
 
     def generate_continuation_paths(

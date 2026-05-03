@@ -24,6 +24,7 @@ from api.pipeline_routes import (
     _MAX_SESSIONS_PER_IP,
 )
 from pipeline.orchestrator import PipelineOrchestrator
+from services.continuation_history import read_events, sidecar_path_for
 from services.text_utils import sanitize_story_html
 
 logger = logging.getLogger(__name__)
@@ -1089,6 +1090,28 @@ async def collaborative_chapter(body: CollaborativeChapterRequest):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Continuation history sidecar (advisory) — read endpoints
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@router.get("/continuation/{filename}/history")
+def get_continuation_history(filename: str) -> dict:
+    """Return continuation event log for a checkpoint, or empty list if absent.
+
+    Always 200 — missing sidecar is normal for stories never continued. Validates
+    the filename to block traversal but does not require the underlying
+    checkpoint to exist (advisory data only).
+    """
+    safe = pathlib.Path(filename).name
+    if not safe or ".." in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    sidecar = sidecar_path_for(safe)
+    if not str(sidecar.resolve()).startswith(str(_CHECKPOINT_DIR)):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    return {"events": read_events(safe)}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
