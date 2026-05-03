@@ -185,7 +185,7 @@ class GenerationMixin:
                 # Mark unhealthy (except for transient/auth errors)
                 fm = get_fallback_manager()
                 if entry_model and not _is_transient(e) and not _is_auth_error(e):
-                    fm.mark_unhealthy(entry_model)
+                    fm.mark_unhealthy(entry_model, error_class=type(e).__name__)
 
                 # Rate-limit marking on 429
                 err_str = str(e)

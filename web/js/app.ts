@@ -79,6 +79,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'export',    label: 'Export',        icon: 'arrow-down-tray',        group: 'main'   },
   { id: 'analytics', label: 'Analytics',     icon: 'chart-bar',              group: 'main'   },
   { id: 'branching', label: 'Branching',     icon: 'arrows-pointing-out',    group: 'main'   },
+  { id: 'providers', label: 'Providers',     icon: 'server-stack',           group: 'bottom' },
   { id: 'settings',  label: 'Settings',      icon: 'cog-6-tooth',            group: 'bottom' },
   { id: 'guide',     label: 'Guide',         icon: 'question-mark-circle',   group: 'bottom' },
 ] as const;

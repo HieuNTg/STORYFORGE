@@ -167,6 +167,35 @@ async def check_quota_status(
     })
 
 
+@router.get("/health", summary="Live health snapshot for fallback chain")
+async def get_providers_health():
+    """Return live in-memory health/rate-limit state.
+
+    Sources:
+        - FallbackManager: per-model healthy flag, latency, consecutive failures
+        - LLMClient: per-key and per-(model:key) cooldown maps
+
+    Read-only — does not change runtime behavior. API keys are redacted to
+    a stable opaque identifier (``<prefix>...<suffix>``) before serializing.
+    """
+    from datetime import datetime, timezone
+    from services.llm.model_fallback import get_fallback_manager
+    from services.llm_client import LLMClient
+
+    fm = get_fallback_manager()
+    providers = fm.health_snapshot()
+
+    client = LLMClient()
+    rl = client.rate_limit_snapshot()
+
+    return JSONResponse(content={
+        "providers": providers,
+        "rate_limited_keys": rl["rate_limited_keys"],
+        "rate_limited_models": rl["rate_limited_models"],
+        "snapshot_ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    })
+
+
 @router.get("/fallbacks", summary="Get usable fallback models")
 async def get_usable_fallbacks(
     provider_type: Optional[str] = Query(None, description="Filter by provider"),

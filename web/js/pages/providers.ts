@@ -1,121 +1,139 @@
 /**
- * Providers page — LLM provider status, quotas, and fallbacks.
+ * Providers page — live health/rate-limit observability for the LLM
+ * fallback chain. Polls /api/providers/health every 10s while visible.
+ *
+ * Dev-only diagnostic page: no auth, no persistence, in-memory state only.
+ * Counts down cooldown values client-side between polls so the UI feels live.
  */
 
-interface ProviderStatus {
-  provider: string;
-  status: 'ok' | 'degraded' | 'down' | 'unknown';
-  quota_pct?: number;
-  reset_at?: string;
-  models_available?: number;
-  last_error?: string;
+interface ProviderHealth {
+  model: string;
+  healthy: boolean;
+  last_latency_ms: number | null;
+  avg_latency_ms: number | null;
+  consecutive_failures: number;
+  cooldown_remaining_s: number;
+  last_error_class: string | null;
 }
 
-interface ProvidersResponse {
-  providers: Record<string, ProviderStatus>;
-  configured_providers: string[];
+interface RateLimitedKey {
+  key_id: string;
+  cooldown_remaining_s: number;
 }
 
-interface QuotaCheckResponse {
-  low_quota_providers: Array<{ provider: string; quota_pct: number | null; reset_at: string | null }>;
-  ok_providers: string[];
-  threshold: number;
-  should_switch: boolean;
+interface RateLimitedModel {
+  model: string;
+  key_id: string;
+  cooldown_remaining_s: number;
 }
 
-interface FallbacksResponse {
-  fallbacks: Record<string, string[]>;
+interface HealthResponse {
+  providers: ProviderHealth[];
+  rate_limited_keys: RateLimitedKey[];
+  rate_limited_models: RateLimitedModel[];
+  snapshot_ts: string;
 }
+
+const REFRESH_INTERVAL_MS = 10_000;
+const TICK_INTERVAL_MS = 1_000;
 
 function providersPage() {
   return {
-    providers: {} as Record<string, ProviderStatus>,
-    configured: [] as string[],
-    quotaWarnings: [] as Array<{ provider: string; quota_pct: number | null; reset_at: string | null }>,
-    fallbacks: {} as Record<string, string[]>,
+    snapshot: null as HealthResponse | null,
     loading: false,
-    refreshing: false,
     error: '',
+    lastFetchAt: 0 as number,
+    _refreshTimer: 0 as number,
+    _tickTimer: 0 as number,
 
     async init(): Promise<void> {
-      await this.loadAll();
+      await this.loadHealth();
+      // Auto-refresh from server every 10s
+      this._refreshTimer = window.setInterval(() => {
+        this.loadHealth();
+      }, REFRESH_INTERVAL_MS);
+      // Local cooldown countdown every 1s (no network)
+      this._tickTimer = window.setInterval(() => this._tickCooldowns(), TICK_INTERVAL_MS);
     },
 
-    async loadAll(): Promise<void> {
-      this.loading = true;
+    destroy(): void {
+      if (this._refreshTimer) window.clearInterval(this._refreshTimer);
+      if (this._tickTimer) window.clearInterval(this._tickTimer);
+    },
+
+    async loadHealth(): Promise<void> {
+      this.loading = !this.snapshot; // only show big spinner on first load
       this.error = '';
       try {
-        const [statusRes, quotaRes, fallbackRes] = await Promise.all([
-          API.get<ProvidersResponse>('/providers/status'),
-          API.get<QuotaCheckResponse>('/providers/quota-check?threshold=0.2'),
-          API.get<FallbacksResponse>('/providers/fallbacks'),
-        ]);
-        this.providers = statusRes.providers || {};
-        this.configured = statusRes.configured_providers || [];
-        this.quotaWarnings = quotaRes.low_quota_providers || [];
-        this.fallbacks = fallbackRes.fallbacks || {};
+        const res = await API.get<HealthResponse>('/providers/health');
+        this.snapshot = res;
+        this.lastFetchAt = Date.now();
       } catch (e) {
-        this.error = e instanceof Error ? e.message : 'Failed to load providers';
+        this.error = e instanceof Error ? e.message : 'Failed to load health snapshot';
       } finally {
         this.loading = false;
       }
     },
 
-    async refresh(): Promise<void> {
-      this.refreshing = true;
-      try {
-        await API.post('/providers/refresh');
-        await this.loadAll();
-      } catch (e) {
-        this.error = e instanceof Error ? e.message : 'Refresh failed';
-      } finally {
-        this.refreshing = false;
+    /** Decrement cooldown counters between server polls so the UI feels live. */
+    _tickCooldowns(): void {
+      if (!this.snapshot) return;
+      for (const p of this.snapshot.providers) {
+        if (p.cooldown_remaining_s > 0) p.cooldown_remaining_s = Math.max(0, p.cooldown_remaining_s - 1);
+      }
+      for (const k of this.snapshot.rate_limited_keys) {
+        if (k.cooldown_remaining_s > 0) k.cooldown_remaining_s = Math.max(0, k.cooldown_remaining_s - 1);
+      }
+      for (const m of this.snapshot.rate_limited_models) {
+        if (m.cooldown_remaining_s > 0) m.cooldown_remaining_s = Math.max(0, m.cooldown_remaining_s - 1);
       }
     },
 
-    getStatusColor(status: string): string {
-      switch (status) {
-        case 'ok': return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
-        case 'degraded': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
-        case 'down': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
-        default: return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
-      }
+    statusLabel(p: ProviderHealth): string {
+      if (!p.healthy) return 'Lỗi';
+      if (p.cooldown_remaining_s > 0) return 'Cooldown';
+      return 'Khoẻ';
     },
 
-    getStatusIcon(status: string): string {
-      switch (status) {
-        case 'ok': return '<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />';
-        case 'degraded': return '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />';
-        case 'down': return '<path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />';
-        default: return '<path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />';
-      }
+    statusDotClass(p: ProviderHealth): string {
+      if (!p.healthy) return 'bg-red-500';
+      if (p.cooldown_remaining_s > 0) return 'bg-amber-500';
+      return 'bg-green-500';
     },
 
-    formatQuota(pct: number | null): string {
-      if (pct === null || pct === undefined) return 'N/A';
-      return Math.round(pct * 100) + '%';
+    statusBadgeClass(p: ProviderHealth): string {
+      if (!p.healthy) return 'bg-red-50 text-red-700';
+      if (p.cooldown_remaining_s > 0) return 'bg-amber-50 text-amber-700';
+      return 'bg-green-50 text-green-700';
     },
 
-    formatResetTime(iso: string | null): string {
-      if (!iso) return '';
-      const d = new Date(iso);
-      const now = Date.now();
-      const diff = d.getTime() - now;
-      if (diff < 0) return 'now';
-      if (diff < 60000) return 'in <1m';
-      if (diff < 3600000) return `in ${Math.ceil(diff / 60000)}m`;
-      return `in ${Math.ceil(diff / 3600000)}h`;
+    formatLatency(ms: number | null): string {
+      if (ms === null || ms === undefined) return '—';
+      return `${ms} ms`;
     },
 
-    get providerList(): Array<{ name: string; status: ProviderStatus }> {
-      return this.configured.map(name => ({
-        name,
-        status: this.providers[name] || { provider: name, status: 'unknown' },
-      }));
+    formatCooldown(s: number): string {
+      if (s <= 0) return '—';
+      if (s < 60) return `${s}s`;
+      const m = Math.floor(s / 60);
+      const rem = s % 60;
+      return `${m}m ${rem}s`;
     },
 
-    get hasWarnings(): boolean {
-      return this.quotaWarnings.length > 0;
+    get providers(): ProviderHealth[] {
+      return this.snapshot?.providers || [];
+    },
+
+    get rateLimitedKeys(): RateLimitedKey[] {
+      return this.snapshot?.rate_limited_keys || [];
+    },
+
+    get rateLimitedModels(): RateLimitedModel[] {
+      return this.snapshot?.rate_limited_models || [];
+    },
+
+    get isEmpty(): boolean {
+      return this.providers.length === 0 && this.rateLimitedKeys.length === 0 && this.rateLimitedModels.length === 0;
     },
   };
 }

@@ -61,6 +61,13 @@ class ModelFallbackManager:
         self._latency_samples: dict[str, list[float]] = {}
         self._latency_window = 10
 
+        # consecutive failure counter — resets on mark_healthy. Surfaces in
+        # /api/providers/health so CEO can see "model X has failed 3x in a row".
+        self._failure_count: dict[str, int] = {}
+
+        # most-recent error class per model — clears on mark_healthy
+        self._last_error: dict[str, str] = {}
+
         # track why fallback was triggered
         self._last_fallback_reason: str = ""
 
@@ -149,13 +156,20 @@ class ModelFallbackManager:
             return 0.0
         return sum(samples) / len(samples)
 
-    def mark_unhealthy(self, model: str) -> None:
-        """Explicitly mark a model as unhealthy (e.g. after a hard failure)."""
+    def mark_unhealthy(self, model: str, error_class: str = "") -> None:
+        """Explicitly mark a model as unhealthy (e.g. after a hard failure).
+
+        ``error_class`` (optional) is the exception class name (e.g.
+        "RateLimitError") surfaced via health_snapshot for the providers UI.
+        """
         with self._lock:
             self._health_cache[model] = {
                 "healthy": False,
                 "checked_at": time.monotonic(),
             }
+            self._failure_count[model] = self._failure_count.get(model, 0) + 1
+            if error_class:
+                self._last_error[model] = error_class
         logger.warning(f"Model marked unhealthy: {model}")
 
     def mark_healthy(self, model: str) -> None:
@@ -165,6 +179,8 @@ class ModelFallbackManager:
                 "healthy": True,
                 "checked_at": time.monotonic(),
             }
+            self._failure_count[model] = 0
+            self._last_error.pop(model, None)
 
     def get_fallback_reason(self) -> str:
         """Return reason why fallback was triggered on last select_model call."""
@@ -204,6 +220,45 @@ class ModelFallbackManager:
                 "max_latency_ms": self._max_latency_ms,
                 "max_cost_per_1k": self._max_cost_per_1k,
             }
+
+    def health_snapshot(self) -> list[dict]:
+        """Return a per-model health snapshot for the providers UI.
+
+        Lock is held only long enough to copy state out — JSON serialization
+        happens after release. Each entry has the shape consumed by
+        ``GET /api/providers/health``.
+        """
+        now = time.monotonic()
+        with self._lock:
+            health_cache = dict(self._health_cache)
+            latency_samples = {k: list(v) for k, v in self._latency_samples.items()}
+            failure_count = dict(self._failure_count)
+            last_error = dict(self._last_error)
+
+        # Union of every model we've seen in any structure
+        models = set(health_cache) | set(latency_samples) | set(failure_count)
+        out: list[dict] = []
+        for model in sorted(models):
+            entry = health_cache.get(model)
+            samples = latency_samples.get(model, [])
+            avg_latency = (sum(samples) / len(samples)) if samples else None
+            if entry is not None:
+                healthy = bool(entry["healthy"])
+                age = now - entry["checked_at"]
+                cooldown_remaining = max(0.0, _HEALTH_TTL_SECONDS - age) if not healthy else 0.0
+            else:
+                healthy = True  # never-checked models are optimistic
+                cooldown_remaining = 0.0
+            out.append({
+                "model": model,
+                "healthy": healthy,
+                "last_latency_ms": int(samples[-1]) if samples else None,
+                "avg_latency_ms": int(avg_latency) if avg_latency is not None else None,
+                "consecutive_failures": failure_count.get(model, 0),
+                "cooldown_remaining_s": int(cooldown_remaining),
+                "last_error_class": last_error.get(model) or None,
+            })
+        return out
 
     # ------------------------------------------------------------------
     # Internal

@@ -2802,6 +2802,107 @@
       </template>
 
 
+      <!-- ═══ PROVIDERS PAGE (live LLM health) ═══ -->
+      <div x-show="$store.app.page === 'providers'" x-cloak class="page-enter" x-data="providersPage()" x-init="init()">
+        <div class="max-w-5xl mx-auto space-y-4">
+          <div class="sf-page-hero">
+            <div class="flex items-start justify-between gap-3">
+              <div class="flex-1 min-w-0">
+                <h1>Providers · Live status</h1>
+                <p>Snapshot in-memory health, latency và rate-limit cooldown của fallback chain. Auto-refresh mỗi 10 giây.</p>
+              </div>
+              <button @click="loadHealth()" :disabled="loading"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-surface-200 bg-white/70 text-slate-600 hover:border-brand-400 hover:text-brand-600 transition-colors cursor-pointer disabled:opacity-50">
+                <svg class="w-3.5 h-3.5" :class="loading && 'animate-spin'" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          <div x-show="error" x-cloak class="card border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <span x-text="error"></span>
+          </div>
+
+          <!-- Empty state -->
+          <template x-if="!loading && !error && isEmpty">
+            <div class="card p-6 text-center text-sm text-slate-500">
+              Chưa có dữ liệu — chưa có LLM call nào trong session này.
+            </div>
+          </template>
+
+          <!-- Provider table -->
+          <template x-if="providers.length > 0">
+            <div class="card overflow-hidden">
+              <div class="px-4 py-3 border-b border-surface-200 flex items-center justify-between">
+                <h3 class="font-semibold text-sm text-slate-700">Models</h3>
+                <span class="text-xs text-slate-400" x-text="snapshot ? ('Snapshot: ' + snapshot.snapshot_ts) : ''"></span>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead class="bg-surface-50 text-xs text-slate-500 uppercase tracking-wider">
+                    <tr>
+                      <th class="text-left px-4 py-2">Model</th>
+                      <th class="text-left px-4 py-2">Status</th>
+                      <th class="text-left px-4 py-2">Latency</th>
+                      <th class="text-left px-4 py-2">Failures</th>
+                      <th class="text-left px-4 py-2">Cooldown</th>
+                      <th class="text-left px-4 py-2">Last Error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="p in providers" :key="p.model">
+                      <tr class="border-t border-surface-100">
+                        <td class="px-4 py-2 font-mono text-xs text-slate-700" x-text="p.model"></td>
+                        <td class="px-4 py-2">
+                          <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium" :class="statusBadgeClass(p)">
+                            <span class="w-1.5 h-1.5 rounded-full" :class="statusDotClass(p)"></span>
+                            <span x-text="statusLabel(p)"></span>
+                          </span>
+                        </td>
+                        <td class="px-4 py-2 text-slate-600" x-text="formatLatency(p.last_latency_ms)"></td>
+                        <td class="px-4 py-2 text-slate-600" x-text="p.consecutive_failures"></td>
+                        <td class="px-4 py-2 text-slate-600" x-text="formatCooldown(p.cooldown_remaining_s)"></td>
+                        <td class="px-4 py-2 text-xs text-slate-500" x-text="p.last_error_class || '—'"></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </template>
+
+          <!-- Rate-limited keys -->
+          <template x-if="rateLimitedKeys.length > 0">
+            <div class="card p-4">
+              <h3 class="font-semibold text-sm text-slate-700 mb-2">Rate-limited keys</h3>
+              <ul class="space-y-1 text-xs">
+                <template x-for="k in rateLimitedKeys" :key="k.key_id">
+                  <li class="flex items-center justify-between">
+                    <span class="font-mono text-slate-600" x-text="k.key_id"></span>
+                    <span class="text-amber-600" x-text="formatCooldown(k.cooldown_remaining_s)"></span>
+                  </li>
+                </template>
+              </ul>
+            </div>
+          </template>
+
+          <!-- Rate-limited model:key combos -->
+          <template x-if="rateLimitedModels.length > 0">
+            <div class="card p-4">
+              <h3 class="font-semibold text-sm text-slate-700 mb-2">Rate-limited model + key combos</h3>
+              <ul class="space-y-1 text-xs">
+                <template x-for="m in rateLimitedModels" :key="m.model + ':' + m.key_id">
+                  <li class="flex items-center justify-between gap-3">
+                    <span class="font-mono text-slate-600 truncate"><span x-text="m.model"></span> <span class="text-slate-400">·</span> <span x-text="m.key_id"></span></span>
+                    <span class="text-amber-600 flex-shrink-0" x-text="formatCooldown(m.cooldown_remaining_s)"></span>
+                  </li>
+                </template>
+              </ul>
+            </div>
+          </template>
+        </div>
+      </div>
+
       <!-- ═══ GUIDE PAGE ═══ -->
       <div x-show="$store.app.page === 'guide'" x-cloak class="page-enter">
         <div class="max-w-3xl mx-auto space-y-4">
@@ -2928,6 +3029,7 @@
   <script src="/static/js/pages/analytics.js"></script>
   <script src="/static/js/pages/branching.js"></script>
   <script src="/static/js/pages/pipeline.js"></script>
+  <script src="/static/js/pages/providers.js"></script>
   <script src="/static/js/pages/settings.js"></script>
   <script src="/static/js/branch-reader.js"></script>
   <script src="/static/js/tree-visualizer.js"></script>

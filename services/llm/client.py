@@ -45,6 +45,19 @@ _OPENROUTER_TO_KYMA = {
 }
 
 
+def _redact_key_id(api_key: str) -> str:
+    """Return an opaque, stable identifier for an API key.
+
+    Never exposes the actual key — uses 6-char prefix + 4-char suffix only.
+    Empty/short keys collapse to a generic placeholder.
+    """
+    if not api_key:
+        return "unknown"
+    if len(api_key) < 12:
+        return "key_short"
+    return f"{api_key[:6]}...{api_key[-4:]}"
+
+
 def _detect_provider_type(base_url: str) -> str:
     """Detect provider type from base URL."""
     if not base_url:
@@ -615,7 +628,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     fm = get_fallback_manager()
                     model_name = entry.get("model", "")
                     if model_name and not _is_transient(e) and not _is_auth_error(e):
-                        fm.mark_unhealthy(model_name)
+                        fm.mark_unhealthy(model_name, error_class=type(e).__name__)
 
                     if "_api_key" in entry:
                         err_str = str(e)
@@ -697,6 +710,49 @@ class LLMClient(StreamingMixin, GenerationMixin):
             self._rate_limited_keys.clear()
             result = entries
         return result
+
+    def rate_limit_snapshot(self) -> dict:
+        """Return live cooldown state for keys + model:key combos.
+
+        Read-only — used by /api/providers/health to surface "why is this
+        model skipped right now?". API keys are redacted to a stable opaque
+        identifier (``<prefix>...<suffix>``) so the response is safe to ship
+        to the browser.
+        """
+        now = time.time()
+        # Single-thread reader: just snapshot the dicts. Writes happen on
+        # the same call path as request handling (no concurrent generate()
+        # races over these dicts on a typical run).
+        keys_snap = dict(self._rate_limited_keys)
+        models_snap = dict(self._rate_limited_models)
+
+        rl_keys = []
+        for api_key, expiry in keys_snap.items():
+            remaining = max(0, int(expiry - now))
+            if remaining <= 0:
+                continue
+            rl_keys.append({
+                "key_id": _redact_key_id(api_key),
+                "cooldown_remaining_s": remaining,
+            })
+
+        rl_models = []
+        for combo, expiry in models_snap.items():
+            remaining = max(0, int(expiry - now))
+            if remaining <= 0:
+                continue
+            # combo is "model:api_key" — split on last colon to keep model intact
+            if ":" in combo:
+                model, api_key = combo.rsplit(":", 1)
+            else:
+                model, api_key = combo, ""
+            rl_models.append({
+                "model": model,
+                "key_id": _redact_key_id(api_key) if api_key else "",
+                "cooldown_remaining_s": remaining,
+            })
+
+        return {"rate_limited_keys": rl_keys, "rate_limited_models": rl_models}
 
     def _mark_rate_limited(self, api_key: str, cooldown: float = 60.0):
         """Mark an API key as rate-limited for `cooldown` seconds."""
@@ -1177,7 +1233,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
 
                     model_name = entry.get("model", "")
                     if model_name and not _is_transient(e) and not _is_auth_error(e):
-                        fm.mark_unhealthy(model_name)
+                        fm.mark_unhealthy(model_name, error_class=type(e).__name__)
 
                     if entry_key:
                         err_str = str(e)
