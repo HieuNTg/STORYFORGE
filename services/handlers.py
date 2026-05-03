@@ -270,11 +270,32 @@ def handle_generate_images(orch_state, provider: str = "none", t=None) -> tuple:
         from services.image_generator import ImageGenerator
         from services.image_prompt_generator import ImagePromptGenerator
 
+        # Pull character context from L1 draft (consistent face/clothing across chapters)
+        draft = orch_state.output.story_draft if orch_state.output else None
+        characters = list(getattr(draft, "characters", []) or []) if draft else []
+
+        # Load frozen visual prompts when available (built by MediaProducer)
+        visual_profiles: dict[str, str] = {}
+        try:
+            from services.character_visual_profile import CharacterVisualProfileStore
+            store = CharacterVisualProfileStore()
+            for c in characters:
+                fp = store.get_frozen_prompt(c.name)
+                if fp:
+                    visual_profiles[c.name] = fp
+        except Exception as _vp_e:
+            logger.debug("Visual profile lookup skipped: %s", _vp_e)
+
         prompt_gen = ImagePromptGenerator()
         image_gen = ImageGenerator(provider=provider)
 
         image_prompts = [
-            prompt_gen.generate_from_chapter(ch, num_images=1)
+            prompt_gen.generate_from_chapter(
+                ch,
+                characters=characters or None,
+                num_images=1,
+                visual_profiles=visual_profiles or None,
+            )
             for ch in story.chapters
         ]
         flat_prompts = [p for prompts in image_prompts for p in prompts]
