@@ -1,20 +1,24 @@
 """Tests for /api/images/{session_id}/generate endpoint."""
 
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api.image_routes import router as image_router, _in_flight
-from models.schemas import Chapter, StoryDraft, PipelineOutput
+from models.schemas import Chapter, Character, StoryDraft, PipelineOutput
 
 
-def _build_orch(num_chapters: int = 2):
+def _build_orch(num_chapters: int = 2, characters=None):
     chapters = [
         Chapter(chapter_number=i, title=f"Ch{i}", content=f"Body {i}", word_count=2)
         for i in range(1, num_chapters + 1)
     ]
-    draft = StoryDraft(title="T", genre="g", synopsis="s", chapters=chapters)
+    draft = StoryDraft(
+        title="T", genre="g", synopsis="s",
+        chapters=chapters,
+        characters=list(characters or []),
+    )
     output = PipelineOutput(story_draft=draft, status="complete")
 
     class _Wrap:
@@ -104,6 +108,78 @@ def test_generate_single_chapter_scope(client):
     body = r.json()
     # Only chapter 2 should have images in the response map
     assert body["chapter_images"] == {"2": ["ch02_panel01.png"]}
+
+
+def test_auto_builds_visual_profiles_on_first_call(client, tmp_path, monkeypatch):
+    """First call on checkpoint with no profiles → extractor invoked & profiles persisted."""
+    char = Character(name="Hero", role="chính", appearance="tall, dark hair", personality="brave")
+    orch = _build_orch(num_chapters=1, characters=[char])
+
+    # Isolate the on-disk profile store to a temp dir
+    monkeypatch.chdir(tmp_path)
+
+    # Mock extractor so we don't hit the LLM
+    fake_extractor = MagicMock()
+    fake_extractor.extract_and_generate.return_value = (
+        {"hair": {"color": "dark"}}, "FROZEN_PROMPT_HERO"
+    )
+    extractor_cls = MagicMock(return_value=fake_extractor)
+
+    # Mock the image generation pipeline (provider/prompt/gen) so the handler
+    # focuses on the profile auto-build path.
+    image_gen = MagicMock()
+    image_gen.generate_story_images.return_value = ["output/images/ch01_panel01.png"]
+    prompt_gen = MagicMock()
+    prompt_gen.generate_from_chapter.return_value = ["a prompt"]
+
+    with patch("api.image_routes._get_story_data", return_value=orch), \
+         patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls), \
+         patch("services.image_generator.ImageGenerator", return_value=image_gen), \
+         patch("services.image_prompt_generator.ImagePromptGenerator", return_value=prompt_gen):
+        r = client.post("/images/sess-auto/generate", json={"provider": "dalle"})
+
+    assert r.status_code == 200, r.text
+    # Extractor was invoked once for the missing profile
+    assert fake_extractor.extract_and_generate.call_count == 1
+    # Frozen prompt was injected into the prompt generator call
+    _, kwargs = prompt_gen.generate_from_chapter.call_args
+    assert kwargs.get("visual_profiles") == {"Hero": "FROZEN_PROMPT_HERO"}
+    # Profile was persisted to disk under the cwd-relative default base_dir
+    assert (tmp_path / "output" / "characters" / "Hero" / "profile.json").exists()
+
+
+def test_auto_build_skipped_when_profile_exists(client, tmp_path, monkeypatch):
+    """Second call with cached profile → extractor NOT invoked."""
+    from services.character_visual_profile import CharacterVisualProfileStore
+
+    char = Character(name="Hero", role="chính", appearance="tall", personality="brave")
+    orch = _build_orch(num_chapters=1, characters=[char])
+
+    monkeypatch.chdir(tmp_path)
+    # Pre-seed the profile store at the default base_dir
+    store = CharacterVisualProfileStore()
+    store.save_enhanced_profile(
+        "Hero", "tall", {"hair": {"color": "dark"}}, "CACHED_PROMPT", ""
+    )
+
+    fake_extractor = MagicMock()
+    extractor_cls = MagicMock(return_value=fake_extractor)
+    image_gen = MagicMock()
+    image_gen.generate_story_images.return_value = ["output/images/ch01_panel01.png"]
+    prompt_gen = MagicMock()
+    prompt_gen.generate_from_chapter.return_value = ["a prompt"]
+
+    with patch("api.image_routes._get_story_data", return_value=orch), \
+         patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls), \
+         patch("services.image_generator.ImageGenerator", return_value=image_gen), \
+         patch("services.image_prompt_generator.ImagePromptGenerator", return_value=prompt_gen):
+        r = client.post("/images/sess-cached/generate", json={"provider": "dalle"})
+
+    assert r.status_code == 200, r.text
+    # Extractor was NOT instantiated (no missing profiles to build)
+    extractor_cls.assert_not_called()
+    _, kwargs = prompt_gen.generate_from_chapter.call_args
+    assert kwargs.get("visual_profiles") == {"Hero": "CACHED_PROMPT"}
 
 
 def test_generate_single_chapter_in_flight_isolated_from_full(client):

@@ -279,18 +279,31 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
         try:
             from services.character_visual_profile import CharacterVisualProfileStore
             store = CharacterVisualProfileStore()
+            missing = []
             for c in characters:
                 fp = store.get_frozen_prompt(c.name)
                 if fp:
                     visual_profiles[c.name] = fp
+                else:
+                    missing.append(c)
+            # Auto-build for checkpoint-loaded stories that never went through MediaProducer.
+            if missing:
+                logger.info(
+                    "Auto-building visual profiles for %d character(s) on first image regen",
+                    len(missing),
+                )
+                from services.character_visual_extractor import CharacterVisualExtractor
+                extractor = CharacterVisualExtractor()
+                for c in missing:
+                    try:
+                        attributes, frozen_prompt = extractor.extract_and_generate(c)
+                        desc = store.build_visual_description(c)
+                        store.save_enhanced_profile(c.name, desc, attributes, frozen_prompt, "")
+                        visual_profiles[c.name] = frozen_prompt
+                    except Exception as e:
+                        logger.warning("Auto-build visual profile failed for %s: %s", c.name, e)
         except Exception as _vp_e:
             logger.debug("Visual profile lookup skipped: %s", _vp_e)
-        if characters and not visual_profiles:
-            logger.info(
-                "No frozen visual profiles found for %d character(s); "
-                "post-hoc images will not be character-consistent.",
-                len(characters),
-            )
 
         prompt_gen = ImagePromptGenerator()
         image_gen = ImageGenerator(provider=provider)
