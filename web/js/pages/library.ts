@@ -405,11 +405,17 @@ function libraryPage() {
       if (pipelineStore.form) {
         pipelineStore.form.num_chapters = delta;
       }
+      // Piece O: pass resume context so the pipeline page can render the
+      // "why is the form pre-filled" callout. modified is the checkpoint mtime,
+      // which is the best proxy we have for "when the pipeline last touched it".
       pipelineStore.startContinuation({
         checkpoint: story.path,
         title: story.title || story.path,
         chapterCount: written,
         genre: story.genre || '',
+        resumeFromChapter: story.resume_from_chapter || (written + 1),
+        targetChapters: target,
+        interruptedAt: story.modified || '',
       });
       Alpine.store('app').navigate('pipeline');
     },

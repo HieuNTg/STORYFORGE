@@ -90,6 +90,18 @@ function createPipelineStore() {
     result: null as unknown,
     error: null as string | null,
     checkpoints: [] as unknown[],
+    // Piece O: continuation context — populated when the user clicks "Tiếp từ ch.N"
+    // on the library card. Pipeline page reads this to render the resume callout.
+    continuationMode: false as boolean,
+    continuationMeta: null as {
+      checkpoint: string
+      title: string
+      chapterCount: number
+      genre: string
+      resumeFromChapter?: number
+      targetChapters?: number
+      interruptedAt?: string
+    } | null,
     form: {
       idea: '',
       title: '',
@@ -105,6 +117,12 @@ function createPipelineStore() {
       return null
     },
 
+    // Piece O: dismiss callout without nuking unrelated pipeline state.
+    dismissContinuationCallout(): void {
+      this.continuationMode = false
+      this.continuationMeta = null
+    },
+
     reset(): void {
       this.status = 'idle'
       this.logs = []
@@ -113,6 +131,8 @@ function createPipelineStore() {
       this.result = null
       this.error = null
       this.checkpoints = []
+      this.continuationMode = false
+      this.continuationMeta = null
     },
   }
 }
@@ -295,5 +315,46 @@ describe('pipelineStore.reset()', () => {
     expect(store.error).toBeNull()
     expect(store.result).toBeNull()
     expect(store.checkpoints).toEqual([])
+  })
+})
+
+// ============================================================================
+// Piece O: continuation callout dismiss
+// ============================================================================
+describe('pipelineStore.dismissContinuationCallout()', () => {
+  it('clears continuationMode + continuationMeta but leaves status untouched', () => {
+    const store = createPipelineStore()
+    store.continuationMode = true
+    store.continuationMeta = {
+      checkpoint: 'tale.json',
+      title: 'A Tale',
+      chapterCount: 3,
+      genre: 'Tiên Hiệp',
+      resumeFromChapter: 4,
+      targetChapters: 10,
+      interruptedAt: '2026-05-03T20:00:00Z',
+    }
+    store.status = 'idle'
+
+    store.dismissContinuationCallout()
+
+    expect(store.continuationMode).toBe(false)
+    expect(store.continuationMeta).toBeNull()
+    // Status should not be reset — user may still want to keep their form.
+    expect(store.status).toBe('idle')
+  })
+
+  it('reset() also clears continuation state', () => {
+    const store = createPipelineStore()
+    store.continuationMode = true
+    store.continuationMeta = {
+      checkpoint: 'x', title: 'y', chapterCount: 1, genre: 'z',
+      resumeFromChapter: 2, targetChapters: 5,
+    }
+
+    store.reset()
+
+    expect(store.continuationMode).toBe(false)
+    expect(store.continuationMeta).toBeNull()
   })
 })

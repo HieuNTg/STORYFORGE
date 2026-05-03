@@ -72,6 +72,23 @@ function pipelinePage() {
       this._watchFormState();
     },
 
+    /**
+     * Piece O: Compact "X giờ trước" formatter for the resume callout.
+     * Mirrors library.ts to keep the banner self-contained — KISS, no shared util layer.
+     */
+    relativeTimeVi(iso: string): string {
+      const t = Date.parse(iso);
+      if (!Number.isFinite(t)) return '';
+      const diff = Math.max(0, Date.now() - t);
+      const minutes = Math.floor(diff / 60_000);
+      if (minutes < 1) return 'vừa xong';
+      if (minutes < 60) return `${minutes} phút trước`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours} giờ trước`;
+      const days = Math.floor(hours / 24);
+      return `${days} ngày trước`;
+    },
+
     get isContinuation(): boolean {
       return Alpine.store('pipeline').continuationMode;
     },

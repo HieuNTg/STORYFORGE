@@ -252,7 +252,17 @@ document.addEventListener('alpine:init', () => {
 
     // Continuation mode state
     continuationMode: false as boolean,
-    continuationMeta: null as { checkpoint: string; title: string; chapterCount: number; genre: string } | null,
+    // Piece O: optional resume fields surface why the form is pre-filled
+    // (only set by resumeStory() from an interrupted-pipeline checkpoint).
+    continuationMeta: null as {
+      checkpoint: string;
+      title: string;
+      chapterCount: number;
+      genre: string;
+      resumeFromChapter?: number;
+      targetChapters?: number;
+      interruptedAt?: string;
+    } | null,
 
     // Advanced continuation features
     multiPathMode: false as boolean,
@@ -373,7 +383,15 @@ document.addEventListener('alpine:init', () => {
       await this._streamPipeline('/pipeline/run', this.form as PipelineForm & Record<string, unknown>);
     },
 
-    startContinuation(meta: { checkpoint: string; title: string; chapterCount: number; genre: string }): void {
+    startContinuation(meta: {
+      checkpoint: string;
+      title: string;
+      chapterCount: number;
+      genre: string;
+      resumeFromChapter?: number;
+      targetChapters?: number;
+      interruptedAt?: string;
+    }): void {
       this.continuationMode = true;
       this.continuationMeta = meta;
       this.status = 'idle';
@@ -544,6 +562,14 @@ document.addEventListener('alpine:init', () => {
         this.error = (e as Error).message;
         this.status = 'error';
       }
+    },
+
+    // Piece O: clear the resume callout without resetting the whole pipeline state.
+    // Used by the dismiss "X" on the resume banner so the user can start fresh
+    // without losing form values they may have already tweaked.
+    dismissContinuationCallout(): void {
+      this.continuationMode = false;
+      this.continuationMeta = null;
     },
 
     reset(): void {
