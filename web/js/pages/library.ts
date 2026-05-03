@@ -43,6 +43,7 @@ function libraryPage() {
     confirmDelete: null as string | null,
     searchQuery: '' as string,
     generatingImages: null as string | null,
+    generatingChapterImage: null as number | null,
     imageStatus: '' as string,
 
     // Reader state
@@ -182,6 +183,34 @@ function libraryPage() {
         this.error = 'Tạo ảnh thất bại: ' + (e as Error).message;
       }
       this.generatingImages = null;
+      setTimeout(() => { this.imageStatus = ''; }, 5000);
+    },
+
+    async generateChapterImage(chapterNumber: number): Promise<void> {
+      // Reader-side regen: only the currently-loaded story's single chapter.
+      const filename = this.selectedStory?.filename;
+      if (!filename || chapterNumber == null) return;
+      this.generatingChapterImage = chapterNumber;
+      this.imageStatus = '';
+      this.error = '';
+      try {
+        const data = await API.post<{ count: number; message: string; image_paths: string[]; chapter_images?: Record<string, string[]> }>(
+          '/images/' + encodeURIComponent(filename) + '/generate',
+          { chapter: chapterNumber }
+        );
+        this.imageStatus = data.message || `Đã tạo ${data.count} ảnh cho chương ${chapterNumber}`;
+        const map = data.chapter_images || {};
+        const target = (this.selectedStory?.enhanced || this.selectedStory?.draft);
+        const ch = target?.chapters?.find((c: StoryChapter) =>
+          (c as { chapter_number?: number }).chapter_number === chapterNumber
+        );
+        if (ch && map[String(chapterNumber)]) {
+          (ch as { images?: string[] }).images = map[String(chapterNumber)];
+        }
+      } catch (e) {
+        this.error = 'Tạo ảnh chương thất bại: ' + (e as Error).message;
+      }
+      this.generatingChapterImage = null;
       setTimeout(() => { this.imageStatus = ''; }, 5000);
     },
 

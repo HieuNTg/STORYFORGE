@@ -253,11 +253,12 @@ def handle_update_character(orch, name: str, personality: str, motivation: str, 
     return t("continue.char_updated", name=name), orch
 
 
-def handle_generate_images(orch_state, provider: str = "none", t=None) -> tuple:
+def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_number: int | None = None) -> tuple:
     """Generate one image per chapter, persist filenames onto chapter.images.
 
-    Returns (image_paths_list, status_msg). Paths are basenames relative to
-    the /media static mount.
+    If ``chapter_number`` is provided, only that single chapter is regenerated
+    (other chapters are left untouched). Returns (image_paths_list, status_msg).
+    Paths are basenames relative to the /media static mount.
     """
     if orch_state is None:
         msg = t("msg.no_story") if t else "No story loaded."
@@ -294,8 +295,16 @@ def handle_generate_images(orch_state, provider: str = "none", t=None) -> tuple:
         prompt_gen = ImagePromptGenerator()
         image_gen = ImageGenerator(provider=provider)
 
+        if chapter_number is not None:
+            target_chapters = [c for c in story.chapters if c.chapter_number == chapter_number]
+            if not target_chapters:
+                msg = f"Chapter {chapter_number} not found."
+                return [], msg
+        else:
+            target_chapters = list(story.chapters)
+
         all_paths: list[str] = []
-        for ch in story.chapters:
+        for ch in target_chapters:
             prompts = prompt_gen.generate_from_chapter(
                 ch,
                 characters=characters or None,

@@ -28,6 +28,7 @@ _in_flight_lock = asyncio.Lock()
 
 class GenerateImagesRequest(BaseModel):
     provider: Optional[str] = None
+    chapter: Optional[int] = None  # if set, regenerate only this chapter
 
 
 class GenerateImagesResponse(BaseModel):
@@ -65,11 +66,14 @@ async def generate_images(session_id: str, body: GenerateImagesRequest = Generat
     `session_id` may be an active orchestrator session UUID or a checkpoint
     filename (e.g. ``story_<id>.json``). Provider falls back to
     ``config.pipeline.image_provider`` (default ``"none"`` short-circuits).
+    Pass ``chapter`` to regenerate a single chapter only — the in-flight guard
+    is per-(session, chapter) so different chapters can be generated in parallel.
     """
+    in_flight_key = f"{session_id}::{body.chapter}" if body.chapter is not None else session_id
     async with _in_flight_lock:
-        if session_id in _in_flight:
+        if in_flight_key in _in_flight:
             raise HTTPException(status_code=409, detail="Image generation already in progress for this story")
-        _in_flight.add(session_id)
+        _in_flight.add(in_flight_key)
 
     try:
         orch = await _get_story_data(session_id)
@@ -86,7 +90,9 @@ async def generate_images(session_id: str, body: GenerateImagesRequest = Generat
 
         from services.handlers import handle_generate_images
         # handle_generate_images is sync + does N blocking HTTP calls — run off-loop
-        paths, msg = await asyncio.to_thread(handle_generate_images, orch, provider)
+        paths, msg = await asyncio.to_thread(
+            handle_generate_images, orch, provider, None, body.chapter
+        )
 
         _persist_to_checkpoint(session_id, orch.output)
 
@@ -105,4 +111,4 @@ async def generate_images(session_id: str, body: GenerateImagesRequest = Generat
         )
     finally:
         async with _in_flight_lock:
-            _in_flight.discard(session_id)
+            _in_flight.discard(in_flight_key)

@@ -2056,10 +2056,28 @@
             <div class="card p-6 md:p-10">
               <template x-if="currentChapter">
                 <div>
-                  <h3 class="text-xl font-bold text-slate-800 mb-4" x-text="'Chương ' + (currentChapter.number || chapter+1) + ': ' + (currentChapter.title || '').replace(/\*\*/g, '').replace(/^#+\s*/gm, '')"></h3>
-                  <template x-if="currentChapter.images && currentChapter.images.length">
-                    <img :src="'/media/' + currentChapter.images[0]" :alt="'Minh hoạ chương ' + (currentChapter.number || chapter+1)" class="w-full rounded-lg mb-6 shadow-sm" loading="lazy" />
-                  </template>
+                  <h3 class="text-xl font-bold text-slate-800 mb-4" x-text="'Chương ' + (currentChapter.number || currentChapter.chapter_number || chapter+1) + ': ' + (currentChapter.title || '').replace(/\*\*/g, '').replace(/^#+\s*/gm, '')"></h3>
+                  <div class="mb-6">
+                    <template x-if="currentChapter.images && currentChapter.images.length">
+                      <img :src="'/media/' + currentChapter.images[0]" :alt="'Minh hoạ chương ' + (currentChapter.number || currentChapter.chapter_number || chapter+1)" class="w-full rounded-lg shadow-sm" loading="lazy" />
+                    </template>
+                    <div class="flex items-center gap-2 mt-2">
+                      <button
+                        @click="generateChapterImage(currentChapter.chapter_number || currentChapter.number || chapter+1)"
+                        :disabled="generatingChapterImage === (currentChapter.chapter_number || currentChapter.number || chapter+1)"
+                        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold cursor-pointer bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 disabled:opacity-50"
+                        :title="(currentChapter.images && currentChapter.images.length) ? 'Tạo lại ảnh chương này' : 'Tạo ảnh cho chương này'">
+                        <template x-if="generatingChapterImage === (currentChapter.chapter_number || currentChapter.number || chapter+1)">
+                          <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        </template>
+                        <template x-if="generatingChapterImage !== (currentChapter.chapter_number || currentChapter.number || chapter+1)">
+                          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M2.25 6v12a1.5 1.5 0 001.5 1.5h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6z"/></svg>
+                        </template>
+                        <span x-text="(currentChapter.images && currentChapter.images.length) ? 'Tạo lại ảnh' : 'Tạo ảnh chương'"></span>
+                      </button>
+                      <span x-show="imageStatus" class="text-[11px] text-violet-600" x-text="imageStatus"></span>
+                    </div>
+                  </div>
                   <div class="text-slate-700 whitespace-pre-wrap leading-[1.9]" :style="'font-size:' + fontSize + 'px'" x-html="(currentChapter.content || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
                 </div>
               </template>
