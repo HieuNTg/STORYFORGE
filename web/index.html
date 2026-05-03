@@ -1254,6 +1254,42 @@
             <!-- Results -->
             <template x-if="$store.pipeline.result">
               <div class="space-y-4">
+                <!-- Piece P: post-resume success ribbon. Closes the recovery loop:
+                     "you came in to add chapters N→M, and we did". Only renders when
+                     the just-finished run originated from a resume (continuationMeta
+                     with resumeFromChapter is still set after `done`). The CTA opens
+                     the reader and clears continuationMeta so reruns get a clean slate. -->
+                <template x-if="$store.pipeline.status === 'done' && $store.pipeline.continuationMeta && $store.pipeline.continuationMeta.resumeFromChapter">
+                  <div role="status" class="card p-4 border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-800 flex items-start gap-3">
+                    <svg class="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+                        Đã thêm chương
+                        <span class="tabular-nums" x-text="$store.pipeline.continuationMeta.resumeFromChapter"></span>
+                        → <span class="tabular-nums" x-text="resumeRangeEnd()"></span>
+                        <template x-if="formatElapsedVi($store.pipeline.runStartedAt, $store.pipeline.runFinishedAt)">
+                          <span class="font-normal text-emerald-700/80 dark:text-emerald-300/80" x-text="' (mất ' + formatElapsedVi($store.pipeline.runStartedAt, $store.pipeline.runFinishedAt) + ')'"></span>
+                        </template>
+                      </p>
+                      <p class="text-xs text-emerald-700/80 dark:text-emerald-300/80 mt-0.5">
+                        Truyện
+                        <span class="font-semibold" x-text="'„' + ($store.pipeline.continuationMeta.title || 'Untitled') + '"'"></span>
+                        đã được cập nhật.
+                      </p>
+                    </div>
+                    <button type="button" @click="openReaderFromRibbon()"
+                      class="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer transition-colors">
+                      Mở reader
+                      <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
+                    </button>
+                    <button type="button" @click="$store.pipeline.clearResumeRibbon()"
+                      aria-label="Đóng thông báo"
+                      class="flex-shrink-0 p-1 rounded-md text-emerald-600 hover:text-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 cursor-pointer">
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                  </div>
+                </template>
+
                 <!-- Story output -->
                 <div x-show="$store.pipeline.result.has_enhanced || $store.pipeline.result.has_draft" class="card">
                   <div class="border-b border-surface-200 px-5 py-3">

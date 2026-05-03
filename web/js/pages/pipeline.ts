@@ -89,6 +89,57 @@ function pipelinePage() {
       return `${days} ngày trước`;
     },
 
+    /**
+     * Piece P: Format elapsed run time for the post-resume success ribbon.
+     * Returns "X giây" when under a minute, otherwise "Y phút".
+     * KISS: short durations are common (cached/quick runs); longer than an
+     * hour is unlikely for resume deltas, so we don't bother with hours.
+     */
+    formatElapsedVi(startedAt: number | null, finishedAt: number | null): string {
+      if (startedAt == null || finishedAt == null || finishedAt < startedAt) return '';
+      const diff = finishedAt - startedAt;
+      if (diff < 60_000) return `${Math.max(1, Math.floor(diff / 1000))} giây`;
+      const minutes = Math.floor(diff / 60_000);
+      return `${minutes} phút`;
+    },
+
+    /**
+     * Piece P: Compute the inclusive chapter range for the success ribbon.
+     * Falls back to resumeFromChapter + form delta when targetChapters is
+     * missing (legacy checkpoints don't always carry that field).
+     */
+    resumeRangeEnd(): number {
+      const store = Alpine.store('pipeline') as
+        { continuationMeta: { resumeFromChapter?: number; targetChapters?: number } | null;
+          form: { num_chapters: number } };
+      const meta = store.continuationMeta;
+      if (!meta) return 0;
+      const start = meta.resumeFromChapter || 1;
+      if (meta.targetChapters && meta.targetChapters >= start) return meta.targetChapters;
+      return start + Math.max(0, (store.form?.num_chapters || 1) - 1);
+    },
+
+    /**
+     * Piece P: open the reader for the just-finished story and clear the
+     * resume ribbon. Mirrors library.openStory() — we set the page first so
+     * the library's x-init can pick up the filename and load it.
+     */
+    openReaderFromRibbon(): void {
+      const result = (Alpine.store('pipeline') as { result: { filename?: string } | null }).result;
+      const filename = result?.filename;
+      (Alpine.store('pipeline') as { clearResumeRibbon(): void }).clearResumeRibbon();
+      Alpine.store('app').navigate('library');
+      if (filename) {
+        // Defer so the library page mounts before openStory is called.
+        setTimeout(() => {
+          const lib = document.querySelector('[x-data*="libraryPage"]') as
+            HTMLElement & { _x_dataStack?: Array<{ openStory?: (f: string) => void }> } | null;
+          const ctx = lib?._x_dataStack?.[0];
+          if (ctx?.openStory) ctx.openStory(filename);
+        }, 50);
+      }
+    },
+
     get isContinuation(): boolean {
       return Alpine.store('pipeline').continuationMode;
     },

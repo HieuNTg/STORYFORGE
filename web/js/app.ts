@@ -264,6 +264,12 @@ document.addEventListener('alpine:init', () => {
       interruptedAt?: string;
     } | null,
 
+    // Piece P: timestamps captured around _streamPipeline so the post-resume
+    // success ribbon can show "(mất Y phút)". Nullable: only set during/after
+    // a run; reset() clears them. Read-only from templates.
+    runStartedAt: null as number | null,
+    runFinishedAt: null as number | null,
+
     // Advanced continuation features
     multiPathMode: false as boolean,
     paths: [] as Array<{ id: string; title: string; summary: string; outlines: Array<{ chapter_number: number; title: string; summary: string; key_events: string[] }> }>,
@@ -340,6 +346,9 @@ document.addEventListener('alpine:init', () => {
       this.progress = 0;
       this.result = null;
       this.error = null;
+      // Piece P: capture run timing for the post-resume ribbon.
+      this.runStartedAt = Date.now();
+      this.runFinishedAt = null;
 
       try {
         for await (const event of API.stream(url, body)) {
@@ -358,6 +367,7 @@ document.addEventListener('alpine:init', () => {
             Alpine.store('app').sessionId = result.session_id ?? null;
             this.status = 'done';
             this.progress = 4;
+            this.runFinishedAt = Date.now();
           } else if (event.type === 'error') {
             this.error = event.data as string;
             this.status = 'error';
@@ -366,7 +376,10 @@ document.addEventListener('alpine:init', () => {
             this.status = 'interrupted';
           }
         }
-        if (this.status === 'running') this.status = 'done';
+        if (this.status === 'running') {
+          this.status = 'done';
+          this.runFinishedAt = Date.now();
+        }
       } catch (e) {
         this.error = (e as Error).message;
         this.status = 'error';
@@ -572,6 +585,13 @@ document.addEventListener('alpine:init', () => {
       this.continuationMeta = null;
     },
 
+    // Piece P: clear continuationMeta (used by the post-resume success ribbon
+    // dismiss button + reader CTA). Same shape as Piece O dismiss but kept
+    // separate so the call sites read clearly.
+    clearResumeRibbon(): void {
+      this.continuationMeta = null;
+    },
+
     reset(): void {
       this.status = 'idle';
       this.logs = [];
@@ -582,6 +602,8 @@ document.addEventListener('alpine:init', () => {
       this.checkpoints = [];
       this.continuationMode = false;
       this.continuationMeta = null;
+      this.runStartedAt = null;
+      this.runFinishedAt = null;
       // Reset advanced features
       this.multiPathMode = false;
       this.paths = [];

@@ -102,9 +102,13 @@ function createPipelineStore() {
       targetChapters?: number
       interruptedAt?: string
     } | null,
+    // Piece P: timing for the post-resume success ribbon
+    runStartedAt: null as number | null,
+    runFinishedAt: null as number | null,
     form: {
       idea: '',
       title: '',
+      num_chapters: 5,
     },
 
     _detectLayer(msg: string): number {
@@ -123,6 +127,12 @@ function createPipelineStore() {
       this.continuationMeta = null
     },
 
+    // Piece P: clear continuationMeta when the user dismisses or follows
+    // the success ribbon's reader CTA.
+    clearResumeRibbon(): void {
+      this.continuationMeta = null
+    },
+
     reset(): void {
       this.status = 'idle'
       this.logs = []
@@ -133,6 +143,8 @@ function createPipelineStore() {
       this.checkpoints = []
       this.continuationMode = false
       this.continuationMeta = null
+      this.runStartedAt = null
+      this.runFinishedAt = null
     },
   }
 }
@@ -356,5 +368,104 @@ describe('pipelineStore.dismissContinuationCallout()', () => {
 
     expect(store.continuationMode).toBe(false)
     expect(store.continuationMeta).toBeNull()
+  })
+})
+
+// ============================================================================
+// Piece P: post-resume success ribbon
+// ============================================================================
+
+// Mirrors the ribbon's x-if predicate in index.html so the ribbon shows only
+// after a resume run finishes (continuationMeta survives until the user
+// dismisses or follows the reader CTA).
+function shouldShowResumeRibbon(store: {
+  status: string
+  continuationMeta: { resumeFromChapter?: number } | null
+}): boolean {
+  return store.status === 'done'
+    && !!store.continuationMeta
+    && !!store.continuationMeta.resumeFromChapter
+}
+
+// Mirrors pipeline.ts formatElapsedVi — short, ≤ minute granularity since
+// resume deltas typically finish in seconds-to-minutes.
+function formatElapsedVi(startedAt: number | null, finishedAt: number | null): string {
+  if (startedAt == null || finishedAt == null || finishedAt < startedAt) return ''
+  const diff = finishedAt - startedAt
+  if (diff < 60_000) return `${Math.max(1, Math.floor(diff / 1000))} giây`
+  const minutes = Math.floor(diff / 60_000)
+  return `${minutes} phút`
+}
+
+describe('Piece P: post-resume success ribbon', () => {
+  it('shows when status is done AND continuationMeta has resumeFromChapter', () => {
+    const store = createPipelineStore()
+    store.status = 'done'
+    store.continuationMeta = {
+      checkpoint: 'tale.json',
+      title: 'A Tale',
+      chapterCount: 4,
+      genre: 'Tiên Hiệp',
+      resumeFromChapter: 5,
+      targetChapters: 10,
+    }
+    expect(shouldShowResumeRibbon(store)).toBe(true)
+  })
+
+  it('hides for non-resume runs (no resumeFromChapter)', () => {
+    const store = createPipelineStore()
+    store.status = 'done'
+    store.continuationMeta = {
+      checkpoint: 'tale.json',
+      title: 'A Tale',
+      chapterCount: 0,
+      genre: 'Tiên Hiệp',
+      // no resumeFromChapter — plain continuation, ribbon must stay hidden
+    }
+    expect(shouldShowResumeRibbon(store)).toBe(false)
+  })
+
+  it('hides while pipeline is still running', () => {
+    const store = createPipelineStore()
+    store.status = 'running'
+    store.continuationMeta = {
+      checkpoint: 'tale.json', title: 'A Tale', chapterCount: 4, genre: 'x',
+      resumeFromChapter: 5, targetChapters: 10,
+    }
+    expect(shouldShowResumeRibbon(store)).toBe(false)
+  })
+
+  it('clearResumeRibbon() drops continuationMeta so the ribbon disappears', () => {
+    const store = createPipelineStore()
+    store.status = 'done'
+    store.continuationMeta = {
+      checkpoint: 'tale.json', title: 'A Tale', chapterCount: 4, genre: 'x',
+      resumeFromChapter: 5, targetChapters: 10,
+    }
+    expect(shouldShowResumeRibbon(store)).toBe(true)
+
+    store.clearResumeRibbon()
+
+    expect(store.continuationMeta).toBeNull()
+    // Status untouched — user still has their result panel open.
+    expect(store.status).toBe('done')
+    expect(shouldShowResumeRibbon(store)).toBe(false)
+  })
+
+  it('formatElapsedVi() returns "X giây" under a minute', () => {
+    expect(formatElapsedVi(1000, 4500)).toBe('3 giây')
+    // Sub-second still floors to 1 (don't show "0 giây").
+    expect(formatElapsedVi(1000, 1500)).toBe('1 giây')
+  })
+
+  it('formatElapsedVi() returns "Y phút" once over a minute', () => {
+    expect(formatElapsedVi(0, 3 * 60_000)).toBe('3 phút')
+  })
+
+  it('formatElapsedVi() returns empty string when timing is missing', () => {
+    expect(formatElapsedVi(null, 1000)).toBe('')
+    expect(formatElapsedVi(1000, null)).toBe('')
+    // Negative diff (clock skew) is treated as missing.
+    expect(formatElapsedVi(2000, 1000)).toBe('')
   })
 })
