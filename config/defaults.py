@@ -230,12 +230,9 @@ class PipelineConfig:
     voice_dedup_l1_l2: bool = True                   # Skip L2 re-extract when L1 profile present
     voice_binary_revert_floor: float = 0.5           # Below this compliance → last-resort revert
 
-    # L2 Consistency Engine (character state, setting, threads, voice)
+    # L2 Consistency Engine (master switch + thread watchdog sub-gate)
     l2_consistency_engine: bool = True  # Enable A-E consistency improvements
-    l2_consistency_character_state: bool = True  # Track character location/physical/emotional state
-    l2_consistency_setting: bool = True  # Track locations, objects, timeline
     l2_consistency_threads: bool = True  # Thread watchdog for plot resolution
-    l2_consistency_voice: bool = True  # Voice fingerprint for dialogue consistency
 
     # Phase 6: Voice preservation (reverts drifted dialogues)
     l2_voice_preservation: bool = True  # Enforce voice preservation post-enhancement
