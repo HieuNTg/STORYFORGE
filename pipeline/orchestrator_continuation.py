@@ -327,6 +327,19 @@ class StoryContinuation:
             except Exception as _rs_e:
                 logger.debug(f"Reader simulation skipped: {_rs_e}")
 
+            # P-C: Incremental publish — UI/API exposes the flag but runtime
+            # streaming is not yet wired. Warn so users see why the toggle has
+            # no effect instead of silently ignoring it.
+            try:
+                from config import ConfigManager
+                if getattr(ConfigManager().load().pipeline, "enable_incremental_publish", False):
+                    _log(
+                        "[WARN] enable_incremental_publish=True but streaming "
+                        "publish is not implemented yet — flag has no effect."
+                    )
+            except Exception:
+                pass
+
             self.output.enhanced_story = enhanced
             self.checkpoint_manager.output = self.output
             self.checkpoint_manager.save(2)
