@@ -182,6 +182,54 @@ def test_auto_build_skipped_when_profile_exists(client, tmp_path, monkeypatch):
     assert kwargs.get("visual_profiles") == {"Hero": "CACHED_PROMPT"}
 
 
+def test_profiles_404_when_session_missing(client):
+    with patch("api.image_routes._get_story_data", return_value=None):
+        r = client.get("/images/missing/profiles")
+    assert r.status_code == 404
+
+
+def test_profiles_returns_stored_profiles(client):
+    char = Character(name="Hero", role="chính", appearance="tall", personality="brave")
+    orch = _build_orch(num_chapters=1, characters=[char])
+
+    fake_store = MagicMock()
+    fake_store.load_profile.return_value = {
+        "name": "Hero",
+        "description": "tall",
+        "frozen_prompt": "FROZEN_HERO",
+        "prompt_version": 2,
+        "reference_image": "",
+    }
+    with patch("api.image_routes._get_story_data", return_value=orch), \
+         patch("services.character_visual_profile.CharacterVisualProfileStore", return_value=fake_store):
+        r = client.get("/images/sess-p1/profiles")
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["profiles"] == [
+        {
+            "name": "Hero",
+            "frozen_prompt": "FROZEN_HERO",
+            "prompt_version": 2,
+            "has_reference_image": False,
+        }
+    ]
+
+
+def test_profiles_empty_when_no_profiles_stored(client):
+    char = Character(name="Hero", role="chính", appearance="tall", personality="brave")
+    orch = _build_orch(num_chapters=1, characters=[char])
+
+    fake_store = MagicMock()
+    fake_store.load_profile.return_value = None
+    with patch("api.image_routes._get_story_data", return_value=orch), \
+         patch("services.character_visual_profile.CharacterVisualProfileStore", return_value=fake_store):
+        r = client.get("/images/sess-p2/profiles")
+
+    assert r.status_code == 200
+    assert r.json() == {"profiles": []}
+
+
 def test_generate_single_chapter_in_flight_isolated_from_full(client):
     """In-flight key for a single chapter must not collide with full-story key."""
     orch = _build_orch(2)

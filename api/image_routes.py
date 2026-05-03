@@ -38,6 +38,17 @@ class GenerateImagesResponse(BaseModel):
     chapter_images: dict[int, list[str]] = {}
 
 
+class CharacterProfile(BaseModel):
+    name: str
+    frozen_prompt: str
+    prompt_version: Optional[int] = None
+    has_reference_image: bool = False
+
+
+class CharacterProfilesResponse(BaseModel):
+    profiles: list[CharacterProfile]
+
+
 def _persist_to_checkpoint(session_id: str, output) -> None:
     """If session_id is a checkpoint filename, rewrite the file with updated chapter.images."""
     if not session_id.endswith(".json"):
@@ -112,3 +123,41 @@ async def generate_images(session_id: str, body: GenerateImagesRequest = Generat
     finally:
         async with _in_flight_lock:
             _in_flight.discard(in_flight_key)
+
+
+@router.get("/{session_id}/profiles", response_model=CharacterProfilesResponse)
+async def get_character_profiles(session_id: str):
+    """Return per-character visual profiles for a session or checkpoint.
+
+    Read-only: omits characters with no stored profile rather than auto-building
+    (the POST /generate route handles profile creation).
+    """
+    orch = await _get_story_data(session_id)
+    if not orch or not orch.output:
+        raise HTTPException(status_code=404, detail="Session or checkpoint not found")
+
+    draft = orch.output.story_draft
+    characters = list(draft.characters) if draft and draft.characters else []
+
+    from services.character_visual_profile import CharacterVisualProfileStore
+    store = CharacterVisualProfileStore()
+
+    profiles: list[CharacterProfile] = []
+    for char in characters:
+        name = getattr(char, "name", "") or ""
+        if not name:
+            continue
+        raw = store.load_profile(name)
+        if not raw:
+            continue
+        ref = raw.get("reference_image") or ""
+        profiles.append(
+            CharacterProfile(
+                name=name,
+                frozen_prompt=raw.get("frozen_prompt") or raw.get("description") or "",
+                prompt_version=raw.get("prompt_version"),
+                has_reference_image=bool(ref) and pathlib.Path(ref).exists(),
+            )
+        )
+
+    return CharacterProfilesResponse(profiles=profiles)

@@ -2078,6 +2078,30 @@
                       <span x-show="imageStatus" class="text-[11px] text-violet-600" x-text="imageStatus"></span>
                     </div>
                   </div>
+                  <div x-show="characterProfiles.length" class="mb-5 border border-surface-200 rounded-lg bg-surface-50/60">
+                    <button
+                      @click="showCharacterPanel = !showCharacterPanel"
+                      class="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-600 hover:text-brand-600 cursor-pointer">
+                      <span class="inline-flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>
+                        <span>Nhân vật</span>
+                        <span class="text-[10px] text-slate-400" x-text="'(' + characterProfiles.length + ')'"></span>
+                      </span>
+                      <svg class="w-3.5 h-3.5 transition-transform" :class="showCharacterPanel ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/></svg>
+                    </button>
+                    <div x-show="showCharacterPanel" x-cloak class="px-3 pb-3 space-y-2">
+                      <template x-for="p in characterProfiles" :key="p.name">
+                        <div class="bg-white rounded-md border border-surface-200 p-2.5">
+                          <div class="flex items-center gap-2 mb-1">
+                            <span class="text-xs font-semibold text-slate-700" x-text="p.name"></span>
+                            <span x-show="p.prompt_version != null" class="text-[10px] text-slate-400" x-text="'v' + p.prompt_version"></span>
+                            <span x-show="p.has_reference_image" class="text-[10px] text-emerald-600">ref</span>
+                          </div>
+                          <div class="text-[11px] text-slate-500 leading-relaxed" x-text="(p.frozen_prompt || '').slice(0, 140) + ((p.frozen_prompt || '').length > 140 ? '…' : '')"></div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
                   <div class="text-slate-700 whitespace-pre-wrap leading-[1.9]" :style="'font-size:' + fontSize + 'px'" x-html="(currentChapter.content || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
                 </div>
               </template>

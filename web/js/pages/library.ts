@@ -33,6 +33,13 @@ interface LoadedStory {
   filename?: string;
 }
 
+interface CharacterProfile {
+  name: string;
+  frozen_prompt: string;
+  prompt_version?: number | null;
+  has_reference_image: boolean;
+}
+
 function libraryPage() {
   return {
     // Library state
@@ -50,6 +57,8 @@ function libraryPage() {
     selectedStory: null as LoadedStory | null,
     chapter: 0 as number,
     fontSize: 18 as number,
+    characterProfiles: [] as CharacterProfile[],
+    showCharacterPanel: false as boolean,
 
     // Computed: current view mode
     get isReading(): boolean {
@@ -109,20 +118,36 @@ function libraryPage() {
         // Set selected story for inline reading
         this.selectedStory = data;
         this.chapter = 0;
+        this.characterProfiles = [];
         // Also update global stores for compatibility
         Alpine.store('pipeline').result = data;
         Alpine.store('pipeline').status = 'done';
         Alpine.store('pipeline').progress = 4;
         Alpine.store('app').pipelineResult = data;
+        // Fire-and-forget: don't block reader render on profiles
+        this.loadCharacterProfiles(filename);
       } catch (e) {
         this.error = 'Failed to load story: ' + (e as Error).message;
       }
       this.loadingStory = null;
     },
 
+    async loadCharacterProfiles(filename: string): Promise<void> {
+      try {
+        const data = await API.get<{ profiles?: CharacterProfile[] }>(
+          '/images/' + encodeURIComponent(filename) + '/profiles'
+        );
+        this.characterProfiles = data.profiles || [];
+      } catch {
+        this.characterProfiles = [];
+      }
+    },
+
     backToList(): void {
       this.selectedStory = null;
       this.chapter = 0;
+      this.characterProfiles = [];
+      this.showCharacterPanel = false;
     },
 
     async deleteStory(filename: string): Promise<void> {
