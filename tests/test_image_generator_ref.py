@@ -168,3 +168,80 @@ def test_replicate_with_ref_configured_calls_client_generate(tmp_path):
 
     mock_client.generate.assert_called_once_with("prompt", "/r.png", "out.png")
     assert result == "/replicate/out.png"
+
+
+# ---------------------------------------------------------------------------
+# generate_story_images — character_references routing
+# ---------------------------------------------------------------------------
+
+
+def _make_prompt(scene_chars):
+    p = MagicMock()
+    p.dalle_prompt = "dalle"
+    p.sd_prompt = "sd"
+    p.scene_description = "scene"
+    p.characters_in_scene = scene_chars
+    return p
+
+
+def test_generate_story_images_routes_through_reference_when_ref_available(tmp_path):
+    """Scene mentions a character with a reference → generate_with_reference is used."""
+    gen = ImageGenerator(provider="seedream")
+    gen.output_dir = str(tmp_path)
+    ref_path = tmp_path / "hero.png"
+    ref_path.write_bytes(b"\x89PNG")
+
+    prompt = _make_prompt(["Hero"])
+    with patch.object(gen, "generate_with_reference", return_value="/scene.png") as gwr, \
+         patch.object(gen, "generate") as g:
+        paths = gen.generate_story_images(
+            [prompt],
+            chapter_number=1,
+            character_references={"Hero": str(ref_path)},
+        )
+    gwr.assert_called_once()
+    g.assert_not_called()
+    assert paths == ["/scene.png"]
+
+
+def test_generate_story_images_no_refs_uses_text_only(tmp_path):
+    """No character_references → original text-only path (backward compat)."""
+    gen = ImageGenerator(provider="dalle")
+    gen.output_dir = str(tmp_path)
+
+    prompt = _make_prompt(["Hero"])
+    with patch.object(gen, "generate_with_reference") as gwr, \
+         patch.object(gen, "generate", return_value="/text.png") as g:
+        paths = gen.generate_story_images([prompt], chapter_number=1)
+    gwr.assert_not_called()
+    g.assert_called_once()
+    assert paths == ["/text.png"]
+
+
+def test_generate_story_images_skips_missing_files(tmp_path):
+    """Reference path that does not exist on disk is filtered out."""
+    gen = ImageGenerator(provider="seedream")
+    gen.output_dir = str(tmp_path)
+
+    prompt = _make_prompt(["Hero"])
+    with patch.object(gen, "generate_with_reference") as gwr, \
+         patch.object(gen, "generate", return_value="/text.png") as g:
+        paths = gen.generate_story_images(
+            [prompt],
+            chapter_number=1,
+            character_references={"Hero": str(tmp_path / "missing.png")},
+        )
+    gwr.assert_not_called()
+    g.assert_called_once()
+    assert paths == ["/text.png"]
+
+
+def test_generate_with_reference_unsupported_provider_logs_and_drops(tmp_path, caplog):
+    """Unsupported provider logs a single info line and drops refs."""
+    import logging
+    gen = ImageGenerator(provider="dalle")
+    gen.output_dir = str(tmp_path)
+    with caplog.at_level(logging.INFO, logger="services.media.image_generator"), \
+         patch.object(gen, "generate", return_value="/out.png"):
+        gen.generate_with_reference("prompt", ["/r.png"], "out.png")
+    assert any("does not support reference" in rec.message for rec in caplog.records)

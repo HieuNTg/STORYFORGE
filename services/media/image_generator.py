@@ -74,20 +74,46 @@ class ImageGenerator:
         if self.provider == "replicate":
             return self._replicate_with_ref(prompt, reference_paths[0], filename)
 
-        # DALL-E/SD: no native reference support, fall through to text-only
+        # DALL-E/SD/HF: no native reference support, drop refs and go text-only
+        logger.info(
+            "Provider %s does not support reference images; dropping %d ref(s)",
+            self.provider,
+            len(reference_paths),
+        )
         return self.generate(prompt, filename, size)
 
     def generate_story_images(
-        self, image_prompts: list, chapter_number: int = 0
+        self,
+        image_prompts: list,
+        chapter_number: int = 0,
+        character_references: dict | None = None,
     ) -> list[str]:
-        """Generate images for a list of ImagePrompt objects. Returns saved paths."""
+        """Generate images for a list of ImagePrompt objects. Returns saved paths.
+
+        ``character_references`` maps character name → reference image path. When
+        a prompt's ``characters_in_scene`` contains names with refs, we route via
+        ``generate_with_reference`` so img2img-capable providers (seedream,
+        replicate) condition on the uploaded reference. Providers without native
+        reference support fall through to text-only generation transparently.
+        """
         paths: list[str] = []
+        refs = character_references or {}
         for i, ip in enumerate(image_prompts):
             prompt = ip.dalle_prompt if self.provider == "dalle" else ip.sd_prompt
             if not prompt:
                 prompt = ip.scene_description
             filename = f"ch{chapter_number:02d}_panel{i + 1:02d}.png"
-            path = self.generate(prompt, filename)
+
+            scene_refs: list[str] = []
+            for name in getattr(ip, "characters_in_scene", []) or []:
+                ref = refs.get(name)
+                if ref and os.path.exists(ref) and ref not in scene_refs:
+                    scene_refs.append(ref)
+
+            if scene_refs:
+                path = self.generate_with_reference(prompt, scene_refs, filename)
+            else:
+                path = self.generate(prompt, filename)
             if path:
                 paths.append(path)
         return paths

@@ -276,6 +276,7 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
         characters = list(getattr(draft, "characters", []) or []) if draft else []
 
         visual_profiles: dict[str, str] = {}
+        character_references: dict[str, str] = {}
         try:
             from services.character_visual_profile import CharacterVisualProfileStore
             store = CharacterVisualProfileStore()
@@ -286,6 +287,9 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
                     visual_profiles[c.name] = fp
                 else:
                     missing.append(c)
+                ref = store.get_reference_image(c.name)
+                if ref:
+                    character_references[c.name] = ref
             # Auto-build for checkpoint-loaded stories that never went through MediaProducer.
             if missing:
                 logger.info(
@@ -326,7 +330,11 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
             )
             if not prompts:
                 continue
-            ch_paths = image_gen.generate_story_images(prompts, chapter_number=ch.chapter_number)
+            ch_paths = image_gen.generate_story_images(
+                prompts,
+                chapter_number=ch.chapter_number,
+                character_references=character_references or None,
+            )
             ch.images = [os.path.basename(p) for p in ch_paths]
             all_paths.extend(ch_paths)
 

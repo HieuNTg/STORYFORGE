@@ -613,6 +613,44 @@ class TestHandleGenerateImages(unittest.TestCase):
             paths, msg = handle_generate_images(orch, provider="dalle", t=_t)
             self.assertEqual(paths, ["img1.png"])
 
+    def test_passes_reference_paths_when_character_has_one(self):
+        """When a character profile has a reference image, it must reach generate_story_images."""
+        from services.handlers import handle_generate_images
+        orch = _make_orch_state(
+            story_draft=_make_story_draft(characters=[_make_character("Hero")]),
+            enhanced_story=_make_enhanced_story(),
+        )
+        fake_store = MagicMock()
+        fake_store.get_frozen_prompt.return_value = "FP"
+        fake_store.get_reference_image.return_value = "/path/hero.png"
+        with patch("services.image_generator.ImageGenerator") as MockImgGen, \
+             patch("services.image_prompt_generator.ImagePromptGenerator") as MockPromptGen, \
+             patch("services.character_visual_profile.CharacterVisualProfileStore", return_value=fake_store):
+            MockPromptGen.return_value.generate_from_chapter.return_value = [MagicMock()]
+            MockImgGen.return_value.generate_story_images.return_value = ["img1.png"]
+            handle_generate_images(orch, provider="seedream", t=_t)
+            _, kwargs = MockImgGen.return_value.generate_story_images.call_args
+            self.assertEqual(kwargs.get("character_references"), {"Hero": "/path/hero.png"})
+
+    def test_no_references_passes_none(self):
+        """No character has a reference → character_references kwarg is None (backward compat)."""
+        from services.handlers import handle_generate_images
+        orch = _make_orch_state(
+            story_draft=_make_story_draft(characters=[_make_character("Hero")]),
+            enhanced_story=_make_enhanced_story(),
+        )
+        fake_store = MagicMock()
+        fake_store.get_frozen_prompt.return_value = "FP"
+        fake_store.get_reference_image.return_value = None
+        with patch("services.image_generator.ImageGenerator") as MockImgGen, \
+             patch("services.image_prompt_generator.ImagePromptGenerator") as MockPromptGen, \
+             patch("services.character_visual_profile.CharacterVisualProfileStore", return_value=fake_store):
+            MockPromptGen.return_value.generate_from_chapter.return_value = [MagicMock()]
+            MockImgGen.return_value.generate_story_images.return_value = ["img1.png"]
+            handle_generate_images(orch, provider="dalle", t=_t)
+            _, kwargs = MockImgGen.return_value.generate_story_images.call_args
+            self.assertIsNone(kwargs.get("character_references"))
+
 
 if __name__ == "__main__":
     unittest.main()
