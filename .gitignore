@@ -52,6 +52,7 @@ coverage/
 web/js/**/*.js
 web/js/**/*.js.map
 !web/js/__tests__/setup.js
+!web/js/pages/library.js
 web/dist/
 
 # ── IDE & OS ───────────────────────────────────────────────────────
