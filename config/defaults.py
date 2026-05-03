@@ -4,6 +4,33 @@ from dataclasses import dataclass, field
 
 
 @dataclass
+class VoiceConfig:
+    """Nested voice-handling config (RFC voice-handling-consolidation Phase A).
+
+    Mirrors the flat voice_* / l2_voice_* fields on PipelineConfig. Both shapes
+    are synced via PipelineConfig.__post_init__ — flat fields remain
+    authoritative until Phase B flips ownership.
+
+    New call sites should read this nested shape; legacy call sites can keep
+    using flat fields without breaking.
+    """
+    # Generation (L1)
+    dedup_l1_l2: bool = True
+
+    # Validation (L2)
+    enabled: bool = True
+    min_compliance: float = 0.75
+    drift_warn_threshold: float = 0.4
+    drift_revert_threshold: float = 0.3
+    binary_revert_floor: float = 0.5
+
+    # Contract gate
+    contract_enabled: bool = True
+    contract_retry_enabled: bool = True
+    contract_retry_max: int = 1
+
+
+@dataclass
 class LLMConfig:
     """Cấu hình kết nối LLM API.
 
@@ -310,6 +337,28 @@ class PipelineConfig:
 
     # Incremental L2 Publish (P-C) — stream chapters as they're enhanced
     enable_incremental_publish: bool = False  # Opt-in — emits chapter_enhanced events
+
+    # RFC voice-handling-consolidation Phase A: nested view of voice flags.
+    # Defaults match flat voice_* / l2_voice_* fields. Synced in __post_init__.
+    voice: VoiceConfig = field(default_factory=VoiceConfig)
+
+    def __post_init__(self):
+        """Phase A sync: copy flat voice_* / l2_voice_* fields into self.voice
+        when the nested shape is at defaults, so consumers reading either
+        shape see identical values. Flat fields stay authoritative.
+        """
+        if self.voice == VoiceConfig():
+            self.voice = VoiceConfig(
+                dedup_l1_l2=self.voice_dedup_l1_l2,
+                enabled=self.l2_voice_preservation,
+                min_compliance=self.voice_min_compliance,
+                drift_warn_threshold=self.l2_voice_drift_threshold,
+                drift_revert_threshold=self.l2_voice_revert_threshold,
+                binary_revert_floor=self.voice_binary_revert_floor,
+                contract_enabled=self.enable_voice_contract,
+                contract_retry_enabled=self.enable_voice_contract_retry,
+                contract_retry_max=self.voice_contract_retry_max,
+            )
 
 
 # Presets live in config/presets.py — imported here for convenience.

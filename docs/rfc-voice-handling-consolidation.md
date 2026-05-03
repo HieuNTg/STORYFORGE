@@ -1,6 +1,6 @@
 # RFC: Voice Handling Consolidation (H1/H2)
 
-**Status:** Draft
+**Status:** Phase A landed (nested VoiceConfig + sync). Phase B/C pending CEO greenlight.
 **Date:** 2026-05-03
 **Author:** Engineering Squad (autonomous)
 **Tracking audit:** `plans/reports/agency-orchestrator-260503-1330-project-audit.md` H1, H2
@@ -129,9 +129,25 @@ Total: ~3.5 dev-days, low risk if Phase A lands first behind shims.
 
 ---
 
-## Open questions
+## Resolved questions (2026-05-03)
 
-1. Should `VoiceConfig` live in `config/voice_config.py` or stay inline in `defaults.py`?
-2. Should `services/voice_engine.py` be a stateless module or a class? (Engine builds an in-memory cache of profiles per draft — class-with-state is cleaner, but stateless is easier to test.)
-3. UI form: collapse nested fields into a single "Voice" accordion section, or keep flat for backward compat?
-4. Do we ship Phase A in the current sprint and Phase B/C in a follow-up, or batch all three?
+1. **Inline in `defaults.py`** — canonical config home, KISS.
+2. **Stateless module functions** — easier to test; engine has no cross-call state.
+3. **UI form** — flat keys preserved through Phase B; collapse to nested accordion in Phase C.
+4. **Phased rollout** — Phase A landed this sprint; Phase B/C deferred.
+
+## Phase A — landed scope
+
+- `VoiceConfig` dataclass added inline in `config/defaults.py`
+- `PipelineConfig.voice` field with `__post_init__` sync from flat fields
+- Flat fields (`l2_voice_preservation`, `voice_min_compliance`, …) remain authoritative — zero call-site changes required
+- Verified: 57/57 regression tests pass; custom flat overrides flow into nested view
+
+## Phase A note on H2 (code dedup)
+
+After re-reading both modules, the H2 audit finding is largely a **false positive**:
+
+- `pipeline/layer1_story/character_voice_profiler.py` (207 LOC) → LLM-driven *generation*
+- `pipeline/layer2_enhance/voice_fingerprint.py` (680 LOC) → algorithmic *analysis + enforcement*
+
+Different concerns, no shared algorithm to extract. Phase B will revisit only if a true shared primitive emerges.
