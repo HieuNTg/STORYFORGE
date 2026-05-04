@@ -93,16 +93,6 @@ See [`docs/system-architecture.md`](docs/system-architecture.md) for the full fl
 
 ---
 
-## Recent Sprints (May 2026)
-
-- **[Sprint 1](docs/adr/0001-l1-handoff-envelope.md)** — Typed `L1Handoff` + `NegotiatedChapterContract` (Pydantic v2, frozen) replaces silent-empty `getattr` pattern at the L1→L2 seam. `STORYFORGE_HANDOFF_STRICT=1` for fail-fast.
-- **[Sprint 2](docs/adr/0002-semantic-verification.md)** — Local CPU embeddings (`paraphrase-multilingual-MiniLM-L12-v2`) + spaCy NER replace 3 keyword checks. Threshold `0.55` hits 96.67% on 30-pair VN calibration. `STORYFORGE_SEMANTIC_STRICT=1`.
-- **[Sprint 3](docs/adr/0003-generation-hardening-drama-ceiling.md)** — Drama ceiling wired into chapter prompts; voice revert switched positional → speaker-anchored `(speaker_id, ordinal)` with NFC; async D3 contract (sync wrappers raise on running loop); structural rewriter batched behind `asyncio.Semaphore`.
-
-Sprint plans live in `plans/` (gitignored — local-only working notes).
-
----
-
 ## Documentation
 
 - [`docs/`](docs/README.md) — full index (architecture, code standards, deployment)
