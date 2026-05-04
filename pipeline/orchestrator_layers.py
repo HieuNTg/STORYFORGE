@@ -584,6 +584,24 @@ async def run_full_pipeline(
                             f"[YÊU CẦU SỬA LỖI CẤU TRÚC]\n{_fix_hints}"
                             if _fix_hints else ""
                         )
+                        # Prepend drama directive if this chapter has a reconciled contract.
+                        _ch_contract = next(
+                            (getattr(c, "negotiated_contract", None)
+                             for c in draft.chapters if c.chapter_number == _ch_num),
+                            None,
+                        )
+                        if _ch_contract is not None and getattr(_ch_contract, "drama_ceiling", 0.0) > 0:
+                            _subtext = ", ".join(_ch_contract.required_subtext) if _ch_contract.required_subtext else "không"
+                            _forbidden = ", ".join(_ch_contract.forbidden_patterns) if _ch_contract.forbidden_patterns else "không"
+                            _drama_directive = (
+                                "## RÀNG BUỘC KỊCH TÍNH"
+                                f"\n- Mục tiêu kịch tính: {_ch_contract.drama_target:.2f}"
+                                f"\n- Dung sai: ±{_ch_contract.drama_tolerance:.2f}"
+                                f"\n- Trần (KHÔNG vượt quá): {_ch_contract.drama_ceiling:.2f}"
+                                f"\n- Yêu cầu phụ văn (subtext): {_subtext}"
+                                f"\n- Cấm: {_forbidden}"
+                            )
+                            _enhancement_ctx = f"{_drama_directive}\n\n{_enhancement_ctx}" if _enhancement_ctx else _drama_directive
                         _rewritten_ch = await asyncio.to_thread(
                             self.story_gen.write_chapter,
                             title=draft.title,

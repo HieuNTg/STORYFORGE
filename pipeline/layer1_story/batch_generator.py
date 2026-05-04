@@ -781,6 +781,7 @@ class BatchChapterGenerator:
                     logger.warning("Beat writing failed for ch%d, falling back: %s", outline.chapter_number, e)
                     use_beat_writing = False
 
+            _negotiated_contract = contract.to_negotiated() if contract is not None else None
             if not use_beat_writing and stream_callback:
                 chapter = self.gen.write_chapter_stream(
                     title, genre, style, characters, world, outline,
@@ -795,6 +796,7 @@ class BatchChapterGenerator:
                     current_arc_context=arc_context,
                     chapter_contract=contract_text,
                     scenes=chapter_scenes,
+                    negotiated_contract=_negotiated_contract,
                 )
             elif not use_beat_writing:
                 chapter = self.gen._write_chapter_with_long_context(
@@ -809,6 +811,7 @@ class BatchChapterGenerator:
                     current_arc_context=arc_context,
                     chapter_contract=contract_text,
                     scenes=chapter_scenes,
+                    negotiated_contract=_negotiated_contract,
                 )
 
             if contract is not None:
@@ -1462,6 +1465,7 @@ class BatchChapterGenerator:
         if progress_callback:
             progress_callback(f"Đang viết chương {outline.chapter_number}: {outline.title}...")
 
+        _p_negotiated = p_contract.to_negotiated() if p_contract is not None else None
         ch_result = self.gen._write_chapter_with_long_context(
             title, genre, style, characters, world, outline,
             word_count, frozen_ctx, list(frozen.chapter_texts), bible_ctx,
@@ -1473,6 +1477,7 @@ class BatchChapterGenerator:
             enhancement_context=per_chapter_enhancement,
             current_arc_context=arc_context,
             chapter_contract=p_contract_text,
+            negotiated_contract=_p_negotiated,
         )
 
         if p_contract is not None:

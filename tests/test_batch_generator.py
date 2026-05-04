@@ -506,3 +506,107 @@ class TestAsyncBatch:
         # Should route to threaded when asyncio disabled
         bg._run_batch_threaded.assert_called_once()
         bg._run_batch_async.assert_not_called()
+
+
+class TestDramaContractPassthrough:
+    """Smoke tests: negotiated_contract is passed to write calls (Sprint 3 P2)."""
+
+    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    def test_negotiated_contract_passed_when_contract_built(self, mock_post_write):
+        """When a contract is built, to_negotiated() result is passed to write call."""
+        from unittest.mock import call
+        gen = _mock_generator(batch_size=5)
+        gen.config.pipeline.enable_chapter_contracts = True
+        gen.config.pipeline.enable_proactive_constraints = False
+        gen.config.pipeline.enable_thread_enforcement = False
+        gen.config.pipeline.enable_l1_causal_graph = False
+        gen.config.pipeline.enable_emotional_memory = False
+        gen.config.pipeline.enable_foreshadowing_enforcement = False
+        gen.config.pipeline.enable_scene_decomposition = False
+        gen.config.pipeline.enable_scene_beat_writing = False
+        gen.config.pipeline.rag_enabled = False
+        gen.config.pipeline.story_bible_enabled = False
+        gen.config.pipeline.enable_tiered_context = False
+        gen._layer_model = "cheap"
+
+        write_calls = []
+
+        def fake_write(*args, **kwargs):
+            write_calls.append(kwargs.get("negotiated_contract"))
+            return _make_chapter(args[5].chapter_number)
+
+        gen._write_chapter_with_long_context.side_effect = fake_write
+
+        from models.handoff_schemas import NegotiatedChapterContract
+
+        fake_negotiated = NegotiatedChapterContract(
+            chapter_num=1, pacing_type="rising",
+            drama_target=0.7, drama_tolerance=0.15, drama_ceiling=0.85,
+        )
+        fake_contract = MagicMock()
+        fake_contract.to_negotiated.return_value = fake_negotiated
+
+        bg = BatchChapterGenerator(gen)
+        draft = StoryDraft(
+            title="T", genre="G", synopsis="S",
+            characters=[], world=_WORLD, outlines=[],
+        )
+        outlines = [_make_outline(1)]
+        ctx = StoryContext(total_chapters=1)
+
+        with patch(
+            "pipeline.layer1_story.chapter_contract_builder.build_contract",
+            return_value=fake_contract,
+        ), patch(
+            "pipeline.layer1_story.chapter_contract_builder.format_contract_for_prompt",
+            return_value="contract text",
+        ):
+            bg.generate_chapters(
+                draft=draft, outlines=outlines, story_context=ctx,
+                title="T", genre="G", style="S",
+                characters=[], world=_WORLD,
+            )
+
+        assert len(write_calls) == 1
+        assert write_calls[0] is fake_negotiated
+
+    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    def test_negotiated_contract_none_when_no_contract(self, mock_post_write):
+        """When contracts disabled, negotiated_contract=None is passed."""
+        gen = _mock_generator(batch_size=5)
+        gen.config.pipeline.enable_chapter_contracts = False
+        gen.config.pipeline.enable_thread_enforcement = False
+        gen.config.pipeline.enable_l1_causal_graph = False
+        gen.config.pipeline.enable_emotional_memory = False
+        gen.config.pipeline.enable_foreshadowing_enforcement = False
+        gen.config.pipeline.enable_scene_decomposition = False
+        gen.config.pipeline.enable_scene_beat_writing = False
+        gen.config.pipeline.rag_enabled = False
+        gen.config.pipeline.story_bible_enabled = False
+        gen.config.pipeline.enable_tiered_context = False
+        gen._layer_model = "cheap"
+
+        write_calls = []
+
+        def fake_write(*args, **kwargs):
+            write_calls.append(kwargs.get("negotiated_contract"))
+            return _make_chapter(args[5].chapter_number)
+
+        gen._write_chapter_with_long_context.side_effect = fake_write
+
+        bg = BatchChapterGenerator(gen)
+        draft = StoryDraft(
+            title="T", genre="G", synopsis="S",
+            characters=[], world=_WORLD, outlines=[],
+        )
+        outlines = [_make_outline(1)]
+        ctx = StoryContext(total_chapters=1)
+
+        bg.generate_chapters(
+            draft=draft, outlines=outlines, story_context=ctx,
+            title="T", genre="G", style="S",
+            characters=[], world=_WORLD,
+        )
+
+        assert len(write_calls) == 1
+        assert write_calls[0] is None

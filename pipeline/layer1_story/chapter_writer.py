@@ -13,6 +13,7 @@ from services.text_utils import excerpt_text
 
 if TYPE_CHECKING:
     from services.llm_client import LLMClient
+    from models.handoff_schemas import NegotiatedChapterContract
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +168,7 @@ def build_chapter_prompt(
     current_arc_context: str = "",
     chapter_contract: str = "",
     scenes: list[dict] = None,
+    negotiated_contract: Optional["NegotiatedChapterContract"] = None,
 ) -> tuple[str, str]:
     """Build system/user prompts for chapter writing. Returns (system_prompt, user_prompt)."""
     chars_text = "\n".join(
@@ -327,6 +329,17 @@ def build_chapter_prompt(
     ).render()
     if narrative_block:
         user_prompt += "\n\n" + narrative_block
+    if negotiated_contract is not None and negotiated_contract.drama_ceiling > 0:
+        subtext = ", ".join(negotiated_contract.required_subtext) if negotiated_contract.required_subtext else "không"
+        forbidden = ", ".join(negotiated_contract.forbidden_patterns) if negotiated_contract.forbidden_patterns else "không"
+        user_prompt += (
+            "\n\n## RÀNG BUỘC KỊCH TÍNH"
+            f"\n- Mục tiêu kịch tính: {negotiated_contract.drama_target:.2f}"
+            f"\n- Dung sai: ±{negotiated_contract.drama_tolerance:.2f}"
+            f"\n- Trần (KHÔNG vượt quá): {negotiated_contract.drama_ceiling:.2f}"
+            f"\n- Yêu cầu phụ văn (subtext): {subtext}"
+            f"\n- Cấm: {forbidden}"
+        )
     # Reinforce Vietnamese at end of prompt (after all context) to prevent
     # language drift in later chapters where context is very long
     user_prompt += "\n\n[NHẮC LẠI: Viết hoàn toàn bằng tiếng Việt. Không dùng tiếng Anh hay ngôn ngữ khác.]"
@@ -356,6 +369,7 @@ def write_chapter(
     current_arc_context: str = "",
     chapter_contract: str = "",
     scenes: list[dict] = None,
+    negotiated_contract: Optional["NegotiatedChapterContract"] = None,
 ) -> Chapter:
     """Write a single chapter (non-streaming)."""
     sys_prompt, user_prompt = build_chapter_prompt(
@@ -369,6 +383,7 @@ def write_chapter(
         current_arc_context=current_arc_context,
         chapter_contract=chapter_contract,
         scenes=scenes,
+        negotiated_contract=negotiated_contract,
     )
     content = llm.generate(
         system_prompt=sys_prompt,
@@ -407,6 +422,7 @@ def write_chapter_stream(
     current_arc_context: str = "",
     chapter_contract: str = "",
     scenes: list[dict] = None,
+    negotiated_contract: Optional["NegotiatedChapterContract"] = None,
 ) -> Chapter:
     """Write chapter with streaming. Calls stream_callback(partial_text) each chunk."""
     sys_prompt, user_prompt = build_chapter_prompt(
@@ -420,6 +436,7 @@ def write_chapter_stream(
         current_arc_context=current_arc_context,
         chapter_contract=chapter_contract,
         scenes=scenes,
+        negotiated_contract=negotiated_contract,
     )
 
     full_content = ""
@@ -445,6 +462,7 @@ def write_chapter_stream(
             current_arc_context=current_arc_context,
             chapter_contract=chapter_contract,
             scenes=scenes,
+            negotiated_contract=negotiated_contract,
         )
 
     return Chapter(
