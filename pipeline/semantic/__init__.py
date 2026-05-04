@@ -1,16 +1,29 @@
 """pipeline.semantic — embedding-based semantic verification modules (Sprint 2).
 
-Shared exception `SemanticVerificationError` lives here so both
-`foreshadowing_verifier` (P3) and `structural_detector` (P4) can raise it
-without a circular import.
+Shared exception `SemanticVerificationError` and strict-mode helper live here
+so P3 (foreshadowing_verifier), P4 (structural_detector), and P5
+(outline_critic) can all use them without a circular import or duplicated
+env-reads.
 """
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from models.semantic_schemas import SemanticPayoffMatch, StructuralFinding
+
+_STRICT_ENV = "STORYFORGE_SEMANTIC_STRICT"
+
+
+def is_strict_mode() -> bool:
+    """Return True when STORYFORGE_SEMANTIC_STRICT=1 is set in the environment.
+
+    Single canonical helper — use this instead of reading os.environ directly
+    in P3, P4, and P5 to avoid three duplicated env-reads (DRY).
+    """
+    return os.environ.get(_STRICT_ENV, "0").strip() == "1"
 
 
 class SemanticVerificationError(Exception):
@@ -36,4 +49,4 @@ class SemanticVerificationError(Exception):
         self.missed: list = self.missed_payoffs
 
 
-__all__ = ["SemanticVerificationError"]
+__all__ = ["is_strict_mode", "SemanticVerificationError"]

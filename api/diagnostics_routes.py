@@ -33,3 +33,22 @@ async def get_handoff_diagnostics(story_id: str) -> JSONResponse:
             detail="Story not found or no handoff envelope persisted (pre-migration story).",
         )
     return JSONResponse(content=result)
+
+
+@router.get("/semantic/{story_id}", summary="Sprint-2 semantic verification diagnostics for a story")
+async def get_semantic_diagnostics(story_id: str) -> JSONResponse:
+    """Return per-chapter semantic findings and outline metrics.
+
+    Returns 404 when the story does not exist or has no Sprint-2 semantic
+    data (pre-Sprint-2 stories where both semantic_findings and
+    outline_metrics columns are NULL).
+    """
+    from services.diagnostics_service import build_semantic_diagnostics
+
+    result = build_semantic_diagnostics(story_id)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Story not found or no semantic diagnostics available (pre-Sprint-2 story).",
+        )
+    return JSONResponse(content=result)

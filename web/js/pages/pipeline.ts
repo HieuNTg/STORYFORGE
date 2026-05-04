@@ -9,6 +9,8 @@ function pipelinePage() {
     _branchComp: null as unknown,
     handoffDiagLoading: false as boolean,
     handoffDiagData: null as Record<string, unknown> | null,
+    semanticDiagLoading: false as boolean,
+    semanticDiagData: null as Record<string, unknown> | null,
 
     /** Example story ideas for quick start */
     ideaExamples: [
@@ -202,6 +204,18 @@ function pipelinePage() {
         if (resp.ok) this.handoffDiagData = await resp.json() as Record<string, unknown>;
       } catch (_) {}
       finally { this.handoffDiagLoading = false; }
+    },
+
+    /** Sprint-2 P6: fetch semantic verification diagnostics. */
+    async loadSemanticDiagnostics(): Promise<void> {
+      const storyId = (Alpine.store('pipeline').result as Record<string, unknown> | null)?.story_id as string | undefined;
+      if (!storyId || this.semanticDiagData) return;
+      this.semanticDiagLoading = true;
+      try {
+        const resp = await fetch(`/api/diagnostics/semantic/${storyId}`);
+        if (resp.ok) this.semanticDiagData = await resp.json() as Record<string, unknown>;
+      } catch (_) {}
+      finally { this.semanticDiagLoading = false; }
     },
 
     async openBranchMode(): Promise<void> {

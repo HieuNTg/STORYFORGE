@@ -34,20 +34,17 @@ one for thread labels — two total per chapter).
 from __future__ import annotations
 
 import logging
-import os
 import re
 import unicodedata
 
 from models.semantic_schemas import StructuralFinding, StructuralFindingType
-from pipeline.semantic import SemanticVerificationError
+from pipeline.semantic import SemanticVerificationError, is_strict_mode
 from services.embedding_service import get_embedding_service, bytes_to_vec
 from services.ner_service import get_ner_service
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
-
-_STRICT_ENV = "STORYFORGE_SEMANTIC_STRICT"
 
 # Default similarity threshold for thread coverage (D4)
 _DEFAULT_THREAD_THRESHOLD = 0.50
@@ -347,7 +344,7 @@ def detect_structural_issues(
         )
 
     # -- Strict-mode gate ---------------------------------------------------
-    if os.environ.get(_STRICT_ENV) == "1":
+    if is_strict_mode():
         critical = [f for f in findings if f.severity >= 0.80]
         if critical:
             descs = "; ".join(f.description for f in critical)
@@ -362,6 +359,15 @@ def detect_structural_issues(
             "semantic_structural_issue ch=%d type=%s severity=%.2f description=%s",
             ch_num, f.finding_type.value, f.severity, f.description,
         )
+
+    n_critical = sum(1 for f in findings if f.severity >= 0.80)
+    n_major = sum(1 for f in findings if 0.60 <= f.severity < 0.80)
+    n_minor = sum(1 for f in findings if f.severity < 0.60)
+    ch_label = f"ch_{ch_num:02d}"
+    logger.info(
+        "structural_findings critical=%d major=%d minor=%d chapter=%s",
+        n_critical, n_major, n_minor, ch_label,
+    )
 
     return findings
 

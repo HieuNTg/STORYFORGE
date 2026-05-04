@@ -1299,6 +1299,7 @@
                       <button @click="activeTab = 'simulation'" class="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-colors" :class="activeTab === 'simulation' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-surface-100'" x-show="$store.pipeline.result.simulation">Simulation</button>
                       <button @click="activeTab = 'quality'" class="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-colors" :class="activeTab === 'quality' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-surface-100'" x-show="$store.pipeline.result.quality">Quality</button>
                       <button @click="activeTab = 'health'; loadHandoffDiagnostics()" class="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-colors" :class="activeTab === 'health' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-surface-100'" x-show="$store.pipeline.result.handoff_health">Pipeline Health</button>
+                      <button @click="activeTab = 'semantic'; loadSemanticDiagnostics()" class="px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-colors" :class="activeTab === 'semantic' ? 'bg-brand-600 text-white' : 'text-slate-500 hover:bg-surface-100'" x-show="$store.pipeline.result">Semantic</button>
                       <button @click="openBranchMode()" class="ml-auto px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer bg-violet-600 text-white hover:bg-violet-700 transition-colors flex items-center gap-1.5" aria-label="Open branch reader">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>
                         Branch Mode
@@ -1433,6 +1434,76 @@
                       </div>
                       <p x-show="!handoffDiagLoading && (!handoffDiagData || !handoffDiagData.per_chapter_contracts || handoffDiagData.per_chapter_contracts.length === 0) && activeTab === 'health'"
                          class="text-xs text-slate-400 mt-2">No chapter contract data available.</p>
+                    </div>
+                    <!-- Semantic tab (Sprint 2 P6) -->
+                    <div x-show="activeTab === 'semantic'">
+                      <div x-show="semanticDiagLoading" class="text-xs text-slate-400 py-2">Loading semantic diagnostics...</div>
+                      <template x-if="!semanticDiagLoading && semanticDiagData">
+                        <div>
+                          <!-- Outline metrics bar chips -->
+                          <template x-if="semanticDiagData.outline_metrics">
+                            <div class="mb-4">
+                              <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Outline Metrics</h4>
+                              <div class="flex flex-wrap gap-2">
+                                <template x-for="[field, floor] in [['conflict_web_density',0.10],['arc_trajectory_variance',0.10],['pacing_distribution_skew',0.30],['beat_coverage_ratio',0.50]]" :key="field">
+                                  <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium"
+                                    :class="(semanticDiagData.outline_metrics[field] || 0) >= floor ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'">
+                                    <span x-text="field.replace(/_/g,' ')"></span>
+                                    <span class="font-mono" x-text="((semanticDiagData.outline_metrics[field] || 0) * 100).toFixed(0) + '%'"></span>
+                                  </span>
+                                </template>
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium"
+                                  :class="(1 - (semanticDiagData.outline_metrics.character_screen_time_gini || 0)) >= 0.30 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'">
+                                  <span>screen time balance</span>
+                                  <span class="font-mono" x-text="((1 - (semanticDiagData.outline_metrics.character_screen_time_gini || 0)) * 100).toFixed(0) + '%'"></span>
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-brand-50 text-brand-700 border border-brand-200">
+                                  <span>overall</span>
+                                  <span class="font-mono font-bold" x-text="((semanticDiagData.outline_metrics.overall_score || 0) * 100).toFixed(0) + '%'"></span>
+                                </span>
+                              </div>
+                            </div>
+                          </template>
+                          <!-- Payoff match summary -->
+                          <template x-if="semanticDiagData.summary">
+                            <div class="mb-4">
+                              <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Payoff Match Summary</h4>
+                              <div class="flex gap-3">
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                  matched <span class="font-mono" x-text="semanticDiagData.summary.total_payoff_matched"></span>
+                                </span>
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                                  <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                  weak <span class="font-mono" x-text="semanticDiagData.summary.total_payoff_weak"></span>
+                                </span>
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                  <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                                  missed <span class="font-mono" x-text="semanticDiagData.summary.total_payoff_missed"></span>
+                                </span>
+                              </div>
+                            </div>
+                          </template>
+                          <!-- Structural findings by severity -->
+                          <template x-if="semanticDiagData.summary && semanticDiagData.summary.total_structural_findings_by_severity">
+                            <div class="mb-4">
+                              <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Structural Findings</h4>
+                              <div class="flex gap-3">
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                  critical <span class="font-mono" x-text="semanticDiagData.summary.total_structural_findings_by_severity.critical"></span>
+                                </span>
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                                  major <span class="font-mono" x-text="semanticDiagData.summary.total_structural_findings_by_severity.major"></span>
+                                </span>
+                                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+                                  minor <span class="font-mono" x-text="semanticDiagData.summary.total_structural_findings_by_severity.minor"></span>
+                                </span>
+                              </div>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
+                      <p x-show="!semanticDiagLoading && !semanticDiagData" class="text-xs text-slate-400 mt-2">No semantic diagnostics available (pre-Sprint-2 story).</p>
                     </div>
                   </div>
                 </div>

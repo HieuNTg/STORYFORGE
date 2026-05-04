@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import os
 import re
 from typing import Union
 
@@ -42,7 +41,7 @@ logger = logging.getLogger(__name__)
 # Custom exception (D5 strict mode) — defined in __init__.py, re-exported here
 # ---------------------------------------------------------------------------
 
-from pipeline.semantic import SemanticVerificationError  # noqa: E402
+from pipeline.semantic import SemanticVerificationError, is_strict_mode  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +94,6 @@ def _anchor_text(entry: Union[ForeshadowingSeed, ForeshadowingEntry]) -> str:
 # Core verifier
 # ---------------------------------------------------------------------------
 
-_STRICT_ENV = "STORYFORGE_SEMANTIC_STRICT"
 _WEAK_FLOOR = 0.5  # sim >= this but below threshold → "weak"
 
 
@@ -175,7 +173,7 @@ def verify_payoffs(
                 pass
 
     # Strict-mode check
-    if os.environ.get(_STRICT_ENV) == "1":
+    if is_strict_mode():
         missed = [m for m in results if m.status == "missed"]
         if missed:
             ids = ", ".join(m.seed_id for m in missed)
@@ -196,6 +194,14 @@ def verify_payoffs(
                 "semantic_payoff weak seed_id=%s ch=%d confidence=%.3f threshold=%.3f method=%s",
                 m.seed_id, m.chapter_num, m.confidence, m.threshold_used, m.method,
             )
+
+    n_matched = sum(1 for m in results if m.status == "matched")
+    n_weak = sum(1 for m in results if m.status == "weak")
+    n_missed = sum(1 for m in results if m.status == "missed")
+    logger.info(
+        "foreshadowing_verified matched=%d weak=%d missed=%d",
+        n_matched, n_weak, n_missed,
+    )
 
     return results
 
@@ -240,7 +246,7 @@ def verify_seeds(
         except Exception:
             pass  # ForeshadowingSeed is frozen; confidence not stored on new model
 
-    if os.environ.get(_STRICT_ENV) == "1":
+    if is_strict_mode():
         missed = [m for m in results if m.status == "missed"]
         if missed:
             ids = ", ".join(m.seed_id for m in missed)

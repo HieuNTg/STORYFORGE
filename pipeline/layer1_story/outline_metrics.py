@@ -393,10 +393,25 @@ def compute_outline_metrics(
         {name for entry in conflict_web for name in entry.characters}
     )
 
+    # Floors for diagnostics log (mirrors outline_critic.METRIC_FLOORS)
+    _floors = {
+        "conflict_web_density": 0.10,
+        "arc_trajectory_variance": 0.10,
+        "pacing_distribution_skew": 0.30,
+        "beat_coverage_ratio": 0.50,
+        "character_screen_time_balance": 0.30,
+    }
+    _vals = {
+        "conflict_web_density": density,
+        "arc_trajectory_variance": arc_var,
+        "pacing_distribution_skew": pacing_skew,
+        "beat_coverage_ratio": beat_cov,
+        "character_screen_time_balance": screen_time_balance,
+    }
+    floors_violated = [k for k, floor in _floors.items() if _vals[k] < floor]
     logger.info(
-        "outline_metrics overall=%.3f density=%.3f arc_var=%.3f "
-        "skew=%.3f coverage=%.3f gini=%.3f",
-        overall, density, arc_var, pacing_skew, beat_cov, gini,
+        "outline_metrics_built composite=%.2f floors_violated=%s",
+        overall, floors_violated,
     )
 
     return OutlineMetrics(

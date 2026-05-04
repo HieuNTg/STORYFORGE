@@ -20,7 +20,6 @@ float), plus new keys: `metrics`, `llm_signal`, `composite_score`,
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import asdict, dataclass
 from typing import Optional, TYPE_CHECKING
 
@@ -278,8 +277,8 @@ def score_outline(
     should_rewrite = bool(failing)
 
     # Strict mode
-    strict = os.environ.get("STORYFORGE_SEMANTIC_STRICT", "0").strip() == "1"
-    if strict and metrics.overall_score < STRICT_RAISE_THRESHOLD:
+    from pipeline.semantic import is_strict_mode
+    if is_strict_mode() and metrics.overall_score < STRICT_RAISE_THRESHOLD:
         from pipeline.semantic import SemanticVerificationError
         raise SemanticVerificationError(
             f"Outline composite_score={metrics.overall_score:.3f} "
