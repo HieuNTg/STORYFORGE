@@ -208,6 +208,93 @@ def persist_outline_metrics(
         engine.dispose()
 
 
+async def _run_structural_rewrites(
+    self: "PipelineOrchestrator",
+    issues_by_chapter: dict,
+    draft,
+    genre: str,
+    style: str,
+    word_count: int,
+    outline_map: dict,
+    log_fn,
+) -> tuple[list, list[tuple[int, BaseException]]]:
+    """Run structural rewrites in bounded-concurrency batches.
+
+    Concurrency capped to config.chapter_batch_size via asyncio.Semaphore.
+    Each chapter's failure is isolated — siblings continue. Returns
+    (rewritten_chapters, failed_list) where failed_list contains
+    (chapter_number, exception) tuples for each rewrite that raised.
+    """
+    sem = asyncio.Semaphore(max(1, getattr(self.config.pipeline, "chapter_batch_size", 5)))
+
+    async def _one(ch_num, issues):
+        _fix_hints = "\n".join(f"- {i.fix_hint}" for i in issues)
+        _issue_summary = "; ".join(i.description for i in issues)
+        log_fn(f"[STRUCTURAL] Viết lại chương {ch_num}: {_issue_summary}")
+
+        _outline = outline_map.get(ch_num)
+        _enhancement_ctx = (
+            f"[YÊU CẦU SỬA LỖI CẤU TRÚC]\n{_fix_hints}"
+            if _fix_hints else ""
+        )
+        # Prepend drama directive if this chapter has a reconciled contract.
+        _ch_contract = next(
+            (getattr(c, "negotiated_contract", None)
+             for c in draft.chapters if c.chapter_number == ch_num),
+            None,
+        )
+        if _ch_contract is not None and getattr(_ch_contract, "drama_ceiling", 0.0) > 0:
+            _subtext = ", ".join(_ch_contract.required_subtext) if _ch_contract.required_subtext else "không"
+            _forbidden = ", ".join(_ch_contract.forbidden_patterns) if _ch_contract.forbidden_patterns else "không"
+            _drama_directive = (
+                "## RÀNG BUỘC KỊCH TÍNH"
+                f"\n- Mục tiêu kịch tính: {_ch_contract.drama_target:.2f}"
+                f"\n- Dung sai: ±{_ch_contract.drama_tolerance:.2f}"
+                f"\n- Trần (KHÔNG vượt quá): {_ch_contract.drama_ceiling:.2f}"
+                f"\n- Yêu cầu phụ văn (subtext): {_subtext}"
+                f"\n- Cấm: {_forbidden}"
+            )
+            _enhancement_ctx = f"{_drama_directive}\n\n{_enhancement_ctx}" if _enhancement_ctx else _drama_directive
+
+        async with sem:
+            try:
+                rewritten = await asyncio.to_thread(
+                    self.story_gen.write_chapter,
+                    title=draft.title,
+                    genre=genre,
+                    style=style,
+                    characters=draft.characters,
+                    world=draft.world,
+                    outline=_outline,
+                    word_count=word_count,
+                    enhancement_context=_enhancement_ctx,
+                )
+                return ("ok", ch_num, rewritten)
+            except Exception as exc:
+                logger.warning(
+                    "structural_rewrite_failed chapter=%s err=%s",
+                    ch_num, exc,
+                )
+                return ("err", ch_num, exc)
+
+    results = await asyncio.gather(
+        *[_one(ch_num, issues) for ch_num, issues in sorted(issues_by_chapter.items())],
+        return_exceptions=True,
+    )
+
+    rewritten = []
+    failed: list[tuple[int, BaseException]] = []
+    for r in results:
+        if isinstance(r, BaseException):
+            # asyncio.gather itself raised (should not happen with return_exceptions=True)
+            logger.warning("structural_rewrite unexpected gather exception: %s", r)
+        elif r[0] == "ok":
+            rewritten.append((r[1], r[2]))  # (ch_num, Chapter)
+        else:
+            failed.append((r[1], r[2]))
+    return rewritten, failed
+
+
 async def run_full_pipeline(
     self: "PipelineOrchestrator",
     title: str,
@@ -568,62 +655,60 @@ async def run_full_pipeline(
             if issues_by_chapter:
                 _log(f"[STRUCTURAL] Phát hiện vấn đề cấu trúc trong {len(issues_by_chapter)} chương")
                 _outline_map = {o.chapter_number: o for o in (draft.outlines or [])}
-                _rewrite_count = 0
 
-                for _ch_num, _issues in sorted(issues_by_chapter.items()):
-                    if _rewrite_count >= _max_rewrites * len(draft.chapters):
-                        break
-                    # Build fix hints for L1 rewrite prompt
-                    _fix_hints = "\n".join(f"- {i.fix_hint}" for i in _issues)
-                    _issue_summary = "; ".join(i.description for i in _issues)
-                    _log(f"[STRUCTURAL] Viết lại chương {_ch_num}: {_issue_summary}")
+                # Apply max_rewrites cap: keep only the first N chapter entries.
+                _capped_issues = dict(
+                    list(sorted(issues_by_chapter.items()))[: _max_rewrites * len(draft.chapters)]
+                )
 
-                    try:
-                        _outline = _outline_map.get(_ch_num)
-                        _enhancement_ctx = (
-                            f"[YÊU CẦU SỬA LỖI CẤU TRÚC]\n{_fix_hints}"
-                            if _fix_hints else ""
-                        )
-                        # Prepend drama directive if this chapter has a reconciled contract.
-                        _ch_contract = next(
-                            (getattr(c, "negotiated_contract", None)
-                             for c in draft.chapters if c.chapter_number == _ch_num),
-                            None,
-                        )
-                        if _ch_contract is not None and getattr(_ch_contract, "drama_ceiling", 0.0) > 0:
-                            _subtext = ", ".join(_ch_contract.required_subtext) if _ch_contract.required_subtext else "không"
-                            _forbidden = ", ".join(_ch_contract.forbidden_patterns) if _ch_contract.forbidden_patterns else "không"
-                            _drama_directive = (
-                                "## RÀNG BUỘC KỊCH TÍNH"
-                                f"\n- Mục tiêu kịch tính: {_ch_contract.drama_target:.2f}"
-                                f"\n- Dung sai: ±{_ch_contract.drama_tolerance:.2f}"
-                                f"\n- Trần (KHÔNG vượt quá): {_ch_contract.drama_ceiling:.2f}"
-                                f"\n- Yêu cầu phụ văn (subtext): {_subtext}"
-                                f"\n- Cấm: {_forbidden}"
-                            )
-                            _enhancement_ctx = f"{_drama_directive}\n\n{_enhancement_ctx}" if _enhancement_ctx else _drama_directive
-                        _rewritten_ch = await asyncio.to_thread(
-                            self.story_gen.write_chapter,
-                            title=draft.title,
-                            genre=genre,
-                            style=style,
-                            characters=draft.characters,
-                            world=draft.world,
-                            outline=_outline,
-                            word_count=word_count,
-                            enhancement_context=_enhancement_ctx,
-                        )
-                        # Replace chapter in draft (max 1 rewrite per chapter)
-                        for _idx, _ch in enumerate(draft.chapters):
-                            if _ch.chapter_number == _ch_num:
-                                draft.chapters[_idx] = _rewritten_ch
-                                break
-                        # Track to prevent re-detection loop
-                        self.enhancer._rewritten_chapters.add(_ch_num)
-                        _rewrite_count += 1
-                        _log(f"[STRUCTURAL] Chương {_ch_num} đã viết lại xong")
-                    except Exception as _rw_err:
-                        logger.warning(f"Structural rewrite ch{_ch_num} failed (non-fatal): {_rw_err}")
+                # Pipeline stats counters (P6 observability)
+                _sr_attempted = len(_capped_issues)
+
+                # ── P6: bounded-concurrency parallel rewrite (D4) ────────────
+                _rewritten_pairs, _failed_pairs = await _run_structural_rewrites(
+                    self,
+                    issues_by_chapter=_capped_issues,
+                    draft=draft,
+                    genre=genre,
+                    style=style,
+                    word_count=word_count,
+                    outline_map=_outline_map,
+                    log_fn=_log,
+                )
+
+                _sr_succeeded = len(_rewritten_pairs)
+                _sr_failed = len(_failed_pairs)
+
+                # Merge stats into output.analytics["pipeline_stats"]
+                _stats = self.output.analytics.setdefault("pipeline_stats", {})
+                _stats["structural_rewrites_attempted"] = (
+                    _stats.get("structural_rewrites_attempted", 0) + _sr_attempted
+                )
+                _stats["structural_rewrites_succeeded"] = (
+                    _stats.get("structural_rewrites_succeeded", 0) + _sr_succeeded
+                )
+                _stats["structural_rewrites_failed"] = (
+                    _stats.get("structural_rewrites_failed", 0) + _sr_failed
+                )
+
+                # Apply successful rewrites back into draft
+                for _ch_num, _rewritten_ch in _rewritten_pairs:
+                    for _idx, _ch in enumerate(draft.chapters):
+                        if _ch.chapter_number == _ch_num:
+                            draft.chapters[_idx] = _rewritten_ch
+                            break
+                    self.enhancer._rewritten_chapters.add(_ch_num)
+                    _log(f"[STRUCTURAL] Chương {_ch_num} đã viết lại xong")
+
+                # Surface failures (already logged per-chapter in helper)
+                for _ch_num, _err in _failed_pairs:
+                    logger.warning("Structural rewrite ch%s failed (non-fatal): %s", _ch_num, _err)
+
+                if _sr_failed:
+                    _log(
+                        f"[STRUCTURAL] Hoàn tất: {_sr_succeeded}/{_sr_attempted} chương thành công "
+                        f"({_sr_failed} thất bại)"
+                    )
             else:
                 _log("[STRUCTURAL] Không phát hiện vấn đề cấu trúc nghiêm trọng")
         except Exception as _sr_err:
