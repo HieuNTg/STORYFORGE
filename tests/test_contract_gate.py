@@ -120,7 +120,10 @@ def test_should_rewrite_one_critical_two_warnings():
 
 
 def test_should_rewrite_one_critical_only():
-    fails = [ContractFailure("must_payoff", "x", "missing", "critical")]
+    # Audit fix L2#5: single must_payoff critical now triggers rewrite on its
+    # own (covered by tests/test_negotiated_contract.py). A non-payoff single
+    # critical still does NOT trigger.
+    fails = [ContractFailure("must_mention_characters", "Lan", "missing", "critical")]
     assert should_rewrite(fails) is False
 
 
@@ -134,10 +137,12 @@ def test_should_rewrite_all_warnings():
 
 
 def test_enforce_gate_skips_when_threshold_not_met():
+    # Audit fix L2#5: payoff critical now triggers rewrite, so the "skip
+    # threshold" case must use a non-payoff single critical.
     llm = MagicMock()
     ch = _ch(content="gốc")
     contract = ChapterContract(chapter_number=1)
-    fails = [ContractFailure("must_payoff", "x", "missing", "critical")]  # only 1 crit
+    fails = [ContractFailure("must_mention_characters", "Lan", "missing", "critical")]
     result = enforce_gate(llm, ch, contract, fails)
     assert result is ch
     llm.generate.assert_not_called()

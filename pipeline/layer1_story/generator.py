@@ -241,6 +241,8 @@ class StoryGenerator:
                     _log(f"Đã tạo voice profile cho {len(voice_profiles)} nhân vật")
             except Exception as e:
                 logger.warning("Voice profile generation failed (non-fatal): %s", e)
+        # voice_profiles already canonicalised at character_voice_profiler boundary
+        _voice_fingerprints_top = list(voice_profiles or [])
         _log("Đang xây dựng bối cảnh thế giới...")
         # Bug #1: Critical call with retry
         world = llm_call_with_retry(
@@ -264,6 +266,7 @@ class StoryGenerator:
             logger.warning("Macro arc generation failed (non-fatal): %s", e)
 
         # --- Arc waypoints: structured character arc tracking ---
+        waypoints_map: dict = {}
         if self.config.pipeline.enable_arc_waypoints:
             try:
                 _log("Đang tạo arc waypoints cho nhân vật...")
@@ -272,12 +275,19 @@ class StoryGenerator:
                 )
                 waypoints_map = generate_arc_waypoints(
                     self.llm, characters, num_chapters, genre, model=self._layer_model,
-                )
+                ) or {}
                 if waypoints_map:
                     apply_waypoints_to_characters(characters, waypoints_map)
                     _log(f"Đã tạo arc waypoints cho {len(waypoints_map)} nhân vật")
             except Exception as e:
                 logger.warning("Arc waypoint generation failed (non-fatal): %s", e)
+        # Top-level arc_waypoints list (parallel to per-character storage during migration)
+        _waypoints_top: list[dict] = []
+        for _name, _wps in (waypoints_map or {}).items():
+            for _wp in _wps:
+                _entry = _wp.model_dump() if hasattr(_wp, "model_dump") else dict(_wp)
+                _entry.setdefault("character_name", _name)
+                _waypoints_top.append(_entry)
 
         _log(f"Đang tạo dàn ý {num_chapters} chương...")
         # Bug #1: Critical call with retry
@@ -383,6 +393,9 @@ class StoryGenerator:
         draft.conflict_web = conflict_web
         draft.foreshadowing_plan = foreshadowing_plan
         draft.arc_milestones = arc_milestones
+        # Sprint 1 P2: top-level handoff signals (parallel to existing per-character storage)
+        draft.voice_fingerprints = list(_voice_fingerprints_top)
+        draft.arc_waypoints = list(_waypoints_top)
         story_context = StoryContext(total_chapters=len(outlines))
         if not self.config.pipeline.story_bible_enabled:
             logger.warning("story_bible_enabled=False is deprecated; Story Bible is now always-on for consistency.")
@@ -448,6 +461,19 @@ class StoryGenerator:
                     _log(f"✅ Foreshadowing: {audit['paid_off']}/{audit['total']} payoff ({audit['completion_rate']:.0%})")
             except Exception as e:
                 logger.warning("Foreshadowing audit failed: %s", e)
+
+        # Sprint 1 P2: build L1→L2 handoff envelope (validation gate runs in P3)
+        try:
+            from pipeline.layer1_story.handoff_builder import build_l1_handoff
+            envelope = build_l1_handoff(draft, story_id=title)
+            draft.l1_handoff = envelope.model_dump()
+            ok, blockers = envelope.is_usable_by_l2()
+            logger.info(
+                "handoff_built signals_ok=%s blockers=%s story_id=%s",
+                "yes" if ok else "no", blockers, title,
+            )
+        except Exception as e:
+            logger.warning("L1 handoff envelope build failed (non-fatal): %s", e)
 
         _log("Layer 1 hoàn tất - Bản thảo truyện đã sẵn sàng!")
         return draft

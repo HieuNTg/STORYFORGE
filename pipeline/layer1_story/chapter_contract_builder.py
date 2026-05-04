@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, Optional
+import re
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from models.schemas import (
@@ -18,6 +19,52 @@ if TYPE_CHECKING:
 from models.narrative_schemas import ChapterContract
 
 logger = logging.getLogger(__name__)
+
+_CHAPTER_TAG_RE = re.compile(r"ch[_-]?(\d+)\b", re.IGNORECASE)
+
+
+def extract_chapter_num(item: Any) -> Optional[int]:
+    """Return the integer chapter for an event-like value, or None.
+
+    Replaces the legacy `str(ch_num) in tag` substring match with strict integer
+    extraction. Tries explicit `chapter` / `chapter_number` int fields first,
+    then parses a `tag` / `suggested_insertion` string with `^ch[_-]?\\d+\\b`.
+
+    Substring matching (e.g. `"3" in "chương 13"`) is intentionally never used.
+    """
+    if isinstance(item, dict):
+        for key in ("chapter", "chapter_number"):
+            if key in item:
+                try:
+                    return int(item[key])
+                except (TypeError, ValueError):
+                    pass
+        for key in ("tag", "suggested_insertion"):
+            tag = item.get(key)
+            if isinstance(tag, str):
+                m = _CHAPTER_TAG_RE.search(tag)
+                if m:
+                    return int(m.group(1))
+    else:
+        for key in ("chapter", "chapter_number"):
+            val = getattr(item, key, None)
+            if val is not None:
+                try:
+                    return int(val)
+                except (TypeError, ValueError):
+                    pass
+        for key in ("tag", "suggested_insertion"):
+            tag = getattr(item, key, None)
+            if isinstance(tag, str):
+                m = _CHAPTER_TAG_RE.search(tag)
+                if m:
+                    return int(m.group(1))
+    return None
+
+
+def events_for_chapter(events: list, ch_num: int) -> list:
+    """Filter events whose extracted chapter number matches `ch_num` exactly."""
+    return [e for e in (events or []) if extract_chapter_num(e) == ch_num]
 
 
 def build_contract(

@@ -1,0 +1,8 @@
+{
+  "_comment": "Sprint 1 golden snapshot: SHA-256 of each mocked chapter content. If a hash mismatch fails this test, the chapter prose changed unexpectedly \u2014 investigate L1 generation, not envelope wiring (envelope is plumbing-only per Risk #1).",
+  "chapter_hashes": {
+    "1": "a3627c4ca3cce6ea21b8de829e0d9fc0f607b59c13bad5aa2b6cbc86a5a21954",
+    "2": "6167d1ae1ef79c3fff9362684c6601c9f4acdfa21e0f9d2bcfc4936dba1a8e13",
+    "3": "cd6157b794108fb6137f0b9097a18888cbbbcaf84feb085e1d4c7fb8be88acce"
+  }
+}

@@ -2,6 +2,7 @@
 
 import logging
 from models.schemas import Character
+from pipeline.layer1_story._legacy_voice_aliases import canonicalise_voice_profile
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +113,7 @@ def generate_voice_profiles(llm, characters: list[Character], genre: str, model=
     cleaned = []
     for item in profiles:
         if isinstance(item, dict):
-            cleaned.append(item)
+            cleaned.append(canonicalise_voice_profile(item))
         else:
             logger.debug("generate_voice_profiles: skipping non-dict profile entry: %s", item)
 
@@ -145,7 +146,7 @@ def format_voice_profiles_for_prompt(profiles: list[dict]) -> str:
         style = p.get("sentence_style", "")
         tics = p.get("verbal_tics") or []
         emotional = p.get("emotional_expression") or {}
-        examples = p.get("dialogue_example") or []
+        examples = p.get("dialogue_examples") or p.get("dialogue_example") or []
 
         header_parts = [x for x in [vocab, style] if x]
         header = f"[{', '.join(header_parts)}]" if header_parts else ""
@@ -200,7 +201,7 @@ def update_character_speech_patterns(characters: list[Character], profiles: list
         if anger:
             parts.append(f"giận: {anger}")
 
-        examples = profile.get("dialogue_example") or []
+        examples = profile.get("dialogue_examples") or profile.get("dialogue_example") or []
         if examples:
             parts.append(f"vd: \"{examples[0]}\"")
 

@@ -145,10 +145,19 @@ def verify_contract(
 
 
 def should_rewrite(failures: list[ContractFailure]) -> bool:
-    """Rewrite only when ≥ 2 critical OR ≥ 1 critical + ≥ 2 warnings."""
+    """Rewrite when payoff missed (any single must_payoff critical), OR ≥ 2
+    critical, OR ≥ 1 critical + ≥ 2 warnings.
+
+    Audit finding L2#5: a single `must_payoff` critical is a contract breach
+    significant enough to trigger rewrite on its own — payoffs cannot be
+    deferred to "the next chapter" without breaking foreshadowing chains.
+    """
     crit = sum(1 for f in failures if f.severity == "critical")
     warn = sum(1 for f in failures if f.severity == "warning")
-    return crit >= 2 or (crit >= 1 and warn >= 2)
+    payoff_missed = any(
+        f.severity == "critical" and f.field == "must_payoff" for f in failures
+    )
+    return payoff_missed or crit >= 2 or (crit >= 1 and warn >= 2)
 
 
 def _format_missed(failures: list[ContractFailure]) -> str:

@@ -7,6 +7,7 @@ ghi log và có thể tự động sửa.
 
 import logging
 from models.schemas import EnhancedStory, StoryDraft, Chapter, count_words
+from pipeline.layer2_enhance._envelope_access import conflict_web as _envelope_conflict_web
 from services.llm_client import LLMClient
 from services import prompts
 
@@ -36,10 +37,9 @@ def validate_coherence(
     )
 
     relationships_text = ""
-    if hasattr(draft, "conflict_web") and draft.conflict_web:
-        relationships_text = "\n".join(
-            str(c) for c in draft.conflict_web[:10]
-        )
+    _conflicts = _envelope_conflict_web(draft)
+    if _conflicts:
+        relationships_text = "\n".join(str(c) for c in _conflicts[:10])
 
     try:
         result = llm.generate_json(

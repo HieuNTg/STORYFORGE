@@ -1,0 +1,68 @@
+{
+  "_comment": "Deterministic mocked LLM payloads for the Sprint 1 e2e test. Used by tests/test_handoff_e2e.py to drive a 3-chapter pipeline through the persistence helpers without any real LLM calls. Edit cautiously — the golden snapshot's chapter content hashes are derived from these strings.",
+  "story_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "title": "Lý Huyền Truyền Kỳ",
+  "genre": "tien_hiep",
+  "characters": [
+    {
+      "name": "Lý Huyền",
+      "character_id": "ly_huyen",
+      "role": "protagonist",
+      "personality": "Kiên cường, nội tâm phức tạp",
+      "motivation": "Tìm lại ký ức gia tộc"
+    },
+    {
+      "name": "Hoàng Yến",
+      "character_id": "hoang_yen",
+      "role": "antagonist",
+      "personality": "Xảo quyệt, lạnh lùng",
+      "motivation": "Chiếm đoạt linh kiếm"
+    }
+  ],
+  "outlines": [
+    {"chapter_number": 1, "title": "Khởi đầu", "summary": "Lý Huyền nhập tông môn"},
+    {"chapter_number": 2, "title": "Gặp gỡ", "summary": "Lý Huyền chạm trán Hoàng Yến"},
+    {"chapter_number": 3, "title": "Bí mật", "summary": "Lý Huyền phát hiện linh kiếm"}
+  ],
+  "chapter_contents": {
+    "1": "Lý Huyền bước qua cổng Thanh Vân Tông, ánh nắng chiều nhuộm vàng tà áo.\nAnh ngừng lại trước đại điện, hít một hơi sâu rồi tiến vào.\nSư phụ nhìn anh, gật đầu chậm rãi.",
+    "2": "Hoàng Yến xuất hiện ở luyện võ trường, nụ cười lạnh trên môi.\n‘Ngươi mới tới đây à?’ — giọng cô vang lên.\nLý Huyền chỉ siết chặt tay, không đáp.",
+    "3": "Trong thư phòng cũ, Lý Huyền tìm thấy cuốn sổ rách nát.\nNội dung cuốn sổ ám chỉ một thanh linh kiếm chôn dưới Long Uyên Hồ.\nAnh nhớ lại lời sư phụ — không phải tất cả đều như vẻ ngoài."
+  },
+  "conflict_web": [
+    {"conflict_id": "c1", "characters": ["Lý Huyền", "Hoàng Yến"], "conflict_type": "ideological", "intensity": 4},
+    {"conflict_id": "c2", "characters": ["Lý Huyền", "Lý Huyền"], "conflict_type": "internal", "intensity": 3}
+  ],
+  "foreshadowing_plan": [
+    {"id": "f1", "plant_chapter": 1, "payoff_chapter": 3, "description": "linh kiếm cổ", "semantic_anchor": "linh kiếm chôn dưới hồ"}
+  ],
+  "arc_waypoints": [
+    {"character_name": "Lý Huyền", "chapter_range": [1, 3], "stage_name": "phủ nhận", "required_evidence": ["bước vào tông môn", "không đáp lời khiêu khích"]}
+  ],
+  "open_threads": [
+    {"thread_id": "t1", "description": "Tìm linh kiếm bị mất", "planted_chapter": 1, "status": "open"}
+  ],
+  "voice_fingerprints": [
+    {
+      "name": "Lý Huyền",
+      "verbal_tics": ["Hừ.", "Ta hiểu rồi."],
+      "dialogue_examples": ["Ta sẽ không lùi bước."],
+      "register": "formal",
+      "emotional_baseline": "kiên định",
+      "avoid_phrases": ["LOL"]
+    },
+    {
+      "name": "Hoàng Yến",
+      "verbal_tics": ["Ngươi mới tới đây à?"],
+      "dialogue_examples": ["Ngươi mới tới đây à?"],
+      "register": "formal",
+      "emotional_baseline": "lạnh lùng",
+      "avoid_phrases": []
+    }
+  ],
+  "negotiated_contracts": [
+    {"chapter_num": 1, "pacing_type": "setup", "drama_target": 0.3, "threads_advance": ["t1"], "seeds_plant": ["f1"]},
+    {"chapter_num": 2, "pacing_type": "rising", "drama_target": 0.55, "threads_advance": ["t1"]},
+    {"chapter_num": 3, "pacing_type": "climax", "drama_target": 0.78, "payoffs_required": ["f1"], "causal_refs": ["f1"]}
+  ]
+}

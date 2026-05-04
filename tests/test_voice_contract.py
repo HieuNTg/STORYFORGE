@@ -42,7 +42,7 @@ def _mk_l1_profiles():
             "sentence_style": "short_punchy",
             "verbal_tics": ["thật ra là", "vậy đó"],
             "emotional_expression": {"anger": "im lặng", "joy": "cười nhẹ"},
-            "dialogue_example": ["Thật ra là tôi không biết.", "Vậy đó, kết thúc rồi."],
+            "dialogue_examples": ["Thật ra là tôi không biết.", "Vậy đó, kết thúc rồi."],
         },
         {
             "name": "An",
@@ -50,7 +50,7 @@ def _mk_l1_profiles():
             "sentence_style": "long_flowing",
             "verbal_tics": ["kính thưa"],
             "emotional_expression": {"anger": "lạnh lùng"},
-            "dialogue_example": ["Kính thưa, tôi nghĩ khác."],
+            "dialogue_examples": ["Kính thưa, tôi nghĩ khác."],
         },
     ]
 
@@ -92,7 +92,6 @@ class TestBuildVoiceContracts:
         assert set(c1.per_character.keys()) == {"Linh", "An"}
         assert c1.per_character["Linh"]["vocabulary_level"] == "casual"
         assert "thật ra là" in c1.per_character["Linh"]["verbal_tics"]
-        # dialogue_example → dialogue_examples mapping works
         assert c1.per_character["Linh"]["dialogue_examples"][0].startswith("Thật ra")
 
     def test_skips_chapters_without_matching_profiles(self):

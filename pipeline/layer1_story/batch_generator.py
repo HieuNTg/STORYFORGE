@@ -818,6 +818,9 @@ class BatchChapterGenerator:
             if contract is not None:
                 try:
                     chapter.contract = contract
+                    # Sprint 1 P5: stash unified NegotiatedChapterContract on the
+                    # chapter as an in-memory attribute (DB column lands in P6).
+                    object.__setattr__(chapter, "negotiated_contract", contract.to_negotiated())
                 except Exception as e:
                     logger.debug("Attach contract to chapter failed: %s", e)
 
@@ -1479,6 +1482,7 @@ class BatchChapterGenerator:
         if p_contract is not None:
             try:
                 ch_result.contract = p_contract
+                object.__setattr__(ch_result, "negotiated_contract", p_contract.to_negotiated())
             except Exception:
                 pass
 

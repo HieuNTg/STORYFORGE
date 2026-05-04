@@ -23,11 +23,14 @@ class ArcWaypoint(BaseModel):
 
 
 class ChapterContract(BaseModel):
-    """Per-chapter requirements contract — bundles ALL constraints into one structure.
+    """Per-chapter requirements contract.
 
-    Generated from existing pipeline data (pure Python, no LLM).
-    Injected into chapter write prompt so LLM knows exactly what to accomplish.
-    Validated post-write to detect missed requirements.
+    Sprint 1 P5: backwards-compatible facade over `NegotiatedChapterContract`.
+    Existing call sites still see the legacy field names (`chapter_number`,
+    `must_advance_threads`, `must_plant_seeds`, `must_payoff`, `pacing_type`)
+    while the unified model in `models/handoff_schemas.py` supplies the L2
+    portion (drama_target, escalation_events, causal_refs) and reconciliation
+    state. New code should construct `NegotiatedChapterContract` directly.
     """
     chapter_number: int
     must_advance_threads: list[str] = Field(default_factory=list, description="Thread IDs that MUST progress")
@@ -43,3 +46,46 @@ class ChapterContract(BaseModel):
     world_rules: list[str] = Field(default_factory=list, description="World rules to enforce")
     secret_protection: dict[str, str] = Field(default_factory=dict, description="{char: secret} - secrets to guard")
     causal_dependencies: list[str] = Field(default_factory=list, description="Prior events that MUST be acknowledged")
+
+    # L2 portion (filled post-simulator) — single rubric, no parallel DramaContract.
+    drama_target: float = Field(default=0.0, ge=0.0, le=1.0)
+    drama_tolerance: float = Field(default=0.15, ge=0.0, le=1.0)
+    escalation_events: list[str] = Field(default_factory=list)
+    required_subtext: list[str] = Field(default_factory=list)
+    causal_refs: list[str] = Field(default_factory=list)
+    forbidden_patterns: list[str] = Field(default_factory=list)
+    reconciled: bool = False
+    reconciliation_warnings: list[str] = Field(default_factory=list)
+
+    def to_negotiated(self):
+        """Return an equivalent `NegotiatedChapterContract`. Mapping preserves
+        IDs as strings (legacy stored hint-text in `must_*`; we forward verbatim)."""
+        from models.handoff_schemas import NegotiatedChapterContract
+        pacing = self.pacing_type or "rising"
+        if pacing not in ("setup", "rising", "climax", "twist", "cooldown"):
+            pacing = "rising"
+        return NegotiatedChapterContract(
+            chapter_num=self.chapter_number,
+            pacing_type=pacing,
+            threads_advance=list(self.must_advance_threads),
+            seeds_plant=list(self.must_plant_seeds),
+            payoffs_required=list(self.must_payoff),
+            arc_waypoints=[],
+            must_mention_characters=list(self.must_mention_characters),
+            character_arc_targets=dict(self.character_arc_targets),
+            emotional_endpoint=self.emotional_endpoint,
+            previous_contract_failures=list(self.previous_contract_failures),
+            forbidden_actions=list(self.forbidden_actions),
+            must_maintain=list(self.must_maintain),
+            world_rules=list(self.world_rules),
+            secret_protection=dict(self.secret_protection),
+            causal_dependencies=list(self.causal_dependencies),
+            drama_target=self.drama_target,
+            drama_tolerance=self.drama_tolerance,
+            escalation_events=list(self.escalation_events),
+            required_subtext=list(self.required_subtext),
+            causal_refs=list(self.causal_refs),
+            forbidden_patterns=list(self.forbidden_patterns),
+            reconciled=self.reconciled,
+            reconciliation_warnings=list(self.reconciliation_warnings),
+        )

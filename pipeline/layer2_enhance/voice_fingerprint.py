@@ -180,7 +180,8 @@ Lời thoại sau enhance:
         characters = getattr(draft, "characters", []) or []
         chapters = getattr(draft, "chapters", []) or []
 
-        l1_profiles = getattr(draft, "voice_profiles", None) or []
+        from pipeline.layer2_enhance import _envelope_access as _env
+        l1_profiles = _env.voice_profiles(draft)
         l1_map = {p.get("name", ""): p for p in l1_profiles if isinstance(p, dict) and p.get("name")}
 
         self.llm_calls_saved = 0

@@ -1,5 +1,6 @@
 """Shared pytest fixtures for StoryForge test suite."""
 import json
+import os
 import time
 from pathlib import Path
 
@@ -9,6 +10,16 @@ from models.schemas import (
     Character, Chapter, ChapterOutline, WorldSetting,
     StoryDraft, EnhancedStory, PipelineOutput, SimulationResult, SimulationEvent,
 )
+
+
+# Sprint 1 P3: default the test suite to strict-mode handoff validation so any
+# silent-empty regression fails loudly. Individual tests can opt out via
+# `monkeypatch.delenv("STORYFORGE_HANDOFF_STRICT", raising=False)`.
+@pytest.fixture(autouse=True)
+def _default_strict_handoff(monkeypatch):
+    if "STORYFORGE_HANDOFF_STRICT" not in os.environ:
+        monkeypatch.setenv("STORYFORGE_HANDOFF_STRICT", "1")
+    yield
 
 
 # ---------------------------------------------------------------------------

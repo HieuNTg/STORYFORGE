@@ -75,19 +75,37 @@ Trả về JSON:
 
     def load_from_draft(self, draft) -> "ThreadWatchdog":
         """Load threads từ L1 draft (open_threads, resolved_threads)."""
-        open_threads = getattr(draft, "open_threads", []) or []
-        resolved_threads = getattr(draft, "resolved_threads", []) or []
+        from pipeline.layer2_enhance import _envelope_access as _env
+        open_threads_raw = _env.open_threads(draft)
+        resolved_threads_raw = _env.resolved_threads(draft)
 
-        for t in open_threads:
+        def _as_dict(t):
             if isinstance(t, dict):
-                tid = t.get("thread_id") or self._gen_thread_id()
+                return t
+            if hasattr(t, "model_dump"):
+                d = t.model_dump()
+                # Project envelope ThreadEntry shape to legacy dict keys.
+                return {
+                    "thread_id": d.get("id") or d.get("thread_id"),
+                    "description": d.get("label") or d.get("description") or "",
+                    "introduced_chapter": d.get("opened_chapter") or d.get("introduced_chapter") or 1,
+                    "resolution_chapter": d.get("expected_close_chapter") or d.get("resolution_chapter"),
+                    "characters": d.get("characters") or [],
+                    "importance": d.get("importance") or "normal",
+                }
+            return None
+
+        for t in open_threads_raw:
+            d = _as_dict(t)
+            if d is not None:
+                tid = d.get("thread_id") or self._gen_thread_id()
                 self.threads[tid] = PlotThread(
                     thread_id=tid,
-                    description=t.get("description", str(t)),
-                    introduced_chapter=t.get("introduced_chapter", 1),
-                    expected_resolution_chapter=t.get("resolution_chapter"),
-                    characters_involved=t.get("characters", []),
-                    importance=t.get("importance", "normal"),
+                    description=d.get("description", str(t)),
+                    introduced_chapter=d.get("introduced_chapter", 1),
+                    expected_resolution_chapter=d.get("resolution_chapter"),
+                    characters_involved=d.get("characters", []),
+                    importance=d.get("importance", "normal"),
                     status="open",
                 )
             elif isinstance(t, str):
@@ -98,14 +116,15 @@ Trả về JSON:
                     status="open",
                 )
 
-        for t in resolved_threads:
-            if isinstance(t, dict):
-                tid = t.get("thread_id") or self._gen_thread_id()
+        for t in resolved_threads_raw:
+            d = _as_dict(t)
+            if d is not None:
+                tid = d.get("thread_id") or self._gen_thread_id()
                 self.threads[tid] = PlotThread(
                     thread_id=tid,
-                    description=t.get("description", str(t)),
+                    description=d.get("description", str(t)),
                     status="resolved",
-                    actual_resolution_chapter=t.get("resolution_chapter"),
+                    actual_resolution_chapter=d.get("resolution_chapter"),
                 )
             elif isinstance(t, str):
                 tid = self._gen_thread_id()
