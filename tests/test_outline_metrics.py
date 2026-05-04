@@ -916,3 +916,46 @@ class TestOutlineCriticBackwardCompat:
             [_char("A")], mock_world, "genre"
         )
         assert isinstance(result, list)
+
+
+# ===========================================================================
+# Section 16: Sprint 3 P7 regressions — OUTLINE_METRIC_FLOORS dedup (Item B)
+# ===========================================================================
+
+class TestOutlineMetricFloorsDedup:
+    """Sprint 3 P7: OUTLINE_METRIC_FLOORS is the single canonical definition.
+
+    ``outline_critic.METRIC_FLOORS`` is an alias (``is``-identical),
+    so there is exactly one dict object in memory.
+    """
+
+    def test_floors_same_object(self):
+        """METRIC_FLOORS in outline_critic IS OUTLINE_METRIC_FLOORS (not a copy)."""
+        from pipeline.layer1_story.outline_metrics import OUTLINE_METRIC_FLOORS
+        from pipeline.layer1_story.outline_critic import METRIC_FLOORS
+        assert METRIC_FLOORS is OUTLINE_METRIC_FLOORS, (
+            "METRIC_FLOORS must be the same object as OUTLINE_METRIC_FLOORS "
+            "(import alias, not a copy)"
+        )
+
+    def test_floors_identical_values(self):
+        """Values are equal regardless of import path."""
+        from pipeline.layer1_story.outline_metrics import OUTLINE_METRIC_FLOORS
+        from pipeline.layer1_story.outline_critic import METRIC_FLOORS
+        assert METRIC_FLOORS == OUTLINE_METRIC_FLOORS
+
+    def test_floors_expected_keys(self):
+        """All five metric keys are present with correct floor values."""
+        from pipeline.layer1_story.outline_metrics import OUTLINE_METRIC_FLOORS
+        assert OUTLINE_METRIC_FLOORS["conflict_web_density"] == pytest.approx(0.10)
+        assert OUTLINE_METRIC_FLOORS["arc_trajectory_variance"] == pytest.approx(0.10)
+        assert OUTLINE_METRIC_FLOORS["pacing_distribution_skew"] == pytest.approx(0.30)
+        assert OUTLINE_METRIC_FLOORS["beat_coverage_ratio"] == pytest.approx(0.50)
+        assert OUTLINE_METRIC_FLOORS["character_screen_time_balance"] == pytest.approx(0.30)
+
+    def test_floors_key_matches_weights_schema(self):
+        """Floor key 'character_screen_time_balance' matches OUTLINE_METRIC_WEIGHTS."""
+        from pipeline.layer1_story.outline_metrics import OUTLINE_METRIC_FLOORS
+        from models.semantic_schemas import OUTLINE_METRIC_WEIGHTS
+        assert "character_screen_time_balance" in OUTLINE_METRIC_FLOORS
+        assert "character_screen_time_balance" in OUTLINE_METRIC_WEIGHTS

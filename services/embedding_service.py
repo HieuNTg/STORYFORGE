@@ -32,6 +32,17 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
+
+class EmbeddingMissError(RuntimeError):
+    """Raised when embed_batch cannot produce an embedding for one or more inputs."""
+
+    def __init__(self, missing_indices: list[int], total: int) -> None:
+        self.missing_indices = missing_indices
+        self.total = total
+        super().__init__(
+            f"embed_batch dropped {len(missing_indices)}/{total} inputs at indices {missing_indices}"
+        )
+
 # Float32 little-endian — explicit so cache bytes are platform-stable.
 _VEC_DTYPE = np.dtype("<f4")
 
@@ -193,10 +204,20 @@ class EmbeddingService:
         self._cache.put(key, self._model_id, buf)
         return buf
 
-    def embed_batch(self, texts: list[str]) -> list[bytes]:
+    def embed_batch(self, texts: list[str], strict: bool = True) -> list[bytes]:
         """Batch embed returning a list of raw float32 LE byte strings.
 
         Cache lookup per text; only misses are sent to the underlying model.
+
+        Args:
+            texts: Input texts to embed.
+            strict: When True (default), raise ``EmbeddingMissError`` if any
+                input cannot be encoded.  Set to False for best-effort callers
+                that can tolerate partial results (the returned list will be
+                shorter than ``texts``).
+
+        Raises:
+            EmbeddingMissError: if strict=True and any slot could not be filled.
         """
         out: list[bytes | None] = [None] * len(texts)
         miss_indices: list[int] = []
@@ -218,7 +239,17 @@ class EmbeddingService:
                 self._cache.put(cache_key(self._model_id, t), self._model_id, buf)
                 out[idx] = buf
 
-        # mypy: all slots populated by construction
+        # Detect any slots that remain None (model returned fewer rows than expected).
+        still_missing = [i for i, b in enumerate(out) if b is None]
+        if still_missing:
+            if strict:
+                raise EmbeddingMissError(missing_indices=still_missing, total=len(texts))
+            else:
+                logger.warning(
+                    "embed_batch partial failure: %d/%d inputs dropped at indices %s",
+                    len(still_missing), len(texts), still_missing,
+                )
+
         return [b for b in out if b is not None]
 
     @staticmethod
@@ -260,6 +291,7 @@ def reset_embedding_service() -> None:
 
 __all__ = [
     "DEFAULT_MODEL",
+    "EmbeddingMissError",
     "EmbeddingService",
     "cache_key",
     "vec_to_bytes",

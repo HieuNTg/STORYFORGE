@@ -140,10 +140,19 @@ def verify_payoffs(
     use_embedding = svc.is_available()
 
     # Build chapter lookup: chapter_number -> content
-    ch_map: dict[int, str] = {
-        getattr(c, "chapter_number", None) or getattr(c, "num", 0): c.content
-        for c in chapters
-    }
+    ch_map: dict[int, str] = {}
+    for c in chapters:
+        ch_num_raw = getattr(c, "chapter_number", None)
+        if ch_num_raw is None:
+            ch_num_raw = getattr(c, "num", None)
+        if ch_num_raw is None:
+            logger.warning(
+                "verify_payoffs: chapter object %r has no chapter_number; "
+                "skipping to avoid silent key collision on 0",
+                getattr(c, "title", repr(c)),
+            )
+            continue
+        ch_map[int(ch_num_raw)] = c.content
 
     results: list[SemanticPayoffMatch] = []
 
@@ -225,10 +234,19 @@ def verify_seeds(
     svc = get_embedding_service()
     use_embedding = svc.is_available()
 
-    ch_map: dict[int, str] = {
-        getattr(c, "chapter_number", None) or getattr(c, "num", 0): c.content
-        for c in chapters
-    }
+    ch_map: dict[int, str] = {}
+    for c in chapters:
+        ch_num_raw = getattr(c, "chapter_number", None)
+        if ch_num_raw is None:
+            ch_num_raw = getattr(c, "num", None)
+        if ch_num_raw is None:
+            logger.warning(
+                "verify_seeds: chapter object %r has no chapter_number; "
+                "skipping to avoid silent key collision on 0",
+                getattr(c, "title", repr(c)),
+            )
+            continue
+        ch_map[int(ch_num_raw)] = c.content
 
     results: list[SemanticPayoffMatch] = []
 

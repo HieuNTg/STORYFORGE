@@ -42,6 +42,20 @@ logger = logging.getLogger(__name__)
 BEAT_COVERAGE_THRESHOLD: float = 0.50
 """Min cosine similarity for a key_event to count as 'covered' by a chapter."""
 
+OUTLINE_METRIC_FLOORS: dict[str, float] = {
+    "conflict_web_density": 0.10,
+    "arc_trajectory_variance": 0.10,
+    "pacing_distribution_skew": 0.30,
+    "beat_coverage_ratio": 0.50,
+    "character_screen_time_balance": 0.30,  # 1 - gini; matches OUTLINE_METRIC_WEIGHTS key
+}
+"""Per-metric floor values. Failing any floor triggers should_rewrite=True in outline_critic.
+
+Canonical definition — imported by ``outline_critic.METRIC_FLOORS`` so there is
+a single source of truth.  Key ``character_screen_time_balance`` matches the
+``OUTLINE_METRIC_WEIGHTS`` key in ``models.semantic_schemas``.
+"""
+
 # Target pacing distribution (5 types, fractions must sum to 1.0).
 # Derived from story-structure conventions; frozen for v1.
 PACING_TARGET: dict[str, float] = {
@@ -393,14 +407,7 @@ def compute_outline_metrics(
         {name for entry in conflict_web for name in entry.characters}
     )
 
-    # Floors for diagnostics log (mirrors outline_critic.METRIC_FLOORS)
-    _floors = {
-        "conflict_web_density": 0.10,
-        "arc_trajectory_variance": 0.10,
-        "pacing_distribution_skew": 0.30,
-        "beat_coverage_ratio": 0.50,
-        "character_screen_time_balance": 0.30,
-    }
+    # Floors for diagnostics log (canonical: OUTLINE_METRIC_FLOORS)
     _vals = {
         "conflict_web_density": density,
         "arc_trajectory_variance": arc_var,
@@ -408,7 +415,7 @@ def compute_outline_metrics(
         "beat_coverage_ratio": beat_cov,
         "character_screen_time_balance": screen_time_balance,
     }
-    floors_violated = [k for k, floor in _floors.items() if _vals[k] < floor]
+    floors_violated = [k for k, floor in OUTLINE_METRIC_FLOORS.items() if _vals[k] < floor]
     logger.info(
         "outline_metrics_built composite=%.2f floors_violated=%s",
         overall, floors_violated,
@@ -431,6 +438,7 @@ def compute_outline_metrics(
 
 __all__ = [
     "BEAT_COVERAGE_THRESHOLD",
+    "OUTLINE_METRIC_FLOORS",
     "PACING_TARGET",
     "compute_outline_metrics",
     "compute_conflict_web_density",

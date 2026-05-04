@@ -10,14 +10,9 @@ See `plans/260504-1213-semantic-verification/schema.md` for the canonical spec.
 from __future__ import annotations
 
 from enum import Enum
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
-
-if TYPE_CHECKING:
-    # Imported only for type checking — avoids a circular import at runtime
-    # since `structural_detector` doesn't import this module yet (P4 wires it).
-    from pipeline.layer2_enhance.structural_detector import StructuralIssue
 
 
 SEMANTIC_VERIFICATION_VERSION = "1.0.0"
@@ -76,22 +71,12 @@ class StructuralFindingType(str, Enum):
     PACING_VIOLATION = "pacing_violation"
 
 
-# Maps the new finding type to the legacy `StructuralIssueType` enum value
-# string. The legacy enum uses `WRONG_CHARACTERS` for what we now call
-# `MISSING_CHARACTER`; keep the legacy string here for adapter fidelity.
-_LEGACY_ISSUE_TYPE_VALUE: dict[StructuralFindingType, str] = {
-    StructuralFindingType.MISSING_KEY_EVENT: "missing_key_event",
-    StructuralFindingType.MISSING_CHARACTER: "wrong_characters",
-    StructuralFindingType.MISSED_ARC_WAYPOINT: "missed_arc_waypoint",
-    StructuralFindingType.PACING_VIOLATION: "pacing_violation",
-}
-
-
 class StructuralFinding(BaseModel):
-    """Replaces the dataclass `StructuralIssue` from Sprint 1.
+    """Typed Pydantic finding emitted by ``pipeline.semantic.structural_detector``.
 
-    P4 rewrites `structural_detector.py` to emit these. The legacy dataclass is
-    kept for one release cycle; `to_legacy_issue()` adapts during transition.
+    Sprint 2 P4 introduced this to replace the legacy ``StructuralIssue``
+    dataclass. Sprint 3 P7 completed the migration — the dataclass and its
+    ``to_legacy_issue()`` adapter have been removed.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -109,26 +94,6 @@ class StructuralFinding(BaseModel):
 
     confidence: float = Field(ge=0.0, le=1.0)
     """Detector confidence — for missing-by-similarity this is `1 - max_sim`."""
-
-    def to_legacy_issue(self) -> "StructuralIssue":
-        """Adapter for code still consuming the old dataclass.
-
-        Imports lazily to avoid a hard dependency on `pipeline.layer2_enhance`
-        at module import time (e.g. for tests that only validate schemas).
-        """
-        from pipeline.layer2_enhance.structural_detector import (
-            StructuralIssue,
-            StructuralIssueType,
-        )
-
-        legacy_value = _LEGACY_ISSUE_TYPE_VALUE[self.finding_type]
-        return StructuralIssue(
-            issue_type=StructuralIssueType(legacy_value),
-            severity=self.severity,
-            description=self.description,
-            chapter_number=self.chapter_num,
-            fix_hint=self.fix_hint,
-        )
 
 
 # ---------------------------------------------------------------------------

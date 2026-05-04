@@ -215,8 +215,7 @@ class StoryEnhancer:
 
         Uses `pipeline.semantic.structural_detector.detect_structural_issues`
         (NER + embedding, Sprint 2 P4).  Returns
-        {chapter_number: [StructuralIssue, ...]} using the legacy adapter so
-        that `orchestrator_layers.py` (consumer) continues to work unchanged.
+        {chapter_number: [StructuralFinding, ...]} (Pydantic model, Sprint 3 P7).
 
         Only chapters NOT in _rewritten_chapters are checked (loop prevention).
         Non-fatal: returns empty dict on any error.
@@ -246,8 +245,7 @@ class StoryEnhancer:
                 # Filter by severity threshold (mirror old behaviour)
                 findings = [f for f in findings if f.severity >= threshold]
                 if findings:
-                    # Adapt to legacy StructuralIssue for orchestrator_layers consumer
-                    results[ch_num] = [f.to_legacy_issue() for f in findings]
+                    results[ch_num] = findings
             return results
         except Exception as e:
             logger.warning(f"Structural detection failed (non-fatal): {e}")

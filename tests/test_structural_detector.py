@@ -21,10 +21,6 @@ from models.semantic_schemas import (
     StructuralFinding,
     StructuralFindingType,
 )
-from pipeline.layer2_enhance.structural_detector import (
-    StructuralIssue,
-    StructuralIssueType,
-)
 
 
 # ---------------------------------------------------------------------------
@@ -417,98 +413,45 @@ class TestStrictMode:
 
 
 # ---------------------------------------------------------------------------
-# Tests: to_legacy_issue() adapter
+# Tests: Sprint 3 P7 regression — legacy adapter removed
 # ---------------------------------------------------------------------------
 
-class TestToLegacyIssueAdapter:
-    def test_missing_character_maps_to_wrong_characters(self):
-        """`MISSING_CHARACTER` → legacy `WRONG_CHARACTERS`."""
-        finding = StructuralFinding(
-            finding_type=StructuralFindingType.MISSING_CHARACTER,
-            chapter_num=3,
-            severity=0.9,
-            description="Missing char",
-            fix_hint="Add the char",
-            detection_method="ner",
-            evidence=(),
-            confidence=1.0,
-        )
-        legacy = finding.to_legacy_issue()
-        assert isinstance(legacy, StructuralIssue)
-        assert legacy.issue_type == StructuralIssueType.WRONG_CHARACTERS
-        assert legacy.chapter_number == 3
-        assert legacy.severity == pytest.approx(0.9)
+class TestLegacyAdapterRemoved:
+    """Sprint 3 P7: StructuralIssue dataclass + to_legacy_issue() are gone."""
 
-    def test_missing_key_event_maps_correctly(self):
-        finding = StructuralFinding(
-            finding_type=StructuralFindingType.MISSING_KEY_EVENT,
-            chapter_num=1,
-            severity=0.75,
-            description="Missing event",
-            fix_hint="Add event",
-            detection_method="embedding",
-            evidence=(),
-            confidence=0.8,
-        )
-        legacy = finding.to_legacy_issue()
-        assert legacy.issue_type == StructuralIssueType.MISSING_KEY_EVENT
-
-    def test_pacing_violation_maps_correctly(self):
-        finding = StructuralFinding(
-            finding_type=StructuralFindingType.PACING_VIOLATION,
-            chapter_num=5,
-            severity=0.7,
-            description="Pacing off",
-            fix_hint="Fix pacing",
-            detection_method="embedding",
-            evidence=(),
-            confidence=0.6,
-        )
-        legacy = finding.to_legacy_issue()
-        assert legacy.issue_type == StructuralIssueType.PACING_VIOLATION
-        assert legacy.fix_hint == "Fix pacing"
-
-    def test_missed_arc_waypoint_maps_correctly(self):
-        finding = StructuralFinding(
-            finding_type=StructuralFindingType.MISSED_ARC_WAYPOINT,
-            chapter_num=7,
-            severity=0.7,
-            description="Missed waypoint",
-            fix_hint="Add waypoint",
-            detection_method="embedding",
-            evidence=(),
-            confidence=0.7,
-        )
-        legacy = finding.to_legacy_issue()
-        assert legacy.issue_type == StructuralIssueType.MISSED_ARC_WAYPOINT
-
-
-# ---------------------------------------------------------------------------
-# Tests: Legacy dataclass preserved
-# ---------------------------------------------------------------------------
-
-class TestLegacyDataclassPreserved:
-    def test_structural_issue_dataclass_still_importable(self):
-        """Ensure legacy StructuralIssue still importable from old module."""
-        from pipeline.layer2_enhance.structural_detector import (
-            StructuralIssue,
-            StructuralIssueType,
-        )
-        issue = StructuralIssue(
-            issue_type=StructuralIssueType.PACING_VIOLATION,
-            severity=0.7,
-            description="test",
-            chapter_number=1,
-            fix_hint="hint",
-        )
-        assert issue.severity == pytest.approx(0.7)
-
-    def test_structural_issue_detector_class_removed(self):
-        """StructuralIssueDetector class should no longer exist in legacy module."""
+    def test_structural_issue_not_importable(self):
+        """StructuralIssue must no longer be importable from legacy module (P7)."""
         import pipeline.layer2_enhance.structural_detector as legacy_mod
-        assert not hasattr(legacy_mod, "StructuralIssueDetector"), (
-            "StructuralIssueDetector should have been removed in P4"
+        assert not hasattr(legacy_mod, "StructuralIssue"), (
+            "StructuralIssue dataclass should have been removed in Sprint 3 P7"
         )
+
+    def test_structural_issue_type_not_importable(self):
+        """StructuralIssueType enum must no longer be importable from legacy module (P7)."""
+        import pipeline.layer2_enhance.structural_detector as legacy_mod
+        assert not hasattr(legacy_mod, "StructuralIssueType"), (
+            "StructuralIssueType enum should have been removed in Sprint 3 P7"
+        )
+
+    def test_to_legacy_issue_removed_from_structural_finding(self):
+        """StructuralFinding must not have to_legacy_issue() method (P7)."""
+        assert not hasattr(StructuralFinding, "to_legacy_issue"), (
+            "to_legacy_issue() should have been removed in Sprint 3 P7"
+        )
+
+    def test_structural_finding_consumers_work_without_adapter(self):
+        """StructuralFinding is now the canonical type returned by detect_structural_issues."""
+        ch = _make_chapter(content="Không có ai trong chương này.")
+        contract = _make_contract(must_mention=["Nhân Vật"])
+        with (
+            patch("pipeline.semantic.structural_detector.get_ner_service",
+                  return_value=_mock_ner_service(set())),
+            patch("pipeline.semantic.structural_detector.get_embedding_service",
+                  return_value=_mock_emb_unavailable()),
+        ):
+            from pipeline.semantic.structural_detector import detect_structural_issues
+            findings = detect_structural_issues(ch, contract, [])
+        assert all(isinstance(f, StructuralFinding) for f in findings)
 
 
 # ---------------------------------------------------------------------------

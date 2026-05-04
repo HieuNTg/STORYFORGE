@@ -25,6 +25,7 @@ from typing import Optional, TYPE_CHECKING
 
 from models.schemas import Character, ChapterOutline, ConflictEntry, ForeshadowingEntry, WorldSetting
 from models.semantic_schemas import OutlineMetrics
+from pipeline.layer1_story.outline_metrics import OUTLINE_METRIC_FLOORS
 
 if TYPE_CHECKING:
     from services.llm_client import LLMClient
@@ -41,14 +42,14 @@ COMPOSITE_REWRITE_THRESHOLD: float = 0.60
 STRICT_RAISE_THRESHOLD: float = 0.50
 """STORYFORGE_SEMANTIC_STRICT=1 + composite < this → raise SemanticVerificationError."""
 
-METRIC_FLOORS: dict[str, float] = {
-    "conflict_web_density": 0.10,
-    "arc_trajectory_variance": 0.10,
-    "pacing_distribution_skew": 0.30,
-    "beat_coverage_ratio": 0.50,
-    "screen_time_balance": 0.30,  # 1 - gini
-}
-"""Per-metric floors. Failing any floor also triggers should_rewrite=True."""
+# Canonical definition lives in pipeline.layer1_story.outline_metrics.OUTLINE_METRIC_FLOORS.
+# METRIC_FLOORS is kept as a module-level alias so existing callers of
+# outline_critic.METRIC_FLOORS continue to work without modification.
+METRIC_FLOORS: dict[str, float] = OUTLINE_METRIC_FLOORS
+"""Per-metric floors. Failing any floor also triggers should_rewrite=True.
+
+Alias for ``pipeline.layer1_story.outline_metrics.OUTLINE_METRIC_FLOORS``.
+"""
 
 # Legacy threshold kept for backward compat (LLM score 1-5; not used for decisions)
 REVISION_THRESHOLD = 4
@@ -261,10 +262,10 @@ def score_outline(
             f"< floor={METRIC_FLOORS['beat_coverage_ratio']}"
         )
     screen_time_balance = 1.0 - metrics.character_screen_time_gini
-    if screen_time_balance < METRIC_FLOORS["screen_time_balance"]:
+    if screen_time_balance < METRIC_FLOORS["character_screen_time_balance"]:
         failing.append(
-            f"screen_time_balance={screen_time_balance:.3f} "
-            f"< floor={METRIC_FLOORS['screen_time_balance']}"
+            f"character_screen_time_balance={screen_time_balance:.3f} "
+            f"< floor={METRIC_FLOORS['character_screen_time_balance']}"
         )
 
     # Composite threshold

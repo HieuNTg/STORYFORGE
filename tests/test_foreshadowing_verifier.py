@@ -774,3 +774,104 @@ def test_microbenchmark_10_chapters(monkeypatch, capsys):
     print(f"\nMicrobenchmark (mocked): 10 chapters x {SEEDS_PER_CH} seeds = {elapsed*1000:.1f}ms")
     # With mocked embedder this should be well under 1s
     assert elapsed < 2.0, f"Overhead too high: {elapsed:.2f}s (target <2s)"
+
+
+# ---------------------------------------------------------------------------
+# Sprint 3 P7 — Item C: chapter_number=None emits warning, does not crash
+# ---------------------------------------------------------------------------
+
+
+class TestChapterNumberNoneHandling:
+    """Sprint 3 P7: chapter with chapter_number=None must not silently coerce to 0."""
+
+    def test_verify_payoffs_none_chapter_number_skipped_with_warning(self, caplog):
+        """Chapter with chapter_number=None is skipped; warning names the chapter."""
+        import logging
+        from unittest.mock import MagicMock, patch
+
+        entry = _make_entry("bí mật", 1, 3)
+
+        bad_chapter = MagicMock()
+        bad_chapter.chapter_number = None
+        bad_chapter.num = None
+        bad_chapter.title = "Chương bị thiếu số"
+        bad_chapter.content = "Thanh kiếm bí mật xuất hiện trong đêm."
+
+        good_chapter = _make_chapter(3, "Thanh kiếm bí mật xuất hiện trong đêm.")
+
+        svc = MagicMock()
+        svc.is_available.return_value = False  # keyword fallback
+
+        with caplog.at_level(logging.WARNING, logger="pipeline.semantic.foreshadowing_verifier"):
+            with patch(
+                "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+                return_value=svc,
+            ):
+                results = verify_payoffs([entry], [bad_chapter, good_chapter], threshold=0.30)
+
+        warned = any(
+            "chapter_number" in r.message or "no chapter_number" in r.message
+            for r in caplog.records
+        )
+        assert warned, "Expected a warning about missing chapter_number"
+        assert len(results) == 1
+
+    def test_verify_seeds_none_chapter_number_skipped_with_warning(self, caplog):
+        """verify_seeds: chapter with chapter_number=None triggers warning, skips silently."""
+        import logging
+        from unittest.mock import MagicMock, patch
+
+        seed = _make_seed("seed-1", "chiếc gương cổ", 2, 5)
+
+        bad_chapter = MagicMock()
+        bad_chapter.chapter_number = None
+        bad_chapter.num = None
+        bad_chapter.title = "Chương thiếu số"
+        bad_chapter.content = "Chiếc gương cổ phản chiếu bóng hình."
+
+        good_chapter = _make_chapter(2, "Chiếc gương cổ phản chiếu bóng hình.")
+
+        svc = MagicMock()
+        svc.is_available.return_value = False
+
+        with caplog.at_level(logging.WARNING, logger="pipeline.semantic.foreshadowing_verifier"):
+            with patch(
+                "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+                return_value=svc,
+            ):
+                results = verify_seeds([seed], [bad_chapter, good_chapter], threshold=0.30)
+
+        warned = any(
+            "chapter_number" in r.message or "no chapter_number" in r.message
+            for r in caplog.records
+        )
+        assert warned, "Expected a warning about missing chapter_number"
+        assert len(results) == 1
+
+    def test_verify_payoffs_none_chapter_does_not_collide_with_real_chapter(self, caplog):
+        """None chapter must not map to key 0 and shadow a real chapter entry."""
+        import logging
+        from unittest.mock import MagicMock, patch
+
+        entry = _make_entry("hint", 1, 3)
+
+        null_chapter = MagicMock()
+        null_chapter.chapter_number = None
+        null_chapter.num = None
+        null_chapter.title = "null"
+        null_chapter.content = "completely unrelated content"
+
+        target_chapter = _make_chapter(3, "hint target content here for payoff check.")
+
+        svc = MagicMock()
+        svc.is_available.return_value = False  # keyword fallback
+
+        with caplog.at_level(logging.WARNING, logger="pipeline.semantic.foreshadowing_verifier"):
+            with patch(
+                "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+                return_value=svc,
+            ):
+                results = verify_payoffs([entry], [null_chapter, target_chapter], threshold=0.30)
+
+        assert len(results) == 1
+        assert results[0].chapter_num == 3

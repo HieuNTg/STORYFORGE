@@ -145,37 +145,12 @@ class TestStructuralFinding:
         f = StructuralFinding(**kwargs)
         assert f.evidence == ()
 
-    def test_to_legacy_issue_missing_key_event(self) -> None:
-        f = StructuralFinding(
-            **self._valid(finding_type=StructuralFindingType.MISSING_KEY_EVENT)
+    def test_to_legacy_issue_removed(self) -> None:
+        """Sprint 3 P7: to_legacy_issue() adapter removed from StructuralFinding."""
+        f = StructuralFinding(**self._valid())
+        assert not hasattr(f, "to_legacy_issue"), (
+            "to_legacy_issue() should have been removed in Sprint 3 P7"
         )
-        legacy = f.to_legacy_issue()
-        assert legacy.issue_type.value == "missing_key_event"
-        assert legacy.severity == pytest.approx(0.85)
-        assert legacy.chapter_number == 5
-        assert legacy.fix_hint == "Insert duel before chapter close"
-
-    def test_to_legacy_issue_missing_character_maps_to_wrong_characters(self) -> None:
-        """Schema renamed MISSING_CHARACTER but legacy enum uses WRONG_CHARACTERS."""
-        f = StructuralFinding(
-            **self._valid(finding_type=StructuralFindingType.MISSING_CHARACTER)
-        )
-        legacy = f.to_legacy_issue()
-        assert legacy.issue_type.value == "wrong_characters"
-
-    def test_to_legacy_issue_pacing_violation(self) -> None:
-        f = StructuralFinding(
-            **self._valid(finding_type=StructuralFindingType.PACING_VIOLATION)
-        )
-        legacy = f.to_legacy_issue()
-        assert legacy.issue_type.value == "pacing_violation"
-
-    def test_to_legacy_issue_missed_arc_waypoint(self) -> None:
-        f = StructuralFinding(
-            **self._valid(finding_type=StructuralFindingType.MISSED_ARC_WAYPOINT)
-        )
-        legacy = f.to_legacy_issue()
-        assert legacy.issue_type.value == "missed_arc_waypoint"
 
 
 # ---------------------------------------------------------------------------
