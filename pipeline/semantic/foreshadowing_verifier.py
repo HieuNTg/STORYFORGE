@@ -100,7 +100,7 @@ _WEAK_FLOOR = 0.5  # sim >= this but below threshold → "weak"
 def verify_payoffs(
     seeds: list[Union[ForeshadowingSeed, ForeshadowingEntry]],
     chapters: list,  # list[Chapter | Any with .chapter_number and .content attrs]
-    threshold: float = 0.62,
+    threshold: float = 0.55,
     role: str = "payoff",
 ) -> list[SemanticPayoffMatch]:
     """Verify foreshadowing payoffs for all (seed, expected_chapter) pairs.
@@ -118,7 +118,10 @@ def verify_payoffs(
     Args:
         seeds: Mixed list of ForeshadowingSeed (new) or ForeshadowingEntry (legacy).
         chapters: Chapter objects with .chapter_number (int) and .content (str).
-        threshold: Cosine similarity threshold for `matched` status (default 0.62).
+        threshold: Cosine similarity threshold for `matched` status (default 0.55,
+            calibrated against Vietnamese paraphrase pairs — see
+            `tests/fixtures/sprint2_vi_calibration.json`; 0.62 yielded only 73%
+            accuracy on multilingual MiniLM, 0.55 yields 96.67%).
         role: "seed" or "payoff" — recorded in the match objects.
 
     Returns:

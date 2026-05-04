@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0.0",
   "description": "Vietnamese-realistic calibration set for foreshadowing payoff verification (Sprint 2 P7).",
-  "author_note": "30 hand-authored pairs covering paraphrase / near-miss / negative classes across cultivation-novel and slice-of-life vocabulary. Used at default threshold 0.62 against paraphrase-multilingual-MiniLM-L12-v2.",
-  "default_threshold": 0.62,
+  "author_note": "30 hand-authored pairs covering paraphrase / near-miss / negative classes across cultivation-novel and slice-of-life vocabulary. Calibrated against paraphrase-multilingual-MiniLM-L12-v2; threshold 0.62 yielded 73.33% accuracy, retuned to 0.55 yielding 96.67%.",
+  "default_threshold": 0.55,
   "pairs": [
     {
       "id": "para-01",

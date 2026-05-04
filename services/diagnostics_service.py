@@ -278,7 +278,7 @@ def build_semantic_diagnostics(story_id: str) -> dict | None:
                     if not isinstance(pm, dict):
                         continue
                     conf = pm.get("confidence", 0.0)
-                    threshold = pm.get("threshold_used", 0.62)
+                    threshold = pm.get("threshold_used", 0.55)
                     matched = pm.get("matched", False)
                     if matched:
                         total_matched += 1

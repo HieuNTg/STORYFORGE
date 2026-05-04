@@ -93,7 +93,7 @@ the only acceptable place for substring matching post-Sprint 2).
 ## Why fixed thresholds over adaptive (D4)
 
 ```python
-semantic_payoff_threshold: float = 0.62
+semantic_payoff_threshold: float = 0.55
 semantic_seed_threshold: float = 0.55
 semantic_event_threshold: float = 0.55
 semantic_character_threshold: float = 0.50

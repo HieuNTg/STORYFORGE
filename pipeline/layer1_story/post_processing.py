@@ -387,7 +387,7 @@ def process_chapter_post_write(
         try:
             from pipeline.layer1_story.foreshadowing_manager import get_payoffs_due
             from pipeline.semantic.foreshadowing_verifier import verify_payoffs
-            _threshold = float(getattr(pipeline_config, "semantic_payoff_threshold", 0.62))
+            _threshold = float(getattr(pipeline_config, "semantic_payoff_threshold", 0.55))
             _due = get_payoffs_due(foreshadowing_plan, outline.chapter_number)
             if _due:
                 with tracked_extraction(story_context, ch_num, "foreshadowing"):

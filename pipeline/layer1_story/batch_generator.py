@@ -232,7 +232,7 @@ def _verify_and_rewrite_missing_payoffs(
         # Re-verify against rewritten content (embedding-based, no LLM call)
         due_after = get_payoffs_due(foreshadowing_plan or [], outline.chapter_number)
         if due_after:
-            threshold = float(getattr(pipeline_config, "semantic_payoff_threshold", 0.62))
+            threshold = float(getattr(pipeline_config, "semantic_payoff_threshold", 0.55))
             verify_payoffs(due_after, [chapter], threshold=threshold)
             still_missing = [p for p in due_after if not p.paid_off]
             story_context.foreshadowing_payoff_missing = [
