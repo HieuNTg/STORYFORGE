@@ -99,7 +99,7 @@ See [`docs/system-architecture.md`](docs/system-architecture.md) for the full fl
 - **[Sprint 2](docs/adr/0002-semantic-verification.md)** — Local CPU embeddings (`paraphrase-multilingual-MiniLM-L12-v2`) + spaCy NER replace 3 keyword checks. Threshold `0.55` hits 96.67% on 30-pair VN calibration. `STORYFORGE_SEMANTIC_STRICT=1`.
 - **[Sprint 3](docs/adr/0003-generation-hardening-drama-ceiling.md)** — Drama ceiling wired into chapter prompts; voice revert switched positional → speaker-anchored `(speaker_id, ordinal)` with NFC; async D3 contract (sync wrappers raise on running loop); structural rewriter batched behind `asyncio.Semaphore`.
 
-Sprint plan dirs under [`plans/`](plans/README.md).
+Sprint plans live in `plans/` (gitignored — local-only working notes).
 
 ---
 

@@ -99,7 +99,7 @@ Xem [`docs/system-architecture.md`](docs/system-architecture.md) cho luồng đ�
 - **[Sprint 2](docs/adr/0002-semantic-verification.md)** — Embedding CPU local (`paraphrase-multilingual-MiniLM-L12-v2`) + spaCy NER thay 3 kiểm tra keyword. Ngưỡng `0.55` đạt 96.67% trên 30 cặp calibration tiếng Việt. `STORYFORGE_SEMANTIC_STRICT=1`.
 - **[Sprint 3](docs/adr/0003-generation-hardening-drama-ceiling.md)** — Drama ceiling nối vào prompt chương; voice revert chuyển positional → speaker-anchored `(speaker_id, ordinal)` chuẩn NFC; hợp đồng async D3 (sync wrapper raise khi event loop đang chạy); structural rewriter batched sau `asyncio.Semaphore`.
 
-Plan dir từng sprint trong [`plans/`](plans/README.md).
+Plan từng sprint nằm trong `plans/` (gitignored — ghi chú local-only).
 
 ---
 

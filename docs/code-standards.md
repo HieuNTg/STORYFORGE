@@ -420,8 +420,8 @@ api/       ─→  services/  ─→  pipeline/
 - All public functions: docstring with Args, Returns, Raises
 - Complex logic: inline comments explaining "why", not "what"
 - Architecture: `docs/system-architecture.md`
-- Deprecations: `docs/deprecations-v4-migration.md`
 - Deployment: `docs/deployment-production.md`
+- ADRs: `docs/adr/`
 
 ## Error Handling
 
@@ -466,7 +466,7 @@ except LLMClientError as e:
 
 1. Add `DeprecationWarning` with clear migration path
 2. Log warning whenever deprecated code is used
-3. Document in `docs/deprecations-v4-migration.md`
+3. Document in CHANGELOG.md and the relevant ADR
 4. Mark removal version (e.g., v4.0)
 5. Remove in major version bump
 
