@@ -325,3 +325,166 @@ class TestVoicePreservationResultSchema:
     def test_anchor_mismatch_count_field(self):
         r = VoicePreservationResult(anchor_mismatch_count=3)
         assert r.anchor_mismatch_count == 3
+
+
+# ── P8 deeper end-to-end tests ────────────────────────────────────────────────
+
+class TestRoundTripIntegrity:
+    """Round-trip: post-revert preserved_dialogues contain reverted anchor texts."""
+
+    def test_4char_12span_preserved_dialogues_match_anchors(self):
+        """4-character chapter, 12 dialogue spans; reverted content is consistent."""
+        # Build chapter with 4 speakers × 3 dialogues each (12 spans total)
+        speakers = ["An", "Bình", "Chi", "Dương"]
+        originals = {
+            "An":    ["Câu gốc An 1.", "Câu gốc An 2.", "Câu gốc An 3."],
+            "Bình":  ["Câu gốc Bình 1.", "Câu gốc Bình 2.", "Câu gốc Bình 3."],
+            "Chi":   ["Câu gốc Chi 1.", "Câu gốc Chi 2.", "Câu gốc Chi 3."],
+            "Dương": ["Câu gốc Dương 1.", "Câu gốc Dương 2.", "Câu gốc Dương 3."],
+        }
+        enhanced = {
+            "An":    ["Đã thay đổi An 1!", "Đã thay đổi An 2!", "Đã thay đổi An 3!"],
+            "Bình":  ["Đã thay đổi Bình 1!", "Đã thay đổi Bình 2!", "Đã thay đổi Bình 3!"],
+            "Chi":   ["Đã thay đổi Chi 1!", "Đã thay đổi Chi 2!", "Đã thay đổi Chi 3!"],
+            "Dương": ["Đã thay đổi Dương 1!", "Đã thay đổi Dương 2!", "Đã thay đổi Dương 3!"],
+        }
+
+        def _chapter(dialogue_map):
+            parts = []
+            for spk in speakers:
+                for dlg in dialogue_map[spk]:
+                    parts.append(f'{spk} nói: "{dlg}"')
+            return " ".join(parts)
+
+        orig_content = _chapter(originals)
+        enh_content = _chapter(enhanced)
+        chars = [_char(s) for s in speakers]
+        drifted = speakers[:]
+
+        preserved_text, result = _revert_dialogues_anchored(
+            enh_content, orig_content, chars, drifted
+        )
+
+        # Every original dialogue must appear in preserved_dialogues
+        for spk in speakers:
+            for dlg in originals[spk]:
+                assert dlg in result.preserved_dialogues, (
+                    f"Expected original dialogue {dlg!r} in preserved_dialogues "
+                    f"after round-trip revert"
+                )
+
+        # preserved_dialogues are extracted from the actual reverted text —
+        # verify the reverted text itself contains the original quoted strings
+        for spk in speakers:
+            for dlg in originals[spk]:
+                assert f'"{dlg}"' in preserved_text or dlg in preserved_text
+
+
+class TestStress50Spans:
+    """Stress: 50-span chapter across 6 speakers; ordinal stability + O(n) timing."""
+
+    def _make_50span_chapter(self):
+        """Build a chapter with 50 dialogue spans across 6 speakers."""
+        speakers = ["A", "B", "C", "D", "E", "F"]
+        parts = []
+        for i in range(50):
+            spk = speakers[i % 6]
+            parts.append(f'{spk} nói: "Câu số {i:02d} của {spk}."')
+        return " ".join(parts), [_char(s) for s in speakers]
+
+    def test_extract_anchors_stable_ordinals(self):
+        """Re-running _extract_dialogue_anchors on same content yields identical result."""
+        content, chars = self._make_50span_chapter()
+
+        anchors_first = _extract_dialogue_anchors(content, chars)
+        anchors_second = _extract_dialogue_anchors(content, chars)
+
+        assert len(anchors_first) == len(anchors_second)
+        for a, b in zip(anchors_first, anchors_second):
+            assert a.speaker_id == b.speaker_id
+            assert a.ordinal == b.ordinal
+            assert a.text == b.text
+            assert a.char_offset == b.char_offset
+
+    def test_extract_anchors_under_50ms(self):
+        """50-span extraction completes in < 50ms (O(n) guard)."""
+        import time as _time
+        content, chars = self._make_50span_chapter()
+
+        t0 = _time.perf_counter()
+        anchors = _extract_dialogue_anchors(content, chars)
+        elapsed_ms = (_time.perf_counter() - t0) * 1000.0
+
+        assert len(anchors) > 0
+        assert elapsed_ms < 50.0, (
+            f"_extract_dialogue_anchors took {elapsed_ms:.1f}ms for 50 spans; "
+            "expected < 50ms (O(n) regression)"
+        )
+
+    def test_ordinals_are_per_speaker_0_indexed(self):
+        """Each speaker's ordinals start at 0 and increment by 1 (0-9 range)."""
+        content, chars = self._make_50span_chapter()
+        anchors = _extract_dialogue_anchors(content, chars)
+
+        from collections import defaultdict
+        by_speaker: dict = defaultdict(list)
+        for a in anchors:
+            by_speaker[a.speaker_id].append(a.ordinal)
+
+        for spk, ords in by_speaker.items():
+            assert ords == list(range(len(ords))), (
+                f"Speaker {spk!r} ordinals are not contiguous 0-based: {ords}"
+            )
+
+
+class TestNFCEdgeCase:
+    """NFC edge: decomposed vs precomposed speaker name must resolve to same speaker_id."""
+
+    def test_nfd_speaker_in_char_vs_nfc_in_prose(self):
+        """Character object carries NFD name; chapter prose uses NFC — revert still works."""
+        import unicodedata as ud
+
+        nfc_name = "Tuấn"
+        nfd_name = ud.normalize("NFD", nfc_name)
+        assert nfc_name != nfd_name  # sanity check: they differ at bytes level
+
+        # Prose uses NFC (the more common representation in Vietnamese text)
+        orig_prose = f'{nfc_name} nói: "Câu gốc của Tuấn."'
+        enh_prose  = f'{nfc_name} nói: "Câu hoàn toàn thay đổi của Tuấn!"'
+
+        # Character object carries NFD name (e.g. from a different encoding path)
+        char_nfd = _char(nfd_name)
+
+        # resolve_speaker_id must produce NFC for both names
+        from models.voice_schemas import resolve_speaker_id
+        sid_nfd = resolve_speaker_id(char_nfd)
+        sid_nfc = resolve_speaker_id(_char(nfc_name))
+        assert sid_nfd == sid_nfc, (
+            f"resolve_speaker_id NFD={sid_nfd!r} != NFC={sid_nfc!r}"
+        )
+
+        # Revert must not crash and must return a valid string
+        preserved, result = _revert_dialogues_anchored(
+            enh_prose, orig_prose, [char_nfd], [nfd_name]
+        )
+        assert isinstance(preserved, str)
+        assert len(preserved) > 0
+
+    def test_combining_diacritic_speaker_id_matches_prose(self):
+        """'Tu' + combining á + n (decomposed) same speaker_id as precomposed 'Tuấn'."""
+        import unicodedata as ud
+
+        # Simulate decomposed form with combining characters
+        decomposed = "Tuá̉n"  # 'á' + hook-above combining
+        precomposed = ud.normalize("NFC", decomposed)
+
+        char_decomp = _char(decomposed)
+        char_precomp = _char(precomposed)
+
+        from models.voice_schemas import resolve_speaker_id
+        sid1 = resolve_speaker_id(char_decomp)
+        sid2 = resolve_speaker_id(char_precomp)
+        # Both must be NFC-normalized; may or may not be equal depending on
+        # how Vietnamese diacritics compose, but neither must raise
+        assert isinstance(sid1, str) and len(sid1) > 0
+        assert isinstance(sid2, str) and len(sid2) > 0

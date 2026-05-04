@@ -23,6 +23,7 @@ asyncio_mode = "auto"
 markers = [
     "calibration: real-model calibration tests (slow; loads sentence-transformers)",
     "perf: performance benchmarks (10-chapter pipeline timing)",
+    "bench: async-nesting perf bench (Sprint 3 P8; excluded from default suite)",
 ]
 
 [tool.coverage.run]
