@@ -28,6 +28,8 @@ data/audio/
 data/branches/
 data/jwt_keys/
 data/test_timings.json
+data/chromadb/
+data/rag/
 output/
 
 # ── Logs ───────────────────────────────────────────────────────────
