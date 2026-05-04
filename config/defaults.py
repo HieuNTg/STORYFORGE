@@ -270,6 +270,7 @@ class PipelineConfig:
     l2_knowledge_constraints: bool = True  # L2-B: inject character knowledge facts to prevent hallucination
     l2_voice_drift_threshold: float = 0.4  # Drift level for warning
     l2_voice_revert_threshold: float = 0.3  # Drift level for automatic revert
+    voice_revert_use_anchored: bool = True  # Use speaker-anchored revert (Sprint 3 P3); False → legacy positional
 
     # Phase 6: Drama ceiling (prevents melodrama)
     l2_drama_ceiling: bool = True  # Apply genre-specific drama ceilings

@@ -6,9 +6,16 @@ Prevents: homogenized dialogue, character voice drift after enhancement.
 
 import logging
 import re
+import warnings
 from pydantic import BaseModel, Field
 from services.llm_client import LLMClient
 from models.schemas import VoiceProfile  # unified schema (Sprint 2 Task 2)
+from models.voice_schemas import (
+    DialogueAnchor,
+    DialogueAnchorDiff,
+    VoicePreservationResult,
+    resolve_speaker_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -419,38 +426,320 @@ Lời thoại sau enhance:
 # Phase 6: Voice Preservation Enforcement
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Re-export from voice_schemas so callers that imported from this module still work.
+# VoicePreservationResult, DialogueAnchor, DialogueAnchorDiff are the canonical types.
 
-class VoicePreservationResult(BaseModel):
-    """Result of voice preservation check."""
-    original_dialogues: list[str] = Field(default_factory=list)
-    enhanced_dialogues: list[str] = Field(default_factory=list)
-    preserved_dialogues: list[str] = Field(default_factory=list)
-    reverted_count: int = 0
-    drift_severity: float = 0.0  # 0.0-1.0
-    violations: list[dict] = Field(default_factory=list)
+
+def _extract_dialogue_anchors(content: str, characters: list) -> list[DialogueAnchor]:
+    """Walk chapter prose and build speaker-anchored dialogue spans.
+
+    Uses the same regex patterns as VoiceFingerprintEngine._extract_dialogues but
+    returns positions (char_offset) and per-speaker ordinal counters.
+    Only spans attributable to a known character are included.
+    """
+    anchors: list[DialogueAnchor] = []
+    ordinal_counters: dict[str, int] = {}
+
+    for char in characters:
+        try:
+            speaker_id = resolve_speaker_id(char)
+        except ValueError:
+            continue
+        char_name = getattr(char, "name", "") or ""
+        if not char_name:
+            continue
+
+        found: list[tuple[int, str]] = []  # (char_offset, text)
+
+        # Pattern 1: "dialogue" - Name
+        pat1 = rf'"([^"]+)"\s*[-–—]\s*{re.escape(char_name)}'
+        for m in re.finditer(pat1, content, re.IGNORECASE):
+            found.append((m.start(), m.group(1)))
+
+        # Pattern 2: Name ...: "dialogue"
+        pat2 = rf'{re.escape(char_name)}[^"]*[:"]\s*"([^"]+)"'
+        for m in re.finditer(pat2, content, re.IGNORECASE):
+            found.append((m.start(), m.group(1)))
+
+        # Sort by position then assign ordinals in document order
+        found.sort(key=lambda x: x[0])
+
+        # Deduplicate by text (keep earliest offset) — mirrors _extract_dialogues logic
+        seen_texts: set[str] = set()
+        for offset, text in found:
+            text_clean = text.strip()
+            if not text_clean or len(text_clean) <= 5 or text_clean in seen_texts:
+                continue
+            seen_texts.add(text_clean)
+            ordinal = ordinal_counters.get(speaker_id, 0)
+            ordinal_counters[speaker_id] = ordinal + 1
+            anchors.append(DialogueAnchor(
+                speaker_id=speaker_id,
+                ordinal=ordinal,
+                text=text_clean,
+                char_offset=offset,
+            ))
+
+    anchors.sort(key=lambda a: a.char_offset)
+    return anchors
+
+
+def _revert_dialogues_anchored(
+    content: str,
+    original_content: str,
+    characters: list,
+    drifted_characters: list[str],
+) -> tuple[str, VoicePreservationResult]:
+    """Speaker-anchored dialogue revert.
+
+    For each (speaker_id, ordinal) key present in original anchors, look up the
+    same key in the enhanced anchors. If found and speaker matches, revert the
+    enhanced span to the original text. Mismatches and missing ordinals are
+    recorded as diffs with appropriate skip actions.
+    """
+    result = VoicePreservationResult(drifted_characters=list(drifted_characters))
+
+    original_anchors = _extract_dialogue_anchors(original_content, characters)
+    enhanced_anchors = _extract_dialogue_anchors(content, characters)
+
+    if not original_anchors:
+        return content, result
+
+    # Build lookup: (speaker_id, ordinal) -> anchor
+    enhanced_by_key: dict[tuple[str, int], DialogueAnchor] = {
+        (a.speaker_id, a.ordinal): a for a in enhanced_anchors
+    }
+
+    reverted = content
+
+    # Filter to drifted characters only — only revert those speakers
+    drifted_ids: set[str] = set()
+    for char in characters:
+        try:
+            sid = resolve_speaker_id(char)
+        except ValueError:
+            continue
+        char_name = getattr(char, "name", "") or ""
+        if char_name in drifted_characters:
+            drifted_ids.add(sid)
+
+    # Collect revert operations sorted descending by enhanced offset to avoid
+    # position shifts corrupting subsequent replacements.
+    revert_ops: list[tuple[int, str, str, DialogueAnchorDiff]] = []
+
+    for orig_anchor in original_anchors:
+        if orig_anchor.speaker_id not in drifted_ids:
+            continue
+
+        key = (orig_anchor.speaker_id, orig_anchor.ordinal)
+        enh_anchor = enhanced_by_key.get(key)
+
+        if enh_anchor is None:
+            diff = DialogueAnchorDiff(
+                speaker_id=orig_anchor.speaker_id,
+                ordinal=orig_anchor.ordinal,
+                original_text=orig_anchor.text,
+                enhanced_text="",
+                action="skip_no_original",
+                reason="enhanced anchor missing for this ordinal",
+            )
+            result.diffs.append(diff)
+            continue
+
+        if enh_anchor.speaker_id != orig_anchor.speaker_id:
+            # Should not happen given the key lookup, but guard anyway
+            diff = DialogueAnchorDiff(
+                speaker_id=orig_anchor.speaker_id,
+                ordinal=orig_anchor.ordinal,
+                original_text=orig_anchor.text,
+                enhanced_text=enh_anchor.text,
+                action="skip_speaker_mismatch",
+                reason=f"enhanced anchor speaker={enh_anchor.speaker_id!r} != expected={orig_anchor.speaker_id!r}",
+            )
+            result.diffs.append(diff)
+            result.anchor_mismatch_count += 1
+            logger.warning(
+                "voice_revert_anchor_mismatch char=%s expected_ord=%d",
+                orig_anchor.speaker_id, orig_anchor.ordinal,
+            )
+            continue
+
+        if _similarity_ratio(orig_anchor.text, enh_anchor.text) >= 0.7:
+            # Not drifted enough to warrant revert
+            continue
+
+        diff = DialogueAnchorDiff(
+            speaker_id=orig_anchor.speaker_id,
+            ordinal=orig_anchor.ordinal,
+            original_text=orig_anchor.text,
+            enhanced_text=enh_anchor.text,
+            action="revert",
+        )
+        result.diffs.append(diff)
+        revert_ops.append((enh_anchor.char_offset, enh_anchor.text, orig_anchor.text, diff))
+
+    # Apply reverts right-to-left so earlier offsets stay valid
+    revert_ops.sort(key=lambda x: x[0], reverse=True)
+    for _, enh_text, orig_text, _ in revert_ops:
+        # Use quoted form to match what's in the chapter prose
+        enh_quoted = f'"{enh_text}"'
+        orig_quoted = f'"{orig_text}"'
+        if enh_quoted in reverted:
+            reverted = reverted.replace(enh_quoted, orig_quoted, 1)
+            result.reverted_count += 1
+            logger.debug(
+                "voice_revert_anchored: %s... → %s...",
+                enh_text[:30], orig_text[:30],
+            )
+        elif enh_text in reverted:
+            reverted = reverted.replace(enh_text, orig_text, 1)
+            result.reverted_count += 1
+
+    result.original_dialogues = [a.text for a in original_anchors]
+    result.enhanced_dialogues = [a.text for a in enhanced_anchors]
+    result.preserved_dialogues = _extract_all_dialogues(reverted)
+
+    return reverted, result
 
 
 def enforce_voice_preservation(
-    engine: VoiceFingerprintEngine,
+    engine: "VoiceFingerprintEngine",
     original_content: str,
     enhanced_content: str,
     characters: list,
     drift_threshold: float = 0.4,
     revert_threshold: float = 0.3,
+    config=None,
 ) -> tuple[str, VoicePreservationResult]:
     """Enforce voice preservation by reverting drifted dialogues.
 
-    Args:
-        engine: Voice fingerprint engine with profiles
-        original_content: Original chapter content
-        enhanced_content: Enhanced chapter content
-        characters: List of characters
-        drift_threshold: Voice drift score above which to warn
-        revert_threshold: Voice drift score above which to revert
+    When config.voice_revert_use_anchored is True (default), uses the
+    speaker-anchored algorithm. Otherwise falls back to the legacy positional path.
 
     Returns:
         (preserved_content, result) — content with reverted dialogues + metrics
     """
+    use_anchored = getattr(config, "voice_revert_use_anchored", True)
+
+    if not use_anchored:
+        return _enforce_voice_preservation_legacy(
+            engine, original_content, enhanced_content, characters,
+            drift_threshold, revert_threshold,
+        )
+
+    result = VoicePreservationResult()
+
+    if not engine.profiles:
+        return enhanced_content, result
+
+    preserved_content = enhanced_content
+    total_drift = 0.0
+    char_count = 0
+    drifted_chars: list[str] = []
+
+    for char in characters:
+        char_name = getattr(char, "name", "")
+        if not char_name or char_name not in engine.profiles:
+            continue
+
+        original_dialogues = engine._extract_dialogues(original_content, char_name)
+        enhanced_dialogues = engine._extract_dialogues(enhanced_content, char_name)
+
+        if not original_dialogues or not enhanced_dialogues:
+            continue
+
+        result.original_dialogues.extend(original_dialogues)
+        result.enhanced_dialogues.extend(enhanced_dialogues)
+
+        validation = engine.validate_enhanced_dialogue(
+            original_content, enhanced_content, char_name,
+        )
+
+        score = validation.get("score", 1.0)
+        drift = 1.0 - score
+        total_drift += drift
+        char_count += 1
+
+        if drift >= revert_threshold:
+            drifted_chars.append(char_name)
+
+    if drifted_chars:
+        preserved_content, anchor_result = _revert_dialogues_anchored(
+            enhanced_content, original_content, characters, drifted_chars,
+        )
+        result.reverted_count = anchor_result.reverted_count
+        result.anchor_mismatch_count = anchor_result.anchor_mismatch_count
+        result.diffs = anchor_result.diffs
+        result.drifted_characters = anchor_result.drifted_characters
+        if anchor_result.reverted_count > 0:
+            logger.warning(
+                "Voice drift anchored-revert: %d dialogue(s) reverted for: %s",
+                anchor_result.reverted_count, ", ".join(drifted_chars),
+            )
+
+    result.drift_severity = total_drift / max(1, char_count)
+    result.preserved_dialogues = _extract_all_dialogues(preserved_content)
+
+    return preserved_content, result
+
+
+def _revert_dialogues_legacy(
+    content: str,
+    original_dialogues: list[str],
+    enhanced_dialogues: list[str],
+    character_name: str,
+) -> str:
+    """Legacy positional dialogue revert (deprecated).
+
+    Kept for one release behind voice_revert_use_anchored=False.
+    Use the anchored path instead.
+    """
+    warnings.warn(
+        "_revert_dialogues_legacy is deprecated; use anchored revert via voice_revert_use_anchored=True",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return _revert_dialogues(content, original_dialogues, enhanced_dialogues, character_name)
+
+
+def _revert_dialogues(
+    content: str,
+    original_dialogues: list[str],
+    enhanced_dialogues: list[str],
+    character_name: str,
+) -> str:
+    """Positional dialogue revert — internal implementation used by legacy path."""
+    if not original_dialogues or not enhanced_dialogues:
+        return content
+
+    reverted = content
+
+    for i, enh in enumerate(enhanced_dialogues):
+        if i >= len(original_dialogues):
+            break
+
+        orig = original_dialogues[i]
+
+        if _similarity_ratio(orig, enh) < 0.7:
+            if enh in reverted:
+                reverted = reverted.replace(enh, orig, 1)
+                logger.debug(
+                    "Reverted dialogue for %s: %s... → %s...",
+                    character_name, enh[:30], orig[:30],
+                )
+
+    return reverted
+
+
+def _enforce_voice_preservation_legacy(
+    engine: "VoiceFingerprintEngine",
+    original_content: str,
+    enhanced_content: str,
+    characters: list,
+    drift_threshold: float,
+    revert_threshold: float,
+) -> tuple[str, VoicePreservationResult]:
+    """Legacy enforce_voice_preservation — positional index revert."""
     result = VoicePreservationResult()
 
     if not engine.profiles:
@@ -465,7 +754,6 @@ def enforce_voice_preservation(
         if not char_name or char_name not in engine.profiles:
             continue
 
-        # Extract dialogues
         original_dialogues = engine._extract_dialogues(original_content, char_name)
         enhanced_dialogues = engine._extract_dialogues(enhanced_content, char_name)
 
@@ -475,7 +763,6 @@ def enforce_voice_preservation(
         result.original_dialogues.extend(original_dialogues)
         result.enhanced_dialogues.extend(enhanced_dialogues)
 
-        # Validate consistency
         validation = engine.validate_enhanced_dialogue(
             original_content, enhanced_content, char_name,
         )
@@ -486,59 +773,25 @@ def enforce_voice_preservation(
         char_count += 1
 
         if drift >= drift_threshold:
-            result.violations.append({
-                "character": char_name,
-                "drift": drift,
-                "issues": validation.get("issues", []),
-            })
-
-            # Revert severely drifted dialogues
             if drift >= revert_threshold:
+                warnings.warn(
+                    "_revert_dialogues_legacy is deprecated; use anchored revert via voice_revert_use_anchored=True",
+                    DeprecationWarning,
+                    stacklevel=3,
+                )
                 preserved_content = _revert_dialogues(
                     preserved_content, original_dialogues, enhanced_dialogues, char_name,
                 )
                 result.reverted_count += 1
                 logger.warning(
-                    f"Voice drift for {char_name}: {drift:.0%} — reverting dialogues"
+                    "Voice drift for %s: %.0f%% — reverting dialogues (legacy)",
+                    char_name, drift * 100,
                 )
 
     result.drift_severity = total_drift / max(1, char_count)
     result.preserved_dialogues = _extract_all_dialogues(preserved_content)
 
     return preserved_content, result
-
-
-def _revert_dialogues(
-    content: str,
-    original_dialogues: list[str],
-    enhanced_dialogues: list[str],
-    character_name: str,
-) -> str:
-    """Revert enhanced dialogues back to original versions.
-
-    Uses fuzzy matching to find and replace drifted dialogues.
-    """
-    if not original_dialogues or not enhanced_dialogues:
-        return content
-
-    reverted = content
-
-    # Simple approach: replace enhanced dialogues with corresponding originals
-    # by position (assumes same dialogue order)
-    for i, enh in enumerate(enhanced_dialogues):
-        if i >= len(original_dialogues):
-            break
-
-        orig = original_dialogues[i]
-
-        # Only revert if significantly different
-        if _similarity_ratio(orig, enh) < 0.7:
-            # Try to replace in content
-            if enh in reverted:
-                reverted = reverted.replace(enh, orig, 1)
-                logger.debug(f"Reverted dialogue for {character_name}: {enh[:30]}... → {orig[:30]}...")
-
-    return reverted
 
 
 def _similarity_ratio(s1: str, s2: str) -> float:
