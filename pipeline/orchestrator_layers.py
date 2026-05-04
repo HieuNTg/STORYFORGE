@@ -33,35 +33,37 @@ def _persist_handoff_to_db(
 ) -> None:
     """Write handoff fields to the most recent pipeline_run for story_id.
 
-    Uses a synchronous SQLAlchemy engine (SQLite-safe). Non-fatal if the
-    columns don't exist yet (pre-migration DB) — callers wrap in try/except.
+    Uses ORM (not raw SQL) so SQLAlchemy's UUID type adapter handles SQLite's
+    dash-stripping correctly. Non-fatal if columns don't exist yet (pre-migration
+    DB) — callers wrap in try/except.
     """
     import os
-    from sqlalchemy import create_engine, text
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from models.db_models import PipelineRun
 
     db_url = os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
     connect_args = {"check_same_thread": False} if "sqlite" in db_url else {}
     engine = create_engine(db_url, connect_args=connect_args)
     try:
-        with engine.begin() as conn:
-            conn.execute(
-                text(
-                    "UPDATE pipeline_runs SET "
-                    "handoff_envelope = :envelope, "
-                    "handoff_health = :health, "
-                    "handoff_signals_version = :version "
-                    "WHERE id = ("
-                    "  SELECT id FROM pipeline_runs "
-                    "  WHERE story_id = :story_id "
-                    "  ORDER BY created_at DESC LIMIT 1"
-                    ")"
-                ),
-                {
-                    "envelope": __import__("json").dumps(envelope_dict),
-                    "health": __import__("json").dumps(health_dict),
-                    "version": signals_version,
-                    "story_id": story_id,
-                },
+        with Session(engine) as session:
+            run = (
+                session.query(PipelineRun)
+                .filter(PipelineRun.story_id == story_id)
+                .order_by(PipelineRun.created_at.desc())
+                .first()
+            )
+            if run is None:
+                logger.warning(
+                    "Handoff DB persist: no pipeline_run found for story_id=%s", story_id
+                )
+                return
+            run.handoff_envelope = envelope_dict
+            run.handoff_health = health_dict
+            run.handoff_signals_version = signals_version
+            session.commit()
+            logger.info(
+                "Handoff persisted to pipeline_run id=%s story_id=%s", run.id, story_id
             )
     finally:
         engine.dispose()
@@ -75,30 +77,39 @@ def _persist_chapter_contract_to_db(
 ) -> None:
     """Write negotiated_contract + warnings to chapters row.
 
-    Non-fatal if columns don't exist (pre-migration).
+    Uses ORM (not raw SQL) so SQLAlchemy's UUID type adapter handles SQLite's
+    dash-stripping correctly. Non-fatal if columns don't exist (pre-migration).
     """
-    import json
     import os
-    from sqlalchemy import create_engine, text
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from models.db_models import Chapter
 
     db_url = os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
     connect_args = {"check_same_thread": False} if "sqlite" in db_url else {}
     engine = create_engine(db_url, connect_args=connect_args)
     try:
-        with engine.begin() as conn:
-            conn.execute(
-                text(
-                    "UPDATE chapters SET "
-                    "negotiated_contract = :contract, "
-                    "contract_reconciliation_warnings = :warnings "
-                    "WHERE story_id = :story_id AND chapter_number = :ch_num"
-                ),
-                {
-                    "contract": json.dumps(contract_dict),
-                    "warnings": json.dumps(warnings),
-                    "story_id": story_id,
-                    "ch_num": chapter_number,
-                },
+        with Session(engine) as session:
+            chapter = (
+                session.query(Chapter)
+                .filter(
+                    Chapter.story_id == story_id,
+                    Chapter.chapter_number == chapter_number,
+                )
+                .first()
+            )
+            if chapter is None:
+                logger.warning(
+                    "Chapter contract persist: no chapter found story_id=%s chapter_number=%d",
+                    story_id, chapter_number,
+                )
+                return
+            chapter.negotiated_contract = contract_dict
+            chapter.contract_reconciliation_warnings = warnings
+            session.commit()
+            logger.info(
+                "Chapter contract persisted story_id=%s chapter_number=%d",
+                story_id, chapter_number,
             )
     finally:
         engine.dispose()

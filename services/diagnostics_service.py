@@ -9,6 +9,7 @@ converts to 404.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 
@@ -74,8 +75,14 @@ def build_handoff_diagnostics(story_id: str) -> dict | None:
             if run_row is None:
                 return None
 
-            envelope = run_row[0]  # JSON column, already dict
+            envelope = run_row[0]  # JSON column; str on SQLite, dict on PG JSONB
             health_raw = run_row[1]  # may be None
+
+            # Normalise: SQLite stores JSON as TEXT; parse if needed.
+            if isinstance(envelope, str):
+                envelope = json.loads(envelope)
+            if isinstance(health_raw, str):
+                health_raw = json.loads(health_raw)
 
             # 3. Build signal health summary
             signal_health_summary: dict = {}
@@ -120,6 +127,14 @@ def build_handoff_diagnostics(story_id: str) -> dict | None:
                 ch_num = ch_row[0]
                 contract = ch_row[1]
                 warnings = ch_row[2]
+                # Normalise: SQLite stores JSON as TEXT.
+                if isinstance(contract, str):
+                    contract = json.loads(contract)
+                if isinstance(warnings, str):
+                    try:
+                        warnings = json.loads(warnings)
+                    except (ValueError, TypeError):
+                        warnings = None
                 if not isinstance(contract, dict):
                     continue
                 per_chapter.append({
