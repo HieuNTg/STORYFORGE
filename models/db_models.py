@@ -12,10 +12,12 @@ from typing import Optional
 
 from sqlalchemy import (
     BigInteger,
+    DateTime,
     ForeignKey,
     Index,
     Integer,
     JSON,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -245,6 +247,33 @@ class Feedback(Base):
 
     def __repr__(self) -> str:
         return f"<Feedback story={self.story_id!r} score={self.overall_score}>"
+
+
+class EmbeddingCacheEntry(Base):
+    """ORM mirror of the `embedding_cache` SQLite table (Sprint 2, P2).
+
+    Note: the canonical storage is the separate `data/embedding_cache.db`
+    SQLite file managed by `services/embedding_cache.py`. This model is here
+    so P5/P7 diagnostics queries and any future migration tooling can reference
+    the schema through SQLAlchemy without duplicating the column definitions.
+    """
+
+    __tablename__ = "embedding_cache"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    model_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    dim: Mapped[int] = mapped_column(Integer, nullable=False)
+    vec: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (
+        Index("ix_embedding_cache_model_id", "model_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<EmbeddingCacheEntry key={self.key[:8]!r}... model={self.model_id!r}>"
 
 
 class Config(Base):

@@ -226,6 +226,14 @@ def main():
     async def injection_blocked_handler(request, exc):
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 
+    # Sprint 2 P2: wire embedding cache to service singleton (lazy — model not loaded here)
+    @main_app.on_event("startup")
+    async def on_startup():
+        from services.embedding_service import get_embedding_service
+        from services.embedding_cache import get_embedding_cache
+        get_embedding_service().attach_cache(get_embedding_cache())
+        logger.info("EmbeddingCache attached to EmbeddingService")
+
     # Graceful shutdown: cancel and await active pipeline tasks
     @main_app.on_event("shutdown")
     async def on_shutdown():
