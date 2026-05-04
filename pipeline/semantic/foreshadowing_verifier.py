@@ -39,17 +39,10 @@ from services.embedding_service import get_embedding_service, bytes_to_vec
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Custom exception (D5 strict mode)
+# Custom exception (D5 strict mode) — defined in __init__.py, re-exported here
 # ---------------------------------------------------------------------------
 
-
-class SemanticVerificationError(Exception):
-    """Raised when strict mode is active and one or more payoffs are missed."""
-
-    def __init__(self, missed: list[SemanticPayoffMatch]) -> None:
-        ids = ", ".join(m.seed_id for m in missed)
-        super().__init__(f"Missed foreshadowing payoffs: {ids}")
-        self.missed = missed
+from pipeline.semantic import SemanticVerificationError  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +178,11 @@ def verify_payoffs(
     if os.environ.get(_STRICT_ENV) == "1":
         missed = [m for m in results if m.status == "missed"]
         if missed:
-            raise SemanticVerificationError(missed)
+            ids = ", ".join(m.seed_id for m in missed)
+            raise SemanticVerificationError(
+                f"Missed foreshadowing payoffs: {ids}",
+                missed_payoffs=missed,
+            )
 
     # Warn-and-continue for weak and missed
     for m in results:
@@ -246,7 +243,11 @@ def verify_seeds(
     if os.environ.get(_STRICT_ENV) == "1":
         missed = [m for m in results if m.status == "missed"]
         if missed:
-            raise SemanticVerificationError(missed)
+            ids = ", ".join(m.seed_id for m in missed)
+            raise SemanticVerificationError(
+                f"Missed foreshadowing seeds: {ids}",
+                missed_payoffs=missed,
+            )
 
     for m in results:
         if m.status in ("missed", "weak"):

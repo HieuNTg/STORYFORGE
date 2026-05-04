@@ -19,11 +19,12 @@ try:
 except ImportError:
     _CONSISTENCY_AVAILABLE = False
 
-# Structural issue detector (Phase 5)
+# Structural issue detector (Sprint 2 P4 — NER + embedding replacement)
 try:
-    from pipeline.layer2_enhance.structural_detector import StructuralIssueDetector
+    from pipeline.semantic.structural_detector import detect_structural_issues as _detect_structural_issues
     _STRUCTURAL_DETECTOR_AVAILABLE = True
 except ImportError:
+    _detect_structural_issues = None  # type: ignore[assignment]
     _STRUCTURAL_DETECTOR_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
@@ -154,6 +155,44 @@ def _build_knowledge_constraints(sim_result, draft) -> str:
     return "## KIẾN THỨC NHÂN VẬT (KHÔNG được tiết lộ điều nhân vật chưa biết):\n" + "\n".join(lines[:10])
 
 
+def _resolve_contract(chapter, ch_num: int):
+    """Return a NegotiatedChapterContract for *chapter*.
+
+    Priority:
+    1. `chapter.negotiated_contract` if already a NegotiatedChapterContract.
+    2. Deserialise from dict if `negotiated_contract` is a dict.
+    3. Synthesise minimal contract from outline-level attributes on the chapter.
+    """
+    from models.handoff_schemas import NegotiatedChapterContract
+
+    nc = getattr(chapter, "negotiated_contract", None)
+    if isinstance(nc, NegotiatedChapterContract):
+        return nc
+    if isinstance(nc, dict) and nc:
+        try:
+            return NegotiatedChapterContract.model_validate(nc)
+        except Exception:
+            pass
+
+    # Synthesise from outline attributes (graceful fallback for pre-contract chapters)
+    outline = getattr(chapter, "outline", None)
+    must_mention: list[str] = []
+    threads: list[str] = []
+    pacing = "rising"
+
+    if outline is not None:
+        chars_inv = getattr(outline, "characters_involved", None) or []
+        must_mention = list(chars_inv)
+        pacing = str(getattr(outline, "pacing_type", "rising") or "rising")
+
+    return NegotiatedChapterContract(
+        chapter_num=ch_num,
+        pacing_type=pacing if pacing in ("setup", "rising", "climax", "twist", "cooldown") else "rising",
+        must_mention_characters=must_mention,
+        threads_advance=threads,
+    )
+
+
 class StoryEnhancer:
     """Viết lại truyện với tính kịch tích cao hơn."""
 
@@ -174,28 +213,41 @@ class StoryEnhancer:
     ) -> dict[int, list]:
         """Detect structural issues per chapter before enhancement.
 
-        Returns {chapter_number: [StructuralIssue, ...]} for chapters with issues.
+        Uses `pipeline.semantic.structural_detector.detect_structural_issues`
+        (NER + embedding, Sprint 2 P4).  Returns
+        {chapter_number: [StructuralIssue, ...]} using the legacy adapter so
+        that `orchestrator_layers.py` (consumer) continues to work unchanged.
+
         Only chapters NOT in _rewritten_chapters are checked (loop prevention).
         Non-fatal: returns empty dict on any error.
         """
-        if not _STRUCTURAL_DETECTOR_AVAILABLE:
+        if not _STRUCTURAL_DETECTOR_AVAILABLE or _detect_structural_issues is None:
             return {}
         try:
-            detector = StructuralIssueDetector(severity_threshold=threshold)
-            outline_map = {o.chapter_number: o for o in (draft.outlines or [])}
+            from models.handoff_schemas import NegotiatedChapterContract
+
+            characters = list(getattr(draft, "characters", []) or [])
+            # Build a per-chapter contract from negotiated_contract if present,
+            # else synthesise a minimal one from the outline (graceful fallback).
             results: dict[int, list] = {}
             for chapter in draft.chapters:
                 ch_num = chapter.chapter_number
                 if ch_num in self._rewritten_chapters:
                     continue
-                outline = outline_map.get(ch_num)
-                issues = detector.detect(
+
+                contract = _resolve_contract(chapter, ch_num)
+
+                findings = _detect_structural_issues(
                     chapter=chapter,
-                    outline=outline,
-                    arc_waypoints=arc_waypoints,
+                    contract=contract,
+                    characters=characters,
+                    thread_threshold=threshold,
                 )
-                if issues:
-                    results[ch_num] = issues
+                # Filter by severity threshold (mirror old behaviour)
+                findings = [f for f in findings if f.severity >= threshold]
+                if findings:
+                    # Adapt to legacy StructuralIssue for orchestrator_layers consumer
+                    results[ch_num] = [f.to_legacy_issue() for f in findings]
             return results
         except Exception as e:
             logger.warning(f"Structural detection failed (non-fatal): {e}")

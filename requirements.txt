@@ -8,6 +8,11 @@ openai>=1.51.0,<2.0
 # chromadb <0.5: 1.x is a full rewrite with incompatible collection/query API
 chromadb>=0.4.24,<0.5
 sentence-transformers>=2.7.0,<3.0
+# spaCy for NER-based structural detection (Sprint 2 P4).
+# After installing, download the multilingual model:
+#   python -m spacy download xx_ent_wiki_sm
+# or run: python scripts/install_spacy_model.py
+spacy>=3.7,<4
 
 # ── Data & validation ──
 pydantic>=2.9.2,<3.0
