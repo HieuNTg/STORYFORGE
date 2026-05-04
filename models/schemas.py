@@ -510,7 +510,7 @@ class SimulationResult(BaseModel):
     causal_chains: list[list[str]] = Field(default_factory=list, description="Top causal chains as event_id lists")
     actual_rounds: int = Field(default=0, description="Actual rounds run (may differ from requested)")
     # Sprint 1 Task 3: per-chapter drama contracts (dict stored raw for Pydantic-agnostic propagation)
-    chapter_contracts: dict = Field(default_factory=dict, description="chapter_number → DramaContract dict")
+    chapter_contracts: dict = Field(default_factory=dict, description="chapter_number → NegotiatedChapterContract dict")
     # Sprint 2 Task 2: per-chapter voice contracts (dict stored raw)
     voice_contracts: dict = Field(default_factory=dict, description="chapter_number → VoiceContract dict")
 
