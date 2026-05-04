@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from models.schemas import Chapter, SimulationResult
-from pipeline.layer2_enhance.chapter_contract import DramaContract
+from models.handoff_schemas import NegotiatedChapterContract
 from pipeline.layer2_enhance.enhancer import StoryEnhancer
 
 
@@ -23,9 +23,9 @@ def _chapter(num: int = 1, content: str = "Enhanced text") -> Chapter:
 
 
 def _contract_dict(num: int = 1, target: float = 0.7) -> dict:
-    return DramaContract(
-        chapter_number=num, drama_target=target,
-        required_escalations=["confrontation"],
+    return NegotiatedChapterContract(
+        chapter_num=num, pacing_type="rising", drama_target=target,
+        escalation_events=["confrontation"],
     ).model_dump()
 
 

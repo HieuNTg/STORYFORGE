@@ -759,7 +759,7 @@ async def run_full_pipeline(
             from pipeline.layer2_enhance.chapter_contract import build_chapter_contracts
 
             _ch_nums = [int(getattr(_c, "chapter_number", 0) or 0) for _c in (enhanced.chapters or [])]
-            _drama_by_ch: dict[int, "DramaContract"] = {}
+            _drama_by_ch: dict[int, NegotiatedChapterContract] = {}
             if sim_result is not None and _ch_nums:
                 try:
                     _drama_by_ch = build_chapter_contracts(sim_result, _ch_nums)
@@ -783,9 +783,9 @@ async def run_full_pipeline(
                     _typed = _typed.model_copy(update={
                         "drama_target": float(_drama.drama_target),
                         "drama_tolerance": float(_drama.drama_tolerance),
-                        "escalation_events": list(_drama.required_escalations),
+                        "escalation_events": list(_drama.escalation_events),
                         "required_subtext": list(_drama.required_subtext),
-                        "causal_refs": [str(x) for x in _drama.required_causal_refs],
+                        "causal_refs": list(_drama.causal_refs),
                         "forbidden_patterns": list(_drama.forbidden_patterns),
                     })
                 _reconciled = reconcile_contract(_typed, sim_result=sim_result)

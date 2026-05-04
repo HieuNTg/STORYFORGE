@@ -1,14 +1,8 @@
 """Sprint 1 Task 3 — Simulator → Enhancer contract enforcement.
 
-Simulator emits a DramaContract per chapter (drama target + required
-escalations / subtext / causal refs). Enhancer runs scene enhancement,
-then cheap-LLM validates the enhanced chapter against the contract. If
-validation fails and retry is enabled, enhancement re-runs once with a
-hint derived from the failed validation.
-
-Keeps the existing `enhance_chapter_by_scenes(...)` API intact; retry
-hints flow through a thin wrapper rather than threading new kwargs
-through the whole scene-enhancement chain.
+NegotiatedChapterContract (from models.handoff_schemas) is the single rubric
+for both L1 and L2 contract requirements. DramaContract has been removed;
+NegotiatedChapterContract carries all equivalent fields.
 """
 from __future__ import annotations
 
@@ -17,17 +11,6 @@ import logging
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
-
-
-class DramaContract(BaseModel):
-    """Contract from simulator to enhancer for a single chapter."""
-    chapter_number: int
-    drama_target: float = Field(default=0.6, ge=0.0, le=1.0)
-    drama_tolerance: float = Field(default=0.15, ge=0.0, le=1.0)
-    required_escalations: list[str] = Field(default_factory=list)
-    required_subtext: list[str] = Field(default_factory=list)
-    required_causal_refs: list[int] = Field(default_factory=list)
-    forbidden_patterns: list[str] = Field(default_factory=list)
 
 
 class ContractValidation(BaseModel):
@@ -49,15 +32,16 @@ def _clip(value: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, value))
 
 
-def build_chapter_contracts(sim_result, chapter_numbers: list[int]) -> dict[int, DramaContract]:
-    """Derive DramaContract per chapter from SimulationResult.
+def build_chapter_contracts(sim_result, chapter_numbers: list[int]) -> dict[int, "NegotiatedChapterContract"]:
+    """Derive NegotiatedChapterContract per chapter from SimulationResult.
 
-    Adapts to real SimulationResult schema (events, drama_suggestions, causal_chains,
-    tension_map) rather than the speculative schema in the original plan.
+    Returns a dict keyed by chapter number. Only drama-related fields are
+    populated here (drama_target, escalation_events, required_subtext,
+    causal_refs); L1 narrative fields are filled upstream by the handoff gate.
     """
-    from models.schemas import SimulationResult as _SR  # noqa: F401
+    from models.handoff_schemas import NegotiatedChapterContract
 
-    contracts: dict[int, DramaContract] = {}
+    contracts: dict[int, NegotiatedChapterContract] = {}
     events = getattr(sim_result, "events", []) or []
     drama_sugs = getattr(sim_result, "drama_suggestions", []) or []
     tension_map = getattr(sim_result, "tension_map", {}) or {}
@@ -69,14 +53,11 @@ def build_chapter_contracts(sim_result, chapter_numbers: list[int]) -> dict[int,
         if vals:
             baseline = _clip(sum(vals) / len(vals), 0.3, 0.95)
 
+    from pipeline.layer1_story.chapter_contract_builder import extract_chapter_num
+
     def _events_for(ch_num: int) -> list:
-        hits: list = []
-        for e in events:
-            tag = getattr(e, "suggested_insertion", "") or ""
-            # tag like "chương 3", "ch3", "3" — accept any containing the chapter number
-            if str(ch_num) in tag:
-                hits.append(e)
-        return hits
+        # Sprint 1 P5: integer chapter mapping (replaces `str(ch_num) in tag`)
+        return [e for e in events if extract_chapter_num(e) == ch_num]
 
     for ch_num in chapter_numbers:
         ch_events = _events_for(ch_num)
@@ -95,34 +76,33 @@ def build_chapter_contracts(sim_result, chapter_numbers: list[int]) -> dict[int,
             if getattr(e, "description", "")
         ]
 
-        # Required subtext: drama_suggestions (global list — take first N for first chapters)
-        # Distribute suggestions across chapters deterministically
+        # Required subtext: distribute drama_suggestions across chapters deterministically
         subtext: list[str] = []
         if drama_sugs:
             idx = (ch_num - 1) % max(1, len(drama_sugs))
             subtext = [drama_sugs[idx]]
 
-        # Causal refs: for each event in this chapter with cause_event_id, find
-        # source event and map back to its chapter via suggested_insertion
-        causal_refs: list[int] = []
+        # Causal refs: look up source chapters for cause_event_id links
+        causal_refs: list[str] = []
         for e in ch_events:
             cause_id = getattr(e, "cause_event_id", "") or ""
             if not cause_id:
                 continue
-            # Look up source chapter from any matching event description
             for src in events:
                 if cause_id and cause_id in (getattr(src, "event_type", "") or ""):
-                    tag = getattr(src, "suggested_insertion", "") or ""
-                    for num in _extract_chapter_nums(tag):
-                        if num != ch_num and num not in causal_refs:
-                            causal_refs.append(num)
+                    src_num = extract_chapter_num(src)
+                    if src_num is not None and src_num != ch_num:
+                        ref = str(src_num)
+                        if ref not in causal_refs:
+                            causal_refs.append(ref)
 
-        contracts[ch_num] = DramaContract(
-            chapter_number=ch_num,
+        contracts[ch_num] = NegotiatedChapterContract(
+            chapter_num=ch_num,
+            pacing_type="rising",  # default; reconcile_contract may override
             drama_target=drama_target,
-            required_escalations=escalations,
+            escalation_events=escalations,
             required_subtext=subtext,
-            required_causal_refs=causal_refs,
+            causal_refs=causal_refs,
         )
 
     return contracts
@@ -136,19 +116,25 @@ def _extract_chapter_nums(text: str) -> list[int]:
 def validate_chapter_against_contract(
     llm,
     chapter_content: str,
-    contract: DramaContract,
+    contract: "NegotiatedChapterContract",
     model_tier: str = "cheap",
 ) -> ContractValidation:
-    """Single cheap LLM call → structured validation against contract."""
+    """Single cheap LLM call → structured validation against NegotiatedChapterContract."""
+    from models.handoff_schemas import NegotiatedChapterContract  # noqa: F401 (type check)
+    # chapter_number compat: NegotiatedChapterContract uses chapter_num
+    ch_num = getattr(contract, "chapter_num", None) or getattr(contract, "chapter_number", 0)
+    escalations = getattr(contract, "escalation_events", None) or getattr(contract, "required_escalations", [])
+    causal_refs = getattr(contract, "causal_refs", None) or getattr(contract, "required_causal_refs", [])
+
     content_excerpt = (chapter_content or "")[:4000]
     prompt = (
         "Đánh giá chương sau có đáp ứng yêu cầu không.\n\n"
         f"CHƯƠNG:\n{content_excerpt}\n\n"
         "YÊU CẦU:\n"
         f"- Drama intensity target: {contract.drama_target:.2f} (0.0-1.0)\n"
-        f"- Phải có các escalation: {contract.required_escalations}\n"
+        f"- Phải có các escalation: {escalations}\n"
         f"- Phải có subtext tâm lý: {contract.required_subtext}\n"
-        f"- Phải reference sự kiện từ chương: {contract.required_causal_refs}\n"
+        f"- Phải reference sự kiện từ chương: {causal_refs}\n"
         f"- Không được có: {contract.forbidden_patterns}\n\n"
         "Trả về JSON đúng schema:\n"
         '{"drama_actual": <0.0-1.0>, "missing_escalations": [..], '
@@ -164,9 +150,9 @@ def validate_chapter_against_contract(
             model_tier=model_tier,
         )
     except Exception as exc:
-        logger.warning("Contract validation LLM call failed for ch%d: %s", contract.chapter_number, exc)
+        logger.warning("Contract validation LLM call failed for ch%d: %s", ch_num, exc)
         return ContractValidation(
-            chapter_number=contract.chapter_number,
+            chapter_number=ch_num,
             passed=False,
             reason=f"validation_llm_error: {exc}",
         )
@@ -198,7 +184,7 @@ def validate_chapter_against_contract(
     )
 
     return ContractValidation(
-        chapter_number=contract.chapter_number,
+        chapter_number=ch_num,
         passed=passed,
         drama_actual=drama_actual,
         drama_delta=drama_delta,
@@ -309,14 +295,8 @@ def build_voice_contracts(
             vp = vp_map.get(name)
             if not vp:
                 continue
-            # Unified schema uses verbal_tics + dialogue_examples; legacy L1 uses dialogue_example; legacy L2 uses speech_quirks/dialogue_samples
-            tics = list(vp.get("verbal_tics") or vp.get("speech_quirks") or [])[:4]
-            examples = list(
-                vp.get("dialogue_examples")
-                or vp.get("dialogue_example")
-                or vp.get("dialogue_samples")
-                or []
-            )[:2]
+            tics = list(vp.get("verbal_tics") or [])[:4]
+            examples = list(vp.get("dialogue_examples") or [])[:2]
             per_char[name] = {
                 "vocabulary_level": vp.get("vocabulary_level", ""),
                 "sentence_style": vp.get("sentence_style", ""),

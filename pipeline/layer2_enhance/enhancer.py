@@ -274,7 +274,8 @@ class StoryEnhancer:
             if _signals_on:
                 _chapter_summary = getattr(chapter, "structured_summary", None)
                 if draft is not None:
-                    _thread_state = list(getattr(draft, "open_threads", []) or []) + list(getattr(draft, "resolved_threads", []) or [])
+                    from pipeline.layer2_enhance import _envelope_access as _env
+                    _thread_state = _env.threads(draft)
                     _arc_context = _build_arc_context(draft, chapter.chapter_number)
                 _pacing_directive = _extract_pacing_directive(draft, chapter.chapter_number)
             # L2-E: Use pacing_type from outline as fallback for per-chapter drama intensity
@@ -387,11 +388,12 @@ class StoryEnhancer:
             return enhanced_chapter
 
         try:
+            from models.handoff_schemas import NegotiatedChapterContract
             from pipeline.layer2_enhance.chapter_contract import (
-                DramaContract, validate_chapter_against_contract, build_retry_hint,
+                validate_chapter_against_contract, build_retry_hint,
             )
             from pipeline.layer2_enhance.scene_enhancer import SceneEnhancer
-            contract = DramaContract(**raw) if isinstance(raw, dict) else raw
+            contract = NegotiatedChapterContract.model_validate(raw) if isinstance(raw, dict) else raw
 
             try:
                 cfg = ConfigManager().load().pipeline
@@ -399,7 +401,7 @@ class StoryEnhancer:
                 cfg = None
 
             tolerance = float(getattr(cfg, "contract_drama_tolerance", 0.15)) if cfg else 0.15
-            contract.drama_tolerance = tolerance
+            contract = contract.model_copy(update={"drama_tolerance": tolerance})
             cheap = bool(getattr(cfg, "contract_cheap_validation", True)) if cfg else True
             retry_enabled = bool(getattr(cfg, "enable_contract_retry", True)) if cfg else True
             retry_max = int(getattr(cfg, "contract_retry_max", 1)) if cfg else 1
@@ -643,7 +645,8 @@ class StoryEnhancer:
         if _voice_on and not getattr(sim_result, "voice_contracts", None):
             try:
                 from pipeline.layer2_enhance.chapter_contract import build_voice_contracts
-                _vp = getattr(draft, "voice_profiles", None) or []
+                from pipeline.layer2_enhance import _envelope_access as _env
+                _vp = _env.voice_profiles(draft)
                 if _vp:
                     _min_comp = float(getattr(_cfg, "voice_min_compliance", 0.75))
                     _outlines = getattr(draft, "outlines", []) or []
@@ -1114,10 +1117,11 @@ class StoryEnhancer:
                         contracts_raw = getattr(sim_result, "chapter_contracts", None) or {}
                         raw_contract = contracts_raw.get(ch_num) or contracts_raw.get(str(ch_num))
                         if raw_contract:
+                            from models.handoff_schemas import NegotiatedChapterContract
                             from pipeline.layer2_enhance.chapter_contract import (
-                                DramaContract, validate_chapter_against_contract,
+                                validate_chapter_against_contract,
                             )
-                            contract = DramaContract(**raw_contract) if isinstance(raw_contract, dict) else raw_contract
+                            contract = NegotiatedChapterContract.model_validate(raw_contract) if isinstance(raw_contract, dict) else raw_contract
                             val = validate_chapter_against_contract(
                                 self.llm, rewritten_ch.content, contract, model_tier="cheap",
                             )
@@ -1212,7 +1216,8 @@ class StoryEnhancer:
         if _gate_on:
             try:
                 from pipeline.layer2_enhance.contract_gate import apply_contract_gate
-                _draft_threads = list(getattr(draft, "open_threads", []) or []) + list(getattr(draft, "resolved_threads", []) or [])
+                from pipeline.layer2_enhance import _envelope_access as _env
+                _draft_threads = _env.threads(draft)
                 _log("📋 Đang kiểm tra hợp đồng chương...")
                 stats = apply_contract_gate(self.llm, enhanced, _draft_threads, enabled=True)
                 if stats.get("rewrites", 0) > 0:
