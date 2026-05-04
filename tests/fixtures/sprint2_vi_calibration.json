@@ -1,0 +1,258 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Vietnamese-realistic calibration set for foreshadowing payoff verification (Sprint 2 P7).",
+  "author_note": "30 hand-authored pairs covering paraphrase / near-miss / negative classes across cultivation-novel and slice-of-life vocabulary. Used at default threshold 0.62 against paraphrase-multilingual-MiniLM-L12-v2.",
+  "default_threshold": 0.62,
+  "pairs": [
+    {
+      "id": "para-01",
+      "anchor": "Long phát hiện thanh kiếm tổ tiên giấu trong động",
+      "chapter_span": "Trong hang đá tối tăm, Long tìm thấy thanh bảo kiếm gia truyền của tổ tiên",
+      "expected": "matched",
+      "category": "paraphrase",
+      "register": "tiên hiệp"
+    },
+    {
+      "id": "para-02",
+      "anchor": "Mai nhận ra Tuấn đã lừa dối mình suốt nhiều năm",
+      "chapter_span": "Cô gái hiểu ra rằng người yêu đã nói dối cô bao lâu nay",
+      "expected": "matched",
+      "category": "paraphrase",
+      "register": "đời thường"
+    },
+    {
+      "id": "para-03",
+      "anchor": "Sư phụ truyền lại bí kíp kiếm pháp tối thượng",
+      "chapter_span": "Lão tiền bối trao cho đệ tử quyển bí thuật kiếm đạo cao siêu",
+      "expected": "matched",
+      "category": "paraphrase",
+      "register": "tiên hiệp"
+    },
+    {
+      "id": "para-04",
+      "anchor": "Hà phải bán nhà để trả nợ cho cha",
+      "chapter_span": "Cô đành thanh lý căn nhà nhỏ để gánh khoản nợ của ba",
+      "expected": "matched",
+      "category": "paraphrase",
+      "register": "đời thường"
+    },
+    {
+      "id": "para-05",
+      "anchor": "Hắc Long Vương trỗi dậy từ đáy biển sâu",
+      "chapter_span": "Từ vực sâu đại dương, Hắc Long chúa đã thức tỉnh sau ngàn năm ngủ vùi",
+      "expected": "matched",
+      "category": "paraphrase",
+      "register": "tiên hiệp"
+    },
+    {
+      "id": "para-06",
+      "anchor": "Hùng từ chối lời mời làm việc tại Sài Gòn",
+      "chapter_span": "Anh đã từ chối cơ hội nghề nghiệp ở thành phố Hồ Chí Minh",
+      "expected": "matched",
+      "category": "paraphrase",
+      "register": "đời thường"
+    },
+    {
+      "id": "para-07",
+      "anchor": "Tiểu Vũ đột phá lên cảnh giới Kim Đan",
+      "chapter_span": "Vũ đã thành công luyện thành Kim Đan, bước sang một tầng tu vi mới",
+      "expected": "matched",
+      "category": "paraphrase",
+      "register": "tiên hiệp"
+    },
+    {
+      "id": "para-08",
+      "anchor": "Linh kết hôn với người không yêu vì áp lực gia đình",
+      "chapter_span": "Vì cha mẹ ép buộc, cô lấy người mình không có tình cảm",
+      "expected": "matched",
+      "category": "paraphrase",
+      "register": "đời thường"
+    },
+    {
+      "id": "para-09",
+      "anchor": "Bí mật về thân thế của Phong cuối cùng được hé lộ",
+      "chapter_span": "Cuối cùng người ta cũng biết được nguồn gốc thực sự của chàng trai",
+      "expected": "matched",
+      "category": "paraphrase",
+      "register": "đời thường"
+    },
+    {
+      "id": "para-10",
+      "anchor": "Thanh kiếm gãy đôi trong trận chiến với ma vương",
+      "chapter_span": "Trong cuộc đại chiến với ma chúa, bảo kiếm vỡ thành hai mảnh",
+      "expected": "matched",
+      "category": "paraphrase",
+      "register": "tiên hiệp"
+    },
+    {
+      "id": "near-01",
+      "anchor": "Long tìm thấy thanh kiếm tổ tiên",
+      "chapter_span": "Long ngồi trong động và kể lại huyền thoại về những thanh kiếm cổ xưa của tổ tiên",
+      "expected": "weak",
+      "category": "near-miss",
+      "register": "tiên hiệp",
+      "note": "Same vocab field but action is talking-about not finding"
+    },
+    {
+      "id": "near-02",
+      "anchor": "Mai phát hiện Tuấn ngoại tình với đồng nghiệp",
+      "chapter_span": "Mai và Tuấn cùng dự tiệc tất niên ở công ty và gặp các đồng nghiệp",
+      "expected": "weak",
+      "category": "near-miss",
+      "register": "đời thường",
+      "note": "Names + workplace overlap but no betrayal discovery"
+    },
+    {
+      "id": "near-03",
+      "anchor": "Sư phụ qua đời trong trận đại chiến",
+      "chapter_span": "Sư phụ kể lại những trận chiến oanh liệt của mình thời trẻ",
+      "expected": "weak",
+      "category": "near-miss",
+      "register": "tiên hiệp",
+      "note": "Master + battle words but reminiscing not dying"
+    },
+    {
+      "id": "near-04",
+      "anchor": "Hà mất việc làm tại công ty cũ",
+      "chapter_span": "Hà chuẩn bị hồ sơ xin việc cho công ty mới sau khi tốt nghiệp",
+      "expected": "weak",
+      "category": "near-miss",
+      "register": "đời thường",
+      "note": "Job theme overlap but new-hire vs being-fired"
+    },
+    {
+      "id": "near-05",
+      "anchor": "Tiểu Vũ bị trục xuất khỏi tông môn",
+      "chapter_span": "Tiểu Vũ trở về tông môn sau chuyến hành tẩu giang hồ dài ngày",
+      "expected": "weak",
+      "category": "near-miss",
+      "register": "tiên hiệp",
+      "note": "Same character + sect but coming-back vs banishment"
+    },
+    {
+      "id": "near-06",
+      "anchor": "Linh có thai với người yêu cũ",
+      "chapter_span": "Linh nhận được tin nhắn từ người yêu cũ chúc mừng sinh nhật",
+      "expected": "weak",
+      "category": "near-miss",
+      "register": "đời thường",
+      "note": "Ex-partner contact but no pregnancy"
+    },
+    {
+      "id": "near-07",
+      "anchor": "Long luyện thành tuyệt chiêu Hỏa Long Quyền",
+      "chapter_span": "Long quan sát sư huynh sử dụng môn võ Hỏa Long Quyền uy mãnh",
+      "expected": "weak",
+      "category": "near-miss",
+      "register": "tiên hiệp",
+      "note": "Same technique mentioned but observing not mastering"
+    },
+    {
+      "id": "near-08",
+      "anchor": "Phong tử trận để bảo vệ làng quê",
+      "chapter_span": "Phong canh giữ cổng làng và quan sát kẻ địch từ xa",
+      "expected": "weak",
+      "category": "near-miss",
+      "register": "tiên hiệp",
+      "note": "Defending village but no death"
+    },
+    {
+      "id": "near-09",
+      "anchor": "Bà ngoại Hùng tiết lộ bí mật gia tộc trước khi mất",
+      "chapter_span": "Bà ngoại Hùng kể những câu chuyện thời thanh xuân cho cháu nghe",
+      "expected": "weak",
+      "category": "near-miss",
+      "register": "đời thường",
+      "note": "Grandmother storytelling but no death/secret reveal"
+    },
+    {
+      "id": "near-10",
+      "anchor": "Hoa quyết định nhận lời cầu hôn của Đức",
+      "chapter_span": "Hoa và Đức cùng đi xem phim lãng mạn vào tối thứ Bảy",
+      "expected": "weak",
+      "category": "near-miss",
+      "register": "đời thường",
+      "note": "Couple activity but no proposal acceptance"
+    },
+    {
+      "id": "neg-01",
+      "anchor": "Long phát hiện thanh kiếm tổ tiên giấu trong động",
+      "chapter_span": "Hôm nay trời mưa to, đường phố Hà Nội ngập nặng, người dân khổ sở",
+      "expected": "missed",
+      "category": "negative",
+      "register": "đời thường"
+    },
+    {
+      "id": "neg-02",
+      "anchor": "Mai nhận ra Tuấn đã lừa dối mình",
+      "chapter_span": "Đỉnh núi Tuyết Sơn quanh năm phủ một lớp băng trắng xóa",
+      "expected": "missed",
+      "category": "negative",
+      "register": "tiên hiệp"
+    },
+    {
+      "id": "neg-03",
+      "anchor": "Sư phụ truyền lại bí kíp tối thượng",
+      "chapter_span": "Cô gái nhỏ ngồi bên cửa sổ nhìn đàn chim sẻ tranh ăn ngoài sân",
+      "expected": "missed",
+      "category": "negative",
+      "register": "đời thường"
+    },
+    {
+      "id": "neg-04",
+      "anchor": "Hà phải bán nhà để trả nợ",
+      "chapter_span": "Đệ tử của Thanh Vân Tông phá quan thành công, đột phá Nguyên Anh",
+      "expected": "missed",
+      "category": "negative",
+      "register": "tiên hiệp"
+    },
+    {
+      "id": "neg-05",
+      "anchor": "Hắc Long Vương trỗi dậy từ đáy biển",
+      "chapter_span": "Bữa cơm gia đình tối nay có canh chua cá lóc và rau muống xào tỏi",
+      "expected": "missed",
+      "category": "negative",
+      "register": "đời thường"
+    },
+    {
+      "id": "neg-06",
+      "anchor": "Hùng từ chối công việc ở Sài Gòn",
+      "chapter_span": "Trên đỉnh Côn Lôn Sơn, hai vị tiên nhân đang đối ẩm dưới gốc đào",
+      "expected": "missed",
+      "category": "negative",
+      "register": "tiên hiệp"
+    },
+    {
+      "id": "neg-07",
+      "anchor": "Tiểu Vũ đột phá Kim Đan kỳ",
+      "chapter_span": "Sáng nay Mai đi chợ mua thịt heo và rau cải về nấu canh cho mẹ",
+      "expected": "missed",
+      "category": "negative",
+      "register": "đời thường"
+    },
+    {
+      "id": "neg-08",
+      "anchor": "Bí mật thân thế của Phong được hé lộ",
+      "chapter_span": "Đàn cá vàng bơi tung tăng trong hồ sen ở khuôn viên trường đại học",
+      "expected": "missed",
+      "category": "negative",
+      "register": "đời thường"
+    },
+    {
+      "id": "neg-09",
+      "anchor": "Thanh kiếm gãy trong trận chiến với ma vương",
+      "chapter_span": "Quán cà phê đầu hẻm vẫn mở cửa, mùi thơm bốc lên trong buổi sáng se lạnh",
+      "expected": "missed",
+      "category": "negative",
+      "register": "đời thường"
+    },
+    {
+      "id": "neg-10",
+      "anchor": "Linh kết hôn vì áp lực gia đình",
+      "chapter_span": "Bão Hắc Phong cuốn tan vạn dặm, ma khí tràn lan khắp Cửu Châu Đại Lục",
+      "expected": "missed",
+      "category": "negative",
+      "register": "tiên hiệp"
+    }
+  ]
+}

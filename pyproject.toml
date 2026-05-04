@@ -19,6 +19,11 @@ addopts = [
 ]
 # asyncio mode for async tests
 asyncio_mode = "auto"
+# Custom markers (Sprint 2 P7)
+markers = [
+    "calibration: real-model calibration tests (slow; loads sentence-transformers)",
+    "perf: performance benchmarks (10-chapter pipeline timing)",
+]
 
 [tool.coverage.run]
 # Source directories to measure
