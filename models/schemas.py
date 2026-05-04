@@ -420,6 +420,10 @@ class StoryDraft(BaseModel):
     context: Optional[StoryContext] = Field(default=None, description="Rolling StoryContext with extraction_health telemetry")
     # Sprint 3 Task 1: Unified knowledge graph (serialized form — dict produced by StoryKnowledgeGraph.to_dict)
     knowledge_graph: dict = Field(default_factory=dict, description="Unified KG merging characters/threads/conflicts/foreshadowing")
+    # Sprint 1 P2: top-level handoff signals (parallel to per-character storage during migration)
+    voice_fingerprints: list[dict] = Field(default_factory=list, description="Canonicalised voice profiles, top-level for L1Handoff")
+    arc_waypoints: list[dict] = Field(default_factory=list, description="Top-level arc waypoint records, parallel to per-character storage")
+    l1_handoff: Optional[dict] = Field(default=None, description="L1Handoff envelope dict (set by handoff_builder before L2 entry)")
 
 
 # === Layer 2: Mô phỏng tăng kịch tính ===
@@ -698,6 +702,10 @@ class PipelineOutput(BaseModel):
     extraction_failures: list[ExtractionHealth] = Field(default_factory=list, description="All failed extraction attempts")
     # Sprint 1 Task 2: Trace + cost/token telemetry summary
     trace: dict = Field(default_factory=dict, description="Pipeline trace summary (trace_id, totals, per-module/chapter cost breakdown)")
+    # Sprint 1 P3: Per-signal L1→L2 handoff health (DB column added in P6)
+    handoff_health: dict = Field(default_factory=dict, description="Per-signal SignalHealth from L1 handoff envelope")
+    # Sprint 1 P6: full serialised L1Handoff envelope (for story_id extraction in output builder)
+    handoff_envelope: Optional[dict] = Field(default=None, description="Serialised L1Handoff dict")
 
 
 try:

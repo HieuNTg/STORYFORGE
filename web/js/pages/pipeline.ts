@@ -7,6 +7,8 @@ function pipelinePage() {
     activeTab: 'draft' as string,
     branchOpen: false as boolean,
     _branchComp: null as unknown,
+    handoffDiagLoading: false as boolean,
+    handoffDiagData: null as Record<string, unknown> | null,
 
     /** Example story ideas for quick start */
     ideaExamples: [
@@ -188,6 +190,18 @@ function pipelinePage() {
       } else {
         await Alpine.store('pipeline').run();
       }
+    },
+
+    /** P6: fetch per-chapter contract diagnostics from the diagnostics API. */
+    async loadHandoffDiagnostics(): Promise<void> {
+      const storyId = (Alpine.store('pipeline').result as Record<string, unknown> | null)?.story_id as string | undefined;
+      if (!storyId || this.handoffDiagData) return;
+      this.handoffDiagLoading = true;
+      try {
+        const resp = await fetch(`/api/diagnostics/handoff/${storyId}`);
+        if (resp.ok) this.handoffDiagData = await resp.json() as Record<string, unknown>;
+      } catch (_) {}
+      finally { this.handoffDiagLoading = false; }
     },
 
     async openBranchMode(): Promise<void> {

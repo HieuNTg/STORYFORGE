@@ -75,4 +75,20 @@ def build_output_summary(output) -> dict:
             for qs in output.quality_scores
         ]
 
+    # P6: handoff health for Pipeline Health panel (no sanitisation needed — enum strings only)
+    if output.handoff_health:
+        result["handoff_health"] = output.handoff_health
+        # Extract story_id from envelope if present (for diagnostics API fetch)
+        _envelope = getattr(output, "handoff_envelope", None)
+        if isinstance(_envelope, dict):
+            _sid = _envelope.get("story_id") or ""
+        elif output.handoff_health:
+            # Fallback: peek at draft story_id
+            _draft = getattr(output, "story_draft", None)
+            _sid = getattr(_draft, "story_id", "") if _draft else ""
+        else:
+            _sid = ""
+        if _sid:
+            result["story_id"] = _sid
+
     return result

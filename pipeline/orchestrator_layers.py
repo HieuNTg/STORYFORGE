@@ -422,6 +422,8 @@ async def run_full_pipeline(
                 sig: h.model_dump() for sig, h in handoff_envelope.signal_health.items()
             }
             self.output.handoff_health = _handoff_health_dict
+            # Stash envelope dict on output so pipeline_output_builder can extract story_id
+            self.output.handoff_envelope = handoff_envelope.model_dump()
             try:
                 _persist_handoff_to_db(
                     story_id=handoff_envelope.story_id,
