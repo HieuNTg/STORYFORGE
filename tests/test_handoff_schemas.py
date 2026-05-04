@@ -346,6 +346,37 @@ def test_negotiated_contract_json_round_trip():
 
 
 # ---------------------------------------------------------------------------
+# Sprint 3 P1 — drama_ceiling field
+# ---------------------------------------------------------------------------
+
+def test_negotiated_contract_drama_ceiling_default_zero():
+    c = NegotiatedChapterContract(chapter_num=1, pacing_type="rising")
+    assert c.drama_ceiling == 0.0
+
+
+def test_negotiated_contract_drama_ceiling_bounds():
+    with pytest.raises(ValidationError):
+        NegotiatedChapterContract(chapter_num=1, pacing_type="rising", drama_ceiling=-0.1)
+    with pytest.raises(ValidationError):
+        NegotiatedChapterContract(chapter_num=1, pacing_type="rising", drama_ceiling=1.1)
+
+
+def test_negotiated_contract_legacy_dict_without_drama_ceiling_round_trips():
+    """Sprint 1 envelopes persisted before the field existed must still validate."""
+    legacy = {
+        "chapter_num": 5,
+        "pacing_type": "climax",
+        "drama_target": 0.85,
+        "drama_tolerance": 0.15,
+        # no drama_ceiling key
+    }
+    c = NegotiatedChapterContract.model_validate(legacy)
+    assert c.drama_ceiling == 0.0
+    dumped = c.model_dump()
+    assert dumped["drama_ceiling"] == 0.0
+
+
+# ---------------------------------------------------------------------------
 # Thread / Foreshadowing enum + bounds
 # ---------------------------------------------------------------------------
 

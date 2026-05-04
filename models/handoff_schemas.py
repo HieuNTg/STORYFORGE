@@ -169,6 +169,12 @@ class NegotiatedChapterContract(BaseModel):
     causal_refs: list[str] = Field(default_factory=list)
     # Drama tolerance + subtext absorbed from legacy DramaContract for L2 validation.
     drama_tolerance: float = Field(default=0.15, ge=0.0, le=1.0)
+    # Derived: min(1.0, drama_target + drama_tolerance). Filled at reconciliation
+    # in `pipeline/handoff_gate.reconcile_contract`. Consumed by
+    # `pipeline/layer1_story/chapter_writer._build_chapter_prompt` when present
+    # (drama_ceiling > 0). Zero when no simulator data is available
+    # (warns via `reconciliation_warnings += ["drama_ceiling_unset_no_target"]`).
+    drama_ceiling: float = Field(default=0.0, ge=0.0, le=1.0)
     required_subtext: list[str] = Field(default_factory=list)
     forbidden_patterns: list[str] = Field(default_factory=list)
 

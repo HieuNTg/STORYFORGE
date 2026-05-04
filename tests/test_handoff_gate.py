@@ -13,6 +13,7 @@ from models.handoff_schemas import (
 )
 from pipeline.handoff_gate import (
     HandoffValidationError,
+    _compute_drama_ceiling,
     enforce_handoff,
     reconcile_contract,
     validate_handoff,
@@ -220,3 +221,39 @@ def test_reconcile_contract_payoff_with_matching_causal_ref_no_warning():
     )
     out = reconcile_contract(c)
     assert out.reconciliation_warnings == []
+
+
+# ---------------------------------------------------------------------------
+# Sprint 3 P1 — drama_ceiling derivation + reconciliation warning
+# ---------------------------------------------------------------------------
+
+def test_compute_drama_ceiling_boundary():
+    assert _compute_drama_ceiling(0.5, 0.15) == pytest.approx(0.65)
+
+
+def test_compute_drama_ceiling_saturates_at_one():
+    assert _compute_drama_ceiling(0.95, 0.20) == pytest.approx(1.0)
+
+
+def test_compute_drama_ceiling_zero_target_returns_zero_sentinel():
+    assert _compute_drama_ceiling(0.0, 0.15) == 0.0
+
+
+def test_reconcile_contract_fills_drama_ceiling_from_target_plus_tolerance():
+    c = _contract(chapter_num=2, pacing_type="rising", drama_target=0.5, drama_tolerance=0.15)
+    out = reconcile_contract(c)
+    assert out.drama_ceiling == pytest.approx(0.65)
+    assert "drama_ceiling_unset_no_target" not in out.reconciliation_warnings
+
+
+def test_reconcile_contract_drama_ceiling_clamps_at_one():
+    c = _contract(chapter_num=8, pacing_type="climax", drama_target=0.95, drama_tolerance=0.20)
+    out = reconcile_contract(c)
+    assert out.drama_ceiling == pytest.approx(1.0)
+
+
+def test_reconcile_contract_warns_when_drama_target_zero_post_simulation():
+    c = _contract(chapter_num=1, pacing_type="setup", drama_target=0.0, drama_tolerance=0.15)
+    out = reconcile_contract(c)
+    assert out.drama_ceiling == 0.0
+    assert "drama_ceiling_unset_no_target" in out.reconciliation_warnings

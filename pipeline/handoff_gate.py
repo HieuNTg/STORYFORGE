@@ -96,6 +96,12 @@ def enforce_handoff(
     return envelope
 
 
+def _compute_drama_ceiling(target: float, tolerance: float) -> float:
+    if target <= 0.0:
+        return 0.0
+    return min(1.0, target + tolerance)
+
+
 def reconcile_contract(
     contract: NegotiatedChapterContract,
     sim_result: Optional[dict] = None,  # noqa: ARG001 — reserved for future signal cross-checks
@@ -130,9 +136,14 @@ def reconcile_contract(
             f"have no matching causal_refs"
         )
 
+    drama_ceiling = _compute_drama_ceiling(drama_target, contract.drama_tolerance)
+    if drama_target == 0.0:
+        warnings.append("drama_ceiling_unset_no_target")
+
     return contract.model_copy(
         update={
             "drama_target": drama_target,
+            "drama_ceiling": drama_ceiling,
             "reconciled": True,
             "reconciliation_warnings": warnings,
         }
