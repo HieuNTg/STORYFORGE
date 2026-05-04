@@ -48,99 +48,17 @@ Most AI writing tools produce flat, predictable stories. StoryForge takes a diff
 
 ## Features
 
-### Story Engine
-- **2-layer pipeline** — Story Generation → Drama Simulation, with checkpoint & resume and real-time SSE streaming
-- **L3 Sensory Polish** — optional post-enhancement layer for vivid sensory details and immersive prose
-- **13 specialized AI agents** — autonomous character agents plus a drama critic, editor-in-chief, pacing analyzer, style consistency checker, dialogue expert, reader simulator, and more
-- **Reader Simulator agent** — simulates reader reactions to provide quality feedback before finalization
-- **Quality scoring & auto-revision** — 6-dimension LLM-as-judge (coherence, character, drama, writing style, thematic depth, dialogue quality) with an automated re-enhancement loop
-- **Cumulative story memory** — character knowledge, relationships, and plot threads accumulate across chapters instead of resetting, ensuring multi-chapter continuity
-- **Genre-aware naming conventions** — Vietnamese names by default; Chinese (tiên hiệp/kiếm hiệp/tu tiên/wuxia/xianxia) and Western fantasy/sci-fi styles auto-selected from genre
-- **Arc scaling** — character arc waypoints scale automatically with `num_chapters` to keep character development paced for short or long stories
-- **RAG knowledge base** — optional world-building context retrieval via ChromaDB + sentence-transformers; upload `.txt`, `.md`, or `.pdf` reference files to enrich story generation
-
-### Advanced Story Continuation
-- **Continue story** — append new chapters to existing stories from saved checkpoints, with configurable chapter count and word count; optional Layer 2 re-enhancement on the full story
-- **Multi-path preview** — preview 2-5 different continuation directions with summaries and outlines; click to select and write
-- **Outline editor** — generate chapter outlines first, edit titles and summaries inline, then write from approved outlines
-- **Collaborative chapter writing** — write your own chapter text, then let AI polish it with 3 levels (light/medium/heavy)
-- **Consistency checker** — scan story for contradictions in characters, timeline, facts, and locations; view issues with severity and suggested fixes
-- **Character arc steering** — guide character development trajectory across new chapters
-- **Chapter insertion** — insert new chapters mid-story with automatic renumbering
-- **Selective chapter regeneration** — regenerate specific chapters without affecting others
-- **Retroactive consistency fix** — automatically fix continuity errors in earlier chapters when new chapters introduce changes
-
-### Layer 1 — Story Generation Quality
-- **Chapter contracts** — per-chapter requirements with validation and failure propagation
-- **Arc waypoints** — character arc milestones with validation
-- **Arc memory cache** — persistent cache for arc state across generation runs
-- **Dialogue injection** — natural dialogue insertion and voice consistency validation
-- **Tiered context system** — 4-level priority context management for long stories (full/summary/key-points/minimal)
-- **Narrative linking** — thread dependencies, semantic foreshadowing, conflict escalation tracking
-- **Pacing enforcement** — automatic pacing analysis with corrective rewriting
-- **Self-critique with rollback** — LLM self-evaluation with automatic rollback on quality failure
-- **Feedback loops** — pacing correction, location validation, selective critique
-- **Emotional memory** — character emotional state tracking across chapters
-- **Causal graph** — cause-effect relationship tracking for plot consistency
-
-### Layer 2 — Drama Simulation Quality
-- **Contract gate** — per-chapter validation with single-retry rewrite on failure
-- **Parallel processing** — concurrent chapter enhancement for faster throughput
-- **Coherence pre-check** — validates consistency before enhancement begins
-- **Knowledge constraints** — agent prompts bounded by character knowledge graphs
-- **Thread urgency** — psychological pressure tracking wired into agent behavior
-- **Causal accountability** — revelation events, witness propagation, LLM audit trail
-- **Knowledge context** — agent prompts enriched with causal chain formatting
-- **Zero-cost quality signals** — stale thread detection, chapter hooks, emotional arc tracking
-
-### Interactive Branch Reader
-- **Choose-your-own-adventure** — LLM-generated branching paths with real-time SSE streaming and live text animation
-- **SVG tree visualization** — interactive tree map of all branches with clickable goto-node navigation
-- **Undo/Redo navigation** — navigate back and forth through your choice history with full state preservation
-- **Bookmarks** — save and jump to any node in the tree; bookmarks persist across sessions
-- **Branch analytics** — track visits, unique paths explored, popular choices, and depth distribution
-- **Minimap with zoom/pan** — bird's-eye view of the entire tree with zoom controls and current position indicator
-- **WebSocket collaboration** — real-time multi-user sessions with live user count and synchronized navigation
-- **EPUB export** — download the entire branch tree as an EPUB with all paths included
-- **Branch merging** — merge divergent branches back together with conflict detection and resolution
-- **10-level depth limit** — automatic ending generation when maximum depth is reached
-- **Session persistence** — branch reader state saved to localStorage, survives page refresh
-- **Chapter selection** — load any story from the current pipeline or saved checkpoints into branch mode
-
-### Image & Export
-- **Image generation** — character-consistent portraits (IP-Adapter) and cinematic scene backgrounds, generated after drama simulation
-- **Rich export** — PDF, EPUB, HTML web reader, and ZIP with chapters and image prompts
-
-### LLM & Providers
-- **Multi-provider LLM support** — OpenAI, Google Gemini, Anthropic, OpenRouter (290+ models), Z.AI (free models), Kyma API, Ollama (local), or any custom OpenAI-compatible endpoint; auto-detect provider from API key
-- **Preemptive rate-limit switching** — live monitoring of provider quota; the chain switches to the next model *before* hitting 429, using reset-header timing to queue retries
-- **Chain-level wait-and-retry** — when the entire fallback chain exhausts quota, requests wait for the earliest reset rather than failing
-- **Latency-aware primary routing** — slow primary models are retried instead of silently skipped, preventing empty chains on transient slowness
-- **Provider-aware model routing** — automatic model format adaptation per provider in fallback chains
-- **Auto-router support** — let the system pick the best model for each task based on cost/capability tradeoffs
-- **Smart model routing** — assign cheap models to analysis tasks and premium models to writing (~45% cost savings)
-- **Built-in LLM cache** — SQLite-backed cache to avoid redundant API calls
-
-### UI & Experience
-- **Full SPA redesign (v2.3)** — all 7 pages rebuilt on a unified `sf-*` design system: hero gradient borders, step badges, empty-state heroes, story cards, stat tiles, and guide steps
-- **Swiss Modernism palette** — brand `#2563EB` · violet `#8B5CF6` · orange `#F97316` · emerald done `#10B981`, tuned for readable contrast in both themes
-- **Vietnamese-first copy** — every page, button, empty state, and toast is localized; English strings only surface where technical (provider names, env vars)
-- **Create Story** — 6-phase pipeline visualizer, idea composer with live char count, slider-based config (chapters · characters · words · drama level), and persistent form state in `localStorage`
-- **Library** — search-as-you-type filter, inline continue/delete actions, layer badge (Draft / Enhanced / Complete)
-- **Reader** — distraction-free typography, image inline display, chapter sidebar navigation
-- **Analytics** — simulation dashboard with 4 stat tiles and 4 quality-score meters (coherence, character, drama, writing style)
-- **Branching** — source picker for open or saved stories with interactive tree overlay
-- **Settings** — Quick Setup preset cards (Basic / Optimized / Max Context), provider picker grid, image generation toggles
-- **Guide** — pipeline flow diagram with Layer 1 & Layer 2 cards and 5-step onboarding
-- **Dark / Light mode** — polished theme toggle with full color-scheme sync; Heroicons SVGs throughout
-
-### Security & Infrastructure
-- **CSRF protection** — double-submit cookie pattern on all state-changing requests
-- **Body size limit** — 10 MB request payload limit
-- **Prompt injection blocking** — middleware detects and blocks injection patterns in JSON payloads
-- **Encrypted secrets** — API keys encrypted at rest in `data/secrets.json` (requires `STORYFORGE_SECRET_KEY`)
-- **Self-hosted, privacy-first** — your stories and API keys never leave your infrastructure
-- **Customizable agent prompts** — edit `data/prompts/agent_prompts.yaml` to tune how AI agents evaluate and enhance stories
+| Area | Highlights |
+|------|------------|
+| **Story Engine** | 2-layer pipeline (Story Gen + Drama Sim) with checkpoint/resume + SSE; optional L3 sensory polish; 13 specialized agents (drama critic, editor, pacing, dialogue, reader simulator, …); 6-dim LLM-as-judge auto-revision; cumulative story memory; genre-aware naming (VN / Chinese tiên hiệp · wuxia · xianxia / Western); arc scaling; optional ChromaDB RAG. |
+| **Story Continuation** | Continue from checkpoint with optional L2 re-enhancement; multi-path preview (2–5); outline editor; collaborative writing (light/medium/heavy polish); consistency checker; arc steering; mid-story chapter insertion + renumber; selective regeneration; retroactive continuity fix. |
+| **Layer 1 quality** | Chapter contracts + arc waypoints + arc-memory cache; dialogue injection with voice validation; 4-level tiered context; narrative linking (threads, foreshadowing, conflict escalation); pacing enforcement; self-critique rollback; emotional memory; causal graph. |
+| **Layer 2 quality** | Contract gate (single-retry rewrite); parallel chapter enhancement; coherence pre-check; knowledge-graph-bounded prompts; thread urgency; causal accountability w/ audit trail; zero-cost stale-thread / hook / emotion signals. |
+| **Branch Reader** | LLM-generated CYOA paths, SSE streaming; SVG tree + minimap (zoom/pan); undo/redo + bookmarks; branch analytics; WebSocket multi-user; EPUB tree export; branch merging w/ conflict detection; 10-depth limit + auto-ending; localStorage persistence. |
+| **Images & Export** | Character-consistent IP-Adapter portraits + scene backgrounds; PDF, EPUB, HTML reader, and ZIP export. |
+| **LLM & Providers** | OpenAI, Gemini, Anthropic, OpenRouter (290+), Z.AI, Kyma, Ollama, or any OpenAI-compatible endpoint; auto-detect provider; preemptive rate-limit switching with reset-header awareness; chain-level wait-and-retry; latency-aware primary; provider-aware fallback; smart cheap/premium routing (~45% saved); SQLite LLM cache. |
+| **UI** | v2.3 SPA on unified `sf-*` design system; Swiss Modernism palette; Vietnamese-first copy; pages: Create / Library / Reader / Analytics / Branching / Settings / Guide; dark + light mode. |
+| **Security** | CSRF double-submit; 10 MB body cap; prompt-injection middleware; encrypted secrets at rest (requires `STORYFORGE_SECRET_KEY`); self-hosted; customizable agent prompts in `data/prompts/agent_prompts.yaml`. |
 
 ---
 
@@ -223,6 +141,50 @@ StoryForge ships with 10 customizable agent prompts in `data/prompts/agent_promp
 - Adjust scoring criteria and thresholds
 - Modify agent personalities and review focus areas
 
+### Key Pipeline Flags
+
+Defined in `config/defaults.py` (`PipelineConfig`); editable via the Settings UI.
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `parallel_chapters_enabled` | `True` | Use `asyncio.gather` batches for chapter writing |
+| `chapter_batch_size` | `5` | Chapters per parallel batch; also caps Sprint 3 batched rewriter |
+| `adaptive_simulation_rounds` | `True` | 4–10 L2 simulator rounds derived from complexity |
+| `enable_structural_rewrite` | `True` | L2 may trigger L1 chapter rewrites |
+| `enable_scene_decomposition` | `True` | Scenes injected into chapter prompts |
+| `enable_chapter_contracts` | `True` | Per-chapter requirement contracts |
+| `enable_quality_gate` | `True` | Inline scoring between layers |
+| `l2_consistency_engine` | `True` | Master switch for the A–E consistency improvements |
+| `l2_voice_preservation` | `True` | Enforce voice fingerprints during L2 enhancement |
+| `l2_drama_ceiling` | `True` | Apply genre-specific drama ceilings |
+| `l2_contract_gate` | `True` | Post-L2 contract validation + optional rewrite |
+| `voice_revert_use_anchored` | `True` | Sprint 3: speaker-anchored revert; `False` falls back to legacy positional |
+
+### Strict-Mode Env Flags
+
+Both default to warn-and-continue. Set to `1` (or `true`) for fail-fast in CI / dev.
+
+| Variable | Default | Strict effect |
+|----------|---------|---------------|
+| `STORYFORGE_HANDOFF_STRICT` | warn-and-continue | Raise `HandoffValidationError` on malformed / `extraction_failed` L1->L2 signals |
+| `STORYFORGE_SEMANTIC_STRICT` | warn-and-continue | Raise `SemanticVerificationError` on missed foreshadowing payoffs and severity-≥0.8 structural issues |
+
+### Test Markers
+
+Three custom markers are declared in `pyproject.toml`. They are **not** auto-deselected — pass `-m "not <marker>"` when you want to skip them.
+
+| Marker | Use |
+|--------|-----|
+| `calibration` | Real-model calibration tests; loads `sentence-transformers` (slow) |
+| `perf` | 10-chapter pipeline timing benchmarks |
+| `bench` | Sprint 3 P8 async-nesting perf bench |
+
+```bash
+pytest tests/ -v                                 # full suite (markers included)
+pytest tests/ -v -m "not calibration and not bench"   # fast subset
+pytest tests/ -v -m calibration                  # only calibration
+```
+
 ---
 
 ## Architecture
@@ -239,7 +201,84 @@ flowchart LR
 - **Layer 2** runs a multi-agent drama simulation, rewrites scenes with voice preservation, and validates chapter contracts.
 - **Quality gates, structural rewrites, and smart revision loops** kick in between layers to catch weak chapters automatically.
 
+<details>
+<summary>Module breakdown (L1 / L2)</summary>
+
+```
+Layer 1 (L1): Story Generation
+  outline -> scene decomposition -> chapter writing
+  ├── theme_premise_generator
+  ├── character_generator + voice_profiler
+  ├── outline_builder + outline_critic
+  ├── conflict_web_builder + foreshadowing_manager
+  ├── scene_decomposer + scene_beat_generator
+  ├── chapter_writer (parallel batches)
+  └── post_processing
+
+Layer 2 (L2): Drama Enhancement
+  analyzer -> simulator -> enhancer
+  ├── analyzer (conflict, pacing, character arcs)
+  ├── simulator (multi-agent debate, adaptive rounds)
+  ├── enhancer (scene-level enhancement)
+  └── contract_gate (validation + optional L1 rewrite)
+```
+
+Signal flow L1->L2: `conflict_web` and `foreshadowing_plan` feed the simulator;
+`arc_waypoints` and `threads` feed the analyzer and enhancer; `voice_fingerprints`
+preserve speaker voice through L2 rewrites.
+
+</details>
+
 See [**docs/system-architecture.md**](docs/system-architecture.md) for the full pipeline flow, signal integration, and retry semantics.
+
+---
+
+## Recent Sprints
+
+Three sprints landed on `master` in May 2026, each with an ADR and a plan dir.
+
+### Sprint 1 — L1->L2 Handoff Envelope
+
+Typed `L1Handoff` envelope with `NegotiatedChapterContract` (Pydantic v2, frozen,
+`extra="forbid"`) replaces the silent-empty `getattr(draft, "...", None) or []`
+pattern across the L1->L2 seam. A reconciliation gate at
+`pipeline/handoff_gate.py` validates every signal once before the simulator runs
+and persists the envelope on `pipeline_runs.handoff_envelope` (JSON column).
+Strict-mode env flag `STORYFORGE_HANDOFF_STRICT=1` makes malformed signals
+fail-fast; default is warn-and-continue with structured `signal_health` logged
+to the diagnostics endpoint. See [ADR 0001](docs/adr/0001-l1-handoff-envelope.md)
+and [plans/260503-2317-l1-l2-handoff-envelope/](plans/260503-2317-l1-l2-handoff-envelope/README.md).
+
+### Sprint 2 — Semantic Verification
+
+Three keyword-driven checks (foreshadowing payoff, structural detector, outline
+critic) replaced with local CPU-only embeddings via
+`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` (384-dim) plus
+spaCy `xx_ent_wiki_sm` NER for character presence. The per-chapter LLM payoff
+verifier is gone; cosine similarity at threshold `0.55` hit 96.67% accuracy on a
+30-pair Vietnamese calibration set (was `0.62` / 73.33%). Embeddings cached in a
+new `embedding_cache` SQLite table keyed by `sha256(model_id ␟ NFC(text))`.
+LLM-as-judge outline critic replaced with deterministic objective metrics. New
+diagnostics endpoint plus UI panel. Strict-mode env flag
+`STORYFORGE_SEMANTIC_STRICT=1`. See
+[ADR 0002](docs/adr/0002-semantic-verification.md) and
+[plans/260504-1213-semantic-verification/](plans/260504-1213-semantic-verification/README.md).
+
+### Sprint 3 — Generation Hardening
+
+Drama ceiling now wires into actual generation: `NegotiatedChapterContract`
+gains a derived `drama_ceiling = min(1.0, drama_target + drama_tolerance)` and
+the chapter writer injects a Vietnamese `## RÀNG BUỘC KỊCH TÍNH` directive when
+the ceiling is set. Voice-preservation revert switched from positional to
+speaker-anchored via `(speaker_id, ordinal)` tuples with NFC diacritic
+normalisation, fixing dialogue corruption on enhancer reorders. Async D3
+contract: simulator, agent registry, and scene enhancer split into canonical
+`*_async` plus a sync wrapper that raises `RuntimeError` loudly on a running
+loop — `ThreadPoolExecutor` escape hacks deleted. Structural rewriter batched
+behind `asyncio.Semaphore(chapter_batch_size)` with `return_exceptions=True`
+for per-chapter failure isolation. New flag `voice_revert_use_anchored`
+(default `True`). See [ADR 0003](docs/adr/0003-generation-hardening-drama-ceiling.md)
+and [plans/260504-1356-generation-hardening/](plans/260504-1356-generation-hardening/README.md).
 
 ---
 
@@ -296,6 +335,17 @@ storyforge/
 ├── tests/                      # Test suite (unit, integration, security, load)
 └── scripts/                    # Utility scripts
 ```
+
+---
+
+## Documentation
+
+- **[docs/](docs/README.md)** — full docs index (architecture, code standards, deployment)
+- **[docs/adr/](docs/adr/)** — architecture decision records:
+  - [0001 — L1 handoff envelope](docs/adr/0001-l1-handoff-envelope.md)
+  - [0002 — Semantic verification](docs/adr/0002-semantic-verification.md)
+  - [0003 — Drama ceiling on `NegotiatedChapterContract`](docs/adr/0003-generation-hardening-drama-ceiling.md)
+- **[plans/](plans/README.md)** — sprint plan dirs (READMEs, phases, schemas, risks)
 
 ---
 

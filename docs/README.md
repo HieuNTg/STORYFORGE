@@ -30,6 +30,24 @@ Welcome to the StoryForge documentation. Start here to understand the project, a
 | [deprecations-v4-migration.md](./deprecations-v4-migration.md) | 131 | Users, Developers | Browser auth removal, migration guide |
 | [project-overview-pdr.md](./project-overview-pdr.md) | 208 | PMs, Stakeholders | Vision, requirements, acceptance criteria |
 
+## Architecture Decision Records (ADRs)
+
+| ADR | Topic | Sprint |
+|-----|-------|--------|
+| [0001](./adr/0001-l1-handoff-envelope.md) | Typed `L1Handoff` envelope and `NegotiatedChapterContract` collapse `getattr(..., None) or []` blind spots into one validated chokepoint. | Sprint 1 |
+| [0002](./adr/0002-semantic-verification.md) | Local CPU embeddings (multilingual MiniLM) + spaCy NER replace keyword payoff / structural / outline checks; LLM critic removed from critical path. | Sprint 2 |
+| [0003](./adr/0003-generation-hardening-drama-ceiling.md) | `drama_ceiling` derived on the contract and injected into the chapter writer prompt; speaker-anchored voice revert; async D3 contract; batched structural rewriter. | Sprint 3 |
+
+## Sprint Plans
+
+Each sprint dir contains `README.md`, `phases.md`, `schema.md`, `risks.md`.
+
+- [`plans/260503-2317-l1-l2-handoff-envelope/`](../plans/260503-2317-l1-l2-handoff-envelope/README.md) — Sprint 1: handoff envelope, contract unification, diagnostics endpoint.
+- [`plans/260504-1213-semantic-verification/`](../plans/260504-1213-semantic-verification/README.md) — Sprint 2: embedding service, NER, objective outline metrics.
+- [`plans/260504-1356-generation-hardening/`](../plans/260504-1356-generation-hardening/README.md) — Sprint 3: drama ceiling wiring, speaker-anchored revert, async collapse, batched rewriter.
+
+Reports from sprint executions land in [`plans/reports/`](../plans/reports/).
+
 ## Key Topics by Role
 
 ### Backend Development
@@ -130,4 +148,4 @@ A: See [CONTRIBUTING.md](../CONTRIBUTING.md) and follow [code-standards.md](./co
 
 ---
 
-**Last Updated**: 2026-04-03 | **P3 Sprint Complete**
+**Last Updated**: 2026-05-04 | **Sprint 1 / 2 / 3 merged to master**
