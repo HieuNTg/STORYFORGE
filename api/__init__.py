@@ -32,6 +32,7 @@ from api.branch_websocket import router as branch_ws_router
 from api.provider_status_routes import router as provider_status_router
 from api.image_routes import router as image_router
 from api.quality_routes import router as quality_router
+from api.diagnostics_routes import router as diagnostics_router
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth_router)
@@ -54,6 +55,7 @@ api_router.include_router(branch_ws_router)
 api_router.include_router(provider_status_router)
 api_router.include_router(image_router)
 api_router.include_router(quality_router)
+api_router.include_router(diagnostics_router)
 
 _log = logging.getLogger(__name__)
 

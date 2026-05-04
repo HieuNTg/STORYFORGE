@@ -15,6 +15,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    JSON,
     String,
     Text,
     UniqueConstraint,
@@ -140,6 +141,10 @@ class Chapter(Base):
     quality_score: Mapped[float] = mapped_column(nullable=False, default=0.0)
     created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
 
+    # Sprint 1 P6: per-chapter negotiated contract (nullable; set after reconciliation)
+    negotiated_contract: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    contract_reconciliation_warnings: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+
     # Relationships
     story: Mapped["Story"] = relationship("Story", back_populates="chapters")
 
@@ -173,6 +178,11 @@ class PipelineRun(Base):
     token_usage: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+
+    # Sprint 1 P6: L1→L2 handoff observability (all nullable; NULL for pre-migration rows)
+    handoff_envelope: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    handoff_health: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    handoff_signals_version: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
 
     # Relationships
     user: Mapped[Optional["User"]] = relationship("User", back_populates="pipeline_runs")

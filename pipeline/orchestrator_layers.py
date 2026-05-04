@@ -21,6 +21,89 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# P6: DB persistence helpers
+# ---------------------------------------------------------------------------
+
+def _persist_handoff_to_db(
+    story_id: str,
+    envelope_dict: dict,
+    health_dict: dict,
+    signals_version: str,
+) -> None:
+    """Write handoff fields to the most recent pipeline_run for story_id.
+
+    Uses a synchronous SQLAlchemy engine (SQLite-safe). Non-fatal if the
+    columns don't exist yet (pre-migration DB) — callers wrap in try/except.
+    """
+    import os
+    from sqlalchemy import create_engine, text
+
+    db_url = os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
+    connect_args = {"check_same_thread": False} if "sqlite" in db_url else {}
+    engine = create_engine(db_url, connect_args=connect_args)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "UPDATE pipeline_runs SET "
+                    "handoff_envelope = :envelope, "
+                    "handoff_health = :health, "
+                    "handoff_signals_version = :version "
+                    "WHERE id = ("
+                    "  SELECT id FROM pipeline_runs "
+                    "  WHERE story_id = :story_id "
+                    "  ORDER BY created_at DESC LIMIT 1"
+                    ")"
+                ),
+                {
+                    "envelope": __import__("json").dumps(envelope_dict),
+                    "health": __import__("json").dumps(health_dict),
+                    "version": signals_version,
+                    "story_id": story_id,
+                },
+            )
+    finally:
+        engine.dispose()
+
+
+def _persist_chapter_contract_to_db(
+    story_id: str,
+    chapter_number: int,
+    contract_dict: dict,
+    warnings: list,
+) -> None:
+    """Write negotiated_contract + warnings to chapters row.
+
+    Non-fatal if columns don't exist (pre-migration).
+    """
+    import json
+    import os
+    from sqlalchemy import create_engine, text
+
+    db_url = os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
+    connect_args = {"check_same_thread": False} if "sqlite" in db_url else {}
+    engine = create_engine(db_url, connect_args=connect_args)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "UPDATE chapters SET "
+                    "negotiated_contract = :contract, "
+                    "contract_reconciliation_warnings = :warnings "
+                    "WHERE story_id = :story_id AND chapter_number = :ch_num"
+                ),
+                {
+                    "contract": json.dumps(contract_dict),
+                    "warnings": json.dumps(warnings),
+                    "story_id": story_id,
+                    "ch_num": chapter_number,
+                },
+            )
+    finally:
+        engine.dispose()
+
+
 async def run_full_pipeline(
     self: "PipelineOrchestrator",
     title: str,
@@ -297,6 +380,64 @@ async def run_full_pipeline(
         _log(f"[INTEGRITY] Draft integrity check failed: {e}")
         self.output.status = "error"
         return self.output
+
+    # Sprint 1 P3/P6: L1 → L2 handoff validation gate + DB persistence.
+    # P2 attached `draft.l1_handoff` as a dict; re-hydrate to typed model and enforce.
+    handoff_envelope = None
+    try:
+        from models.handoff_schemas import L1Handoff
+        from pipeline.handoff_gate import enforce_handoff, HandoffValidationError
+
+        _raw_envelope = getattr(draft, "l1_handoff", None)
+        if isinstance(_raw_envelope, dict) and _raw_envelope:
+            handoff_envelope = L1Handoff.model_validate(_raw_envelope)
+            try:
+                handoff_envelope = enforce_handoff(handoff_envelope)
+            except HandoffValidationError as exc:
+                _log(f"[HANDOFF] Strict-mode block: {exc}")
+                self.output.status = "error"
+                self.output.handoff_health = {
+                    sig: h.model_dump() for sig, h in handoff_envelope.signal_health.items()
+                }
+                return self.output
+
+            # P6: structured log line at handoff
+            _ok_signals = [s for s, h in handoff_envelope.signal_health.items() if h.status == "ok"]
+            _missing = [s for s, h in handoff_envelope.signal_health.items() if h.status in ("empty", "extraction_failed")]
+            logger.info(
+                "handoff_built signals_ok=%d/%d missing=%s story_id=%s",
+                len(_ok_signals),
+                len(handoff_envelope.signal_health),
+                _missing,
+                handoff_envelope.story_id,
+            )
+            _log(
+                f"[HANDOFF] story_id={handoff_envelope.story_id} "
+                f"signals_ok={len(_ok_signals)}/{len(handoff_envelope.signal_health)} "
+                f"missing={_missing}"
+            )
+
+            # Persist handoff fields to pipeline_runs row (P6)
+            _handoff_health_dict = {
+                sig: h.model_dump() for sig, h in handoff_envelope.signal_health.items()
+            }
+            self.output.handoff_health = _handoff_health_dict
+            try:
+                _persist_handoff_to_db(
+                    story_id=handoff_envelope.story_id,
+                    envelope_dict=handoff_envelope.model_dump(),
+                    health_dict=_handoff_health_dict,
+                    signals_version=handoff_envelope.signals_version,
+                )
+            except Exception as _pe:
+                logger.warning("Handoff DB persist failed (non-fatal): %s", _pe)
+
+            # Stash typed envelope on draft so P4 has a clean handle.
+            draft._l1_handoff_envelope = handoff_envelope
+        else:
+            _log("[HANDOFF] No envelope on draft (P2 build skipped or failed); continuing.")
+    except Exception as _h_err:  # pragma: no cover — defensive
+        logger.warning(f"Handoff gate failed (non-fatal): {_h_err}")
 
     # ── Structural rewrite: L2 detects issues → L1 rewrites before enhancement ──
     _structural_rewrite_enabled = getattr(self.config.pipeline, "enable_structural_rewrite", True)
@@ -606,6 +747,68 @@ async def run_full_pipeline(
                 )
         except Exception as e:
             logger.warning(f"Contract stats aggregation failed: {e}")
+
+        # Sprint 1 P5: fill L2 portion onto NegotiatedChapterContract from
+        # sim_result, then reconcile (single rubric — drama_target is now part
+        # of the negotiated contract, no parallel DramaContract).
+        try:
+            from models.handoff_schemas import NegotiatedChapterContract
+            from pipeline.handoff_gate import reconcile_contract
+            from pipeline.layer2_enhance.chapter_contract import build_chapter_contracts
+
+            _ch_nums = [int(getattr(_c, "chapter_number", 0) or 0) for _c in (enhanced.chapters or [])]
+            _drama_by_ch: dict[int, "DramaContract"] = {}
+            if sim_result is not None and _ch_nums:
+                try:
+                    _drama_by_ch = build_chapter_contracts(sim_result, _ch_nums)
+                except Exception as _be:
+                    logger.debug(f"build_chapter_contracts skipped: {_be}")
+
+            for _ch in (enhanced.chapters or []):
+                _nc = getattr(_ch, "negotiated_contract", None)
+                _typed: NegotiatedChapterContract | None = None
+                if isinstance(_nc, NegotiatedChapterContract):
+                    _typed = _nc
+                elif isinstance(_nc, dict) and _nc:
+                    try:
+                        _typed = NegotiatedChapterContract.model_validate(_nc)
+                    except Exception:
+                        _typed = None
+                if _typed is None:
+                    continue
+                _drama = _drama_by_ch.get(int(_ch.chapter_number))
+                if _drama is not None:
+                    _typed = _typed.model_copy(update={
+                        "drama_target": float(_drama.drama_target),
+                        "drama_tolerance": float(_drama.drama_tolerance),
+                        "escalation_events": list(_drama.required_escalations),
+                        "required_subtext": list(_drama.required_subtext),
+                        "causal_refs": [str(x) for x in _drama.required_causal_refs],
+                        "forbidden_patterns": list(_drama.forbidden_patterns),
+                    })
+                _reconciled = reconcile_contract(_typed, sim_result=sim_result)
+                try:
+                    object.__setattr__(_ch, "negotiated_contract", _reconciled)
+                except Exception:
+                    pass
+                # P6: persist reconciled contract to DB
+                try:
+                    _r_dict = _reconciled.model_dump()
+                    _r_warns = list(_reconciled.reconciliation_warnings)
+                    _story_id_for_ch = (
+                        handoff_envelope.story_id if handoff_envelope else None
+                    )
+                    if _story_id_for_ch:
+                        _persist_chapter_contract_to_db(
+                            story_id=_story_id_for_ch,
+                            chapter_number=int(_ch.chapter_number),
+                            contract_dict=_r_dict,
+                            warnings=_r_warns,
+                        )
+                except Exception as _cp_err:
+                    logger.debug("Chapter contract DB persist skipped: %s", _cp_err)
+        except Exception as _rc_err:
+            logger.warning(f"Contract reconciliation failed (non-fatal): {_rc_err}")
 
         # Sprint 2 Task 2: voice validation stats
         try:
