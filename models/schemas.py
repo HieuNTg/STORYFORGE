@@ -126,6 +126,8 @@ class Chapter(BaseModel):
     voice_validation: Optional[dict] = Field(default=None, description="L2 voice contract validation result")
     # Per-chapter generated images, served via /media static mount as basenames
     images: list[str] = Field(default_factory=list, description="Generated image filenames (relative to /media mount)")
+    # Sprint 2 P3: semantic findings from foreshadowing_verifier (persisted to chapters.semantic_findings)
+    semantic_findings: Optional[dict] = Field(default=None, description="SemanticPayoffMatch results — persisted to DB by orchestrator")
 
 
 class VoiceProfile(BaseModel):

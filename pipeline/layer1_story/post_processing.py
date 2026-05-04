@@ -380,24 +380,18 @@ def process_chapter_post_write(
     except Exception as e:
         logger.debug("Location validation failed (non-fatal): %s", e)
 
-    # L1-E: Post-write foreshadowing payoff verification.
-    # Previously: verify_payoffs_semantic existed but was never called — planted seeds
-    # whose payoff chapter == current chapter could slip through with no check.
+    # L1-E: Post-write foreshadowing payoff verification (embedding-based, Sprint 2 P3).
     _verify_payoff_enabled = getattr(pipeline_config, "enable_foreshadowing_payoff_verify", False) \
         if pipeline_config else False
     if _verify_payoff_enabled and foreshadowing_plan:
         try:
-            from pipeline.layer1_story.foreshadowing_manager import (
-                get_payoffs_due, verify_payoffs_semantic,
-            )
-            _threshold = float(getattr(pipeline_config, "semantic_foreshadowing_threshold", 0.7))
+            from pipeline.layer1_story.foreshadowing_manager import get_payoffs_due
+            from pipeline.semantic.foreshadowing_verifier import verify_payoffs
+            _threshold = float(getattr(pipeline_config, "semantic_payoff_threshold", 0.62))
             _due = get_payoffs_due(foreshadowing_plan, outline.chapter_number)
             if _due:
                 with tracked_extraction(story_context, ch_num, "foreshadowing"):
-                    verify_payoffs_semantic(
-                        llm, chapter.content, _due,
-                        model=None, threshold=_threshold,
-                    )
+                    verify_payoffs(_due, [chapter], threshold=_threshold)
                 _missing = [p for p in _due if not p.paid_off]
                 if _missing:
                     story_context.foreshadowing_payoff_missing = [
@@ -550,29 +544,46 @@ def process_chapter_post_write(
                 story_context.conflict_map, chapter.content, outline.chapter_number, llm=llm,
             )
 
-    # Mark foreshadowing as planted/paid off (semantic when available, keyword fallback)
+    # Mark foreshadowing as planted/paid off (embedding-based; keyword fallback when model unavailable)
     with tracked_extraction(story_context, ch_num, "foreshadowing"):
         from pipeline.layer1_story.foreshadowing_manager import (
             mark_planted, mark_paid_off, get_seeds_to_plant, get_payoffs_due,
-            verify_seeds_semantic, verify_payoffs_semantic,
         )
+        from pipeline.semantic.foreshadowing_verifier import verify_seeds, verify_payoffs
+        from services.embedding_service import get_embedding_service
+        from models.semantic_schemas import ChapterSemanticFindings, SEMANTIC_VERIFICATION_VERSION
         if foreshadowing_plan:
             seeds_due = get_seeds_to_plant(foreshadowing_plan, outline.chapter_number)
             payoffs_due = get_payoffs_due(foreshadowing_plan, outline.chapter_number)
-            if seeds_due and llm:
-                try:
-                    verify_seeds_semantic(llm, chapter.content, seeds_due)
-                except Exception:
+            _svc = get_embedding_service()
+            seed_matches = []
+            payoff_matches = []
+            if seeds_due:
+                if _svc.is_available():
+                    try:
+                        seed_matches = verify_seeds(seeds_due, [chapter])
+                    except Exception:
+                        mark_planted(foreshadowing_plan, outline.chapter_number, chapter.content)
+                else:
                     mark_planted(foreshadowing_plan, outline.chapter_number, chapter.content)
-            else:
-                mark_planted(foreshadowing_plan, outline.chapter_number, chapter.content)
-            if payoffs_due and llm:
-                try:
-                    verify_payoffs_semantic(llm, chapter.content, payoffs_due)
-                except Exception:
+            if payoffs_due:
+                if _svc.is_available():
+                    try:
+                        payoff_matches = verify_payoffs(payoffs_due, [chapter])
+                    except Exception:
+                        mark_paid_off(foreshadowing_plan, outline.chapter_number)
+                else:
                     mark_paid_off(foreshadowing_plan, outline.chapter_number)
-            else:
-                mark_paid_off(foreshadowing_plan, outline.chapter_number)
+            # Persist findings to in-memory chapter (orchestrator writes to DB)
+            if seed_matches or payoff_matches:
+                findings = ChapterSemanticFindings(
+                    schema_version=SEMANTIC_VERIFICATION_VERSION,
+                    chapter_num=outline.chapter_number,
+                    payoff_matches=seed_matches + payoff_matches,
+                    structural_findings=[],
+                    embedding_model=_svc.model_id,
+                )
+                chapter.semantic_findings = findings.model_dump()
 
     # --- Arc execution validation (Phase 6, non-fatal) ---
     if pipeline_config and getattr(pipeline_config, "enable_arc_execution_validation", True):

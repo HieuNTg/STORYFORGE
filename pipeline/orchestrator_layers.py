@@ -115,6 +115,55 @@ def _persist_chapter_contract_to_db(
         engine.dispose()
 
 
+def persist_chapter_semantic_findings(
+    story_id: str,
+    chapter_number: int,
+    findings_dict: dict,
+) -> None:
+    """Write semantic_findings JSON to chapters row (Sprint 2 P3).
+
+    Uses ORM — not raw SQL — so SQLAlchemy's type adapters handle SQLite correctly.
+    Non-fatal on missing column (pre-migration DB).
+    """
+    import os
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from models.db_models import Chapter
+
+    db_url = os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
+    connect_args = {"check_same_thread": False} if "sqlite" in db_url else {}
+    engine = create_engine(db_url, connect_args=connect_args)
+    try:
+        with Session(engine) as session:
+            chapter = (
+                session.query(Chapter)
+                .filter(
+                    Chapter.story_id == story_id,
+                    Chapter.chapter_number == chapter_number,
+                )
+                .first()
+            )
+            if chapter is None:
+                logger.warning(
+                    "Semantic findings persist: no chapter found story_id=%s chapter_number=%d",
+                    story_id, chapter_number,
+                )
+                return
+            chapter.semantic_findings = findings_dict
+            session.commit()
+            logger.debug(
+                "Semantic findings persisted story_id=%s chapter_number=%d",
+                story_id, chapter_number,
+            )
+    except Exception as exc:
+        logger.warning(
+            "Semantic findings persist failed (non-fatal) story_id=%s ch=%d: %s",
+            story_id, chapter_number, exc,
+        )
+    finally:
+        engine.dispose()
+
+
 async def run_full_pipeline(
     self: "PipelineOrchestrator",
     title: str,

@@ -211,9 +211,8 @@ def _verify_and_rewrite_missing_payoffs(
 
     try:
         from pipeline.layer1_story.chapter_self_critique import rewrite_for_missing_payoffs
-        from pipeline.layer1_story.foreshadowing_manager import (
-            get_payoffs_due, verify_payoffs_semantic,
-        )
+        from pipeline.layer1_story.foreshadowing_manager import get_payoffs_due
+        from pipeline.semantic.foreshadowing_verifier import verify_payoffs
         from models.schemas import count_words
 
         missing = list(story_context.foreshadowing_payoff_missing)
@@ -230,14 +229,11 @@ def _verify_and_rewrite_missing_payoffs(
         chapter.content = revised
         chapter.word_count = count_words(revised)
 
-        # Re-verify against rewritten content
+        # Re-verify against rewritten content (embedding-based, no LLM call)
         due_after = get_payoffs_due(foreshadowing_plan or [], outline.chapter_number)
         if due_after:
-            verify_payoffs_semantic(
-                llm, chapter.content, due_after,
-                model=layer_model,
-                threshold=float(getattr(pipeline_config, "semantic_foreshadowing_threshold", 0.7)),
-            )
+            threshold = float(getattr(pipeline_config, "semantic_payoff_threshold", 0.62))
+            verify_payoffs(due_after, [chapter], threshold=threshold)
             still_missing = [p for p in due_after if not p.paid_off]
             story_context.foreshadowing_payoff_missing = [
                 {

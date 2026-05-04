@@ -1,8 +1,5 @@
 """Tests for Phase 3: Narrative Linking — thread deps, semantic foreshadowing, conflict escalation."""
 
-import json
-from unittest.mock import MagicMock
-
 from models.schemas import PlotThread, ForeshadowingEntry, ConflictEntry
 from pipeline.layer1_story.plot_thread_tracker import (
     validate_thread_resolution,
@@ -10,11 +7,7 @@ from pipeline.layer1_story.plot_thread_tracker import (
     format_threads_for_prompt,
     update_threads,
 )
-from pipeline.layer1_story.foreshadowing_manager import (
-    verify_seeds_semantic,
-    verify_payoffs_semantic,
-    mark_planted,
-)
+from pipeline.layer1_story.foreshadowing_manager import mark_planted
 from pipeline.layer1_story.conflict_web_builder import (
     format_conflicts_for_prompt,
     update_conflict_status,
@@ -139,42 +132,33 @@ class TestNewThreadsCaptureDeps:
 
 
 class TestSemanticForeshadowing:
-    def test_semantic_verify_marks_planted(self):
-        mock_llm = MagicMock()
-        mock_llm.generate.return_value = json.dumps({
-            "results": [
-                {"hint": "dark omen", "confidence": 0.85, "evidence": "found it"},
-                {"hint": "light seed", "confidence": 0.3, "evidence": "not found"},
-            ]
-        })
-        s1 = _seed("dark omen", plant=3)
-        s2 = _seed("light seed", plant=3)
-        verify_seeds_semantic(mock_llm, "chapter content", [s1, s2], threshold=0.7)
-        assert s1.planted is True
-        assert s1.planted_confidence == 0.85
-        assert s2.planted is False
+    """Tests for foreshadowing verification.
 
-    def test_semantic_verify_payoffs(self):
-        mock_llm = MagicMock()
-        mock_llm.generate.return_value = json.dumps({
-            "results": [{"hint": "betrayal", "confidence": 0.9}]
-        })
-        p = _seed("betrayal", plant=1, payoff=5, planted=True)
-        verify_payoffs_semantic(mock_llm, "chapter content", [p])
-        assert p.paid_off is True
+    The LLM-based verify_seeds_semantic / verify_payoffs_semantic were removed in
+    Sprint 2 P3 and replaced with embedding-based verification in
+    `pipeline.semantic.foreshadowing_verifier`. See tests/test_foreshadowing_verifier.py
+    for comprehensive coverage of the new implementation.
+    """
 
-    def test_semantic_fallback_to_keyword(self):
-        mock_llm = MagicMock()
-        mock_llm.generate.side_effect = Exception("API error")
-        s = _seed("dark omen appears", plant=3)
-        verify_seeds_semantic(mock_llm, "the dark omen appears here clearly", [s])
-        assert s.planted is True
-
-    def test_keyword_fallback_preserves_confidence(self):
+    def test_keyword_fallback_mark_planted(self):
+        """mark_planted (keyword fallback) still works for legacy/degraded paths."""
         s = _seed("hero journey begins", plant=1)
         mark_planted([s], 1, "the hero journey begins now")
         assert s.planted is True
         assert s.planted_confidence > 0
+
+    def test_mark_planted_below_threshold_not_planted(self):
+        """mark_planted: low keyword overlap → not marked planted."""
+        s = _seed("mysterious ancient artifact", plant=2)
+        mark_planted([s], 2, "rain falls on the city streets")
+        # "mysterious" (9 chars), "ancient" (7 chars), "artifact" (8 chars) — none in content
+        assert s.planted is False
+
+    def test_keyword_fallback_empty_hint(self):
+        """mark_planted: hint with no words > 3 chars → always planted."""
+        s = _seed("ok go", plant=1)
+        mark_planted([s], 1, "any content at all")
+        assert s.planted is True
 
 
 class TestConflictEscalation:

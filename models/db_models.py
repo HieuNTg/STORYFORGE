@@ -147,6 +147,9 @@ class Chapter(Base):
     negotiated_contract: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     contract_reconciliation_warnings: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
 
+    # Sprint 2 P3: per-chapter semantic verification findings (nullable; set by foreshadowing_verifier)
+    semantic_findings: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
     # Relationships
     story: Mapped["Story"] = relationship("Story", back_populates="chapters")
 

@@ -1,6 +1,5 @@
 """Foreshadowing manager — plans and tracks narrative seeds and payoffs."""
 
-import json
 import logging
 from typing import Optional, TYPE_CHECKING
 
@@ -61,7 +60,7 @@ def mark_planted(
     chapter_number: int,
     chapter_content: str = "",
 ) -> None:
-    """Mark seeds as planted using keyword fallback. Use verify_seeds_semantic for LLM-based check."""
+    """DEPRECATED keyword fallback. Use `pipeline.semantic.foreshadowing_verifier.verify_seeds`."""
     for f in plan:
         if f.plant_chapter == chapter_number and not f.planted:
             if chapter_content:
@@ -85,118 +84,9 @@ def mark_planted(
                 f.planted_confidence = 1.0
 
 
-_SEMANTIC_VERIFY_PROMPT = """Kiểm tra nội dung chương có chứa KHÁI NIỆM của các mầm foreshadowing hay không.
-Không cần khớp từ khóa — chỉ cần ý nghĩa tương đương.
-
-NỘI DUNG (500 ký tự):
-{excerpt}
-
-MẦM CẦN KIỂM TRA:
-{seeds_list}
-
-Trả JSON:
-{{"results": [{{"hint": "...", "confidence": 0.0-1.0, "evidence": "trích dẫn ngắn hoặc 'không tìm thấy'"}}]}}
-CHỈ trả JSON."""
-
-
-def verify_seeds_semantic(
-    llm: "LLMClient",
-    chapter_content: str,
-    seeds: list[ForeshadowingEntry],
-    model: Optional[str] = None,
-    threshold: float = 0.7,
-) -> None:
-    """Semantic verification of foreshadowing seeds. 1 LLM call for all seeds. In-place update."""
-    if not seeds:
-        return
-
-    excerpt = chapter_content[:500]
-    seeds_list = "\n".join(f"- {s.hint}" for s in seeds)
-    prompt = _SEMANTIC_VERIFY_PROMPT.format(excerpt=excerpt, seeds_list=seeds_list)
-
-    try:
-        raw = llm.generate(
-            system_prompt="Bạn là editor chuyên foreshadowing. Trả JSON.",
-            user_prompt=prompt,
-            max_tokens=1024,
-            model=model,
-        )
-        raw = raw.strip()
-        if raw.startswith("```"):
-            raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0]
-        data = json.loads(raw)
-
-        hint_to_seed = {s.hint: s for s in seeds}
-        for r in data.get("results", []):
-            hint = r.get("hint", "")
-            conf = float(r.get("confidence", 0.0))
-            seed = hint_to_seed.get(hint)
-            if seed:
-                seed.planted_confidence = conf
-                if conf >= threshold:
-                    seed.planted = True
-                else:
-                    logger.info(
-                        "Seed '%s' semantic confidence %.0f%% (below %.0f%% threshold)",
-                        hint[:40], conf * 100, threshold * 100,
-                    )
-    except Exception as e:
-        logger.warning("Semantic seed verification failed, falling back to keyword: %s", e)
-        for s in seeds:
-            _keyword_check(s, chapter_content)
-
-
-def verify_payoffs_semantic(
-    llm: "LLMClient",
-    chapter_content: str,
-    payoffs: list[ForeshadowingEntry],
-    model: Optional[str] = None,
-    threshold: float = 0.7,
-) -> None:
-    """Semantic verification of foreshadowing payoffs. Same pattern as seed verification."""
-    if not payoffs:
-        return
-
-    excerpt = chapter_content[:500]
-    payoffs_list = "\n".join(f"- {p.hint}" for p in payoffs)
-    prompt = _SEMANTIC_VERIFY_PROMPT.format(excerpt=excerpt, seeds_list=payoffs_list)
-
-    try:
-        raw = llm.generate(
-            system_prompt="Bạn là editor chuyên foreshadowing. Trả JSON.",
-            user_prompt=prompt,
-            max_tokens=1024,
-            model=model,
-        )
-        raw = raw.strip()
-        if raw.startswith("```"):
-            raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0]
-        data = json.loads(raw)
-
-        hint_to_payoff = {p.hint: p for p in payoffs}
-        for r in data.get("results", []):
-            hint = r.get("hint", "")
-            conf = float(r.get("confidence", 0.0))
-            payoff = hint_to_payoff.get(hint)
-            if payoff:
-                # Store confidence on entry (reuse planted_confidence slot for payoff too)
-                payoff.planted_confidence = max(payoff.planted_confidence or 0.0, conf)
-                if conf >= threshold:
-                    payoff.paid_off = True
-                else:
-                    logger.info(
-                        "Payoff '%s' semantic confidence %.0f%% (below %.0f%% threshold)",
-                        hint[:40], conf * 100, threshold * 100,
-                    )
-    except Exception as e:
-        # Bug fix: previously blindly marked all as paid_off on LLM failure.
-        # Fall back to keyword check so unpaid stays unpaid.
-        logger.warning("Semantic payoff verification failed, keyword fallback: %s", e)
-        for p in payoffs:
-            _keyword_check(p, chapter_content)
-            # _keyword_check sets .planted; copy to .paid_off when matched
-            if p.planted_confidence and p.planted_confidence >= 0.3:
-                p.paid_off = True
+# verify_seeds_semantic and verify_payoffs_semantic removed (Sprint 2 P3).
+# Replaced by `pipeline.semantic.foreshadowing_verifier.verify_seeds / verify_payoffs`.
+# Keyword fallback (_keyword_check) retained for last-resort when embedding model unavailable.
 
 
 def _keyword_check(entry: ForeshadowingEntry, content: str) -> None:
@@ -214,7 +104,7 @@ def _keyword_check(entry: ForeshadowingEntry, content: str) -> None:
 
 
 def mark_paid_off(plan: list[ForeshadowingEntry], chapter_number: int) -> None:
-    """Mark payoffs as delivered after chapter is written."""
+    """DEPRECATED keyword fallback. Use `pipeline.semantic.foreshadowing_verifier.verify_payoffs`."""
     for f in plan:
         if f.payoff_chapter == chapter_number and f.planted and not f.paid_off:
             f.paid_off = True
