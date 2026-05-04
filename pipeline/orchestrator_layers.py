@@ -164,6 +164,50 @@ def persist_chapter_semantic_findings(
         engine.dispose()
 
 
+def persist_outline_metrics(
+    story_id: str,
+    metrics_dict: dict,
+) -> None:
+    """Write outline_metrics JSON to the most recent pipeline_run for story_id.
+
+    Sprint 2 P5. Mirrors _persist_handoff_to_db pattern.  Non-fatal.
+    """
+    import os
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from models.db_models import PipelineRun
+
+    db_url = os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
+    connect_args = {"check_same_thread": False} if "sqlite" in db_url else {}
+    engine = create_engine(db_url, connect_args=connect_args)
+    try:
+        with Session(engine) as session:
+            run = (
+                session.query(PipelineRun)
+                .filter(PipelineRun.story_id == story_id)
+                .order_by(PipelineRun.created_at.desc())
+                .first()
+            )
+            if run is None:
+                logger.warning(
+                    "Outline metrics persist: no pipeline_run found for story_id=%s", story_id
+                )
+                return
+            run.outline_metrics = metrics_dict
+            session.commit()
+            logger.info(
+                "Outline metrics persisted to pipeline_run id=%s story_id=%s overall=%.3f",
+                run.id, story_id, metrics_dict.get("overall_score", 0),
+            )
+    except Exception as exc:
+        logger.warning(
+            "Outline metrics persist failed (non-fatal) story_id=%s: %s",
+            story_id, exc,
+        )
+    finally:
+        engine.dispose()
+
+
 async def run_full_pipeline(
     self: "PipelineOrchestrator",
     title: str,

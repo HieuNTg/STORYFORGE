@@ -189,6 +189,9 @@ class PipelineRun(Base):
     handoff_health: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     handoff_signals_version: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
 
+    # Sprint 2 P5: deterministic outline metrics (nullable; NULL for pre-migration rows)
+    outline_metrics: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
     # Relationships
     user: Mapped[Optional["User"]] = relationship("User", back_populates="pipeline_runs")
     story: Mapped[Optional["Story"]] = relationship("Story", back_populates="pipeline_runs")

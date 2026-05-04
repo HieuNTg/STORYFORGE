@@ -164,6 +164,10 @@ class PipelineConfig:
     chapter_retry_threshold: float = 0.6  # Contract compliance score below this triggers retry
     parallel_causal_sync: bool = True  # Sync causal events between parallel chapters post-write
 
+    # Sprint 2 P5: semantic outline metrics thresholds
+    enable_llm_outline_critic: bool = True   # Secondary LLM signal alongside deterministic metrics
+    outline_metric_floor: float = 0.40       # composite_score floor; below this → log WARN + optional revise
+
     # Layer 1 enhancements (all opt-in, non-fatal)
     enable_theme_premise: bool = True  # Generate thematic anchor before story
     enable_voice_profiles: bool = True  # Generate character voice profiles

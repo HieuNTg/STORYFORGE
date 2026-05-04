@@ -318,10 +318,14 @@ class StoryGenerator:
             try:
                 _log("Đang đánh giá và cải thiện dàn ý...")
                 from pipeline.layer1_story.outline_critic import critique_and_revise
+                _enable_llm = getattr(
+                    self.config.pipeline, "enable_llm_outline_critic", True
+                )
                 outlines, outline_critique = critique_and_revise(
                     self.llm, outlines, characters, world, synopsis, genre,
                     max_rounds=self.config.pipeline.outline_critique_max_rounds,
                     model=self._layer_model,
+                    enable_llm_critic=_enable_llm,
                 )
                 score = outline_critique.get("overall_score", "?")
                 _log(f"Dàn ý đạt điểm: {score}/5")
@@ -396,6 +400,34 @@ class StoryGenerator:
         # Sprint 1 P2: top-level handoff signals (parallel to existing per-character storage)
         draft.voice_fingerprints = list(_voice_fingerprints_top)
         draft.arc_waypoints = list(_waypoints_top)
+
+        # Sprint 2 P5: compute + persist deterministic outline metrics
+        try:
+            from pipeline.layer1_story.outline_metrics import compute_outline_metrics
+            _outline_metrics = compute_outline_metrics(
+                outlines=outlines,
+                conflict_web=conflict_web,
+                characters=characters,
+                foreshadowing_plan=foreshadowing_plan,
+            )
+            _log(
+                f"[OUTLINE_METRICS] overall={_outline_metrics.overall_score:.3f} "
+                f"density={_outline_metrics.conflict_web_density:.3f} "
+                f"arc_var={_outline_metrics.arc_trajectory_variance:.3f} "
+                f"skew={_outline_metrics.pacing_distribution_skew:.3f} "
+                f"coverage={_outline_metrics.beat_coverage_ratio:.3f} "
+                f"gini={_outline_metrics.character_screen_time_gini:.3f}"
+            )
+            # Persist to pipeline_runs.outline_metrics
+            _story_id = getattr(self, "session_id", None) or getattr(draft, "id", None)
+            if _story_id:
+                try:
+                    from pipeline.orchestrator_layers import persist_outline_metrics
+                    persist_outline_metrics(_story_id, _outline_metrics.model_dump())
+                except Exception as _pe:
+                    logger.warning("Outline metrics DB persist failed (non-fatal): %s", _pe)
+        except Exception as _me:
+            logger.warning("Outline metrics computation failed (non-fatal): %s", _me)
         story_context = StoryContext(total_chapters=len(outlines))
         if not self.config.pipeline.story_bible_enabled:
             logger.warning("story_bible_enabled=False is deprecated; Story Bible is now always-on for consistency.")
