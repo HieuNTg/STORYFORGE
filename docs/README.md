@@ -69,7 +69,9 @@ Reports from sprint executions land in [`plans/reports/`](../plans/reports/).
 - Architecture: [system-architecture.md](./system-architecture.md#security-architecture) — JWT, CORS, TLS/SSL, audit logging
 - Deployment: [deployment-production.md](./deployment-production.md#ssltls) — SSL/TLS certificates, Let's Encrypt
 
-## P3 Sprint Highlights
+## Legacy P3 (Redis sprint) Highlights
+
+> These notes are from an earlier 2025/2026-Q1 scaling sprint also called P3, unrelated to the May 2026 Sprint 3 (generation hardening). See ADR 0003 for the latter.
 
 All documentation has been updated to reflect P3 sprint changes:
 

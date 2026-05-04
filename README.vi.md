@@ -229,6 +229,50 @@ StoryForge đi kèm 10 prompt tác nhân có thể tùy chỉnh trong `data/prom
 - Điều chỉnh tiêu chí và ngưỡng chấm điểm
 - Thay đổi tính cách tác nhân và trọng tâm đánh giá
 
+### Cờ Pipeline chính
+
+Khai báo trong `config/defaults.py` (`PipelineConfig`); chỉnh được qua tab Cài đặt.
+
+| Cờ | Mặc định | Mô tả |
+|----|----------|-------|
+| `parallel_chapters_enabled` | `True` | Dùng `asyncio.gather` theo batch để viết chương |
+| `chapter_batch_size` | `5` | Số chương mỗi batch song song; cũng là trần cho rewriter batched ở Sprint 3 |
+| `adaptive_simulation_rounds` | `True` | Vòng simulator L2 chạy 4–10 vòng tùy độ phức tạp |
+| `enable_structural_rewrite` | `True` | L2 có thể trigger viết lại chương ở L1 |
+| `enable_scene_decomposition` | `True` | Inject scene vào prompt chương |
+| `enable_chapter_contracts` | `True` | Hợp đồng yêu cầu cho từng chương |
+| `enable_quality_gate` | `True` | Chấm điểm inline giữa các lớp |
+| `l2_consistency_engine` | `True` | Công tắc tổng cho bộ cải tiến nhất quán A–E |
+| `l2_voice_preservation` | `True` | Bắt buộc tuân thủ voice fingerprint khi enhance L2 |
+| `l2_drama_ceiling` | `True` | Áp trần kịch tính theo thể loại |
+| `l2_contract_gate` | `True` | Validate contract sau L2 + tùy chọn rewrite |
+| `voice_revert_use_anchored` | `True` | Sprint 3: revert giọng theo speaker-anchor; `False` quay về kiểu positional cũ |
+
+### Cờ môi trường chế độ Strict
+
+Cả hai mặc định warn-and-continue. Đặt thành `1` (hoặc `true`) để fail-fast trong CI / dev.
+
+| Biến | Mặc định | Hiệu ứng strict |
+|------|----------|-----------------|
+| `STORYFORGE_HANDOFF_STRICT` | warn-and-continue | Raise `HandoffValidationError` khi tín hiệu L1->L2 bị malformed / `extraction_failed` |
+| `STORYFORGE_SEMANTIC_STRICT` | warn-and-continue | Raise `SemanticVerificationError` khi foreshadowing không có payoff hoặc lỗi cấu trúc severity ≥ 0.8 |
+
+### Test Markers
+
+Ba marker tùy biến được khai báo trong `pyproject.toml`. Chúng **không** bị tự động loại trừ — truyền `-m "not <marker>"` khi muốn bỏ qua.
+
+| Marker | Dùng khi |
+|--------|----------|
+| `calibration` | Test calibration với model thật; nạp `sentence-transformers` (chậm) |
+| `perf` | Bench thời gian pipeline 10 chương |
+| `bench` | Bench perf của P8 async-nesting (Sprint 3) |
+
+```bash
+pytest tests/ -v                                 # toàn bộ suite (gồm marker)
+pytest tests/ -v -m "not calibration and not bench"   # subset chạy nhanh
+pytest tests/ -v -m calibration                  # chỉ chạy calibration
+```
+
 ---
 
 ## Kiến trúc
@@ -245,7 +289,87 @@ flowchart LR
 - **Lớp 2** chạy mô phỏng kịch tính đa tác nhân, viết lại cảnh với bảo toàn giọng văn và validate chapter contract.
 - **Quality gate, rewrite cấu trúc, và vòng smart revision** tự động kích hoạt giữa các lớp để bắt chương yếu.
 
+<details>
+<summary>Module breakdown (L1 / L2)</summary>
+
+```
+Layer 1 (L1): Story Generation
+  outline -> scene decomposition -> chapter writing
+  ├── theme_premise_generator
+  ├── character_generator + voice_profiler
+  ├── outline_builder + outline_critic
+  ├── conflict_web_builder + foreshadowing_manager
+  ├── scene_decomposer + scene_beat_generator
+  ├── chapter_writer (parallel batches)
+  └── post_processing
+
+Layer 2 (L2): Drama Enhancement
+  analyzer -> simulator -> enhancer
+  ├── analyzer (conflict, pacing, character arcs)
+  ├── simulator (multi-agent debate, adaptive rounds)
+  ├── enhancer (scene-level enhancement)
+  └── contract_gate (validation + optional L1 rewrite)
+```
+
+Luồng tín hiệu L1->L2: `conflict_web` và `foreshadowing_plan` chảy vào simulator;
+`arc_waypoints` cùng `threads` đi vào analyzer và enhancer; `voice_fingerprints`
+giữ nguyên giọng từng nhân vật xuyên các lượt rewrite L2.
+
+</details>
+
 Xem [**docs/system-architecture.md**](docs/system-architecture.md) để biết luồng pipeline đầy đủ, tích hợp tín hiệu L1↔L2, và semantics retry.
+
+---
+
+## Sprint gần đây
+
+Ba sprint đã merge vào `master` trong tháng 5/2026, mỗi sprint kèm một ADR và một thư mục plan riêng.
+
+### Sprint 1 — L1->L2 Handoff Envelope
+
+Envelope `L1Handoff` có kiểu rõ ràng cùng `NegotiatedChapterContract` (Pydantic v2,
+frozen, `extra="forbid"`) thay thế pattern silent-empty
+`getattr(draft, "...", None) or []` rải khắp seam L1->L2. Một reconciliation
+gate đặt tại `pipeline/handoff_gate.py` validate mọi tín hiệu đúng một lần
+trước khi simulator chạy, rồi persist envelope vào cột JSON
+`pipeline_runs.handoff_envelope`. Cờ môi trường strict-mode
+`STORYFORGE_HANDOFF_STRICT=1` khiến tín hiệu malformed fail-fast; mặc định là
+warn-and-continue, đồng thời log structured `signal_health` ra endpoint
+diagnostics. Xem [ADR 0001](docs/adr/0001-l1-handoff-envelope.md) và
+[plans/260503-2317-l1-l2-handoff-envelope/](plans/260503-2317-l1-l2-handoff-envelope/README.md).
+
+### Sprint 2 — Semantic Verification
+
+Ba kiểm tra dựa trên keyword (foreshadowing payoff, structural detector,
+outline critic) được thay bằng embedding CPU local qua
+`sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` (384-dim) cộng
+NER spaCy `xx_ent_wiki_sm` để xác định nhân vật xuất hiện. Bộ verifier payoff
+chạy LLM theo từng chương đã bị gỡ; cosine similarity ở ngưỡng `0.55` đạt
+96.67% chính xác trên bộ calibration 30 cặp tiếng Việt (so với `0.62` /
+73.33% trước đó). Embedding được cache trong bảng SQLite mới `embedding_cache`,
+key là `sha256(model_id ␟ NFC(text))`. Outline critic dùng LLM-as-judge được
+thay bằng các metric khách quan có tính xác định. Bổ sung endpoint diagnostics
+mới kèm panel UI. Cờ môi trường strict-mode `STORYFORGE_SEMANTIC_STRICT=1`.
+Xem [ADR 0002](docs/adr/0002-semantic-verification.md) và
+[plans/260504-1213-semantic-verification/](plans/260504-1213-semantic-verification/README.md).
+
+### Sprint 3 — Generation Hardening
+
+Drama ceiling bây giờ thực sự nối vào generation:
+`NegotiatedChapterContract` có thêm trường dẫn xuất
+`drama_ceiling = min(1.0, drama_target + drama_tolerance)`, và chapter writer
+sẽ inject directive tiếng Việt `## RÀNG BUỘC KỊCH TÍNH` vào prompt mỗi khi
+ceiling được đặt. Voice-preservation revert chuyển từ positional sang
+speaker-anchored bằng tuple `(speaker_id, ordinal)` cùng chuẩn hoá dấu NFC,
+xử lý dứt điểm bug corruption hội thoại khi enhancer reorder. Hợp đồng async
+D3: simulator, agent registry và scene enhancer được tách thành bản canonical
+`*_async` cộng wrapper sync — wrapper raise `RuntimeError` lớn tiếng khi gặp
+event loop đang chạy; các hack escape bằng `ThreadPoolExecutor` đã bị xoá.
+Structural rewriter chạy batched sau `asyncio.Semaphore(chapter_batch_size)`
+với `return_exceptions=True` để cô lập lỗi từng chương. Cờ mới
+`voice_revert_use_anchored` (mặc định `True`). Xem
+[ADR 0003](docs/adr/0003-generation-hardening-drama-ceiling.md) và
+[plans/260504-1356-generation-hardening/](plans/260504-1356-generation-hardening/README.md).
 
 ---
 
@@ -302,6 +426,17 @@ storyforge/
 ├── tests/                      # Bộ kiểm tra (unit, integration, security, load)
 └── scripts/                    # Script tiện ích
 ```
+
+---
+
+## Tài liệu
+
+- **[docs/](docs/README.md)** — index tài liệu đầy đủ (kiến trúc, code standards, deployment)
+- **[docs/adr/](docs/adr/)** — architecture decision records:
+  - [0001 — L1 handoff envelope](docs/adr/0001-l1-handoff-envelope.md)
+  - [0002 — Semantic verification](docs/adr/0002-semantic-verification.md)
+  - [0003 — Drama ceiling trên `NegotiatedChapterContract`](docs/adr/0003-generation-hardening-drama-ceiling.md)
+- **[plans/](plans/README.md)** — thư mục plan từng sprint (README, phases, schemas, risks)
 
 ---
 
