@@ -223,37 +223,42 @@ class DramaSimulator:
             except Exception as e:
                 logger.debug(f"apply_thread_pressure failed (non-fatal): {e}")
 
-    def _extract_all_psychology(self, characters: list[Character]) -> None:
-        """Trích xuất tâm lý cho tất cả nhân vật song song."""
-        import asyncio as _asyncio
-
+    async def _extract_all_psychology_async(self, characters: list[Character]) -> None:
+        """Trích xuất tâm lý cho tất cả nhân vật song song (async core)."""
         engine = self._psychology_engine
         if engine is None:
             return
 
-        async def _gather():
-            loop = _asyncio.get_running_loop()
+        loop = asyncio.get_running_loop()
 
-            async def _one(character: Character):
-                try:
-                    return character.name, await _asyncio.wait_for(
-                        loop.run_in_executor(
-                            None, engine.extract_psychology, character, characters
-                        ),
-                        timeout=60,
-                    )
-                except Exception as e:
-                    logger.warning(f"Psychology timeout/lỗi cho '{character.name}': {e}")
-                    return character.name, None
+        async def _one(character: Character):
+            try:
+                return character.name, await asyncio.wait_for(
+                    loop.run_in_executor(
+                        None, engine.extract_psychology, character, characters
+                    ),
+                    timeout=60,
+                )
+            except Exception as e:
+                logger.warning(f"Psychology timeout/lỗi cho '{character.name}': {e}")
+                return character.name, None
 
-            results = await _asyncio.gather(*[_one(c) for c in characters])
-            return results
-
-        gathered = asyncio.run(_gather())
-        for name, psychology in gathered:
+        results = await asyncio.gather(*[_one(c) for c in characters])
+        for name, psychology in results:
             if psychology is not None and name in self.agents:
                 self.agents[name].psychology = psychology
         logger.info("Đã trích xuất tâm lý cho tất cả nhân vật")
+
+    def _extract_all_psychology(self, characters: list[Character]) -> None:
+        """Sync wrapper — raises if called from a running event loop."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(self._extract_all_psychology_async(characters))
+            return
+        raise RuntimeError(
+            "_extract_all_psychology called from async context — use _extract_all_psychology_async"
+        )
 
     def _apply_conflict_web_tensions(self) -> None:
         """Seed trust-network tension for character pairs found in conflict_web."""
@@ -487,40 +492,41 @@ class DramaSimulator:
             logger.warning(f"Agent {name} lỗi ở vòng {round_number}: {e}")
             return None, {}
 
-    def _generate_reactions(self, posts: list[AgentPost], round_num: int, context: str) -> list[AgentPost]:
-        """Generate reactions from targeted characters (1 reaction layer).
-
-        Migrated from ThreadPoolExecutor + as_completed to asyncio.gather +
-        run_in_executor. _run_reaction() calls blocking LLM SDK; run_in_executor
-        offloads each to the default thread pool concurrently.
-        """
+    async def _generate_reactions_async(self, posts: list[AgentPost], round_num: int, context: str) -> list[AgentPost]:
+        """Async core: generate reactions from targeted characters concurrently."""
         targeted = {p.target: p for p in posts if p.target and p.target in self.agents}
+        loop = asyncio.get_running_loop()
 
-        async def _gather() -> list[AgentPost]:
-            loop = asyncio.get_running_loop()
+        async def _one(target_name: str, triggering_post: AgentPost) -> AgentPost | None:
+            if target_name == triggering_post.agent_name:
+                return None
+            agent = self.agents[target_name]
+            try:
+                return await asyncio.wait_for(
+                    loop.run_in_executor(None, self._run_reaction, agent, triggering_post, round_num, context),
+                    timeout=120,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"Reaction from {target_name} timed out after 120s, skipping")
+                return None
+            except Exception as e:
+                logger.warning(f"Reaction from {target_name} raised unexpected error: {e}")
+                return None
 
-            async def _one(target_name: str, triggering_post: AgentPost) -> AgentPost | None:
-                if target_name == triggering_post.agent_name:
-                    return None
-                agent = self.agents[target_name]
-                try:
-                    return await asyncio.wait_for(
-                        loop.run_in_executor(None, self._run_reaction, agent, triggering_post, round_num, context),
-                        timeout=120,
-                    )
-                except asyncio.TimeoutError:
-                    logger.warning(f"Reaction from {target_name} timed out after 120s, skipping")
-                    return None
-                except Exception as e:
-                    logger.warning(f"Reaction from {target_name} raised unexpected error: {e}")
-                    return None
+        results = await asyncio.gather(
+            *[_one(name, post) for name, post in targeted.items()]
+        )
+        return [r for r in results if r is not None]
 
-            results = await asyncio.gather(
-                *[_one(name, post) for name, post in targeted.items()]
-            )
-            return [r for r in results if r is not None]
-
-        return asyncio.run(_gather())
+    def _generate_reactions(self, posts: list[AgentPost], round_num: int, context: str) -> list[AgentPost]:
+        """Sync wrapper — raises if called from a running event loop."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self._generate_reactions_async(posts, round_num, context))
+        raise RuntimeError(
+            "_generate_reactions called from async context — use _generate_reactions_async"
+        )
 
     def _run_reaction(self, agent: CharacterAgent, triggering_post: AgentPost, round_num: int, context: str) -> AgentPost | None:
         """Generate a reaction from agent to a triggering post."""
@@ -563,47 +569,37 @@ class DramaSimulator:
             logger.warning(f"Reaction from {agent.character.name} failed: {e}")
             return None
 
-    def simulate_round(
+    async def simulate_round_async(
         self, round_number: int, context: str, total_rounds: int = 5,
         progress_callback=None,
     ) -> list[AgentPost]:
-        """Chạy một vòng mô phỏng - tất cả agents hành động song song.
+        """Async core: run one simulation round with all agents acting concurrently.
 
-        Migrated from ThreadPoolExecutor + as_completed to asyncio.gather +
-        run_in_executor. _run_single_agent() calls a blocking LLM SDK; each
-        coroutine is offloaded to the default thread pool via run_in_executor
-        so the event loop is free between dispatches.
-
-        NOTE: post-round state mutations (emotion, trust, memory) still happen
-        sequentially after gather completes — they mutate shared agent state and
-        must not be parallelised.
+        Post-round state mutations (emotion, trust, memory) remain sequential —
+        they mutate shared agent state and must not be parallelised.
         """
         genre_hint = get_genre_escalation_prompt(context, round_number, total_rounds)
         round_context = f"{context} {genre_hint}".strip() if genre_hint else context
         agent_names = list(self.agents.keys())
+        loop = asyncio.get_running_loop()
 
-        async def _run_round() -> list[tuple[str, AgentPost | None, dict]]:
-            loop = asyncio.get_running_loop()
+        async def _one(name: str) -> tuple[str, "AgentPost | None", dict]:
+            try:
+                post, metadata = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        None, self._run_single_agent, name, round_number, round_context
+                    ),
+                    timeout=120,
+                )
+                return name, post, metadata
+            except asyncio.TimeoutError:
+                logger.warning(f"Agent {name} timed out at round {round_number}, skipping")
+                return name, None, {}
+            except Exception as e:
+                logger.warning(f"Agent {name} raised unexpected error at round {round_number}: {e}")
+                return name, None, {}
 
-            async def _one(name: str) -> tuple[str, AgentPost | None, dict]:
-                try:
-                    post, metadata = await asyncio.wait_for(
-                        loop.run_in_executor(
-                            None, self._run_single_agent, name, round_number, round_context
-                        ),
-                        timeout=120,
-                    )
-                    return name, post, metadata
-                except asyncio.TimeoutError:
-                    logger.warning(f"Agent {name} timed out at round {round_number}, skipping")
-                    return name, None, {}
-                except Exception as e:
-                    logger.warning(f"Agent {name} raised unexpected error at round {round_number}: {e}")
-                    return name, None, {}
-
-            return await asyncio.gather(*[_one(n) for n in self.agents])  # type: ignore[return-value]
-
-        gathered = asyncio.run(_run_round())
+        gathered = await asyncio.gather(*[_one(n) for n in self.agents])  # type: ignore[arg-type]
 
         round_posts = []
         for idx, (name, post, metadata) in enumerate(gathered):
@@ -662,7 +658,7 @@ class DramaSimulator:
                 skip_prob = 0.5 if layer == 1 else 0.7
                 if random.random() < skip_prob:
                     break
-            reactions = self._generate_reactions(reaction_input, round_number, context)
+            reactions = await self._generate_reactions_async(reaction_input, round_number, context)
             if not reactions:
                 break
             for post in reactions:
@@ -704,6 +700,21 @@ class DramaSimulator:
                 logger.debug(f"check_revelation_triggers lỗi: {e}")
 
         return round_posts
+
+    def simulate_round(
+        self, round_number: int, context: str, total_rounds: int = 5,
+        progress_callback=None,
+    ) -> list[AgentPost]:
+        """Sync wrapper — raises if called from a running event loop."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(
+                self.simulate_round_async(round_number, context, total_rounds, progress_callback)
+            )
+        raise RuntimeError(
+            "simulate_round called from async context — use simulate_round_async"
+        )
 
     def evaluate_drama(self, round_posts: list[AgentPost]) -> dict:
         """Đánh giá mức kịch tính của vòng mô phỏng."""
@@ -812,7 +823,7 @@ class DramaSimulator:
             logger.warning(f"Escalation {pattern.pattern_type} failed: {e}")
             return None
 
-    def run_simulation(
+    async def run_simulation_async(
         self,
         characters: list[Character],
         relationships: list[Relationship],
@@ -827,7 +838,7 @@ class DramaSimulator:
         conflict_web: list | None = None,
         foreshadowing_plan: list | None = None,
     ) -> SimulationResult:
-        """Chạy toàn bộ mô phỏng và trả về kết quả."""
+        """Async core: run full simulation and return result."""
         try:
             from services.trace_context import set_chapter, set_module
             set_chapter(current_chapter)
@@ -889,7 +900,7 @@ class DramaSimulator:
                     pass
 
             # Chạy vòng mô phỏng
-            round_posts = self.simulate_round(
+            round_posts = await self.simulate_round_async(
                 round_num, genre, num_rounds, progress_callback=progress_callback,
             )
 
@@ -954,7 +965,7 @@ class DramaSimulator:
                 agent.emotion.record_round(round_num)
 
         # Tạo gợi ý kịch tính
-        _log("💡 Đang tạo gợi ý tăng cường kịch tính...")
+        _log("Dang tao goi y tang cuong kich tinh...")
         suggestions_result = self._generate_suggestions(genre)
 
         # Xây dựng dữ liệu quỹ đạo cảm xúc
@@ -1007,8 +1018,45 @@ class DramaSimulator:
         )
 
         avg_drama = sum(all_drama_scores) / len(all_drama_scores) if all_drama_scores else 0
-        _log(f"✅ Mô phỏng hoàn tất! Điểm kịch tính trung bình: {avg_drama:.2f}")
+        _log(f"Mo phong hoan tat! Diem kich tinh trung binh: {avg_drama:.2f}")
         return result
+
+    def run_simulation(
+        self,
+        characters: list[Character],
+        relationships: list[Relationship],
+        genre: str,
+        num_rounds: int = 5,
+        drama_intensity: str = "cao",
+        progress_callback=None,
+        pacing_directive: str = "",
+        arc_waypoints: list[dict] | None = None,
+        threads: list | None = None,
+        current_chapter: int = 1,
+        conflict_web: list | None = None,
+        foreshadowing_plan: list | None = None,
+    ) -> SimulationResult:
+        """Sync wrapper — raises if called from a running event loop."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.run_simulation_async(
+                characters=characters,
+                relationships=relationships,
+                genre=genre,
+                num_rounds=num_rounds,
+                drama_intensity=drama_intensity,
+                progress_callback=progress_callback,
+                pacing_directive=pacing_directive,
+                arc_waypoints=arc_waypoints,
+                threads=threads,
+                current_chapter=current_chapter,
+                conflict_web=conflict_web,
+                foreshadowing_plan=foreshadowing_plan,
+            ))
+        raise RuntimeError(
+            "run_simulation called from async context — use run_simulation_async"
+        )
 
     def _update_relationship(self, change: dict):
         """Cập nhật mối quan hệ dựa trên kết quả mô phỏng + trust network."""

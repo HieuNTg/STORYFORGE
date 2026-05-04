@@ -62,6 +62,38 @@ class AgentRegistry:
         """Lấy danh sách agent hoạt động ở layer cụ thể."""
         return [a for a in self._agents if layer in a.layers]
 
+    async def _run_tier_parallel_async(
+        self,
+        tier_agents: list[BaseAgent],
+        output: PipelineOutput,
+        layer: int,
+        iteration: int,
+        prior_reviews: list[AgentReview],
+        progress_callback: Optional[Callable[[str], None]],
+    ) -> list[AgentReview]:
+        """Async core: run one tier of agents concurrently via run_in_executor."""
+        loop = asyncio.get_running_loop()
+        prior = prior_reviews if prior_reviews else None
+
+        async def _one(agent: BaseAgent) -> "AgentReview | None":
+            try:
+                review: AgentReview = await loop.run_in_executor(
+                    None, agent.review, output, layer, iteration, prior
+                )
+                if progress_callback:
+                    status = "OK" if review.approved else "WARN"
+                    progress_callback(
+                        f"[AGENTS] {status} {agent.name}: {review.score:.1f}/1.0 "
+                        f"({len(review.issues)} vấn đề)"
+                    )
+                return review
+            except Exception as e:
+                logger.warning(f"Agent {agent.name} lỗi ở iteration {iteration}: {e}")
+                return None
+
+        gathered = await asyncio.gather(*[_one(a) for a in tier_agents])
+        return [r for r in gathered if r is not None]
+
     def _run_tier_parallel(
         self,
         tier_agents: list[BaseAgent],
@@ -71,52 +103,28 @@ class AgentRegistry:
         prior_reviews: list[AgentReview],
         progress_callback: Optional[Callable[[str], None]],
     ) -> list[AgentReview]:
-        """Run a single tier of agents in parallel; return their reviews.
+        """Sync wrapper — raises if called from a running event loop."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self._run_tier_parallel_async(
+                tier_agents, output, layer, iteration, prior_reviews, progress_callback
+            ))
+        raise RuntimeError(
+            "_run_tier_parallel called from async context — use _run_tier_parallel_async"
+        )
 
-        Uses asyncio.gather + run_in_executor so LLM calls are dispatched
-        concurrently without tying up OS threads beyond the default thread pool.
-        agent.review() is synchronous (wraps blocking LLM SDK); run_in_executor
-        offloads each call so the event loop remains responsive between dispatches.
-        """
-        async def _gather_reviews() -> list[AgentReview]:
-            loop = asyncio.get_running_loop()
-            prior = prior_reviews if prior_reviews else None
-
-            async def _one(agent: BaseAgent) -> AgentReview | None:
-                try:
-                    review: AgentReview = await loop.run_in_executor(
-                        None, agent.review, output, layer, iteration, prior
-                    )
-                    if progress_callback:
-                        status = "OK" if review.approved else "WARN"
-                        progress_callback(
-                            f"[AGENTS] {status} {agent.name}: {review.score:.1f}/1.0 "
-                            f"({len(review.issues)} vấn đề)"
-                        )
-                    return review
-                except Exception as e:
-                    logger.warning(f"Agent {agent.name} lỗi ở iteration {iteration}: {e}")
-                    return None
-
-            gathered = await asyncio.gather(*[_one(a) for a in tier_agents])
-            return [r for r in gathered if r is not None]
-
-        return asyncio.run(_gather_reviews())
-
-    def run_review_cycle(
+    async def run_review_cycle_async(
         self,
         output: PipelineOutput,
         layer: int,
         max_iterations: int = 3,
         progress_callback: Optional[Callable[[str], None]] = None,
     ) -> list[AgentReview]:
-        """Chạy vòng đánh giá cho một layer.
+        """Async core: DAG-ordered review cycle for one pipeline layer.
 
-        Uses DAG-ordered tiered execution when agent dependencies are declared.
-        Falls back to flat-parallel (original behavior) if DAG validation fails
-        or all agents have no dependencies.
-
-        Returns: Danh sách tất cả reviews từ tất cả iterations.
+        Uses tiered execution when agent dependencies are declared; falls back
+        to flat-parallel if the DAG is invalid or all agents share the same tier.
         """
         agents = self.get_agents_for_layer(layer)
         if not agents:
@@ -163,14 +171,14 @@ class AgentRegistry:
                             f"[AGENTS] Tier {tier_idx + 1}/{len(tiers_of_agents)}: "
                             f"{[a.name for a in tier_agents]}"
                         )
-                    tier_reviews = self._run_tier_parallel(
+                    tier_reviews = await self._run_tier_parallel_async(
                         tier_agents, output, layer, iteration, accumulated, progress_callback
                     )
                     accumulated.extend(tier_reviews)
                     round_reviews.extend(tier_reviews)
             else:
                 # Flat-parallel fallback (original behavior)
-                round_reviews = self._run_tier_parallel(
+                round_reviews = await self._run_tier_parallel_async(
                     agents, output, layer, iteration, [], progress_callback
                 )
 
@@ -200,3 +208,21 @@ class AgentRegistry:
                 progress_callback("[AGENTS] Cần chỉnh sửa, vòng tiếp theo...")
 
         return all_reviews
+
+    def run_review_cycle(
+        self,
+        output: PipelineOutput,
+        layer: int,
+        max_iterations: int = 3,
+        progress_callback: Optional[Callable[[str], None]] = None,
+    ) -> list[AgentReview]:
+        """Sync wrapper — raises if called from a running event loop."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.run_review_cycle_async(
+                output, layer, max_iterations, progress_callback
+            ))
+        raise RuntimeError(
+            "run_review_cycle called from async context — use run_review_cycle_async"
+        )
