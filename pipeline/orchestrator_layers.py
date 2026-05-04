@@ -731,8 +731,7 @@ async def run_full_pipeline(
             _log(f"[L2] Knowledge: {total_facts} sự kiện theo dõi, {len(sim_result.knowledge_state)} nhân vật")
 
         _log("[L2] Đang viết lại truyện với kịch tính cao hơn...")
-        enhanced = await asyncio.to_thread(
-            self.enhancer.enhance_with_feedback,
+        enhanced = await self.enhancer.enhance_with_feedback_async(
             draft=draft, sim_result=sim_result,
             word_count=word_count,
             progress_callback=lambda m: _log(f"[L2] {m}"),
@@ -800,8 +799,7 @@ async def run_full_pipeline(
                 elif gate_result.should_retry:
                     tracker.gate_retry(2, l2_check_score.overall if l2_check_score else 0.0, attempt=1)
                     _log("[GATE] Đang thử tạo lại Layer 2...")
-                    enhanced = await asyncio.to_thread(
-                        self.enhancer.enhance_with_feedback,
+                    enhanced = await self.enhancer.enhance_with_feedback_async(
                         draft=draft, sim_result=sim_result,
                         word_count=word_count,
                         progress_callback=lambda m: _log(f"[L2-RETRY] {m}"),

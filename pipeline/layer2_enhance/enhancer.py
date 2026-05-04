@@ -625,7 +625,7 @@ class StoryEnhancer:
 
         return enhanced_chapter
 
-    def enhance_story(
+    async def enhance_story_async(
         self,
         draft: StoryDraft,
         sim_result: SimulationResult,
@@ -634,12 +634,7 @@ class StoryEnhancer:
         theme_profile=None,
         chapter_done_callback=None,
     ) -> EnhancedStory:
-        """Tăng cường kịch tính cho toàn bộ truyện.
-
-        Args:
-            chapter_done_callback: Optional callback(Chapter) called when each chapter is done.
-                                   P-C: enables incremental streaming to client.
-        """
+        """Async core: tăng cường kịch tính cho toàn bộ truyện."""
 
         # Cache theme profile on draft so enhance_chapter can access it
         if theme_profile is not None:
@@ -718,52 +713,33 @@ class StoryEnhancer:
 
         _log(f"✨ Đang tăng cường kịch tính {total_chapters} chương (parallel, {max_workers} workers)...")
 
-        # Migrate from ThreadPoolExecutor + as_completed to asyncio.gather + run_in_executor.
-        # enhance_chapter() wraps a blocking LLM call; run_in_executor offloads each to the
-        # default thread pool while asyncio.gather dispatches all coroutines concurrently,
-        # freeing the event loop between submissions.
-        async def _enhance_all() -> dict[int, Chapter]:
-            loop = asyncio.get_running_loop()
-            chapters_list = list(draft.chapters)
+        # enhance_chapter() wraps blocking LLM calls; run_in_executor offloads each to the
+        # default thread pool while asyncio.gather dispatches all coroutines concurrently.
+        loop = asyncio.get_running_loop()
+        chapters_list = list(draft.chapters)
 
-            async def _one(chapter: Chapter) -> tuple[int, Chapter]:
-                ch_num = chapter.chapter_number
-                try:
-                    result = await loop.run_in_executor(
-                        None, self.enhance_chapter,
-                        chapter, sim_result, word_count, total_chapters, draft.genre, draft,
-                    )
-                    _log(f"✨ Chương {ch_num} đã tăng cường xong")
-                    # P-C: Incremental publish — notify when chapter is done
-                    if chapter_done_callback:
-                        try:
-                            chapter_done_callback(result)
-                        except Exception as _cb_e:
-                            logger.debug(f"Chapter done callback failed: {_cb_e}")
-                    return ch_num, result
-                except Exception as e:
-                    logger.warning(f"Lỗi enhance chương {ch_num}: {e}")
-                    # Fallback: keep original
-                    orig = next(c for c in chapters_list if c.chapter_number == ch_num)
-                    return ch_num, orig
+        async def _one(chapter: Chapter) -> tuple[int, Chapter]:
+            ch_num = chapter.chapter_number
+            try:
+                result = await loop.run_in_executor(
+                    None, self.enhance_chapter,
+                    chapter, sim_result, word_count, total_chapters, draft.genre, draft,
+                )
+                _log(f"✨ Chương {ch_num} đã tăng cường xong")
+                # P-C: Incremental publish — notify when chapter is done
+                if chapter_done_callback:
+                    try:
+                        chapter_done_callback(result)
+                    except Exception as _cb_e:
+                        logger.debug(f"Chapter done callback failed: {_cb_e}")
+                return ch_num, result
+            except Exception as e:
+                logger.warning(f"Lỗi enhance chương {ch_num}: {e}")
+                orig = next(c for c in chapters_list if c.chapter_number == ch_num)
+                return ch_num, orig
 
-            pairs = await asyncio.gather(*[_one(ch) for ch in chapters_list])
-            return dict(pairs)
-
-        # Handle nested event loop safely
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-
-        if loop and loop.is_running():
-            # Already in async context - use nest_asyncio or run in thread
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, _enhance_all())
-                results = future.result()
-        else:
-            results = asyncio.run(_enhance_all())
+        pairs = await asyncio.gather(*[_one(ch) for ch in chapters_list])
+        results = dict(pairs)
 
         # Maintain order
         enhanced.chapters = [results[ch.chapter_number] for ch in draft.chapters]
@@ -998,6 +974,37 @@ class StoryEnhancer:
         )
         return enhanced
 
+    def enhance_story(
+        self,
+        draft: StoryDraft,
+        sim_result: SimulationResult,
+        word_count: int = 2000,
+        progress_callback=None,
+        theme_profile=None,
+        chapter_done_callback=None,
+    ) -> EnhancedStory:
+        """Sync wrapper — D3 guard: raises if called from a running loop.
+
+        Use enhance_story_async() instead when inside an async context.
+        """
+        try:
+            asyncio.get_running_loop()
+            raise RuntimeError(
+                "enhance_story called from a running event loop — "
+                "use await enhancer.enhance_story_async() instead"
+            )
+        except RuntimeError as exc:
+            if "enhance_story called" in str(exc):
+                raise
+        return asyncio.run(self.enhance_story_async(
+            draft=draft,
+            sim_result=sim_result,
+            word_count=word_count,
+            progress_callback=progress_callback,
+            theme_profile=theme_profile,
+            chapter_done_callback=chapter_done_callback,
+        ))
+
     def _find_weak_chapters(self, enhanced: EnhancedStory) -> list[dict]:
         """Analyze chapters and return detailed weakness info for targeted rewriting."""
         weak = []
@@ -1024,7 +1031,7 @@ class StoryEnhancer:
                 logger.debug(f"Drama check failed for ch {ch.chapter_number}: {e}")
         return weak
 
-    def enhance_with_feedback(
+    async def enhance_with_feedback_async(
         self,
         draft: StoryDraft,
         sim_result: SimulationResult,
@@ -1032,7 +1039,7 @@ class StoryEnhancer:
         progress_callback=None,
         theme_profile=None,
     ) -> EnhancedStory:
-        """Enhance story with iterative feedback — re-enhance weak chapters."""
+        """Async core: enhance story with iterative feedback — re-enhance weak chapters."""
         def _log(msg):
             logger.info(msg)
             if progress_callback:
@@ -1058,7 +1065,7 @@ class StoryEnhancer:
         # Reset consistency engine for fresh build
         self.consistency_engine = None
 
-        enhanced = self.enhance_story(draft, sim_result, word_count, progress_callback, theme_profile)
+        enhanced = await self.enhance_story_async(draft, sim_result, word_count, progress_callback, theme_profile)
 
         genre = draft.genre if hasattr(draft, 'genre') else ""
 
@@ -1071,6 +1078,8 @@ class StoryEnhancer:
                 f"across {len(sim_result.events)} events (agent multipliers embedded)"
             )
 
+        loop = asyncio.get_running_loop()
+
         for round_num in range(1, MAX_REENHANCE_ROUNDS + 1):
             weak_analyses = self._find_weak_chapters(enhanced)
             if not weak_analyses:
@@ -1078,83 +1087,67 @@ class StoryEnhancer:
                 break
             _log(f"🔄 Feedback round {round_num}: re-enhancing {len(weak_analyses)} weak chapters (parallel)")
 
-            # L2-A: Parallel feedback rewrite — process all weak chapters concurrently.
-            async def _rewrite_weak_parallel() -> dict[int, Chapter]:
-                loop = asyncio.get_running_loop()
-
-                def _rewrite_one(analysis: dict) -> tuple[int, Chapter | None]:
-                    ch_num = analysis["chapter_number"]
-                    idx = ch_num - 1
-                    if idx < 0 or idx >= len(enhanced.chapters):
-                        return ch_num, None
-                    # P-F: Per-chapter L2 retry with backoff
-                    _retry_max = 2
-                    _backoff = 1.5
-                    try:
-                        cfg = ConfigManager().load().pipeline
-                        _retry_max = int(getattr(cfg, "l2_chapter_retry_max", 2))
-                        _backoff = float(getattr(cfg, "l2_chapter_retry_backoff", 1.5))
-                    except Exception:
-                        pass
-                    _delay = 1.0
-                    for attempt in range(_retry_max + 1):
-                        try:
-                            genre_hints = get_genre_enhancement_hints(genre, ch_num, len(enhanced.chapters))
-                            weak_text = "\n".join(f"- {wp}" for wp in analysis.get("weak_points", []))
-                            strong_text = "\n".join(f"- {sp}" for sp in analysis.get("strong_points", []))
-                            rewrite_prompt = prompt_templates.REENHANCE_CHAPTER.format(
-                                chapter_content=enhanced.chapters[idx].content[:6000],
-                                weak_points=weak_text or "Kịch tính chung còn yếu",
-                                strong_points=strong_text or "Không có điểm mạnh nổi bật",
-                                genre_hints=genre_hints,
-                                suggestions="\n".join(sim_result.drama_suggestions[:3]),
-                                word_count=word_count,
-                            )
-                            rewrite_prompt += "\n\n[NHẮC LẠI: Viết hoàn toàn bằng tiếng Việt. Không dùng tiếng Anh hay ngôn ngữ khác.]"
-                            rewritten = self.llm.generate(
-                                system_prompt=(
-                                    "Bạn là nhà văn tài năng chuyên viết truyện bằng tiếng Việt. "
-                                    "BẮT BUỘC: Toàn bộ output phải viết bằng tiếng Việt, không được dùng ngôn ngữ khác."
-                                ),
-                                user_prompt=rewrite_prompt,
-                                max_tokens=8192,
-                                model=self._layer_model,
-                            )
-                            return ch_num, Chapter(
-                                chapter_number=ch_num,
-                                title=enhanced.chapters[idx].title,
-                                content=rewritten,
-                                word_count=count_words(rewritten),
-                                summary=enhanced.chapters[idx].summary,
-                            )
-                        except Exception as e:
-                            if attempt < _retry_max:
-                                logger.warning(f"Feedback rewrite ch{ch_num} attempt {attempt+1} failed: {e}, retrying in {_delay:.1f}s")
-                                time.sleep(_delay)
-                                _delay *= _backoff
-                            else:
-                                logger.warning(f"Feedback rewrite ch{ch_num} failed after {_retry_max+1} attempts: {e}")
-                                return ch_num, None
+            # L2-A: Parallel feedback rewrite — blocking LLM calls offloaded via run_in_executor.
+            def _rewrite_one(analysis: dict) -> tuple[int, Chapter | None]:
+                ch_num = analysis["chapter_number"]
+                idx = ch_num - 1
+                if idx < 0 or idx >= len(enhanced.chapters):
                     return ch_num, None
-
-                async def _one(analysis: dict) -> tuple[int, Chapter | None]:
-                    return await loop.run_in_executor(None, _rewrite_one, analysis)
-
-                pairs = await asyncio.gather(*[_one(a) for a in weak_analyses])
-                return {ch_num: ch for ch_num, ch in pairs if ch is not None}
+                # P-F: Per-chapter L2 retry with backoff
+                _retry_max = 2
+                _backoff = 1.5
+                try:
+                    cfg = ConfigManager().load().pipeline
+                    _retry_max = int(getattr(cfg, "l2_chapter_retry_max", 2))
+                    _backoff = float(getattr(cfg, "l2_chapter_retry_backoff", 1.5))
+                except Exception:
+                    pass
+                _delay = 1.0
+                for attempt in range(_retry_max + 1):
+                    try:
+                        genre_hints = get_genre_enhancement_hints(genre, ch_num, len(enhanced.chapters))
+                        weak_text = "\n".join(f"- {wp}" for wp in analysis.get("weak_points", []))
+                        strong_text = "\n".join(f"- {sp}" for sp in analysis.get("strong_points", []))
+                        rewrite_prompt = prompt_templates.REENHANCE_CHAPTER.format(
+                            chapter_content=enhanced.chapters[idx].content[:6000],
+                            weak_points=weak_text or "Kịch tính chung còn yếu",
+                            strong_points=strong_text or "Không có điểm mạnh nổi bật",
+                            genre_hints=genre_hints,
+                            suggestions="\n".join(sim_result.drama_suggestions[:3]),
+                            word_count=word_count,
+                        )
+                        rewrite_prompt += "\n\n[NHẮC LẠI: Viết hoàn toàn bằng tiếng Việt. Không dùng tiếng Anh hay ngôn ngữ khác.]"
+                        rewritten = self.llm.generate(
+                            system_prompt=(
+                                "Bạn là nhà văn tài năng chuyên viết truyện bằng tiếng Việt. "
+                                "BẮT BUỘC: Toàn bộ output phải viết bằng tiếng Việt, không được dùng ngôn ngữ khác."
+                            ),
+                            user_prompt=rewrite_prompt,
+                            max_tokens=8192,
+                            model=self._layer_model,
+                        )
+                        return ch_num, Chapter(
+                            chapter_number=ch_num,
+                            title=enhanced.chapters[idx].title,
+                            content=rewritten,
+                            word_count=count_words(rewritten),
+                            summary=enhanced.chapters[idx].summary,
+                        )
+                    except Exception as e:
+                        if attempt < _retry_max:
+                            logger.warning(f"Feedback rewrite ch{ch_num} attempt {attempt+1} failed: {e}, retrying in {_delay:.1f}s")
+                            time.sleep(_delay)
+                            _delay *= _backoff
+                        else:
+                            logger.warning(f"Feedback rewrite ch{ch_num} failed after {_retry_max+1} attempts: {e}")
+                            return ch_num, None
+                return ch_num, None
 
             try:
-                try:
-                    _loop = asyncio.get_running_loop()
-                except RuntimeError:
-                    _loop = None
-                if _loop and _loop.is_running():
-                    import concurrent.futures
-                    with concurrent.futures.ThreadPoolExecutor() as pool:
-                        future = pool.submit(asyncio.run, _rewrite_weak_parallel())
-                        rewritten_map = future.result()
-                else:
-                    rewritten_map = asyncio.run(_rewrite_weak_parallel())
+                pairs = await asyncio.gather(
+                    *[loop.run_in_executor(None, _rewrite_one, a) for a in weak_analyses]
+                )
+                rewritten_map = {ch_num: ch for ch_num, ch in pairs if ch is not None}
             except Exception as e:
                 logger.warning(f"Parallel feedback rewrite failed: {e}")
                 rewritten_map = {}
@@ -1302,3 +1295,32 @@ class StoryEnhancer:
                 logger.debug(f"Final consistency report failed: {e}")
 
         return enhanced
+
+    def enhance_with_feedback(
+        self,
+        draft: StoryDraft,
+        sim_result: SimulationResult,
+        word_count: int = 2000,
+        progress_callback=None,
+        theme_profile=None,
+    ) -> EnhancedStory:
+        """Sync wrapper — D3 guard: raises if called from a running loop.
+
+        Use enhance_with_feedback_async() instead when inside an async context.
+        """
+        try:
+            asyncio.get_running_loop()
+            raise RuntimeError(
+                "enhance_with_feedback called from a running event loop — "
+                "use await enhancer.enhance_with_feedback_async() instead"
+            )
+        except RuntimeError as exc:
+            if "enhance_with_feedback called" in str(exc):
+                raise
+        return asyncio.run(self.enhance_with_feedback_async(
+            draft=draft,
+            sim_result=sim_result,
+            word_count=word_count,
+            progress_callback=progress_callback,
+            theme_profile=theme_profile,
+        ))
