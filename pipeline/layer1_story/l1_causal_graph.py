@@ -80,11 +80,11 @@ _EXTRACT_PROMPT = (
     "Nhân vật chính: {characters}\n\n"
     "NỘI DUNG CHƯƠNG (500 ký tự đầu):\n{excerpt}\n\n"
     "Trả về JSON:\n"
-    '{"events": [{'
+    '{{"events": [{{'
     '"description": "mô tả ngắn sự kiện", '
     '"characters": ["tên"], '
     '"event_type": "setup|reveal|decision|consequence"'
-    "}]}\n"
+    "}}]}}\n"
     "CHỈ trả JSON."
 )
 

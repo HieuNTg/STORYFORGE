@@ -74,8 +74,8 @@ async def _session_reaper():
             logger.debug(f"Session reaper evicted {len(expired)} expired orchestrator(s)")
 
 
-@router.on_event("startup")
-async def _start_session_reaper():
+def start_session_reaper():
+    """Launch the session reaper background task. Call from app lifespan startup."""
     asyncio.create_task(_session_reaper())
 
 

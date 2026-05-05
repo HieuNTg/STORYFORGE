@@ -359,7 +359,7 @@ class TestConfigRoutesEndpoints:
             resp = self._client.post("/config/profiles", json={
                 "api_key": "sk-extra",
                 "name": "My Provider",
-                "base_url": "https://custom.llm.com/v1",
+                "base_url": "https://api.openai.com/v1",
                 "model": "custom-model",
             })
         assert resp.status_code in (200, 422)
@@ -379,12 +379,12 @@ class TestConfigRoutesEndpoints:
              patch("services.llm_client.LLMClient") as MockLLC:
             mock_cm = _mock_config_manager()
             mock_cm.llm.fallback_models = [
-                {"name": "Old", "base_url": "https://old.com", "api_key": "sk-old", "model": "old-model", "enabled": True}
+                {"name": "Old", "base_url": "https://api.openai.com/v1", "api_key": "sk-old", "model": "old-model", "enabled": True}
             ]
             MockCM.return_value = mock_cm
             MockLLC.reset = MagicMock()
             resp = self._client.put("/config/profiles/0", json={
-                "name": "New", "base_url": "https://new.com", "api_key": "sk-new", "model": "new-model"
+                "name": "New", "base_url": "https://api.openai.com/v1", "api_key": "sk-new", "model": "new-model"
             })
         assert resp.status_code in (200, 422)
 

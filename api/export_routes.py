@@ -23,6 +23,15 @@ _ALLOWED_EXPORT_DIRS = (
 )
 
 
+def _is_relative_to(child: pathlib.Path, parent: pathlib.Path) -> bool:
+    """Return True if child is inside parent (safe replacement for startswith)."""
+    try:
+        child.relative_to(parent)
+        return True
+    except ValueError:
+        return False
+
+
 def _safe_file_response(path: "str | pathlib.Path", filename: str) -> FileResponse:
     """Return FileResponse only if path is inside an allowed export directory.
 
@@ -31,7 +40,7 @@ def _safe_file_response(path: "str | pathlib.Path", filename: str) -> FileRespon
     """
     resolved = pathlib.Path(path).resolve()
     in_allowed = any(
-        str(resolved).startswith(str(allowed))
+        _is_relative_to(resolved, allowed)
         for allowed in _ALLOWED_EXPORT_DIRS
     )
     if not in_allowed:
@@ -169,7 +178,7 @@ async def export_files(session_id: str, formats: list[str] = ["TXT", "Markdown",
     safe_files = []
     for f in files:
         resolved = pathlib.Path(f).resolve()
-        if any(str(resolved).startswith(str(d)) for d in _ALLOWED_EXPORT_DIRS):
+        if any(_is_relative_to(resolved, d) for d in _ALLOWED_EXPORT_DIRS):
             safe_files.append(str(resolved))
         else:
             logger.warning(f"Skipping disallowed export path: {resolved}")

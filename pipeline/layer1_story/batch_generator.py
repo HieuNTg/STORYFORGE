@@ -1157,17 +1157,20 @@ class BatchChapterGenerator:
             return_exceptions=True,
         )
 
-        # Process results, handle errors
+        # Process results, handle errors — collect successes first, then re-raise
         chapters = []
         contracts = {}
+        first_exc: Exception | None = None
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 logger.error("Async write failed for chapter %d: %s", batch[i].chapter_number, result)
-                raise result
-            chapter, contract = result
-            chapters.append(chapter)
-            if contract:
-                contracts[chapter.chapter_number] = contract
+                if first_exc is None:
+                    first_exc = result
+            else:
+                chapter, contract = result
+                chapters.append(chapter)
+                if contract:
+                    contracts[chapter.chapter_number] = contract
 
         # Sprint 2 Task 1: serial-index post-gather to avoid ChromaDB write contention
         for ch in chapters:
@@ -1178,6 +1181,15 @@ class BatchChapterGenerator:
                 self.config, ch, outline_for_ch, characters,
                 list(frozen_threads) if frozen_threads else None,
             )
+
+        # Re-raise after persisting successes so completed work isn't lost
+        if first_exc is not None:
+            if chapters:
+                logger.warning(
+                    "Batch partial failure: %d chapter(s) succeeded before error; re-raising.",
+                    len(chapters),
+                )
+            raise first_exc
 
         # Contract validation with retry (#2 improvement)
         if contracts and getattr(self.config.pipeline, "enable_contract_validation", False):

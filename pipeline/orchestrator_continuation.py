@@ -395,7 +395,8 @@ class StoryContinuation:
 
         except Exception as e:
             _log(f"Enhancement error: {e}")
-            return None
+            self.output.status = "error"
+            raise
 
     def polish_chapter(
         self,

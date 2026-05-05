@@ -284,7 +284,7 @@ async def test_save_config_partial_update(client):
     """Updating only base_url should leave other fields intact."""
     resp = await client.put(
         "/api/config",
-        json={"base_url": "http://custom-llm:8000/v1"},
+        json={"base_url": "http://localhost:8000/v1"},
     )
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"

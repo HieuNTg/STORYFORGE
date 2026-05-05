@@ -1,7 +1,7 @@
-"""SQLAlchemy ORM models for PostgreSQL storage.
+"""SQLAlchemy ORM models — cross-dialect (SQLite + PostgreSQL).
 
 Uses SQLAlchemy 2.0+ declarative style with mapped_column and type annotations.
-All tables include UUID primary keys and audit timestamps.
+All tables include UUID primary keys (stored as String(36)) and audit timestamps.
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -54,7 +53,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), primary_key=True, default=_uuid
+        String(36), primary_key=True, default=_uuid
     )
     username: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
@@ -87,10 +86,10 @@ class Story(Base):
     __tablename__ = "stories"
 
     id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), primary_key=True, default=_uuid
+        String(36), primary_key=True, default=_uuid
     )
     user_id: Mapped[Optional[str]] = mapped_column(
-        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     genre: Mapped[str] = mapped_column(String(100), nullable=False, default="")
@@ -131,10 +130,10 @@ class Chapter(Base):
     __tablename__ = "chapters"
 
     id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), primary_key=True, default=_uuid
+        String(36), primary_key=True, default=_uuid
     )
     story_id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), ForeignKey("stories.id", ondelete="CASCADE"), nullable=False
+        String(36), ForeignKey("stories.id", ondelete="CASCADE"), nullable=False
     )
     chapter_number: Mapped[int] = mapped_column(Integer, nullable=False)
     title: Mapped[str] = mapped_column(String(500), nullable=False, default="")
@@ -155,6 +154,7 @@ class Chapter(Base):
 
     __table_args__ = (
         Index("ix_chapters_story_id", "story_id"),
+        UniqueConstraint("story_id", "chapter_number", name="uq_chapter_story_number"),
     )
 
     def __repr__(self) -> str:
@@ -167,13 +167,13 @@ class PipelineRun(Base):
     __tablename__ = "pipeline_runs"
 
     id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), primary_key=True, default=_uuid
+        String(36), primary_key=True, default=_uuid
     )
     user_id: Mapped[Optional[str]] = mapped_column(
-        UUID(as_uuid=False), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     story_id: Mapped[Optional[str]] = mapped_column(
-        UUID(as_uuid=False), ForeignKey("stories.id", ondelete="SET NULL"), nullable=True
+        String(36), ForeignKey("stories.id", ondelete="SET NULL"), nullable=True, index=True
     )
     genre: Mapped[str] = mapped_column(String(100), nullable=False, default="")
     # status: running | completed | failed
@@ -210,7 +210,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), primary_key=True, default=_uuid
+        String(36), primary_key=True, default=_uuid
     )
     timestamp: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
     user_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
@@ -219,7 +219,7 @@ class AuditLog(Base):
     ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     result: Mapped[str] = mapped_column(String(50), nullable=False, default="")
-    details: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    details: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     __table_args__ = (
         Index("ix_audit_logs_timestamp", "timestamp"),
@@ -235,15 +235,15 @@ class Feedback(Base):
     __tablename__ = "feedback"
 
     id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), primary_key=True, default=_uuid
+        String(36), primary_key=True, default=_uuid
     )
     story_id: Mapped[Optional[str]] = mapped_column(
-        UUID(as_uuid=False), ForeignKey("stories.id", ondelete="SET NULL"), nullable=True
+        String(36), ForeignKey("stories.id", ondelete="SET NULL"), nullable=True
     )
     user_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     chapter_index: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    # scores stored as JSONB: {"coherence": 4, "drama": 5, ...}
-    scores: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    # scores stored as JSON: {"coherence": 4, "drama": 5, ...}
+    scores: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     overall_score: Mapped[float] = mapped_column(nullable=False, default=0.0)
     comment: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
@@ -283,15 +283,15 @@ class EmbeddingCacheEntry(Base):
 
 
 class Config(Base):
-    """Key-value configuration store backed by PostgreSQL JSONB."""
+    """Key-value configuration store backed by PostgreSQL JSON."""
 
     __tablename__ = "configs"
 
     id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False), primary_key=True, default=_uuid
+        String(36), primary_key=True, default=_uuid
     )
     key: Mapped[str] = mapped_column(String(255), nullable=False)
-    value: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    value: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now(), onupdate=func.now()
     )

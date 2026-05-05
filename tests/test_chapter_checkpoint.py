@@ -48,7 +48,8 @@ class TestSaveChapter(_CleanDirMixin, unittest.TestCase):
         mgr = _build_manager(title="A Hero's Tale")
         path = mgr.save_chapter(chapter_number=3, layer=1, background=False)
         self.assertTrue(os.path.exists(path))
-        self.assertTrue(path.endswith("_ch3_layer1.json"))
+        self.assertIn("_ch3_layer1_", os.path.basename(path))
+        self.assertTrue(path.endswith(".json"))
         self.assertIn(CHAPTER_CHECKPOINT_SUBDIR, path)
 
     def test_save_chapter_slug_sanitizes_title(self):
@@ -63,7 +64,9 @@ class TestSaveChapter(_CleanDirMixin, unittest.TestCase):
         output = PipelineOutput()
         mgr = CheckpointManager(output=output, analyzer=MagicMock(), simulator=MagicMock(), enhancer=MagicMock())
         path = mgr.save_chapter(chapter_number=2, layer=1, background=False)
-        self.assertTrue(os.path.basename(path).startswith("untitled_ch2_"))
+        fname = os.path.basename(path)
+        self.assertTrue(fname.startswith("untitled_"))
+        self.assertIn("_ch2_layer1_", fname)
 
 
 class TestListChapterCheckpoints(_CleanDirMixin, unittest.TestCase):

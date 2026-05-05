@@ -34,6 +34,7 @@ _LIMITS: dict[str, int] = {
 _EXPENSIVE_PREFIXES = (
     "/api/pipeline/run",
     "/api/export/",
+    "/api/images/",
 )
 
 _WINDOW_SECONDS = 60
