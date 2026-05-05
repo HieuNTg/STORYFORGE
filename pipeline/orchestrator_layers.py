@@ -212,6 +212,55 @@ def persist_outline_metrics(
         )
 
 
+async def _rebuild_signals_for_chapters(
+    self: "PipelineOrchestrator",
+    draft,
+    ch_nums: list[int],
+    log_fn,
+) -> None:
+    """B4: Refresh per-chapter L1 signals after structural rewrite swap.
+
+    Incremental — only re-summarises and re-extracts character states for
+    chapters whose content actually changed. Does NOT re-run full L1.
+
+    Note: voice_fingerprints + arc_waypoints are derived from outline /
+    character profiles (not chapter content), so they remain valid after
+    a structural rewrite and are intentionally not rebuilt here.
+    """
+    if not ch_nums:
+        return
+    affected = [c for c in (draft.chapters or []) if c.chapter_number in set(ch_nums)]
+    if not affected:
+        return
+
+    def _refresh_one(ch):
+        # Re-summarise the rewritten content so downstream L2 prompts see it.
+        try:
+            new_summary = self.story_gen.summarize_chapter(ch.content)
+            if new_summary:
+                ch.summary = new_summary
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.warning(
+                "rebuild_signals: summarize ch%s failed (non-fatal): %s",
+                ch.chapter_number, exc,
+            )
+        # Re-extract character states so knowledge registry reflects the new prose.
+        try:
+            self.story_gen.extract_character_states(ch.content, draft.characters or [])
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.warning(
+                "rebuild_signals: extract_states ch%s failed (non-fatal): %s",
+                ch.chapter_number, exc,
+            )
+
+    # Run refreshes in parallel — each is a sync LLM call, offload via to_thread.
+    await asyncio.gather(
+        *[asyncio.to_thread(_refresh_one, ch) for ch in affected],
+        return_exceptions=True,
+    )
+    log_fn(f"[STRUCTURAL] Đã rebuild signals cho {len(affected)} chương sau khi viết lại")
+
+
 async def _run_structural_rewrites(
     self: "PipelineOrchestrator",
     issues_by_chapter: dict,
@@ -241,12 +290,13 @@ async def _run_structural_rewrites(
             f"[YÊU CẦU SỬA LỖI CẤU TRÚC]\n{_fix_hints}"
             if _fix_hints else ""
         )
-        # Prepend drama directive if this chapter has a reconciled contract.
-        _ch_contract = next(
-            (getattr(c, "negotiated_contract", None)
-             for c in draft.chapters if c.chapter_number == ch_num),
+        # B3: Locate the chapter once to harvest all per-chapter signals
+        _ch = next(
+            (c for c in draft.chapters if c.chapter_number == ch_num),
             None,
         )
+        # Prepend drama directive if this chapter has a reconciled contract.
+        _ch_contract = getattr(_ch, "negotiated_contract", None) if _ch else None
         if _ch_contract is not None and getattr(_ch_contract, "drama_ceiling", 0.0) > 0:
             _subtext = ", ".join(_ch_contract.required_subtext) if _ch_contract.required_subtext else "không"
             _forbidden = ", ".join(_ch_contract.forbidden_patterns) if _ch_contract.forbidden_patterns else "không"
@@ -260,6 +310,13 @@ async def _run_structural_rewrites(
             )
             _enhancement_ctx = f"{_drama_directive}\n\n{_enhancement_ctx}" if _enhancement_ctx else _drama_directive
 
+        # B3: Forward thread/foreshadowing/pacing signals to write_chapter so
+        # rewritten chapters preserve continuity with their siblings.
+        _open_threads = getattr(_ch, "open_threads", None) if _ch else None
+        _fs_to_plant = getattr(_ch, "foreshadowing_to_plant", None) if _ch else None
+        _fs_to_payoff = getattr(_ch, "foreshadowing_to_payoff", None) if _ch else None
+        _pacing_type = getattr(_ch, "pacing_type", "") if _ch else ""
+
         async with sem:
             try:
                 rewritten = await asyncio.to_thread(
@@ -272,6 +329,11 @@ async def _run_structural_rewrites(
                     outline=_outline,
                     word_count=word_count,
                     enhancement_context=_enhancement_ctx,
+                    open_threads=_open_threads,
+                    foreshadowing_to_plant=_fs_to_plant,
+                    foreshadowing_to_payoff=_fs_to_payoff,
+                    pacing_type=_pacing_type or "",
+                    negotiated_contract=_ch_contract,
                 )
                 return ("ok", ch_num, rewritten)
             except Exception as exc:
@@ -359,6 +421,12 @@ async def run_full_pipeline(
         self.output.status = "error"
         _log(f"Không kết nối được LLM: {msg}")
         return self.output
+
+    # B1: Reset per-run state to avoid cross-run idempotency leak
+    try:
+        self.enhancer._rewritten_chapters.clear()
+    except AttributeError:
+        pass
 
     # Optionally boot the multi-agent review panel
     AgentRegistry = None
@@ -704,6 +772,23 @@ async def run_full_pipeline(
                     self.enhancer._rewritten_chapters.add(_ch_num)
                     _log(f"[STRUCTURAL] Chương {_ch_num} đã viết lại xong")
 
+                # B4: Rebuild downstream signals derived from chapter content for
+                # the swapped chapters so L2 enhancer/simulator validate against
+                # fresh data, not stale fingerprints from the replaced version.
+                if _rewritten_pairs:
+                    try:
+                        await _rebuild_signals_for_chapters(
+                            self,
+                            draft,
+                            [_n for _n, _ in _rewritten_pairs],
+                            _log,
+                        )
+                    except Exception as _rb_err:  # pragma: no cover — defensive
+                        logger.warning(
+                            "Signal rebuild after structural rewrite failed (non-fatal): %s",
+                            _rb_err,
+                        )
+
                 # Surface failures (already logged per-chapter in helper)
                 for _ch_num, _err in _failed_pairs:
                     logger.warning("Structural rewrite ch%s failed (non-fatal): %s", _ch_num, _err)
@@ -789,8 +874,10 @@ async def run_full_pipeline(
         analysis = await asyncio.to_thread(
             self.analyzer.analyze, draft, _conflict_web
         )
-        sim_result = await asyncio.to_thread(
-            self.simulator.run_simulation,
+        # B2: Await async path directly — `to_thread(run_simulation)` would spin
+        # up a nested asyncio.run() inside a worker thread, binding any cached
+        # httpx clients to a now-dead loop on subsequent runs.
+        sim_result = await self.simulator.run_simulation_async(
             characters=draft.characters,
             relationships=analysis["relationships"],
             genre=genre,
