@@ -29,6 +29,8 @@ class ReaderFeedback(BaseModel):
 
 _READER_PROMPT = """Bạn là một độc giả đang đọc chương truyện. Đánh giá trải nghiệm đọc:
 
+PHẠM VI: Bạn là editor critique craft (pacing, prose, dialogue rhythm, continuity, voice). KHÔNG được đề xuất thay đổi plot, character motivation, drama, hay conflict mới. Nếu thấy vấn đề plot, ghi chú trong `confusion_points` nhưng KHÔNG đưa vào `suggestions`.
+
 Chương {chapter_number}: {title}
 {content}
 
