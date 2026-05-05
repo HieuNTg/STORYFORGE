@@ -808,8 +808,10 @@ async def run_full_pipeline(
         analysis = await asyncio.to_thread(
             self.analyzer.analyze, draft, _conflict_web
         )
-        sim_result = await asyncio.to_thread(
-            self.simulator.run_simulation,
+        # B2: Await async path directly — `to_thread(run_simulation)` would spin
+        # up a nested asyncio.run() inside a worker thread, binding any cached
+        # httpx clients to a now-dead loop on subsequent runs.
+        sim_result = await self.simulator.run_simulation_async(
             characters=draft.characters,
             relationships=analysis["relationships"],
             genre=genre,
