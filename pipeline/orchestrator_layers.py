@@ -360,6 +360,12 @@ async def run_full_pipeline(
         _log(f"Không kết nối được LLM: {msg}")
         return self.output
 
+    # B1: Reset per-run state to avoid cross-run idempotency leak
+    try:
+        self.enhancer._rewritten_chapters.clear()
+    except AttributeError:
+        pass
+
     # Optionally boot the multi-agent review panel
     AgentRegistry = None
     if enable_agents:
