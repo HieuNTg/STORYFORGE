@@ -349,10 +349,16 @@ class StoryGenerator:
         arc_milestones = []
 
         def _gen_conflict_web():
+            # B6: retry transient LLM failures (rate limits) before falling back to []
             from pipeline.layer1_story.conflict_web_builder import generate_conflict_web
-            return generate_conflict_web(
-                self.llm, title, genre, characters, macro_arcs,
-                model=self._layer_model,
+            return llm_call_with_retry(
+                lambda: generate_conflict_web(
+                    self.llm, title, genre, characters, macro_arcs,
+                    model=self._layer_model,
+                ),
+                operation_name="conflict_web",
+                critical=True,
+                max_retries=2,
             )
 
         def _gen_arc_milestones():
