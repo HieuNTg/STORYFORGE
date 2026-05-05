@@ -43,7 +43,7 @@ class DramaCriticAgent(BaseAgent):
         """LLM-powered debate analysis."""
         other_reviews = [
             {"agent_name": r.agent_name, "score": r.score,
-             "issues": r.issues, "suggestions": r.suggestions}
+             "issues": r.issues, "suggestions": [str(s) for s in r.suggestions]}
             for r in all_reviews if r.agent_name != self.name
         ]
         if not other_reviews:
@@ -55,7 +55,7 @@ class DramaCriticAgent(BaseAgent):
         prompt = agent_prompts.DRAMA_DEBATE.format(
             own_score=own_review.score,
             own_issues=json.dumps(own_review.issues, ensure_ascii=False),
-            own_suggestions=json.dumps(own_review.suggestions, ensure_ascii=False),
+            own_suggestions=json.dumps([str(s) for s in own_review.suggestions], ensure_ascii=False),
             other_reviews_json=json.dumps(other_reviews, ensure_ascii=False, indent=2),
             chapter_excerpt=chapter_excerpt,
         )
@@ -75,12 +75,13 @@ class DramaCriticAgent(BaseAgent):
             if review.agent_name == self.name:
                 continue
             for suggestion in review.suggestions:
-                if any(kw in suggestion.lower() for kw in low_drama_keywords):
+                sug_text = str(suggestion)
+                if any(kw in sug_text.lower() for kw in low_drama_keywords):
                     entries.append(DebateEntry(
                         agent_name=self.name, round_number=2,
                         stance=DebateStance.CHALLENGE,
                         target_agent=review.agent_name,
-                        target_issue=suggestion[:100],
+                        target_issue=sug_text[:100],
                         reasoning="Drama reduction would harm story tension.",
                     ))
         return entries

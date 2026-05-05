@@ -1015,10 +1015,26 @@ class DramaSimulator:
         except Exception as e:
             logger.debug(f"Drama ceiling application failed (non-fatal): {e}")
 
+        # Lane contract: simulator emits dramatic suggestions only. Drop any
+        # craft-tagged drift (defensive — generated suggestions are str by
+        # construction, but propagated LaneSuggestion objects are checked).
+        raw_suggestions = suggestions_result.get("suggestions", []) or []
+        filtered_suggestions: list[str] = []
+        for sug in raw_suggestions:
+            from models.schemas import LaneSuggestion as _LS
+            if isinstance(sug, _LS) and sug.lane != "dramatic":
+                logger.warning(
+                    "cross_lane_suggestion_dropped agent=character_simulator "
+                    "claimed=%s expected=dramatic text=%r",
+                    sug.lane, str(sug)[:80],
+                )
+                continue
+            filtered_suggestions.append(str(sug))
+
         result = SimulationResult(
             events=all_events,
             updated_relationships=self.relationships,
-            drama_suggestions=suggestions_result.get("suggestions", []),
+            drama_suggestions=filtered_suggestions,
             character_arcs=suggestions_result.get("character_arcs", {}),
             tension_map=suggestions_result.get("tension_points", {}),
             agent_posts=self.all_posts,

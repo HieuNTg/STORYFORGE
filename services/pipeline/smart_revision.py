@@ -183,8 +183,9 @@ class SmartRevisionService:
                 if _mentions_chapter(issue):
                     issues.append(f"[{review.agent_name}] {issue}")
             for suggestion in review.suggestions:
-                if _mentions_chapter(suggestion):
-                    suggestions.append(f"[{review.agent_name}] {suggestion}")
+                sug_text = str(suggestion)
+                if _mentions_chapter(sug_text):
+                    suggestions.append(f"[{review.agent_name}] {sug_text}")
 
             # General issues from low-scoring agents (not chapter-specific)
             if review.score < 0.6:
@@ -192,8 +193,9 @@ class SmartRevisionService:
                     if not _mentions_chapter(issue) and len(issues) < 5:
                         issues.append(f"[{review.agent_name}] {issue}")
                 for suggestion in review.suggestions:
-                    if not _mentions_chapter(suggestion) and len(suggestions) < 5:
-                        suggestions.append(f"[{review.agent_name}] {suggestion}")
+                    sug_text = str(suggestion)
+                    if not _mentions_chapter(sug_text) and len(suggestions) < 5:
+                        suggestions.append(f"[{review.agent_name}] {sug_text}")
 
         return issues[:5], suggestions[:5]
 
@@ -220,7 +222,7 @@ class SmartRevisionService:
 
             # Also count suggestions as potential issues
             for suggestion in review.suggestions:
-                matches = ch_pattern.findall(suggestion)
+                matches = ch_pattern.findall(str(suggestion))
                 for ch_num_str in matches:
                     ch_num = int(ch_num_str)
                     chapter_issue_count[ch_num] = chapter_issue_count.get(ch_num, 0) + 1
