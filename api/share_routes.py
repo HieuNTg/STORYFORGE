@@ -105,7 +105,9 @@ def get_share(share_id: str):
         raise HTTPException(status_code=404, detail="Share not found or expired")
 
     resolved = pathlib.Path(html_path).resolve()
-    if not str(resolved).startswith(str(_SHARES_DIR)):
+    try:
+        resolved.relative_to(_SHARES_DIR)
+    except ValueError:
         logger.warning("Path traversal blocked for share %s -> %s", share_id, resolved)
         raise HTTPException(status_code=400, detail="Invalid share path")
 

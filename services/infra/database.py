@@ -44,6 +44,24 @@ def _get_database_url() -> Optional[str]:
     return os.environ.get("DATABASE_URL") or None
 
 
+def _setup_sqlite_pragmas(engine: "AsyncEngine") -> None:  # noqa: F821
+    """Set WAL mode + performance pragmas on every new SQLite connection."""
+    from sqlalchemy import event
+
+    sync_engine = engine.sync_engine
+    db_url = str(sync_engine.url)
+    if "sqlite" not in db_url:
+        return
+
+    @event.listens_for(sync_engine, "connect")
+    def _set_sqlite_pragmas(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA busy_timeout=5000")
+        cursor.close()
+
+
 def _setup_pool_metrics(engine: "AsyncEngine") -> None:  # noqa: F821
     """Attach SQLAlchemy pool event listeners for observability.
 
@@ -111,6 +129,7 @@ def get_engine() -> Optional["AsyncEngine"]:  # noqa: F821
                     max_overflow=int(os.environ.get("DB_MAX_OVERFLOW", "10")),
                     pool_pre_ping=True,
                 )
+                _setup_sqlite_pragmas(_engine)
                 _setup_pool_metrics(_engine)
                 _session_factory = async_sessionmaker(
                     _engine,

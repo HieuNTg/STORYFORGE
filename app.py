@@ -147,6 +147,9 @@ def main():
     """Launch StoryForge — Alpine.js Web UI at /."""
     from api import api_router
 
+    # STORYFORGE_ENABLE_DOCS defaults to "1" (enabled). Set to "0" in production
+    # to hide /docs and /redoc from the public route inventory.
+    _docs_enabled = os.environ.get("STORYFORGE_ENABLE_DOCS", "1") not in ("0", "false", "no")
     main_app = FastAPI(
         title="StoryForge",
         description=(
@@ -155,8 +158,8 @@ def main():
             "story generation, drama simulation, and video storyboarding."
         ),
         version="3.0.0",
-        docs_url="/docs",
-        redoc_url="/redoc",
+        docs_url="/docs" if _docs_enabled else None,
+        redoc_url="/redoc" if _docs_enabled else None,
         openapi_tags=[
             {"name": "pipeline", "description": "Run and manage story generation pipelines"},
             {"name": "config", "description": "Manage application configuration and model presets"},
@@ -233,6 +236,9 @@ def main():
         from services.embedding_cache import get_embedding_cache
         get_embedding_service().attach_cache(get_embedding_cache())
         logger.info("EmbeddingCache attached to EmbeddingService")
+        from api.pipeline_routes import start_session_reaper
+        start_session_reaper()
+        logger.info("Session reaper started")
 
     # Graceful shutdown: cancel and await active pipeline tasks
     @main_app.on_event("shutdown")

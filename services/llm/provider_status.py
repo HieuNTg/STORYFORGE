@@ -321,9 +321,7 @@ class ProviderStatusManager:
             req = urllib.request.Request(endpoint)
             if api_key:
                 if provider_type == "google":
-                    # Google uses query param
-                    endpoint = f"{endpoint}?key={api_key}"
-                    req = urllib.request.Request(endpoint)
+                    req.add_header("x-goog-api-key", api_key)
                 else:
                     req.add_header("Authorization", f"Bearer {api_key}")
 

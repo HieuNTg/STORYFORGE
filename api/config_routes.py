@@ -35,12 +35,14 @@ Import the helpers from middleware.rbac and add them as Depends():
 
 import logging
 import re
+import time
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
 from config import ConfigManager, PIPELINE_PRESETS, MODEL_PRESETS
 from services.i18n import I18n, SUPPORTED_LANGUAGES
+from services.security.url_validator import validate_base_url
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/config", tags=["config"])
@@ -187,6 +189,7 @@ def save_config(body: ConfigUpdate):
     if body.append_api_keys:
         cfg.llm.api_keys = list(cfg.llm.api_keys) + [k for k in body.append_api_keys if k not in cfg.llm.api_keys]
     if body.base_url is not None:
+        validate_base_url(body.base_url)
         cfg.llm.base_url = body.base_url
     if body.model is not None:
         cfg.llm.model = body.model
@@ -197,6 +200,7 @@ def save_config(body: ConfigUpdate):
     if body.cheap_model is not None:
         cfg.llm.cheap_model = body.cheap_model
     if body.cheap_base_url is not None:
+        validate_base_url(body.cheap_base_url)
         cfg.llm.cheap_base_url = body.cheap_base_url
     if body.layer1_model is not None:
         cfg.llm.layer1_model = body.layer1_model
@@ -239,10 +243,14 @@ def test_connection():
     ok, msg = client.check_connection()
     results = [{"name": "Primary", "ok": ok, "message": msg}]
 
-    # Test each profile (fallback_models)
+    # Test each profile (fallback_models) — 30s aggregate timeout guard
+    _fanout_deadline = time.monotonic() + 30
     for i, fb in enumerate(cfg.llm.fallback_models):
         if fb.get("enabled") is False:
             results.append({"name": fb.get("name", f"Profile-{i+1}"), "ok": None, "message": "disabled"})
+            continue
+        if time.monotonic() >= _fanout_deadline:
+            results.append({"name": fb.get("name", f"Profile-{i+1}"), "ok": None, "message": "skipped — aggregate timeout (30s) exceeded"})
             continue
         base_url = fb.get("base_url", "")
         api_key = fb.get("api_key", "")
@@ -334,6 +342,7 @@ class ModelsRequest(BaseModel):
 @router.post("/provider/models")
 def get_provider_models(body: ModelsRequest):
     """Fetch available models from a provider (OpenRouter, Kyma, etc.)."""
+    validate_base_url(body.base_url)
     provider = _detect_provider_name(body.base_url)
     models = []
 
@@ -389,6 +398,7 @@ def add_profile(body: ProfileCreate):
     }
     if not profile["base_url"]:
         raise HTTPException(status_code=400, detail="Could not detect provider. Provide base_url manually.")
+    validate_base_url(profile["base_url"])
     # If no primary key set, use this provider as primary too
     if not cfg.llm.api_key:
         cfg.llm.api_key = profile["api_key"]
@@ -417,6 +427,7 @@ def update_profile(index: int, body: ProfileCreate):
     if index < 0 or index >= len(profiles):
         raise HTTPException(status_code=404, detail="Profile index out of range")
     existing_key = profiles[index].get("api_key", "")
+    validate_base_url(body.base_url)
     profiles[index] = {
         "name": body.name,
         "base_url": body.base_url,

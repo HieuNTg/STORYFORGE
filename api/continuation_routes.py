@@ -120,7 +120,9 @@ def _resolve_checkpoint(filename: str) -> pathlib.Path | None:
     if not safe_name or ".." in filename:
         return None
     resolved = (_CHECKPOINT_DIR / safe_name).resolve()
-    if not str(resolved).startswith(str(_CHECKPOINT_DIR)):
+    try:
+        resolved.relative_to(_CHECKPOINT_DIR)
+    except ValueError:
         return None
     if not resolved.exists():
         return None
@@ -228,6 +230,7 @@ async def continue_story(request: Request, body: ContinueRequest):
 
         # Session registration + task creation + SSE streaming all inside try/finally
         # so the finally block always cleans up the session.
+        task = None
         try:
             async with _orchestrators_lock:
                 _sessions[session_id] = (orch, time.time(), client_ip)
@@ -286,15 +289,15 @@ async def continue_story(request: Request, body: ContinueRequest):
                 yield f"data: {json.dumps({'type': 'error', 'data': 'Continuation failed'})}\n\n"
         except asyncio.CancelledError:
             logger.info("SSE /continue cancelled (session=%s)", session_id)
-            if not task.done():
+            if task is not None and not task.done():
                 task.cancel()
         except (ConnectionError, ConnectionResetError):
             logger.info("SSE /continue connection lost (session=%s)", session_id)
-            if not task.done():
+            if task is not None and not task.done():
                 task.cancel()
         except Exception:
             logger.exception("SSE /continue unexpected error (session=%s)", session_id)
-            if not task.done():
+            if task is not None and not task.done():
                 task.cancel()
             raise
         finally:
@@ -1109,7 +1112,9 @@ def get_continuation_history(filename: str) -> dict:
     if not safe or ".." in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
     sidecar = sidecar_path_for(safe)
-    if not str(sidecar.resolve()).startswith(str(_CHECKPOINT_DIR)):
+    try:
+        sidecar.resolve().relative_to(_CHECKPOINT_DIR)
+    except ValueError:
         raise HTTPException(status_code=400, detail="Invalid filename")
     return {"events": read_events(safe)}
 

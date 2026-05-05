@@ -5,6 +5,7 @@ from the last completed chapter on crash/interrupt. Per-chapter files live in a
 dedicated subdir and are auto-pruned to keep disk usage bounded.
 """
 
+import hashlib
 import json
 import logging
 import os
@@ -25,7 +26,7 @@ def _chapter_checkpoint_dir() -> str:
     return os.path.join(CHECKPOINT_DIR, CHAPTER_CHECKPOINT_SUBDIR)
 
 
-_CHAPTER_RE = re.compile(r"(?P<slug>.+)_ch(?P<ch>\d+)_layer(?P<layer>\d+)\.json$")
+_CHAPTER_RE = re.compile(r"(?P<slug>.+)_ch(?P<ch>\d+)_layer(?P<layer>\d+)(?:_[0-9a-f]+)?\.json$")
 
 
 def _prune_chapter_checkpoints(out_dir: str, slug: str, layer: int, keep_last: int) -> None:
@@ -68,9 +69,10 @@ class CheckpointManager:
     def save(self, layer: int, background: bool = True) -> str:
         """Save pipeline state after layer completion. Non-blocking by default."""
         os.makedirs(CHECKPOINT_DIR, exist_ok=True)
-        raw_title = self.output.story_draft.title[:30] if self.output.story_draft else "untitled"
-        slug = re.sub(r"[^\w\-]", "_", raw_title)
-        path = os.path.join(CHECKPOINT_DIR, f"{slug}_layer{layer}.json")
+        raw_title = self.output.story_draft.title if self.output.story_draft else "untitled"
+        hash_id = hashlib.sha256(raw_title.encode()).hexdigest()[:16]
+        slug = re.sub(r"[^\w\-]", "_", raw_title[:30])
+        path = os.path.join(CHECKPOINT_DIR, f"{slug}_layer{layer}_{hash_id}.json")
         data = self.output.model_dump_json(indent=2)
 
         def _write():
@@ -99,9 +101,10 @@ class CheckpointManager:
         """
         out_dir = _chapter_checkpoint_dir()
         os.makedirs(out_dir, exist_ok=True)
-        raw_title = self.output.story_draft.title[:30] if self.output.story_draft else "untitled"
-        slug = re.sub(r"[^\w\-]", "_", raw_title)
-        path = os.path.join(out_dir, f"{slug}_ch{chapter_number}_layer{layer}.json")
+        raw_title = self.output.story_draft.title if self.output.story_draft else "untitled"
+        hash_id = hashlib.sha256(raw_title.encode()).hexdigest()[:16]
+        slug = re.sub(r"[^\w\-]", "_", raw_title[:30])
+        path = os.path.join(out_dir, f"{slug}_ch{chapter_number}_layer{layer}_{hash_id}.json")
         data = self.output.model_dump_json(indent=2)
         keep_last = getattr(self, "_chapter_keep_last", 5)
 

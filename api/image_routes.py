@@ -34,6 +34,8 @@ router = APIRouter(prefix="/images", tags=["images"])
 _in_flight: set[str] = set()
 _in_flight_lock = asyncio.Lock()
 
+MAX_CHAPTERS_PER_IMAGE_CALL = 10
+
 
 class GenerateImagesRequest(BaseModel):
     provider: Optional[str] = None
@@ -141,6 +143,15 @@ async def generate_images(session_id: str, body: GenerateImagesRequest = Generat
         orch = await _get_story_data(session_id)
         if not orch or not orch.output:
             raise HTTPException(status_code=404, detail="Session or checkpoint not found")
+
+        if body.chapter is None:
+            _draft = orch.output.enhanced_story or orch.output.story_draft
+            _chapter_count = len(_draft.chapters) if _draft and _draft.chapters else 0
+            if _chapter_count > MAX_CHAPTERS_PER_IMAGE_CALL:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Pass ?chapter=N — bulk image generation limited to {MAX_CHAPTERS_PER_IMAGE_CALL} chapters at a time",
+                )
 
         provider = body.provider
         if not provider:

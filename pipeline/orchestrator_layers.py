@@ -7,6 +7,8 @@ rather than implementation details.
 
 import asyncio
 import logging
+import os as _os
+import threading as _threading
 import time
 from typing import TYPE_CHECKING
 
@@ -24,6 +26,34 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # P6: DB persistence helpers
 # ---------------------------------------------------------------------------
+# Module-level sync engine singleton — avoids create_engine/dispose per call.
+_sync_engine = None
+_sync_engine_lock = _threading.Lock()
+
+
+def _get_sync_engine():
+    """Return (or lazily create) a module-level sync SQLAlchemy engine."""
+    global _sync_engine
+    if _sync_engine is None:
+        with _sync_engine_lock:
+            if _sync_engine is None:
+                from sqlalchemy import create_engine, event as _sa_event
+
+                db_url = _os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
+                connect_args = {"check_same_thread": False} if "sqlite" in db_url else {}
+                _sync_engine = create_engine(db_url, connect_args=connect_args)
+
+                if "sqlite" in db_url:
+                    @_sa_event.listens_for(_sync_engine, "connect")
+                    def _set_pragmas(dbapi_conn, _conn_rec):
+                        cur = dbapi_conn.cursor()
+                        cur.execute("PRAGMA journal_mode=WAL")
+                        cur.execute("PRAGMA synchronous=NORMAL")
+                        cur.execute("PRAGMA busy_timeout=5000")
+                        cur.close()
+
+    return _sync_engine
+
 
 def _persist_handoff_to_db(
     story_id: str,
@@ -37,36 +67,29 @@ def _persist_handoff_to_db(
     dash-stripping correctly. Non-fatal if columns don't exist yet (pre-migration
     DB) — callers wrap in try/except.
     """
-    import os
-    from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
     from models.db_models import PipelineRun
 
-    db_url = os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
-    connect_args = {"check_same_thread": False} if "sqlite" in db_url else {}
-    engine = create_engine(db_url, connect_args=connect_args)
-    try:
-        with Session(engine) as session:
-            run = (
-                session.query(PipelineRun)
-                .filter(PipelineRun.story_id == story_id)
-                .order_by(PipelineRun.created_at.desc())
-                .first()
+    engine = _get_sync_engine()
+    with Session(engine) as session:
+        run = (
+            session.query(PipelineRun)
+            .filter(PipelineRun.story_id == story_id)
+            .order_by(PipelineRun.created_at.desc())
+            .first()
+        )
+        if run is None:
+            logger.warning(
+                "Handoff DB persist: no pipeline_run found for story_id=%s", story_id
             )
-            if run is None:
-                logger.warning(
-                    "Handoff DB persist: no pipeline_run found for story_id=%s", story_id
-                )
-                return
-            run.handoff_envelope = envelope_dict
-            run.handoff_health = health_dict
-            run.handoff_signals_version = signals_version
-            session.commit()
-            logger.info(
-                "Handoff persisted to pipeline_run id=%s story_id=%s", run.id, story_id
-            )
-    finally:
-        engine.dispose()
+            return
+        run.handoff_envelope = envelope_dict
+        run.handoff_health = health_dict
+        run.handoff_signals_version = signals_version
+        session.commit()
+        logger.info(
+            "Handoff persisted to pipeline_run id=%s story_id=%s", run.id, story_id
+        )
 
 
 def _persist_chapter_contract_to_db(
@@ -80,39 +103,32 @@ def _persist_chapter_contract_to_db(
     Uses ORM (not raw SQL) so SQLAlchemy's UUID type adapter handles SQLite's
     dash-stripping correctly. Non-fatal if columns don't exist (pre-migration).
     """
-    import os
-    from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
     from models.db_models import Chapter
 
-    db_url = os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
-    connect_args = {"check_same_thread": False} if "sqlite" in db_url else {}
-    engine = create_engine(db_url, connect_args=connect_args)
-    try:
-        with Session(engine) as session:
-            chapter = (
-                session.query(Chapter)
-                .filter(
-                    Chapter.story_id == story_id,
-                    Chapter.chapter_number == chapter_number,
-                )
-                .first()
+    engine = _get_sync_engine()
+    with Session(engine) as session:
+        chapter = (
+            session.query(Chapter)
+            .filter(
+                Chapter.story_id == story_id,
+                Chapter.chapter_number == chapter_number,
             )
-            if chapter is None:
-                logger.warning(
-                    "Chapter contract persist: no chapter found story_id=%s chapter_number=%d",
-                    story_id, chapter_number,
-                )
-                return
-            chapter.negotiated_contract = contract_dict
-            chapter.contract_reconciliation_warnings = warnings
-            session.commit()
-            logger.info(
-                "Chapter contract persisted story_id=%s chapter_number=%d",
+            .first()
+        )
+        if chapter is None:
+            logger.warning(
+                "Chapter contract persist: no chapter found story_id=%s chapter_number=%d",
                 story_id, chapter_number,
             )
-    finally:
-        engine.dispose()
+            return
+        chapter.negotiated_contract = contract_dict
+        chapter.contract_reconciliation_warnings = warnings
+        session.commit()
+        logger.info(
+            "Chapter contract persisted story_id=%s chapter_number=%d",
+            story_id, chapter_number,
+        )
 
 
 def persist_chapter_semantic_findings(
@@ -125,15 +141,11 @@ def persist_chapter_semantic_findings(
     Uses ORM — not raw SQL — so SQLAlchemy's type adapters handle SQLite correctly.
     Non-fatal on missing column (pre-migration DB).
     """
-    import os
-    from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
     from models.db_models import Chapter
 
-    db_url = os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
-    connect_args = {"check_same_thread": False} if "sqlite" in db_url else {}
-    engine = create_engine(db_url, connect_args=connect_args)
     try:
+        engine = _get_sync_engine()
         with Session(engine) as session:
             chapter = (
                 session.query(Chapter)
@@ -160,8 +172,6 @@ def persist_chapter_semantic_findings(
             "Semantic findings persist failed (non-fatal) story_id=%s ch=%d: %s",
             story_id, chapter_number, exc,
         )
-    finally:
-        engine.dispose()
 
 
 def persist_outline_metrics(
@@ -172,15 +182,11 @@ def persist_outline_metrics(
 
     Sprint 2 P5. Mirrors _persist_handoff_to_db pattern.  Non-fatal.
     """
-    import os
-    from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
     from models.db_models import PipelineRun
 
-    db_url = os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
-    connect_args = {"check_same_thread": False} if "sqlite" in db_url else {}
-    engine = create_engine(db_url, connect_args=connect_args)
     try:
+        engine = _get_sync_engine()
         with Session(engine) as session:
             run = (
                 session.query(PipelineRun)
@@ -204,8 +210,6 @@ def persist_outline_metrics(
             "Outline metrics persist failed (non-fatal) story_id=%s: %s",
             story_id, exc,
         )
-    finally:
-        engine.dispose()
 
 
 async def _run_structural_rewrites(
