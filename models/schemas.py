@@ -2,7 +2,7 @@
 
 import re
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from typing import Any, Optional
+from typing import Any, Literal, Optional, Union
 from enum import Enum
 
 
@@ -556,17 +556,112 @@ class StoryScore(BaseModel):
 
 # === Agent Review ===
 
+# Lane contract: simulator emits dramatic suggestions; debate panel emits craft.
+# See plans/260505-1146-simulator-debate-contract/ for the full lane policy.
+_DEFAULT_LANE_BY_ROLE: dict[str, Literal["dramatic", "craft"]] = {
+    # Dramatic lane — simulator-side
+    "character_simulator": "dramatic",
+    # Craft lane — debate panel agents
+    "character_specialist": "craft",
+    "drama_critic": "craft",
+    "dialogue_expert": "craft",
+    "dialogue_balance": "craft",
+    "pacing_analyzer": "craft",
+    "style_consistency": "craft",
+    "continuity_checker": "craft",
+    "reader_simulator": "craft",
+    "editor_in_chief": "craft",
+}
+
+
+class LaneSuggestion(BaseModel):
+    """Lane-tagged suggestion from a review agent.
+
+    Behaves like a string for backward compat: `str(s)`, `s.text`, `"x" in s`,
+    and equality with a plain string all work. Existing callers that did
+    `for sug in review.suggestions: ...` keep functioning when suggestions are
+    auto-wrapped from `list[str]` via the `AgentReview.suggestions` validator.
+    """
+    lane: Literal["dramatic", "craft"]
+    text: str
+    severity: Literal["info", "warning", "error"] = "warning"
+    target_chapter: Optional[int] = None
+    agent_role: str = ""
+
+    model_config = ConfigDict(frozen=False)
+
+    def __str__(self) -> str:
+        return self.text
+
+    def __contains__(self, item: object) -> bool:
+        return item in self.text if isinstance(item, str) else False
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, str):
+            return self.text == other
+        if isinstance(other, LaneSuggestion):
+            return (
+                self.text == other.text
+                and self.lane == other.lane
+                and self.agent_role == other.agent_role
+            )
+        return NotImplemented
+
+    def __hash__(self) -> int:
+        return hash((self.text, self.lane, self.agent_role))
+
+
 class AgentReview(BaseModel):
     """Kết quả đánh giá từ một agent."""
     agent_role: str
     agent_name: str
     score: float = Field(ge=0, le=1, description="Điểm chất lượng 0-1")
     issues: list[str] = Field(default_factory=list)
-    suggestions: list[str] = Field(default_factory=list)
+    suggestions: list[Union[str, LaneSuggestion]] = Field(default_factory=list)
     approved: bool = True
     refined_content: Optional[str] = None
     layer: int = 0
     iteration: int = 0
+
+    @field_validator("suggestions", mode="before")
+    @classmethod
+    def _wrap_legacy_suggestions(cls, v, info):
+        """Auto-wrap legacy `list[str]` suggestions into LaneSuggestion using
+        `_DEFAULT_LANE_BY_ROLE`. Unknown roles fall back to "craft" with a
+        warning log so we fail-loud on misconfiguration.
+        """
+        if not isinstance(v, list):
+            return v
+        agent_role = (info.data or {}).get("agent_role", "") if info else ""
+        default_lane = _DEFAULT_LANE_BY_ROLE.get(agent_role)
+        if default_lane is None and agent_role:
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "unknown_agent_role lane fallback agent=%s -> craft", agent_role
+            )
+            default_lane = "craft"
+        elif default_lane is None:
+            default_lane = "craft"
+        out: list[Union[str, LaneSuggestion]] = []
+        for item in v:
+            if isinstance(item, LaneSuggestion):
+                out.append(item)
+            elif isinstance(item, dict):
+                out.append(LaneSuggestion(**{**item, "agent_role": item.get("agent_role") or agent_role}))
+            elif isinstance(item, str):
+                out.append(LaneSuggestion(
+                    lane=default_lane,
+                    text=item,
+                    agent_role=agent_role,
+                ))
+            else:
+                # Coerce unknown types to str for resilience
+                out.append(LaneSuggestion(
+                    lane=default_lane,
+                    text=str(item),
+                    agent_role=agent_role,
+                ))
+        return out
 
 
 # === Features: Drama, Image Gen, User, Share ===
