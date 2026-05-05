@@ -241,12 +241,13 @@ async def _run_structural_rewrites(
             f"[YÊU CẦU SỬA LỖI CẤU TRÚC]\n{_fix_hints}"
             if _fix_hints else ""
         )
-        # Prepend drama directive if this chapter has a reconciled contract.
-        _ch_contract = next(
-            (getattr(c, "negotiated_contract", None)
-             for c in draft.chapters if c.chapter_number == ch_num),
+        # B3: Locate the chapter once to harvest all per-chapter signals
+        _ch = next(
+            (c for c in draft.chapters if c.chapter_number == ch_num),
             None,
         )
+        # Prepend drama directive if this chapter has a reconciled contract.
+        _ch_contract = getattr(_ch, "negotiated_contract", None) if _ch else None
         if _ch_contract is not None and getattr(_ch_contract, "drama_ceiling", 0.0) > 0:
             _subtext = ", ".join(_ch_contract.required_subtext) if _ch_contract.required_subtext else "không"
             _forbidden = ", ".join(_ch_contract.forbidden_patterns) if _ch_contract.forbidden_patterns else "không"
@@ -260,6 +261,13 @@ async def _run_structural_rewrites(
             )
             _enhancement_ctx = f"{_drama_directive}\n\n{_enhancement_ctx}" if _enhancement_ctx else _drama_directive
 
+        # B3: Forward thread/foreshadowing/pacing signals to write_chapter so
+        # rewritten chapters preserve continuity with their siblings.
+        _open_threads = getattr(_ch, "open_threads", None) if _ch else None
+        _fs_to_plant = getattr(_ch, "foreshadowing_to_plant", None) if _ch else None
+        _fs_to_payoff = getattr(_ch, "foreshadowing_to_payoff", None) if _ch else None
+        _pacing_type = getattr(_ch, "pacing_type", "") if _ch else ""
+
         async with sem:
             try:
                 rewritten = await asyncio.to_thread(
@@ -272,6 +280,11 @@ async def _run_structural_rewrites(
                     outline=_outline,
                     word_count=word_count,
                     enhancement_context=_enhancement_ctx,
+                    open_threads=_open_threads,
+                    foreshadowing_to_plant=_fs_to_plant,
+                    foreshadowing_to_payoff=_fs_to_payoff,
+                    pacing_type=_pacing_type or "",
+                    negotiated_contract=_ch_contract,
                 )
                 return ("ok", ch_num, rewritten)
             except Exception as exc:
