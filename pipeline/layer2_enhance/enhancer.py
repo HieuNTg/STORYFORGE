@@ -807,11 +807,16 @@ class StoryEnhancer:
                                 curve_balancer=balancer,
                             )
 
-                            # Update in enhanced list
-                            idx = ch_num - 1
-                            if 0 <= idx < len(enhanced.chapters):
-                                enhanced.chapters[idx] = reenhanced
-                                _log(f"  ✓ Chương {ch_num} curve-adjusted")
+                            # B5: lookup by chapter_number (chapter list may be non-contiguous in continuation)
+                            for _i, _c in enumerate(enhanced.chapters):
+                                if _c.chapter_number == ch_num:
+                                    enhanced.chapters[_i] = reenhanced
+                                    _log(f"  ✓ Chương {ch_num} curve-adjusted")
+                                    break
+                            else:
+                                logger.warning(
+                                    "curve_re_enhance: chapter %s not found in enhanced list", ch_num
+                                )
                         except Exception as e:
                             logger.warning(f"Curve re-enhance ch{ch_num} failed: {e}")
 
@@ -1088,8 +1093,12 @@ class StoryEnhancer:
             # L2-A: Parallel feedback rewrite — blocking LLM calls offloaded via run_in_executor.
             def _rewrite_one(analysis: dict) -> tuple[int, Chapter | None]:
                 ch_num = analysis["chapter_number"]
-                idx = ch_num - 1
-                if idx < 0 or idx >= len(enhanced.chapters):
+                # B5: lookup by chapter_number (may be non-contiguous in continuation)
+                idx = next(
+                    (_i for _i, _c in enumerate(enhanced.chapters) if _c.chapter_number == ch_num),
+                    -1,
+                )
+                if idx < 0:
                     return ch_num, None
                 # P-F: Per-chapter L2 retry with backoff
                 _retry_max = 2
@@ -1152,7 +1161,13 @@ class StoryEnhancer:
 
             for analysis in weak_analyses:
                 ch_num = analysis["chapter_number"]
-                idx = ch_num - 1
+                # B5: lookup by chapter_number (may be non-contiguous in continuation)
+                idx = next(
+                    (_i for _i, _c in enumerate(enhanced.chapters) if _c.chapter_number == ch_num),
+                    -1,
+                )
+                if idx < 0:
+                    continue
                 if ch_num in rewritten_map:
                     rewritten_ch = rewritten_map[ch_num]
                     # L2-C: Inline contract + voice validation after feedback rewrite
