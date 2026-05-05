@@ -43,6 +43,15 @@ except Exception:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
+# Lane contract: simulator emits dramatic suggestions only. The debate panel
+# (`pipeline/agents/`) handles craft critique. See plan
+# `plans/260505-1146-simulator-debate-contract/` for the full lane policy.
+DRAMATIC_LANE_BOUNDARY = (
+    "PHẠM VI: Bạn nhập vai nhân vật. Đề xuất chỉ về plot, drama, conflict, "
+    "character reaction. KHÔNG critique craft (pacing, prose, dialogue style, "
+    "continuity) — đó là việc của editor panel."
+)
+
 # Cấu hình cường độ kịch tính — ảnh hưởng đến nhiệt độ, ngưỡng leo thang, độ sâu phản ứng
 INTENSITY_CONFIG = {
     "thấp": {"temperature": 0.7, "escalation_scale": 0.7, "max_escalations": 1, "reaction_depth": 1},
@@ -443,6 +452,7 @@ class DramaSimulator:
             result = self.llm.generate_json(
                 system_prompt=(
                     f"Bạn đang nhập vai {name} trong một mô phỏng tương tác. "
+                    f"{DRAMATIC_LANE_BOUNDARY} "
                     f"TRƯỚC KHI hành động, hãy suy nghĩ từng bước: "
                     f"1) Tình huống hiện tại ảnh hưởng đến {name} như thế nào? "
                     f"2) Mục tiêu và nỗi sợ của {name} đòi hỏi hành động gì? "
@@ -535,6 +545,7 @@ class DramaSimulator:
             result = self.llm.generate_json(
                 system_prompt=(
                     f"Bạn là {agent.character.name}. Phản ứng với hành động của {triggering_post.agent_name}. "
+                    f"{DRAMATIC_LANE_BOUNDARY} "
                     f"TRƯỚC KHI phản ứng, suy nghĩ: hành động này làm bạn cảm thấy thế nào? Bạn nên phản ứng ra sao để bảo vệ lợi ích? "
                     f"Trạng thái: {agent.get_emotional_context()}. LUÔN viết bằng tiếng Việt. Trả về JSON."
                 ),
@@ -1004,10 +1015,26 @@ class DramaSimulator:
         except Exception as e:
             logger.debug(f"Drama ceiling application failed (non-fatal): {e}")
 
+        # Lane contract: simulator emits dramatic suggestions only. Drop any
+        # craft-tagged drift (defensive — generated suggestions are str by
+        # construction, but propagated LaneSuggestion objects are checked).
+        raw_suggestions = suggestions_result.get("suggestions", []) or []
+        filtered_suggestions: list[str] = []
+        for sug in raw_suggestions:
+            from models.schemas import LaneSuggestion as _LS
+            if isinstance(sug, _LS) and sug.lane != "dramatic":
+                logger.warning(
+                    "cross_lane_suggestion_dropped agent=character_simulator "
+                    "claimed=%s expected=dramatic text=%r",
+                    sug.lane, str(sug)[:80],
+                )
+                continue
+            filtered_suggestions.append(str(sug))
+
         result = SimulationResult(
             events=all_events,
             updated_relationships=self.relationships,
-            drama_suggestions=suggestions_result.get("suggestions", []),
+            drama_suggestions=filtered_suggestions,
             character_arcs=suggestions_result.get("character_arcs", {}),
             tension_map=suggestions_result.get("tension_points", {}),
             agent_posts=self.all_posts,

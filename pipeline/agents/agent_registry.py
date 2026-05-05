@@ -3,13 +3,41 @@ import asyncio
 import importlib
 import logging
 import pkgutil
-from typing import Callable, Optional
+from typing import Callable, Literal, Optional
 from config import ConfigManager
-from models.schemas import AgentReview, PipelineOutput
+from models.schemas import AgentReview, LaneSuggestion, PipelineOutput
 from pipeline.agents.base_agent import BaseAgent
 from pipeline.agents.agent_graph import AgentDAG
 
 logger = logging.getLogger(__name__)
+
+
+def _drop_cross_lane(
+    reviews: list[AgentReview],
+    expected_lane: Literal["dramatic", "craft"],
+) -> list[AgentReview]:
+    """Drop suggestions whose `lane` differs from the expected lane.
+
+    Mutates reviews in place: filters each review's `suggestions` so only
+    on-lane LaneSuggestion entries remain. Logs a WARN for each dropped
+    suggestion. Plain-string suggestions (legacy) are left untouched —
+    `AgentReview.suggestions` validator already auto-tags them.
+    """
+    for review in reviews:
+        kept: list = []
+        for sug in review.suggestions:
+            if isinstance(sug, LaneSuggestion) and sug.lane != expected_lane:
+                logger.warning(
+                    "cross_lane_suggestion_dropped agent=%s claimed=%s expected=%s text=%r",
+                    sug.agent_role or review.agent_role,
+                    sug.lane,
+                    expected_lane,
+                    str(sug)[:80],
+                )
+                continue
+            kept.append(sug)
+        review.suggestions = kept
+    return reviews
 
 
 class AgentRegistry:
@@ -182,6 +210,10 @@ class AgentRegistry:
                     agents, output, layer, iteration, [], progress_callback
                 )
 
+            # Lane contract: enforce craft-only suggestions before debate +
+            # extension. Simulator owns the dramatic lane.
+            _drop_cross_lane(round_reviews, "craft")
+
             # Multi-agent debate: run after round 1 reviews on layer 2
             if ConfigManager().pipeline.enable_agent_debate and layer == 2:
                 from pipeline.agents.debate_orchestrator import DebateOrchestrator
@@ -194,6 +226,8 @@ class AgentRegistry:
                     agents, output, layer, round_reviews, progress_callback
                 )
                 round_reviews = debate_result.final_reviews
+                # Debate may append [Debate-...] suggestions; re-run filter.
+                _drop_cross_lane(round_reviews, "craft")
 
             all_reviews.extend(round_reviews)
 

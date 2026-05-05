@@ -1048,6 +1048,28 @@ class StoryEnhancer:
             if progress_callback:
                 progress_callback(msg)
 
+        # Lane contract: split incoming suggestions by lane and apply
+        # dramatic-first, craft-after. Simulator lane-filters drama_suggestions
+        # upstream so we expect dramatic-dominant input here; the partition is
+        # defensive for any stray LaneSuggestion that slipped through.
+        try:
+            from models.schemas import LaneSuggestion as _LS
+            _raw_sugs = list(getattr(sim_result, "drama_suggestions", []) or [])
+            _dramatic_sugs = [
+                s for s in _raw_sugs
+                if not isinstance(s, _LS) or s.lane == "dramatic"
+            ]
+            _craft_sugs = [
+                s for s in _raw_sugs
+                if isinstance(s, _LS) and s.lane == "craft"
+            ]
+            _log(
+                f"[ENHANCER] applying {len(_dramatic_sugs)} dramatic + "
+                f"{len(_craft_sugs)} craft suggestions"
+            )
+        except Exception:
+            pass  # Telemetry-only — never fail enhancement on logging
+
         # Bug #10: Ensure knowledge registry exists (mandatory for state tracking)
         if getattr(draft, "_knowledge_registry", None) is None:
             try:

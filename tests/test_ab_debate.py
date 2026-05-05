@@ -132,15 +132,18 @@ def run_ab_mock() -> ABResult:
     # ── VARIANT: Same reviews, then run through debate ──
     variant_base_reviews = [r.model_copy() for r in control_reviews]
 
-    # Run actual debate logic
+    # Run actual debate logic — force rule-based fallback (no real LLM calls)
+    from unittest.mock import patch
     agents = [DramaCritic(), CharacterSpecialist()]
     orchestrator = DebateOrchestrator(max_rounds=3)
-    debate_result = orchestrator.run_debate(
-        agents=agents,
-        story_draft=output,
-        layer=2,
-        round1_reviews=variant_base_reviews,
-    )
+    with patch.object(agents[0].llm, "generate_json", side_effect=RuntimeError("mock")), \
+         patch.object(agents[1].llm, "generate_json", side_effect=RuntimeError("mock")):
+        debate_result = orchestrator.run_debate(
+            agents=agents,
+            story_draft=output,
+            layer=2,
+            round1_reviews=variant_base_reviews,
+        )
 
     variant_scores = [r.score for r in debate_result.final_reviews]
 
@@ -154,6 +157,7 @@ class TestABDebate:
 
     def test_debate_produces_challenges(self):
         """DramaCritic should challenge character_specialist's suggestion to reduce drama."""
+        from unittest.mock import patch
         from pipeline.agents.drama_critic import DramaCriticAgent as DramaCritic
         from models.schemas import DebateStance
 
@@ -166,7 +170,9 @@ class TestABDebate:
         ]
 
         draft = _make_draft()
-        entries = critic.debate_response(draft, 2, own, all_reviews)
+        # Force rule-based fallback by failing LLM call (asserts keyword logic)
+        with patch.object(critic.llm, "generate_json", side_effect=RuntimeError("forced")):
+            entries = critic.debate_response(draft, 2, own, all_reviews)
         challenges = [e for e in entries if e.stance == DebateStance.CHALLENGE]
 
         assert len(challenges) >= 1
@@ -174,6 +180,7 @@ class TestABDebate:
 
     def test_character_specialist_challenges_plot_twist(self):
         """CharacterSpecialist should challenge suggestions that break character consistency."""
+        from unittest.mock import patch
         from pipeline.agents.character_specialist import CharacterSpecialistAgent as CharacterSpecialist
         from models.schemas import DebateStance
 
@@ -186,7 +193,9 @@ class TestABDebate:
         ]
 
         draft = _make_draft()
-        entries = spec.debate_response(draft, 2, own, all_reviews)
+        # Force rule-based fallback by failing LLM call (asserts keyword logic)
+        with patch.object(spec.llm, "generate_json", side_effect=RuntimeError("forced")):
+            entries = spec.debate_response(draft, 2, own, all_reviews)
         challenges = [e for e in entries if e.stance == DebateStance.CHALLENGE]
 
         assert len(challenges) >= 1

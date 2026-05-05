@@ -54,7 +54,7 @@ class CharacterSpecialistAgent(BaseAgent):
         """LLM-powered debate analysis."""
         other_reviews = [
             {"agent_name": r.agent_name, "score": r.score,
-             "issues": r.issues, "suggestions": r.suggestions}
+             "issues": r.issues, "suggestions": [str(s) for s in r.suggestions]}
             for r in all_reviews if r.agent_name != self.name
         ]
         if not other_reviews:
@@ -66,7 +66,7 @@ class CharacterSpecialistAgent(BaseAgent):
         prompt = agent_prompts.CHARACTER_DEBATE.format(
             own_score=own_review.score,
             own_issues=json.dumps(own_review.issues, ensure_ascii=False),
-            own_suggestions=json.dumps(own_review.suggestions, ensure_ascii=False),
+            own_suggestions=json.dumps([str(s) for s in own_review.suggestions], ensure_ascii=False),
             other_reviews_json=json.dumps(other_reviews, ensure_ascii=False, indent=2),
             characters_info=characters_info,
             chapter_excerpt=chapter_excerpt,
