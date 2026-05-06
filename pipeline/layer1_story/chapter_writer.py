@@ -1,6 +1,7 @@
 """Chapter writing functions: prompt building, streaming, extraction."""
 
 import logging
+import re
 from typing import Optional, TYPE_CHECKING
 
 from models.schemas import (
@@ -22,6 +23,57 @@ logger = logging.getLogger(__name__)
 def excerpt(content: str, max_chars: int = 4000) -> str:
     """Extract beginning + end of content for extraction prompts."""
     return excerpt_text(content, max_chars=max_chars)
+
+
+# Bug 1: Strip LLM "here is the result" preamble that leaks into chapter body.
+# Detects Vietnamese/English meta-paragraphs at the start of generated content.
+_PREAMBLE_PATTERNS = [
+    # Vietnamese "here is..." / "below is..." preambles
+    r"^(?:dưới đây là|đây là|sau đây là|dưới đây|sau đây)\b.*?(?:\n\s*\n|$)",
+    # "phiên bản (đã) hoàn thiện/mở rộng/chỉnh sửa của Chương..."
+    r"^.{0,200}?\bphiên bản\b.{0,400}?\b(?:hoàn thiện|chỉnh sửa|mở rộng|cập nhật|hoàn chỉnh)\b.{0,400}?\bChương\b.*?(?:\n\s*\n|$)",
+    # English variants
+    r"^(?:here(?:'s| is)|below is|here you go)\b.*?(?:\n\s*\n|$)",
+]
+_PREAMBLE_REGEXES = [re.compile(p, re.IGNORECASE | re.DOTALL) for p in _PREAMBLE_PATTERNS]
+# Heuristic: paragraph mentioning both "phiên bản"/"version" and "Chương" is meta.
+_META_MARKERS = ("phiên bản", "version", "đã được hoàn thiện", "đã được mở rộng",
+                  "đã được chỉnh sửa", "below is the", "here is the")
+
+
+def strip_llm_preamble(content: str) -> str:
+    """Remove leading meta/preamble paragraphs from LLM output.
+
+    Conservative: only strips paragraphs that match known preamble patterns
+    or that contain BOTH a meta marker AND a "Chương N" reference.
+    """
+    if not content:
+        return content
+    text = content.lstrip()
+    # Iteratively strip leading preamble paragraphs (up to 3 to avoid runaway).
+    for _ in range(3):
+        stripped = False
+        for rx in _PREAMBLE_REGEXES:
+            m = rx.match(text)
+            if m:
+                text = text[m.end():].lstrip()
+                stripped = True
+                break
+        if stripped:
+            continue
+        # Heuristic fallback: first paragraph mentions meta marker + "Chương".
+        para, sep, rest = text.partition("\n\n")
+        para_low = para.lower()
+        if (
+            any(mk in para_low for mk in _META_MARKERS)
+            and re.search(r"\bchương\s+\d+|\bchapter\s+\d+", para_low)
+            and len(para) < 600  # don't strip a real opening scene
+        ):
+            text = rest.lstrip()
+            stripped = True
+            continue
+        break
+    return text or content
 
 
 def _append_consistency_context(parts: list[str], context: StoryContext) -> None:
@@ -170,8 +222,13 @@ def build_chapter_prompt(
     chapter_contract: str = "",
     scenes: list[dict] = None,
     negotiated_contract: Optional["NegotiatedChapterContract"] = None,
+    previous_chapter_tail: str = "",
 ) -> tuple[str, str]:
-    """Build system/user prompts for chapter writing. Returns (system_prompt, user_prompt)."""
+    """Build system/user prompts for chapter writing. Returns (system_prompt, user_prompt).
+
+    previous_chapter_tail: last ~300 words of chapter N-1 used as a continuity
+    anchor so chapter N opens directly from where N-1 ended (Bug 2).
+    """
     chars_text = "\n".join(
         f"- {c.name} ({c.role}): {c.personality}\n  Tiểu sử: {c.background}"
         + (f"\n  Giọng nói: {c.speech_pattern}" if getattr(c, 'speech_pattern', '') else "")
@@ -296,7 +353,10 @@ def build_chapter_prompt(
 
     sys_prompt = (
         f"Bạn là tiểu thuyết gia tài năng viết truyện {genre} bằng tiếng Việt. "
-        f"BẮT BUỘC: Toàn bộ output phải viết bằng tiếng Việt, không được dùng ngôn ngữ khác."
+        f"BẮT BUỘC: Toàn bộ output phải viết bằng tiếng Việt, không được dùng ngôn ngữ khác. "
+        "TUYỆT ĐỐI KHÔNG viết lời mở đầu kiểu 'Dưới đây là...', 'Đây là phiên bản...', "
+        "'Sau đây là...', 'Here is...' hay bất kỳ meta-comment nào về phiên bản/chỉnh sửa. "
+        "Chỉ xuất ra văn xuôi của chương, không lặp lại tiêu đề hay 'Chương X:' ở đầu."
     )
     user_prompt = prompts.WRITE_CHAPTER.format(
         genre=genre, style=style, title=title,
@@ -341,6 +401,26 @@ def build_chapter_prompt(
             f"\n- Yêu cầu phụ văn (subtext): {subtext}"
             f"\n- Cấm: {forbidden}"
         )
+    # Bug 2: Continuity anchor — inject tail of chapter N-1 so chapter N opens
+    # seamlessly from where the previous chapter ended.
+    if previous_chapter_tail and outline.chapter_number > 1:
+        tail = previous_chapter_tail.strip()
+        # Keep last ~300 words as anchor; trim by char budget for prompt safety.
+        if len(tail) > 2000:
+            tail = "..." + tail[-2000:]
+        user_prompt += (
+            "\n\n## TIẾP NỐI TỪ CHƯƠNG TRƯỚC (BẮT BUỘC):\n"
+            "Đoạn kết của chương trước:\n"
+            f"---\n{tail}\n---\n"
+            "Chương này PHẢI mở đầu liền mạch, tiếp diễn TRỰC TIẾP từ khoảnh khắc trên. "
+            "Không nhảy cảnh, không tóm tắt lại, không giới thiệu lại bối cảnh đã thiết lập. "
+            "Câu mở đầu phải nối tiếp tự nhiên với câu kết của chương trước."
+        )
+    # Bug 1: Final reminder to suppress preamble (in addition to sys_prompt rule).
+    user_prompt += (
+        "\n\n[QUAN TRỌNG: Output CHỈ là văn xuôi của chương. "
+        "KHÔNG mở đầu bằng 'Dưới đây là...', 'Đây là phiên bản...', không meta-comment.]"
+    )
     # Reinforce Vietnamese at end of prompt (after all context) to prevent
     # language drift in later chapters where context is very long
     user_prompt += "\n\n[NHẮC LẠI: Viết hoàn toàn bằng tiếng Việt. Không dùng tiếng Anh hay ngôn ngữ khác.]"
@@ -371,6 +451,7 @@ def write_chapter(
     chapter_contract: str = "",
     scenes: list[dict] = None,
     negotiated_contract: Optional["NegotiatedChapterContract"] = None,
+    previous_chapter_tail: str = "",
 ) -> Chapter:
     """Write a single chapter (non-streaming)."""
     sys_prompt, user_prompt = build_chapter_prompt(
@@ -385,6 +466,7 @@ def write_chapter(
         chapter_contract=chapter_contract,
         scenes=scenes,
         negotiated_contract=negotiated_contract,
+        previous_chapter_tail=previous_chapter_tail,
     )
     content = llm.generate(
         system_prompt=sys_prompt,
@@ -392,6 +474,7 @@ def write_chapter(
         max_tokens=8192,
         model=model,
     )
+    content = strip_llm_preamble(content)
     return Chapter(
         chapter_number=outline.chapter_number,
         title=outline.title,
@@ -424,6 +507,7 @@ def write_chapter_stream(
     chapter_contract: str = "",
     scenes: list[dict] = None,
     negotiated_contract: Optional["NegotiatedChapterContract"] = None,
+    previous_chapter_tail: str = "",
 ) -> Chapter:
     """Write chapter with streaming. Calls stream_callback(partial_text) each chunk."""
     sys_prompt, user_prompt = build_chapter_prompt(
@@ -438,6 +522,7 @@ def write_chapter_stream(
         chapter_contract=chapter_contract,
         scenes=scenes,
         negotiated_contract=negotiated_contract,
+        previous_chapter_tail=previous_chapter_tail,
     )
 
     full_content = ""
@@ -464,8 +549,10 @@ def write_chapter_stream(
             chapter_contract=chapter_contract,
             scenes=scenes,
             negotiated_contract=negotiated_contract,
+            previous_chapter_tail=previous_chapter_tail,
         )
 
+    full_content = strip_llm_preamble(full_content)
     return Chapter(
         chapter_number=outline.chapter_number,
         title=outline.title,
