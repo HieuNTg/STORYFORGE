@@ -269,6 +269,7 @@ class StoryGenerator:
             critical=True,
             operation_name="generate_world",
         )
+        _log(f"Đã xây dựng bối cảnh thế giới: {getattr(world, 'name', '?')}")
         # Step 4a: Generate macro arcs (structural backbone)
         macro_arcs = []
         try:

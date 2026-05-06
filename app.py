@@ -14,6 +14,13 @@ import logging.handlers
 import os
 import sys
 import time
+import warnings
+
+warnings.filterwarnings(
+    "ignore",
+    message=r"Failed to find (cuobjdump|nvdisasm)\.exe",
+    module=r"triton\..*",
+)
 
 import uvicorn
 from fastapi import FastAPI
