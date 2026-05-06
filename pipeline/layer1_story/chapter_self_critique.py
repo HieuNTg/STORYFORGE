@@ -3,6 +3,8 @@
 import logging
 from typing import TYPE_CHECKING
 
+from pipeline.layer1_story.chapter_writer import strip_llm_preamble
+
 if TYPE_CHECKING:
     from services.llm_client import LLMClient
 
@@ -185,7 +187,7 @@ def rewrite_weak_sections(
                 max_tokens=8192,
             )
             if isinstance(rewritten, str) and len(rewritten) > 100:
-                current_content = rewritten
+                current_content = strip_llm_preamble(rewritten)
                 rewrites_done += 1
                 logger.debug("rewrite_weak_sections: rewrote '%s' (score %.1f)", dim, score)
             else:
@@ -245,7 +247,7 @@ def rewrite_for_consistency(
             max_tokens=8192,
         )
         if isinstance(rewritten, str) and len(rewritten) > max(100, int(len(content) * 0.5)):
-            return rewritten
+            return strip_llm_preamble(rewritten)
         logger.warning(
             "rewrite_for_consistency: response too short (%d chars), keeping original",
             len(rewritten) if isinstance(rewritten, str) else 0,
@@ -302,7 +304,7 @@ def rewrite_for_missing_payoffs(
             max_tokens=8192,
         )
         if isinstance(rewritten, str) and len(rewritten) > max(100, int(len(content) * 0.5)):
-            return rewritten
+            return strip_llm_preamble(rewritten)
         logger.warning(
             "rewrite_for_missing_payoffs: response too short (%d chars), keeping original",
             len(rewritten) if isinstance(rewritten, str) else 0,
