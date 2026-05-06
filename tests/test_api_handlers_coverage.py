@@ -560,13 +560,13 @@ class TestPipelineRoutesEndpoints:
         with patch("pipeline.orchestrator.PipelineOrchestrator") as MockOrch:
             checkpoints = [
                 {
-                    "file": f"story_{i}.json",
+                    "file": f"story_{i}_layer2.json",
                     "modified": "2026-01-01",
                     "size_kb": 5,
                     "title": f"Story {i}",
                     "genre": "Tiên Hiệp",
                     "chapter_count": 3,
-                    "current_layer": 1,
+                    "current_layer": 2,
                 }
                 for i in range(5)
             ]
@@ -581,8 +581,8 @@ class TestPipelineRoutesEndpoints:
     def test_list_stories_pagination_offset(self):
         with patch("pipeline.orchestrator.PipelineOrchestrator") as MockOrch:
             MockOrch.list_checkpoints.return_value = [
-                {"file": f"s{i}.json", "modified": "2026", "size_kb": 1,
-                 "title": f"T{i}", "genre": "G", "chapter_count": 1, "current_layer": 0}
+                {"file": f"s{i}_layer2.json", "modified": "2026", "size_kb": 1,
+                 "title": f"T{i}", "genre": "G", "chapter_count": 1, "current_layer": 2}
                 for i in range(10)
             ]
             resp = self._client.get("/pipeline/stories?limit=5&offset=5")

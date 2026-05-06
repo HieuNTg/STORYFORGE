@@ -35,7 +35,19 @@ def validate_world_rules(
         model_tier="cheap",
     )
     violations = result.get("violations", [])
-    return [v for v in violations if v]
+    out: list[str] = []
+    for v in violations:
+        if not v:
+            continue
+        if isinstance(v, str):
+            out.append(v)
+        elif isinstance(v, dict):
+            parts = [f"{k}: {val}" for k, val in v.items() if val]
+            if parts:
+                out.append(" — ".join(parts))
+        else:
+            out.append(str(v))
+    return out
 
 
 def validate_dialogue_voice(
@@ -69,4 +81,16 @@ def validate_dialogue_voice(
         model_tier="cheap",
     )
     warnings = result.get("warnings", [])
-    return [w for w in warnings if w]
+    out: list[str] = []
+    for w in warnings:
+        if not w:
+            continue
+        if isinstance(w, str):
+            out.append(w)
+        elif isinstance(w, dict):
+            parts = [f"{k}: {v}" for k, v in w.items() if v]
+            if parts:
+                out.append(" — ".join(parts))
+        else:
+            out.append(str(w))
+    return out

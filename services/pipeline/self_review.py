@@ -116,7 +116,11 @@ class SelfReviewer:
                 ),
                 temperature=0.7,
             )
-            return revised.strip()
+            # Strip any LLM preamble ("Đây là phiên bản đã chỉnh sửa...", "Here is..."),
+            # since revisions re-run the LLM and can re-introduce meta-prefaces even
+            # when the original content was clean.
+            from pipeline.layer1_story.chapter_writer import strip_llm_preamble
+            return strip_llm_preamble(revised.strip())
         except Exception as e:
             logger.warning(f"Self-review revision failed: {e}")
             return content  # return original on failure

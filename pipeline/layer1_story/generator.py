@@ -139,10 +139,22 @@ class StoryGenerator:
         current_arc_context="", chapter_contract="",
         scenes=None, negotiated_contract=None,
     ) -> Chapter:
+        # Bug 2: Within a parallel batch, all_chapter_texts is the FROZEN list of
+        # already-written chapters from prior batches; siblings in the current
+        # batch aren't included (they don't exist yet). So the anchor is always
+        # the tail of chapter N-1 from the previous batch — correct for the first
+        # chapter of each batch, conservative-but-acceptable for subsequent ones.
+        prev_tail = ""
+        if all_chapter_texts:
+            prev_full = all_chapter_texts[-1] or ""
+            # Take last ~300 words.
+            words = prev_full.split()
+            prev_tail = " ".join(words[-300:]) if words else ""
+
         # When new narrative params are provided, build prompt directly so they are forwarded.
         if any(p is not None for p in (open_threads, active_conflicts, foreshadowing_to_plant, foreshadowing_to_payoff)) or pacing_type:
             from models.schemas import count_words
-            from pipeline.layer1_story.chapter_writer import build_chapter_prompt
+            from pipeline.layer1_story.chapter_writer import build_chapter_prompt, strip_llm_preamble
             window_size = getattr(self.config.pipeline, "context_window_chapters", 5)
             windowed_texts = all_chapter_texts[-window_size:] if all_chapter_texts else []
             use_lc = False
@@ -169,6 +181,7 @@ class StoryGenerator:
                 chapter_contract=chapter_contract,
                 scenes=scenes,
                 negotiated_contract=negotiated_contract,
+                previous_chapter_tail=prev_tail,
             )
             if use_lc:
                 content = self.long_context_client.generate(
@@ -179,6 +192,7 @@ class StoryGenerator:
                     system_prompt=sys_prompt, user_prompt=user_prompt, max_tokens=8192,
                     model=self._layer_model,
                 )
+            content = strip_llm_preamble(content)
             return Chapter(
                 chapter_number=outline.chapter_number,
                 title=outline.title,
@@ -255,6 +269,7 @@ class StoryGenerator:
             critical=True,
             operation_name="generate_world",
         )
+        _log(f"Đã xây dựng bối cảnh thế giới: {getattr(world, 'name', '?')}")
         # Step 4a: Generate macro arcs (structural backbone)
         macro_arcs = []
         try:

@@ -160,6 +160,10 @@ class PipelineConfig:
     parallel_chapters_enabled: bool = True  # Feature flag — parallel chapter generation enabled
     chapter_batch_size: int = 5  # Chapters per batch
     parallel_use_asyncio: bool = True  # Use asyncio.gather() instead of ThreadPoolExecutor
+    # When True, chapters within a batch run sequentially so each chapter's
+    # continuity anchor = its immediate predecessor's tail (not just the prior
+    # batch's last chapter). Costs ~chapter_batch_size× throughput within L1.
+    l1_strict_chapter_continuity: bool = False
     chapter_retry_max: int = 2  # Max retries for failed contract validation
     chapter_retry_threshold: float = 0.6  # Contract compliance score below this triggers retry
     parallel_causal_sync: bool = True  # Sync causal events between parallel chapters post-write

@@ -326,6 +326,14 @@ class BatchChapterGenerator:
         self.batch_size = getattr(self.config.pipeline, "chapter_batch_size", 5)
         self.parallel_enabled = getattr(self.config.pipeline, "parallel_chapters_enabled", False)
         self.use_asyncio = getattr(self.config.pipeline, "parallel_use_asyncio", True)
+        # When True, force sequential within-batch execution so each chapter's
+        # continuity anchor is the freshly-completed predecessor (not a stale
+        # prior-batch tail). Overrides parallel_enabled at dispatch time.
+        # Use `is True` so MagicMock auto-vivified attributes in tests don't
+        # accidentally trip strict mode (those tests want parallel behaviour).
+        self.strict_continuity = (
+            getattr(self.config.pipeline, "l1_strict_chapter_continuity", False) is True
+        )
         self.retry_max = getattr(self.config.pipeline, "chapter_retry_max", 2)
         self.retry_threshold = getattr(self.config.pipeline, "chapter_retry_threshold", 0.6)
         self.causal_sync = getattr(self.config.pipeline, "parallel_causal_sync", True)
@@ -374,7 +382,12 @@ class BatchChapterGenerator:
                 progress_callback(msg)
 
         batches = self._split_batches(outlines)
-        mode = "parallel" if self.parallel_enabled else "sequential"
+        if self.parallel_enabled and self.strict_continuity:
+            mode = "sequential (strict-continuity override)"
+        elif self.parallel_enabled:
+            mode = "parallel"
+        else:
+            mode = "sequential"
         _log(f"[BATCH] {len(outlines)} chương / {len(batches)} batch (size={self.batch_size}, mode={mode})")
 
         if resume_from_batch > 0:
@@ -390,7 +403,7 @@ class BatchChapterGenerator:
                 get_rag_batch_cache().reset_batch()
                 _log(f"[BATCH] Batch {batch_idx + 1}/{len(batches)} ({len(batch)} chương)")
 
-                if self.parallel_enabled and not stream_callback:
+                if self.parallel_enabled and not stream_callback and not self.strict_continuity:
                     batch_chapters = self._run_batch_parallel(
                         batch=batch,
                         frozen=frozen,

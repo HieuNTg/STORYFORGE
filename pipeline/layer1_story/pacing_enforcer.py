@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from pipeline.layer1_story.chapter_writer import strip_llm_preamble
+
 if TYPE_CHECKING:
     from services.llm_client import LLMClient
 
@@ -127,7 +129,7 @@ def rewrite_for_pacing(
             max_tokens=8192,
         )
         if isinstance(revised, str) and len(revised) > max(100, int(len(content) * 0.5)):
-            return revised
+            return strip_llm_preamble(revised)
         logger.warning(
             "rewrite_for_pacing: response too short (%d chars), keeping original",
             len(revised) if isinstance(revised, str) else 0,

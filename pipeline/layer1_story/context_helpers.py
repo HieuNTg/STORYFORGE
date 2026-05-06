@@ -252,7 +252,7 @@ def write_chapter_with_long_context(
 ) -> Chapter:
     """Try long-context generation; fall back to standard if disabled/overflow."""
     # Lazy import for mock compat
-    from pipeline.layer1_story.chapter_writer import build_chapter_prompt
+    from pipeline.layer1_story.chapter_writer import build_chapter_prompt, strip_llm_preamble
 
     use_lc = False
     window_size = getattr(config.pipeline, "context_window_chapters", 5)
@@ -271,6 +271,12 @@ def write_chapter_with_long_context(
                 f"(texts exceed context window), falling back to rolling context"
             )
 
+    # Bug 2: continuity anchor — last ~300 words of chapter N-1.
+    prev_tail = ""
+    if all_chapter_texts:
+        words = (all_chapter_texts[-1] or "").split()
+        prev_tail = " ".join(words[-300:]) if words else ""
+
     rag_kb = get_rag_kb(config.pipeline.rag_persist_dir) if config.pipeline.rag_enabled else None
     sys_prompt, user_prompt = build_chapter_prompt(
         config, title, genre, style, characters, world, outline,
@@ -278,6 +284,7 @@ def write_chapter_with_long_context(
         full_chapter_texts=windowed_texts if use_lc else None,
         rag_kb=rag_kb,
         enhancement_context=enhancement_context,
+        previous_chapter_tail=prev_tail,
     )
     if use_lc:
         content = long_context_client.generate(
@@ -288,6 +295,7 @@ def write_chapter_with_long_context(
             system_prompt=sys_prompt, user_prompt=user_prompt, max_tokens=8192,
             model=layer_model,
         )
+    content = strip_llm_preamble(content)
     return Chapter(
         chapter_number=outline.chapter_number,
         title=outline.title,

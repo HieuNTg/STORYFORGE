@@ -387,6 +387,35 @@ class StoryContext(BaseModel):
     extraction_health: list[ExtractionHealth] = Field(default_factory=list, description="Telemetry for post-chapter extraction attempts")
     consecutive_failures: int = Field(default=0, description="Counter for circuit breaker tripping")
 
+    @field_validator(
+        "arc_drift_warnings",
+        "name_warnings",
+        "stale_thread_warnings",
+        "world_rule_violations",
+        "dialogue_voice_warnings",
+        "arc_execution_warnings",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_warning_strings(cls, v):
+        """LLM validators occasionally return list[dict] instead of list[str].
+        Flatten dicts to 'key: value' so existing checkpoints still load."""
+        if not isinstance(v, list):
+            return v
+        out: list[str] = []
+        for item in v:
+            if not item:
+                continue
+            if isinstance(item, str):
+                out.append(item)
+            elif isinstance(item, dict):
+                parts = [f"{k}: {val}" for k, val in item.items() if val]
+                if parts:
+                    out.append(" — ".join(parts))
+            else:
+                out.append(str(item))
+        return out
+
     def compute_health_score(self, lookback: int = 10) -> float:
         recent = self.extraction_health[-lookback * 6:]
         if not recent:
