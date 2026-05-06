@@ -223,6 +223,8 @@ def build_chapter_prompt(
     scenes: list[dict] = None,
     negotiated_contract: Optional["NegotiatedChapterContract"] = None,
     previous_chapter_tail: str = "",
+    idea: str = "",
+    idea_summary: str = "",
 ) -> tuple[str, str]:
     """Build system/user prompts for chapter writing. Returns (system_prompt, user_prompt).
 
@@ -358,8 +360,24 @@ def build_chapter_prompt(
         "'Sau đây là...', 'Here is...' hay bất kỳ meta-comment nào về phiên bản/chỉnh sửa. "
         "Chỉ xuất ra văn xuôi của chương, không lặp lại tiêu đề hay 'Chương X:' ở đầu."
     )
+    # Build [Ý TƯỞNG GỐC] block — verbatim for short ideas, head+tail+summary for long ones.
+    if not idea:
+        user_story_idea_block = "(Tác giả không cung cấp ý tưởng cụ thể.)"
+    elif len(idea) <= 3000:
+        user_story_idea_block = idea
+    else:
+        head = idea[:2000]
+        tail = idea[-500:]
+        summary = idea_summary or "(Tóm tắt không khả dụng — chỉ dùng đầu+cuối)"
+        user_story_idea_block = (
+            f"[ĐOẠN ĐẦU NGUYÊN VĂN]\n{head}\n\n"
+            f"[ĐOẠN CUỐI NGUYÊN VĂN]\n{tail}\n\n"
+            f"[TÓM TẮT GIỮ TÊN RIÊNG]\n{summary}"
+        )
+
     user_prompt = prompts.WRITE_CHAPTER.format(
         genre=genre, style=style, title=title,
+        user_story_idea=user_story_idea_block,
         world=world_text,
         characters=chars_text,
         chars_constraints=chars_constraints,
@@ -452,6 +470,8 @@ def write_chapter(
     scenes: list[dict] = None,
     negotiated_contract: Optional["NegotiatedChapterContract"] = None,
     previous_chapter_tail: str = "",
+    idea: str = "",
+    idea_summary: str = "",
 ) -> Chapter:
     """Write a single chapter (non-streaming)."""
     sys_prompt, user_prompt = build_chapter_prompt(
@@ -467,6 +487,8 @@ def write_chapter(
         scenes=scenes,
         negotiated_contract=negotiated_contract,
         previous_chapter_tail=previous_chapter_tail,
+        idea=idea,
+        idea_summary=idea_summary,
     )
     content = llm.generate(
         system_prompt=sys_prompt,
@@ -508,6 +530,8 @@ def write_chapter_stream(
     scenes: list[dict] = None,
     negotiated_contract: Optional["NegotiatedChapterContract"] = None,
     previous_chapter_tail: str = "",
+    idea: str = "",
+    idea_summary: str = "",
 ) -> Chapter:
     """Write chapter with streaming. Calls stream_callback(partial_text) each chunk."""
     sys_prompt, user_prompt = build_chapter_prompt(
@@ -523,6 +547,8 @@ def write_chapter_stream(
         scenes=scenes,
         negotiated_contract=negotiated_contract,
         previous_chapter_tail=previous_chapter_tail,
+        idea=idea,
+        idea_summary=idea_summary,
     )
 
     full_content = ""

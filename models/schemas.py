@@ -455,6 +455,9 @@ class StoryDraft(BaseModel):
     voice_fingerprints: list[dict] = Field(default_factory=list, description="Canonicalised voice profiles, top-level for L1Handoff")
     arc_waypoints: list[dict] = Field(default_factory=list, description="Top-level arc waypoint records, parallel to per-character storage")
     l1_handoff: Optional[dict] = Field(default=None, description="L1Handoff envelope dict (set by handoff_builder before L2 entry)")
+    # Idea fidelity (P0 fix): preserve user's verbatim story idea + cached summary for long ideas
+    original_idea: str = Field(default="", description="User's original story idea, preserved verbatim from input")
+    idea_summary_for_chapters: str = Field(default="", description="LLM-compressed idea for chapter prompts (only built when len(idea) > 3000)")
 
 
 # === Layer 2: Mô phỏng tăng kịch tính ===

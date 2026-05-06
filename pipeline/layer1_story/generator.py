@@ -138,6 +138,7 @@ class StoryGenerator:
         pacing_type="", enhancement_context="",
         current_arc_context="", chapter_contract="",
         scenes=None, negotiated_contract=None,
+        idea: str = "", idea_summary: str = "",
     ) -> Chapter:
         # Bug 2: Within a parallel batch, all_chapter_texts is the FROZEN list of
         # already-written chapters from prior batches; siblings in the current
@@ -182,6 +183,8 @@ class StoryGenerator:
                 scenes=scenes,
                 negotiated_contract=negotiated_contract,
                 previous_chapter_tail=prev_tail,
+                idea=idea,
+                idea_summary=idea_summary,
             )
             if use_lc:
                 content = self.long_context_client.generate(
@@ -204,7 +207,8 @@ class StoryGenerator:
                                     title, genre, style, characters, world, outline,
                                     word_count, story_context, all_chapter_texts, bible_ctx,
                                     layer_model=self._layer_model,
-                                    enhancement_context=enhancement_context)
+                                    enhancement_context=enhancement_context,
+                                    idea=idea, idea_summary=idea_summary)
 
     def generate_full_story(self, title, genre, idea, style="Miêu tả chi tiết",
                              num_chapters=10, num_characters=5, word_count=2000,
@@ -223,6 +227,16 @@ class StoryGenerator:
             if self.config.pipeline.block_on_injection:
                 from errors.exceptions import InputSanitizationError
                 raise InputSanitizationError(_san.threats_found)
+
+        # --- Idea fidelity: build LLM summary only when idea exceeds verbatim threshold ---
+        idea_summary_for_chapters = ""
+        if idea and len(idea) > 3000:
+            try:
+                _log("Đang tóm tắt ý tưởng dài (giữ tên riêng)...")
+                from pipeline.layer1_story.theme_premise_generator import build_idea_summary_for_chapters
+                idea_summary_for_chapters = build_idea_summary_for_chapters(idea, self.llm) or ""
+            except Exception as e:
+                logger.warning("Idea summary build failed (non-fatal): %s", e)
 
         # --- Enhancement 1: Theme/Premise anchor ---
         premise = {}
@@ -345,6 +359,10 @@ class StoryGenerator:
                     max_rounds=self.config.pipeline.outline_critique_max_rounds,
                     model=self._layer_model,
                     enable_llm_critic=_enable_llm,
+                    idea=idea or "",
+                    idea_fidelity_mode=getattr(
+                        self.config.pipeline, "idea_fidelity_mode", "literal"
+                    ),
                 )
                 score = outline_critique.get("overall_score", "?")
                 _log(f"Dàn ý đạt điểm: {score}/5")
@@ -355,7 +373,9 @@ class StoryGenerator:
         # Previously draft.outlines was set before critique, chapters wrote to pre-critique outlines
         draft = StoryDraft(title=title, genre=genre, synopsis=synopsis,
                            characters=characters, world=world, outlines=outlines,
-                           premise=premise, voice_profiles=voice_profiles)
+                           premise=premise, voice_profiles=voice_profiles,
+                           original_idea=idea or "",
+                           idea_summary_for_chapters=idea_summary_for_chapters)
 
         # Bug #3: Parallelize conflict_web + arc_milestones, then foreshadowing (depends on conflict_web)
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -480,6 +500,8 @@ class StoryGenerator:
             voice_profiles=voice_profiles,
             batch_checkpoint_callback=batch_checkpoint_callback,
             resume_from_batch=resume_from_batch,
+            idea=idea or "",
+            idea_summary=idea_summary_for_chapters,
         )
 
         draft.character_states = list(story_context.character_states)

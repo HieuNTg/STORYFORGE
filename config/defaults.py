@@ -1,6 +1,7 @@
 """Default values, dataclass configs, and preset constants for StoryForge."""
 
 from dataclasses import dataclass, field
+from typing import Literal
 
 
 @dataclass
@@ -80,6 +81,10 @@ class PipelineConfig:
     genre: str = "Tiên Hiệp"
     sub_genres: list = field(default_factory=list)
     writing_style: str = "Miêu tả chi tiết"
+
+    # Idea fidelity (P0 fix): "literal" = enforce proper-noun coverage in outline + verbatim idea injection;
+    # "thematic" = idea used loosely, no fidelity guard.
+    idea_fidelity_mode: Literal["literal", "thematic"] = "literal"
 
     # Layer 2 - Mô phỏng tăng kịch tính
     num_simulation_rounds: int = 5

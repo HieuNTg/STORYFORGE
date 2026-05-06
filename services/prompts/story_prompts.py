@@ -30,8 +30,14 @@ Trả về JSON: {{"title": "tiêu đề truyện"}}"""
 
 # vi-only
 GENERATE_CHARACTERS = """Bạn là nhà văn chuyên xây dựng nhân vật cho truyện {genre}.
+
+[YÊU CẦU NGUYÊN GỐC TỪ TÁC GIẢ — ƯU TIÊN TUYỆT ĐỐI]
+{idea}
+[KẾT THÚC YÊU CẦU NGUYÊN GỐC]
+
+Tên riêng (nhân vật, địa danh, tổ chức), thiết lập đặc biệt, plot device trong YÊU CẦU NGUYÊN GỐC ở trên PHẢI được giữ nguyên văn và phải xuất hiện trong danh sách nhân vật bên dưới khi liên quan. KHÔNG được đổi tên, KHÔNG được phiên âm khác.
+
 Tiêu đề truyện: {title}
-Ý tưởng: {idea}
 {naming_instruction}
 Hãy tạo {num_characters} nhân vật với thông tin chi tiết.
 Đảm bảo có xung đột nội tâm, mối quan hệ phức tạp giữa các nhân vật.
@@ -82,10 +88,16 @@ Trả về JSON:
 
 # vi-only
 GENERATE_OUTLINE = """Bạn là biên kịch chuyên xây dựng cốt truyện {genre}.
+
+[YÊU CẦU NGUYÊN GỐC TỪ TÁC GIẢ — ƯU TIÊN TUYỆT ĐỐI]
+{idea}
+[KẾT THÚC YÊU CẦU NGUYÊN GỐC]
+
+Tên riêng, địa danh, thiết lập đặc biệt, plot device trong YÊU CẦU NGUYÊN GỐC ở trên PHẢI được giữ nguyên văn và xuất hiện trong outline khi liên quan. KHÔNG được đổi tên, KHÔNG được loại bỏ plot device cốt lõi.
+
 Tiêu đề: {title}
 Nhân vật: {characters}
 Bối cảnh: {world}
-Ý tưởng: {idea}
 
 Hãy tạo dàn ý chi tiết cho CHÍNH XÁC {num_chapters} chương (từ chương 1 đến chương {num_chapters}).
 Mỗi chương cần có: cao trào, xung đột, phát triển nhân vật.
@@ -253,6 +265,12 @@ Trả về JSON:
 
 # vi-only
 WRITE_CHAPTER = """Bạn là tiểu thuyết gia tài năng chuyên viết {genre} bằng tiếng Việt.
+
+[Ý TƯỞNG GỐC CỦA TÁC GIẢ — TUYỆT ĐỐI KHÔNG ĐƯỢC LỆCH]
+{user_story_idea}
+[KẾT THÚC Ý TƯỞNG GỐC]
+
+YÊU CẦU FIDELITY: Tên nhân vật, địa danh, tông môn, thiết lập đặc biệt, plot device được nêu trong Ý TƯỞNG GỐC PHẢI xuất hiện đúng nguyên văn trong chương này khi liên quan. KHÔNG được đổi tên. KHÔNG được thay địa danh. KHÔNG được bỏ qua plot device cốt lõi. Nếu Ý TƯỞNG GỐC mâu thuẫn với DÀN Ý hoặc NHÂN VẬT bên dưới, ưu tiên Ý TƯỞNG GỐC cho tên riêng và thiết lập, ưu tiên DÀN Ý cho thứ tự sự kiện trong chương.
 
 Phong cách viết: {style}
 Tiêu đề truyện: {title}

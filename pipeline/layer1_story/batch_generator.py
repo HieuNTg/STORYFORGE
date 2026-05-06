@@ -359,6 +359,8 @@ class BatchChapterGenerator:
         foreshadowing_plan=None,
         premise=None,
         voice_profiles=None,
+        idea: str = "",
+        idea_summary: str = "",
     ) -> list[Chapter]:
         """Generate all chapters using batch strategy.
 
@@ -426,6 +428,8 @@ class BatchChapterGenerator:
                         foreshadowing_plan=foreshadowing_plan,
                         premise=premise,
                         voice_profiles=voice_profiles,
+                        idea=idea,
+                        idea_summary=idea_summary,
                     )
                 else:
                     batch_chapters = self._run_batch_sequential(
@@ -451,6 +455,8 @@ class BatchChapterGenerator:
                         foreshadowing_plan=foreshadowing_plan,
                         premise=premise,
                         voice_profiles=voice_profiles,
+                        idea=idea,
+                        idea_summary=idea_summary,
                     )
 
                 for ch in batch_chapters:
@@ -528,6 +534,8 @@ class BatchChapterGenerator:
         foreshadowing_plan=None,
         premise=None,
         voice_profiles=None,
+        idea: str = "",
+        idea_summary: str = "",
     ) -> list[Chapter]:
         """Run a single batch sequentially (Phase 1).
 
@@ -810,6 +818,8 @@ class BatchChapterGenerator:
                     chapter_contract=contract_text,
                     scenes=chapter_scenes,
                     negotiated_contract=_negotiated_contract,
+                    idea=idea,
+                    idea_summary=idea_summary,
                 )
             elif not use_beat_writing:
                 chapter = self.gen._write_chapter_with_long_context(
@@ -825,6 +835,8 @@ class BatchChapterGenerator:
                     chapter_contract=contract_text,
                     scenes=chapter_scenes,
                     negotiated_contract=_negotiated_contract,
+                    idea=idea,
+                    idea_summary=idea_summary,
                 )
 
             if contract is not None:
@@ -1004,6 +1016,8 @@ class BatchChapterGenerator:
                                 current_arc_context=arc_context,
                                 chapter_contract=contract_text,
                                 scenes=chapter_scenes,
+                                idea=idea,
+                                idea_summary=idea_summary,
                             )
                         else:
                             chapter = self.gen._write_chapter_with_long_context(
@@ -1018,6 +1032,8 @@ class BatchChapterGenerator:
                                 current_arc_context=arc_context,
                                 chapter_contract=contract_text,
                                 scenes=chapter_scenes,
+                                idea=idea,
+                                idea_summary=idea_summary,
                             )
 
                         # Update in chapters list
@@ -1070,6 +1086,8 @@ class BatchChapterGenerator:
         foreshadowing_plan=None,
         premise=None,
         voice_profiles=None,
+        idea: str = "",
+        idea_summary: str = "",
     ) -> list[Chapter]:
         """Run a single batch in parallel (Phase 2/3).
 
@@ -1096,6 +1114,7 @@ class BatchChapterGenerator:
                             title, genre, style, characters, world, word_count,
                             context_window, executor, self_reviewer, progress_callback,
                             macro_arcs, conflict_web, foreshadowing_plan, premise, voice_profiles,
+                            idea, idea_summary,
                         )
                     )
                     return future.result()
@@ -1106,6 +1125,7 @@ class BatchChapterGenerator:
                         title, genre, style, characters, world, word_count,
                         context_window, executor, self_reviewer, progress_callback,
                         macro_arcs, conflict_web, foreshadowing_plan, premise, voice_profiles,
+                        idea, idea_summary,
                     )
                 )
         else:
@@ -1114,6 +1134,7 @@ class BatchChapterGenerator:
                 title, genre, style, characters, world, word_count,
                 context_window, executor, self_reviewer, progress_callback,
                 macro_arcs, conflict_web, foreshadowing_plan, premise, voice_profiles,
+                idea, idea_summary,
             )
 
     async def _run_batch_async(
@@ -1138,6 +1159,8 @@ class BatchChapterGenerator:
         foreshadowing_plan=None,
         premise=None,
         voice_profiles=None,
+        idea: str = "",
+        idea_summary: str = "",
     ) -> list[Chapter]:
         """Async batch execution using asyncio.gather() (#1 improvement)."""
         sibling_summaries = self._build_sibling_context(batch)
@@ -1159,6 +1182,7 @@ class BatchChapterGenerator:
                 sibling_summaries, shared_enhancement, title, genre, style,
                 characters, world, word_count, macro_arcs, conflict_web,
                 foreshadowing_plan, progress_callback, causal_acc,
+                idea, idea_summary,
             )
 
         # Execute all chapters concurrently
@@ -1211,6 +1235,7 @@ class BatchChapterGenerator:
                 frozen_threads, sibling_summaries, shared_enhancement,
                 title, genre, style, characters, world, word_count,
                 macro_arcs, conflict_web, foreshadowing_plan, progress_callback,
+                idea, idea_summary,
             )
 
         chapters_ordered = sorted(chapters, key=lambda c: c.chapter_number)
@@ -1279,6 +1304,8 @@ class BatchChapterGenerator:
         conflict_web,
         foreshadowing_plan,
         progress_callback,
+        idea: str = "",
+        idea_summary: str = "",
     ) -> list[Chapter]:
         """Validate contracts and retry failed chapters (#2 improvement)."""
         from pipeline.layer1_story.chapter_contract_builder import validate_contract_compliance
@@ -1326,6 +1353,7 @@ class BatchChapterGenerator:
                         sibling_summaries, shared_enhancement, title, genre, style,
                         characters, world, word_count, macro_arcs, conflict_web,
                         foreshadowing_plan, progress_callback, None,
+                        idea, idea_summary,
                         override_contract=new_contract,
                     )
 
@@ -1370,6 +1398,8 @@ class BatchChapterGenerator:
         foreshadowing_plan,
         progress_callback,
         causal_acc: CausalAccumulator | None,
+        idea: str = "",
+        idea_summary: str = "",
         override_contract=None,
     ) -> tuple[Chapter, dict | None]:
         """Write a single chapter for parallel execution. Returns (chapter, contract)."""
@@ -1503,6 +1533,8 @@ class BatchChapterGenerator:
             current_arc_context=arc_context,
             chapter_contract=p_contract_text,
             negotiated_contract=_p_negotiated,
+            idea=idea,
+            idea_summary=idea_summary,
         )
 
         if p_contract is not None:
@@ -1590,6 +1622,8 @@ class BatchChapterGenerator:
         foreshadowing_plan=None,
         premise=None,
         voice_profiles=None,
+        idea: str = "",
+        idea_summary: str = "",
     ) -> list[Chapter]:
         """Thread-based batch execution (fallback when asyncio disabled)."""
         sibling_summaries = self._build_sibling_context(batch)
@@ -1611,6 +1645,7 @@ class BatchChapterGenerator:
                     sibling_summaries, shared_enhancement, title, genre, style,
                     characters, world, word_count, macro_arcs, conflict_web,
                     foreshadowing_plan, progress_callback, causal_acc,
+                    idea, idea_summary,
                 ): o for o in batch
             }
             chapters = []
@@ -1666,6 +1701,7 @@ class BatchChapterGenerator:
                             sibling_summaries, shared_enhancement, title, genre, style,
                             characters, world, word_count, macro_arcs, conflict_web,
                             foreshadowing_plan, progress_callback, None,
+                            idea, idea_summary,
                             override_contract=new_contract,
                         )
                         chapter_map[ch_num] = new_chapter

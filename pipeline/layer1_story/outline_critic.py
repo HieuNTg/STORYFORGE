@@ -20,6 +20,7 @@ float), plus new keys: `metrics`, `llm_signal`, `composite_score`,
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import asdict, dataclass
 from typing import Optional, TYPE_CHECKING
 
@@ -38,6 +39,94 @@ logger = logging.getLogger(__name__)
 
 COMPOSITE_REWRITE_THRESHOLD: float = 0.60
 """Composite score below this → should_rewrite=True."""
+
+PROPER_NOUN_COVERAGE_FLOOR: float = 0.60
+"""Outline must cover ≥ 60% of proper nouns from the user's idea (literal mode)."""
+
+# Common Vietnamese sentence-starters / generic words that pass capitalization heuristics
+# but are NOT proper nouns. Keep tight — false positives are cheaper than false negatives here.
+_PROPER_NOUN_STOPWORDS: frozenset[str] = frozenset({
+    "Tôi", "Bạn", "Anh", "Chị", "Em", "Họ", "Nó", "Nhưng", "Và", "Hoặc",
+    "Khi", "Nếu", "Vì", "Để", "Sau", "Trước", "Trong", "Ngoài", "Với",
+    "Một", "Hai", "Ba", "Bốn", "Năm", "Sáu", "Bảy", "Tám", "Chín", "Mười",
+    "Câu", "Chương", "Phần", "Tập", "Truyện", "Cốt", "Câu chuyện",
+    "Có", "Là", "Sẽ", "Đã", "Đang", "Không", "Cũng", "Chỉ", "Còn",
+    "Tuy", "Mặc", "Vẫn", "Lại", "Theo", "Bởi", "Bằng",
+})
+
+
+def _extract_proper_nouns(text: str) -> set[str]:
+    """Heuristic proper-noun extraction for Vietnamese / transliterated Chinese names.
+
+    Captures sequences of 1–4 tokens where each token's first character is
+    Unicode-uppercase (covers Vietnamese diacritics: Lý, Tô, Đường, etc.).
+    Filters generic stopwords. Token boundary is whitespace; punctuation is stripped.
+    """
+    if not text:
+        return set()
+
+    _SENT_END = ".!?;:\n…"
+    _STRIP_CHARS = ".,;:!?\"'()[]{}<>«»“”‘’—…"
+
+    raw_tokens = re.split(r"\s+", text)
+    # Each tokens[i] = (cleaned_word, breaks_run) — breaks_run=True if the original
+    # token ended in sentence-terminating punctuation.
+    tokens: list[tuple[str, bool]] = []
+    for t in raw_tokens:
+        if not t:
+            continue
+        breaks = bool(t) and t[-1] in _SENT_END
+        cleaned = t.strip(_STRIP_CHARS)
+        tokens.append((cleaned, breaks))
+
+    def _is_proper(tok: str) -> bool:
+        return bool(tok) and tok[0].isupper() and tok not in _PROPER_NOUN_STOPWORDS
+
+    nouns: set[str] = set()
+    i = 0
+    n = len(tokens)
+    while i < n:
+        word, breaks = tokens[i]
+        if _is_proper(word):
+            j = i + 1
+            # Stop the run at sentence boundary on the CURRENT token
+            if not breaks:
+                while j < n and j - i < 4:
+                    nxt_word, nxt_breaks = tokens[j]
+                    if not _is_proper(nxt_word):
+                        break
+                    j += 1
+                    if nxt_breaks:
+                        break
+            phrase = " ".join(tokens[k][0] for k in range(i, j))
+            if phrase and phrase not in _PROPER_NOUN_STOPWORDS:
+                nouns.add(phrase)
+            i = j
+        else:
+            i += 1
+    return nouns
+
+
+def proper_noun_fidelity_check(
+    idea: str,
+    outlines: list[ChapterOutline],
+) -> tuple[float, list[str]]:
+    """Check what fraction of idea's proper nouns appear in outline summaries+titles.
+
+    Returns (coverage_ratio, missing_nouns). coverage_ratio in [0.0, 1.0].
+    If idea has no detectable proper nouns, returns (1.0, []) — nothing to enforce.
+    """
+    idea_nouns = _extract_proper_nouns(idea)
+    if not idea_nouns:
+        return 1.0, []
+
+    haystack = "\n".join(
+        f"{o.title} {o.summary} {' '.join(o.characters_involved)}"
+        for o in outlines
+    )
+    missing = [n for n in idea_nouns if n not in haystack]
+    coverage = 1.0 - (len(missing) / len(idea_nouns))
+    return coverage, missing
 
 STRICT_RAISE_THRESHOLD: float = 0.50
 """STORYFORGE_SEMANTIC_STRICT=1 + composite < this → raise SemanticVerificationError."""
@@ -311,6 +400,8 @@ def critique_and_revise(
     conflict_web: list[ConflictEntry] | None = None,
     foreshadowing_plan: list[ForeshadowingEntry] | None = None,
     enable_llm_critic: bool = True,
+    idea: str = "",
+    idea_fidelity_mode: str = "literal",
 ) -> tuple[list[ChapterOutline], dict]:
     """Primary public API for the outline critique-revise loop.
 
@@ -373,6 +464,39 @@ def critique_and_revise(
             foreshadowing_plan=foreshadowing_plan,
         )
 
+    # Idea fidelity guard: in "literal" mode, force one extra re-roll if proper-noun
+    # coverage in outline is below floor. Runs AFTER the metric-driven loop so a
+    # single re-roll budget is preserved per outline.
+    fidelity_coverage: float = 1.0
+    fidelity_missing: list[str] = []
+    if idea and idea_fidelity_mode == "literal":
+        fidelity_coverage, fidelity_missing = proper_noun_fidelity_check(idea, outlines)
+        if fidelity_coverage < PROPER_NOUN_COVERAGE_FLOOR:
+            logger.warning(
+                "Outline fidelity FAIL: %.0f%% proper-noun coverage (floor=%.0f%%); missing=%s. Re-rolling once.",
+                fidelity_coverage * 100, PROPER_NOUN_COVERAGE_FLOOR * 100, fidelity_missing,
+            )
+            fidelity_critique = {
+                "overall_score": 1,
+                "plot_holes": [
+                    f"Dàn ý KHÔNG dùng các tên riêng từ ý tưởng gốc của tác giả: {', '.join(fidelity_missing)}. "
+                    f"BẮT BUỘC đưa các tên này vào outline (tiêu đề, tóm tắt, hoặc characters_involved)."
+                ],
+                "pacing_issues": [],
+                "character_underuse": fidelity_missing,
+                "arc_coherence": [],
+                "foreshadowing_gaps": [],
+            }
+            outlines = revise_outline_from_critique(
+                llm, outlines, fidelity_critique, characters, world, genre, model=model
+            )
+            # Re-check post-revision (no further re-rolls)
+            fidelity_coverage, fidelity_missing = proper_noun_fidelity_check(idea, outlines)
+            logger.info(
+                "Outline fidelity post-reroll: %.0f%% coverage; still_missing=%s",
+                fidelity_coverage * 100, fidelity_missing,
+            )
+
     # Build backward-compat return dict
     result_dict: dict = {
         # Backward compat: callers reading overall_score get composite (0-1)
@@ -384,6 +508,8 @@ def critique_and_revise(
         "composite_score": metrics.overall_score,
         "should_rewrite": should_rewrite,
         "failing_metrics": failing,
+        "idea_fidelity_coverage": fidelity_coverage,
+        "idea_fidelity_missing": fidelity_missing,
     }
     # Merge in LLM critique fields if available (plot_holes etc.) for diagnostics
     if llm_critique:

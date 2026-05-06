@@ -249,6 +249,8 @@ def write_chapter_with_long_context(
     bible_ctx: str = "",
     layer_model=None,
     enhancement_context: str = "",
+    idea: str = "",
+    idea_summary: str = "",
 ) -> Chapter:
     """Try long-context generation; fall back to standard if disabled/overflow."""
     # Lazy import for mock compat
@@ -285,6 +287,8 @@ def write_chapter_with_long_context(
         rag_kb=rag_kb,
         enhancement_context=enhancement_context,
         previous_chapter_tail=prev_tail,
+        idea=idea,
+        idea_summary=idea_summary,
     )
     if use_lc:
         content = long_context_client.generate(
