@@ -29,7 +29,7 @@ Phân tích theo 5 tiêu chí (0-1 mỗi tiêu chí):
 Trả về JSON:
 {{"drama_score": 0.7, "conflict_tension": 0.6, "dialogue_quality": 0.7, "emotional_depth": 0.5, "pacing": 0.8, "cliffhanger": 0.6, "weak_points": ["điểm yếu cụ thể 1", "điểm yếu 2"], "strong_points": ["điểm mạnh cần giữ"]}}"""
 
-REENHANCE_CHAPTER = """Viết lại chương truyện sau, tập trung CỤ THỂ vào các điểm yếu đã phân tích.
+REENHANCE_CHAPTER = """{user_story_idea_header}Viết lại chương truyện sau, tập trung CỤ THỂ vào các điểm yếu đã phân tích.
 
 CHƯƠNG GỐC:
 {chapter_content}
@@ -43,11 +43,15 @@ PHÂN TÍCH ĐIỂM YẾU (cần sửa):
 HƯỚNG DẪN THỂ LOẠI:
 {genre_hints}
 
+GỢI Ý CẢI THIỆN BỔ SUNG:
+{suggestions}
+
 YÊU CẦU:
 - CHỈ cải thiện các điểm yếu đã liệt kê, KHÔNG thay đổi điểm mạnh
 - Giữ cốt truyện, tăng kịch tính tại các điểm yếu
 - Khoảng {word_count} từ
 - Viết hoàn toàn bằng tiếng Việt
+- PHẢI giữ nguyên tên riêng / địa danh / gimmick từ [Ý TƯỞNG GỐC] ở đầu prompt — không Việt hoá, không dịch, không thay thế
 
 Bắt đầu viết lại:"""
 
@@ -93,7 +97,7 @@ Trả về JSON với format:
 Chú ý: Đánh giá dựa trên NỘI DUNG và NGỮ CẢNH, không chỉ từ khóa.
 Chỉ trả về JSON, không giải thích."""
 
-SMART_REVISE_CHAPTER = """Bạn là nhà văn chuyên nghiệp. Hãy sửa lại chương truyện dựa trên phản hồi cụ thể từ ban biên tập.
+SMART_REVISE_CHAPTER = """{user_story_idea_header}Bạn là nhà văn chuyên nghiệp. Hãy sửa lại chương truyện dựa trên phản hồi cụ thể từ ban biên tập.
 
 CHƯƠNG {chapter_number}: {title}
 
@@ -116,10 +120,11 @@ YÊU CẦU BẮT BUỘC:
 - Giữ nguyên phong cách và giọng văn
 - Khoảng {word_count} từ (+/- 10%)
 - Viết hoàn toàn bằng tiếng Việt
+- PHẢI giữ nguyên tên riêng / địa danh / gimmick từ [Ý TƯỞNG GỐC] ở đầu prompt — không Việt hoá, không dịch, không thay thế
 
 Bắt đầu viết lại chương:"""
 
-COHERENCE_FIX = """Sửa chương truyện sau để giải quyết các vấn đề nhất quán.
+COHERENCE_FIX = """{user_story_idea_header}Sửa chương truyện sau để giải quyết các vấn đề nhất quán.
 
 CHƯƠNG {chapter_number}: {title}
 
@@ -138,11 +143,12 @@ YÊU CẦU:
 - Giữ nguyên phong cách và giọng văn
 - Khoảng {word_count} từ
 - Viết hoàn toàn bằng tiếng Việt
+- PHẢI giữ nguyên tên riêng / địa danh / gimmick từ [Ý TƯỞNG GỐC] ở đầu prompt — không Việt hoá, không dịch, không thay thế
 
 Bắt đầu viết lại:"""
 
 
-CONTRACT_REWRITE = """Chương dưới đây CHƯA đáp ứng hợp đồng chương. Viết lại để bổ sung các yêu cầu bị thiếu, giữ nguyên nội dung đã đạt.
+CONTRACT_REWRITE = """{user_story_idea_header}Chương dưới đây CHƯA đáp ứng hợp đồng chương. Viết lại để bổ sung các yêu cầu bị thiếu, giữ nguyên nội dung đã đạt.
 
 YÊU CẦU BỊ BỎ LỠ:
 {missed_items}
@@ -156,5 +162,6 @@ YÊU CẦU:
 - Giữ giọng văn và nhịp điệu gốc
 - Khoảng {word_count} từ
 - Viết hoàn toàn bằng tiếng Việt
+- PHẢI giữ nguyên tên riêng / địa danh / gimmick từ [Ý TƯỞNG GỐC] ở đầu prompt — không Việt hoá, không dịch, không thay thế
 
 Bắt đầu viết lại:"""

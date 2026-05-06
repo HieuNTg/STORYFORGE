@@ -1168,6 +1168,8 @@ async def run_full_pipeline(
                     reviews=self.output.reviews,
                     genre=genre,
                     progress_callback=_revision_progress,
+                    idea=getattr(draft, "original_idea", "") or "",
+                    idea_summary=getattr(draft, "idea_summary_for_chapters", "") or "",
                 )
                 total_weak = revision_result.get("total_weak", 0)
                 revised_count = revision_result.get("revised_count", 0)

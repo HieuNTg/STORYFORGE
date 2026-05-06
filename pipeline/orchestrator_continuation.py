@@ -364,6 +364,7 @@ class StoryContinuation:
                     enhanced = apply_sensory_polish(
                         enhanced, enabled=True,
                         progress_callback=lambda m: _log(m),
+                        draft=draft,
                     )
             except Exception as _sp_e:
                 logger.debug(f"Sensory polish skipped: {_sp_e}")

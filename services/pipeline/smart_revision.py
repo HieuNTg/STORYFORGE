@@ -30,6 +30,8 @@ class SmartRevisionService:
         reviews: list[AgentReview],
         genre: str = "",
         progress_callback=None,
+        idea: str = "",
+        idea_summary: str = "",
     ) -> dict:
         """Find weak chapters and revise them with agent review guidance.
 
@@ -92,8 +94,11 @@ class SmartRevisionService:
             for pass_num in range(1, self.max_passes + 1):
                 _log(f"Chương {cs.chapter_number}: lần thứ {pass_num}/{self.max_passes} (điểm hiện tại: {old_score:.1f})")
 
-                # Build revision prompt
+                # Build revision prompt — inject idea so revision keeps proper nouns
+                from services.text_utils import build_idea_header
+                idea_header = build_idea_header(idea, idea_summary) if idea else ""
                 prompt = prompts.SMART_REVISE_CHAPTER.format(
+                    user_story_idea_header=idea_header,
                     chapter_number=chapter.chapter_number,
                     title=chapter.title,
                     content=chapter.content,

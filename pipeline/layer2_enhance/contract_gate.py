@@ -175,16 +175,20 @@ def enforce_gate(
     failures: list[ContractFailure],
     max_retries: int = 1,
     draft_threads: list | None = None,
+    idea: str = "",
+    idea_summary: str = "",
 ) -> Chapter:
     """Rewrite chapter once to address contract failures. Non-fatal on LLM error."""
     if not failures or not should_rewrite(failures) or max_retries <= 0:
         return chapter
 
     from services.prompts import CONTRACT_REWRITE
+    from services.text_utils import build_idea_header
 
     missed = _format_missed(failures)
     original_content = chapter.content or ""
     target_words = max(500, chapter.word_count or len(original_content.split()))
+    idea_header = build_idea_header(idea, idea_summary) if idea else ""
 
     try:
         rewritten = llm.generate(
@@ -193,6 +197,7 @@ def enforce_gate(
                 "BẮT BUỘC: Viết hoàn toàn bằng tiếng Việt, giữ nguyên giọng văn."
             ),
             user_prompt=CONTRACT_REWRITE.format(
+                user_story_idea_header=idea_header,
                 missed_items=missed,
                 content=original_content[:6000],
                 word_count=target_words,
@@ -233,10 +238,18 @@ def apply_contract_gate(
     enhanced_story,
     draft_threads: list | None = None,
     enabled: bool = True,
+    draft=None,
 ) -> dict:
-    """Apply gate to all chapters; return summary stats."""
+    """Apply gate to all chapters; return summary stats.
+
+    `draft` (optional) supplies the author's original_idea so contract rewrites
+    don't drift proper nouns / gimmicks back to genre default.
+    """
     if not enabled or enhanced_story is None:
         return {"enabled": False, "chapters_checked": 0, "rewrites": 0}
+
+    _idea = getattr(draft, "original_idea", "") or "" if draft is not None else ""
+    _idea_summary = getattr(draft, "idea_summary_for_chapters", "") or "" if draft is not None else ""
 
     rewrites = 0
     total_failures = 0
@@ -248,7 +261,11 @@ def apply_contract_gate(
         total_failures += len(failures)
         if should_rewrite(failures):
             try:
-                new_ch = enforce_gate(llm, ch, contract, failures, max_retries=1, draft_threads=draft_threads)
+                new_ch = enforce_gate(
+                    llm, ch, contract, failures,
+                    max_retries=1, draft_threads=draft_threads,
+                    idea=_idea, idea_summary=_idea_summary,
+                )
                 if new_ch is not ch:
                     enhanced_story.chapters[idx] = new_ch
                     rewrites += 1

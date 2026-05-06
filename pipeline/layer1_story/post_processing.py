@@ -62,12 +62,17 @@ def process_chapter_post_write(
 
     # Optional self-review
     if enable_self_review and self_reviewer is not None:
+        # Inject author's original idea so revision doesn't drift names back to genre default
+        _idea = getattr(draft, "original_idea", "") or ""
+        _idea_summary = getattr(draft, "idea_summary_for_chapters", "") or ""
         revised_content, review_scores = self_reviewer.review_and_revise(
             content=chapter.content,
             chapter_number=outline.chapter_number,
             title=outline.title,
             genre=genre,
             word_count=word_count,
+            idea=_idea,
+            idea_summary=_idea_summary,
         )
         if revised_content != chapter.content:
             if progress_callback:

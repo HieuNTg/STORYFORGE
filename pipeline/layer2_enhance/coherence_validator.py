@@ -72,12 +72,17 @@ def fix_coherence_issues(
     enhanced: EnhancedStory,
     issues: list[dict],
     word_count: int = 2000,
+    idea: str = "",
+    idea_summary: str = "",
 ) -> int:
     """Tự động sửa các vấn đề nhất quán nghiêm trọng. Trả về số chương đã sửa."""
     # Chỉ sửa vấn đề critical
     critical = [i for i in issues if i.get("severity") == "critical"]
     if not critical:
         return 0
+
+    from services.text_utils import build_idea_header
+    idea_header = build_idea_header(idea, idea_summary) if idea else ""
 
     fixed = 0
     # Nhóm vấn đề theo chương
@@ -109,6 +114,7 @@ def fix_coherence_issues(
                     "BẮT BUỘC: Viết hoàn toàn bằng tiếng Việt."
                 ),
                 user_prompt=prompts.COHERENCE_FIX.format(
+                    user_story_idea_header=idea_header,
                     chapter_number=ch_num,
                     title=chapter.title,
                     content=chapter.content[:6000],

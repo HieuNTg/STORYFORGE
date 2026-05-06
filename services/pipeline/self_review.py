@@ -46,7 +46,7 @@ Trả về JSON:
   "strengths": ["<điểm mạnh 1>"]
 }}"""
 
-REVISE_PROMPT = """Viết lại chương truyện sau, chỉ sửa các điểm yếu đã chỉ ra.
+REVISE_PROMPT = """{user_story_idea_header}Viết lại chương truyện sau, chỉ sửa các điểm yếu đã chỉ ra.
 GIỮ NGUYÊN cốt truyện, nhân vật, và các điểm mạnh.
 
 Điểm yếu cần sửa:
@@ -61,6 +61,7 @@ Yêu cầu:
 - Khoảng {word_count} từ
 - Viết hoàn toàn bằng tiếng Việt
 - Chỉ cải thiện điểm yếu, KHÔNG thay đổi cốt truyện
+- PHẢI giữ nguyên tên riêng / địa danh / gimmick từ [Ý TƯỞNG GỐC] ở đầu prompt — không Việt hoá, không dịch, không thay thế
 
 Bắt đầu viết lại:"""
 
@@ -103,13 +104,21 @@ class SelfReviewer:
             return {"overall": 5.0, "weaknesses": [], "strengths": []}
 
     def revise(self, content: str, weaknesses: list,
-               word_count: int = 2000) -> str:
-        """Revise chapter based on critique. Returns revised content."""
+               word_count: int = 2000,
+               idea: str = "", idea_summary: str = "") -> str:
+        """Revise chapter based on critique. Returns revised content.
+
+        Idea injection prevents the revision LLM from drifting proper nouns /
+        gimmicks back to genre-default.
+        """
         weakness_text = "\n".join(f"- {w}" for w in weaknesses)
+        from services.text_utils import build_idea_header
+        idea_header = build_idea_header(idea, idea_summary) if idea else ""
         try:
             revised = self.llm.generate(
                 system_prompt="Bạn là nhà văn chuyên nghiệp. Viết lại chương truyện.",
                 user_prompt=REVISE_PROMPT.format(
+                    user_story_idea_header=idea_header,
                     weaknesses=weakness_text,
                     content=content,
                     word_count=word_count,
@@ -127,7 +136,8 @@ class SelfReviewer:
 
     def review_and_revise(self, content: str, chapter_number: int,
                           title: str, genre: str,
-                          word_count: int = 2000) -> tuple[str, dict]:
+                          word_count: int = 2000,
+                          idea: str = "", idea_summary: str = "") -> tuple[str, dict]:
         """Full review+revise cycle. Returns (final_content, review_scores).
 
         The pass/fail threshold is resolved from the genre so action/thriller
@@ -148,5 +158,6 @@ class SelfReviewer:
             f"Ch {chapter_number} below threshold ({scores['overall']:.1f} < "
             f"{effective_threshold:.1f} for genre '{genre}'), revising..."
         )
-        revised = self.revise(content, weaknesses, word_count)
+        revised = self.revise(content, weaknesses, word_count,
+                              idea=idea, idea_summary=idea_summary)
         return revised, scores

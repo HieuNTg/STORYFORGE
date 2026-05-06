@@ -1105,6 +1105,15 @@ class StoryEnhancer:
 
         loop = asyncio.get_running_loop()
 
+        # Idea header for re-enhancement rewrites — preserve proper nouns / gimmicks
+        try:
+            from services.text_utils import build_idea_header
+            _idea = getattr(draft, "original_idea", "") or ""
+            _idea_summary = getattr(draft, "idea_summary_for_chapters", "") or ""
+            _reenhance_idea_header = build_idea_header(_idea, _idea_summary) if _idea else ""
+        except Exception:
+            _reenhance_idea_header = ""
+
         for round_num in range(1, MAX_REENHANCE_ROUNDS + 1):
             weak_analyses = self._find_weak_chapters(enhanced)
             if not weak_analyses:
@@ -1138,6 +1147,7 @@ class StoryEnhancer:
                         weak_text = "\n".join(f"- {wp}" for wp in analysis.get("weak_points", []))
                         strong_text = "\n".join(f"- {sp}" for sp in analysis.get("strong_points", []))
                         rewrite_prompt = prompt_templates.REENHANCE_CHAPTER.format(
+                            user_story_idea_header=_reenhance_idea_header,
                             chapter_content=enhanced.chapters[idx].content[:6000],
                             weak_points=weak_text or "Kịch tính chung còn yếu",
                             strong_points=strong_text or "Không có điểm mạnh nổi bật",
@@ -1242,7 +1252,11 @@ class StoryEnhancer:
                 critical_count = sum(1 for i in issues if i.get("severity") == "critical")
                 _log(f"⚠️ Phát hiện {len(issues)} vấn đề nhất quán ({critical_count} critical)")
                 if critical_count > 0:
-                    fixed = fix_coherence_issues(self.llm, enhanced, issues, word_count)
+                    fixed = fix_coherence_issues(
+                        self.llm, enhanced, issues, word_count,
+                        idea=getattr(draft, "original_idea", "") or "",
+                        idea_summary=getattr(draft, "idea_summary_for_chapters", "") or "",
+                    )
                     _log(f"✅ Đã sửa {fixed} chương có vấn đề critical")
             else:
                 _log("✅ Không phát hiện vấn đề nhất quán")
@@ -1299,7 +1313,7 @@ class StoryEnhancer:
                 from pipeline.layer2_enhance import _envelope_access as _env
                 _draft_threads = _env.threads(draft)
                 _log("📋 Đang kiểm tra hợp đồng chương...")
-                stats = apply_contract_gate(self.llm, enhanced, _draft_threads, enabled=True)
+                stats = apply_contract_gate(self.llm, enhanced, _draft_threads, enabled=True, draft=draft)
                 if stats.get("rewrites", 0) > 0:
                     _log(
                         f"🔧 Contract gate: {stats['rewrites']} chương viết lại "

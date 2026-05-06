@@ -10,6 +10,19 @@ from pipeline.layer1_story.post_processing import process_chapter_post_write
 logger = logging.getLogger(__name__)
 
 
+def _idea_kwargs(draft: StoryDraft) -> dict:
+    """Pull the user's original idea + summary off a draft for chapter writers.
+
+    Without this, continuation/regenerate/insert paths call writers with
+    `idea=""` and the chapter prompt tells the LLM the author provided no
+    idea — causing drift away from user-specified proper nouns and gimmicks.
+    """
+    return {
+        "idea": getattr(draft, "original_idea", "") or "",
+        "idea_summary": getattr(draft, "idea_summary_for_chapters", "") or "",
+    }
+
+
 def renumber_chapters(draft: StoryDraft, from_position: int, delta: int = 1) -> None:
     """Renumber chapters and all references from a position onward.
 
@@ -222,6 +235,7 @@ Trả về JSON: {{"chapter_number": {new_chapter_number}, "title": "...", "summ
             foreshadowing_to_payoff=payoffs,
             pacing_type=pacing,
             enhancement_context=enhancement_context,
+            **_idea_kwargs(draft),
         )
     else:
         chapter = generator._write_chapter_with_long_context(
@@ -234,6 +248,7 @@ Trả về JSON: {{"chapter_number": {new_chapter_number}, "title": "...", "summ
             foreshadowing_to_payoff=payoffs,
             pacing_type=pacing,
             enhancement_context=enhancement_context,
+            **_idea_kwargs(draft),
         )
 
     # Insert chapter and outline at correct positions
@@ -592,6 +607,7 @@ def write_from_outlines(
                     foreshadowing_to_payoff=payoffs,
                     pacing_type=pacing,
                     enhancement_context=enhancement_context,
+                    **_idea_kwargs(draft),
                 )
             else:
                 chapter = generator._write_chapter_with_long_context(
@@ -604,6 +620,7 @@ def write_from_outlines(
                     foreshadowing_to_payoff=payoffs,
                     pacing_type=pacing,
                     enhancement_context=enhancement_context,
+                    **_idea_kwargs(draft),
                 )
             draft.chapters.append(chapter)
             all_chapter_texts.append(chapter.content)
@@ -773,6 +790,7 @@ def regenerate_chapter_impl(
             foreshadowing_to_payoff=payoffs,
             pacing_type=pacing,
             enhancement_context=enhancement_context,
+            **_idea_kwargs(draft),
         )
     else:
         chapter = generator._write_chapter_with_long_context(
@@ -785,6 +803,7 @@ def regenerate_chapter_impl(
             foreshadowing_to_payoff=payoffs,
             pacing_type=pacing,
             enhancement_context=enhancement_context,
+            **_idea_kwargs(draft),
         )
 
     # Replace the chapter in draft

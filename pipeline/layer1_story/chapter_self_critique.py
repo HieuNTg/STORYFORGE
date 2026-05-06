@@ -65,7 +65,7 @@ weak_sections chỉ liệt kê phần thực sự có vấn đề (score < 3), c
 """
 
 REWRITE_WEAK_SECTION = """\
-Bạn là nhà văn chuyên nghiệp. Hãy viết lại một phần yếu của chương truyện.
+{user_story_idea_header}Bạn là nhà văn chuyên nghiệp. Hãy viết lại một phần yếu của chương truyện.
 
 ## Vấn đề cần sửa
 - Vị trí: {location} (phần {location} của chương)
@@ -81,6 +81,7 @@ Viết lại phần {location} của chương để khắc phục vấn đề tr
 - Độ dài tương đương phần gốc
 - Trả về TOÀN BỘ chương đã được chỉnh sửa (không chỉ phần được sửa)
 - Không có chú thích hay giải thích, chỉ trả về nội dung chương
+- PHẢI giữ nguyên tên riêng / địa danh / gimmick từ [Ý TƯỞNG GỐC] ở đầu prompt — không Việt hoá, không dịch, không thay thế
 """
 
 # ---------------------------------------------------------------------------
@@ -136,6 +137,8 @@ def rewrite_weak_sections(
     critique: dict,
     max_rewrites: int = 2,
     model: str | None = None,
+    idea: str = "",
+    idea_summary: str = "",
 ) -> str:
     """Rewrite sections scoring below 2.5, up to max_rewrites (lowest scores first).
 
@@ -143,6 +146,9 @@ def rewrite_weak_sections(
     """
     if not critique or not content:
         return content
+
+    from services.text_utils import build_idea_header
+    idea_header = build_idea_header(idea, idea_summary) if idea else ""
 
     DIMS = ("voice_consistency", "pacing_match", "plot_advancement", "sensory_richness", "cliffhanger_quality")
     scored = []
@@ -174,6 +180,7 @@ def rewrite_weak_sections(
 
         system_prompt = "Bạn là nhà văn chuyên nghiệp. Chỉ trả về nội dung chương, không có gì khác."
         user_prompt = REWRITE_WEAK_SECTION.format(
+            user_story_idea_header=idea_header,
             location=location,
             issue=issue,
             content=current_content,
@@ -201,7 +208,7 @@ def rewrite_weak_sections(
 
 
 REWRITE_FOR_CONSISTENCY = """\
-Bạn là biên tập viên khó tính. Hãy sửa các lỗi nhất quán trong chương sau.
+{user_story_idea_header}Bạn là biên tập viên khó tính. Hãy sửa các lỗi nhất quán trong chương sau.
 
 ## Lỗi phát hiện
 {issues}
@@ -217,6 +224,7 @@ Viết lại chương để sửa HẾT các lỗi trên. Yêu cầu:
 - Điều chỉnh arc position của nhân vật theo tiến trình truyện (nếu được nêu).
 - Độ dài tương đương chương gốc (±10%).
 - Chỉ trả về TOÀN BỘ nội dung chương đã sửa, không chú thích.
+- PHẢI giữ nguyên tên riêng / địa danh / gimmick từ [Ý TƯỞNG GỐC] ở đầu prompt — không Việt hoá, không dịch, không thay thế
 """
 
 
@@ -225,6 +233,8 @@ def rewrite_for_consistency(
     content: str,
     issues: list[str],
     model: str | None = None,
+    idea: str = "",
+    idea_summary: str = "",
 ) -> str:
     """L1-D: Targeted rewrite when consistency validators flag violations above threshold.
 
@@ -235,7 +245,11 @@ def rewrite_for_consistency(
     if not issues or not content:
         return content
 
+    from services.text_utils import build_idea_header
+    idea_header = build_idea_header(idea, idea_summary) if idea else ""
+
     user_prompt = REWRITE_FOR_CONSISTENCY.format(
+        user_story_idea_header=idea_header,
         issues="\n".join(f"- {s}" for s in issues),
         content=content,
     )
@@ -258,7 +272,7 @@ def rewrite_for_consistency(
 
 
 REWRITE_FOR_PAYOFF = """\
-Bạn là nhà văn chuyên nghiệp. Hãy viết lại chương truyện để THỰC HIỆN các foreshadowing sau đây.
+{user_story_idea_header}Bạn là nhà văn chuyên nghiệp. Hãy viết lại chương truyện để THỰC HIỆN các foreshadowing sau đây.
 
 ## Foreshadowing bắt buộc phải được trả (payoff) trong chương này
 {payoffs_list}
@@ -273,6 +287,7 @@ Viết lại chương để thực hiện các payoff trên một cách tự nhi
 - Không biến payoff thành lời thoại dư thừa — phải gắn với hành động/tình tiết.
 - Độ dài tương đương chương gốc (±15%).
 - Chỉ trả về TOÀN BỘ nội dung chương đã viết lại, không chú thích hay giải thích.
+- PHẢI giữ nguyên tên riêng / địa danh / gimmick từ [Ý TƯỞNG GỐC] ở đầu prompt — không Việt hoá, không dịch, không thay thế
 """
 
 
@@ -281,6 +296,8 @@ def rewrite_for_missing_payoffs(
     content: str,
     missing_payoffs: list,
     model: str | None = None,
+    idea: str = "",
+    idea_summary: str = "",
 ) -> str:
     """Targeted rewrite when foreshadowing payoffs were due but not detected.
 
@@ -290,11 +307,18 @@ def rewrite_for_missing_payoffs(
     if not missing_payoffs or not content:
         return content
 
+    from services.text_utils import build_idea_header
+    idea_header = build_idea_header(idea, idea_summary) if idea else ""
+
     payoffs_list = "\n".join(
         f"- '{p.get('hint', '')}' (gieo ở ch.{p.get('plant_chapter', '?')})"
         for p in missing_payoffs
     )
-    user_prompt = REWRITE_FOR_PAYOFF.format(payoffs_list=payoffs_list, content=content)
+    user_prompt = REWRITE_FOR_PAYOFF.format(
+        user_story_idea_header=idea_header,
+        payoffs_list=payoffs_list,
+        content=content,
+    )
 
     try:
         rewritten = llm.generate(

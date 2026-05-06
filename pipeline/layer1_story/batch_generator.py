@@ -69,6 +69,7 @@ def _rewrite_for_consistency_violations(
     story_context: StoryContext,
     layer_model: str | None,
     progress_callback: Callable | None = None,
+    draft=None,
 ) -> None:
     """L1-D: Rewrite chapter when consistency validators flagged violations above threshold.
 
@@ -108,7 +109,12 @@ def _rewrite_for_consistency_violations(
             progress_callback(
                 f"Ch{outline.chapter_number}: viết lại để sửa {len(issues)} lỗi nhất quán..."
             )
-        revised = rewrite_for_consistency(llm, chapter.content, issues, model=layer_model)
+        _idea = getattr(draft, "original_idea", "") or "" if draft is not None else ""
+        _idea_sum = getattr(draft, "idea_summary_for_chapters", "") or "" if draft is not None else ""
+        revised = rewrite_for_consistency(
+            llm, chapter.content, issues, model=layer_model,
+            idea=_idea, idea_summary=_idea_sum,
+        )
         if not revised or revised == chapter.content:
             return
         chapter.content = revised
@@ -137,6 +143,7 @@ def _enforce_pacing(
     outline: ChapterOutline,
     layer_model: str | None,
     progress_callback: Callable | None = None,
+    draft=None,
 ) -> None:
     """L1-F: Classify chapter pacing; if confident mismatch, rewrite.
 
@@ -172,10 +179,13 @@ def _enforce_pacing(
             progress_callback(
                 f"Ch{outline.chapter_number}: viết lại cho khớp nhịp '{target}'..."
             )
+        _idea = getattr(draft, "original_idea", "") or "" if draft is not None else ""
+        _idea_sum = getattr(draft, "idea_summary_for_chapters", "") or "" if draft is not None else ""
         revised = rewrite_for_pacing(
             llm, chapter.content, target,
             verdict.get("detected", ""), verdict.get("reason", ""),
             model=layer_model,
+            idea=_idea, idea_summary=_idea_sum,
         )
         if revised and revised != chapter.content:
             chapter.content = revised
@@ -198,6 +208,7 @@ def _verify_and_rewrite_missing_payoffs(
     foreshadowing_plan: list | None,
     layer_model: str | None,
     progress_callback: Callable | None = None,
+    draft=None,
 ) -> None:
     """L1-E: Targeted rewrite when post_processing flagged missing payoffs.
 
@@ -220,8 +231,11 @@ def _verify_and_rewrite_missing_payoffs(
             progress_callback(
                 f"Ch{outline.chapter_number}: viết lại để thực hiện {len(missing)} payoff..."
             )
+        _idea = getattr(draft, "original_idea", "") or "" if draft is not None else ""
+        _idea_sum = getattr(draft, "idea_summary_for_chapters", "") or "" if draft is not None else ""
         revised = rewrite_for_missing_payoffs(
             llm, chapter.content, missing, model=layer_model,
+            idea=_idea, idea_summary=_idea_sum,
         )
         if not revised or revised == chapter.content:
             return
@@ -790,6 +804,8 @@ class BatchChapterGenerator:
                         self.llm, scene_beats_list, beat_context,
                         title, genre, style, word_count,
                         model=self.gen._layer_model,
+                        idea=idea,
+                        idea_summary=idea_summary,
                     )
                     from models.schemas import count_words
                     chapter = Chapter(
@@ -893,6 +909,8 @@ class BatchChapterGenerator:
                             revised = rewrite_weak_sections(
                                 self.llm, chapter.content, crit,
                                 model=self.gen._layer_model,
+                                idea=getattr(draft, "original_idea", "") or "",
+                                idea_summary=getattr(draft, "idea_summary_for_chapters", "") or "",
                             )
                             if revised != original_content:
                                 from models.schemas import count_words
@@ -949,16 +967,19 @@ class BatchChapterGenerator:
                 self.config.pipeline, self.llm, chapter, outline,
                 story_context, foreshadowing_plan,
                 self.gen._layer_model, progress_callback,
+                draft=draft,
             )
 
             _rewrite_for_consistency_violations(
                 self.config.pipeline, self.llm, chapter, outline,
                 story_context, self.gen._layer_model, progress_callback,
+                draft=draft,
             )
 
             _enforce_pacing(
                 self.config.pipeline, self.llm, chapter, outline,
                 self.gen._layer_model, progress_callback,
+                draft=draft,
             )
 
             # Post-write contract validation with retry (#2 improvement)
@@ -1269,16 +1290,19 @@ class BatchChapterGenerator:
                 self.config.pipeline, self.llm, chapter, outline,
                 story_context, foreshadowing_plan,
                 self.gen._layer_model, progress_callback,
+                draft=draft,
             )
 
             _rewrite_for_consistency_violations(
                 self.config.pipeline, self.llm, chapter, outline,
                 story_context, self.gen._layer_model, progress_callback,
+                draft=draft,
             )
 
             _enforce_pacing(
                 self.config.pipeline, self.llm, chapter, outline,
                 self.gen._layer_model, progress_callback,
+                draft=draft,
             )
 
         return chapters_ordered
@@ -1752,16 +1776,19 @@ class BatchChapterGenerator:
                 self.config.pipeline, self.llm, chapter, outline,
                 story_context, foreshadowing_plan,
                 self.gen._layer_model, progress_callback,
+                draft=draft,
             )
 
             _rewrite_for_consistency_violations(
                 self.config.pipeline, self.llm, chapter, outline,
                 story_context, self.gen._layer_model, progress_callback,
+                draft=draft,
             )
 
             _enforce_pacing(
                 self.config.pipeline, self.llm, chapter, outline,
                 self.gen._layer_model, progress_callback,
+                draft=draft,
             )
 
         return chapters_ordered

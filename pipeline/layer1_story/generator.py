@@ -86,7 +86,8 @@ class StoryGenerator:
                              foreshadowing_to_plant=None, foreshadowing_to_payoff=None,
                              pacing_type="", enhancement_context="",
                              current_arc_context="", chapter_contract="",
-                             scenes=None, negotiated_contract=None) -> Chapter:
+                             scenes=None, negotiated_contract=None,
+                             idea: str = "", idea_summary: str = "") -> Chapter:
         rag_kb = _get_rag_kb(self.config.pipeline.rag_persist_dir) if self.config.pipeline.rag_enabled else None
         return write_chapter_stream(self.llm, self.config, title, genre, style, characters, world, outline,
                                     word_count, context, stream_callback, rag_kb=rag_kb, model=self._layer_model,
@@ -97,7 +98,9 @@ class StoryGenerator:
                                     current_arc_context=current_arc_context,
                                     chapter_contract=chapter_contract,
                                     scenes=scenes,
-                                    negotiated_contract=negotiated_contract)
+                                    negotiated_contract=negotiated_contract,
+                                    idea=idea,
+                                    idea_summary=idea_summary)
 
     def extract_character_states(self, content, characters):
         return extract_character_states(self.llm, content, characters)

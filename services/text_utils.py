@@ -2,6 +2,37 @@
 
 import re as _re
 
+
+def build_idea_block(idea: str, idea_summary: str = "") -> str:
+    """Build the [Ý TƯỞNG GỐC] payload inserted into chapter/beat/scene prompts.
+
+    Verbatim if idea ≤3000 chars; head 2000 + tail 500 + summary otherwise.
+    Empty idea returns the explicit "no idea provided" placeholder.
+    Shared by L1 (chapter_writer) and L2 (scene_enhancer) so prompt format stays identical.
+    """
+    if not idea:
+        return "(Tác giả không cung cấp ý tưởng cụ thể.)"
+    if len(idea) <= 3000:
+        return idea
+    head = idea[:2000]
+    tail = idea[-500:]
+    summary = idea_summary or "(Tóm tắt không khả dụng — chỉ dùng đầu+cuối)"
+    return (
+        f"[ĐOẠN ĐẦU NGUYÊN VĂN]\n{head}\n\n"
+        f"[ĐOẠN CUỐI NGUYÊN VĂN]\n{tail}\n\n"
+        f"[TÓM TẮT GIỮ TÊN RIÊNG]\n{summary}"
+    )
+
+
+def build_idea_header(idea: str, idea_summary: str = "") -> str:
+    """Wrap build_idea_block with the [Ý TƯỞNG GỐC] header/footer used at prompt top."""
+    block = build_idea_block(idea, idea_summary)
+    return (
+        "[Ý TƯỞNG GỐC CỦA TÁC GIẢ — TUYỆT ĐỐI KHÔNG ĐƯỢC LỆCH]\n"
+        f"{block}\n"
+        "[KẾT THÚC Ý TƯỞNG GỐC]\n\n"
+    )
+
 try:
     import nh3 as _nh3
     _HAS_NH3 = True

@@ -12,7 +12,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 from models.schemas import Chapter, SimulationResult, count_words
 from services.llm_client import LLMClient
-from services.text_utils import strip_llm_scaffolding
+from services.text_utils import strip_llm_scaffolding, build_idea_header
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +181,7 @@ Trả về JSON:
   "strong_points": ["điểm mạnh cụ thể"]
 }}"""
 
-ENHANCE_SCENE = """Viết lại cảnh sau để tăng kịch tính. Giữ nguyên nhân vật và sự kiện chính.
+ENHANCE_SCENE = """{user_story_idea_header}Viết lại cảnh sau để tăng kịch tính. Giữ nguyên nhân vật và sự kiện chính.
 
 THỂ LOẠI: {genre}
 ĐIỂM YẾU CẦN SỬA: {weak_points}
@@ -205,6 +205,7 @@ NỘI DUNG GỐC:
 
 Yêu cầu: thêm căng thẳng, đối thoại sắc bén có chiều sâu tâm lý, cảm xúc mạnh hơn.
 KHÔNG mâu thuẫn với dữ kiện L1 hoặc vượt quá vị trí arc hiện tại.
+PHẢI giữ nguyên tên riêng / địa danh / gimmick từ [Ý TƯỞNG GỐC] ở đầu prompt — không Việt hoá, không dịch, không thay thế.
 Viết hoàn toàn bằng tiếng Việt."""
 
 
@@ -347,6 +348,7 @@ class SceneEnhancer:
         arc_context: str = "Không có",
         consistency_constraints: str = "",
         curve_directive: str = "",
+        user_story_idea_header: str = "",
     ) -> Chapter:
         """Nâng cấp cảnh yếu với parallel processing và retry (#1, #2 improvements)."""
         score_map = {s.scene_number: s for s in scores}
@@ -382,6 +384,7 @@ class SceneEnhancer:
             "arc_context": arc_context or "Không có",
             "consistency_constraints": consistency_constraints or "",
             "curve_directive": curve_directive,
+            "user_story_idea_header": user_story_idea_header or "",
         }
 
         # Choose parallel or sequential based on config
@@ -500,6 +503,7 @@ class SceneEnhancer:
                         "dấu '***' hay bất kỳ siêu dữ liệu nào."
                     ),
                     user_prompt=ENHANCE_SCENE.format(
+                        user_story_idea_header=context.get("user_story_idea_header", ""),
                         genre=context["genre"],
                         weak_points=weak_text,
                         events=context["events"],
@@ -645,6 +649,15 @@ class SceneEnhancer:
             logger.info(f"Chapter {chapter.chapter_number}: all scenes strong, skipping")
             return chapter
 
+        # Pull author's original idea from draft so L2 enhancement preserves
+        # proper nouns / gimmicks instead of pulling story toward genre average.
+        _idea_header = ""
+        if draft is not None:
+            _idea = getattr(draft, "original_idea", "") or ""
+            _idea_summary = getattr(draft, "idea_summary_for_chapters", "") or ""
+            if _idea:
+                _idea_header = build_idea_header(_idea, _idea_summary)
+
         return self.enhance_weak_scenes(
             chapter, scenes, scores, sim_result, genre,
             subtext_guidance=subtext_guidance,
@@ -654,6 +667,7 @@ class SceneEnhancer:
             arc_context=arc_text,
             consistency_constraints=consistency_constraints,
             curve_directive=curve_directive,
+            user_story_idea_header=_idea_header,
         )
 
     @staticmethod
