@@ -467,7 +467,6 @@
 
     /* ── Search input (Library) ── */
     .sf-search {
-      width: 100%;
       padding: 9px 12px 9px 38px;
       border: 1px solid #E2E8F0;
       border-radius: 10px;
@@ -476,6 +475,7 @@
       color: #0F172A;
       transition: all 0.15s ease;
     }
+    select.sf-search { padding: 9px 32px 9px 12px; }
     .sf-search:focus { outline: none; border-color: #3B82F6; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
     .dark .sf-search { background: var(--dm-surface); border-color: var(--dm-border); color: var(--dm-text); }
   </style>
@@ -2102,7 +2102,7 @@
               <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
               <input type="text" x-model="searchQuery" class="sf-search w-full" placeholder="Tìm theo tiêu đề, thể loại...">
             </div>
-            <select x-model="qualityFilter" class="sf-search px-3 text-xs flex-shrink-0" title="Lọc theo trạng thái chấm điểm">
+            <select x-model="qualityFilter" class="sf-search text-xs flex-shrink-0 w-36" title="Lọc theo trạng thái chấm điểm">
               <option value="all">Tất cả</option>
               <option value="scored">Đã chấm</option>
               <option value="unscored">Chưa chấm</option>

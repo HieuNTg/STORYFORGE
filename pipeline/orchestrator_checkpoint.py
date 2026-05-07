@@ -193,6 +193,8 @@ class CheckpointManager:
             return []
         checkpoints = []
         for f in sorted(os.listdir(CHECKPOINT_DIR), reverse=True):
+            if f.endswith(".usage.json"):
+                continue  # sidecar telemetry, not a story checkpoint
             if f.endswith(".json"):
                 path = os.path.join(CHECKPOINT_DIR, f)
                 stat = os.stat(path)
