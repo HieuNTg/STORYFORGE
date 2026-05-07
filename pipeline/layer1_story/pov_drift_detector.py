@@ -71,6 +71,11 @@ Xác định:
         model_tier="cheap",
     )
 
+    if isinstance(result, list):
+        result = next((x for x in result if isinstance(x, dict)), {})
+    if not isinstance(result, dict):
+        result = {}
+
     return {
         "character": result.get("character", ""),
         "pov_type": result.get("pov_type", "unknown"),

@@ -353,6 +353,8 @@ class ExtractionHealth(BaseModel):
 
 class StoryContext(BaseModel):
     """Rolling context cho việc viết chương."""
+    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
+
     recent_summaries: list[str] = Field(default_factory=list)
     character_states: list[CharacterState] = Field(default_factory=list)
     plot_events: list[PlotEvent] = Field(default_factory=list)
