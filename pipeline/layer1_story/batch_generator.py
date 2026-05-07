@@ -270,6 +270,76 @@ def _verify_and_rewrite_missing_payoffs(
         )
 
 
+def finalize_chapter(
+    *,
+    pipeline_config,
+    llm,
+    chapter: Chapter,
+    outline: ChapterOutline,
+    story_context: StoryContext,
+    characters: list,
+    context_window: int,
+    executor,
+    draft,
+    bible_manager,
+    progress_callback: Callable | None,
+    genre: str,
+    word_count: int,
+    enable_self_review: bool,
+    self_reviewer,
+    open_threads: list,
+    foreshadowing_plan: list | None,
+    layer_model: str | None,
+) -> None:
+    """P1-6 ChapterFinalizer: run the post-write 4-call sequence in one place.
+
+    Consolidates the previously duplicated block in three call sites
+    (sync executor path, async gather path, and serial fallback path) so
+    behavioural drift across paths is no longer possible.
+
+    Steps (in order, all in-place mutations on `chapter`/`story_context`):
+      1. process_chapter_post_write — extracts, summaries, RAG, etc.
+      2. verify-and-rewrite missing foreshadowing payoffs
+      3. consistency-violation rewrite
+      4. pacing enforcement rewrite
+
+    Not safe for concurrent invocation against a shared `story_context`:
+    the 4 inner steps mutate context state in order and read each other's
+    output (e.g., consistency rewrite reads plot_events written by step 1).
+    Call sequentially per chapter.
+    """
+    process_chapter_post_write(
+        chapter, outline, story_context, characters, context_window,
+        executor, llm, draft, bible_manager,
+        progress_callback, genre, word_count,
+        enable_self_review, self_reviewer,
+        open_threads=open_threads,
+        foreshadowing_plan=foreshadowing_plan,
+        world_rules=getattr(draft.world, 'rules', None) or [],
+        voice_profiles=getattr(draft, 'voice_profiles', None) or [],
+        pipeline_config=pipeline_config,
+    )
+
+    _verify_and_rewrite_missing_payoffs(
+        pipeline_config, llm, chapter, outline,
+        story_context, foreshadowing_plan,
+        layer_model, progress_callback,
+        draft=draft,
+    )
+
+    _rewrite_for_consistency_violations(
+        pipeline_config, llm, chapter, outline,
+        story_context, layer_model, progress_callback,
+        draft=draft,
+    )
+
+    _enforce_pacing(
+        pipeline_config, llm, chapter, outline,
+        layer_model, progress_callback,
+        draft=draft,
+    )
+
+
 def _index_chapter_into_rag(
     config,
     chapter: Chapter,
@@ -409,7 +479,11 @@ class BatchChapterGenerator:
         if resume_from_batch > 0:
             _log(f"[BATCH] Resuming from batch {resume_from_batch + 1}")
 
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        # P2: scale executor with batch size — each chapter spawns multiple
+        # blocking helper calls (extraction/summary/rewrite); fixed cap of 3
+        # was a serial bottleneck for batch_size >= 3.
+        _max_workers = max(3, int(getattr(self, "batch_size", 3) or 3) * 3)
+        with ThreadPoolExecutor(max_workers=_max_workers) as executor:
             for batch_idx, batch in enumerate(batches):
                 if batch_idx < resume_from_batch:
                     continue
@@ -951,35 +1025,25 @@ class BatchChapterGenerator:
                 except Exception as e:
                     logger.warning("Chapter self-critique failed for ch%d (non-fatal): %s", outline.chapter_number, e)
 
-            process_chapter_post_write(
-                chapter, outline, story_context, characters, context_window,
-                executor, self.llm, draft, self.gen.bible_manager,
-                progress_callback, genre, word_count,
-                self.config.pipeline.enable_self_review, self_reviewer,
+            finalize_chapter(
+                pipeline_config=self.config.pipeline,
+                llm=self.llm,
+                chapter=chapter,
+                outline=outline,
+                story_context=story_context,
+                characters=characters,
+                context_window=context_window,
+                executor=executor,
+                draft=draft,
+                bible_manager=self.gen.bible_manager,
+                progress_callback=progress_callback,
+                genre=genre,
+                word_count=word_count,
+                enable_self_review=self.config.pipeline.enable_self_review,
+                self_reviewer=self_reviewer,
                 open_threads=list(story_context.open_threads),
                 foreshadowing_plan=foreshadowing_plan,
-                world_rules=getattr(draft.world, 'rules', None) or [],
-                voice_profiles=getattr(draft, 'voice_profiles', None) or [],
-                pipeline_config=self.config.pipeline,
-            )
-
-            _verify_and_rewrite_missing_payoffs(
-                self.config.pipeline, self.llm, chapter, outline,
-                story_context, foreshadowing_plan,
-                self.gen._layer_model, progress_callback,
-                draft=draft,
-            )
-
-            _rewrite_for_consistency_violations(
-                self.config.pipeline, self.llm, chapter, outline,
-                story_context, self.gen._layer_model, progress_callback,
-                draft=draft,
-            )
-
-            _enforce_pacing(
-                self.config.pipeline, self.llm, chapter, outline,
-                self.gen._layer_model, progress_callback,
-                draft=draft,
+                layer_model=self.gen._layer_model,
             )
 
             # Post-write contract validation with retry (#2 improvement)
@@ -1196,15 +1260,32 @@ class BatchChapterGenerator:
         causal_acc = CausalAccumulator() if self.causal_sync else None
 
         async def _write_one_async(outline: ChapterOutline) -> tuple[Chapter, dict | None]:
-            """Write single chapter in thread pool, return chapter + contract for retry."""
-            return await asyncio.to_thread(
-                self._write_chapter_parallel,
-                outline, frozen, draft, story_context, frozen_threads,
-                sibling_summaries, shared_enhancement, title, genre, style,
-                characters, world, word_count, macro_arcs, conflict_web,
-                foreshadowing_plan, progress_callback, causal_acc,
-                idea, idea_summary,
-            )
+            """Write single chapter in thread pool, return chapter + contract for retry.
+
+            P0-8: Each coroutine runs inside its own copy_context() so set_chapter/
+            set_module mutations inside the threaded worker cannot leak across
+            sibling tasks within asyncio.gather().
+            """
+            import contextvars
+            from services.trace_context import set_chapter, set_module
+
+            ctx = contextvars.copy_context()
+
+            def _runner():
+                # Pin chapter+module on this isolated context BEFORE the threaded
+                # write so all LLM calls record under the correct chapter even if
+                # the worker forgets to set them.
+                set_chapter(outline.chapter_number)
+                set_module("chapter_writer")
+                return self._write_chapter_parallel(
+                    outline, frozen, draft, story_context, frozen_threads,
+                    sibling_summaries, shared_enhancement, title, genre, style,
+                    characters, world, word_count, macro_arcs, conflict_web,
+                    foreshadowing_plan, progress_callback, causal_acc,
+                    idea, idea_summary,
+                )
+
+            return await asyncio.to_thread(ctx.run, _runner)
 
         # Execute all chapters concurrently
         if progress_callback:
@@ -1270,39 +1351,46 @@ class BatchChapterGenerator:
                 f"[BATCH] {len(chapters_ordered)} chương viết xong, đang trích xuất context..."
             )
 
-        # Post-processing (sequential for consistency)
-        for outline, chapter in zip(
+        # Post-processing — P1-2: parallelize across chapters via asyncio.gather.
+        # Each chapter's 4-call pipeline runs sequentially within its coroutine,
+        # but coroutines run concurrently. A threading.RLock on story_context
+        # serializes the shared-state mutations done inside the post-write
+        # functions (recent_summaries, character_states, plot_events,
+        # foreshadowing_payoff_missing, consistency flags).
+        sorted_pairs = list(zip(
             sorted(batch, key=lambda o: o.chapter_number), chapters_ordered
-        ):
-            all_chapter_texts.append(chapter.content)
-            process_chapter_post_write(
-                chapter, outline, story_context, characters, context_window,
-                executor, self.llm, draft, self.gen.bible_manager,
-                progress_callback, genre, word_count,
-                self.config.pipeline.enable_self_review, self_reviewer,
+        ))
+        # Append chapter texts up-front (order-preserving) so siblings see them.
+        for _, ch in sorted_pairs:
+            all_chapter_texts.append(ch.content)
+
+        # Post-write must be serial: finalize_chapter does in-order in-place
+        # mutations to shared story_context (recent_summaries, character_states,
+        # plot_events, foreshadowing_payoff_missing) that later steps in the same
+        # call read. A previous version of this code wrapped finalize_chapter in
+        # an RLock and called it via asyncio.gather → fully serialized anyway,
+        # plus added thread-pool overhead. Run-as-loop is the honest version.
+        for outline, chapter in sorted_pairs:
+            await asyncio.to_thread(
+                finalize_chapter,
+                pipeline_config=self.config.pipeline,
+                llm=self.llm,
+                chapter=chapter,
+                outline=outline,
+                story_context=story_context,
+                characters=characters,
+                context_window=context_window,
+                executor=executor,
+                draft=draft,
+                bible_manager=self.gen.bible_manager,
+                progress_callback=progress_callback,
+                genre=genre,
+                word_count=word_count,
+                enable_self_review=self.config.pipeline.enable_self_review,
+                self_reviewer=self_reviewer,
                 open_threads=frozen_threads,
                 foreshadowing_plan=foreshadowing_plan,
-                world_rules=getattr(draft.world, 'rules', None) or [],
-                voice_profiles=getattr(draft, 'voice_profiles', None) or [],
-                pipeline_config=self.config.pipeline,
-            )
-            _verify_and_rewrite_missing_payoffs(
-                self.config.pipeline, self.llm, chapter, outline,
-                story_context, foreshadowing_plan,
-                self.gen._layer_model, progress_callback,
-                draft=draft,
-            )
-
-            _rewrite_for_consistency_violations(
-                self.config.pipeline, self.llm, chapter, outline,
-                story_context, self.gen._layer_model, progress_callback,
-                draft=draft,
-            )
-
-            _enforce_pacing(
-                self.config.pipeline, self.llm, chapter, outline,
-                self.gen._layer_model, progress_callback,
-                draft=draft,
+                layer_model=self.gen._layer_model,
             )
 
         return chapters_ordered
@@ -1761,34 +1849,25 @@ class BatchChapterGenerator:
             sorted(batch, key=lambda o: o.chapter_number), chapters_ordered
         ):
             all_chapter_texts.append(chapter.content)
-            process_chapter_post_write(
-                chapter, outline, story_context, characters, context_window,
-                executor, self.llm, draft, self.gen.bible_manager,
-                progress_callback, genre, word_count,
-                self.config.pipeline.enable_self_review, self_reviewer,
+            finalize_chapter(
+                pipeline_config=self.config.pipeline,
+                llm=self.llm,
+                chapter=chapter,
+                outline=outline,
+                story_context=story_context,
+                characters=characters,
+                context_window=context_window,
+                executor=executor,
+                draft=draft,
+                bible_manager=self.gen.bible_manager,
+                progress_callback=progress_callback,
+                genre=genre,
+                word_count=word_count,
+                enable_self_review=self.config.pipeline.enable_self_review,
+                self_reviewer=self_reviewer,
                 open_threads=frozen_threads,
                 foreshadowing_plan=foreshadowing_plan,
-                world_rules=getattr(draft.world, 'rules', None) or [],
-                voice_profiles=getattr(draft, 'voice_profiles', None) or [],
-                pipeline_config=self.config.pipeline,
-            )
-            _verify_and_rewrite_missing_payoffs(
-                self.config.pipeline, self.llm, chapter, outline,
-                story_context, foreshadowing_plan,
-                self.gen._layer_model, progress_callback,
-                draft=draft,
-            )
-
-            _rewrite_for_consistency_violations(
-                self.config.pipeline, self.llm, chapter, outline,
-                story_context, self.gen._layer_model, progress_callback,
-                draft=draft,
-            )
-
-            _enforce_pacing(
-                self.config.pipeline, self.llm, chapter, outline,
-                self.gen._layer_model, progress_callback,
-                draft=draft,
+                layer_model=self.gen._layer_model,
             )
 
         return chapters_ordered

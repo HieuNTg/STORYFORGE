@@ -373,6 +373,7 @@ class StoryContext(BaseModel):
     world_rule_violations: list[str] = Field(default_factory=list, description="Vi phạm quy tắc thế giới phát hiện trong chương")
     dialogue_voice_warnings: list[str] = Field(default_factory=list, description="Cảnh báo giọng nói nhân vật không nhất quán")
     pacing_adjustment: str = Field(default="", description="Pacing correction directive for next chapter")
+    emotional_whiplash_warning: str = Field(default="", description="Emotional whiplash warning for next chapter prompt")
     arc_execution_warnings: list[str] = Field(default_factory=list, description="Cảnh báo arc waypoint không được thực hiện trong chương")
     # L1-C: Per-character arc progression cache (chapter-by-chapter history)
     arc_progression_cache: dict[str, list[dict]] = Field(
@@ -525,7 +526,7 @@ class AgentPost(BaseModel):
     agent_name: str
     content: str
     action_type: str = Field(description="post/comment/reaction/confrontation")
-    target: str = ""
+    target: Optional[str] = None
     sentiment: str = ""
     round_number: int = 0
     importance_score: float = Field(default=0.5, ge=0, le=1, description="Điểm quan trọng để lọc bộ nhớ agent thông minh")

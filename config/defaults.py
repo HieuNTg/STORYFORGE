@@ -62,6 +62,12 @@ class LLMConfig:
     # Chain-level retry when all providers fail (rate-limit storms, outages)
     chain_retry_max: int = 2  # Max times to retry entire fallback chain
     chain_retry_base_delay: float = 30.0  # Initial delay (seconds) before chain retry
+    # Global LLM budget wallet — abort runs that exceed the cap (P0-7).
+    # 0.0 disables the cap. Counts cost across all providers/fallbacks within a single pipeline run.
+    max_cost_per_run_usd: float = 0.0
+    max_total_tokens_per_run: int = 0
+    max_calls_per_run: int = 0
+
     # Per-layer model routing (optional, falls back to primary model)
     # Each layer can use a different provider/model combination
     layer1_model: str = ""  # Story generation

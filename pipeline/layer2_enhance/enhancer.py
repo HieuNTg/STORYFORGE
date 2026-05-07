@@ -134,6 +134,19 @@ Trả về JSON: {{"issues": ["issue1", "issue2"]}} hoặc {{"issues": []}} nế
         return ""
 
 
+def _build_voice_engine(draft):
+    """Build VoiceFingerprintEngine from draft. Returns None on failure (non-fatal)."""
+    if draft is None:
+        return None
+    try:
+        from pipeline.layer2_enhance.voice_fingerprint import VoiceFingerprintEngine
+        engine = VoiceFingerprintEngine()
+        engine.build_from_draft(draft)
+        return engine
+    except Exception:
+        return None
+
+
 def _build_knowledge_constraints(sim_result, draft) -> str:
     """L2-B: Build knowledge constraints from sim_result.knowledge_state.
 
@@ -311,7 +324,7 @@ class StoryEnhancer:
                 except Exception as _e:
                     logger.debug(f"Thematic guidance failed (non-fatal): {_e}")
 
-            scene_enhancer = SceneEnhancer()
+            scene_enhancer = SceneEnhancer(voice_engine=_build_voice_engine(draft))
             _signals_on = True
             try:
                 _signals_on = bool(getattr(ConfigManager().load().pipeline, "l2_use_l1_signals", True))
@@ -470,7 +483,7 @@ class StoryEnhancer:
                 hint = build_retry_hint(validation)
                 logger.info("[CONTRACT] ch%d retry with hint: %s", ch_num, hint.replace("\n", " | "))
                 try:
-                    scene_enhancer = SceneEnhancer()
+                    scene_enhancer = SceneEnhancer(voice_engine=_build_voice_engine(draft))
                     injected_guidance = (subtext_guidance or "") + "\n\n[RETRY HINT]\n" + hint
                     retried = scene_enhancer.enhance_chapter_by_scenes(
                         original, sim_result, genre, draft,
@@ -561,7 +574,7 @@ class StoryEnhancer:
                 hint = build_voice_retry_hint(validation)
                 logger.info("[VOICE] ch%d refine with hint: %s", ch_num, hint.replace("\n", " | "))
                 try:
-                    scene_enhancer = SceneEnhancer()
+                    scene_enhancer = SceneEnhancer(voice_engine=_build_voice_engine(draft))
                     injected = (subtext_guidance or "") + "\n\n[VOICE HINT]\n" + hint
                     refined = scene_enhancer.enhance_chapter_by_scenes(
                         original, sim_result, genre, draft,
@@ -758,7 +771,7 @@ class StoryEnhancer:
                 _log("📈 Analyzing drama curve...")
 
                 # Score all chapters to build curve
-                scene_enhancer = SceneEnhancer()
+                scene_enhancer = SceneEnhancer(voice_engine=_build_voice_engine(draft))
                 chapter_scores: dict[int, float] = {}
                 for ch in enhanced.chapters:
                     try:
@@ -886,8 +899,6 @@ class StoryEnhancer:
                         orig_ch.content or "",
                         enh_ch.content or "",
                         characters,
-                        drift_threshold=0.4,
-                        revert_threshold=0.3,
                     )
                     if vp_result.reverted_count > 0:
                         enh_ch.content = preserved_content

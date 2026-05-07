@@ -75,7 +75,9 @@ class PipelineOrchestrator:
 
     CHECKPOINT_DIR = CHECKPOINT_DIR
 
-    # In-memory fallback when Redis unavailable (class-level, shared across instances)
+    # P2: per-instance memory store — class-level was shared across orchestrators
+    # (cross-session leakage). Defaults preserved for legacy tests that read the
+    # class attribute directly; instance overrides them in __init__.
     _memory_store: dict[str, str] = {}
     _memory_store_lock = threading.Lock()
     _MEMORY_STORE_MAX = 100
@@ -88,6 +90,10 @@ class PipelineOrchestrator:
         self.enhancer = StoryEnhancer()
         self._lock = threading.RLock()
         self.session_id = session_id or str(uuid.uuid4())
+        # P2: per-instance fallback store + lock so concurrent sessions cannot
+        # see each other's keys when Redis is unavailable.
+        self._memory_store = {}
+        self._memory_store_lock = threading.Lock()
 
         self._redis = None
         try:

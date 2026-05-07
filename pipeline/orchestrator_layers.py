@@ -10,6 +10,7 @@ import logging
 import os as _os
 import threading as _threading
 import time
+import uuid
 from typing import TYPE_CHECKING
 
 from models.schemas import EnhancedStory, PipelineOutput, StoryDraft
@@ -281,6 +282,9 @@ async def _run_structural_rewrites(
     sem = asyncio.Semaphore(max(1, getattr(self.config.pipeline, "chapter_batch_size", 5)))
 
     async def _one(ch_num, issues):
+        assert ch_num not in self.enhancer._rewritten_chapters, (
+            f"chapter {ch_num} already in _rewritten_chapters — duplicate rewrite prevented"
+        )
         _fix_hints = "\n".join(f"- {i.fix_hint}" for i in issues)
         _issue_summary = "; ".join(i.description for i in issues)
         log_fn(f"[STRUCTURAL] Viết lại chương {ch_num}: {_issue_summary}")
@@ -401,6 +405,14 @@ async def run_full_pipeline(
     draft = None
     enhanced = None
     pipeline_start = time.time()
+
+    # P0-8: bind ambient run_id + reset wallet for this run.
+    # current_run_id is a contextvar — child tasks (asyncio.gather, to_thread)
+    # inherit the current value automatically.
+    from services.llm.client import LLMClient, current_run_id as _current_run_id
+    _run_id = getattr(self, "session_id", "") or uuid.uuid4().hex[:8]
+    _current_run_id.set(_run_id)
+    LLMClient.reset_wallet(_run_id)
 
     # Trace instrumentation (Sprint 1 Task 2)
     trace = PipelineTrace(
@@ -730,7 +742,7 @@ async def run_full_pipeline(
 
                 # Apply max_rewrites cap: keep only the first N chapter entries.
                 _capped_issues = dict(
-                    list(sorted(issues_by_chapter.items()))[: _max_rewrites * len(draft.chapters)]
+                    list(sorted(issues_by_chapter.items()))[: min(_max_rewrites, len(issues_by_chapter))]
                 )
 
                 # Pipeline stats counters (P6 observability)

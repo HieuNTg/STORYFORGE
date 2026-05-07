@@ -38,9 +38,31 @@ class BaseAgent(ABC):
         """
         pass
 
-    def debate_response(self, story_draft, layer, own_review, all_reviews):
-        """React to other agents' reviews. Default: no challenges."""
+    def debate_response(self, story_draft, layer, own_review, all_reviews, round2_entries=None):
+        """React to other agents' reviews. Default: no challenges.
+
+        P0-6: round2_entries lets Round 3 see Round 2 challenges (rebuttal context).
+        """
         return []
+
+    @staticmethod
+    def _format_round2_rebuttal_context(round2_entries, target_agent_name: str) -> str:
+        """Filter round2 entries that targeted this agent and return a rebuttal block."""
+        if not round2_entries:
+            return ""
+        challenges_against_me = []
+        for e in round2_entries:
+            try:
+                if getattr(e, "target_agent", "") == target_agent_name and \
+                   str(getattr(e, "stance", "")).lower().endswith("challenge"):
+                    challenges_against_me.append(
+                        f"- [{getattr(e, 'agent_name', '?')}] {getattr(e, 'reasoning', '')[:200]}"
+                    )
+            except Exception:
+                continue
+        if not challenges_against_me:
+            return ""
+        return "## Round 2 challenges against you (rebut directly):\n" + "\n".join(challenges_against_me[:6])
 
     def _parse_debate_llm_response(self, result: dict, all_reviews: list[AgentReview]) -> list[DebateEntry]:
         """Parse LLM debate JSON into list[DebateEntry]. Validates targets, clamps scores."""

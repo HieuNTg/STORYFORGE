@@ -226,6 +226,12 @@ def enforce_gate(
             f"(pre_crit={pre_crit} → post_crit={post_crit}); reverting"
         )
         return chapter
+    # Voice re-validation: revert if rewritten chapter drops voice score below floor
+    if not _post_gate_validate(new_chapter, chapter):
+        logger.info(
+            f"[contract_gate] rewrite ch{chapter.chapter_number} failed voice re-validation; reverting"
+        )
+        return chapter
     new_chapter.enhancement_changelog.append(
         f"[contract_gate] rewrote for {len(failures)} failures "
         f"({pre_crit} critical → {post_crit} remaining)"
@@ -282,3 +288,42 @@ def apply_contract_gate(
         "rewrites": rewrites,
         "total_failures": total_failures,
     }
+
+
+def _post_gate_validate(new_chapter: Chapter, original_chapter: Chapter) -> bool:
+    """Return True (keep rewrite) or False (revert) based on voice score of rewritten chapter.
+
+    Reads voice_binary_revert_floor from PipelineConfig. If voice validation raises,
+    logs and returns False (reverts) — idempotent and bounded.
+    Lane classifier check deferred to P1 (lane_classifier.py unwired+untested).
+    """
+    try:
+        from config.config import ConfigManager
+        cfg = ConfigManager().load().pipeline
+        revert_floor = float(getattr(cfg, "voice_binary_revert_floor", 0.5))
+    except Exception:
+        revert_floor = 0.5
+
+    try:
+        voice_contract = getattr(new_chapter, "voice_contract", None)
+        if voice_contract is None:
+            # No voice contract on this chapter — nothing to validate, keep the rewrite
+            return True
+
+        from pipeline.layer2_enhance.chapter_contract import validate_chapter_voice
+        from services.llm_client import LLMClient
+        llm = LLMClient()
+        validation = validate_chapter_voice(llm, new_chapter.content or "", voice_contract)
+        if validation.overall_compliance < revert_floor:
+            logger.info(
+                "[contract_gate] ch%d voice compliance=%.2f < floor=%.2f → revert",
+                new_chapter.chapter_number, validation.overall_compliance, revert_floor,
+            )
+            return False
+        return True
+    except Exception as exc:
+        logger.warning(
+            "[contract_gate] _post_gate_validate ch%d raised %s — treating as fail, reverting",
+            new_chapter.chapter_number, exc,
+        )
+        return False

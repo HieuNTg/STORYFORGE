@@ -1,5 +1,6 @@
 """LLMClient — singleton LLM caller with retry and cache."""
 
+import contextvars
 import logging
 import random
 import re
@@ -9,6 +10,12 @@ import threading
 import uuid
 from dataclasses import dataclass
 from typing import Optional
+
+# P0-8: contextvar for ambient run_id — propagates across asyncio.gather boundaries
+# so charge_wallet() inherits the orchestrator's run_id without explicit threading.
+current_run_id: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "current_run_id", default=""
+)
 from services.llm.retry import (
     MAX_RETRIES, BASE_DELAY,
     _redact, _is_transient, _is_auth_error, _detect_provider, _should_retry,
@@ -19,6 +26,11 @@ from services.llm.generation import GenerationMixin
 from services.llm.model_fallback import get_fallback_manager
 
 logger = logging.getLogger(__name__)
+
+
+class LLMBudgetExceededError(RuntimeError):
+    """Raised when the global LLM wallet exceeds a configured cap (P0-7)."""
+    pass
 
 
 @dataclass
@@ -280,11 +292,93 @@ def _record_trace_call(
         logger.debug("Trace record failed: %s", e)
 
 
+@dataclass
+class WalletState:
+    """Per-run LLM cost/token/call counters."""
+    cost_usd: float = 0.0
+    tokens: int = 0
+    calls: int = 0
+
+
 class LLMClient(StreamingMixin, GenerationMixin):
     """Client gọi LLM API thông qua provider abstraction layer."""
 
     _instance = None
     _lock = threading.Lock()
+
+    # Per-run wallet dict (P0-8). Key = run_id string. _wallet_run_id is the
+    # default-pointer so legacy callers without run_id still work.
+    _wallet_lock = threading.Lock()
+    _wallet_state: dict = {}   # dict[str, WalletState]
+    _wallet_run_id: str = ""
+
+    @classmethod
+    def reset_wallet(cls, run_id: str = "") -> None:
+        """Reset (or create) wallet entry for run_id. Updates default pointer."""
+        rid = run_id or uuid.uuid4().hex[:8]
+        with cls._wallet_lock:
+            cls._wallet_state[rid] = WalletState()
+            cls._wallet_run_id = rid
+
+    @classmethod
+    def wallet_snapshot(cls, run_id: str = "") -> dict:
+        """Return a snapshot of wallet counters for run_id (default pointer if omitted)."""
+        with cls._wallet_lock:
+            rid = run_id or current_run_id.get() or cls._wallet_run_id
+            state = cls._wallet_state.get(rid, WalletState())
+            return {
+                "cost_usd": state.cost_usd,
+                "tokens": state.tokens,
+                "calls": state.calls,
+                "run_id": rid,
+            }
+
+    @classmethod
+    def charge_wallet(cls, cost_usd: float, tokens: int, run_id: str = "") -> None:
+        """Charge the wallet and raise LLMBudgetExceededError if any cap is exceeded.
+
+        Caps come from PipelineConfig: max_cost_per_run_usd, max_total_tokens_per_run,
+        max_calls_per_run. A cap value of 0 means disabled.
+        """
+        def _safe_num(v, cast, default):
+            try:
+                return cast(v) if isinstance(v, (int, float)) else default
+            except (TypeError, ValueError):
+                return default
+
+        try:
+            ConfigManager, _, _ = _imports()
+            pcfg = ConfigManager().pipeline
+            cap_cost = _safe_num(getattr(pcfg, "max_cost_per_run_usd", 0.0), float, 0.0)
+            cap_tokens = _safe_num(getattr(pcfg, "max_total_tokens_per_run", 0), int, 0)
+            cap_calls = _safe_num(getattr(pcfg, "max_calls_per_run", 0), int, 0)
+        except Exception:
+            cap_cost = cap_tokens = cap_calls = 0
+
+        with cls._wallet_lock:
+            rid = run_id or current_run_id.get() or cls._wallet_run_id
+            if rid not in cls._wallet_state:
+                cls._wallet_state[rid] = WalletState()
+            state = cls._wallet_state[rid]
+            state.cost_usd += float(cost_usd or 0.0)
+            state.tokens += int(tokens or 0)
+            state.calls += 1
+            cur_cost = state.cost_usd
+            cur_tokens = state.tokens
+            cur_calls = state.calls
+
+        if cap_cost > 0 and cur_cost > cap_cost:
+            raise LLMBudgetExceededError(
+                f"LLM wallet exceeded cost cap: ${cur_cost:.4f} > ${cap_cost:.4f}"
+            )
+        if cap_tokens > 0 and cur_tokens > cap_tokens:
+            raise LLMBudgetExceededError(
+                f"LLM wallet exceeded token cap: {cur_tokens} > {cap_tokens}"
+            )
+        if cap_calls > 0 and cur_calls > cap_calls:
+            raise LLMBudgetExceededError(
+                f"LLM wallet exceeded call cap: {cur_calls} > {cap_calls}"
+            )
 
     def __new__(cls):
         with cls._lock:
@@ -510,6 +604,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
         for attempt in range(MAX_RETRIES):
             try:
                 return fn()
+            except LLMBudgetExceededError:
+                # Budget cap is terminal — never retry, never fall back.
+                raise
             except Exception as e:
                 last_exc = e
                 if attempt < MAX_RETRIES - 1:
@@ -564,6 +661,11 @@ class LLMClient(StreamingMixin, GenerationMixin):
         cache = None
         cache_params = None
         if use_cache:
+            # P1-5: cache is wired at LLMClient.generate() level (the canonical
+            # entry point all generate_json/generate_stream paths funnel through).
+            # LLMCache uses thread-local SQLite connections so per-call
+            # instantiation is cheap and remains test-mockable via the
+            # services.llm_client compat hub patch points.
             cache = LLMCache(ttl_days=config.llm.cache_ttl_days)
             cache_params = dict(
                 system_prompt=system_prompt, user_prompt=user_prompt,
@@ -617,6 +719,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
                         actual_model = entry.get("model", effective_model)
                         cache.put(result, **{**cache_params, "model": actual_model})
                     return result
+                except LLMBudgetExceededError:
+                    # Budget cap is terminal — abort the run, no fallback chain.
+                    raise
                 except Exception as e:
                     all_errors.append(f"{entry['label']}: {_redact(e)}")
                     pobj = entry.get("provider") or entry.get("client")
@@ -630,6 +735,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     if model_name and not _is_transient(e) and not _is_auth_error(e):
                         fm.mark_unhealthy(model_name, error_class=type(e).__name__)
 
+                    _force_rotate = False
                     if "_api_key" in entry:
                         err_str = str(e)
                         if "429" in err_str:
@@ -646,9 +752,19 @@ class LLMClient(StreamingMixin, GenerationMixin):
                                 self._mark_model_rate_limited(model_name, entry_key, 90.0)
                             else:
                                 self._mark_rate_limited(entry_key, suggested_delay or 60.0)
-                        elif "404" in err_str and provider_type == "openrouter":
-                            self._mark_model_rate_limited(model_name, entry_key, 600.0)
-                    if not should_try_next and not _is_transient(e):
+                        elif "404" in err_str:
+                            # 404 = model not available at this provider. Mark it and
+                            # let the chain loop try the next entry. If the chain has no
+                            # remaining peers, the natural exhaustion path at the bottom
+                            # of this function raises with a clear hint.
+                            if model_name:
+                                self._mark_model_rate_limited(model_name, entry_key, 600.0)
+                            logger.warning(
+                                "404 for model %r at %s — rotating to next chain entry",
+                                model_name, entry.get("label", "?"),
+                            )
+                            _force_rotate = True
+                    if not should_try_next and not _is_transient(e) and not _force_rotate:
                         logger.error(f"FATAL: Non-retryable error from {entry.get('label', '?')}: {_redact(e)}")
                         raise
                     logger.warning(f"Provider {entry['label']} failed, trying next...")
@@ -1081,6 +1197,21 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     model=model, model_tier=tier_label, messages=messages, result=result,
                     duration_ms=int(latency_ms), success=True, error="",
                 )
+                # Charge the global wallet (P0-7). Raises LLMBudgetExceededError
+                # if a configured cap is exceeded — propagates to abort the run.
+                try:
+                    from services.llm_pricing import compute_cost
+                    prompt_text = "".join(
+                        (m.get("content") or "") for m in messages if isinstance(m, dict)
+                    )
+                    p_tokens = _estimate_tokens(prompt_text)
+                    c_tokens = _estimate_tokens(result)
+                    cost = compute_cost(model, p_tokens, c_tokens)
+                    LLMClient.charge_wallet(cost, p_tokens + c_tokens)
+                except LLMBudgetExceededError:
+                    raise
+                except Exception as we:  # noqa: BLE001 — pricing missing must not break call
+                    logger.debug("Wallet charge skipped: %s", we)
                 return result
             except Exception as exc:
                 latency_ms = (time.monotonic() - start_time) * 1000
@@ -1249,8 +1380,23 @@ class LLMClient(StreamingMixin, GenerationMixin):
                                 self._mark_model_rate_limited(model_name, entry_key, 90.0)
                             else:
                                 self._mark_rate_limited(entry_key, suggested_delay or 60.0)
-                        elif "404" in err_str and provider_type == "openrouter":
-                            self._mark_model_rate_limited(model_name, entry_key, 600.0)
+                        elif "404" in err_str:
+                            try:
+                                _cfg = _imports()[0]()
+                                _fb_names = [
+                                    f.get("model", "") for f in (getattr(_cfg.llm, "fallback_models", []) or [])
+                                    if isinstance(f, dict)
+                                ]
+                            except Exception:
+                                _fb_names = []
+                            if model_name and model_name in _fb_names:
+                                self._mark_model_rate_limited(model_name, entry_key, 600.0)
+                            else:
+                                logger.error(
+                                    "404 for model %r not in fallback_models — failing loud (user config error)",
+                                    model_name,
+                                )
+                                raise
 
                     if not should_try_next and not _is_transient(e):
                         raise

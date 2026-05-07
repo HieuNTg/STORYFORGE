@@ -64,27 +64,52 @@ Lời thoại sau enhance:
         self.llm = LLMClient()
 
     def _extract_dialogues(self, content: str, character_name: str) -> list[str]:
-        """Trích xuất lời thoại của nhân vật từ nội dung."""
+        """Trích xuất lời thoại của nhân vật từ nội dung.
+
+        P0-5: VN web novels commonly use em-dash dialogue ("— Lời thoại. — Tên nói.")
+        and verb-tags ("Tên nói:", "Tên nói rằng:"); the original quote-only patterns
+        missed those entirely. Patterns 4-6 below close that gap.
+        """
         dialogues = []
+        name_re = re.escape(character_name)
 
         # Pattern 1: "dialogue" - Name said
-        pattern1 = rf'"([^"]+)"\s*[-–—]\s*{re.escape(character_name)}'
+        pattern1 = rf'"([^"]+)"\s*[-–—]\s*{name_re}'
         dialogues.extend(re.findall(pattern1, content, re.IGNORECASE))
 
         # Pattern 2: Name said: "dialogue" or Name: "dialogue"
-        pattern2 = rf'{re.escape(character_name)}[^"]*[:"]\s*"([^"]+)"'
+        pattern2 = rf'{name_re}[^"]*[:"]\s*"([^"]+)"'
         dialogues.extend(re.findall(pattern2, content, re.IGNORECASE))
 
         # Pattern 3: Direct speech with name mention nearby
-        pattern3 = rf'{re.escape(character_name)}[^.]*:\s*[-–—]?\s*([^.!?]+[.!?])'
+        pattern3 = rf'{name_re}[^.]*:\s*[-–—]?\s*([^.!?]+[.!?])'
         matches = re.findall(pattern3, content, re.IGNORECASE)
         dialogues.extend([m.strip() for m in matches if len(m) > 10])
+
+        # Pattern 4 (VN em-dash, leading): "— Lời thoại. — Tên nói." / line-start em-dash
+        # Captures dialogue between an opening em-dash and a closing tag containing the name.
+        pattern4 = rf'[—–-]\s*([^—–\-\n.!?]{{4,}}[.!?…]?)\s*[—–-]\s*[^—\n]{{0,40}}{name_re}'
+        dialogues.extend(re.findall(pattern4, content, re.IGNORECASE))
+
+        # Pattern 5 (VN verb-tag): "Tên nói: ..." / "Tên nói rằng: ..." / "Tên đáp:"
+        pattern5 = (
+            rf'{name_re}\s+(?:nói(?:\s+rằng)?|đáp|hỏi|thì\s+thầm|thốt\s+lên|cười\s+nói|trả\s+lời)[:\s]*'
+            rf'[-–—"]?\s*([^.!?\n"]{{4,}}[.!?…]?)'
+        )
+        dialogues.extend(re.findall(pattern5, content, re.IGNORECASE))
+
+        # Pattern 6 (verb-tag, post-dialogue): "..." Tên nói. / "..." — Tên đáp.
+        pattern6 = (
+            rf'"([^"]{{5,}})"\s*[,.\-–—]?\s*{name_re}\s+'
+            rf'(?:nói|đáp|hỏi|thì\s+thầm|thốt\s+lên|cười\s+nói|trả\s+lời)'
+        )
+        dialogues.extend(re.findall(pattern6, content, re.IGNORECASE))
 
         # Deduplicate and clean
         seen = set()
         cleaned = []
         for d in dialogues:
-            d_clean = d.strip()
+            d_clean = d.strip().strip('"\'—–-')
             if d_clean and d_clean not in seen and len(d_clean) > 5:
                 seen.add(d_clean)
                 cleaned.append(d_clean)
@@ -301,7 +326,7 @@ Lời thoại sau enhance:
         enh_avg_len = self._compute_avg_sentence_length(enhanced_dialogues)
 
         issues = []
-        if abs(orig_avg_len - enh_avg_len) > orig_avg_len * 0.5:  # >50% change
+        if abs(orig_avg_len - enh_avg_len) > orig_avg_len * 0.25:  # P0-5: tightened 50%→25%
             issues.append(f"Độ dài câu thay đổi đáng kể: {orig_avg_len:.1f} → {enh_avg_len:.1f}")
 
         # LLM consistency check if significant dialogues
@@ -451,14 +476,29 @@ def _extract_dialogue_anchors(content: str, characters: list) -> list[DialogueAn
 
         found: list[tuple[int, str]] = []  # (char_offset, text)
 
+        nre = re.escape(char_name)
+
         # Pattern 1: "dialogue" - Name
-        pat1 = rf'"([^"]+)"\s*[-–—]\s*{re.escape(char_name)}'
+        pat1 = rf'"([^"]+)"\s*[-–—]\s*{nre}'
         for m in re.finditer(pat1, content, re.IGNORECASE):
             found.append((m.start(), m.group(1)))
 
         # Pattern 2: Name ...: "dialogue"
-        pat2 = rf'{re.escape(char_name)}[^"]*[:"]\s*"([^"]+)"'
+        pat2 = rf'{nre}[^"]*[:"]\s*"([^"]+)"'
         for m in re.finditer(pat2, content, re.IGNORECASE):
+            found.append((m.start(), m.group(1)))
+
+        # P0-5 Pattern 4 (VN em-dash leading): — Lời thoại. — Tên nói.
+        pat4 = rf'[—–-]\s*([^—–\-\n.!?]{{4,}}[.!?…]?)\s*[—–-]\s*[^—\n]{{0,40}}{nre}'
+        for m in re.finditer(pat4, content, re.IGNORECASE):
+            found.append((m.start(), m.group(1)))
+
+        # P0-5 Pattern 5 (VN verb-tag pre-dialogue): Tên nói: ...
+        pat5 = (
+            rf'{nre}\s+(?:nói(?:\s+rằng)?|đáp|hỏi|thì\s+thầm|thốt\s+lên|cười\s+nói|trả\s+lời)[:\s]*'
+            rf'[-–—"]?\s*([^.!?\n"]{{4,}}[.!?…]?)'
+        )
+        for m in re.finditer(pat5, content, re.IGNORECASE):
             found.append((m.start(), m.group(1)))
 
         # Sort by position then assign ordinals in document order
@@ -564,7 +604,7 @@ def _revert_dialogues_anchored(
             )
             continue
 
-        if _similarity_ratio(orig_anchor.text, enh_anchor.text) >= 0.7:
+        if _similarity_ratio(orig_anchor.text, enh_anchor.text) >= 0.8:  # P0-5: 0.7→0.8
             # Not drifted enough to warrant revert
             continue
 
@@ -607,8 +647,8 @@ def enforce_voice_preservation(
     original_content: str,
     enhanced_content: str,
     characters: list,
-    drift_threshold: float = 0.4,
-    revert_threshold: float = 0.3,
+    drift_threshold: float = 0.25,  # P0-5: tightened 0.4→0.25
+    revert_threshold: float = 0.2,   # P0-5: tightened 0.3→0.2
     config=None,
 ) -> tuple[str, VoicePreservationResult]:
     """Enforce voice preservation by reverting drifted dialogues.

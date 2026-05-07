@@ -239,8 +239,11 @@ class DebateOrchestrator:
                 logger.info("[DEBATE] Total budget exhausted, skipping remaining Round 3 agents")
                 break
 
-            # Pass round 2 entries as context for rebuttal
-            entries = agent.debate_response(story_draft, layer, own_review, round1_reviews)
+            # P0-6: Pass round 2 entries so agents can rebut their challengers
+            entries = agent.debate_response(
+                story_draft, layer, own_review, round1_reviews,
+                round2_entries=round2_entries,
+            )
             for entry in entries:
                 entry.round_number = 3
             round3_entries.extend(entries)

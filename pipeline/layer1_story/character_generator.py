@@ -81,6 +81,13 @@ def generate_characters(
                 characters.append(Character(**c))
             except Exception as e:
                 logger.warning("Skipping malformed character: %s", e)
+        elif isinstance(c, str):
+            coerced = {"name": c, "role": "supporting", "personality": "Chưa xác định"}
+            logger.warning("Coerced string entry to character: %r", c)
+            try:
+                characters.append(Character(**coerced))
+            except Exception as e:
+                logger.warning("Skipping coerced string character %r: %s", c, e)
         else:
             logger.warning("Skipping non-dict character entry: %s", type(c).__name__)
     return characters

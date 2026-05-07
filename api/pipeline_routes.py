@@ -1,6 +1,7 @@
 """Pipeline API routes — run pipeline via SSE, get genres/templates/checkpoints."""
 
 import asyncio
+import inspect
 import json
 import logging
 import queue as _queue
@@ -416,7 +417,7 @@ async def run_pipeline(request: Request, body: PipelineRequest):
 
         async def _run_async():
             try:
-                result[0] = await orch.run_full_pipeline(
+                _pipeline_coro = orch.run_full_pipeline(
                     title=story_title,
                     genre=body.genre,
                     idea=idea,
@@ -431,6 +432,7 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                     enable_scoring=body.enable_scoring,
                     enable_media=body.enable_media,
                 )
+                result[0] = await _pipeline_coro if inspect.isawaitable(_pipeline_coro) else _pipeline_coro
             except asyncio.CancelledError:
                 logger.info(f"Pipeline task cancelled (session={session_id})")
                 raise

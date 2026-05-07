@@ -77,18 +77,18 @@ class TestMemoryFallbackStore:
 
     def test_store_evicts_oldest_when_full(self):
         from pipeline.orchestrator import PipelineOrchestrator
-        # Reset class-level memory store
-        with PipelineOrchestrator._memory_store_lock:
-            PipelineOrchestrator._memory_store.clear()
         orch = _make_orchestrator("s3")
+        # P2: memory store is now per-instance; reset via instance lock
+        with orch._memory_store_lock:
+            orch._memory_store.clear()
         # Fill store to max
         max_items = PipelineOrchestrator._MEMORY_STORE_MAX
         for i in range(max_items):
             orch._store_set(f"key_{i}", f"val_{i}")
-        assert len(PipelineOrchestrator._memory_store) == max_items
+        assert len(orch._memory_store) == max_items
         # One more should evict the oldest
         orch._store_set("overflow_key", "overflow_val")
-        assert len(PipelineOrchestrator._memory_store) == max_items
+        assert len(orch._memory_store) == max_items
         assert orch._store_get("overflow_key") == "overflow_val"
         # First inserted key should be evicted
         assert orch._store_get("key_0") is None

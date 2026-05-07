@@ -31,15 +31,15 @@ class DramaCriticAgent(BaseAgent):
         )
         return self._parse_review_json(result, layer, iteration)
 
-    def debate_response(self, story_draft, layer, own_review, all_reviews):
+    def debate_response(self, story_draft, layer, own_review, all_reviews, round2_entries=None):
         """Challenge reviews that undervalue drama. LLM-backed with rule-based fallback."""
         try:
-            return self._llm_debate(story_draft, own_review, all_reviews)
+            return self._llm_debate(story_draft, own_review, all_reviews, round2_entries=round2_entries)
         except Exception as e:
             logger.warning(f"LLM debate failed, using rule-based fallback: {e}")
             return self._rule_based_debate(story_draft, all_reviews)
 
-    def _llm_debate(self, story_draft, own_review, all_reviews):
+    def _llm_debate(self, story_draft, own_review, all_reviews, round2_entries=None):
         """LLM-powered debate analysis."""
         other_reviews = [
             {"agent_name": r.agent_name, "score": r.score,
@@ -52,6 +52,8 @@ class DramaCriticAgent(BaseAgent):
         # Extract chapter excerpt from story_draft (handles PipelineOutput or StoryDraft)
         chapter_excerpt = self._get_chapter_excerpt(story_draft)
 
+        rebuttal_ctx = self._format_round2_rebuttal_context(round2_entries, self.name)
+
         prompt = agent_prompts.DRAMA_DEBATE.format(
             own_score=own_review.score,
             own_issues=json.dumps(own_review.issues, ensure_ascii=False),
@@ -59,6 +61,8 @@ class DramaCriticAgent(BaseAgent):
             other_reviews_json=json.dumps(other_reviews, ensure_ascii=False, indent=2),
             chapter_excerpt=chapter_excerpt,
         )
+        if rebuttal_ctx:
+            prompt = f"{rebuttal_ctx}\n\n{prompt}"
         result = self.llm.generate_json(
             system_prompt="Bạn là nhà phê bình kịch tính. Phân tích phản hồi và tranh luận. Trả về JSON hợp lệ.",
             user_prompt=prompt,

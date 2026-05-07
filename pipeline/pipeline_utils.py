@@ -196,8 +196,10 @@ class ChapterExtractionCache:
 
     @staticmethod
     def _content_hash(content: str) -> str:
-        """Generate short hash for content."""
-        return hashlib.md5(content.encode()[:5000]).hexdigest()[:12]
+        """Full-content SHA-256 hash. Truncated md5(first 5KB) caused stale-cache
+        bugs because rewrites target chapter tails (payoffs/endings) and would
+        not invalidate the cached pre-rewrite summary."""
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
     def get_summary(self, chapter_number: int, content: str) -> Optional[str]:
         """Get cached summary if exists."""

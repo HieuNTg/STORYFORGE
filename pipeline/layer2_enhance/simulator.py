@@ -877,10 +877,15 @@ class DramaSimulator:
         # Khởi tạo bộ điều khiển thích nghi (non-fatal)
         if _ADAPTIVE_AVAILABLE:
             try:
+                from config.config import ConfigManager
+                _l2_max = ConfigManager().pipeline.l2_max_rounds
+                _requested_max = num_rounds + 3
+                if _requested_max > _l2_max:
+                    logger.info("adaptive_rounds_clamped", extra={"requested": _requested_max, "capped": _l2_max})
                 self.adaptive = AdaptiveController(
                     self._intensity,
                     min_rounds=max(3, num_rounds - 2),
-                    max_rounds=num_rounds + 3,
+                    max_rounds=min(_requested_max, _l2_max),
                     pacing_directive=pacing_directive,
                 )
                 logger.info("Đã khởi tạo AdaptiveController")

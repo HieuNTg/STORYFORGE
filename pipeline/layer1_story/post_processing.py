@@ -12,6 +12,19 @@ if __name__ == "__main__":
 logger = logging.getLogger(__name__)
 
 
+def _record_validator_failure(story_context, validator_name: str, chapter_num: int, exc: Exception) -> None:
+    """P0-2: Surface validator excepts so they don't silently bypass quality gates.
+    Logs at WARNING with stack, AND appends to story_context.validator_failures so
+    callers can see what didn't run."""
+    msg = f"ch{chapter_num}/{validator_name}: {type(exc).__name__}: {exc}"
+    logger.warning("validator_failure %s", msg, exc_info=True)
+    try:
+        if hasattr(story_context, "validator_failures") and isinstance(story_context.validator_failures, list):
+            story_context.validator_failures.append(msg)
+    except Exception:
+        pass  # never let observability break the pipeline
+
+
 _CRITICAL_KEYWORDS = [
     "chết", "phản bội", "tiết lộ bí mật", "kết thúc", "chiến thắng",
     "thất bại hoàn toàn", "hi sinh", "phá hủy", "sụp đổ", "bị phản",
@@ -201,7 +214,7 @@ def process_chapter_post_write(
                 if progress_callback:
                     progress_callback(f"⚠️ Ch{outline.chapter_number}: voice consistency issue")
         except Exception as e:
-            logger.debug(f"Dialogue voice check failed (non-fatal): {e}")
+            _record_validator_failure(story_context, "dialogue_voice", outline.chapter_number, e)
 
     # Feature #12: POV drift detection
     _pov_check_enabled = getattr(pipeline_config, "enable_pov_drift_check", False) \
@@ -221,7 +234,7 @@ def process_chapter_post_write(
                 if progress_callback:
                     progress_callback(f"⚠️ Ch{outline.chapter_number}: POV drift detected")
         except Exception as e:
-            logger.debug(f"POV drift check failed (non-fatal): {e}")
+            _record_validator_failure(story_context, "pov_drift", outline.chapter_number, e)
 
     # Feature #16: Dialogue attribution validation
     _attr_check_enabled = getattr(pipeline_config, "enable_dialogue_attribution_check", False) \
@@ -244,7 +257,7 @@ def process_chapter_post_write(
                     "rapid_exchanges": len(rapid),
                 })
         except Exception as e:
-            logger.debug(f"Dialogue attribution check failed (non-fatal): {e}")
+            _record_validator_failure(story_context, "dialogue_attribution", outline.chapter_number, e)
 
     # Feature #13: Timeline validation
     _timeline_enabled = getattr(pipeline_config, "enable_timeline_validation", False) \
@@ -271,7 +284,7 @@ def process_chapter_post_write(
                 if progress_callback:
                     progress_callback(f"⚠️ Ch{outline.chapter_number}: timeline contradiction")
         except Exception as e:
-            logger.debug(f"Timeline validation failed (non-fatal): {e}")
+            _record_validator_failure(story_context, "timeline", outline.chapter_number, e)
 
     # Feature #14: Secret tracking
     _secret_enabled = getattr(pipeline_config, "enable_secret_tracking", False) \
@@ -300,7 +313,7 @@ def process_chapter_post_write(
                         f"⚠️ Ch{outline.chapter_number}: {len(secret_result['premature'])} premature reveal(s)"
                     )
         except Exception as e:
-            logger.debug(f"Secret tracking failed (non-fatal): {e}")
+            _record_validator_failure(story_context, "secret_tracking", outline.chapter_number, e)
 
     # Feature #15: Thematic resonance
     _thematic_enabled = getattr(pipeline_config, "enable_thematic_resonance", False) \
@@ -334,7 +347,7 @@ def process_chapter_post_write(
                         drift, thematic_state, outline.chapter_number,
                     )
         except Exception as e:
-            logger.debug(f"Thematic resonance tracking failed (non-fatal): {e}")
+            _record_validator_failure(story_context, "thematic_resonance", outline.chapter_number, e)
 
     # Extract world state changes (permanent, irreversible changes to the setting)
     with tracked_extraction(story_context, ch_num, "world_state"):
@@ -383,7 +396,7 @@ def process_chapter_post_write(
         for w in _location_warnings:
             logger.warning("Ch%d location: %s", outline.chapter_number, w)
     except Exception as e:
-        logger.debug("Location validation failed (non-fatal): %s", e)
+        _record_validator_failure(story_context, "location_transition", outline.chapter_number, e)
 
     # L1-E: Post-write foreshadowing payoff verification (embedding-based, Sprint 2 P3).
     _verify_payoff_enabled = getattr(pipeline_config, "enable_foreshadowing_payoff_verify", False) \
@@ -468,7 +481,7 @@ def process_chapter_post_write(
                 else:
                     story_context.emotional_whiplash_warning = ""
             except Exception as wh_err:
-                logger.debug("Emotional whiplash detection failed (non-fatal): %s", wh_err)
+                _record_validator_failure(story_context, "emotional_whiplash", outline.chapter_number, wh_err)
 
         # Pacing feedback loop: compare intended vs actual, compute correction
         try:
@@ -482,7 +495,7 @@ def process_chapter_post_write(
             if adjustment:
                 logger.info("Pacing mismatch ch%d: %s", outline.chapter_number, adjustment)
         except Exception as pace_err:
-            logger.debug("Pacing feedback failed (non-fatal): %s", pace_err)
+            _record_validator_failure(story_context, "pacing_feedback", outline.chapter_number, pace_err)
 
     # Plot thread tracking
     with tracked_extraction(story_context, ch_num, "plot_threads"):
@@ -549,10 +562,13 @@ def process_chapter_post_write(
                 story_context.conflict_map, chapter.content, outline.chapter_number, llm=llm,
             )
 
-    # Mark foreshadowing as planted/paid off (embedding-based; keyword fallback when model unavailable)
+    # P0-4: semantic verifier is the single path. verify_seeds/verify_payoffs
+    # internally falls back to keyword similarity when the embedding model is
+    # unavailable; we no longer flip foreshadowing booleans via mark_planted/
+    # mark_paid_off (they keyword-flip too loosely and bypass confidence scoring).
     with tracked_extraction(story_context, ch_num, "foreshadowing"):
         from pipeline.layer1_story.foreshadowing_manager import (
-            mark_planted, mark_paid_off, get_seeds_to_plant, get_payoffs_due,
+            get_seeds_to_plant, get_payoffs_due,
         )
         from pipeline.semantic.foreshadowing_verifier import verify_seeds, verify_payoffs
         from services.embedding_service import get_embedding_service
@@ -564,21 +580,15 @@ def process_chapter_post_write(
             seed_matches = []
             payoff_matches = []
             if seeds_due:
-                if _svc.is_available():
-                    try:
-                        seed_matches = verify_seeds(seeds_due, [chapter])
-                    except Exception:
-                        mark_planted(foreshadowing_plan, outline.chapter_number, chapter.content)
-                else:
-                    mark_planted(foreshadowing_plan, outline.chapter_number, chapter.content)
+                try:
+                    seed_matches = verify_seeds(seeds_due, [chapter])
+                except Exception as e:
+                    _record_validator_failure(story_context, "verify_seeds", outline.chapter_number, e)
             if payoffs_due:
-                if _svc.is_available():
-                    try:
-                        payoff_matches = verify_payoffs(payoffs_due, [chapter])
-                    except Exception:
-                        mark_paid_off(foreshadowing_plan, outline.chapter_number)
-                else:
-                    mark_paid_off(foreshadowing_plan, outline.chapter_number)
+                try:
+                    payoff_matches = verify_payoffs(payoffs_due, [chapter])
+                except Exception as e:
+                    _record_validator_failure(story_context, "verify_payoffs", outline.chapter_number, e)
             # Persist findings to in-memory chapter (orchestrator writes to DB)
             if seed_matches or payoff_matches:
                 findings = ChapterSemanticFindings(

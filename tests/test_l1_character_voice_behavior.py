@@ -133,13 +133,24 @@ class TestGenerateCharacters:
         assert len(result) == 1
         assert result[0].name == "Nguyễn An"
 
-    def test_non_dict_entry_skipped(self):
+    def test_non_dict_integer_entry_skipped(self):
+        """Integer entries (not str, not dict) are skipped without crash."""
         from pipeline.layer1_story.character_generator import generate_characters
 
-        llm = _make_llm({"characters": ["just a string", 42, {"name": "Valid", "role": "chính", "personality": "x"}]})
+        llm = _make_llm({"characters": [42, {"name": "Valid", "role": "chính", "personality": "x"}]})
         result = generate_characters(llm, title="T", genre="drama", idea="I")
         assert len(result) == 1
         assert result[0].name == "Valid"
+
+    def test_flat_string_list_coerced_to_characters(self):
+        """LLM returns flat string list — must not crash; each string becomes a Character with role='supporting'."""
+        from pipeline.layer1_story.character_generator import generate_characters
+
+        llm = _make_llm({"characters": ["Alice", "Bob"]})
+        result = generate_characters(llm, title="T", genre="drama", idea="I")
+        assert len(result) == 2
+        assert all(c.role == "supporting" for c in result)
+        assert {c.name for c in result} == {"Alice", "Bob"}
 
     def test_empty_characters_list(self):
         from pipeline.layer1_story.character_generator import generate_characters

@@ -1,7 +1,7 @@
 """Integration tests for pipeline Layer 1→2 data flow (mocked LLM)."""
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -203,7 +203,7 @@ def test_session_event_is_first(api_client):
         mock_llm.check_connection.return_value = (True, "ok")
         mock_llm_cls.return_value = mock_llm
         mock_orch = MagicMock()
-        mock_orch.run_full_pipeline.return_value = mock_output
+        mock_orch.run_full_pipeline = AsyncMock(return_value=mock_output)
         mock_cls.return_value = mock_orch
 
         resp = api_client.post("/pipeline/run", json={

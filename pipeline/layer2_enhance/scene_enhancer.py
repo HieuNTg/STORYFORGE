@@ -14,6 +14,12 @@ from models.schemas import Chapter, SimulationResult, count_words
 from services.llm_client import LLMClient
 from services.text_utils import strip_llm_scaffolding, build_idea_header
 
+try:
+    from pipeline.layer2_enhance.voice_fingerprint import build_voice_enforcement_prompt
+    _VOICE_ENFORCEMENT_AVAILABLE = True
+except ImportError:
+    _VOICE_ENFORCEMENT_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -181,7 +187,7 @@ Trả về JSON:
   "strong_points": ["điểm mạnh cụ thể"]
 }}"""
 
-ENHANCE_SCENE = """{user_story_idea_header}Viết lại cảnh sau để tăng kịch tính. Giữ nguyên nhân vật và sự kiện chính.
+ENHANCE_SCENE = """{user_story_idea_header}{voice_block_prepend}Viết lại cảnh sau để tăng kịch tính. Giữ nguyên nhân vật và sự kiện chính.
 
 THỂ LOẠI: {genre}
 ĐIỂM YẾU CẦN SỬA: {weak_points}
@@ -206,7 +212,8 @@ NỘI DUNG GỐC:
 Yêu cầu: thêm căng thẳng, đối thoại sắc bén có chiều sâu tâm lý, cảm xúc mạnh hơn.
 KHÔNG mâu thuẫn với dữ kiện L1 hoặc vượt quá vị trí arc hiện tại.
 PHẢI giữ nguyên tên riêng / địa danh / gimmick từ [Ý TƯỞNG GỐC] ở đầu prompt — không Việt hoá, không dịch, không thay thế.
-Viết hoàn toàn bằng tiếng Việt."""
+Viết hoàn toàn bằng tiếng Việt.
+{voice_block_append}"""
 
 
 class SceneScore(BaseModel):
@@ -265,8 +272,9 @@ class SceneEnhancer:
 
     MIN_DRAMA = 0.6
 
-    def __init__(self):
+    def __init__(self, voice_engine=None):
         self.llm = LLMClient()
+        self.voice_engine = voice_engine  # Optional[VoiceFingerprintEngine]
         # Load config for new features
         try:
             from config import ConfigManager
@@ -349,6 +357,7 @@ class SceneEnhancer:
         consistency_constraints: str = "",
         curve_directive: str = "",
         user_story_idea_header: str = "",
+        characters: list = None,
     ) -> Chapter:
         """Nâng cấp cảnh yếu với parallel processing và retry (#1, #2 improvements)."""
         score_map = {s.scene_number: s for s in scores}
@@ -373,6 +382,16 @@ class SceneEnhancer:
                 enhancement_changelog=chapter.enhancement_changelog,
             )
 
+        # Build voice enforcement block (prepend + append for recency-bias compliance)
+        _voice_block = ""
+        if _VOICE_ENFORCEMENT_AVAILABLE and self.voice_engine is not None and characters:
+            try:
+                _voice_block = build_voice_enforcement_prompt(self.voice_engine, characters)
+            except Exception as _ve:
+                logger.debug(f"build_voice_enforcement_prompt failed (non-fatal): {_ve}")
+        _voice_prepend = (_voice_block + "\n\n") if _voice_block else ""
+        _voice_append = ("\n\n" + _voice_block) if _voice_block else ""
+
         # Build enhancement context (shared across all scenes)
         enhance_context = {
             "genre": genre or "kịch tính",
@@ -385,6 +404,8 @@ class SceneEnhancer:
             "consistency_constraints": consistency_constraints or "",
             "curve_directive": curve_directive,
             "user_story_idea_header": user_story_idea_header or "",
+            "voice_block_prepend": _voice_prepend,
+            "voice_block_append": _voice_append,
         }
 
         # Choose parallel or sequential based on config
@@ -504,6 +525,7 @@ class SceneEnhancer:
                     ),
                     user_prompt=ENHANCE_SCENE.format(
                         user_story_idea_header=context.get("user_story_idea_header", ""),
+                        voice_block_prepend=context.get("voice_block_prepend", ""),
                         genre=context["genre"],
                         weak_points=weak_text,
                         events=context["events"],
@@ -514,6 +536,7 @@ class SceneEnhancer:
                         arc_context=context["arc_context"],
                         consistency_constraints=context["consistency_constraints"],
                         content=current_content[:3000],
+                        voice_block_append=context.get("voice_block_append", ""),
                     ),
                     max_tokens=4096,
                 )
@@ -658,6 +681,9 @@ class SceneEnhancer:
             if _idea:
                 _idea_header = build_idea_header(_idea, _idea_summary)
 
+        # Extract characters list from draft for voice enforcement
+        _characters = list(getattr(draft, "characters", []) or []) if draft is not None else []
+
         return self.enhance_weak_scenes(
             chapter, scenes, scores, sim_result, genre,
             subtext_guidance=subtext_guidance,
@@ -668,6 +694,7 @@ class SceneEnhancer:
             consistency_constraints=consistency_constraints,
             curve_directive=curve_directive,
             user_story_idea_header=_idea_header,
+            characters=_characters,
         )
 
     @staticmethod
