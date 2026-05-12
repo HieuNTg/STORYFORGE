@@ -13,6 +13,13 @@ import { registerStores } from './stores/index';
 import { forgeButton } from './components/ForgeButton';
 import { phaseTimeline } from './components/PhaseTimeline';
 import { genreOrb } from './components/GenreOrb';
+import { configPanel } from './components/ConfigPanel';
+import { storyCard } from './components/StoryCard';
+import {
+  createToastStore,
+  toastItem,
+  attachWindowHelper as attachToastHelper,
+} from './components/Toast';
 
 // i18n is loaded via separate <script> tag and exposed as window.__sf_i18n
 const i18n = window.__sf_i18n;
@@ -39,9 +46,25 @@ document.addEventListener('alpine:init', () => {
   // are styled behind :root[data-forge-ui="on"] (see components.css), and the
   // attribute below activates that gate.
   if (forgeUiOn) {
+    // Day-2 components.
     Alpine.data('forgeButton', forgeButton);
     Alpine.data('phaseTimeline', phaseTimeline);
     Alpine.data('genreOrb', genreOrb);
+
+    // Day-3 components — defined but not yet referenced by any template.
+    // Page integration ships in Day-4+ (library page redesign).
+    Alpine.data('configPanel', configPanel);
+    Alpine.data('storyCard', storyCard);
+    Alpine.data('toastItem', toastItem);
+
+    // Toast store — singleton stack consumed by the toast region template.
+    // attachToastHelper rebinds window.sfShowToast to the wider Forge
+    // signature (4 variants + optional duration). Legacy two-arg callers
+    // (error-boundary) keep working because the new function accepts both.
+    const toastStore = createToastStore();
+    Alpine.store('toasts', toastStore);
+    attachToastHelper(toastStore);
+
     if (typeof document !== 'undefined' && document.documentElement) {
       document.documentElement.setAttribute('data-forge-ui', 'on');
     }
