@@ -1,0 +1,178 @@
+/* web/css/components.css — Forge UI redesign component styles
+ *
+ * All rules are gated behind :root[data-forge-ui="on"] so the new visuals
+ * apply ONLY when the STORYFORGE_FORGE_UI flag is enabled. With the flag
+ * off, every selector below is inert (no specificity bump, no overrides),
+ * which keeps the legacy UI byte-identical.
+ *
+ * Sourced from plans/260512-1949-uiux-prd-implementation/02-ux-architecture.md §2.
+ */
+
+/* ── ForgeButton (UX §2.1) ────────────────────────────────────────────── */
+:root[data-forge-ui="on"] .sf-forge-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sf-space-2);
+  padding: var(--sf-space-3) var(--sf-space-6);
+  border: 1px solid transparent;
+  border-radius: var(--sf-radius-md);
+  font-family: var(--sf-font-body);
+  font-size: var(--sf-text-h4);
+  font-weight: var(--sf-font-semibold);
+  line-height: 1;
+  background: var(--sf-accent-primary);
+  color: #FFFFFF;
+  cursor: pointer;
+  transition:
+    background-color var(--sf-duration-fast) var(--sf-ease-spring),
+    box-shadow var(--sf-duration-fast) var(--sf-ease-spring),
+    transform var(--sf-duration-fast) var(--sf-ease-spring);
+}
+:root[data-forge-ui="on"] .sf-forge-btn[data-variant="secondary"] {
+  background: var(--sf-bg-elevated);
+  color: var(--sf-text-primary);
+  border-color: var(--sf-border-subtle);
+}
+:root[data-forge-ui="on"] .sf-forge-btn[data-variant="ghost"] {
+  background: transparent;
+  color: var(--sf-text-primary);
+  border-color: transparent;
+}
+:root[data-forge-ui="on"] .sf-forge-btn[data-variant="danger"] {
+  background: var(--sf-accent-danger);
+  color: #FFFFFF;
+}
+:root[data-forge-ui="on"] .sf-forge-btn[data-state="hover"]:not([disabled]),
+:root[data-forge-ui="on"] .sf-forge-btn:hover:not([disabled]) {
+  transform: translateY(-1px);
+  box-shadow: var(--sf-shadow-md);
+}
+:root[data-forge-ui="on"] .sf-forge-btn[data-state="loading"],
+:root[data-forge-ui="on"] .sf-forge-btn[aria-busy="true"] {
+  background: var(--sf-accent-forge);
+  cursor: progress;
+}
+:root[data-forge-ui="on"] .sf-forge-btn[data-state="loading"]::after {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border-radius: var(--sf-radius-full);
+  background: currentColor;
+  opacity: 0.85;
+  animation: sf-forge-btn-pulse var(--sf-duration-shimmer) var(--sf-ease-spring) infinite;
+}
+:root[data-forge-ui="on"] .sf-forge-btn[disabled],
+:root[data-forge-ui="on"] .sf-forge-btn[data-state="disabled"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@keyframes sf-forge-btn-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(0.85); }
+  50%      { opacity: 1.0; transform: scale(1.10); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-forge-btn,
+  :root[data-forge-ui="on"] .sf-forge-btn[data-state="loading"]::after {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ── PhaseTimeline (UX §2.2) ──────────────────────────────────────────── */
+:root[data-forge-ui="on"] .sf-phase-timeline {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sf-space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+:root[data-forge-ui="on"] .sf-phase-timeline__step {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sf-space-2);
+  padding: var(--sf-space-2) var(--sf-space-3);
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-surface);
+  border: 1px solid var(--sf-border-subtle);
+  color: var(--sf-text-secondary);
+  font-size: var(--sf-text-caption);
+  font-family: var(--sf-font-body);
+  transition: background-color var(--sf-duration-fast) var(--sf-ease-spring),
+              color var(--sf-duration-fast) var(--sf-ease-spring),
+              box-shadow var(--sf-duration-fast) var(--sf-ease-spring);
+}
+:root[data-forge-ui="on"] .sf-phase-timeline__step[data-state="active"] {
+  color: var(--sf-text-primary);
+  border-color: var(--sf-accent-forge);
+  box-shadow: 0 0 0 0 var(--sf-accent-forge);
+  animation: sf-phase-pulse 1.2s var(--sf-ease-spring) infinite;
+}
+:root[data-forge-ui="on"] .sf-phase-timeline__step[data-state="done"] {
+  color: var(--sf-text-primary);
+  border-color: var(--sf-accent-complete);
+  background: var(--sf-bg-elevated);
+}
+:root[data-forge-ui="on"] .sf-phase-timeline__step[data-state="error"] {
+  color: var(--sf-text-primary);
+  border-color: var(--sf-accent-danger);
+}
+@keyframes sf-phase-pulse {
+  0%, 100% { box-shadow: 0 0 0 0   color-mix(in oklab, var(--sf-accent-forge) 60%, transparent); }
+  50%      { box-shadow: 0 0 0 8px color-mix(in oklab, var(--sf-accent-forge) 0%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-phase-timeline__step[data-state="active"] {
+    animation: none;
+  }
+}
+
+/* ── GenreOrb (UX §2.5) ───────────────────────────────────────────────── */
+:root[data-forge-ui="on"] .sf-genre-orb {
+  --orb-hue: var(--sf-accent-primary);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--sf-radius-full);
+  border: 2px solid var(--sf-border-subtle);
+  background: radial-gradient(
+    circle at 30% 30%,
+    color-mix(in oklab, var(--orb-hue) 30%, transparent) 0%,
+    transparent 70%
+  );
+  cursor: pointer;
+  transition: transform var(--sf-duration-fast) var(--sf-ease-spring),
+              box-shadow var(--sf-duration-fast) var(--sf-ease-spring),
+              border-color var(--sf-duration-fast) var(--sf-ease-spring);
+}
+:root[data-forge-ui="on"] .sf-genre-orb:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 24px color-mix(in oklab, var(--orb-hue) 40%, transparent);
+}
+:root[data-forge-ui="on"] .sf-genre-orb[aria-checked="true"] {
+  border-color: var(--orb-hue);
+  background: radial-gradient(
+    circle at 30% 30%,
+    var(--orb-hue) 0%,
+    color-mix(in oklab, var(--orb-hue) 40%, transparent) 80%
+  );
+}
+:root[data-forge-ui="on"] .sf-genre-orb__label {
+  font-size: var(--sf-text-caption);
+  color: var(--sf-text-secondary);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-genre-orb {
+    transition: none;
+  }
+  :root[data-forge-ui="on"] .sf-genre-orb:hover {
+    transform: none;
+    box-shadow: none;
+  }
+}
