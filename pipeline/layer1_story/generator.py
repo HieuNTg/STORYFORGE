@@ -274,8 +274,16 @@ class StoryGenerator:
                 if voice_profiles:
                     update_character_speech_patterns(characters, voice_profiles)
                     _log(f"Đã tạo voice profile cho {len(voice_profiles)} nhân vật")
+                else:
+                    logger.warning(
+                        "voice_profiles returned empty — LLM parse failure or empty payload? "
+                        "Handoff will report voice_fingerprints as BLOCKER downstream."
+                    )
             except Exception as e:
-                logger.warning("Voice profile generation failed (non-fatal): %s", e)
+                logger.warning(
+                    "Voice profile generation failed (non-fatal): %s (type=%s)",
+                    e, type(e).__name__,
+                )
         # voice_profiles already canonicalised at character_voice_profiler boundary
         _voice_fingerprints_top = list(voice_profiles or [])
         _log("Đang xây dựng bối cảnh thế giới...")
@@ -450,9 +458,18 @@ class StoryGenerator:
                 self.llm, title, genre, synopsis, macro_arcs, conflict_web,
                 model=self._layer_model,
             )
-            _log(f"Đã lên kế hoạch {len(foreshadowing_plan)} foreshadowing seeds")
+            if foreshadowing_plan:
+                _log(f"Đã lên kế hoạch {len(foreshadowing_plan)} foreshadowing seeds")
+            else:
+                logger.warning(
+                    "foreshadowing_plan returned empty — LLM parse failure or empty payload? "
+                    "Handoff will report foreshadowing_plan as WARNING downstream."
+                )
         except Exception as e:
-            logger.warning("Foreshadowing plan generation failed (non-fatal): %s", e)
+            logger.warning(
+                "Foreshadowing plan generation failed (non-fatal): %s (type=%s)",
+                e, type(e).__name__,
+            )
 
         # Update draft with L1 signals (draft already created after outline critique)
         draft.macro_arcs = macro_arcs

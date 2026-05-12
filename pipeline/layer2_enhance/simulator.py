@@ -480,6 +480,13 @@ class DramaSimulator:
                 temperature=self._intensity.get("temperature", 0.95),
             )
 
+            if not isinstance(result, dict):
+                logger.warning(
+                    f"Agent {name} vòng {round_number}: LLM returned {type(result).__name__}, "
+                    f"expected dict — using defaults."
+                )
+                result = {}
+
             # Log agent reasoning if present (L2-D)
             reasoning = result.get("reasoning", "")
             if reasoning:
@@ -558,6 +565,12 @@ class DramaSimulator:
                 ),
                 temperature=0.9,
             )
+            if not isinstance(result, dict):
+                logger.warning(
+                    f"Reaction from {agent.character.name}: LLM returned "
+                    f"{type(result).__name__}, expected dict — using defaults."
+                )
+                result = {}
             # Log reaction reasoning (L2-D)
             reasoning = result.get("reasoning", "")
             if reasoning:

@@ -53,7 +53,10 @@ class NERService:
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "spaCy xx_ent_wiki_sm load failed (%s); "
-                    "NER degraded to canonical-name substring fallback.",
+                    "NER degraded to canonical-name substring fallback. "
+                    "To enable spaCy NER: `pip install spacy>=3.7,<4 && "
+                    "python -m spacy download xx_ent_wiki_sm` "
+                    "(or run `python scripts/install_spacy_model.py`).",
                     exc,
                 )
                 self._nlp = None
