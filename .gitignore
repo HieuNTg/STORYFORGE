@@ -54,11 +54,12 @@ node_modules/
 coverage/
 
 # ── TypeScript build output ───────────────────────────────────────
+# Compiled tsc emit artifacts — edit .ts sources only (tsc -p tsconfig.build.json emits .js siblings)
 web/js/**/*.js
 web/js/**/*.js.map
+# Vitest global setup is plain JS with no .ts source — keep it tracked
 !web/js/__tests__/setup.js
-!web/js/pages/library.js
-!web/js/pages/providers.js
+# Playwright visual test spec output is .ts source — no exceptions needed for .js
 web/dist/
 
 # ── IDE & OS ───────────────────────────────────────────────────────
