@@ -176,3 +176,240 @@
     box-shadow: none;
   }
 }
+
+/* ── ConfigPanel (UX §2.9) ────────────────────────────────────────────── */
+:root[data-forge-ui="on"] .sf-config-panel {
+  border: 1px solid var(--sf-border-subtle);
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-surface);
+  margin-bottom: var(--sf-space-3);
+  overflow: hidden;
+}
+:root[data-forge-ui="on"] .sf-config-panel__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sf-space-3);
+  padding: var(--sf-space-3) var(--sf-space-4);
+  font-family: var(--sf-font-body);
+  font-size: var(--sf-text-h4);
+  font-weight: var(--sf-font-semibold);
+  color: var(--sf-text-primary);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+:root[data-forge-ui="on"] .sf-config-panel__summary::-webkit-details-marker {
+  display: none;
+}
+:root[data-forge-ui="on"] .sf-config-panel__chevron {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  transition: transform var(--sf-duration-fast) var(--sf-ease-spring);
+}
+:root[data-forge-ui="on"] .sf-config-panel[data-expanded="true"] .sf-config-panel__chevron,
+:root[data-forge-ui="on"] details[open] .sf-config-panel__chevron {
+  transform: rotate(90deg);
+}
+:root[data-forge-ui="on"] .sf-config-panel[data-dirty="true"] .sf-config-panel__summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: var(--sf-radius-full);
+  background: var(--sf-accent-primary);
+  margin-left: var(--sf-space-2);
+}
+:root[data-forge-ui="on"] .sf-config-panel__body {
+  padding: var(--sf-space-3) var(--sf-space-4);
+  border-top: 1px solid var(--sf-border-subtle);
+  display: grid;
+  gap: var(--sf-space-3);
+}
+:root[data-forge-ui="on"] .sf-config-panel__field {
+  display: grid;
+  gap: var(--sf-space-1);
+}
+:root[data-forge-ui="on"] .sf-config-panel__field--invalid {
+  color: var(--sf-accent-danger);
+}
+:root[data-forge-ui="on"] .sf-config-panel__help {
+  font-size: var(--sf-text-caption);
+  color: var(--sf-text-secondary);
+}
+:root[data-forge-ui="on"] .sf-config-panel__error {
+  font-size: var(--sf-text-caption);
+  color: var(--sf-accent-danger);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-config-panel__chevron {
+    transition: none;
+  }
+}
+
+/* ── StoryCard (UX §2.4) ──────────────────────────────────────────────── */
+:root[data-forge-ui="on"] .sf-story-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--sf-space-2);
+  padding: var(--sf-space-3);
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-surface);
+  border: 1px solid var(--sf-border-subtle);
+  color: var(--sf-text-primary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform var(--sf-duration-fast) var(--sf-ease-spring),
+              box-shadow var(--sf-duration-fast) var(--sf-ease-spring),
+              border-color var(--sf-duration-fast) var(--sf-ease-spring);
+}
+:root[data-forge-ui="on"] .sf-story-card[data-mode="list"] {
+  grid-template-columns: 80px 1fr auto;
+  grid-template-rows: auto;
+  align-items: center;
+}
+:root[data-forge-ui="on"] .sf-story-card:hover,
+:root[data-forge-ui="on"] .sf-story-card[data-state="hover"],
+:root[data-forge-ui="on"] .sf-story-card:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: var(--sf-shadow-md);
+  border-color: var(--sf-accent-primary);
+}
+:root[data-forge-ui="on"] .sf-story-card__cover {
+  aspect-ratio: 3 / 4;
+  border-radius: var(--sf-radius-sm);
+  background: var(--sf-bg-elevated);
+  overflow: hidden;
+}
+:root[data-forge-ui="on"] .sf-story-card__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+:root[data-forge-ui="on"] .sf-story-card__title {
+  font-family: var(--sf-font-body);
+  font-size: var(--sf-text-h4);
+  font-weight: var(--sf-font-semibold);
+  color: var(--sf-text-primary);
+  line-height: var(--sf-leading-snug);
+}
+:root[data-forge-ui="on"] .sf-story-card__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sf-space-2);
+  font-size: var(--sf-text-caption);
+  color: var(--sf-text-secondary);
+}
+:root[data-forge-ui="on"] .sf-story-card__progress {
+  position: relative;
+  height: 4px;
+  border-radius: var(--sf-radius-full);
+  background: var(--sf-border-subtle);
+  overflow: hidden;
+}
+:root[data-forge-ui="on"] .sf-story-card__progress-fill {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  background: var(--sf-accent-forge);
+  transition: width var(--sf-duration-base) var(--sf-ease-spring);
+}
+:root[data-forge-ui="on"] .sf-story-card[data-status="done"] {
+  border-color: var(--sf-accent-complete);
+}
+:root[data-forge-ui="on"] .sf-story-card[data-status="error"] {
+  border-color: var(--sf-accent-danger);
+}
+:root[data-forge-ui="on"] .sf-story-card__actions {
+  display: flex;
+  gap: var(--sf-space-1);
+  opacity: 0;
+  transition: opacity var(--sf-duration-fast) var(--sf-ease-spring);
+}
+:root[data-forge-ui="on"] .sf-story-card:hover .sf-story-card__actions,
+:root[data-forge-ui="on"] .sf-story-card:focus-within .sf-story-card__actions {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-story-card,
+  :root[data-forge-ui="on"] .sf-story-card__progress-fill,
+  :root[data-forge-ui="on"] .sf-story-card__actions {
+    transition: none;
+  }
+  :root[data-forge-ui="on"] .sf-story-card:hover,
+  :root[data-forge-ui="on"] .sf-story-card:focus-visible {
+    transform: none;
+  }
+}
+
+/* ── Toast (UX §2.10) ─────────────────────────────────────────────────── */
+:root[data-forge-ui="on"] .sf-toast-region {
+  position: fixed;
+  top: var(--sf-space-4);
+  right: var(--sf-space-4);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sf-space-2);
+  pointer-events: none;
+  max-width: 380px;
+}
+:root[data-forge-ui="on"] .sf-toast-region--assertive {
+  /* Same visual position; second live region for warning/error variants. */
+  pointer-events: none;
+}
+:root[data-forge-ui="on"] .sf-toast {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: var(--sf-space-2);
+  padding: var(--sf-space-3) var(--sf-space-4);
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-surface);
+  border-left: 4px solid var(--sf-accent-primary);
+  box-shadow: var(--sf-shadow-md);
+  font-family: var(--sf-font-body);
+  font-size: var(--sf-text-body);
+  color: var(--sf-text-primary);
+  animation: sf-toast-enter var(--sf-duration-base) var(--sf-ease-spring);
+}
+:root[data-forge-ui="on"] .sf-toast[data-variant="success"] {
+  border-left-color: var(--sf-accent-complete);
+}
+:root[data-forge-ui="on"] .sf-toast[data-variant="warning"] {
+  border-left-color: var(--sf-accent-forge);
+}
+:root[data-forge-ui="on"] .sf-toast[data-variant="error"] {
+  border-left-color: var(--sf-accent-danger);
+}
+:root[data-forge-ui="on"] .sf-toast__message {
+  line-height: var(--sf-leading-snug);
+}
+:root[data-forge-ui="on"] .sf-toast__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: var(--sf-radius-sm);
+  color: var(--sf-text-secondary);
+  cursor: pointer;
+}
+:root[data-forge-ui="on"] .sf-toast__close:hover {
+  background: var(--sf-bg-elevated);
+  color: var(--sf-text-primary);
+}
+@keyframes sf-toast-enter {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-toast {
+    animation: none;
+  }
+}
