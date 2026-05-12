@@ -10,5 +10,5 @@
     "isolatedModules": true
   },
   "include": ["web/js/**/*.ts"],
-  "exclude": ["node_modules", "dist", "web/js/__tests__/**", "web/js/types/**"]
+  "exclude": ["node_modules", "dist", "web/js/__tests__/**", "web/js/**/__tests__/**", "web/js/types/**"]
 }

@@ -18,10 +18,14 @@ export default defineConfig({
     // jsdom gives us window, document, fetch stubs, and localStorage
     environment: 'jsdom',
 
-    // Glob patterns for test files
+    // Glob patterns for test files.
+    // .ts only — tsc emits .js siblings for tests too; ignore those to
+    // avoid double-counting.
     include: [
-      'web/js/__tests__/**/*.test.{js,ts}',
-      'web/js/__tests__/**/*.spec.{js,ts}',
+      'web/js/__tests__/**/*.test.ts',
+      'web/js/__tests__/**/*.spec.ts',
+      'web/js/**/__tests__/**/*.test.ts',
+      'web/js/**/__tests__/**/*.spec.ts',
     ],
 
     // Global test helpers (describe, it, expect, vi) without explicit imports
