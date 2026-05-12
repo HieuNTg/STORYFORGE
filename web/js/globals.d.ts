@@ -73,6 +73,13 @@ interface StorageManagerInterface {
 /* ── Window augmentation ───────────────────────────────────────────────── */
 
 interface Window {
+  __sf_i18n: {
+    locale: 'vi' | 'en'
+    translations: Record<string, Record<string, string>>
+    t(key: string): string
+    setLocale(locale: 'vi' | 'en'): void
+    loadTranslations(): Promise<void>
+  }
   storageManager: StorageManagerInterface
   sfShowToast: (message: string, level?: 'error' | 'warning') => void
   sfShowFatal: (message: string) => void

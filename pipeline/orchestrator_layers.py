@@ -878,6 +878,8 @@ async def run_full_pipeline(
                 characters=draft.characters or [],
                 threads=_threads_in,
                 conflict_web=_conflict_web,
+                min_rounds=int(getattr(self.config.pipeline, "l2_min_rounds", 4)),
+                max_rounds=int(getattr(self.config.pipeline, "l2_max_rounds", 10)),
             )
             _log(f"[L2] Bắt đầu mô phỏng {num_sim_rounds} vòng (adaptive)...")
         else:
@@ -902,6 +904,7 @@ async def run_full_pipeline(
             current_chapter=1,
             conflict_web=_conflict_web,
             foreshadowing_plan=_foreshadowing_plan,
+            drama_ceiling_enabled=bool(getattr(self.config.pipeline, "l2_drama_ceiling", True)),
         )
         self.output.simulation_result = sim_result
 

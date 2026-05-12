@@ -8,16 +8,20 @@ import queue as _queue
 import os
 import time
 import uuid
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from middleware.rbac import Permission, require_permission_if_enabled
 from services.i18n import I18n
 from services.text_utils import sanitize_story_html
 from pipeline.orchestrator import PipelineOrchestrator
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
+_READ_STORIES = Depends(require_permission_if_enabled(Permission.READ_STORIES))
+_CREATE_STORIES = Depends(require_permission_if_enabled(Permission.CREATE_STORIES))
+_DELETE_ANY_STORIES = Depends(require_permission_if_enabled(Permission.DELETE_ANY_STORIES))
 
 
 def _sanitize_summary(summary: dict) -> dict:
@@ -184,7 +188,7 @@ def get_templates():
     return {}
 
 
-@router.get("/checkpoints")
+@router.get("/checkpoints", dependencies=[_READ_STORIES])
 def get_checkpoints():
     """List available checkpoints with metadata for library."""
     from pipeline.orchestrator import PipelineOrchestrator
@@ -214,7 +218,7 @@ def get_checkpoints():
     return {"checkpoints": items}
 
 
-@router.get("/checkpoints/{filename}")
+@router.get("/checkpoints/{filename}", dependencies=[_READ_STORIES])
 def get_checkpoint(filename: str):
     """Load a single checkpoint and return formatted data for the reader."""
     import pathlib
@@ -250,7 +254,7 @@ def get_checkpoint(filename: str):
         raise HTTPException(status_code=500, detail="Failed to load checkpoint")
 
 
-@router.delete("/checkpoints/{filename}")
+@router.delete("/checkpoints/{filename}", dependencies=[_DELETE_ANY_STORIES])
 def delete_checkpoint(filename: str):
     """Delete a checkpoint file."""
     import pathlib
@@ -275,7 +279,7 @@ def delete_checkpoint(filename: str):
         raise HTTPException(status_code=500, detail="Failed to delete checkpoint")
 
 
-@router.get("/stories")
+@router.get("/stories", dependencies=[_READ_STORIES])
 def list_stories(limit: int = 20, offset: int = 0, enhanced_only: bool = True):
     """List saved stories (checkpoints) with pagination.
 
@@ -307,7 +311,7 @@ def list_stories(limit: int = 20, offset: int = 0, enhanced_only: bool = True):
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
-@router.post("/run")
+@router.post("/run", dependencies=[_CREATE_STORIES])
 async def run_pipeline(request: Request, body: PipelineRequest):
     """Run the full pipeline, streaming progress via SSE."""
     # Validate input
@@ -531,7 +535,7 @@ async def run_pipeline(request: Request, body: PipelineRequest):
     )
 
 
-@router.post("/resume")
+@router.post("/resume", dependencies=[_CREATE_STORIES])
 async def resume_pipeline(request: Request, body: ResumeRequest):
     """Resume pipeline from a checkpoint, streaming progress via SSE."""
     # Resolve checkpoint safely — accept filename only, prevent path traversal

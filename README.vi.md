@@ -54,12 +54,14 @@ Sau đó **Cài đặt** (provider + API key) → **Tạo truyện** → **Chạ
 
 ## Cấu hình
 
-Tab Cài đặt lưu vào `data/config.json`. Biến môi trường chính:
+Tab Cài đặt lưu vào `data/config.json`. Khi `STORYFORGE_SECRET_KEY` được đặt,
+các trường nhạy cảm trong file này sẽ được mã hoá. Biến môi trường chính:
 
 | Biến | Mục đích |
 |------|----------|
-| `LLM_PROVIDER` / `LLM_API_KEY` / `LLM_MODEL` | nhà cung cấp, key, model chính |
-| `STORYFORGE_SECRET_KEY` | khoá HMAC — **bắt buộc đặt trong production** để mã hoá secrets |
+| `STORYFORGE_API_KEY` / `STORYFORGE_BASE_URL` / `STORYFORGE_MODEL` | key provider, base URL tương thích OpenAI, model chính |
+| `STORYFORGE_SECRET_KEY` | khoá mã hoá/ký — **bắt buộc đặt trong production** để mã hoá secrets |
+| `STORYFORGE_AUTH_REQUIRED` | `1` = bật JWT/RBAC cho các API nhạy cảm |
 | `REDIS_URL` | bắt buộc khi chạy nhiều instance (`NUM_WORKERS>1`) — chia sẻ cache/session |
 | `STORYFORGE_ALLOWED_ORIGINS` | CORS origins (phân cách bằng phẩy) |
 | `STORYFORGE_HANDOFF_STRICT` | `1` = fail-fast khi tín hiệu L1→L2 malformed (mặc định: warn) |

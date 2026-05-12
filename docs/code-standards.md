@@ -90,17 +90,9 @@ tests/
 ```
 .env.example                → Development defaults
 .env.production.example      → Production secrets template
-docker-compose.yml           → Development stack
-docker-compose.production.yml → Production stack (7 services)
+docker-compose.production.yml → Production app + PostgreSQL + Redis stack
 Dockerfile                   → Container image
-nginx/
-  nginx.conf                  ✓ Reverse proxy + ip_hash sticky sessions
-  ssl-params.conf            ✓ TLS hardening
-monitoring/
-  prometheus.yml              ✓ Metrics scrape config
-  alert-rules.yml            ✓ Alert thresholds
-  grafana/                   ✓ Dashboard provisioning
-  loki-config.yml            ✓ Log aggregation
+Reverse proxy / monitoring    → External deployment concern; scrape /api/metrics
 ```
 
 ## Python Code Standards

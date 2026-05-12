@@ -1,0 +1,62 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env.production
+    environment:
+      DATABASE_URL: postgresql+asyncpg://storyforge:${POSTGRES_PASSWORD}@postgres:5432/storyforge
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      STORYFORGE_REDIS_REQUIRED: "1"
+      STORYFORGE_AUTH_REQUIRED: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${PORT:-7860}:7860"
+    volumes:
+      - storyforge-data:/app/data
+      - storyforge-output:/app/output
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:7860/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: storyforge
+      POSTGRES_USER: storyforge
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - storyforge-pg-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U storyforge -d storyforge"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - storyforge-redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$REDIS_PASSWORD\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  storyforge-data:
+  storyforge-output:
+  storyforge-pg-data:
+  storyforge-redis-data:

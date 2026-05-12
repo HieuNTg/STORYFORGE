@@ -4,16 +4,18 @@ import logging
 import os
 import pathlib
 from typing import Optional, TYPE_CHECKING
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 if TYPE_CHECKING:
     from models.schemas import PipelineOutput
 from fastapi.responses import FileResponse, JSONResponse
 
 from api.pipeline_routes import _orchestrators
+from middleware.rbac import Permission, require_permission_if_enabled
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/export", tags=["export"])
+_READ_STORIES = Depends(require_permission_if_enabled(Permission.READ_STORIES))
 
 # Directories that export files may legally reside in
 _PROJECT_ROOT = pathlib.Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).resolve()
@@ -164,7 +166,7 @@ async def _get_story_data(session_id: str):
     return await _load_story_from_db(session_id)
 
 
-@router.post("/files/{session_id}")
+@router.post("/files/{session_id}", dependencies=[_READ_STORIES])
 async def export_files(session_id: str, formats: list[str] = ["TXT", "Markdown", "JSON"]):
     """Export story files in requested formats."""
     orch = await _get_story_data(session_id)
@@ -185,7 +187,7 @@ async def export_files(session_id: str, formats: list[str] = ["TXT", "Markdown",
     return {"files": safe_files}
 
 
-@router.post("/zip/{session_id}")
+@router.post("/zip/{session_id}", dependencies=[_READ_STORIES])
 async def export_zip(session_id: str):
     """Export all files as ZIP."""
     orch = await _get_story_data(session_id)
@@ -200,7 +202,7 @@ async def export_zip(session_id: str):
     return JSONResponse({"error": "Không có file"}, status_code=500)
 
 
-@router.post("/pdf/{session_id}")
+@router.post("/pdf/{session_id}", dependencies=[_READ_STORIES])
 async def export_pdf(session_id: str):
     """Export story as PDF."""
     orch = await _get_story_data(session_id)
@@ -214,7 +216,7 @@ async def export_pdf(session_id: str):
     return JSONResponse({"error": "Xuất PDF thất bại"}, status_code=500)
 
 
-@router.post("/epub/{session_id}")
+@router.post("/epub/{session_id}", dependencies=[_READ_STORIES])
 async def export_epub(session_id: str):
     """Export story as EPUB."""
     orch = await _get_story_data(session_id)

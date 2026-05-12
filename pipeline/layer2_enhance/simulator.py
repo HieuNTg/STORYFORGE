@@ -861,6 +861,7 @@ class DramaSimulator:
         current_chapter: int = 1,
         conflict_web: list | None = None,
         foreshadowing_plan: list | None = None,
+        drama_ceiling_enabled: bool = True,
     ) -> SimulationResult:
         """Async core: run full simulation and return result."""
         try:
@@ -1025,29 +1026,42 @@ class DramaSimulator:
             logger.debug(f"causal_chains build lỗi: {e}")
 
         # Apply drama ceiling to prevent melodrama (Phase 6)
-        try:
-            from pipeline.layer2_enhance.adaptive_intensity import apply_drama_ceiling_to_events
-            chapter_position = current_chapter / max(1, current_chapter + 10)  # Estimate
-            all_events = apply_drama_ceiling_to_events(all_events, genre, chapter_position)
-            _log(f"[DramaCeiling] Applied genre ceiling for {genre}")
-        except Exception as e:
-            logger.debug(f"Drama ceiling application failed (non-fatal): {e}")
+        if drama_ceiling_enabled:
+            try:
+                from pipeline.layer2_enhance.adaptive_intensity import apply_drama_ceiling_to_events
+                chapter_position = current_chapter / max(1, current_chapter + 10)  # Estimate
+                all_events = apply_drama_ceiling_to_events(all_events, genre, chapter_position)
+                _log(f"[DramaCeiling] Applied genre ceiling for {genre}")
+            except Exception as e:
+                logger.debug(f"Drama ceiling application failed (non-fatal): {e}")
 
-        # Lane contract: simulator emits dramatic suggestions only. Drop any
-        # craft-tagged drift (defensive — generated suggestions are str by
-        # construction, but propagated LaneSuggestion objects are checked).
+        # Lane contract: simulator emits dramatic suggestions only.
+        # Typed LaneSuggestion: drop if claimed lane != dramatic.
+        # Plain str: classify via keyword regex and drop clear craft drift.
+        from models.schemas import LaneSuggestion as _LS
+        from pipeline.layer2_enhance.lane_classifier import is_craft_drift
         raw_suggestions = suggestions_result.get("suggestions", []) or []
         filtered_suggestions: list[str] = []
         for sug in raw_suggestions:
-            from models.schemas import LaneSuggestion as _LS
-            if isinstance(sug, _LS) and sug.lane != "dramatic":
+            if isinstance(sug, _LS):
+                if sug.lane != "dramatic":
+                    logger.warning(
+                        "cross_lane_suggestion_dropped agent=character_simulator "
+                        "claimed=%s expected=dramatic text=%r",
+                        sug.lane, str(sug)[:80],
+                    )
+                    continue
+                filtered_suggestions.append(str(sug))
+                continue
+            sug_text = str(sug)
+            if is_craft_drift(sug_text):
                 logger.warning(
                     "cross_lane_suggestion_dropped agent=character_simulator "
-                    "claimed=%s expected=dramatic text=%r",
-                    sug.lane, str(sug)[:80],
+                    "claimed=str expected=dramatic classifier=craft text=%r",
+                    sug_text[:80],
                 )
                 continue
-            filtered_suggestions.append(str(sug))
+            filtered_suggestions.append(sug_text)
 
         result = SimulationResult(
             events=all_events,
@@ -1080,6 +1094,7 @@ class DramaSimulator:
         current_chapter: int = 1,
         conflict_web: list | None = None,
         foreshadowing_plan: list | None = None,
+        drama_ceiling_enabled: bool = True,
     ) -> SimulationResult:
         """Sync wrapper — raises if called from a running event loop."""
         try:
@@ -1098,6 +1113,7 @@ class DramaSimulator:
                 current_chapter=current_chapter,
                 conflict_web=conflict_web,
                 foreshadowing_plan=foreshadowing_plan,
+                drama_ceiling_enabled=drama_ceiling_enabled,
             ))
         raise RuntimeError(
             "run_simulation called from async context — use run_simulation_async"

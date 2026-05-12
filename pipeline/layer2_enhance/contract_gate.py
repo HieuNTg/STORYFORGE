@@ -295,7 +295,6 @@ def _post_gate_validate(new_chapter: Chapter, original_chapter: Chapter) -> bool
 
     Reads voice_binary_revert_floor from PipelineConfig. If voice validation raises,
     logs and returns False (reverts) — idempotent and bounded.
-    Lane classifier check deferred to P1 (lane_classifier.py unwired+untested).
     """
     try:
         from config.config import ConfigManager

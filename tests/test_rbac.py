@@ -26,7 +26,9 @@ from middleware.rbac import (  # noqa: E402
     Permission,
     Role,
     _resolve_role,
+    auth_required,
     require_permission,
+    require_permission_if_enabled,
     require_role,
 )
 
@@ -216,6 +218,37 @@ class TestRequirePermission:
     def test_dep_name_reflects_permission(self):
         dep = require_permission(Permission.VIEW_AUDIT_LOGS)
         assert "view_audit_logs" in dep.__name__
+
+
+class TestRequirePermissionIfEnabled:
+    def test_auth_required_env_flag(self, monkeypatch):
+        monkeypatch.setenv("STORYFORGE_AUTH_REQUIRED", "1")
+        assert auth_required() is True
+        monkeypatch.setenv("STORYFORGE_AUTH_REQUIRED", "false")
+        assert auth_required() is False
+
+    def test_disabled_skips_token_check(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        monkeypatch.delenv("STORYFORGE_AUTH_REQUIRED", raising=False)
+        dep = require_permission_if_enabled(Permission.MANAGE_USERS)
+        request = MagicMock()
+        request.headers = {}
+        assert dep(request) is None
+
+    def test_enabled_enforces_permission(self, monkeypatch):
+        from fastapi.exceptions import HTTPException
+        from unittest.mock import MagicMock
+
+        monkeypatch.setenv("STORYFORGE_AUTH_REQUIRED", "1")
+        dep = require_permission_if_enabled(Permission.MANAGE_USERS)
+        request = MagicMock()
+        request.headers = {}
+
+        with pytest.raises(HTTPException) as exc_info:
+            dep(request)
+
+        assert exc_info.value.status_code == 401
 
 
 # ===========================================================================

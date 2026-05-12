@@ -35,6 +35,10 @@ class ConfigManager:
         """Validate config. Returns list of warning messages."""
         return validate_config(self.llm, self.pipeline)
 
+    def load(self) -> "ConfigManager":
+        """Backward-compatible accessor used by older call sites."""
+        return self
+
     def save(self) -> list[str]:
         """Save config. Returns warnings. Raises ValueError on critical errors."""
         with self._lock:

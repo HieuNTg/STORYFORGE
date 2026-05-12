@@ -3,15 +3,20 @@
 import json
 import logging
 import tempfile
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel, Field
 
+from middleware.rbac import Permission, require_permission_if_enabled
 from services.branch_narrative import manager
 from services.llm_client import LLMClient
 from services.export.branch_epub_exporter import BranchEPUBExporter
 
-router = APIRouter(prefix="/branch", tags=["branch"])
+router = APIRouter(
+    prefix="/branch",
+    tags=["branch"],
+    dependencies=[Depends(require_permission_if_enabled(Permission.CREATE_STORIES))],
+)
 logger = logging.getLogger(__name__)
 llm = LLMClient()
 

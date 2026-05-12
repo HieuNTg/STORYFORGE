@@ -148,13 +148,46 @@ class TestConfigPersistence:
         from config.persistence import save_config
         with tempfile.TemporaryDirectory() as tmpdir:
             config_file = os.path.join(tmpdir, "config.json")
-            with patch("config.persistence.CONFIG_FILE", config_file):
+            with patch("config.persistence.CONFIG_FILE", config_file), \
+                 patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": ""}, clear=False):
                 llm = LLMConfig(api_key="sk-test-key")
                 pipeline = PipelineConfig()
                 save_config(llm, pipeline)
                 with open(config_file) as f:
                     data = json.load(f)
                 assert data["llm"]["api_key"] == "sk-test-key"
+
+    def test_save_config_encrypts_sensitive_fields_when_secret_set(self):
+        from config.defaults import LLMConfig, PipelineConfig
+        from config.persistence import save_config, load_config
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = os.path.join(tmpdir, "config.json")
+            with patch("config.persistence.CONFIG_FILE", config_file), \
+                 patch("config.persistence._SECRETS_FILE", os.path.join(tmpdir, "secrets.json")), \
+                 patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": "unit-test-secret"}, clear=False):
+                llm = LLMConfig(
+                    api_key="sk-test-key",
+                    api_keys=["sk-extra-key"],
+                    fallback_models=[{"name": "p", "api_key": "sk-fallback-key"}],
+                )
+                pipeline = PipelineConfig(image_api_key="img-key", hf_token="hf-token")
+                save_config(llm, pipeline)
+                raw = open(config_file, encoding="utf-8").read()
+                assert "sk-test-key" not in raw
+                assert "sk-extra-key" not in raw
+                assert "sk-fallback-key" not in raw
+                assert "img-key" not in raw
+                assert "hf-token" not in raw
+                assert "ENC:" in raw
+
+                llm2 = LLMConfig()
+                pipeline2 = PipelineConfig()
+                load_config(llm2, pipeline2)
+                assert llm2.api_key == "sk-test-key"
+                assert llm2.api_keys == ["sk-extra-key"]
+                assert llm2.fallback_models[0]["api_key"] == "sk-fallback-key"
+                assert pipeline2.image_api_key == "img-key"
+                assert pipeline2.hf_token == "hf-token"
 
     def test_env_override_api_key(self):
         from config.defaults import LLMConfig, PipelineConfig
@@ -237,6 +270,11 @@ class TestConfigManagerSingleton:
         cm = ConfigManager()
         assert hasattr(cm, "pipeline")
         assert hasattr(cm.pipeline, "num_chapters")
+
+    def test_config_manager_load_returns_self(self):
+        from config import ConfigManager
+        cm = ConfigManager()
+        assert cm.load() is cm
 
     def test_config_manager_validate_returns_list(self):
         from config import ConfigManager

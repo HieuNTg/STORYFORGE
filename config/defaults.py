@@ -257,7 +257,7 @@ class PipelineConfig:
     # L2 enhancement quality signals
     l2_use_l1_signals: bool = True  # wire L1 waypoints/summary/pacing/thread.status into L2
     l2_causal_audit: bool = True  # post-L2 causality verification (Phase B)
-    l2_agent_reasoning: bool = True  # L2-D: chain-of-thought reasoning before agent actions
+    l2_agent_reasoning: bool = True  # DEAD: L2-D CoT-pre-action never wired; reserved name only
     l2_thread_pressure: bool = True  # thread.urgency → psychology pressure (Phase C)
     l2_contract_gate: bool = True  # post-L2 contract validation + optional rewrite (Phase E)
 
@@ -273,7 +273,7 @@ class PipelineConfig:
     enable_voice_contract_retry: bool = True         # Refine-with-hint on drift (vs. binary revert)
     voice_contract_retry_max: int = 1
     voice_min_compliance: float = 0.75               # Pass threshold per chapter
-    voice_dedup_l1_l2: bool = True                   # Skip L2 re-extract when L1 profile present
+    voice_dedup_l1_l2: bool = True                   # DEAD: dedup behaviour already implicit in enhancer; flag is read nowhere
     voice_binary_revert_floor: float = 0.5           # Below this compliance → last-resort revert
 
     # L2 Consistency Engine (master switch + thread watchdog sub-gate)

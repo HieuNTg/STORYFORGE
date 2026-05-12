@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 CONFIG_FILE = "data/config.json"
-_SECRETS_FILE = "data/secrets.json"
+_SECRETS_FILE = "data/secrets.json"  # legacy — read-only fallback for migration
 
 # Maps env var name -> (section, field_name)
 # Note: ZAI_API_KEY is handled directly in client._build_fallback_chain for auto-fallback
@@ -57,6 +57,8 @@ def load_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            from services.secret_manager import decrypt_sensitive_fields
+            data = decrypt_sensitive_fields(data)
             for k, v in data.get("llm", {}).items():
                 if hasattr(llm, k):
                     setattr(llm, k, v)
@@ -66,56 +68,42 @@ def load_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
         except Exception as e:
             logger.warning(f"Config load error: {e}")
 
-    _load_secrets(llm, pipeline)
+    _migrate_legacy_secrets(llm, pipeline)
     _apply_env_overrides(llm, pipeline)
 
 
-def _load_secrets(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
-    """Load encrypted secrets from secrets file.
+def _migrate_legacy_secrets(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
+    """One-shot migration from legacy data/secrets.json into config.json.
 
-    Only loads when STORYFORGE_SECRET_KEY is set (encryption active).
-    Without it, config.json already contains all values in plaintext
-    and secrets.json may hold stale/dummy data that would overwrite
-    real keys.
+    Older versions persisted sensitive fields to a separate encrypted file.
+    That file became unreadable whenever STORYFORGE_SECRET_KEY was unset,
+    silently locking away the user's real API keys/profiles. This recovers
+    them: read once, fold into the in-memory config, then on the next save
+    config.json becomes the single source of truth and the legacy file is
+    can be archived manually with scripts/recover_secrets.py after verification.
     """
     if not os.path.exists(_SECRETS_FILE):
-        return
-    if not os.environ.get("STORYFORGE_SECRET_KEY"):
         return
     try:
         from services.secret_manager import load_encrypted
         data = load_encrypted(_SECRETS_FILE)
-        for k, v in data.get("llm", {}).items():
-            if hasattr(llm, k) and v:
-                setattr(llm, k, v)
-        for k, v in data.get("pipeline", {}).items():
-            if hasattr(pipeline, k) and v:
-                setattr(pipeline, k, v)
     except Exception as e:
-        logger.warning(f"Secrets load error: {e}")
-
-
-def _save_secrets(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
-    """Persist sensitive fields (api keys, fallback profiles) to encrypted file."""
-    try:
-        from services.secret_manager import save_encrypted
-        data = {
-            "llm": {
-                "api_key": llm.api_key,
-                "api_keys": llm.api_keys,
-                "fallback_models": llm.fallback_models,
-            },
-            "pipeline": {
-                k: getattr(pipeline, k)
-                for k in ("image_api_key", "seedream_api_key", "replicate_api_key",
-                           "long_context_api_key", "hf_token")
-                if getattr(pipeline, k, "")
-            },
-        }
-        os.makedirs(os.path.dirname(_SECRETS_FILE), exist_ok=True)
-        save_encrypted(_SECRETS_FILE, data)
-    except Exception as e:
-        logger.warning(f"Secrets save error: {e}")
+        logger.warning(f"Legacy secrets load error: {e}")
+        return
+    if not data:
+        # Encrypted but no key, or corrupt — leave file alone for manual recovery
+        return
+    recovered = False
+    for k, v in data.get("llm", {}).items():
+        if hasattr(llm, k) and v and not getattr(llm, k):
+            setattr(llm, k, v)
+            recovered = True
+    for k, v in data.get("pipeline", {}).items():
+        if hasattr(pipeline, k) and v and not getattr(pipeline, k):
+            setattr(pipeline, k, v)
+            recovered = True
+    if recovered:
+        logger.info("Loaded values from legacy secrets.json into in-memory config")
 
 
 def _apply_env_overrides(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
@@ -136,7 +124,7 @@ def _apply_env_overrides(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
 
 
 def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
-    """Persist config to JSON including API keys for local self-hosted use."""
+    """Persist config to JSON, encrypting sensitive fields when a secret key is set."""
     os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
     data = {
         "llm": {
@@ -197,6 +185,9 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
             "long_context_base_url": getattr(pipeline, "long_context_base_url", ""),
         },
     }
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+    from services.secret_manager import encrypt_sensitive_fields
+    data = encrypt_sensitive_fields(data)
+    tmp = CONFIG_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    _save_secrets(llm, pipeline)
+    os.replace(tmp, CONFIG_FILE)

@@ -1,14 +1,11 @@
-# Database dependencies for PostgreSQL support (optional — not required for
-# the default JSON-file / SQLite storage mode).
+# PostgreSQL-only dependencies. SQLAlchemy itself is in requirements.txt
+# because runtime health/export modules import it even for local SQLite checks.
 #
 # Install with:
 #   pip install -r requirements-db.txt
 #
 # Then set DATABASE_URL=postgresql+asyncpg://user:pass@host/dbname
 # and run:  alembic upgrade head
-
-# Async SQLAlchemy 2.0+ with asyncio extras
-sqlalchemy[asyncio]>=2.0.0
 
 # Async PostgreSQL driver (used at runtime)
 asyncpg>=0.29.0

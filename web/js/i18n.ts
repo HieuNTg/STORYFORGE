@@ -21,7 +21,7 @@ interface I18nStore {
 }
 
 // IIFE to avoid polluting global scope while still exposing via window
-((w: any) => {
+(() => {
   const i18n: I18nStore = {
     locale: (
       typeof localStorage !== 'undefined'
@@ -58,5 +58,5 @@ interface I18nStore {
     },
   };
 
-  w.__sf_i18n = i18n;
-})(window);
+  window.__sf_i18n = i18n;
+})();

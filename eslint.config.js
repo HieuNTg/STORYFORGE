@@ -8,6 +8,18 @@ import prettierConfig from 'eslint-config-prettier';
 
 export default [
   {
+    ignores: [
+      '.claude/**',
+      'node_modules/**',
+      'coverage/**',
+      'web/dist/**',
+      'web/js/**/*.js',
+      'web/js/**/*.d.ts',
+      'web/js/__tests__/**',
+      'web/js/types/**',
+    ],
+  },
+  {
     files: ['web/js/**/*.ts'],
     languageOptions: {
       parser: tsparser,
@@ -30,7 +42,14 @@ export default [
       ...tseslint.configs.recommended.rules,
       // Keep rules minimal (YAGNI) — add project-specific overrides here as needed
       '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          varsIgnorePattern: '^(API|saveBranchSession|loadBranchSession|accountPage|analyticsPage|branchingPage|exportPage|galleryPage|libraryPage|pipelinePage|providersPage|settingsPage|usagePage)$',
+        },
+      ],
     },
   },
   prettierConfig,

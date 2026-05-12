@@ -15,10 +15,11 @@ import pathlib
 import urllib.parse
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 
 from api.export_routes import _PROJECT_ROOT, _get_story_data
+from middleware.rbac import Permission, require_permission_if_enabled
 
 # Reference-image upload constraints
 _REF_MAX_BYTES = 8 * 1024 * 1024  # 8 MB
@@ -30,6 +31,8 @@ _REF_ALLOWED_TYPES = {
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/images", tags=["images"])
+_READ_STORIES = Depends(require_permission_if_enabled(Permission.READ_STORIES))
+_CREATE_STORIES = Depends(require_permission_if_enabled(Permission.CREATE_STORIES))
 
 _in_flight: set[str] = set()
 _in_flight_lock = asyncio.Lock()
@@ -123,7 +126,7 @@ def _persist_to_checkpoint(session_id: str, output) -> None:
         logger.warning(f"Failed to persist images into checkpoint {safe_name}: {e}")
 
 
-@router.post("/{session_id}/generate", response_model=GenerateImagesResponse)
+@router.post("/{session_id}/generate", response_model=GenerateImagesResponse, dependencies=[_CREATE_STORIES])
 async def generate_images(session_id: str, body: GenerateImagesRequest = GenerateImagesRequest()):
     """Generate one image per chapter for the given session or checkpoint.
 
@@ -187,7 +190,7 @@ async def generate_images(session_id: str, body: GenerateImagesRequest = Generat
             _in_flight.discard(in_flight_key)
 
 
-@router.get("/{session_id}/profiles", response_model=CharacterProfilesResponse)
+@router.get("/{session_id}/profiles", response_model=CharacterProfilesResponse, dependencies=[_READ_STORIES])
 async def get_character_profiles(session_id: str):
     """Return per-character visual profiles for a session or checkpoint.
 
@@ -230,6 +233,7 @@ async def get_character_profiles(session_id: str):
 @router.post(
     "/{session_id}/profiles/{character_name}/rebuild",
     response_model=CharacterProfileRebuildResponse,
+    dependencies=[_CREATE_STORIES],
 )
 async def rebuild_character_profile(session_id: str, character_name: str):
     """Re-extract attributes + frozen prompt for a single character.
@@ -297,6 +301,7 @@ async def rebuild_character_profile(session_id: str, character_name: str):
 @router.post(
     "/{session_id}/profiles/{character_name}/reference",
     response_model=CharacterReferenceUploadResponse,
+    dependencies=[_CREATE_STORIES],
 )
 async def upload_character_reference(
     session_id: str,

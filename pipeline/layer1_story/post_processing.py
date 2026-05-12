@@ -399,13 +399,16 @@ def process_chapter_post_write(
         _record_validator_failure(story_context, "location_transition", outline.chapter_number, e)
 
     # L1-E: Post-write foreshadowing payoff verification (embedding-based, Sprint 2 P3).
-    _verify_payoff_enabled = getattr(pipeline_config, "enable_foreshadowing_payoff_verify", False) \
-        if pipeline_config else False
+    # Gated by enable_foreshadowing_payoff_verify AND enable_semantic_foreshadowing.
+    _verify_payoff_enabled = (
+        getattr(pipeline_config, "enable_foreshadowing_payoff_verify", False)
+        and getattr(pipeline_config, "enable_semantic_foreshadowing", True)
+    ) if pipeline_config else False
     if _verify_payoff_enabled and foreshadowing_plan:
         try:
             from pipeline.layer1_story.foreshadowing_manager import get_payoffs_due
             from pipeline.semantic.foreshadowing_verifier import verify_payoffs
-            _threshold = float(getattr(pipeline_config, "semantic_payoff_threshold", 0.55))
+            _threshold = float(getattr(pipeline_config, "semantic_foreshadowing_threshold", 0.7))
             _due = get_payoffs_due(foreshadowing_plan, outline.chapter_number)
             if _due:
                 with tracked_extraction(story_context, ch_num, "foreshadowing"):
@@ -566,6 +569,10 @@ def process_chapter_post_write(
     # internally falls back to keyword similarity when the embedding model is
     # unavailable; we no longer flip foreshadowing booleans via mark_planted/
     # mark_paid_off (they keyword-flip too loosely and bypass confidence scoring).
+    _semantic_foreshadow_enabled = (
+        getattr(pipeline_config, "enable_semantic_foreshadowing", True)
+        if pipeline_config else True
+    )
     with tracked_extraction(story_context, ch_num, "foreshadowing"):
         from pipeline.layer1_story.foreshadowing_manager import (
             get_seeds_to_plant, get_payoffs_due,
@@ -573,7 +580,7 @@ def process_chapter_post_write(
         from pipeline.semantic.foreshadowing_verifier import verify_seeds, verify_payoffs
         from services.embedding_service import get_embedding_service
         from models.semantic_schemas import ChapterSemanticFindings, SEMANTIC_VERIFICATION_VERSION
-        if foreshadowing_plan:
+        if foreshadowing_plan and _semantic_foreshadow_enabled:
             seeds_due = get_seeds_to_plant(foreshadowing_plan, outline.chapter_number)
             payoffs_due = get_payoffs_due(foreshadowing_plan, outline.chapter_number)
             _svc = get_embedding_service()

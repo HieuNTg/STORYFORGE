@@ -3,12 +3,18 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
+
+from middleware.rbac import Permission, require_permission_if_enabled
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/providers", tags=["providers"])
+router = APIRouter(
+    prefix="/providers",
+    tags=["providers"],
+    dependencies=[Depends(require_permission_if_enabled(Permission.ACCESS_ANALYTICS))],
+)
 
 
 def _get_api_keys_from_config() -> dict[str, str]:

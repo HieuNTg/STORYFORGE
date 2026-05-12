@@ -50,7 +50,12 @@ def _check_database() -> dict[str, Any]:
                 db_url = os.environ.get(
                     "DATABASE_URL", "sqlite:///data/storyforge.db"
                 )
-                _health_engine = create_engine(db_url, pool_pre_ping=True, connect_args={"check_same_thread": False} if "sqlite" in db_url else {})
+                sync_db_url = db_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
+                _health_engine = create_engine(
+                    sync_db_url,
+                    pool_pre_ping=True,
+                    connect_args={"check_same_thread": False} if "sqlite" in sync_db_url else {},
+                )
             engine = _health_engine
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))

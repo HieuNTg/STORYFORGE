@@ -1,8 +1,9 @@
 """Prompt management API routes — list, preview, A/B test prompts."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from middleware.rbac import Permission, require_permission_if_enabled
 from services.prompt_registry import (
     get_prompt_version,
     list_prompt_versions,
@@ -12,6 +13,7 @@ from services.prompt_registry import (
 from services.prompt_ab_bridge import bridge
 
 router = APIRouter(prefix="/prompts", tags=["prompts"])
+_CONFIGURE_PIPELINE = Depends(require_permission_if_enabled(Permission.CONFIGURE_PIPELINE))
 
 
 # ---------------------------------------------------------------------------
@@ -109,7 +111,12 @@ class CreateExperimentBody(BaseModel):
     variants: list[str] = Field(..., min_length=2)
 
 
-@router.post("/experiments", status_code=201, summary="Create a prompt A/B experiment")
+@router.post(
+    "/experiments",
+    status_code=201,
+    summary="Create a prompt A/B experiment",
+    dependencies=[_CONFIGURE_PIPELINE],
+)
 def create_experiment(body: CreateExperimentBody):
     """Create an A/B experiment testing different versions of a prompt."""
     try:

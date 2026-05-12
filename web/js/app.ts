@@ -3,8 +3,7 @@
  */
 
 // i18n is loaded via separate <script> tag and exposed as window.__sf_i18n
-declare const __sf_i18n: any;
-const i18n = (window as any).__sf_i18n;
+const i18n = window.__sf_i18n;
 
 /* ── Domain interfaces ── */
 

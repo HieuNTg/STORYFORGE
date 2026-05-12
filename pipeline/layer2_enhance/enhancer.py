@@ -843,6 +843,38 @@ class StoryEnhancer:
         except Exception as e:
             logger.warning(f"Enhancement diff tracking failed (non-fatal): {e}")
 
+        # Melodrama detection (Phase 6) — surface indicators to changelog, no rewrite
+        _melodrama_enabled = True
+        try:
+            _melodrama_enabled = bool(ConfigManager().load().pipeline.l2_melodrama_detection)
+        except Exception:
+            pass
+        if _melodrama_enabled:
+            try:
+                from pipeline.layer2_enhance.drama_patterns import detect_melodrama
+                total_flagged = 0
+                for enh_ch in enhanced.chapters:
+                    is_melo, indicators = detect_melodrama(enh_ch.content or "", threshold=3)
+                    if not is_melo:
+                        continue
+                    total_flagged += 1
+                    try:
+                        enh_ch.enhancement_changelog = list(
+                            getattr(enh_ch, "enhancement_changelog", []) or []
+                        )
+                        enh_ch.enhancement_changelog.append(
+                            f"[melodrama:warn] {len(indicators)} indicators: "
+                            f"{', '.join(indicators[:3])}"
+                        )
+                    except Exception:
+                        pass
+                if total_flagged:
+                    _log(f"⚠️ Melodrama: {total_flagged}/{len(enhanced.chapters)} chương có chỉ báo")
+                else:
+                    _log("✅ Không phát hiện melodrama")
+            except Exception as e:
+                logger.warning(f"Melodrama detection failed (non-fatal): {e}")
+
         # Consistency validation (A-E improvements)
         if self.consistency_engine:
             _log("🔍 Validating consistency...")

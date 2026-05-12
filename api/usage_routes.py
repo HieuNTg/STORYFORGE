@@ -11,13 +11,15 @@ from __future__ import annotations
 
 import pathlib
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from middleware.rbac import Permission, require_permission_if_enabled
 from services.token_cost_tracker import TokenCostTracker
 from services.usage_history import read_usage
 
 router = APIRouter(prefix="/usage", tags=["usage"])
+_ACCESS_ANALYTICS = Depends(require_permission_if_enabled(Permission.ACCESS_ANALYTICS))
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +59,7 @@ class SessionSummaryResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-@router.get("/session", response_model=SessionSummaryResponse)
+@router.get("/session", response_model=SessionSummaryResponse, dependencies=[_ACCESS_ANALYTICS])
 async def get_session_summary() -> SessionSummaryResponse:
     """Return aggregated token usage and cost for the current server session.
 
@@ -69,7 +71,7 @@ async def get_session_summary() -> SessionSummaryResponse:
     return SessionSummaryResponse(**data)
 
 
-@router.delete("/session", status_code=200)
+@router.delete("/session", status_code=200, dependencies=[_ACCESS_ANALYTICS])
 async def reset_session() -> dict:
     """Clear all in-memory token usage records for the current session.
 
@@ -81,7 +83,7 @@ async def reset_session() -> dict:
     return {"status": "ok", "message": "Session token usage reset."}
 
 
-@router.get("/{story_id}", response_model=StoryCostResponse)
+@router.get("/{story_id}", response_model=StoryCostResponse, dependencies=[_ACCESS_ANALYTICS])
 async def get_story_usage(story_id: str) -> StoryCostResponse:
     """Return token usage and cost breakdown for a single story.
 
@@ -119,7 +121,7 @@ async def get_story_usage(story_id: str) -> StoryCostResponse:
 # ──────────────────────────────────────────────────────────────────────────
 
 
-@router.get("/story/{filename}")
+@router.get("/story/{filename}", dependencies=[_ACCESS_ANALYTICS])
 def get_story_usage_sidecar(filename: str) -> dict:
     """Return ``{events, totals}`` for a checkpoint, or empty totals if missing.
 

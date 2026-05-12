@@ -10,11 +10,12 @@ import shutil
 import time
 import uuid
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Depends, Request, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from api.pipeline_output_builder import build_output_summary
+from middleware.rbac import Permission, require_permission_if_enabled
 from models.schemas import ArcDirective, ChapterOutline
 from api.pipeline_routes import (
     _active_tasks,
@@ -28,7 +29,11 @@ from services.continuation_history import read_events, sidecar_path_for
 from services.text_utils import sanitize_story_html
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/pipeline", tags=["continuation"])
+router = APIRouter(
+    prefix="/pipeline",
+    tags=["continuation"],
+    dependencies=[Depends(require_permission_if_enabled(Permission.CREATE_STORIES))],
+)
 
 _CHECKPOINT_DIR = pathlib.Path(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

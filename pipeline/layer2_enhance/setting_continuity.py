@@ -125,7 +125,7 @@ Chỉ ghi nhận thông tin rõ ràng trong văn bản."""
                         description=obj_data.get("description", ""),
                         introduced_chapter=chapter_number,
                         current_location=obj_data.get("location", ""),
-                        current_owner=obj_data.get("owner", ""),
+                        current_owner=obj_data.get("owner") or "",
                     )
                 else:
                     # Update location/owner

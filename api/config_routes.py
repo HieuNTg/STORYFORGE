@@ -36,11 +36,12 @@ Import the helpers from middleware.rbac and add them as Depends():
 import logging
 import re
 import time
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
 from config import ConfigManager, PIPELINE_PRESETS, MODEL_PRESETS
+from middleware.rbac import Permission, require_permission_if_enabled
 from services.i18n import I18n, SUPPORTED_LANGUAGES
 from services.security.url_validator import validate_base_url
 
@@ -128,7 +129,11 @@ class ConfigUpdate(BaseModel):
     image_prompt_style: Optional[str] = None
 
 
-@router.get("")
+_CONFIGURE_PIPELINE = Depends(require_permission_if_enabled(Permission.CONFIGURE_PIPELINE))
+_MANAGE_API_KEYS = Depends(require_permission_if_enabled(Permission.MANAGE_API_KEYS))
+
+
+@router.get("", dependencies=[_CONFIGURE_PIPELINE])
 def get_config():
     """Return current config (API key and HF token masked)."""
     cfg = ConfigManager()
@@ -178,7 +183,7 @@ def get_config():
     }
 
 
-@router.put("")
+@router.put("", dependencies=[_CONFIGURE_PIPELINE])
 def save_config(body: ConfigUpdate):
     """Save settings to config.json."""
     cfg = ConfigManager()
@@ -231,7 +236,7 @@ def save_config(body: ConfigUpdate):
     return {"status": "ok"}
 
 
-@router.post("/test-connection")
+@router.post("/test-connection", dependencies=[_CONFIGURE_PIPELINE])
 def test_connection():
     """Test LLM connection with current settings + all additional profiles."""
     from services.llm_client import LLMClient
@@ -277,7 +282,7 @@ def get_presets():
     return {"presets": PIPELINE_PRESETS}
 
 
-@router.post("/presets/{key}")
+@router.post("/presets/{key}", dependencies=[_CONFIGURE_PIPELINE])
 def apply_preset(key: str):
     """Apply a pipeline preset by key."""
     preset = PIPELINE_PRESETS.get(key)
@@ -299,7 +304,7 @@ def get_model_presets():
     return {"presets": {k: {"label": v["label"]} for k, v in MODEL_PRESETS.items()}}
 
 
-@router.post("/model-presets/{key}")
+@router.post("/model-presets/{key}", dependencies=[_CONFIGURE_PIPELINE])
 def apply_model_preset(key: str):
     """Apply a model preset — sets LLM config fields (base_url, model, fallbacks, etc.)."""
     preset = MODEL_PRESETS.get(key)
@@ -318,7 +323,7 @@ def apply_model_preset(key: str):
     return {"status": "ok", "label": preset.get("label", key)}
 
 
-@router.post("/profiles/detect")
+@router.post("/profiles/detect", dependencies=[_MANAGE_API_KEYS])
 def detect_provider(body: ProfileCreate):
     """Detect provider from API key prefix — returns provider info without saving."""
     detected = _detect_provider_from_key(body.api_key) if body.api_key else None
@@ -339,7 +344,7 @@ class ModelsRequest(BaseModel):
     api_key: str = ""
 
 
-@router.post("/provider/models")
+@router.post("/provider/models", dependencies=[_MANAGE_API_KEYS])
 def get_provider_models(body: ModelsRequest):
     """Fetch available models from a provider (OpenRouter, Kyma, etc.)."""
     validate_base_url(body.base_url)
@@ -384,7 +389,7 @@ def get_provider_models(body: ModelsRequest):
     return {"provider": provider, "models": models}
 
 
-@router.post("/profiles")
+@router.post("/profiles", dependencies=[_MANAGE_API_KEYS])
 def add_profile(body: ProfileCreate):
     """Add an API provider profile. Auto-detects provider from key prefix if fields empty."""
     detected = _detect_provider_from_key(body.api_key) if body.api_key else None
@@ -419,7 +424,7 @@ def add_profile(body: ProfileCreate):
     }
 
 
-@router.put("/profiles/{index}")
+@router.put("/profiles/{index}", dependencies=[_MANAGE_API_KEYS])
 def update_profile(index: int, body: ProfileCreate):
     """Update an API provider profile."""
     cfg = ConfigManager()
@@ -445,7 +450,7 @@ def update_profile(index: int, body: ProfileCreate):
     return {"status": "ok"}
 
 
-@router.delete("/profiles/{index}")
+@router.delete("/profiles/{index}", dependencies=[_MANAGE_API_KEYS])
 def delete_profile(index: int):
     """Remove an API provider profile."""
     cfg = ConfigManager()
@@ -463,7 +468,7 @@ def delete_profile(index: int):
     return {"status": "ok", "remaining": len(profiles)}
 
 
-@router.patch("/profiles/{index}/toggle")
+@router.patch("/profiles/{index}/toggle", dependencies=[_MANAGE_API_KEYS])
 def toggle_profile(index: int):
     """Toggle enabled state of a profile."""
     cfg = ConfigManager()
@@ -478,14 +483,14 @@ def toggle_profile(index: int):
     return {"status": "ok", "enabled": profiles[index]["enabled"]}
 
 
-@router.get("/cache-stats")
+@router.get("/cache-stats", dependencies=[_CONFIGURE_PIPELINE])
 def cache_stats():
     """Return LLM cache statistics."""
     from services.llm_cache import LLMCache
     return LLMCache(ttl_days=ConfigManager().llm.cache_ttl_days).stats()
 
 
-@router.delete("/api-keys/{index}")
+@router.delete("/api-keys/{index}", dependencies=[_MANAGE_API_KEYS])
 def remove_api_key(index: int):
     """Remove an additional API key by index."""
     cfg = ConfigManager()
@@ -500,7 +505,7 @@ def remove_api_key(index: int):
     return {"status": "ok", "remaining": len(keys)}
 
 
-@router.delete("/cache")
+@router.delete("/cache", dependencies=[_CONFIGURE_PIPELINE])
 def clear_cache():
     """Clear LLM cache."""
     from services.llm_cache import LLMCache

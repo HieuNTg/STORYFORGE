@@ -9,15 +9,22 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
+
+from middleware.rbac import Permission, require_permission_if_enabled
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/diagnostics", tags=["diagnostics"])
+_ACCESS_ANALYTICS = Depends(require_permission_if_enabled(Permission.ACCESS_ANALYTICS))
 
 
-@router.get("/handoff/{story_id}", summary="L1→L2 handoff diagnostics for a story")
+@router.get(
+    "/handoff/{story_id}",
+    summary="L1→L2 handoff diagnostics for a story",
+    dependencies=[_ACCESS_ANALYTICS],
+)
 async def get_handoff_diagnostics(story_id: str) -> JSONResponse:
     """Return handoff signal health and per-chapter contract data.
 
@@ -35,7 +42,11 @@ async def get_handoff_diagnostics(story_id: str) -> JSONResponse:
     return JSONResponse(content=result)
 
 
-@router.get("/semantic/{story_id}", summary="Sprint-2 semantic verification diagnostics for a story")
+@router.get(
+    "/semantic/{story_id}",
+    summary="Sprint-2 semantic verification diagnostics for a story",
+    dependencies=[_ACCESS_ANALYTICS],
+)
 async def get_semantic_diagnostics(story_id: str) -> JSONResponse:
     """Return per-chapter semantic findings and outline metrics.
 

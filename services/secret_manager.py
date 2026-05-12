@@ -68,29 +68,34 @@ def decrypt_value(value: str) -> str:
 
 
 def encrypt_sensitive_fields(data: dict) -> dict:
-    """Return a copy of data with sensitive string fields encrypted in-place (recursive)."""
-    result = {}
-    for k, v in data.items():
-        if isinstance(v, dict):
-            result[k] = encrypt_sensitive_fields(v)
-        elif isinstance(v, str) and _is_sensitive(k) and v and not v.startswith(_ENC_PREFIX):
-            result[k] = encrypt_value(v)
-        else:
-            result[k] = v
-    return result
+    """Return a copy of data with sensitive string fields encrypted recursively."""
+
+    def _encrypt_value(key: str, value):
+        sensitive = _is_sensitive(key)
+        if isinstance(value, dict):
+            return {k: _encrypt_value(k, v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [_encrypt_value(key, item) for item in value]
+        if isinstance(value, str) and sensitive and value and not value.startswith(_ENC_PREFIX):
+            return encrypt_value(value)
+        return value
+
+    return {k: _encrypt_value(k, v) for k, v in data.items()}
 
 
 def decrypt_sensitive_fields(data: dict) -> dict:
-    """Return a copy of data with ENC: prefixed values decrypted (recursive)."""
-    result = {}
-    for k, v in data.items():
-        if isinstance(v, dict):
-            result[k] = decrypt_sensitive_fields(v)
-        elif isinstance(v, str) and v.startswith(_ENC_PREFIX):
-            result[k] = decrypt_value(v)
-        else:
-            result[k] = v
-    return result
+    """Return a copy of data with ENC: prefixed values decrypted recursively."""
+
+    def _decrypt_value(value):
+        if isinstance(value, dict):
+            return {k: _decrypt_value(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [_decrypt_value(item) for item in value]
+        if isinstance(value, str) and value.startswith(_ENC_PREFIX):
+            return decrypt_value(value)
+        return value
+
+    return {k: _decrypt_value(v) for k, v in data.items()}
 
 
 def encrypt_json(data: dict) -> bytes:

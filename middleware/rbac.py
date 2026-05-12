@@ -177,6 +177,29 @@ def require_permission(permission: Permission):
     return _dep
 
 
+def auth_required() -> bool:
+    """Return True when production auth/RBAC enforcement is enabled."""
+    return os.environ.get("STORYFORGE_AUTH_REQUIRED", "").lower() in ("1", "true", "yes", "on")
+
+
+def require_permission_if_enabled(permission: Permission):
+    """Require a permission only when STORYFORGE_AUTH_REQUIRED is enabled.
+
+    Local self-hosted/dev installs can keep the historical no-auth UX. Production
+    deployments should set STORYFORGE_AUTH_REQUIRED=1 so sensitive routes enforce
+    the same RBAC matrix used by the explicit require_permission dependency.
+    """
+    strict_dep = require_permission(permission)
+
+    def _dep(request: Request):
+        if not auth_required():
+            return None
+        return strict_dep(request)
+
+    _dep.__name__ = f"require_{permission.value}_if_auth_enabled"
+    return _dep
+
+
 def require_role(min_role: Role):
     """Return a FastAPI dependency that enforces a minimum role level.
 

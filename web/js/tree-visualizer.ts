@@ -45,7 +45,6 @@ interface TreeLayout {
 
 const TREE_H_SPACING = 100;
 const TREE_V_SPACING = 80;
-const TREE_NODE_RADIUS = 18;
 const TREE_PADDING = 40;
 
 function computeTreeLayout(data: TreeApiResponse): TreeLayout {
@@ -60,16 +59,6 @@ function computeTreeLayout(data: TreeApiResponse): TreeLayout {
   const layoutNodes: LayoutNode[] = [];
   const layoutEdges: LayoutEdge[] = [];
   let leafIndex = 0;
-
-  function computeSubtreeWidth(nodeId: string): number {
-    const node = allNodes[nodeId];
-    if (!node || node.child_ids.length === 0) return 1;
-    let total = 0;
-    for (const childId of node.child_ids) {
-      total += computeSubtreeWidth(childId);
-    }
-    return total;
-  }
 
   function layoutDFS(nodeId: string, depth: number, xOffset: number): number {
     const node = allNodes[nodeId];

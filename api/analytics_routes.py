@@ -1,11 +1,13 @@
 """Analytics API routes — onboarding funnel tracking."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
+from middleware.rbac import Permission, require_permission_if_enabled
 from services.onboarding_analytics import tracker
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
+_ACCESS_ANALYTICS = Depends(require_permission_if_enabled(Permission.ACCESS_ANALYTICS))
 
 
 class StepBody(BaseModel):
@@ -33,7 +35,7 @@ def record_dropout(body: DropoutBody):
     return {"status": "ok"}
 
 
-@router.get("/onboarding")
+@router.get("/onboarding", dependencies=[_ACCESS_ANALYTICS])
 def get_funnel():
     """Return onboarding funnel summary."""
     return {"funnel": tracker.get_funnel()}

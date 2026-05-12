@@ -55,7 +55,6 @@ async function fetchWithTimeout(
 // API client object — available as window.API
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line no-var
 var API: ApiClient = {
   base: '/api' as string,
 

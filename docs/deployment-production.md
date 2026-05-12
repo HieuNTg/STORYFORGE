@@ -2,7 +2,9 @@
 
 ## Quick Start
 
-StoryForge production deployment uses Docker Compose with secure Redis, PostgreSQL, and monitoring stack.
+StoryForge production deployment uses Docker Compose with the app, PostgreSQL,
+and password-protected Redis. Metrics are exposed at `/api/metrics` and can be
+scraped by an external Prometheus/Grafana stack.
 
 ```bash
 # Prepare environment
@@ -19,13 +21,20 @@ All production settings are in `.env.production` (DO NOT commit to source contro
 
 | Variable | Purpose | Example |
 |----------|---------|---------|
-| `DB_PASSWORD` | PostgreSQL password | `openssl rand -base64 32` |
-| `SECRET_KEY` | JWT signing key (min 64 chars) | `openssl rand -base64 64` |
+| `POSTGRES_PASSWORD` | PostgreSQL password | `openssl rand -base64 32` |
+| `STORYFORGE_SECRET_KEY` | Config-secret encryption and signing key | `openssl rand -hex 32` |
+| `STORYFORGE_AUTH_REQUIRED` | Enforce JWT/RBAC on sensitive APIs | `1` |
+| `STORYFORGE_SUPERADMIN_ID` | Bootstrap superadmin user ID | `uuid-from-/api/auth/register` |
 | `REDIS_PASSWORD` | Redis authentication | `openssl rand -base64 32` |
-| `ALLOWED_ORIGINS` | CORS-allowed domains | `https://storyforge.example.com` |
+| `STORYFORGE_ALLOWED_ORIGINS` | CORS-allowed domains | `https://storyforge.example.com` |
 | `STORYFORGE_API_KEY` | LLM provider API key | `sk-...` |
 | `STORYFORGE_MODEL` | Default LLM model | `gpt-4o-mini` |
-| `NGINX_SERVER_NAME` | TLS certificate domain | `storyforge.example.com` |
+| `STORYFORGE_ENABLE_DOCS` | Disable public Swagger/Redoc in prod | `0` |
+
+Sensitive values persisted through the Settings UI are encrypted in
+`data/config.json` when `STORYFORGE_SECRET_KEY` is set. Without that key,
+local-development installs intentionally fall back to plaintext for backwards
+compatibility; do not run production that way.
 
 ## Redis Security
 
@@ -40,6 +49,16 @@ Configure a strong, random password (min 32 chars):
 openssl rand -base64 32
 ```
 
+## Authentication Bootstrap
+
+Production should run with `STORYFORGE_AUTH_REQUIRED=1`. After first deploy:
+
+1. Temporarily register a user through `/api/auth/register`.
+2. Copy the returned `user_id` into `STORYFORGE_SUPERADMIN_ID`.
+3. Restart the app container.
+
+That user now receives `superadmin` permissions regardless of the stored role.
+
 ## Horizontal Scaling
 
 Scaling is enabled via `docker compose --scale app=N`:
@@ -52,7 +71,7 @@ docker compose -f docker-compose.production.yml up -d --scale app=3
 **Requirements for multi-instance:**
 - Redis configured (shared rate limiting, token revocation, session state)
 - PostgreSQL with persistent volume
-- Nginx sticky sessions (`ip_hash`) — ensures SSE streams route to same app instance
+- A reverse proxy with sticky sessions for SSE streams
 
 **Note**: SQLite LLM cache remains per-instance (acceptable for non-persistent cache).
 
@@ -76,32 +95,23 @@ docker compose -f docker-compose.production.yml up -d --scale app=3
 
 `scale_ready=true` confirms Redis + PostgreSQL are healthy for multi-instance deployment.
 
-## Monitoring Stack
+## Monitoring
 
-Included services:
+The production compose file exposes metrics from the app. Deploy Prometheus,
+Grafana, and log aggregation separately if needed.
 
-| Service | Port | Purpose |
-|---------|------|---------|
-| Prometheus | 9090 (localhost) | Metrics collection |
-| Grafana | 3000 | Dashboards & alerts |
-| Loki | 3100 (localhost) | Log aggregation |
-| Promtail | — | Log shipper |
-
-**Access**:
-- Grafana: `http://localhost:3000` (default: admin/storyforge)
-- Prometheus: `http://localhost:9090`
+| Endpoint | Purpose |
+|----------|---------|
+| `/api/metrics` | Internal text metrics |
+| `/api/metrics/prometheus` | Prometheus exposition format |
 
 ## SSL/TLS
 
-Nginx handles HTTPS with Let's Encrypt certificates (certbot auto-renewal):
+Terminate HTTPS at your reverse proxy or load balancer. A minimal Nginx/Caddy
+deployment should proxy to `http://app:7860`, preserve `X-Forwarded-Proto`,
+and use sticky routing if multiple app replicas serve SSE streams.
 
-```bash
-# Initialize certificates (before first deployment)
-certbot certonly --webroot --webroot-path ./nginx/webroot \
-  -d storyforge.example.com
-```
-
-Nginx automatically redirects HTTP → HTTPS and enforces HSTS.
+Set `STORYFORGE_ALLOWED_ORIGINS` to the final HTTPS origin.
 
 ## Resource Limits
 
@@ -110,35 +120,32 @@ Nginx automatically redirects HTTP → HTTPS and enforces HSTS.
 | App | 2.0 | 2 GB |
 | PostgreSQL | 1.0 | 512 MB |
 | Redis | 0.5 | 256 MB |
-| Nginx | 0.5 | 128 MB |
-| Loki | 0.5 | 256 MB |
-| Prometheus | 0.5 | 256 MB |
-| Grafana | 0.5 | 256 MB |
-
-Adjust in `docker-compose.production.yml` under `deploy.resources.limits`.
+Resource limits are deployment-platform specific. Add `deploy.resources` in
+`docker-compose.production.yml` or your orchestrator once you know the target
+machine size.
 
 ## Persistence
 
 Data volumes:
 - `storyforge-pg-data` → PostgreSQL database
 - `storyforge-redis-data` → Redis RDB + AOF
-- `loki-data` → Log storage
-- `/app/data`, `/app/output`, `/app/assets` → Mounted from host
+- `storyforge-data` → app config, JWT keys, local caches
+- `storyforge-output` → generated checkpoints, exports, images
 
 ## Troubleshooting
 
 **Redis connection fails**:
 ```bash
 docker compose logs redis
-docker compose exec redis redis-cli -a "$REDIS_PASSWORD" ping
+docker compose --env-file .env.production -f docker-compose.production.yml exec redis \
+  redis-cli -a "$REDIS_PASSWORD" ping
 ```
 
 **Health check timeout**:
 ```bash
-# Check individual components
 curl http://localhost:7860/api/health/deep
 ```
 
 **Multi-instance routing issues**:
-- Verify nginx `ip_hash` directive in `/etc/nginx/nginx.conf`
-- Check sticky session via browser cookies
+- Verify sticky routing in your reverse proxy/load balancer.
+- Check that SSE requests keep reaching the same app replica.

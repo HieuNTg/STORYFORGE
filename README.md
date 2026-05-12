@@ -54,12 +54,14 @@ Then **Settings** (provider + API key) → **Create Story** → **Run** → **Ex
 
 ## Configuration
 
-Settings tab persists to `data/config.json`. Key env vars:
+Settings tab persists to `data/config.json`. When `STORYFORGE_SECRET_KEY` is set,
+sensitive fields in that file are encrypted. Key env vars:
 
 | Variable | Purpose |
 |----------|---------|
-| `LLM_PROVIDER` / `LLM_API_KEY` / `LLM_MODEL` | provider, key, primary model |
-| `STORYFORGE_SECRET_KEY` | HMAC key — **set in production** for encrypted secrets |
+| `STORYFORGE_API_KEY` / `STORYFORGE_BASE_URL` / `STORYFORGE_MODEL` | provider key, OpenAI-compatible base URL, primary model |
+| `STORYFORGE_SECRET_KEY` | encryption/signing key — **set in production** for encrypted secrets |
+| `STORYFORGE_AUTH_REQUIRED` | `1` = enforce JWT/RBAC on sensitive API routes |
 | `REDIS_URL` | required for multi-instance (`NUM_WORKERS>1`) shared cache/sessions |
 | `STORYFORGE_ALLOWED_ORIGINS` | CORS origins (comma-separated) |
 | `STORYFORGE_HANDOFF_STRICT` | `1` = fail-fast on malformed L1→L2 signals (default: warn) |

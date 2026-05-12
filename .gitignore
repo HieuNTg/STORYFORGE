@@ -34,6 +34,7 @@ output/
 
 # ── Logs ───────────────────────────────────────────────────────────
 *.log
+*.log.*
 logs.txt
 
 # ── Testing & Coverage ────────────────────────────────────────────
@@ -45,6 +46,8 @@ htmlcov/
 .pytest_cache/
 .mutmut-cache/
 test_output.txt
+pytest_output.txt
+pytest_full.log
 
 # ── Node ──────────────────────────────────────────────────────────
 node_modules/
