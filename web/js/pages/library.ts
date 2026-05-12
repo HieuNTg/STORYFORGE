@@ -92,6 +92,29 @@ interface QualitySummary {
 
 type QualityFilter = 'all' | 'scored' | 'unscored';
 
+type LibraryViewMode = 'grid' | 'list';
+
+// Vietnamese genre label → slug map used by GenreOrb. Only the four genres
+// in GENRE_HUE (UX §2.5) are recognised; unknown genres fall through to a
+// neutral slug + neutral hue.
+const GENRE_LABEL_TO_SLUG: Readonly<Record<string, string>> = Object.freeze({
+  'tiên hiệp':   'tien-hiep',
+  'tien hiep':   'tien-hiep',
+  'đô thị':      'do-thi',
+  'do thi':      'do-thi',
+  'huyền huyễn': 'huyen-huyen',
+  'huyen huyen': 'huyen-huyen',
+  'xuyên không': 'xuyen-khong',
+  'xuyen khong': 'xuyen-khong',
+});
+
+const GENRE_DEFAULT_HUE: Readonly<Record<string, string>> = Object.freeze({
+  'tien-hiep':   '#10B981',
+  'do-thi':      '#F43F5E',
+  'huyen-huyen': '#8B5CF6',
+  'xuyen-khong': '#F59E0B',
+});
+
 function libraryPage() {
   return {
     // Library state
@@ -120,6 +143,10 @@ function libraryPage() {
     readerUsage: null as UsageSummary | null,
     latestContinuation: null as ContinuationEvent | null,
     jumpDismissed: false as boolean,
+
+    // Forge surface — view-mode toggle (Grid / List). Only used when the
+    // STORYFORGE_FORGE_UI flag is on; legacy list is unaffected.
+    viewMode: 'grid' as LibraryViewMode,
 
     // Computed: current view mode
     get isReading(): boolean {
@@ -570,6 +597,46 @@ function libraryPage() {
       if (layer >= 3) return 'bg-green-100 text-green-700';
       if (layer === 2) return 'bg-blue-100 text-blue-700';
       return 'bg-amber-100 text-amber-700';
+    },
+
+    // ── Forge surface helpers ────────────────────────────────────────────
+    // Mirror StoryCard's status enum from the checkpoint shape.
+    // `interrupted` wins over layer-derived status — it's the most actionable
+    // state. Otherwise: layer>=3 → done, layer==2 → done (enhanced), layer==1
+    // → idle (draft sitting), generating is never inferred from the list view
+    // (no live SSE on the library page itself).
+    forgeStatusFor(story: StoryCheckpoint): 'idle' | 'generating' | 'done' | 'error' {
+      if (story.interrupted) return 'error';
+      const layer = (story.current_layer ?? story.layer ?? 1) as number;
+      return layer >= 2 ? 'done' : 'idle';
+    },
+    forgeGenreSlug(story: StoryCheckpoint): string {
+      const raw = (story.genre || '').trim().toLowerCase();
+      return GENRE_LABEL_TO_SLUG[raw] || 'tien-hiep';
+    },
+    forgeGenreHue(story: StoryCheckpoint): string {
+      return GENRE_DEFAULT_HUE[this.forgeGenreSlug(story)] || '#10B981';
+    },
+    setViewMode(mode: LibraryViewMode): void {
+      this.viewMode = mode === 'list' ? 'list' : 'grid';
+    },
+    // Dispatch-event handlers wired by the Forge story-card template.
+    onStoryOpen(id: string): void { this.openStory(id); },
+    onStoryContinue(id: string): void {
+      const story = this.stories.find((s) => s.path === id);
+      if (story) this.continueStory(story);
+    },
+    onStoryBranch(id: string): void {
+      // Branch action shares the continuation entry point for now — the
+      // dedicated branch flow ships in M3 (BranchTree). Keep the existing
+      // store route; just hand off the checkpoint id.
+      const story = this.stories.find((s) => s.path === id);
+      if (story) this.continueStory(story);
+    },
+    onStoryDelete(id: string): void {
+      // Re-use the existing two-click confirmation pattern.
+      if (this.confirmDelete === id) this.deleteStory(id);
+      else this.confirmDelete = id;
     },
 
     // Reader navigation
