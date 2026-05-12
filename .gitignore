@@ -95,3 +95,5 @@ ck.md
 plans/
 gemini_resp.json
 data/provider_status/
+playwright-report/
+test-results/
