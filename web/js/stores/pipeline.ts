@@ -160,6 +160,12 @@ export function createPipelineStore() {
       this.runStartedAt = Date.now();
       this.runFinishedAt = null;
 
+      // SSE → Toast bridge (additive). Tracks the prior progress so we only
+      // emit a "phase change" toast on the L1→L2 transition (1 → 2). All
+      // emit calls are no-ops when the Forge flag is off (toast store absent).
+      let lastPhase = 0;
+      this._emitToast('info', 'Generation started');
+
       try {
         for await (const event of API.stream(url, body)) {
           if (event.type === 'session') {
@@ -167,7 +173,16 @@ export function createPipelineStore() {
           } else if (event.type === 'log') {
             this.currentLog = event.data as string;
             this.logs.push(event.data as string);
-            this.progress = this._detectLayer(event.data as string);
+            const nextPhase = this._detectLayer(event.data as string);
+            this.progress = nextPhase;
+            if (lastPhase === 1 && nextPhase === 2) {
+              this._emitToast('info', 'Layer 2: enhancement starting');
+            }
+            const chapterTitle = this._sniffChapterCompletion(event.data as string);
+            if (chapterTitle) {
+              this._emitToast('success', `Chapter complete: ${chapterTitle}`);
+            }
+            lastPhase = nextPhase;
           } else if (event.type === 'stream') {
             this.livePreview = event.data as string;
           } else if (event.type === 'done') {
@@ -178,12 +193,16 @@ export function createPipelineStore() {
             this.status = 'done';
             this.progress = 4;
             this.runFinishedAt = Date.now();
+            // Sticky success — user must acknowledge.
+            this._emitToast('success', 'Generation complete', 0);
           } else if (event.type === 'error') {
             this.error = event.data as string;
             this.status = 'error';
+            this._emitToast('error', (event.data as string) || 'Generation failed');
           } else if (event.type === 'interrupted') {
             this.error = 'Connection lost. You can resume from the last checkpoint.';
             this.status = 'interrupted';
+            this._emitToast('warning', 'Connection lost — resume from checkpoint available');
           }
         }
         if (this.status === 'running') {
@@ -193,6 +212,37 @@ export function createPipelineStore() {
       } catch (e) {
         this.error = (e as Error).message;
         this.status = 'error';
+        this._emitToast('error', (e as Error).message || 'Pipeline failed');
+      }
+    },
+
+    // Best-effort chapter-complete detector. Matches "Chương N: <title>" — the
+    // shape the L1 chapter_writer emits on completion. Returns null when the
+    // log line isn't a chapter completion notice. Pure-function: kept here so
+    // unit tests can exercise it directly through the store factory.
+    _sniffChapterCompletion(msg: string): string | null {
+      // Examples: "✅ Chương 3: Đại Đạo Triều Thiên" or "✅ Chapter 3: ...".
+      const m = msg.match(/^(?:✅\s*)?(?:Chương|Chapter)\s+(\d+):\s*(.+?)\s*$/);
+      if (!m) return null;
+      const title = (m[2] || '').replace(/\s+/g, ' ').trim();
+      return title.length > 0 ? `Ch. ${m[1]} — ${title}` : `Ch. ${m[1]}`;
+    },
+
+    // Push to the Forge toast store when the flag-gated store is registered.
+    // Silent no-op otherwise — keeps legacy callers byte-identical.
+    _emitToast(
+      variant: 'info' | 'success' | 'warning' | 'error',
+      message: string,
+      durationMs?: number,
+    ): void {
+      try {
+        const store = (typeof Alpine !== 'undefined'
+          ? (Alpine as unknown as { store: (k: string) => unknown }).store('toasts')
+          : null) as { push?: (i: { message: string; variant: string; durationMs?: number }) => string } | null;
+        if (!store || typeof store.push !== 'function') return;
+        store.push({ message, variant, durationMs });
+      } catch {
+        // Never let a toast error break the SSE pipeline. Diagnostic only.
       }
     },
 
