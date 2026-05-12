@@ -15,9 +15,12 @@
     "test:ui": "vitest --ui",
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
-    "format": "prettier --write \"web/js/**/*.ts\""
+    "format": "prettier --write \"web/js/**/*.ts\"",
+    "test:visual": "playwright test"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.3",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/typography": "^0.5.15",
     "@types/alpinejs": "^3.13.0",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
