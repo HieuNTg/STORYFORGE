@@ -19,9 +19,14 @@
  */
 
 import { test, expect, Page } from '@playwright/test';
-import { checkA11y, injectAxe } from '@axe-core/playwright';
+import AxeBuilder from '@axe-core/playwright';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+// ESM-safe __dirname shim (package.json sets "type": "module").
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const ROUTES: Array<{ id: string; hash: string }> = [
   { id: 'pipeline',  hash: '#pipeline'  },
@@ -122,17 +127,27 @@ test.describe('Visual baselines — pre-redesign', () => {
             fullPage: true,
           });
 
-          // Accessibility audit via axe-core (non-blocking for baselines — just log)
+          // Accessibility audit via axe-core v4.11+ (non-blocking for baselines — just log).
+          // The old `injectAxe`/`checkA11y` named exports were removed in v4.11; the
+          // supported API is `new AxeBuilder({ page }).analyze()`.
           try {
-            await injectAxe(page);
-            await checkA11y(page, undefined, {
-              axeOptions: { runOnly: ['wcag2a', 'wcag2aa'] },
-              detailedReport: false,
-              detailedReportOptions: { html: false },
-            });
+            const results = await new AxeBuilder({ page })
+              .withTags(['wcag2a', 'wcag2aa'])
+              .analyze();
+            if (results.violations.length > 0) {
+              const summary = results.violations
+                .slice(0, 3)
+                .map((v) => `${v.id}(${v.nodes.length})`)
+                .join(', ');
+              console.warn(
+                `[axe] ${route.id}/${mode} ${results.violations.length} violation(s): ${summary}`,
+              );
+            }
           } catch (axeErr) {
-            // Baseline a11y audit — log violations but don't fail snapshot capture
-            console.warn(`[axe] ${route.id}/${mode} violations:`, (axeErr as Error).message?.slice(0, 200));
+            console.warn(
+              `[axe] ${route.id}/${mode} skipped:`,
+              (axeErr as Error).message?.slice(0, 200),
+            );
           }
 
           // Verify screenshot was written
