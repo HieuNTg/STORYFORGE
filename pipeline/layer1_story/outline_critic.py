@@ -46,12 +46,38 @@ PROPER_NOUN_COVERAGE_FLOOR: float = 0.60
 # Common Vietnamese sentence-starters / generic words that pass capitalization heuristics
 # but are NOT proper nouns. Keep tight — false positives are cheaper than false negatives here.
 _PROPER_NOUN_STOPWORDS: frozenset[str] = frozenset({
+    # pronouns / conjunctions / particles
     "Tôi", "Bạn", "Anh", "Chị", "Em", "Họ", "Nó", "Nhưng", "Và", "Hoặc",
     "Khi", "Nếu", "Vì", "Để", "Sau", "Trước", "Trong", "Ngoài", "Với",
     "Một", "Hai", "Ba", "Bốn", "Năm", "Sáu", "Bảy", "Tám", "Chín", "Mười",
     "Câu", "Chương", "Phần", "Tập", "Truyện", "Cốt", "Câu chuyện",
     "Có", "Là", "Sẽ", "Đã", "Đang", "Không", "Cũng", "Chỉ", "Còn",
     "Tuy", "Mặc", "Vẫn", "Lại", "Theo", "Bởi", "Bằng",
+    # determiners / demonstratives / quantifiers
+    "Đây", "Đó", "Kia", "Này", "Những", "Các", "Mỗi", "Mọi", "Vài", "Nhiều", "Ít",
+    "Cái", "Con", "Chiếc", "Cuộc", "Bước", "Chuyện",
+    # common nouns frequently mis-capitalized in titles / headings.
+    # NOTE: keep out tokens that can legitimately prefix names (Thiên, Đường, Trời, Lý, Tô, ...).
+    "Người", "Nhân", "Thần", "Thánh", "Vua", "Quan", "Dân", "Đời", "Thế",
+    "Đất", "Núi", "Sông", "Biển", "Rừng", "Làng", "Thành", "Phố",
+    "Trường", "Nhà", "Cửa", "Sách", "Vật", "Sự", "Điều", "Phép",
+    "Pháp", "Đạo", "Đan", "Khí", "Cơ", "Cảnh", "Giai", "Cấp", "Hệ", "Vị",
+    "Võ", "Đồng", "Bác", "Khoa", "Khả", "Ký", "Thực", "Cộng", "Xâm", "Xung",
+    "Thay", "Hoàn",
+    # generic verbs frequently sentence-initial
+    "Sống", "Chết", "Đi", "Đến", "Về", "Lên", "Xuống", "Ra", "Vào",
+    "Bắt", "Tạo", "Làm", "Trở", "Phát", "Tiến", "Giành", "Chiến",
+})
+
+# Multi-token cultivation/genre terms that ARE capitalized in Vietnamese wuxia/xianxia
+# prose but function as common nouns, not proper nouns. Filtered from extractor output.
+_PROPER_NOUN_PHRASE_STOPWORDS: frozenset[str] = frozenset({
+    "Con Người", "Loài Người", "Đại Đạo", "Thiên Đạo", "Thiên Địa",
+    "Kim Đan", "Nguyên Anh", "Trúc Cơ", "Luyện Khí", "Luyện Khí Trúc Cơ",
+    "Hóa Thần", "Đại Thừa", "Vực Ngoại", "Vực Nội", "Tiên Giới", "Phàm Giới",
+    "Ma Giới", "Thần Giới", "Pháp Bảo", "Pháp Tắc", "Pháp Lực",
+    "Tu Luyện", "Tu Sĩ", "Tu Tiên", "Tiên Nhân", "Cảnh Giới",
+    "Đại Năng", "Thiên Tài", "Thiên Mệnh", "Thiên Cơ",
 })
 
 
@@ -65,41 +91,81 @@ def _extract_proper_nouns(text: str) -> set[str]:
     if not text:
         return set()
 
-    _SENT_END = ".!?;:\n…"
-    _STRIP_CHARS = ".,;:!?\"'()[]{}<>«»“”‘’—…"
+    _SENT_END = ".!?\n…"
+    _RUN_BREAK = ".,;:!?\n…—–-"  # any of these end an in-progress proper-noun run
+    _STRIP_CHARS = ".,;:!?\"'()[]{}<>«»“”‘’—…–-"
 
     raw_tokens = re.split(r"\s+", text)
-    # Each tokens[i] = (cleaned_word, breaks_run) — breaks_run=True if the original
-    # token ended in sentence-terminating punctuation.
-    tokens: list[tuple[str, bool]] = []
+    # Each tokens[i] = (cleaned_word, breaks_run, ends_sentence)
+    tokens: list[tuple[str, bool, bool]] = []
     for t in raw_tokens:
         if not t:
             continue
-        breaks = bool(t) and t[-1] in _SENT_END
+        breaks = bool(t) and t[-1] in _RUN_BREAK
+        ends_sent = bool(t) and t[-1] in _SENT_END
         cleaned = t.strip(_STRIP_CHARS)
-        tokens.append((cleaned, breaks))
+        if not cleaned:
+            # Pure-punctuation token (e.g. "."). Carry its break flags onto the
+            # PREVIOUS token so we don't introduce empty slots that produce
+            # double-spaces in joined phrases.
+            if tokens:
+                prev_word, prev_breaks, prev_ends = tokens[-1]
+                tokens[-1] = (prev_word, prev_breaks or breaks, prev_ends or ends_sent)
+            continue
+        tokens.append((cleaned, breaks, ends_sent))
 
-    def _is_proper(tok: str) -> bool:
-        return bool(tok) and tok[0].isupper() and tok not in _PROPER_NOUN_STOPWORDS
+    def _is_upper(tok: str) -> bool:
+        return bool(tok) and tok[0].isupper()
+
+    def _is_starter(tok: str) -> bool:
+        # Can START a run: uppercase AND not in single-token stopwords.
+        # (Stopwords are still allowed to CONTINUE a run so cultivation phrases like
+        #  "Luyện Khí Trúc Cơ" form completely and get caught by the phrase blocklist.)
+        return _is_upper(tok) and tok not in _PROPER_NOUN_STOPWORDS
+
+    def _is_ascii_only(tok: str) -> bool:
+        return bool(tok) and all(ord(c) < 128 for c in tok)
+
+    n = len(tokens)
+    # Track sentence-initial positions: index 0 and any index immediately
+    # following a token whose original form ended in sentence-terminating punctuation.
+    sentence_initial: set[int] = {0}
+    for idx, (_, _, ends_sent) in enumerate(tokens):
+        if ends_sent and idx + 1 < n:
+            sentence_initial.add(idx + 1)
 
     nouns: set[str] = set()
     i = 0
-    n = len(tokens)
     while i < n:
-        word, breaks = tokens[i]
-        if _is_proper(word):
+        word, breaks, _ = tokens[i]
+        if _is_starter(word):
             j = i + 1
-            # Stop the run at sentence boundary on the CURRENT token
+            # Stop the run at run-break punctuation on the CURRENT token
             if not breaks:
                 while j < n and j - i < 4:
-                    nxt_word, nxt_breaks = tokens[j]
-                    if not _is_proper(nxt_word):
+                    nxt_word, nxt_breaks, _ = tokens[j]
+                    if not _is_upper(nxt_word):
                         break
                     j += 1
                     if nxt_breaks:
                         break
             phrase = " ".join(tokens[k][0] for k in range(i, j))
-            if phrase and phrase not in _PROPER_NOUN_STOPWORDS:
+            phrase_len = j - i
+            # Reject noise:
+            #   - phrase in single or multi-token blocklist (cultivation common-nouns)
+            #   - single token that's sentence-initial (almost always just capitalization)
+            #   - single ASCII-only token (English bleed-through like "Plot")
+            keep = bool(phrase)
+            if phrase in _PROPER_NOUN_STOPWORDS or phrase in _PROPER_NOUN_PHRASE_STOPWORDS:
+                keep = False
+            if phrase_len == 1 and i in sentence_initial:
+                keep = False
+            # ASCII-only single tokens: reject when length ≥ 4 (catches English
+            # words like "Plot", "Test") but spares short Vietnamese names that
+            # happen to have no diacritics ("Lan", "Mai", "Bob").
+            if phrase_len == 1 and _is_ascii_only(phrase) and len(phrase) >= 4:
+                keep = False
+            if keep:
                 nouns.add(phrase)
             i = j
         else:
@@ -278,7 +344,33 @@ def revise_outline_from_critique(
             temperature=0.85,
             model=model,
         )
-        revised = [ChapterOutline(**o) for o in result.get("outlines", [])]
+        # Unwrap LLM JSON shape: accept list-at-root, {"outlines": [...]}, or
+        # arbitrarily nested {"outlines": [{"outlines": [...]}]} that some models
+        # produce. Iterate-unwrap until we hit a list of chapter-shaped dicts.
+        raw_outlines: list = []
+        cursor = result
+        for _depth in range(4):  # hard cap to avoid pathological recursion
+            if isinstance(cursor, list):
+                raw_outlines = cursor
+                break
+            if isinstance(cursor, dict):
+                if "outlines" in cursor:
+                    cursor = cursor["outlines"]
+                    continue
+                if "chapter_number" in cursor or "title" in cursor:
+                    # LLM returned a single chapter dict instead of a list
+                    raw_outlines = [cursor]
+                    break
+            break
+        # Strip any remaining wrapper dicts inside the list (defensive)
+        cleaned: list[dict] = []
+        for o in raw_outlines:
+            if isinstance(o, dict) and "outlines" in o and isinstance(o["outlines"], list):
+                logger.warning("revise_outline_from_critique: stripping nested 'outlines' wrapper from list item.")
+                cleaned.extend(x for x in o["outlines"] if isinstance(x, dict))
+            elif isinstance(o, dict):
+                cleaned.append(o)
+        revised = [ChapterOutline(**o) for o in cleaned]
         if not revised:
             logger.warning("revise_outline_from_critique returned empty list, keeping originals.")
             return outlines

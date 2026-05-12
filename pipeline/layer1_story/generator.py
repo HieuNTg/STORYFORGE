@@ -315,6 +315,11 @@ class StoryGenerator:
                 if waypoints_map:
                     apply_waypoints_to_characters(characters, waypoints_map)
                     _log(f"Đã tạo arc waypoints cho {len(waypoints_map)} nhân vật")
+                else:
+                    logger.warning(
+                        "arc_waypoints returned empty dict — LLM parse failure or empty payload? "
+                        "This will cause arc_trajectory_variance=0.0 downstream."
+                    )
             except Exception as e:
                 logger.warning("Arc waypoint generation failed (non-fatal): %s", e)
         # Top-level arc_waypoints list (parallel to per-character storage during migration)
@@ -419,13 +424,22 @@ class StoryGenerator:
                     result = future.result()
                     if task_name == "conflict_web":
                         conflict_web = result or []
-                        _log(f"Đã tạo {len(conflict_web)} xung đột")
+                        if not conflict_web:
+                            logger.warning(
+                                "conflict_web returned empty — LLM parse failure or empty payload? "
+                                "This will cause conflict_web_density=0.0 downstream."
+                            )
+                        else:
+                            _log(f"Đã tạo {len(conflict_web)} xung đột")
                     else:
                         arc_milestones = result or []
                         if arc_milestones:
                             _log(f"Đã tạo {len(arc_milestones)} arc milestones")
                 except Exception as e:
-                    logger.warning(f"{task_name} generation failed (non-fatal): %s", e)
+                    logger.warning(
+                        "%s generation failed (non-fatal): %s (type=%s) — falling back to empty list",
+                        task_name, e, type(e).__name__,
+                    )
 
         # Foreshadowing depends on conflict_web, so runs after parallel phase
         foreshadowing_plan = []
