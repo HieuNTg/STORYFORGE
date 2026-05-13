@@ -663,7 +663,9 @@
 
       <!-- ═══ PIPELINE PAGE ═══ -->
       <template x-if="$store.app.page === 'pipeline'">
-      <div class="page-enter" x-data="pipelinePage()" x-init="init()" @keydown.escape.window="branchOpen = false">
+      <div class="page-enter" x-data="pipelinePage()" x-init="init()" @keydown.escape.window="branchOpen = false"
+           data-page="pipeline"
+           :data-state="$store.flags?.forgeUi ? ($store.theater?.pageState || 'idle') : null">
         <div class="max-w-3xl mx-auto space-y-4">
             <!-- Piece O: resume-from-checkpoint callout. Only renders when the user
                  came from the library "Tiếp từ ch.N" button (resumeFromChapter is set)
@@ -720,6 +722,105 @@
                 <span class="text-brand-500">›</span> <span x-text="$store.pipeline.currentLog"></span>
               </p>
             </div>
+
+            <!-- ═══ FORGE THEATER (flag-gated, additive) ═══
+                 Live AgentBubble stack + QualityGauge + CharacterGraph bound
+                 to $store.theater. Only renders while generating/done — idle
+                 stays out of the way. CSS state morphs live under
+                 :root[data-forge-ui="on"] [data-page="pipeline"][data-state="..."]. -->
+            <template x-if="$store.flags?.forgeUi && $store.theater && $store.theater.pageState !== 'idle'">
+              <section class="sf-theater" aria-label="Pipeline theater">
+                <header class="sf-theater__header">
+                  <h3 class="sf-theater__title">Forge Theater</h3>
+                  <span class="sf-theater__state" x-text="$store.theater.pageState"></span>
+                </header>
+
+                <!-- Agent bubble stack -->
+                <div class="sf-theater__agents" role="list" aria-label="Agents speaking">
+                  <template x-for="a in $store.theater.agents" :key="a.id">
+                    <div role="listitem" x-data="agentBubble({
+                          id: a.id, name: a.name, state: a.state,
+                          message: a.message, score: a.score
+                        })">
+                      <article class="sf-agent-bubble" :data-state="state" :aria-label="ariaLabel">
+                        <header class="sf-agent-bubble__head">
+                          <span class="sf-agent-bubble__name" x-text="name"></span>
+                          <span class="sf-agent-bubble__state" x-text="state"></span>
+                        </header>
+                        <p class="sf-agent-bubble__msg" x-text="message"></p>
+                      </article>
+                    </div>
+                  </template>
+                  <p x-show="$store.theater.agents.length === 0" class="sf-theater__empty">
+                    Đang chờ tín hiệu agent…
+                  </p>
+                </div>
+
+                <!-- Quality gauge — only when we have a value (done state). -->
+                <template x-if="$store.theater.pageState === 'done' && $store.theater.quality && $store.theater.quality.value > 0">
+                  <div x-data="qualityGauge({
+                        value: $store.theater.quality.value,
+                        dimensions: $store.theater.quality.dimensions
+                      })" class="sf-theater__quality">
+                    <div class="sf-quality-gauge" :aria-label="ariaLabel" role="img">
+                      <div class="sf-quality-gauge__value" x-text="display"></div>
+                      <ul class="sf-quality-gauge__dims">
+                        <template x-for="d in dimensions" :key="d.name">
+                          <li class="sf-quality-gauge__dim">
+                            <span class="sf-quality-gauge__dim-name" x-text="d.name"></span>
+                            <span class="sf-quality-gauge__dim-value" x-text="(d.value * 100).toFixed(0) + '%'"></span>
+                          </li>
+                        </template>
+                      </ul>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- Character graph — renders once we have characters. -->
+                <template x-if="$store.theater.characters && $store.theater.characters.length > 0">
+                  <div x-data="characterGraph({
+                        characters: $store.theater.characters,
+                        relationships: $store.theater.relationships,
+                        width: 600, height: 360,
+                        prefersReducedMotion: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+                      })" x-init="init(); $watch('$store.theater.graphTick', () => setData($store.theater.characters, $store.theater.relationships))"
+                      @beforeunload.window="destroy()" class="sf-theater__graph">
+                    <canvas x-ref="canvas" x-init="attachCanvas($refs.canvas)"
+                            @pointerdown="handlePointerDown($event)"
+                            @pointermove="handlePointerMove($event)"
+                            @pointerup="handlePointerUp($event)"
+                            @pointerleave="handlePointerUp($event)"
+                            class="sf-character-graph" role="img"
+                            aria-label="Đồ thị quan hệ nhân vật"></canvas>
+                    <!-- SR fallback: per-character edge list. -->
+                    <ul class="sr-only">
+                      <template x-for="entry in srEntries" :key="entry.name">
+                        <li>
+                          <strong x-text="entry.name"></strong>
+                          <template x-if="entry.edges.length === 0"><span> không có quan hệ.</span></template>
+                          <ul>
+                            <template x-for="e in entry.edges" :key="e.otherName + e.type">
+                              <li x-text="e.otherName + ' — ' + e.type + ' (' + (e.intensity * 100).toFixed(0) + '%)'"></li>
+                            </template>
+                          </ul>
+                        </li>
+                      </template>
+                    </ul>
+                  </div>
+                </template>
+
+                <!-- Debate marker strip — most recent [DEBATE] line. -->
+                <p x-show="$store.theater.lastDebateMarker"
+                   class="sf-theater__debate" aria-live="polite">
+                  <span class="sf-theater__debate-tag">DEBATE</span>
+                  <span x-text="$store.theater.lastDebateMarker"></span>
+                </p>
+                <p x-show="$store.theater.readerChapter !== null"
+                   class="sf-theater__reader" aria-live="polite">
+                  Reader đang mô phỏng chương <span x-text="$store.theater.readerChapter"></span>
+                </p>
+              </section>
+            </template>
 
             <!-- Story Idea — Hero element -->
             <div class="card sf-card-hero p-5 pt-[18px] space-y-3">
@@ -1622,6 +1723,88 @@
       <!-- ═══ SETTINGS PAGE ═══ -->
       <template x-if="$store.app.page === 'settings'">
       <div class="page-enter" x-data="settingsPage()">
+
+        <!-- Forge: first-time wizard (flag-gated) -->
+        <template x-if="$store.flags?.forgeUi">
+          <div x-data="forgeSettingsWizard()" x-init="show = shouldShow()">
+            <template x-if="show">
+              <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Settings wizard">
+                <div class="bg-white dark:bg-surface-900 rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5">
+                  <!-- Header -->
+                  <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100">
+                      <span x-text="step === 1 ? 'Step 1 of 3: Choose Provider' : step === 2 ? 'Step 2 of 3: Enter API Key' : 'Step 3 of 3: Pick Default Genre'"></span>
+                    </h2>
+                    <button @click="dismiss()" aria-label="Skip wizard" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-surface-100 cursor-pointer">
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                  </div>
+                  <!-- Step indicator dots -->
+                  <div class="flex gap-1.5" aria-label="Wizard progress">
+                    <template x-for="s in [1,2,3]" :key="s">
+                      <div class="h-1.5 rounded-full transition-all" :class="s <= step ? 'bg-brand-500 flex-1' : 'bg-surface-200 dark:bg-surface-700 flex-1'"></div>
+                    </template>
+                  </div>
+                  <!-- Step 1: Provider picker -->
+                  <template x-if="step === 1">
+                    <div class="space-y-3">
+                      <p class="text-sm text-slate-500 dark:text-slate-400">Which LLM provider do you want to use?</p>
+                      <div class="grid grid-cols-2 gap-2">
+                        <template x-for="p in [
+                          {id:'openai',label:'OpenAI'},
+                          {id:'gemini',label:'Google Gemini'},
+                          {id:'anthropic',label:'Anthropic'},
+                          {id:'openrouter',label:'OpenRouter (free)'}
+                        ]" :key="p.id">
+                          <button @click="selectedProvider = p.id"
+                            class="p-3 rounded-xl border-2 text-sm font-medium cursor-pointer transition-all"
+                            :class="selectedProvider === p.id ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300' : 'border-surface-200 dark:border-surface-700 text-slate-600 dark:text-slate-300 hover:border-brand-300'"
+                            x-text="p.label"></button>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                  <!-- Step 2: API key -->
+                  <template x-if="step === 2">
+                    <div class="space-y-3">
+                      <p class="text-sm text-slate-500 dark:text-slate-400">Paste your <span class="font-semibold" x-text="selectedProvider"></span> API key below.</p>
+                      <label for="sf-wizard-apikey" class="sr-only">API Key</label>
+                      <input id="sf-wizard-apikey" type="password" x-model="apiKey"
+                        placeholder="Paste API key here..."
+                        class="sf-input w-full" autocomplete="off"
+                        @keydown.enter="if(apiKey.trim().length > 4) next()">
+                      <p class="text-xs text-slate-400 dark:text-slate-500">Your key is saved locally and sent only to the backend.</p>
+                    </div>
+                  </template>
+                  <!-- Step 3: Genre -->
+                  <template x-if="step === 3">
+                    <div class="space-y-3">
+                      <p class="text-sm text-slate-500 dark:text-slate-400">Pick your default story genre.</p>
+                      <div class="grid grid-cols-2 gap-2">
+                        <template x-for="g in genres" :key="g.id">
+                          <button @click="selectedGenre = g.id"
+                            class="p-3 rounded-xl border-2 text-sm font-medium cursor-pointer transition-all"
+                            :class="selectedGenre === g.id ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300' : 'border-surface-200 dark:border-surface-700 text-slate-600 dark:text-slate-300 hover:border-brand-300'"
+                            x-text="g.label"></button>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                  <!-- Footer actions -->
+                  <div class="flex items-center justify-between pt-2">
+                    <button @click="dismiss()" class="text-sm text-slate-400 hover:text-slate-600 cursor-pointer">Skip</button>
+                    <button @click="step < 3 ? next() : finish()"
+                      class="px-5 py-2 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 cursor-pointer transition-colors"
+                      :disabled="step === 2 && apiKey.trim().length < 5">
+                      <span x-text="step < 3 ? 'Next' : 'Finish'"></span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+
         <div class="max-w-3xl mx-auto space-y-4">
 
           <!-- Loading skeleton while config loads -->
@@ -2133,8 +2316,8 @@
             </div>
           </template>
 
-          <!-- Story list -->
-          <template x-if="stories.length > 0">
+          <!-- Story list — LEGACY surface (flag OFF, default). -->
+          <template x-if="stories.length > 0 && !$store.flags?.forgeUi">
             <div class="space-y-2.5">
               <template x-for="story in filteredStories" :key="story.path">
                 <div class="sf-story-card group" @click="openStory(story.path)">
@@ -2244,12 +2427,200 @@
               </template>
             </div>
           </template>
+
+          <!-- Story list — FORGE surface (flag ON). Uses StoryCard + GenreOrb. -->
+          <template x-if="stories.length > 0 && $store.flags?.forgeUi">
+            <div class="sf-library-forge"
+                 @sf:story-open.window="onStoryOpen($event.detail.id)"
+                 @sf:story-continue.window="onStoryContinue($event.detail.id)"
+                 @sf:story-branch.window="onStoryBranch($event.detail.id)"
+                 @sf:story-delete.window="onStoryDelete($event.detail.id)">
+              <!-- View-mode toggle (Grid / List) — Cover Flow cut per README. -->
+              <div class="sf-library-forge__viewbar">
+                <span class="sf-library-forge__count"
+                  x-text="filteredStories.length + ' / ' + stories.length"></span>
+                <div class="sf-library-forge__viewmodes" role="tablist" aria-label="Chế độ hiển thị thư viện">
+                  <button type="button" role="tab"
+                    :aria-selected="viewMode === 'grid' ? 'true' : 'false'"
+                    @click="setViewMode('grid')"
+                    class="sf-forge-btn" data-variant="ghost"
+                    :data-state="viewMode === 'grid' ? 'selected' : ''">Grid</button>
+                  <button type="button" role="tab"
+                    :aria-selected="viewMode === 'list' ? 'true' : 'false'"
+                    @click="setViewMode('list')"
+                    class="sf-forge-btn" data-variant="ghost"
+                    :data-state="viewMode === 'list' ? 'selected' : ''">List</button>
+                </div>
+              </div>
+
+              <div class="sf-library-forge__grid" :data-view="viewMode">
+                <template x-for="story in filteredStories" :key="story.path">
+                  <article
+                    x-data="storyCard({
+                      storyId: story.path,
+                      title: story.title || story.path,
+                      genreId: forgeGenreSlug(story),
+                      hue: forgeGenreHue(story),
+                      chapters: story.chapter_count || 0,
+                      chaptersDone: story.chapter_count || 0,
+                      status: forgeStatusFor(story),
+                      mode: viewMode,
+                    })"
+                    class="sf-story-card"
+                    :data-mode="viewMode"
+                    :data-status="status"
+                    :data-story-id="storyId"
+                    :aria-label="ariaLabel"
+                    role="button"
+                    tabindex="0"
+                    @click="handleOpen($event)"
+                    @keydown.enter.prevent="handleOpen($event)"
+                    @keydown.space.prevent="handleOpen($event)"
+                    @mouseenter="setHovered(true)"
+                    @mouseleave="setHovered(false)">
+                    <div class="sf-story-card__cover">
+                      <span x-data="genreOrb({ genreId: forgeGenreSlug(story), hue: forgeGenreHue(story) })"
+                        class="sf-genre-orb" :style="orbStyle" aria-hidden="true"></span>
+                    </div>
+                    <div class="sf-story-card__body">
+                      <h3 class="sf-story-card__title" x-text="title"></h3>
+                      <div class="sf-story-card__meta">
+                        <span x-show="story.genre" x-text="story.genre"></span>
+                        <span x-text="(story.chapter_count || 0) + ' chương'"></span>
+                        <span x-show="story.modified" x-text="story.modified"></span>
+                      </div>
+                      <template x-if="showProgress">
+                        <div class="sf-story-card__progress" role="progressbar"
+                          :aria-valuenow="progressPct" aria-valuemin="0" aria-valuemax="100">
+                          <div class="sf-story-card__progress-fill" :style="'width: ' + progressPct + '%'"></div>
+                        </div>
+                      </template>
+                    </div>
+                    <div class="sf-story-card__actions">
+                      <button type="button" class="sf-forge-btn" data-variant="ghost"
+                        @click.stop="handleContinue($event)"
+                        :aria-label="'Viết tiếp ' + title">Viết tiếp</button>
+                      <button type="button" class="sf-forge-btn" data-variant="ghost"
+                        @click.stop="handleDelete($event)"
+                        :aria-label="'Xoá ' + title"
+                        :data-state="$root.confirmDelete === storyId ? 'danger' : ''"
+                        x-text="$root.confirmDelete === storyId ? 'Xác nhận?' : 'Xoá'"></button>
+                    </div>
+                  </article>
+                </template>
+                <template x-if="filteredStories.length === 0 && searchQuery">
+                  <div class="sf-library-forge__empty">Không tìm thấy truyện nào khớp "<span x-text="searchQuery"></span>"</div>
+                </template>
+              </div>
+            </div>
+          </template>
           </div>
           </template>
 
           <!-- ══ READER VIEW ══ -->
           <template x-if="isReading">
-          <div>
+          <div
+            :class="$store.flags?.forgeUi && $store.reader ? 'sf-reader sf-reader--' + $store.reader.theme + ' sf-reader--col-' + $store.reader.column : ''"
+            :style="$store.flags?.forgeUi && $store.reader ? ('--sf-reader-font-size:' + $store.reader.fontSize + 'px; --sf-reader-line-height:' + $store.reader.lineHeight + '; --sf-reader-font-family:' + $store.reader.fontFamilyCss) : ''">
+            <!-- M3: Reading progress bar — fixed at viewport top, forgeUi only. -->
+            <template x-if="$store.flags?.forgeUi">
+              <div class="sf-reader__progress-bar" role="progressbar" :aria-valuenow="readingProgress" aria-valuemin="0" aria-valuemax="100" aria-label="Tiến độ đọc">
+                <div class="sf-reader__progress-fill" :style="'width:' + readingProgress + '%'"></div>
+              </div>
+            </template>
+            <!-- M3: Chapter sidebar scrim (mobile overlay), forgeUi only. -->
+            <template x-if="$store.flags?.forgeUi">
+              <div class="sf-reader__sidebar-scrim"
+                   :data-open="sidebarOpen ? 'true' : 'false'"
+                   @click="toggleSidebar()"
+                   aria-hidden="true"></div>
+            </template>
+            <!-- M3: Chapter sidebar, forgeUi only. -->
+            <template x-if="$store.flags?.forgeUi">
+              <nav class="sf-reader__sidebar"
+                   :data-open="sidebarOpen ? 'true' : 'false'"
+                   aria-label="Danh sách chương">
+                <div class="sf-reader__sidebar-header">
+                  <span>Chương (<span x-text="chapters.length"></span>)</span>
+                  <button type="button"
+                          class="sf-reader__sidebar-close"
+                          @click="toggleSidebar()"
+                          aria-label="Đóng danh sách chương">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                </div>
+                <ul class="sf-reader__sidebar-list" role="list">
+                  <template x-for="(ch, idx) in chapters" :key="idx">
+                    <li>
+                      <button type="button"
+                              class="sf-reader__sidebar-item"
+                              :aria-current="chapter === idx ? 'true' : 'false'"
+                              @click="goToChapter(idx)">
+                        <span class="sf-reader__sidebar-num" x-text="'Ch.' + (ch.number || idx+1)"></span>
+                        <span class="sf-reader__sidebar-title" x-text="ch.title || ('Chương ' + (ch.number || idx+1))"></span>
+                        <span class="sf-reader__sidebar-eta"
+                              x-text="readTime(ch) > 0 ? readTime(ch) + ' ph' : ''"></span>
+                      </button>
+                    </li>
+                  </template>
+                </ul>
+              </nav>
+            </template>
+            <!-- Forge reader toolbar — typography + theme controls, persisted via $store.reader. -->
+            <template x-if="$store.flags?.forgeUi && $store.reader">
+              <div class="sf-reader__toolbar" role="toolbar" aria-label="Reader preferences">
+                <div class="sf-reader__group" aria-label="Cỡ chữ">
+                  <span class="sf-reader__group-label" aria-hidden="true">Aa</span>
+                  <button type="button" @click="$store.reader.bumpFontSize(-2)" class="sf-reader__btn" aria-label="Giảm cỡ chữ">−</button>
+                  <span class="sf-reader__value" x-text="$store.reader.fontSize"></span>
+                  <button type="button" @click="$store.reader.bumpFontSize(2)" class="sf-reader__btn" aria-label="Tăng cỡ chữ">+</button>
+                </div>
+                <div class="sf-reader__group" aria-label="Giãn dòng">
+                  <span class="sf-reader__group-label" aria-hidden="true">↕</span>
+                  <button type="button" @click="$store.reader.setLineHeight($store.reader.lineHeight - 0.1)" class="sf-reader__btn" aria-label="Giảm giãn dòng">−</button>
+                  <span class="sf-reader__value" x-text="$store.reader.lineHeight.toFixed(1)"></span>
+                  <button type="button" @click="$store.reader.setLineHeight($store.reader.lineHeight + 0.1)" class="sf-reader__btn" aria-label="Tăng giãn dòng">+</button>
+                </div>
+                <div class="sf-reader__group" role="radiogroup" aria-label="Kiểu chữ">
+                  <template x-for="ff in ['serif','sans','mono']" :key="ff">
+                    <button type="button"
+                      @click="$store.reader.setFontFamily(ff)"
+                      :class="$store.reader.fontFamily === ff ? 'sf-reader__chip is-active' : 'sf-reader__chip'"
+                      :aria-pressed="$store.reader.fontFamily === ff"
+                      x-text="ff === 'serif' ? 'Serif' : (ff === 'sans' ? 'Sans' : 'Mono')"></button>
+                  </template>
+                </div>
+                <div class="sf-reader__group" role="radiogroup" aria-label="Nền đọc">
+                  <template x-for="th in ['day','sepia','night']" :key="th">
+                    <button type="button"
+                      @click="$store.reader.setTheme(th)"
+                      :class="$store.reader.theme === th ? 'sf-reader__theme is-active sf-reader__theme--' + th : 'sf-reader__theme sf-reader__theme--' + th"
+                      :aria-pressed="$store.reader.theme === th"
+                      :aria-label="th === 'day' ? 'Nền sáng' : (th === 'sepia' ? 'Nền sepia' : 'Nền tối')"
+                      :title="th === 'day' ? 'Nền sáng' : (th === 'sepia' ? 'Nền sepia' : 'Nền tối')">
+                      <span aria-hidden="true" x-text="th === 'day' ? '☀' : (th === 'sepia' ? '◐' : '☾')"></span>
+                    </button>
+                  </template>
+                </div>
+                <div class="sf-reader__group" role="radiogroup" aria-label="Bề rộng cột">
+                  <template x-for="col in ['narrow','normal','wide']" :key="col">
+                    <button type="button"
+                      @click="$store.reader.setColumn(col)"
+                      :class="$store.reader.column === col ? 'sf-reader__chip is-active' : 'sf-reader__chip'"
+                      :aria-pressed="$store.reader.column === col"
+                      x-text="col === 'narrow' ? 'Hẹp' : (col === 'normal' ? 'Vừa' : 'Rộng')"></button>
+                  </template>
+                </div>
+                <button type="button"
+                  @click="selectedStory && selectedStory.filename && $store.reader.saveBookmark(selectedStory.filename, chapter)"
+                  class="sf-reader__bookmark"
+                  :aria-pressed="!!(selectedStory && selectedStory.filename && $store.reader.getBookmark(selectedStory.filename) && $store.reader.getBookmark(selectedStory.filename).chapter === chapter)"
+                  aria-label="Đánh dấu chương">
+                  <span aria-hidden="true">★</span>
+                  <span class="sf-reader__bookmark-label">Đánh dấu</span>
+                </button>
+              </div>
+            </template>
             <!-- Back button + Title hero -->
             <div class="card sf-card-hero p-5 pt-[18px] mb-4">
               <div class="flex items-start justify-between gap-4 flex-wrap">
@@ -2271,12 +2642,27 @@
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
-                  <div class="inline-flex items-center gap-1 bg-surface-50 dark:bg-surface-800 rounded-lg px-2 py-1">
-                    <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wide">Aa</span>
-                    <button @click="fontSize = Math.max(14, fontSize - 2)" class="w-6 h-6 rounded text-slate-500 text-sm font-bold cursor-pointer hover:bg-white">−</button>
-                    <span class="text-[11px] text-slate-600 w-5 text-center font-mono" x-text="fontSize"></span>
-                    <button @click="fontSize = Math.min(28, fontSize + 2)" class="w-6 h-6 rounded text-slate-500 text-sm font-bold cursor-pointer hover:bg-white">+</button>
-                  </div>
+                  <!-- M3: Chapter sidebar toggle — forgeUi only. -->
+                  <template x-if="$store.flags?.forgeUi">
+                    <button type="button"
+                            class="sf-reader__sidebar-toggle"
+                            @click="toggleSidebar()"
+                            :aria-expanded="sidebarOpen ? 'true' : 'false'"
+                            aria-controls="sf-reader-sidebar"
+                            aria-label="Danh sách chương">
+                      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12"/></svg>
+                      <span x-text="(chapter+1) + '/' + chapters.length"></span>
+                    </button>
+                  </template>
+                  <!-- Legacy inline font-size control (flag-OFF path). -->
+                  <template x-if="!$store.flags?.forgeUi">
+                    <div class="inline-flex items-center gap-1 bg-surface-50 dark:bg-surface-800 rounded-lg px-2 py-1">
+                      <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wide">Aa</span>
+                      <button @click="fontSize = Math.max(14, fontSize - 2)" class="w-6 h-6 rounded text-slate-500 text-sm font-bold cursor-pointer hover:bg-white">−</button>
+                      <span class="text-[11px] text-slate-600 w-5 text-center font-mono" x-text="fontSize"></span>
+                      <button @click="fontSize = Math.min(28, fontSize + 2)" class="w-6 h-6 rounded text-slate-500 text-sm font-bold cursor-pointer hover:bg-white">+</button>
+                    </div>
+                  </template>
                   <button @click="continueStory()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z"/></svg>
                     Viết tiếp
@@ -2417,7 +2803,31 @@
                       </template>
                     </div>
                   </div>
-                  <div class="text-slate-700 whitespace-pre-wrap leading-[1.9]" :style="'font-size:' + fontSize + 'px'" x-html="(currentChapter.content || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
+                  <!-- M3: Portrait-injected prose (forgeUi). Paragraphs come from readerPage.paragraphs. -->
+                  <template x-if="$store.flags?.forgeUi && paragraphs.length > 0">
+                    <div class="sf-reader__prose" data-reader-content>
+                      <template x-for="(para, i) in paragraphs" :key="i">
+                        <div class="sf-reader__para-block">
+                          <template x-if="para.portraitUrl">
+                            <img :src="para.portraitUrl"
+                                 class="sf-reader__portrait"
+                                 alt=""
+                                 aria-hidden="true"
+                                 loading="lazy" />
+                          </template>
+                          <span x-html="para.text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                  <!-- Fallback prose (forgeUi but no paragraphs yet, or flag-OFF). -->
+                  <template x-if="!(($store.flags?.forgeUi) && paragraphs.length > 0)">
+                    <div
+                      :class="$store.flags?.forgeUi && $store.reader ? 'sf-reader__prose' : 'text-slate-700 whitespace-pre-wrap leading-[1.9]'"
+                      :style="$store.flags?.forgeUi && $store.reader ? '' : ('font-size:' + fontSize + 'px')"
+                      data-reader-content
+                      x-html="(currentChapter.content || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
+                  </template>
                 </div>
               </template>
             </div>
@@ -2477,36 +2887,113 @@
                   </template>
                 </select>
               </div>
-              <!-- Document formats -->
-              <div class="card p-5">
-                <div class="flex items-center gap-2 mb-4">
-                  <span class="sf-step-badge">2</span>
-                  <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn định dạng</h3>
+              <!-- Document formats — Forge visual cards (flag ON) -->
+              <template x-if="$store.flags?.forgeUi">
+                <div x-data="forgeExportCards()" class="space-y-3">
+                  <div class="card p-5">
+                    <div class="flex items-center gap-2 mb-4">
+                      <span class="sf-step-badge">2</span>
+                      <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn định dạng</h3>
+                    </div>
+                    <div class="sf-export-cards grid grid-cols-4 gap-3">
+                      <template x-for="fmt in formats" :key="fmt.id">
+                        <button
+                          @click="selectFormat(fmt.id)"
+                          :aria-pressed="selectedFormat === fmt.id"
+                          :aria-label="`Export as ${fmt.label}`"
+                          class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer"
+                          :class="selectedFormat === fmt.id ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/30' : 'border-surface-200 dark:border-surface-700 hover:border-brand-300 bg-white dark:bg-surface-900'">
+                          <span class="text-base font-bold" :style="`color: ${fmt.color}`" x-text="fmt.label"></span>
+                          <span class="text-[10px] text-slate-400 dark:text-slate-500 text-center leading-tight" x-text="fmt.hint"></span>
+                        </button>
+                      </template>
+                    </div>
+                  </div>
+                  <!-- Slide-in config panel -->
+                  <div x-show="panelVisible && selectedFormat" x-transition:enter="transition ease-out duration-200"
+                       x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
+                       x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                       class="card p-5 space-y-4" x-cloak>
+                    <div class="flex items-center justify-between">
+                      <h4 class="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                        <span x-text="selectedFormat?.toUpperCase()"></span> options
+                      </h4>
+                      <button @click="closePanel()" aria-label="Close config panel" class="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-800 text-slate-400 cursor-pointer">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                    <!-- PDF config -->
+                    <template x-if="selectedFormat === 'pdf'">
+                      <div class="space-y-3">
+                        <p class="text-xs text-slate-500 dark:text-slate-400">A4 print-ready PDF with Vietnamese font support.</p>
+                        <button @click="exportFormat('pdf')" :disabled="exporting" class="sf-forge-btn w-full" data-variant="primary">
+                          <span x-text="exporting === 'pdf' ? 'Exporting...' : 'Export PDF'"></span>
+                        </button>
+                      </div>
+                    </template>
+                    <!-- EPUB config -->
+                    <template x-if="selectedFormat === 'epub'">
+                      <div class="space-y-3">
+                        <p class="text-xs text-slate-500 dark:text-slate-400">EPUB 3 compatible with Kindle, Apple Books, and most e-readers.</p>
+                        <button @click="exportFormat('epub')" :disabled="exporting" class="sf-forge-btn w-full" data-variant="primary">
+                          <span x-text="exporting === 'epub' ? 'Exporting...' : 'Export EPUB'"></span>
+                        </button>
+                      </div>
+                    </template>
+                    <!-- HTML config -->
+                    <template x-if="selectedFormat === 'html'">
+                      <div class="space-y-3">
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Self-contained HTML file — share online or open in any browser.</p>
+                        <button @click="exportFormat('html')" :disabled="exporting" class="sf-forge-btn w-full" data-variant="primary">
+                          <span x-text="exporting === 'html' ? 'Exporting...' : 'Export HTML'"></span>
+                        </button>
+                      </div>
+                    </template>
+                    <!-- ZIP config -->
+                    <template x-if="selectedFormat === 'zip'">
+                      <div class="space-y-3">
+                        <p class="text-xs text-slate-500 dark:text-slate-400">ZIP archive containing all chapters as separate text files plus metadata.</p>
+                        <button @click="exportZip()" :disabled="exporting" class="sf-forge-btn w-full" data-variant="primary">
+                          <span x-text="exporting === 'zip' ? 'Exporting...' : 'Export ZIP'"></span>
+                        </button>
+                      </div>
+                    </template>
+                  </div>
                 </div>
-                <div class="grid grid-cols-3 gap-3">
-                  <button @click="exportFormat('pdf')" :disabled="exporting" class="sf-export-tile">
-                    <div class="ico" style="background: linear-gradient(135deg, rgba(239,68,68,0.12), rgba(249,115,22,0.08));">
-                      <svg class="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
-                    </div>
-                    <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'pdf' ? 'Đang xuất...' : 'PDF'"></span>
-                    <span class="text-[10px] text-slate-400">In ấn · A4</span>
-                  </button>
-                  <button @click="exportFormat('epub')" :disabled="exporting" class="sf-export-tile">
-                    <div class="ico" style="background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(37,99,235,0.08));">
-                      <svg class="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
-                    </div>
-                    <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'epub' ? 'Đang xuất...' : 'EPUB'"></span>
-                    <span class="text-[10px] text-slate-400">Kindle · đọc số</span>
-                  </button>
-                  <button @click="exportZip()" :disabled="exporting" class="sf-export-tile">
-                    <div class="ico" style="background: linear-gradient(135deg, rgba(37,99,235,0.12), rgba(139,92,246,0.08));">
-                      <svg class="w-5 h-5 text-brand-600" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
-                    </div>
-                    <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'zip' ? 'Đang xuất...' : 'ZIP'"></span>
-                    <span class="text-[10px] text-slate-400">Tất cả · lưu trữ</span>
-                  </button>
+              </template>
+
+              <!-- Document formats — legacy tiles (flag OFF) -->
+              <template x-if="!$store.flags?.forgeUi">
+                <div class="card p-5">
+                  <div class="flex items-center gap-2 mb-4">
+                    <span class="sf-step-badge">2</span>
+                    <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn định dạng</h3>
+                  </div>
+                  <div class="grid grid-cols-3 gap-3">
+                    <button @click="exportFormat('pdf')" :disabled="exporting" class="sf-export-tile">
+                      <div class="ico" style="background: linear-gradient(135deg, rgba(239,68,68,0.12), rgba(249,115,22,0.08));">
+                        <svg class="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+                      </div>
+                      <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'pdf' ? 'Đang xuất...' : 'PDF'"></span>
+                      <span class="text-[10px] text-slate-400">In ấn · A4</span>
+                    </button>
+                    <button @click="exportFormat('epub')" :disabled="exporting" class="sf-export-tile">
+                      <div class="ico" style="background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(37,99,235,0.08));">
+                        <svg class="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
+                      </div>
+                      <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'epub' ? 'Đang xuất...' : 'EPUB'"></span>
+                      <span class="text-[10px] text-slate-400">Kindle · đọc số</span>
+                    </button>
+                    <button @click="exportZip()" :disabled="exporting" class="sf-export-tile">
+                      <div class="ico" style="background: linear-gradient(135deg, rgba(37,99,235,0.12), rgba(139,92,246,0.08));">
+                        <svg class="w-5 h-5 text-brand-600" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+                      </div>
+                      <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'zip' ? 'Đang xuất...' : 'ZIP'"></span>
+                      <span class="text-[10px] text-slate-400">Tất cả · lưu trữ</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </template>
               <div x-show="message" x-transition class="flex items-center gap-2 px-4 py-3 rounded-lg text-sm"
                 :class="message.startsWith('Error') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'">
                 <svg x-show="!message.startsWith('Error')" class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
@@ -2964,40 +3451,79 @@
                         </button>
                       </div>
 
-                      <!-- Tree visualization -->
-                      <div x-data="treeVisualizer()" x-effect="setSession(sessionId)">
-                        <button @click="toggleTree(sessionId)"
-                          class="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors bg-surface-100 dark:bg-surface-800 text-slate-600 dark:text-slate-300 hover:bg-surface-200 dark:hover:bg-surface-700 inline-flex items-center gap-1.5">
-                          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 01-1.125-1.125v-3.75zM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-8.25zM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-2.25z"/></svg>
-                          <span x-text="showTree ? 'Hide Tree' : 'Show Tree'"></span>
-                        </button>
-                        <div x-show="showTree" x-transition class="mt-3 card overflow-x-auto">
-                          <template x-if="treeLoading">
-                            <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-300">Loading tree...</div>
+                      <!-- Tree visualization — Forge canvas (flag ON) -->
+                      <template x-if="$store.flags?.forgeUi">
+                        <div x-data="forgeBranchTreeMount()" x-effect="setSession(sessionId)" class="sf-branch-tree-wrap">
+                          <button @click="refresh()"
+                            class="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors bg-surface-100 dark:bg-surface-800 text-slate-600 dark:text-slate-300 hover:bg-surface-200 dark:hover:bg-surface-700 inline-flex items-center gap-1.5"
+                            :disabled="loading || !sessionId">
+                            <svg class="w-4 h-4" :class="loading && 'animate-spin'" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 01-1.125-1.125v-3.75zM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-8.25zM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-2.25z"/></svg>
+                            <span x-text="loaded ? 'Refresh Tree' : 'Show Forge Tree'"></span>
+                          </button>
+                          <template x-if="loading">
+                            <div class="mt-3 p-4 text-center text-sm text-slate-400 dark:text-slate-300">Loading tree...</div>
                           </template>
-                          <template x-if="treeLayout && treeLayout.nodes.length > 0">
-                            <svg :viewBox="viewBox" class="min-w-full" :style="'min-height:' + treeLayout.height + 'px'" xmlns="http://www.w3.org/2000/svg">
-                              <template x-for="edge in treeLayout.edges" :key="edge.x1 + '-' + edge.y1 + '-' + edge.x2 + '-' + edge.y2">
-                                <line :x1="edge.x1" :y1="edge.y1" :x2="edge.x2" :y2="edge.y2" class="stroke-surface-300 dark:stroke-surface-600" stroke-width="2"/>
-                              </template>
-                              <template x-for="node in treeLayout.nodes" :key="node.id">
-                                <g class="cursor-pointer" @click="gotoNode($data.sessionId || sessionId, node.id).then(n => { if(n) { $data.currentNode = n; if($data.history) $data.history = []; refreshTree($data.sessionId || sessionId); } })">
-                                  <circle :cx="node.x" :cy="node.y" r="18"
-                                    :class="node.isCurrent ? 'fill-brand-500 stroke-brand-300' : 'fill-surface-200 dark:fill-surface-700 stroke-surface-400 dark:stroke-surface-500'"
-                                    stroke-width="2"/>
-                                  <text :x="node.x" :y="node.y + 32" text-anchor="middle" class="fill-slate-500 dark:fill-slate-400" font-size="9" x-text="node.label"></text>
-                                </g>
-                              </template>
-                            </svg>
+                          <template x-if="error">
+                            <div class="mt-3 p-4 text-center text-sm text-red-500 dark:text-red-400" x-text="error"></div>
                           </template>
-                          <template x-if="!treeLoading && treeError">
-                            <div class="p-4 text-center text-sm text-red-500 dark:text-red-400" x-text="treeError"></div>
-                          </template>
-                          <template x-if="!treeLoading && !treeError && (!treeLayout || treeLayout.nodes.length === 0)">
-                            <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-300">No tree data available. Try navigating first.</div>
+                          <template x-if="loaded && nodes.length > 0">
+                            <div :key="'forge-tree-' + _sessionId"
+                                 x-data="branchTree({ nodes: nodes, currentNodeId: currentNode, width: 800, height: 480 })"
+                                 @sf:branch-navigate.stop="$event.detail && gotoNode(sessionId, $event.detail.nodeId)"
+                                 class="sf-branch-tree-block">
+                              <canvas x-init="attachCanvas($el)" tabindex="0" role="img"
+                                :aria-label="`Branch tree, ${nodes.length} nodes`"
+                                class="sf-branch-tree__canvas"></canvas>
+                              <canvas x-init="attachMinimapCanvas($el)"
+                                class="sf-branch-tree__minimap"
+                                :width="minimapWidth" :height="minimapHeight"
+                                aria-hidden="true"></canvas>
+                              <ul class="sr-only" aria-label="Branch tree nodes">
+                                <template x-for="entry in srEntries" :key="entry.id">
+                                  <li :data-id="entry.id" x-text="entry.label + ' (depth ' + entry.depth + ')'"></li>
+                                </template>
+                              </ul>
+                            </div>
                           </template>
                         </div>
-                      </div>
+                      </template>
+
+                      <!-- Tree visualization — legacy SVG (flag OFF) -->
+                      <template x-if="!$store.flags?.forgeUi">
+                        <div x-data="treeVisualizer()" x-effect="setSession(sessionId)">
+                          <button @click="toggleTree(sessionId)"
+                            class="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors bg-surface-100 dark:bg-surface-800 text-slate-600 dark:text-slate-300 hover:bg-surface-200 dark:hover:bg-surface-700 inline-flex items-center gap-1.5">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 01-1.125-1.125v-3.75zM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-8.25zM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-2.25z"/></svg>
+                            <span x-text="showTree ? 'Hide Tree' : 'Show Tree'"></span>
+                          </button>
+                          <div x-show="showTree" x-transition class="mt-3 card overflow-x-auto">
+                            <template x-if="treeLoading">
+                              <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-300">Loading tree...</div>
+                            </template>
+                            <template x-if="treeLayout && treeLayout.nodes.length > 0">
+                              <svg :viewBox="viewBox" class="min-w-full" :style="'min-height:' + treeLayout.height + 'px'" xmlns="http://www.w3.org/2000/svg">
+                                <template x-for="edge in treeLayout.edges" :key="edge.x1 + '-' + edge.y1 + '-' + edge.x2 + '-' + edge.y2">
+                                  <line :x1="edge.x1" :y1="edge.y1" :x2="edge.x2" :y2="edge.y2" class="stroke-surface-300 dark:stroke-surface-600" stroke-width="2"/>
+                                </template>
+                                <template x-for="node in treeLayout.nodes" :key="node.id">
+                                  <g class="cursor-pointer" @click="gotoNode($data.sessionId || sessionId, node.id).then(n => { if(n) { $data.currentNode = n; if($data.history) $data.history = []; refreshTree($data.sessionId || sessionId); } })">
+                                    <circle :cx="node.x" :cy="node.y" r="18"
+                                      :class="node.isCurrent ? 'fill-brand-500 stroke-brand-300' : 'fill-surface-200 dark:fill-surface-700 stroke-surface-400 dark:stroke-surface-500'"
+                                      stroke-width="2"/>
+                                    <text :x="node.x" :y="node.y + 32" text-anchor="middle" class="fill-slate-500 dark:fill-slate-400" font-size="9" x-text="node.label"></text>
+                                  </g>
+                                </template>
+                              </svg>
+                            </template>
+                            <template x-if="!treeLoading && treeError">
+                              <div class="p-4 text-center text-sm text-red-500 dark:text-red-400" x-text="treeError"></div>
+                            </template>
+                            <template x-if="!treeLoading && !treeError && (!treeLayout || treeLayout.nodes.length === 0)">
+                              <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-300">No tree data available. Try navigating first.</div>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
                     </div>
                   </template>
                 </div>
@@ -3265,5 +3791,35 @@
     }
 
   </script>
+
+  <!-- ═══ FORGE TOAST REGION (flag-gated, additive) ═══
+       Two regions: polite for info/success, assertive for warning/error
+       (WCAG 2.1 SC 4.1.3). The store is registered in app.ts only when the
+       flag is on, so `$store.toasts` is undefined for legacy users — the
+       optional chain keeps the template inert in that path. -->
+  <template x-if="$store.flags?.forgeUi">
+    <div>
+      <ul class="sf-toast-region" aria-label="Notifications" role="status" aria-live="polite">
+        <template x-for="t in ($store.toasts?.items || []).filter((x) => !$store.toasts.isAssertive(x.variant))" :key="t.id">
+          <li x-data="toastItem({ toast: t })" class="sf-toast"
+              :data-variant="toast.variant" :role="role" :aria-live="ariaLive">
+            <span class="sf-toast__message" x-text="toast.message"></span>
+            <button type="button" class="sf-toast__close" aria-label="Đóng thông báo"
+              @click="dismiss()">×</button>
+          </li>
+        </template>
+      </ul>
+      <ul class="sf-toast-region sf-toast-region--assertive" aria-label="Alerts" role="alert" aria-live="assertive">
+        <template x-for="t in ($store.toasts?.items || []).filter((x) => $store.toasts.isAssertive(x.variant))" :key="t.id">
+          <li x-data="toastItem({ toast: t })" class="sf-toast"
+              :data-variant="toast.variant" :role="role" :aria-live="ariaLive">
+            <span class="sf-toast__message" x-text="toast.message"></span>
+            <button type="button" class="sf-toast__close" aria-label="Đóng thông báo"
+              @click="dismiss()">×</button>
+          </li>
+        </template>
+      </ul>
+    </div>
+  </template>
 </body>
 </html>

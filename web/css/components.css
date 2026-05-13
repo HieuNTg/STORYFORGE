@@ -1,0 +1,1171 @@
+/* web/css/components.css — Forge UI redesign component styles
+ *
+ * All rules are gated behind :root[data-forge-ui="on"] so the new visuals
+ * apply ONLY when the STORYFORGE_FORGE_UI flag is enabled. With the flag
+ * off, every selector below is inert (no specificity bump, no overrides),
+ * which keeps the legacy UI byte-identical.
+ *
+ * Sourced from plans/260512-1949-uiux-prd-implementation/02-ux-architecture.md §2.
+ */
+
+/* ── ForgeButton (UX §2.1) ────────────────────────────────────────────── */
+:root[data-forge-ui="on"] .sf-forge-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sf-space-2);
+  padding: var(--sf-space-3) var(--sf-space-6);
+  border: 1px solid transparent;
+  border-radius: var(--sf-radius-md);
+  font-family: var(--sf-font-body);
+  font-size: var(--sf-text-h4);
+  font-weight: var(--sf-font-semibold);
+  line-height: 1;
+  background: var(--sf-accent-primary);
+  color: #FFFFFF;
+  cursor: pointer;
+  transition:
+    background-color var(--sf-duration-fast) var(--sf-ease-spring),
+    box-shadow var(--sf-duration-fast) var(--sf-ease-spring),
+    transform var(--sf-duration-fast) var(--sf-ease-spring);
+}
+:root[data-forge-ui="on"] .sf-forge-btn[data-variant="secondary"] {
+  background: var(--sf-bg-elevated);
+  color: var(--sf-text-primary);
+  border-color: var(--sf-border-subtle);
+}
+:root[data-forge-ui="on"] .sf-forge-btn[data-variant="ghost"] {
+  background: transparent;
+  color: var(--sf-text-primary);
+  border-color: transparent;
+}
+:root[data-forge-ui="on"] .sf-forge-btn[data-variant="danger"] {
+  background: var(--sf-accent-danger);
+  color: #FFFFFF;
+}
+:root[data-forge-ui="on"] .sf-forge-btn[data-state="hover"]:not([disabled]),
+:root[data-forge-ui="on"] .sf-forge-btn:hover:not([disabled]) {
+  transform: translateY(-1px);
+  box-shadow: var(--sf-shadow-md);
+}
+:root[data-forge-ui="on"] .sf-forge-btn[data-state="loading"],
+:root[data-forge-ui="on"] .sf-forge-btn[aria-busy="true"] {
+  background: var(--sf-accent-forge);
+  cursor: progress;
+}
+:root[data-forge-ui="on"] .sf-forge-btn[data-state="loading"]::after {
+  content: "";
+  width: 12px;
+  height: 12px;
+  border-radius: var(--sf-radius-full);
+  background: currentColor;
+  opacity: 0.85;
+  animation: sf-forge-btn-pulse var(--sf-duration-shimmer) var(--sf-ease-spring) infinite;
+}
+:root[data-forge-ui="on"] .sf-forge-btn[disabled],
+:root[data-forge-ui="on"] .sf-forge-btn[data-state="disabled"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@keyframes sf-forge-btn-pulse {
+  0%, 100% { opacity: 0.6; transform: scale(0.85); }
+  50%      { opacity: 1.0; transform: scale(1.10); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-forge-btn,
+  :root[data-forge-ui="on"] .sf-forge-btn[data-state="loading"]::after {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* ── PhaseTimeline (UX §2.2) ──────────────────────────────────────────── */
+:root[data-forge-ui="on"] .sf-phase-timeline {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sf-space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+:root[data-forge-ui="on"] .sf-phase-timeline__step {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sf-space-2);
+  padding: var(--sf-space-2) var(--sf-space-3);
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-surface);
+  border: 1px solid var(--sf-border-subtle);
+  color: var(--sf-text-secondary);
+  font-size: var(--sf-text-caption);
+  font-family: var(--sf-font-body);
+  transition: background-color var(--sf-duration-fast) var(--sf-ease-spring),
+              color var(--sf-duration-fast) var(--sf-ease-spring),
+              box-shadow var(--sf-duration-fast) var(--sf-ease-spring);
+}
+:root[data-forge-ui="on"] .sf-phase-timeline__step[data-state="active"] {
+  color: var(--sf-text-primary);
+  border-color: var(--sf-accent-forge);
+  box-shadow: 0 0 0 0 var(--sf-accent-forge);
+  animation: sf-phase-pulse 1.2s var(--sf-ease-spring) infinite;
+}
+:root[data-forge-ui="on"] .sf-phase-timeline__step[data-state="done"] {
+  color: var(--sf-text-primary);
+  border-color: var(--sf-accent-complete);
+  background: var(--sf-bg-elevated);
+}
+:root[data-forge-ui="on"] .sf-phase-timeline__step[data-state="error"] {
+  color: var(--sf-text-primary);
+  border-color: var(--sf-accent-danger);
+}
+@keyframes sf-phase-pulse {
+  0%, 100% { box-shadow: 0 0 0 0   color-mix(in oklab, var(--sf-accent-forge) 60%, transparent); }
+  50%      { box-shadow: 0 0 0 8px color-mix(in oklab, var(--sf-accent-forge) 0%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-phase-timeline__step[data-state="active"] {
+    animation: none;
+  }
+}
+
+/* ── GenreOrb (UX §2.5) ───────────────────────────────────────────────── */
+:root[data-forge-ui="on"] .sf-genre-orb {
+  --orb-hue: var(--sf-accent-primary);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--sf-radius-full);
+  border: 2px solid var(--sf-border-subtle);
+  background: radial-gradient(
+    circle at 30% 30%,
+    color-mix(in oklab, var(--orb-hue) 30%, transparent) 0%,
+    transparent 70%
+  );
+  cursor: pointer;
+  transition: transform var(--sf-duration-fast) var(--sf-ease-spring),
+              box-shadow var(--sf-duration-fast) var(--sf-ease-spring),
+              border-color var(--sf-duration-fast) var(--sf-ease-spring);
+}
+:root[data-forge-ui="on"] .sf-genre-orb:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 24px color-mix(in oklab, var(--orb-hue) 40%, transparent);
+}
+:root[data-forge-ui="on"] .sf-genre-orb[aria-checked="true"] {
+  border-color: var(--orb-hue);
+  background: radial-gradient(
+    circle at 30% 30%,
+    var(--orb-hue) 0%,
+    color-mix(in oklab, var(--orb-hue) 40%, transparent) 80%
+  );
+}
+:root[data-forge-ui="on"] .sf-genre-orb__label {
+  font-size: var(--sf-text-caption);
+  color: var(--sf-text-secondary);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-genre-orb {
+    transition: none;
+  }
+  :root[data-forge-ui="on"] .sf-genre-orb:hover {
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+/* ── ConfigPanel (UX §2.9) ────────────────────────────────────────────── */
+:root[data-forge-ui="on"] .sf-config-panel {
+  border: 1px solid var(--sf-border-subtle);
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-surface);
+  margin-bottom: var(--sf-space-3);
+  overflow: hidden;
+}
+:root[data-forge-ui="on"] .sf-config-panel__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sf-space-3);
+  padding: var(--sf-space-3) var(--sf-space-4);
+  font-family: var(--sf-font-body);
+  font-size: var(--sf-text-h4);
+  font-weight: var(--sf-font-semibold);
+  color: var(--sf-text-primary);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+:root[data-forge-ui="on"] .sf-config-panel__summary::-webkit-details-marker {
+  display: none;
+}
+:root[data-forge-ui="on"] .sf-config-panel__chevron {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  transition: transform var(--sf-duration-fast) var(--sf-ease-spring);
+}
+:root[data-forge-ui="on"] .sf-config-panel[data-expanded="true"] .sf-config-panel__chevron,
+:root[data-forge-ui="on"] details[open] .sf-config-panel__chevron {
+  transform: rotate(90deg);
+}
+:root[data-forge-ui="on"] .sf-config-panel[data-dirty="true"] .sf-config-panel__summary::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: var(--sf-radius-full);
+  background: var(--sf-accent-primary);
+  margin-left: var(--sf-space-2);
+}
+:root[data-forge-ui="on"] .sf-config-panel__body {
+  padding: var(--sf-space-3) var(--sf-space-4);
+  border-top: 1px solid var(--sf-border-subtle);
+  display: grid;
+  gap: var(--sf-space-3);
+}
+:root[data-forge-ui="on"] .sf-config-panel__field {
+  display: grid;
+  gap: var(--sf-space-1);
+}
+:root[data-forge-ui="on"] .sf-config-panel__field--invalid {
+  color: var(--sf-accent-danger);
+}
+:root[data-forge-ui="on"] .sf-config-panel__help {
+  font-size: var(--sf-text-caption);
+  color: var(--sf-text-secondary);
+}
+:root[data-forge-ui="on"] .sf-config-panel__error {
+  font-size: var(--sf-text-caption);
+  color: var(--sf-accent-danger);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-config-panel__chevron {
+    transition: none;
+  }
+}
+
+/* ── StoryCard (UX §2.4) ──────────────────────────────────────────────── */
+:root[data-forge-ui="on"] .sf-story-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: var(--sf-space-2);
+  padding: var(--sf-space-3);
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-surface);
+  border: 1px solid var(--sf-border-subtle);
+  color: var(--sf-text-primary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform var(--sf-duration-fast) var(--sf-ease-spring),
+              box-shadow var(--sf-duration-fast) var(--sf-ease-spring),
+              border-color var(--sf-duration-fast) var(--sf-ease-spring);
+}
+:root[data-forge-ui="on"] .sf-story-card[data-mode="list"] {
+  grid-template-columns: 80px 1fr auto;
+  grid-template-rows: auto;
+  align-items: center;
+}
+:root[data-forge-ui="on"] .sf-story-card:hover,
+:root[data-forge-ui="on"] .sf-story-card[data-state="hover"],
+:root[data-forge-ui="on"] .sf-story-card:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: var(--sf-shadow-md);
+  border-color: var(--sf-accent-primary);
+}
+:root[data-forge-ui="on"] .sf-story-card__cover {
+  aspect-ratio: 3 / 4;
+  border-radius: var(--sf-radius-sm);
+  background: var(--sf-bg-elevated);
+  overflow: hidden;
+}
+:root[data-forge-ui="on"] .sf-story-card__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+:root[data-forge-ui="on"] .sf-story-card__title {
+  font-family: var(--sf-font-body);
+  font-size: var(--sf-text-h4);
+  font-weight: var(--sf-font-semibold);
+  color: var(--sf-text-primary);
+  line-height: var(--sf-leading-snug);
+}
+:root[data-forge-ui="on"] .sf-story-card__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sf-space-2);
+  font-size: var(--sf-text-caption);
+  color: var(--sf-text-secondary);
+}
+:root[data-forge-ui="on"] .sf-story-card__progress {
+  position: relative;
+  height: 4px;
+  border-radius: var(--sf-radius-full);
+  background: var(--sf-border-subtle);
+  overflow: hidden;
+}
+:root[data-forge-ui="on"] .sf-story-card__progress-fill {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  background: var(--sf-accent-forge);
+  transition: width var(--sf-duration-base) var(--sf-ease-spring);
+}
+:root[data-forge-ui="on"] .sf-story-card[data-status="done"] {
+  border-color: var(--sf-accent-complete);
+}
+:root[data-forge-ui="on"] .sf-story-card[data-status="error"] {
+  border-color: var(--sf-accent-danger);
+}
+:root[data-forge-ui="on"] .sf-story-card__actions {
+  display: flex;
+  gap: var(--sf-space-1);
+  opacity: 0;
+  transition: opacity var(--sf-duration-fast) var(--sf-ease-spring);
+}
+:root[data-forge-ui="on"] .sf-story-card:hover .sf-story-card__actions,
+:root[data-forge-ui="on"] .sf-story-card:focus-within .sf-story-card__actions {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-story-card,
+  :root[data-forge-ui="on"] .sf-story-card__progress-fill,
+  :root[data-forge-ui="on"] .sf-story-card__actions {
+    transition: none;
+  }
+  :root[data-forge-ui="on"] .sf-story-card:hover,
+  :root[data-forge-ui="on"] .sf-story-card:focus-visible {
+    transform: none;
+  }
+}
+
+/* ── Toast (UX §2.10) ─────────────────────────────────────────────────── */
+:root[data-forge-ui="on"] .sf-toast-region {
+  position: fixed;
+  top: var(--sf-space-4);
+  right: var(--sf-space-4);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sf-space-2);
+  pointer-events: none;
+  max-width: 380px;
+}
+:root[data-forge-ui="on"] .sf-toast-region--assertive {
+  /* Same visual position; second live region for warning/error variants. */
+  pointer-events: none;
+}
+:root[data-forge-ui="on"] .sf-toast {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: var(--sf-space-2);
+  padding: var(--sf-space-3) var(--sf-space-4);
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-surface);
+  border-left: 4px solid var(--sf-accent-primary);
+  box-shadow: var(--sf-shadow-md);
+  font-family: var(--sf-font-body);
+  font-size: var(--sf-text-body);
+  color: var(--sf-text-primary);
+  animation: sf-toast-enter var(--sf-duration-base) var(--sf-ease-spring);
+}
+:root[data-forge-ui="on"] .sf-toast[data-variant="success"] {
+  border-left-color: var(--sf-accent-complete);
+}
+:root[data-forge-ui="on"] .sf-toast[data-variant="warning"] {
+  border-left-color: var(--sf-accent-forge);
+}
+:root[data-forge-ui="on"] .sf-toast[data-variant="error"] {
+  border-left-color: var(--sf-accent-danger);
+}
+:root[data-forge-ui="on"] .sf-toast__message {
+  line-height: var(--sf-leading-snug);
+}
+:root[data-forge-ui="on"] .sf-toast__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: var(--sf-radius-sm);
+  color: var(--sf-text-secondary);
+  cursor: pointer;
+}
+:root[data-forge-ui="on"] .sf-toast__close:hover {
+  background: var(--sf-bg-elevated);
+  color: var(--sf-text-primary);
+}
+@keyframes sf-toast-enter {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-toast {
+    animation: none;
+  }
+}
+
+/* ── Library Forge surface (Day-4 page integration) ────────────────────── */
+:root[data-forge-ui="on"] .sf-library-forge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sf-space-4);
+}
+:root[data-forge-ui="on"] .sf-library-forge__viewbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sf-space-3);
+}
+:root[data-forge-ui="on"] .sf-library-forge__count {
+  font-size: var(--sf-text-caption);
+  color: var(--sf-text-secondary);
+}
+:root[data-forge-ui="on"] .sf-library-forge__viewmodes {
+  display: inline-flex;
+  gap: var(--sf-space-1);
+  padding: var(--sf-space-1);
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-elevated);
+}
+:root[data-forge-ui="on"] .sf-library-forge__viewmodes .sf-forge-btn[data-state="selected"] {
+  background: var(--sf-bg-surface);
+  color: var(--sf-text-primary);
+  box-shadow: var(--sf-shadow-sm);
+}
+:root[data-forge-ui="on"] .sf-library-forge__grid {
+  display: grid;
+  gap: var(--sf-space-3);
+}
+:root[data-forge-ui="on"] .sf-library-forge__grid[data-view="grid"] {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+:root[data-forge-ui="on"] .sf-library-forge__grid[data-view="list"] {
+  grid-template-columns: 1fr;
+}
+:root[data-forge-ui="on"] .sf-library-forge__empty {
+  grid-column: 1 / -1;
+  padding: var(--sf-space-8) var(--sf-space-4);
+  text-align: center;
+  font-size: var(--sf-text-caption);
+  color: var(--sf-text-secondary);
+}
+:root[data-forge-ui="on"] .sf-story-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sf-space-1);
+  min-width: 0;
+}
+:root[data-forge-ui="on"] .sf-story-card__body .sf-story-card__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* ── Forge Theater (Day-5 pipeline surface) ────────────────────────────── */
+:root[data-forge-ui="on"] .sf-theater {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sf-space-3);
+  padding: var(--sf-space-4);
+  border-radius: var(--sf-radius-lg);
+  background: var(--sf-bg-surface);
+  border: 1px solid var(--sf-border-subtle, rgba(148, 163, 184, 0.18));
+  transition: background 320ms ease, border-color 320ms ease;
+}
+:root[data-forge-ui="on"] .sf-theater__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+:root[data-forge-ui="on"] .sf-theater__title {
+  font-size: var(--sf-text-body);
+  font-weight: 600;
+  color: var(--sf-text-primary);
+}
+:root[data-forge-ui="on"] .sf-theater__state {
+  font-size: var(--sf-text-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sf-text-secondary);
+}
+:root[data-forge-ui="on"] .sf-theater__agents {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--sf-space-2);
+}
+:root[data-forge-ui="on"] .sf-theater__empty {
+  font-size: var(--sf-text-caption);
+  color: var(--sf-text-secondary);
+  text-align: center;
+  padding: var(--sf-space-4) 0;
+}
+:root[data-forge-ui="on"] .sf-agent-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sf-space-1);
+  padding: var(--sf-space-2);
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-elevated);
+  border: 1px solid transparent;
+  transition: border-color 200ms ease, transform 200ms ease;
+}
+:root[data-forge-ui="on"] .sf-agent-bubble__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--sf-text-caption);
+}
+:root[data-forge-ui="on"] .sf-agent-bubble__name {
+  font-weight: 600;
+  color: var(--sf-text-primary);
+}
+:root[data-forge-ui="on"] .sf-agent-bubble__state {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sf-text-secondary);
+}
+:root[data-forge-ui="on"] .sf-agent-bubble__msg {
+  font-size: var(--sf-text-caption);
+  color: var(--sf-text-primary);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+:root[data-forge-ui="on"] .sf-agent-bubble[data-state="thinking"] {
+  border-color: rgba(99, 102, 241, 0.45);
+}
+:root[data-forge-ui="on"] .sf-agent-bubble[data-state="speaking"] {
+  border-color: rgba(16, 185, 129, 0.45);
+}
+:root[data-forge-ui="on"] .sf-agent-bubble[data-state="debating"] {
+  border-color: rgba(244, 114, 182, 0.55);
+  transform: translateY(-1px);
+}
+:root[data-forge-ui="on"] .sf-agent-bubble[data-state="voting"] {
+  border-color: rgba(245, 158, 11, 0.6);
+}
+:root[data-forge-ui="on"] .sf-agent-bubble[data-state="done"] {
+  opacity: 0.7;
+}
+
+/* Quality gauge */
+:root[data-forge-ui="on"] .sf-quality-gauge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sf-space-2);
+  padding: var(--sf-space-3);
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-elevated);
+}
+:root[data-forge-ui="on"] .sf-quality-gauge__value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--sf-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+:root[data-forge-ui="on"] .sf-quality-gauge__dims {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sf-space-2);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+:root[data-forge-ui="on"] .sf-quality-gauge__dim {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sf-space-1);
+  padding: 0 var(--sf-space-2);
+  border-radius: var(--sf-radius-pill, 9999px);
+  background: var(--sf-bg-surface);
+  font-size: var(--sf-text-caption);
+}
+:root[data-forge-ui="on"] .sf-quality-gauge__dim-name {
+  color: var(--sf-text-secondary);
+}
+:root[data-forge-ui="on"] .sf-quality-gauge__dim-value {
+  color: var(--sf-text-primary);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Character graph canvas */
+:root[data-forge-ui="on"] .sf-theater__graph {
+  display: block;
+  border-radius: var(--sf-radius-md);
+  overflow: hidden;
+  background: var(--sf-bg-elevated);
+}
+:root[data-forge-ui="on"] .sf-character-graph {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 360px;
+  touch-action: none;
+}
+
+/* Debate + reader strips */
+:root[data-forge-ui="on"] .sf-theater__debate,
+:root[data-forge-ui="on"] .sf-theater__reader {
+  font-size: var(--sf-text-caption);
+  color: var(--sf-text-primary);
+  padding: var(--sf-space-1) var(--sf-space-2);
+  border-radius: var(--sf-radius-sm, 6px);
+  background: var(--sf-bg-elevated);
+}
+:root[data-forge-ui="on"] .sf-theater__debate-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(236, 72, 153, 0.95);
+  margin-right: var(--sf-space-2);
+}
+
+/* Pipeline-page state morphs — driven by data-state on the page wrapper. */
+:root[data-forge-ui="on"] [data-page="pipeline"][data-state="generating"] .sf-theater {
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.05), var(--sf-bg-surface));
+  border-color: rgba(99, 102, 241, 0.25);
+}
+:root[data-forge-ui="on"] [data-page="pipeline"][data-state="done"] .sf-theater {
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.06), var(--sf-bg-surface));
+  border-color: rgba(16, 185, 129, 0.3);
+}
+:root[data-forge-ui="on"] [data-page="pipeline"][data-state="error"] .sf-theater {
+  background: linear-gradient(180deg, rgba(244, 63, 94, 0.06), var(--sf-bg-surface));
+  border-color: rgba(244, 63, 94, 0.35);
+  animation: sf-theater-shake 320ms ease;
+}
+:root[data-forge-ui="on"] [data-page="pipeline"][data-state="interrupted"] .sf-theater {
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.06), var(--sf-bg-surface));
+  border-color: rgba(245, 158, 11, 0.35);
+}
+@keyframes sf-theater-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+
+/* ── M3 Day-1 — Forge Reader surface ─────────────────────────────────────── */
+:root[data-forge-ui="on"] .sf-reader {
+  --sf-reader-bg: #f8fafc;
+  --sf-reader-fg: #1f2937;
+  --sf-reader-muted: #64748b;
+  --sf-reader-card: #ffffff;
+  --sf-reader-border: rgba(15, 23, 42, 0.08);
+  --sf-reader-accent: var(--sf-color-brand-600, #4f46e5);
+  --sf-reader-max-width: 64ch;
+  background: var(--sf-reader-bg);
+  color: var(--sf-reader-fg);
+  border-radius: 14px;
+  padding: 12px;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+:root[data-forge-ui="on"] .sf-reader--sepia {
+  --sf-reader-bg: #f4ecd8;
+  --sf-reader-fg: #4b3a26;
+  --sf-reader-muted: #8a7659;
+  --sf-reader-card: #fbf5e3;
+  --sf-reader-border: rgba(75, 58, 38, 0.16);
+  --sf-reader-accent: #b45309;
+}
+:root[data-forge-ui="on"] .sf-reader--night {
+  --sf-reader-bg: #0b1220;
+  --sf-reader-fg: #e2e8f0;
+  --sf-reader-muted: #94a3b8;
+  --sf-reader-card: #111827;
+  --sf-reader-border: rgba(148, 163, 184, 0.18);
+  --sf-reader-accent: #a78bfa;
+}
+:root[data-forge-ui="on"] .sf-reader--col-narrow { --sf-reader-max-width: 48ch; }
+:root[data-forge-ui="on"] .sf-reader--col-normal { --sf-reader-max-width: 64ch; }
+:root[data-forge-ui="on"] .sf-reader--col-wide   { --sf-reader-max-width: 78ch; }
+
+/* The reader pre-empts the card background inside its scope so theme tints
+   reach all the way to the prose container. */
+:root[data-forge-ui="on"] .sf-reader .card {
+  background: var(--sf-reader-card);
+  color: var(--sf-reader-fg);
+  border-color: var(--sf-reader-border);
+}
+:root[data-forge-ui="on"] .sf-reader h2,
+:root[data-forge-ui="on"] .sf-reader h3,
+:root[data-forge-ui="on"] .sf-reader h4 {
+  color: var(--sf-reader-fg);
+}
+
+/* Toolbar */
+:root[data-forge-ui="on"] .sf-reader__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: var(--sf-reader-card);
+  border: 1px solid var(--sf-reader-border);
+  border-radius: 12px;
+  position: sticky;
+  top: 12px;
+  z-index: 5;
+  backdrop-filter: saturate(140%) blur(6px);
+}
+:root[data-forge-ui="on"] .sf-reader__group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--sf-reader-bg) 70%, var(--sf-reader-card));
+  border: 1px solid var(--sf-reader-border);
+}
+:root[data-forge-ui="on"] .sf-reader__group-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--sf-reader-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0 4px;
+}
+:root[data-forge-ui="on"] .sf-reader__btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--sf-reader-fg);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 120ms ease;
+}
+:root[data-forge-ui="on"] .sf-reader__btn:hover {
+  background: color-mix(in oklab, var(--sf-reader-accent) 12%, transparent);
+}
+:root[data-forge-ui="on"] .sf-reader__value {
+  min-width: 28px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sf-reader-fg);
+}
+:root[data-forge-ui="on"] .sf-reader__chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--sf-reader-border);
+  background: transparent;
+  color: var(--sf-reader-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+:root[data-forge-ui="on"] .sf-reader__chip:hover {
+  color: var(--sf-reader-fg);
+  border-color: var(--sf-reader-accent);
+}
+:root[data-forge-ui="on"] .sf-reader__chip.is-active {
+  background: var(--sf-reader-accent);
+  color: #ffffff;
+  border-color: var(--sf-reader-accent);
+}
+:root[data-forge-ui="on"] .sf-reader__theme {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--sf-reader-border);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  background: var(--sf-reader-card);
+  color: var(--sf-reader-fg);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+:root[data-forge-ui="on"] .sf-reader__theme--day   { background: #fafafa; color: #1f2937; }
+:root[data-forge-ui="on"] .sf-reader__theme--sepia { background: #f4ecd8; color: #4b3a26; }
+:root[data-forge-ui="on"] .sf-reader__theme--night { background: #0b1220; color: #e2e8f0; }
+:root[data-forge-ui="on"] .sf-reader__theme.is-active {
+  box-shadow: 0 0 0 2px var(--sf-reader-accent);
+  transform: scale(1.08);
+}
+:root[data-forge-ui="on"] .sf-reader__bookmark {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--sf-reader-border);
+  background: transparent;
+  color: var(--sf-reader-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+:root[data-forge-ui="on"] .sf-reader__bookmark:hover {
+  color: var(--sf-reader-fg);
+  border-color: var(--sf-reader-accent);
+}
+:root[data-forge-ui="on"] .sf-reader__bookmark[aria-pressed="true"] {
+  background: color-mix(in oklab, var(--sf-reader-accent) 16%, transparent);
+  color: var(--sf-reader-accent);
+  border-color: var(--sf-reader-accent);
+}
+:root[data-forge-ui="on"] .sf-reader__bookmark-label {
+  font-size: 11px;
+  letter-spacing: 0.01em;
+}
+
+/* Prose: typography-first surface driven by store-backed CSS variables. */
+:root[data-forge-ui="on"] .sf-reader__prose {
+  font-size: var(--sf-reader-font-size, 18px);
+  line-height: var(--sf-reader-line-height, 1.9);
+  font-family: var(--sf-reader-font-family, "Iowan Old Style", "Charter", "Source Serif Pro", Georgia, serif);
+  color: var(--sf-reader-fg);
+  max-width: var(--sf-reader-max-width, 64ch);
+  margin-inline: auto;
+  white-space: pre-wrap;
+  word-spacing: 0.01em;
+  hyphens: auto;
+}
+:root[data-forge-ui="on"] .sf-reader__prose strong { color: inherit; font-weight: 700; }
+:root[data-forge-ui="on"] .sf-reader__prose br { line-height: inherit; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-reader,
+  :root[data-forge-ui="on"] .sf-reader__btn,
+  :root[data-forge-ui="on"] .sf-reader__chip,
+  :root[data-forge-ui="on"] .sf-reader__theme,
+  :root[data-forge-ui="on"] .sf-reader__bookmark {
+    transition: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] [data-page="pipeline"][data-state="error"] .sf-theater {
+    animation: none;
+  }
+  :root[data-forge-ui="on"] .sf-agent-bubble {
+    transition: none;
+  }
+}
+:root[data-forge-ui="on"] .sf-story-card__cover .sf-genre-orb {
+  width: 56px;
+  height: 56px;
+  margin: var(--sf-space-3);
+}
+
+/* ── M3 Reader: reading progress bar ─────────────────────────────────────── */
+:root[data-forge-ui="on"] .sf-reader__progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  z-index: 100;
+  background: transparent;
+  pointer-events: none;
+}
+:root[data-forge-ui="on"] .sf-reader__progress-fill {
+  height: 100%;
+  background: var(--sf-accent-primary, #2563EB);
+  transition: width 120ms linear;
+  transform-origin: left;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-reader__progress-fill {
+    transition: none;
+  }
+}
+
+/* ── M3 Reader: chapter sidebar ──────────────────────────────────────────── */
+:root[data-forge-ui="on"] .sf-reader__sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 280px;
+  max-width: 85vw;
+  z-index: 50;
+  background: var(--sf-reader-card, #ffffff);
+  border-left: 1px solid var(--sf-reader-border, rgba(15, 23, 42, 0.08));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: translateX(100%);
+  transition: transform var(--sf-duration-base, 250ms) var(--sf-ease-spring, cubic-bezier(0.4, 0, 0.2, 1));
+}
+:root[data-forge-ui="on"] .sf-reader__sidebar[data-open="true"] {
+  transform: translateX(0);
+}
+:root[data-forge-ui="on"] .sf-reader__sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--sf-reader-border, rgba(15, 23, 42, 0.08));
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sf-reader-fg, #1f2937);
+  flex-shrink: 0;
+}
+:root[data-forge-ui="on"] .sf-reader__sidebar-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--sf-reader-muted, #64748b);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 120ms ease;
+}
+:root[data-forge-ui="on"] .sf-reader__sidebar-close:hover {
+  background: color-mix(in oklab, var(--sf-reader-fg, #1f2937) 8%, transparent);
+}
+:root[data-forge-ui="on"] .sf-reader__sidebar-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+:root[data-forge-ui="on"] .sf-reader__sidebar-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 9px 16px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  transition: background-color 120ms ease;
+}
+:root[data-forge-ui="on"] .sf-reader__sidebar-item:hover {
+  background: color-mix(in oklab, var(--sf-reader-accent, #4f46e5) 6%, transparent);
+}
+:root[data-forge-ui="on"] .sf-reader__sidebar-item[aria-current="true"] {
+  background: color-mix(in oklab, var(--sf-reader-accent, #4f46e5) 10%, transparent);
+}
+:root[data-forge-ui="on"] .sf-reader__sidebar-item[aria-current="true"] .sf-reader__sidebar-num {
+  color: var(--sf-reader-accent, #4f46e5);
+  font-weight: 700;
+}
+:root[data-forge-ui="on"] .sf-reader__sidebar-num {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sf-reader-muted, #64748b);
+  min-width: 28px;
+  flex-shrink: 0;
+}
+:root[data-forge-ui="on"] .sf-reader__sidebar-title {
+  font-size: 13px;
+  color: var(--sf-reader-fg, #1f2937);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:root[data-forge-ui="on"] .sf-reader__sidebar-eta {
+  font-size: 10px;
+  color: var(--sf-reader-muted, #64748b);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+/* Overlay scrim shown on mobile when sidebar is open */
+:root[data-forge-ui="on"] .sf-reader__sidebar-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+  background: rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--sf-duration-base, 250ms) ease;
+}
+:root[data-forge-ui="on"] .sf-reader__sidebar-scrim[data-open="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* Sidebar toggle button positioned in the reader header area */
+:root[data-forge-ui="on"] .sf-reader__sidebar-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--sf-reader-border, rgba(15, 23, 42, 0.08));
+  background: transparent;
+  color: var(--sf-reader-muted, #64748b);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+:root[data-forge-ui="on"] .sf-reader__sidebar-toggle:hover {
+  color: var(--sf-reader-fg, #1f2937);
+  border-color: var(--sf-reader-accent, #4f46e5);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-reader__sidebar,
+  :root[data-forge-ui="on"] .sf-reader__sidebar-close,
+  :root[data-forge-ui="on"] .sf-reader__sidebar-item,
+  :root[data-forge-ui="on"] .sf-reader__sidebar-scrim,
+  :root[data-forge-ui="on"] .sf-reader__sidebar-toggle {
+    transition: none;
+  }
+}
+
+/* ── M3 Reader: inline character portrait fade-in ─────────────────────────── */
+:root[data-forge-ui="on"] .sf-reader__portrait {
+  display: block;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--sf-reader-border, rgba(15, 23, 42, 0.08));
+  float: left;
+  margin: 0 12px 4px 0;
+  opacity: 0;
+  animation: sf-portrait-fadein 400ms ease forwards;
+}
+@keyframes sf-portrait-fadein {
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-reader__portrait {
+    animation: none;
+    opacity: 1;
+  }
+}
+/* Paragraph block wrapper used when portrait injection is active */
+:root[data-forge-ui="on"] .sf-reader__para-block {
+  overflow: hidden; /* contain float */
+  margin-bottom: 0.5em;
+}
+:root[data-forge-ui="on"] .sf-reader__para-block::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+/* ── BranchTree (M3 §3.3) ──────────────────────────────────────────────── */
+
+/* Mount wrapper — mirrors CharacterGraph block spacing. */
+:root[data-forge-ui="on"] .sf-branch-tree-wrap {
+  margin-top: 12px;
+}
+
+/* Canvas block container — positions minimap overlay. */
+:root[data-forge-ui="on"] .sf-branch-tree-block {
+  position: relative;
+  margin-top: 12px;
+  border: 1px solid var(--sf-border-subtle, #2D3348);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--sf-bg-surface, #1A1F2E);
+}
+
+:root[data-forge-ui="on"] .sf-branch-tree {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--sf-bg-surface, #1A1F2E);
+  border: 1px solid var(--sf-border-subtle, #2D3348);
+  border-radius: var(--sf-radius-lg, 8px);
+  overflow: hidden;
+}
+
+:root[data-forge-ui="on"] .sf-branch-tree__canvas {
+  display: block;
+  width: 100%;
+  touch-action: none;
+  cursor: grab;
+  outline: none;
+}
+
+:root[data-forge-ui="on"] .sf-branch-tree__canvas:focus-visible {
+  outline: 2px solid var(--sf-accent-primary, #3B82F6);
+  outline-offset: -2px;
+}
+
+:root[data-forge-ui="on"] .sf-branch-tree__canvas:active {
+  cursor: grabbing;
+}
+
+/* Minimap overlay — positioned bottom-right of the main canvas container. */
+:root[data-forge-ui="on"] .sf-branch-tree__minimap {
+  position: absolute;
+  bottom: var(--sf-space-3, 12px);
+  right: var(--sf-space-3, 12px);
+  border: 1px solid var(--sf-border-subtle, #2D3348);
+  border-radius: var(--sf-radius-sm, 4px);
+  pointer-events: none;
+  background: rgba(15, 18, 25, 0.7);
+}
+
+/* Text fallback shown when minimap canvas is not wired. */
+:root[data-forge-ui="on"] .sf-branch-tree__minimap-label {
+  position: absolute;
+  bottom: var(--sf-space-3, 12px);
+  right: var(--sf-space-3, 12px);
+  font-size: var(--sf-text-xs, 12px);
+  color: var(--sf-text-secondary, #9CA3AF);
+  background: rgba(15, 18, 25, 0.7);
+  padding: 2px 8px;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+/* Toolbar row (zoom controls, reset). */
+:root[data-forge-ui="on"] .sf-branch-tree__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sf-space-2, 8px);
+  padding: var(--sf-space-2, 8px) var(--sf-space-3, 12px);
+  border-top: 1px solid var(--sf-border-subtle, #2D3348);
+  background: var(--sf-bg-elevated, #242A3D);
+}
+
+/* SR-only hidden list (a11y fallback). */
+:root[data-forge-ui="on"] .sf-branch-tree__sr-list {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Reduced-motion: no grab cursor animation change. */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-branch-tree__canvas {
+    cursor: default;
+  }
+}

@@ -10,6 +10,7 @@
 @import './tokens.css';
 @import './feedback.css';
 @import './mobile-fixes.css';
+@import './components.css';
 
 /* ── Tailwind layers ──────────────────────────────────────────────────────── */
 @tailwind base;

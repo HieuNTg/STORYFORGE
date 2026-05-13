@@ -75,6 +75,60 @@
   --sf-ease-default:    ease;
   --sf-ease-out:        ease-out;
   --sf-ease-spring:     cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ──────────────────────────────────────────────────────────────────────
+     "Forge" UI redesign tokens (PRD §4 / UX §1)
+     ADDITIVE: extends legacy --sf-color-* layer. Components consume these
+     new semantic names. Legacy names remain for back-compat (see UX §1.2).
+     ────────────────────────────────────────────────────────────────────── */
+
+  /* ── Surface (warm neutral palette) ── */
+  --sf-bg-base:     #FAFAF7;
+  --sf-bg-surface:  #FFFFFF;
+  --sf-bg-elevated: #F5F5F0;
+
+  /* ── Text (warm neutral) ── */
+  --sf-text-primary:   #1A1A2E;
+  --sf-text-secondary: #6B7280;
+  --sf-text-tertiary:  #94A3B8;
+
+  /* ── Accent (Forge palette) ── */
+  --sf-accent-primary:  #2563EB;   /* interactive controls / primary CTA */
+  --sf-accent-forge:    #F59E0B;   /* generation-in-progress "ember" */
+  --sf-accent-complete: #10B981;   /* success / completion */
+  --sf-accent-danger:   #EF4444;   /* destructive / errors */
+
+  /* ── Border ── */
+  --sf-border-subtle: #E5E5E0;
+  --sf-border-strong: #94A3B8;
+
+  /* ── Typography (extended families) ── */
+  --sf-font-display: 'Inter', system-ui, sans-serif;
+  --sf-font-body:    'Inter', system-ui, sans-serif;
+  --sf-font-mono:    'JetBrains Mono', ui-monospace, 'Sarasa Mono SC', monospace;
+
+  /* ── Typography size scale (PRD §4.2) ── */
+  --sf-text-display:  32px;
+  --sf-text-h1:       24px;
+  --sf-text-h2:       20px;
+  --sf-text-h3:       18px;
+  --sf-text-h4:       16px;
+  --sf-text-body:     13px;
+  --sf-text-caption:  11px;
+
+  /* ── Spacing 8px grid (PRD §4.3, extends 1..10) ── */
+  --sf-space-7:  28px;
+  --sf-space-9:  36px;
+  --sf-space-11: 44px;
+  --sf-space-12: 48px;
+
+  /* ── Radius (extends existing — sm/md/lg/full already covered) ── */
+  /* sm=6, md=8, lg=12, full=9999 already exist above */
+
+  /* ── Motion (PRD §4 / UX §1.5) ── */
+  --sf-ease-spring-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --sf-duration-instant: 0ms;
+  --sf-duration-shimmer: 1800ms;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -121,6 +175,45 @@
   --dm-text:          #f8fafc;
   --dm-text-secondary:#e2e8f0;
   --dm-text-muted:    #94a3b8;
+
+  /* ── Forge tokens — dark overrides ── */
+  --sf-bg-base:     #0F1219;
+  --sf-bg-surface:  #1A1F2E;
+  --sf-bg-elevated: #242A3D;
+
+  --sf-text-primary:   #E8E8ED;
+  --sf-text-secondary: #9CA3AF;
+  --sf-text-tertiary:  #94A3B8;
+
+  --sf-accent-primary:  #3B82F6;
+  --sf-accent-forge:    #FBBF24;
+  --sf-accent-complete: #34D399;
+  --sf-accent-danger:   #F87171;
+
+  --sf-border-subtle: #2D3348;
+  --sf-border-strong: #475569;
+}
+
+/* Mirror Forge dark overrides under the @media branch so they apply when
+   the user has no explicit theme set but the OS prefers dark. */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --sf-bg-base:     #0F1219;
+    --sf-bg-surface:  #1A1F2E;
+    --sf-bg-elevated: #242A3D;
+
+    --sf-text-primary:   #E8E8ED;
+    --sf-text-secondary: #9CA3AF;
+    --sf-text-tertiary:  #94A3B8;
+
+    --sf-accent-primary:  #3B82F6;
+    --sf-accent-forge:    #FBBF24;
+    --sf-accent-complete: #34D399;
+    --sf-accent-danger:   #F87171;
+
+    --sf-border-subtle: #2D3348;
+    --sf-border-strong: #475569;
+  }
 }
 
 /* ── Focus-visible ring — keyboard navigation indicator ──
