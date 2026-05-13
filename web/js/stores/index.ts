@@ -5,7 +5,8 @@
  * Store keys are unchanged from the original app.ts definitions:
  *   'app', 'pipeline', 'settings'
  * (i18n and flags stores are registered directly in app.ts bootstrap
- *  since they depend on values computed before this module loads.)
+ *  since they depend on values computed before this module loads.
+ *  theater + reader live in the flag-gated block in app.ts.)
  */
 
 import { createAppStore } from './app';

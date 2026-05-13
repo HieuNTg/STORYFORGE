@@ -19,6 +19,7 @@ import { agentBubble } from './components/AgentBubble';
 import { qualityGauge } from './components/QualityGauge';
 import { characterGraph } from './components/CharacterGraph';
 import { createTheaterStore } from './stores/theater';
+import { createReaderStore } from './stores/reader';
 import {
   createToastStore,
   toastItem,
@@ -78,6 +79,11 @@ document.addEventListener('alpine:init', () => {
     // sniffers from the SSE log stream (see stores/pipeline.ts bridge).
     // Components (AgentBubble / QualityGauge / CharacterGraph) bind here.
     Alpine.store('theater', createTheaterStore());
+
+    // M3 Day-1 — reader store. Typography + bookmark prefs, hydrated from
+    // localStorage on construction. Consumed by the library reading surface
+    // when forge-ui is on; legacy reader is unaffected.
+    Alpine.store('reader', createReaderStore());
 
     // Toast store — singleton stack consumed by the toast region template.
     // attachToastHelper rebinds window.sfShowToast to the wider Forge

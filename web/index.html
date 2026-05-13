@@ -2437,7 +2437,64 @@
 
           <!-- ══ READER VIEW ══ -->
           <template x-if="isReading">
-          <div>
+          <div
+            :class="$store.flags?.forgeUi && $store.reader ? 'sf-reader sf-reader--' + $store.reader.theme + ' sf-reader--col-' + $store.reader.column : ''"
+            :style="$store.flags?.forgeUi && $store.reader ? ('--sf-reader-font-size:' + $store.reader.fontSize + 'px; --sf-reader-line-height:' + $store.reader.lineHeight + '; --sf-reader-font-family:' + $store.reader.fontFamilyCss) : ''">
+            <!-- Forge reader toolbar — typography + theme controls, persisted via $store.reader. -->
+            <template x-if="$store.flags?.forgeUi && $store.reader">
+              <div class="sf-reader__toolbar" role="toolbar" aria-label="Reader preferences">
+                <div class="sf-reader__group" aria-label="Cỡ chữ">
+                  <span class="sf-reader__group-label" aria-hidden="true">Aa</span>
+                  <button type="button" @click="$store.reader.bumpFontSize(-2)" class="sf-reader__btn" aria-label="Giảm cỡ chữ">−</button>
+                  <span class="sf-reader__value" x-text="$store.reader.fontSize"></span>
+                  <button type="button" @click="$store.reader.bumpFontSize(2)" class="sf-reader__btn" aria-label="Tăng cỡ chữ">+</button>
+                </div>
+                <div class="sf-reader__group" aria-label="Giãn dòng">
+                  <span class="sf-reader__group-label" aria-hidden="true">↕</span>
+                  <button type="button" @click="$store.reader.setLineHeight($store.reader.lineHeight - 0.1)" class="sf-reader__btn" aria-label="Giảm giãn dòng">−</button>
+                  <span class="sf-reader__value" x-text="$store.reader.lineHeight.toFixed(1)"></span>
+                  <button type="button" @click="$store.reader.setLineHeight($store.reader.lineHeight + 0.1)" class="sf-reader__btn" aria-label="Tăng giãn dòng">+</button>
+                </div>
+                <div class="sf-reader__group" role="radiogroup" aria-label="Kiểu chữ">
+                  <template x-for="ff in ['serif','sans','mono']" :key="ff">
+                    <button type="button"
+                      @click="$store.reader.setFontFamily(ff)"
+                      :class="$store.reader.fontFamily === ff ? 'sf-reader__chip is-active' : 'sf-reader__chip'"
+                      :aria-pressed="$store.reader.fontFamily === ff"
+                      x-text="ff === 'serif' ? 'Serif' : (ff === 'sans' ? 'Sans' : 'Mono')"></button>
+                  </template>
+                </div>
+                <div class="sf-reader__group" role="radiogroup" aria-label="Nền đọc">
+                  <template x-for="th in ['day','sepia','night']" :key="th">
+                    <button type="button"
+                      @click="$store.reader.setTheme(th)"
+                      :class="$store.reader.theme === th ? 'sf-reader__theme is-active sf-reader__theme--' + th : 'sf-reader__theme sf-reader__theme--' + th"
+                      :aria-pressed="$store.reader.theme === th"
+                      :aria-label="th === 'day' ? 'Nền sáng' : (th === 'sepia' ? 'Nền sepia' : 'Nền tối')"
+                      :title="th === 'day' ? 'Nền sáng' : (th === 'sepia' ? 'Nền sepia' : 'Nền tối')">
+                      <span aria-hidden="true" x-text="th === 'day' ? '☀' : (th === 'sepia' ? '◐' : '☾')"></span>
+                    </button>
+                  </template>
+                </div>
+                <div class="sf-reader__group" role="radiogroup" aria-label="Bề rộng cột">
+                  <template x-for="col in ['narrow','normal','wide']" :key="col">
+                    <button type="button"
+                      @click="$store.reader.setColumn(col)"
+                      :class="$store.reader.column === col ? 'sf-reader__chip is-active' : 'sf-reader__chip'"
+                      :aria-pressed="$store.reader.column === col"
+                      x-text="col === 'narrow' ? 'Hẹp' : (col === 'normal' ? 'Vừa' : 'Rộng')"></button>
+                  </template>
+                </div>
+                <button type="button"
+                  @click="selectedStory && selectedStory.filename && $store.reader.saveBookmark(selectedStory.filename, chapter)"
+                  class="sf-reader__bookmark"
+                  :aria-pressed="!!(selectedStory && selectedStory.filename && $store.reader.getBookmark(selectedStory.filename) && $store.reader.getBookmark(selectedStory.filename).chapter === chapter)"
+                  aria-label="Đánh dấu chương">
+                  <span aria-hidden="true">★</span>
+                  <span class="sf-reader__bookmark-label">Đánh dấu</span>
+                </button>
+              </div>
+            </template>
             <!-- Back button + Title hero -->
             <div class="card sf-card-hero p-5 pt-[18px] mb-4">
               <div class="flex items-start justify-between gap-4 flex-wrap">
@@ -2605,7 +2662,10 @@
                       </template>
                     </div>
                   </div>
-                  <div class="text-slate-700 whitespace-pre-wrap leading-[1.9]" :style="'font-size:' + fontSize + 'px'" x-html="(currentChapter.content || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
+                  <div
+                    :class="$store.flags?.forgeUi && $store.reader ? 'sf-reader__prose' : 'text-slate-700 whitespace-pre-wrap leading-[1.9]'"
+                    :style="$store.flags?.forgeUi && $store.reader ? '' : ('font-size:' + fontSize + 'px')"
+                    x-html="(currentChapter.content || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
                 </div>
               </template>
             </div>

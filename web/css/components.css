@@ -662,6 +662,208 @@
   60% { transform: translateX(-2px); }
   80% { transform: translateX(2px); }
 }
+
+/* ── M3 Day-1 — Forge Reader surface ─────────────────────────────────────── */
+:root[data-forge-ui="on"] .sf-reader {
+  --sf-reader-bg: #f8fafc;
+  --sf-reader-fg: #1f2937;
+  --sf-reader-muted: #64748b;
+  --sf-reader-card: #ffffff;
+  --sf-reader-border: rgba(15, 23, 42, 0.08);
+  --sf-reader-accent: var(--sf-color-brand-600, #4f46e5);
+  --sf-reader-max-width: 64ch;
+  background: var(--sf-reader-bg);
+  color: var(--sf-reader-fg);
+  border-radius: 14px;
+  padding: 12px;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+:root[data-forge-ui="on"] .sf-reader--sepia {
+  --sf-reader-bg: #f4ecd8;
+  --sf-reader-fg: #4b3a26;
+  --sf-reader-muted: #8a7659;
+  --sf-reader-card: #fbf5e3;
+  --sf-reader-border: rgba(75, 58, 38, 0.16);
+  --sf-reader-accent: #b45309;
+}
+:root[data-forge-ui="on"] .sf-reader--night {
+  --sf-reader-bg: #0b1220;
+  --sf-reader-fg: #e2e8f0;
+  --sf-reader-muted: #94a3b8;
+  --sf-reader-card: #111827;
+  --sf-reader-border: rgba(148, 163, 184, 0.18);
+  --sf-reader-accent: #a78bfa;
+}
+:root[data-forge-ui="on"] .sf-reader--col-narrow { --sf-reader-max-width: 48ch; }
+:root[data-forge-ui="on"] .sf-reader--col-normal { --sf-reader-max-width: 64ch; }
+:root[data-forge-ui="on"] .sf-reader--col-wide   { --sf-reader-max-width: 78ch; }
+
+/* The reader pre-empts the card background inside its scope so theme tints
+   reach all the way to the prose container. */
+:root[data-forge-ui="on"] .sf-reader .card {
+  background: var(--sf-reader-card);
+  color: var(--sf-reader-fg);
+  border-color: var(--sf-reader-border);
+}
+:root[data-forge-ui="on"] .sf-reader h2,
+:root[data-forge-ui="on"] .sf-reader h3,
+:root[data-forge-ui="on"] .sf-reader h4 {
+  color: var(--sf-reader-fg);
+}
+
+/* Toolbar */
+:root[data-forge-ui="on"] .sf-reader__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: var(--sf-reader-card);
+  border: 1px solid var(--sf-reader-border);
+  border-radius: 12px;
+  position: sticky;
+  top: 12px;
+  z-index: 5;
+  backdrop-filter: saturate(140%) blur(6px);
+}
+:root[data-forge-ui="on"] .sf-reader__group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--sf-reader-bg) 70%, var(--sf-reader-card));
+  border: 1px solid var(--sf-reader-border);
+}
+:root[data-forge-ui="on"] .sf-reader__group-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--sf-reader-muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0 4px;
+}
+:root[data-forge-ui="on"] .sf-reader__btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--sf-reader-fg);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 120ms ease;
+}
+:root[data-forge-ui="on"] .sf-reader__btn:hover {
+  background: color-mix(in oklab, var(--sf-reader-accent) 12%, transparent);
+}
+:root[data-forge-ui="on"] .sf-reader__value {
+  min-width: 28px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sf-reader-fg);
+}
+:root[data-forge-ui="on"] .sf-reader__chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--sf-reader-border);
+  background: transparent;
+  color: var(--sf-reader-muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+:root[data-forge-ui="on"] .sf-reader__chip:hover {
+  color: var(--sf-reader-fg);
+  border-color: var(--sf-reader-accent);
+}
+:root[data-forge-ui="on"] .sf-reader__chip.is-active {
+  background: var(--sf-reader-accent);
+  color: #ffffff;
+  border-color: var(--sf-reader-accent);
+}
+:root[data-forge-ui="on"] .sf-reader__theme {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--sf-reader-border);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  background: var(--sf-reader-card);
+  color: var(--sf-reader-fg);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+:root[data-forge-ui="on"] .sf-reader__theme--day   { background: #fafafa; color: #1f2937; }
+:root[data-forge-ui="on"] .sf-reader__theme--sepia { background: #f4ecd8; color: #4b3a26; }
+:root[data-forge-ui="on"] .sf-reader__theme--night { background: #0b1220; color: #e2e8f0; }
+:root[data-forge-ui="on"] .sf-reader__theme.is-active {
+  box-shadow: 0 0 0 2px var(--sf-reader-accent);
+  transform: scale(1.08);
+}
+:root[data-forge-ui="on"] .sf-reader__bookmark {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--sf-reader-border);
+  background: transparent;
+  color: var(--sf-reader-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+:root[data-forge-ui="on"] .sf-reader__bookmark:hover {
+  color: var(--sf-reader-fg);
+  border-color: var(--sf-reader-accent);
+}
+:root[data-forge-ui="on"] .sf-reader__bookmark[aria-pressed="true"] {
+  background: color-mix(in oklab, var(--sf-reader-accent) 16%, transparent);
+  color: var(--sf-reader-accent);
+  border-color: var(--sf-reader-accent);
+}
+:root[data-forge-ui="on"] .sf-reader__bookmark-label {
+  font-size: 11px;
+  letter-spacing: 0.01em;
+}
+
+/* Prose: typography-first surface driven by store-backed CSS variables. */
+:root[data-forge-ui="on"] .sf-reader__prose {
+  font-size: var(--sf-reader-font-size, 18px);
+  line-height: var(--sf-reader-line-height, 1.9);
+  font-family: var(--sf-reader-font-family, "Iowan Old Style", "Charter", "Source Serif Pro", Georgia, serif);
+  color: var(--sf-reader-fg);
+  max-width: var(--sf-reader-max-width, 64ch);
+  margin-inline: auto;
+  white-space: pre-wrap;
+  word-spacing: 0.01em;
+  hyphens: auto;
+}
+:root[data-forge-ui="on"] .sf-reader__prose strong { color: inherit; font-weight: 700; }
+:root[data-forge-ui="on"] .sf-reader__prose br { line-height: inherit; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] .sf-reader,
+  :root[data-forge-ui="on"] .sf-reader__btn,
+  :root[data-forge-ui="on"] .sf-reader__chip,
+  :root[data-forge-ui="on"] .sf-reader__theme,
+  :root[data-forge-ui="on"] .sf-reader__bookmark {
+    transition: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   :root[data-forge-ui="on"] [data-page="pipeline"][data-state="error"] .sf-theater {
     animation: none;
