@@ -3,11 +3,12 @@
  *
  * Resolution order (highest priority first):
  *   1. window.__STORYFORGE_FLAGS__.forgeUi  (server/build-time injection)
- *   2. localStorage 'sf_forge_ui' === '1'   (user override)
- *   3. false                                 (default — flag is OFF by default)
+ *   2. localStorage 'sf_forge_ui' === '1' / '0' (explicit user override)
+ *   3. true                                  (default — Forge UI shipped sprint perf/forge-shell)
  *
- * Per CLAUDE.md rule 8: new flags default OFF.
  * Flag name: STORYFORGE_FORGE_UI
+ * Status: shipped on (set default True). Per CLAUDE.md §8 the flag and its
+ * dead-branch checks are scheduled for removal next sprint.
  */
 
 declare global {
@@ -24,11 +25,10 @@ declare global {
  *
  * Resolution order:
  *   1. window.__STORYFORGE_FLAGS__.forgeUi (server-injected)
- *   2. localStorage 'sf_forge_ui' === '1'
- *   3. false (default)
+ *   2. localStorage 'sf_forge_ui' — '1' enables, '0' opts out, anything else falls through
+ *   3. true (default — shipped sprint perf/forge-shell)
  */
 export function isForgeUiEnabled(): boolean {
-  // 1. Window global (highest priority — server/build injection)
   if (
     typeof window !== 'undefined' &&
     window.__STORYFORGE_FLAGS__ !== undefined &&
@@ -37,17 +37,17 @@ export function isForgeUiEnabled(): boolean {
     return window.__STORYFORGE_FLAGS__.forgeUi;
   }
 
-  // 2. localStorage user override
   try {
     if (typeof localStorage !== 'undefined') {
-      return localStorage.getItem('sf_forge_ui') === '1';
+      const override = localStorage.getItem('sf_forge_ui');
+      if (override === '1') return true;
+      if (override === '0') return false;
     }
   } catch (_) {
     // localStorage may be unavailable (e.g. private browsing, SSR)
   }
 
-  // 3. Default: OFF
-  return false;
+  return true;
 }
 
 /**
