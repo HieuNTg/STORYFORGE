@@ -396,3 +396,108 @@ function settingsPage() {
     },
   };
 }
+
+// ── Settings Guided Wizard (M4-B2, flag-gated behind STORYFORGE_FORGE_UI) ──
+//
+// First-time user heuristic: no API key configured AND no localStorage flag
+// `sf:settings-wizard-dismissed`. Three steps: pick provider → paste key →
+// pick genre. On finish or skip → set flag → fall through to existing settings.
+//
+// Exported for unit testing.
+
+const WIZARD_DISMISSED_KEY = 'sf:settings-wizard-dismissed';
+
+const WIZARD_GENRES = [
+  { id: 'fantasy', label: 'Fantasy' },
+  { id: 'xianxia', label: 'Tiên Hiệp / Wuxia' },
+  { id: 'romance', label: 'Ngôn Tình' },
+  { id: 'thriller', label: 'Trinh Thám / Thriller' },
+  { id: 'scifi', label: 'Khoa Học Viễn Tưởng' },
+];
+
+export interface ForgeSettingsWizardState {
+  show: boolean;
+  step: 1 | 2 | 3;
+  selectedProvider: string;
+  apiKey: string;
+  selectedGenre: string;
+  genres: typeof WIZARD_GENRES;
+  /** Check if wizard should show on init. */
+  shouldShow(): boolean;
+  /** Move to next step. */
+  next(): void;
+  /** Skip / dismiss without completing. */
+  dismiss(): void;
+  /** Complete wizard (step 3 finish). */
+  finish(): Promise<void>;
+}
+
+export function forgeSettingsWizard(): ForgeSettingsWizardState {
+  return {
+    show: false,
+    step: 1 as 1 | 2 | 3,
+    selectedProvider: 'openai',
+    apiKey: '',
+    selectedGenre: 'fantasy',
+    genres: WIZARD_GENRES,
+
+    shouldShow(): boolean {
+      // Dismissed flag set means user has seen it before.
+      try {
+        if (localStorage.getItem(WIZARD_DISMISSED_KEY) === '1') return false;
+      } catch {
+        return false;
+      }
+      // No API key configured = first-time user.
+      try {
+        const cfg = (Alpine.store('settings') as { config?: { llm?: { api_key?: string } } } | null)?.config;
+        const hasKey = !!(cfg?.llm?.api_key);
+        return !hasKey;
+      } catch {
+        return false;
+      }
+    },
+
+    next(): void {
+      if (this.step < 3) {
+        this.step = (this.step + 1) as 2 | 3;
+      }
+    },
+
+    dismiss(): void {
+      try {
+        localStorage.setItem(WIZARD_DISMISSED_KEY, '1');
+      } catch {
+        // localStorage unavailable — silent no-op.
+      }
+      this.show = false;
+    },
+
+    async finish(): Promise<void> {
+      // Best-effort: try to save provider + key via settings store. Errors are
+      // silent — the user can configure manually in the settings form.
+      try {
+        const store = Alpine.store('settings') as { config?: { llm?: Record<string, string> }; save?: (cfg: unknown) => Promise<void> } | null;
+        if (store?.save && store?.config?.llm) {
+          const provider = this.selectedProvider;
+          const urls: Record<string, string> = {
+            openai: 'https://api.openai.com/v1',
+            gemini: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+            anthropic: 'https://api.anthropic.com/v1',
+            openrouter: 'https://openrouter.ai/api/v1',
+          };
+          await store.save({
+            llm: {
+              ...store.config.llm,
+              api_key: this.apiKey.trim(),
+              base_url: urls[provider] || store.config.llm.base_url || '',
+            },
+          });
+        }
+      } catch {
+        // Silent no-op — user falls through to settings form.
+      }
+      this.dismiss();
+    },
+  };
+}

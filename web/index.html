@@ -1723,6 +1723,88 @@
       <!-- ═══ SETTINGS PAGE ═══ -->
       <template x-if="$store.app.page === 'settings'">
       <div class="page-enter" x-data="settingsPage()">
+
+        <!-- Forge: first-time wizard (flag-gated) -->
+        <template x-if="$store.flags?.forgeUi">
+          <div x-data="forgeSettingsWizard()" x-init="show = shouldShow()">
+            <template x-if="show">
+              <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Settings wizard">
+                <div class="bg-white dark:bg-surface-900 rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5">
+                  <!-- Header -->
+                  <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-bold text-slate-800 dark:text-slate-100">
+                      <span x-text="step === 1 ? 'Step 1 of 3: Choose Provider' : step === 2 ? 'Step 2 of 3: Enter API Key' : 'Step 3 of 3: Pick Default Genre'"></span>
+                    </h2>
+                    <button @click="dismiss()" aria-label="Skip wizard" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-surface-100 cursor-pointer">
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                  </div>
+                  <!-- Step indicator dots -->
+                  <div class="flex gap-1.5" aria-label="Wizard progress">
+                    <template x-for="s in [1,2,3]" :key="s">
+                      <div class="h-1.5 rounded-full transition-all" :class="s <= step ? 'bg-brand-500 flex-1' : 'bg-surface-200 dark:bg-surface-700 flex-1'"></div>
+                    </template>
+                  </div>
+                  <!-- Step 1: Provider picker -->
+                  <template x-if="step === 1">
+                    <div class="space-y-3">
+                      <p class="text-sm text-slate-500 dark:text-slate-400">Which LLM provider do you want to use?</p>
+                      <div class="grid grid-cols-2 gap-2">
+                        <template x-for="p in [
+                          {id:'openai',label:'OpenAI'},
+                          {id:'gemini',label:'Google Gemini'},
+                          {id:'anthropic',label:'Anthropic'},
+                          {id:'openrouter',label:'OpenRouter (free)'}
+                        ]" :key="p.id">
+                          <button @click="selectedProvider = p.id"
+                            class="p-3 rounded-xl border-2 text-sm font-medium cursor-pointer transition-all"
+                            :class="selectedProvider === p.id ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300' : 'border-surface-200 dark:border-surface-700 text-slate-600 dark:text-slate-300 hover:border-brand-300'"
+                            x-text="p.label"></button>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                  <!-- Step 2: API key -->
+                  <template x-if="step === 2">
+                    <div class="space-y-3">
+                      <p class="text-sm text-slate-500 dark:text-slate-400">Paste your <span class="font-semibold" x-text="selectedProvider"></span> API key below.</p>
+                      <label for="sf-wizard-apikey" class="sr-only">API Key</label>
+                      <input id="sf-wizard-apikey" type="password" x-model="apiKey"
+                        placeholder="Paste API key here..."
+                        class="sf-input w-full" autocomplete="off"
+                        @keydown.enter="if(apiKey.trim().length > 4) next()">
+                      <p class="text-xs text-slate-400 dark:text-slate-500">Your key is saved locally and sent only to the backend.</p>
+                    </div>
+                  </template>
+                  <!-- Step 3: Genre -->
+                  <template x-if="step === 3">
+                    <div class="space-y-3">
+                      <p class="text-sm text-slate-500 dark:text-slate-400">Pick your default story genre.</p>
+                      <div class="grid grid-cols-2 gap-2">
+                        <template x-for="g in genres" :key="g.id">
+                          <button @click="selectedGenre = g.id"
+                            class="p-3 rounded-xl border-2 text-sm font-medium cursor-pointer transition-all"
+                            :class="selectedGenre === g.id ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-300' : 'border-surface-200 dark:border-surface-700 text-slate-600 dark:text-slate-300 hover:border-brand-300'"
+                            x-text="g.label"></button>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                  <!-- Footer actions -->
+                  <div class="flex items-center justify-between pt-2">
+                    <button @click="dismiss()" class="text-sm text-slate-400 hover:text-slate-600 cursor-pointer">Skip</button>
+                    <button @click="step < 3 ? next() : finish()"
+                      class="px-5 py-2 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 cursor-pointer transition-colors"
+                      :disabled="step === 2 && apiKey.trim().length < 5">
+                      <span x-text="step < 3 ? 'Next' : 'Finish'"></span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+
         <div class="max-w-3xl mx-auto space-y-4">
 
           <!-- Loading skeleton while config loads -->
