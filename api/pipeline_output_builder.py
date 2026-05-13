@@ -30,6 +30,20 @@ def build_output_summary(output) -> dict:
                 for ch in d.chapters
             ],
         }
+        # Surface conflict_web for CharacterGraph co-occurrence in the theater.
+        # Pull from story_draft (L1 output); omit silently if absent / empty.
+        _cw = getattr(d, "conflict_web", None)
+        if _cw:
+            result["conflict_web"] = [
+                {
+                    "conflict_id": getattr(c, "conflict_id", ""),
+                    "conflict_type": getattr(c, "conflict_type", ""),
+                    "characters": getattr(c, "characters", []),
+                    "description": _san(getattr(c, "description", "")),
+                    "arc_range": getattr(c, "arc_range", ""),
+                }
+                for c in _cw
+            ]
 
     if output.enhanced_story:
         es = output.enhanced_story
