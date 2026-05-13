@@ -638,6 +638,419 @@
       }
     }
 
+
+    /* === Dynamic UI Sprint 2: Archive Shelf + Reading Room === */
+    [x-data='libraryPage()'] > .max-w-3xl { max-width: 1180px; }
+    [x-data='libraryPage()'] .sf-page-hero {
+      min-height: 138px;
+      display: flex;
+      align-items: center;
+      background:
+        radial-gradient(circle at 10% 12%, rgba(37,99,235,.15), transparent 34%),
+        radial-gradient(circle at 86% 0%, rgba(245,158,11,.12), transparent 32%),
+        linear-gradient(135deg, rgba(255,255,255,.96), rgba(248,250,252,.86));
+      box-shadow: 0 22px 70px rgba(15,23,42,.08);
+    }
+    [x-data='libraryPage()'] .sf-page-hero::after {
+      content: '';
+      position: absolute;
+      right: 28px;
+      bottom: 18px;
+      width: 190px;
+      height: 62px;
+      pointer-events: none;
+      opacity: .42;
+      background:
+        linear-gradient(90deg, rgba(37,99,235,.22), transparent 2px) 0 100%/28px 52px repeat-x,
+        linear-gradient(180deg, rgba(124,58,237,.18), rgba(245,158,11,.08));
+      border-radius: 18px 18px 8px 8px;
+      transform: skewX(-8deg);
+    }
+    .dark [x-data='libraryPage()'] .sf-page-hero {
+      background:
+        radial-gradient(circle at 10% 12%, rgba(96,165,250,.18), transparent 34%),
+        radial-gradient(circle at 86% 0%, rgba(245,158,11,.14), transparent 32%),
+        linear-gradient(135deg, rgba(15,23,42,.94), rgba(2,6,23,.82));
+      box-shadow: 0 26px 80px rgba(0,0,0,.34);
+    }
+    .sf-library-forge {
+      position: relative;
+      padding: 18px;
+      border-radius: 24px;
+      border: 1px solid rgba(148,163,184,.22);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.62), rgba(248,250,252,.76)),
+        repeating-linear-gradient(0deg, rgba(15,23,42,.04) 0 1px, transparent 1px 76px);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.78), 0 20px 60px rgba(15,23,42,.06);
+    }
+    .dark .sf-library-forge {
+      background:
+        linear-gradient(180deg, rgba(15,23,42,.72), rgba(2,6,23,.76)),
+        repeating-linear-gradient(0deg, rgba(255,255,255,.035) 0 1px, transparent 1px 76px);
+      border-color: rgba(96,165,250,.16);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 24px 70px rgba(0,0,0,.28);
+    }
+    .sf-library-forge__viewbar {
+      margin-bottom: 16px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.74);
+      border: 1px solid rgba(226,232,240,.92);
+      backdrop-filter: blur(12px);
+    }
+    .dark .sf-library-forge__viewbar { background: rgba(15,23,42,.66); border-color: rgba(96,165,250,.16); }
+    .sf-library-forge__grid[data-view='grid'] {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .sf-library-forge__grid[data-view='list'] { display: flex; flex-direction: column; gap: 10px; }
+    .sf-library-forge__grid[data-view='grid'] .sf-story-card {
+      min-height: 245px;
+      padding: 0;
+      display: grid;
+      grid-template-rows: 116px 1fr auto;
+      border-radius: 22px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.94), rgba(248,250,252,.94));
+      box-shadow: 0 14px 34px rgba(15,23,42,.07);
+      transform-style: preserve-3d;
+    }
+    .sf-library-forge__grid[data-view='grid'] .sf-story-card::before {
+      inset: auto 18px 0 18px;
+      width: auto;
+      height: 4px;
+      border-radius: 999px 999px 0 0;
+      opacity: .55;
+    }
+    .sf-library-forge__grid[data-view='grid'] .sf-story-card:hover {
+      transform: translateY(-5px) rotateX(1deg);
+      box-shadow: 0 24px 70px rgba(37,99,235,.15);
+    }
+    .dark .sf-library-forge__grid[data-view='grid'] .sf-story-card {
+      background: linear-gradient(180deg, rgba(15,23,42,.94), rgba(15,23,42,.72));
+      box-shadow: 0 18px 50px rgba(0,0,0,.30);
+    }
+    .sf-story-card__cover {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 20%, hsla(var(--story-hue, 220), 80%, 62%, .32), transparent 40%),
+        linear-gradient(135deg, hsla(var(--story-hue, 220), 86%, 58%, .20), rgba(124,58,237,.12));
+    }
+    .sf-story-card__cover::before {
+      content: '';
+      position: absolute;
+      inset: 20px 36px 0;
+      border-radius: 16px 16px 4px 4px;
+      background:
+        linear-gradient(90deg, rgba(255,255,255,.35), transparent 18%),
+        linear-gradient(135deg, hsla(var(--story-hue, 220), 82%, 48%, .72), hsla(calc(var(--story-hue, 220) + 50), 82%, 54%, .62));
+      box-shadow: 0 16px 34px hsla(var(--story-hue, 220), 72%, 42%, .22);
+      transform: perspective(220px) rotateY(-9deg);
+    }
+    .sf-story-card__cover .sf-genre-orb { position: relative; z-index: 1; transform: translateY(8px); }
+    .sf-library-forge__grid[data-view='grid'] .sf-story-card__body { padding: 14px 16px 8px; }
+    .sf-library-forge__grid[data-view='grid'] .sf-story-card__actions { padding: 0 14px 14px; }
+    .sf-story-card__title { font-size: 15px; line-height: 1.25; }
+    .sf-story-card__meta { flex-wrap: wrap; gap: 6px 10px; }
+    .sf-story-card__progress {
+      height: 7px;
+      background: rgba(148,163,184,.18);
+      overflow: hidden;
+    }
+    .sf-story-card__progress-fill {
+      background: linear-gradient(90deg, var(--sf-forge-blue), var(--sf-forge-violet), var(--sf-forge-amber));
+      box-shadow: 0 0 18px rgba(37,99,235,.35);
+    }
+    .sf-library-forge__empty {
+      grid-column: 1/-1;
+      padding: 36px;
+      border: 1px dashed rgba(148,163,184,.45);
+      border-radius: 20px;
+      text-align: center;
+      color: #64748b;
+      background: rgba(255,255,255,.55);
+    }
+    .sf-empty-hero {
+      background:
+        radial-gradient(circle at 50% 0%, rgba(37,99,235,.12), transparent 38%),
+        linear-gradient(135deg, #fff, #f8fafc);
+      box-shadow: 0 20px 60px rgba(15,23,42,.07);
+    }
+    .sf-reader {
+      min-height: calc(100vh - 120px);
+      padding: 20px clamp(10px, 2vw, 28px) 34px;
+      border-radius: 28px;
+      background:
+        radial-gradient(circle at 20% 0%, rgba(37,99,235,.12), transparent 36%),
+        linear-gradient(180deg, rgba(255,255,255,.72), rgba(248,250,252,.90));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.75), 0 24px 70px rgba(15,23,42,.08);
+    }
+    .sf-reader--night {
+      background:
+        radial-gradient(circle at 20% 0%, rgba(96,165,250,.12), transparent 36%),
+        linear-gradient(180deg, rgba(2,6,23,.94), rgba(15,23,42,.96));
+    }
+    .sf-reader .card.p-6,
+    .sf-reader .card.md\:p-10 {
+      max-width: var(--sf-reader-max, 880px);
+      margin-inline: auto;
+      border-radius: 26px;
+      border-color: rgba(148,163,184,.24);
+      box-shadow: 0 20px 70px rgba(15,23,42,.10);
+    }
+    .sf-reader--col-narrow { --sf-reader-max: 720px; }
+    .sf-reader--col-normal { --sf-reader-max: 880px; }
+    .sf-reader--col-wide { --sf-reader-max: 1040px; }
+    .sf-reader__toolbar {
+      position: sticky;
+      top: 72px;
+      z-index: 20;
+      margin-bottom: 16px;
+      box-shadow: 0 14px 36px rgba(15,23,42,.08);
+      backdrop-filter: blur(18px);
+    }
+    .sf-reader__progress-bar { height: 4px; background: rgba(148,163,184,.20); }
+    .sf-reader__progress-fill {
+      background: linear-gradient(90deg, var(--sf-forge-blue), var(--sf-forge-violet), var(--sf-forge-amber));
+      box-shadow: 0 0 18px rgba(37,99,235,.35);
+    }
+    .sf-reader__prose {
+      font-size: var(--sf-reader-font-size, 18px);
+      line-height: var(--sf-reader-line-height, 1.8);
+      font-family: var(--sf-reader-font-family, Georgia, serif);
+    }
+    .sf-reader__para-block {
+      animation: sfReaderParaIn var(--sf-motion-slow) var(--sf-ease-out) both;
+    }
+    @keyframes sfReaderParaIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @media (max-width: 760px) {
+      .sf-library-forge { padding: 12px; border-radius: 18px; }
+      .sf-library-forge__grid[data-view='grid'] { grid-template-columns: 1fr; }
+      [x-data='libraryPage()'] .sf-page-hero::after { display: none; }
+      .sf-reader { padding-inline: 8px; border-radius: 18px; }
+    }
+
+
+    /* === Dynamic UI Sprint 2: Archive Shelf + Reading Room === */
+    [data-page='library'] > .max-w-3xl, .sf-library-stage {
+      max-width: 1180px;
+    }
+    .sf-archive-hero {
+      min-height: 148px;
+      border-radius: 24px;
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(37,99,235,.18);
+      background:
+        radial-gradient(circle at 15% 20%, rgba(37,99,235,.16), transparent 32%),
+        radial-gradient(circle at 88% 8%, rgba(124,58,237,.14), transparent 30%),
+        linear-gradient(135deg, rgba(255,255,255,.94), rgba(248,250,252,.86));
+      box-shadow: 0 24px 70px rgba(15,23,42,.09);
+    }
+    .sf-archive-hero::before {
+      content: '';
+      position: absolute;
+      inset: auto -10% -42px -10%;
+      height: 92px;
+      background: repeating-linear-gradient(90deg, rgba(37,99,235,.10) 0 2px, transparent 2px 48px);
+      transform: skewY(-2deg);
+      opacity: .75;
+    }
+    .sf-archive-hero::after {
+      content: '';
+      position: absolute;
+      top: -80px;
+      right: -80px;
+      width: 190px;
+      height: 190px;
+      border-radius: 50%;
+      background: conic-gradient(from 90deg, rgba(37,99,235,.18), rgba(124,58,237,.18), rgba(245,158,11,.12), rgba(37,99,235,.18));
+      filter: blur(4px);
+      opacity: .55;
+      animation: sfArchiveOrb 16s linear infinite;
+    }
+    @keyframes sfArchiveOrb { to { transform: rotate(360deg); } }
+    .dark .sf-archive-hero {
+      background:
+        radial-gradient(circle at 15% 20%, rgba(96,165,250,.18), transparent 32%),
+        radial-gradient(circle at 88% 8%, rgba(167,139,250,.16), transparent 30%),
+        linear-gradient(135deg, rgba(15,23,42,.92), rgba(2,6,23,.84));
+      border-color: rgba(96,165,250,.22);
+      box-shadow: 0 28px 80px rgba(0,0,0,.34);
+    }
+    .sf-archive-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: #2563EB;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .24em;
+      margin-bottom: 8px;
+    }
+    .dark .sf-archive-kicker { color: #93C5FD; }
+    .sf-archive-hero h1 {
+      font-size: clamp(1.55rem, 3vw, 2.35rem);
+      letter-spacing: -.04em;
+      line-height: 1;
+      color: #0F172A;
+      position: relative;
+      z-index: 1;
+    }
+    .dark .sf-archive-hero h1 { color: #F8FAFC; }
+    .sf-archive-hero p {
+      max-width: 620px;
+      color: #475569;
+      margin-top: 8px;
+      position: relative;
+      z-index: 1;
+    }
+    .dark .sf-archive-hero p { color: #CBD5E1; }
+    .sf-archive-stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+      max-width: 520px;
+      position: relative;
+      z-index: 1;
+    }
+    .sf-archive-stat {
+      border: 1px solid rgba(148,163,184,.28);
+      background: rgba(255,255,255,.62);
+      backdrop-filter: blur(14px);
+      border-radius: 16px;
+      padding: 10px 12px;
+    }
+    .dark .sf-archive-stat { background: rgba(15,23,42,.52); border-color: rgba(148,163,184,.18); }
+    .sf-archive-stat strong { display:block; font-size: 1.35rem; line-height:1; color:#1D4ED8; font-variant-numeric: tabular-nums; }
+    .dark .sf-archive-stat strong { color:#93C5FD; }
+    .sf-archive-stat span { display:block; margin-top:4px; font-size:10px; color:#64748B; text-transform:uppercase; letter-spacing:.08em; font-weight:700; }
+    .dark .sf-archive-stat span { color:#94A3B8; }
+    .sf-archive-actions { position:relative; z-index:1; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .sf-library-forge {
+      border-radius: 22px;
+      padding: 14px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.72), rgba(248,250,252,.62)),
+        repeating-linear-gradient(0deg, rgba(15,23,42,.035) 0 1px, transparent 1px 58px);
+      border: 1px solid rgba(148,163,184,.22);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.76), 0 18px 54px rgba(15,23,42,.06);
+    }
+    .dark .sf-library-forge {
+      background:
+        linear-gradient(180deg, rgba(15,23,42,.62), rgba(2,6,23,.50)),
+        repeating-linear-gradient(0deg, rgba(148,163,184,.045) 0 1px, transparent 1px 58px);
+      border-color: rgba(148,163,184,.16);
+    }
+    .sf-library-forge__grid[data-view='grid'] {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px;
+    }
+    .sf-story-card[data-mode='grid'] {
+      min-height: 178px;
+      display: grid;
+      grid-template-columns: 74px 1fr;
+      grid-template-rows: 1fr auto;
+      gap: 14px;
+      border-radius: 20px;
+      padding: 16px;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.96), rgba(248,250,252,.88));
+      box-shadow: 0 12px 34px rgba(15,23,42,.07);
+    }
+    .sf-story-card[data-mode='grid'] .sf-story-card__actions { grid-column: 1 / -1; justify-content: flex-end; }
+    .sf-story-card[data-mode='list'] { display:flex; align-items:center; gap:14px; }
+    .sf-story-card__cover {
+      width: 72px;
+      height: 96px;
+      border-radius: 14px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:
+        linear-gradient(145deg, rgba(37,99,235,.12), rgba(124,58,237,.12)),
+        linear-gradient(180deg, rgba(255,255,255,.85), rgba(226,232,240,.72));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 12px 22px rgba(15,23,42,.10);
+      transform-origin: left center;
+      transition: transform var(--sf-motion-base) var(--sf-ease-spring), box-shadow var(--sf-motion-base) var(--sf-ease-out);
+    }
+    .sf-story-card:hover .sf-story-card__cover { transform: perspective(520px) rotateY(-7deg) translateY(-2px); box-shadow: 0 18px 36px rgba(37,99,235,.15); }
+    .sf-story-card__title { font-size: 1rem; line-height: 1.25; }
+    .sf-story-card__meta { margin-top: 8px; flex-wrap: wrap; }
+    .sf-story-card__progress { margin-top: 14px; height: 6px; border-radius: 999px; background: rgba(148,163,184,.18); overflow:hidden; }
+    .sf-story-card__progress-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #2563EB, #7C3AED, #F59E0B); box-shadow: 0 0 16px rgba(37,99,235,.35); }
+    .dark .sf-story-card[data-mode='grid'] { background: linear-gradient(135deg, rgba(15,23,42,.88), rgba(2,6,23,.72)); }
+    .dark .sf-story-card__cover { background: linear-gradient(145deg, rgba(96,165,250,.16), rgba(167,139,250,.14)), rgba(15,23,42,.76); }
+    .sf-library-forge__empty {
+      grid-column: 1/-1;
+      border: 1px dashed rgba(37,99,235,.35);
+      border-radius: 18px;
+      padding: 28px;
+      text-align:center;
+      color:#64748B;
+      background: rgba(255,255,255,.56);
+    }
+    .dark .sf-library-forge__empty { background: rgba(15,23,42,.48); color:#CBD5E1; }
+    .sf-empty-hero.sf-empty-archive {
+      border-radius: 24px;
+      padding: 58px 28px;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(37,99,235,.13), transparent 35%),
+        linear-gradient(135deg, #fff, #F8FAFC);
+    }
+    .sf-reader {
+      border-radius: 24px;
+      padding: 14px;
+      background:
+        radial-gradient(circle at 18% 0%, rgba(37,99,235,.10), transparent 28%),
+        radial-gradient(circle at 82% 8%, rgba(245,158,11,.10), transparent 28%),
+        rgba(248,250,252,.72);
+      box-shadow: 0 24px 80px rgba(15,23,42,.08);
+    }
+    .dark .sf-reader {
+      background:
+        radial-gradient(circle at 18% 0%, rgba(96,165,250,.12), transparent 28%),
+        radial-gradient(circle at 82% 8%, rgba(245,158,11,.10), transparent 28%),
+        rgba(2,6,23,.64);
+    }
+    .sf-reading-hero {
+      border-radius: 22px;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.90), rgba(248,250,252,.78)),
+        radial-gradient(circle at 8% 0%, rgba(37,99,235,.14), transparent 36%);
+      box-shadow: 0 20px 64px rgba(15,23,42,.08);
+    }
+    .dark .sf-reading-hero {
+      background:
+        linear-gradient(135deg, rgba(15,23,42,.86), rgba(2,6,23,.72)),
+        radial-gradient(circle at 8% 0%, rgba(96,165,250,.16), transparent 36%);
+    }
+    .sf-reader .card.p-6, .sf-reader .card.p-10, .sf-reader .card.p-6.md\:p-10 {
+      border-radius: 22px;
+      background: rgba(255,255,255,.88);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 18px 58px rgba(15,23,42,.07);
+    }
+    .dark .sf-reader .card.p-6, .dark .sf-reader .card.p-10, .dark .sf-reader .card.p-6.md\:p-10 {
+      background: rgba(15,23,42,.82);
+    }
+    @media (max-width: 760px) {
+      .sf-archive-stats { grid-template-columns: 1fr; }
+      .sf-story-card[data-mode='grid'] { grid-template-columns: 58px 1fr; min-height: auto; }
+      .sf-story-card__cover { width:58px; height:76px; }
+    }
+
   </style>
 </head>
 <body class="h-full bg-surface-50 font-sans text-slate-800" x-data x-init="$store.app.init()">
@@ -2405,8 +2818,8 @@
 
       <!-- ═══ LIBRARY PAGE (combined with Reader) ═══ -->
       <template x-if="$store.app.page === 'library'">
-      <div class="page-enter" x-data="libraryPage()">
-        <div class="max-w-3xl mx-auto space-y-4">
+      <div class="page-enter" x-data="libraryPage()" data-page="library">
+        <div class="max-w-3xl mx-auto space-y-5 sf-library-stage">
 
           <!-- ══ LIST VIEW ══ -->
           <template x-if="!isReading">
@@ -2415,8 +2828,9 @@
           <div class="sf-page-hero">
             <div class="flex items-start justify-between gap-3">
               <div class="flex-1 min-w-0">
+                <p class="text-[10px] uppercase tracking-[0.24em] text-brand-500 font-bold mb-1">Story Archive Shelf</p>
                 <h1>Thư viện truyện</h1>
-                <p x-text="stories.length > 0 ? (stories.length + ' truyện đã lưu — click để mở đọc') : 'Tất cả checkpoint được tự động lưu tại đây'"></p>
+                <p x-text="stories.length > 0 ? (stories.length + ' artifact truyện đã lưu — mở kệ, đọc tiếp, hoặc rèn nhánh mới') : 'Tất cả checkpoint sẽ tự động hoá thành artifact trên kệ này'"></p>
               </div>
               <div class="flex items-center gap-2 flex-shrink-0">
                 <button @click="loadStories()" :disabled="loading"
@@ -2467,12 +2881,12 @@
 
           <!-- Empty state -->
           <template x-if="!loading && stories.length === 0 && !error">
-            <div class="sf-empty-hero">
+            <div class="sf-empty-hero sf-empty-archive">
               <div class="ico-wrap">
                 <svg class="w-9 h-9 text-brand-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z"/></svg>
               </div>
-              <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1.5">Thư viện còn trống</h3>
-              <p class="text-sm text-slate-500 dark:text-slate-300 max-w-sm mx-auto mb-6">Tạo truyện đầu tiên — checkpoint sẽ tự động lưu vào đây sau mỗi phase.</p>
+              <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1.5">Kệ artifact còn trống</h3>
+              <p class="text-sm text-slate-500 dark:text-slate-300 max-w-sm mx-auto mb-6">Rèn truyện đầu tiên — mỗi checkpoint sẽ xuất hiện như một artifact sống trên kệ.</p>
               <button @click="$store.app.navigate('pipeline')" class="sf-cta-hero inline-flex items-center gap-2 px-6 py-2.5 text-sm cursor-pointer">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
                 Bắt đầu tạo truyện
@@ -2534,6 +2948,7 @@
                       <div class="sf-story-card__meta">
                         <span x-show="story.genre" x-text="story.genre"></span>
                         <span x-text="(story.chapter_count || 0) + ' chương'"></span>
+                        <span>artifact</span>
                         <span x-show="story.modified" x-text="story.modified"></span>
                       </div>
                       <template x-if="showProgress">
@@ -2662,13 +3077,15 @@
               </div>
             </template>
             <!-- Back button + Title hero -->
-            <div class="card sf-card-hero p-5 pt-[18px] mb-4">
+            <div class="card sf-card-hero sf-reading-hero p-5 pt-[18px] mb-4">
               <div class="flex items-start justify-between gap-4 flex-wrap">
                 <div class="flex-1 min-w-0">
                   <button @click="backToList()" class="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-brand-600 mb-2 cursor-pointer">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
                     Quay lại thư viện
                   </button>
+                  <p class="text-[10px] uppercase tracking-[0.24em] text-brand-500 font-bold mb-1">Immersive Reading Room</p>
+                  <p class="text-[10px] uppercase tracking-[0.22em] text-brand-500 font-bold mb-1">Reading Room</p>
                   <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100 leading-tight" x-text="story.title"></h2>
                   <div class="flex items-center gap-3 mt-1.5 text-xs text-slate-500 dark:text-slate-300">
                     <span class="inline-flex items-center gap-1">
