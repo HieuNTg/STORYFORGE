@@ -3317,7 +3317,8 @@
                                 class="sf-branch-tree__canvas"></canvas>
                               <canvas x-init="attachMinimapCanvas($el)"
                                 class="sf-branch-tree__minimap"
-                                :width="minimapWidth" :height="minimapHeight"></canvas>
+                                :width="minimapWidth" :height="minimapHeight"
+                                aria-hidden="true"></canvas>
                               <ul class="sr-only" aria-label="Branch tree nodes">
                                 <template x-for="entry in srEntries" :key="entry.id">
                                   <li :data-id="entry.id" x-text="entry.label + ' (depth ' + entry.depth + ')'"></li>
