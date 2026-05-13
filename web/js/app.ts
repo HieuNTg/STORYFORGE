@@ -17,6 +17,7 @@ import { configPanel } from './components/ConfigPanel';
 import { storyCard } from './components/StoryCard';
 import { agentBubble } from './components/AgentBubble';
 import { qualityGauge } from './components/QualityGauge';
+import { characterGraph } from './components/CharacterGraph';
 import {
   createToastStore,
   toastItem,
@@ -66,6 +67,11 @@ document.addEventListener('alpine:init', () => {
     // M2 Day-3 — QualityGauge factory. Binds to done.data.quality[] entries
     // when the pipeline page is wired in Day-5.
     Alpine.data('qualityGauge', qualityGauge);
+
+    // M2 Day-4 — CharacterGraph factory (d3-force + Canvas). Parent feeds
+    // characters[] and relationships[] derived via stores/character-edges.ts
+    // (co-occurrence heuristic, audit D2). Template wiring lands in Day-5.
+    Alpine.data('characterGraph', characterGraph);
 
     // Toast store — singleton stack consumed by the toast region template.
     // attachToastHelper rebinds window.sfShowToast to the wider Forge
