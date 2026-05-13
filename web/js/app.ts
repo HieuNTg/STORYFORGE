@@ -21,6 +21,7 @@ import { characterGraph } from './components/CharacterGraph';
 import { branchTree } from './components/BranchTree';
 import { forgeBranchTreeMount } from './pages/branching';
 import { forgeSettingsWizard } from './pages/settings';
+import { forgeExportCards } from './pages/export';
 import { createTheaterStore } from './stores/theater';
 import { createReaderStore } from './stores/reader';
 import {
@@ -90,6 +91,10 @@ document.addEventListener('alpine:init', () => {
     // M4-B2: forgeSettingsWizard — guided 3-step wizard for first-time users.
     // Detects no-API-key state + sf:settings-wizard-dismissed localStorage flag.
     Alpine.data('forgeSettingsWizard', forgeSettingsWizard);
+
+    // M4-B3: forgeExportCards — visual selectable format cards with slide-in
+    // config panel. Falls through to exportPage() methods for actual download.
+    Alpine.data('forgeExportCards', forgeExportCards);
 
     // M2 Day-5 — theater store. Pipeline-page derived state populated by
     // sniffers from the SSE log stream (see stores/pipeline.ts bridge).

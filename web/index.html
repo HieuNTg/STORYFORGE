@@ -2887,36 +2887,113 @@
                   </template>
                 </select>
               </div>
-              <!-- Document formats -->
-              <div class="card p-5">
-                <div class="flex items-center gap-2 mb-4">
-                  <span class="sf-step-badge">2</span>
-                  <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn định dạng</h3>
+              <!-- Document formats — Forge visual cards (flag ON) -->
+              <template x-if="$store.flags?.forgeUi">
+                <div x-data="forgeExportCards()" class="space-y-3">
+                  <div class="card p-5">
+                    <div class="flex items-center gap-2 mb-4">
+                      <span class="sf-step-badge">2</span>
+                      <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn định dạng</h3>
+                    </div>
+                    <div class="sf-export-cards grid grid-cols-4 gap-3">
+                      <template x-for="fmt in formats" :key="fmt.id">
+                        <button
+                          @click="selectFormat(fmt.id)"
+                          :aria-pressed="selectedFormat === fmt.id"
+                          :aria-label="`Export as ${fmt.label}`"
+                          class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer"
+                          :class="selectedFormat === fmt.id ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/30' : 'border-surface-200 dark:border-surface-700 hover:border-brand-300 bg-white dark:bg-surface-900'">
+                          <span class="text-base font-bold" :style="`color: ${fmt.color}`" x-text="fmt.label"></span>
+                          <span class="text-[10px] text-slate-400 dark:text-slate-500 text-center leading-tight" x-text="fmt.hint"></span>
+                        </button>
+                      </template>
+                    </div>
+                  </div>
+                  <!-- Slide-in config panel -->
+                  <div x-show="panelVisible && selectedFormat" x-transition:enter="transition ease-out duration-200"
+                       x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
+                       x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                       class="card p-5 space-y-4" x-cloak>
+                    <div class="flex items-center justify-between">
+                      <h4 class="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                        <span x-text="selectedFormat?.toUpperCase()"></span> options
+                      </h4>
+                      <button @click="closePanel()" aria-label="Close config panel" class="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-800 text-slate-400 cursor-pointer">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                      </button>
+                    </div>
+                    <!-- PDF config -->
+                    <template x-if="selectedFormat === 'pdf'">
+                      <div class="space-y-3">
+                        <p class="text-xs text-slate-500 dark:text-slate-400">A4 print-ready PDF with Vietnamese font support.</p>
+                        <button @click="exportFormat('pdf')" :disabled="exporting" class="sf-forge-btn w-full" data-variant="primary">
+                          <span x-text="exporting === 'pdf' ? 'Exporting...' : 'Export PDF'"></span>
+                        </button>
+                      </div>
+                    </template>
+                    <!-- EPUB config -->
+                    <template x-if="selectedFormat === 'epub'">
+                      <div class="space-y-3">
+                        <p class="text-xs text-slate-500 dark:text-slate-400">EPUB 3 compatible with Kindle, Apple Books, and most e-readers.</p>
+                        <button @click="exportFormat('epub')" :disabled="exporting" class="sf-forge-btn w-full" data-variant="primary">
+                          <span x-text="exporting === 'epub' ? 'Exporting...' : 'Export EPUB'"></span>
+                        </button>
+                      </div>
+                    </template>
+                    <!-- HTML config -->
+                    <template x-if="selectedFormat === 'html'">
+                      <div class="space-y-3">
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Self-contained HTML file — share online or open in any browser.</p>
+                        <button @click="exportFormat('html')" :disabled="exporting" class="sf-forge-btn w-full" data-variant="primary">
+                          <span x-text="exporting === 'html' ? 'Exporting...' : 'Export HTML'"></span>
+                        </button>
+                      </div>
+                    </template>
+                    <!-- ZIP config -->
+                    <template x-if="selectedFormat === 'zip'">
+                      <div class="space-y-3">
+                        <p class="text-xs text-slate-500 dark:text-slate-400">ZIP archive containing all chapters as separate text files plus metadata.</p>
+                        <button @click="exportZip()" :disabled="exporting" class="sf-forge-btn w-full" data-variant="primary">
+                          <span x-text="exporting === 'zip' ? 'Exporting...' : 'Export ZIP'"></span>
+                        </button>
+                      </div>
+                    </template>
+                  </div>
                 </div>
-                <div class="grid grid-cols-3 gap-3">
-                  <button @click="exportFormat('pdf')" :disabled="exporting" class="sf-export-tile">
-                    <div class="ico" style="background: linear-gradient(135deg, rgba(239,68,68,0.12), rgba(249,115,22,0.08));">
-                      <svg class="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
-                    </div>
-                    <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'pdf' ? 'Đang xuất...' : 'PDF'"></span>
-                    <span class="text-[10px] text-slate-400">In ấn · A4</span>
-                  </button>
-                  <button @click="exportFormat('epub')" :disabled="exporting" class="sf-export-tile">
-                    <div class="ico" style="background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(37,99,235,0.08));">
-                      <svg class="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
-                    </div>
-                    <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'epub' ? 'Đang xuất...' : 'EPUB'"></span>
-                    <span class="text-[10px] text-slate-400">Kindle · đọc số</span>
-                  </button>
-                  <button @click="exportZip()" :disabled="exporting" class="sf-export-tile">
-                    <div class="ico" style="background: linear-gradient(135deg, rgba(37,99,235,0.12), rgba(139,92,246,0.08));">
-                      <svg class="w-5 h-5 text-brand-600" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
-                    </div>
-                    <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'zip' ? 'Đang xuất...' : 'ZIP'"></span>
-                    <span class="text-[10px] text-slate-400">Tất cả · lưu trữ</span>
-                  </button>
+              </template>
+
+              <!-- Document formats — legacy tiles (flag OFF) -->
+              <template x-if="!$store.flags?.forgeUi">
+                <div class="card p-5">
+                  <div class="flex items-center gap-2 mb-4">
+                    <span class="sf-step-badge">2</span>
+                    <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn định dạng</h3>
+                  </div>
+                  <div class="grid grid-cols-3 gap-3">
+                    <button @click="exportFormat('pdf')" :disabled="exporting" class="sf-export-tile">
+                      <div class="ico" style="background: linear-gradient(135deg, rgba(239,68,68,0.12), rgba(249,115,22,0.08));">
+                        <svg class="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+                      </div>
+                      <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'pdf' ? 'Đang xuất...' : 'PDF'"></span>
+                      <span class="text-[10px] text-slate-400">In ấn · A4</span>
+                    </button>
+                    <button @click="exportFormat('epub')" :disabled="exporting" class="sf-export-tile">
+                      <div class="ico" style="background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(37,99,235,0.08));">
+                        <svg class="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
+                      </div>
+                      <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'epub' ? 'Đang xuất...' : 'EPUB'"></span>
+                      <span class="text-[10px] text-slate-400">Kindle · đọc số</span>
+                    </button>
+                    <button @click="exportZip()" :disabled="exporting" class="sf-export-tile">
+                      <div class="ico" style="background: linear-gradient(135deg, rgba(37,99,235,0.12), rgba(139,92,246,0.08));">
+                        <svg class="w-5 h-5 text-brand-600" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
+                      </div>
+                      <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'zip' ? 'Đang xuất...' : 'ZIP'"></span>
+                      <span class="text-[10px] text-slate-400">Tất cả · lưu trữ</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </template>
               <div x-show="message" x-transition class="flex items-center gap-2 px-4 py-3 rounded-lg text-sm"
                 :class="message.startsWith('Error') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'">
                 <svg x-show="!message.startsWith('Error')" class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>

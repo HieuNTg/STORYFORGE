@@ -129,3 +129,55 @@ function exportPage() {
     },
   };
 }
+
+// ── forgeExportCards — M4-B3 (flag-gated) ────────────────────────────────────
+//
+// Visual selectable format cards (PDF/EPUB/HTML/ZIP). Selecting a card slides
+// in a format-specific config panel. Falls through to exportPage() methods for
+// actual export. Flag OFF = current export tiles remain untouched.
+//
+// Exported for unit testing.
+
+export interface ForgeExportFormat {
+  id: string;
+  label: string;
+  hint: string;
+  color: string;
+}
+
+export const FORGE_EXPORT_FORMATS: ForgeExportFormat[] = [
+  { id: 'pdf',  label: 'PDF',  hint: 'Print-ready · A4',      color: '#EF4444' },
+  { id: 'epub', label: 'EPUB', hint: 'Kindle · digital read',  color: '#10B981' },
+  { id: 'html', label: 'HTML', hint: 'Web · share online',     color: '#3B82F6' },
+  { id: 'zip',  label: 'ZIP',  hint: 'Archive · all files',    color: '#8B5CF6' },
+];
+
+export interface ForgeExportCardsState {
+  selectedFormat: string | null;
+  panelVisible: boolean;
+  formats: ForgeExportFormat[];
+  selectFormat(id: string): void;
+  closePanel(): void;
+}
+
+export function forgeExportCards(): ForgeExportCardsState {
+  return {
+    selectedFormat: null as string | null,
+    panelVisible: false,
+    formats: FORGE_EXPORT_FORMATS,
+
+    selectFormat(id: string): void {
+      if (this.selectedFormat === id) {
+        this.panelVisible = !this.panelVisible;
+      } else {
+        this.selectedFormat = id;
+        this.panelVisible = true;
+      }
+    },
+
+    closePanel(): void {
+      this.panelVisible = false;
+      this.selectedFormat = null;
+    },
+  };
+}
