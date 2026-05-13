@@ -60,7 +60,13 @@ web/js/**/*.js.map
 # Vitest global setup is plain JS with no .ts source — keep it tracked
 !web/js/__tests__/setup.js
 # Playwright visual test spec output is .ts source — no exceptions needed for .js
-web/dist/
+web/dist/*
+# …but track the runtime bundle (perf/forge-shell P2): production prefers it,
+# and rebuilding it on every container boot would add ~3s to startup.
+!web/dist/
+!web/dist/js/
+web/dist/js/*
+!web/dist/js/runtime-bundle.min.js
 
 # ── IDE & OS ───────────────────────────────────────────────────────
 .DS_Store

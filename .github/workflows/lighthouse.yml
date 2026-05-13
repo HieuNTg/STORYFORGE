@@ -1,0 +1,110 @@
+name: Lighthouse (warn-only)
+
+on:
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'app.py'
+      - 'requirements.txt'
+      - 'package.json'
+      - '.github/workflows/lighthouse.yml'
+      - 'lighthouse-budget.json'
+  workflow_dispatch:
+
+jobs:
+  lighthouse:
+    name: Desktop Lighthouse (pipeline, library, reader)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Node deps
+        run: npm ci --no-audit --no-fund
+
+      - name: Build runtime bundle
+        run: npm run build
+
+      - name: Start backend
+        env:
+          OPENAI_API_KEY: dummy-ci-key
+          STORYFORGE_LOG_LEVEL: WARNING
+        run: |
+          nohup python app.py >server.log 2>&1 &
+          for i in {1..30}; do
+            curl -fsS http://localhost:7860/api/health && exit 0 || sleep 1
+          done
+          echo "::error::Backend never became healthy"
+          tail -n 80 server.log
+          exit 1
+
+      - name: Run Lighthouse on 3 routes
+        run: |
+          mkdir -p lh-reports
+          for route in pipeline library reader; do
+            npx --yes lighthouse \
+              "http://localhost:7860/#${route}" \
+              --preset=desktop \
+              --quiet \
+              --chrome-flags="--headless=new --no-sandbox" \
+              --budget-path=lighthouse-budget.json \
+              --output=json \
+              --output=html \
+              --output-path="lh-reports/${route}" \
+              --only-categories=performance,accessibility,best-practices \
+            || echo "::warning::Lighthouse run for ${route} returned non-zero (warn-only)"
+          done
+
+      - name: Summarize scores
+        if: always()
+        run: |
+          echo "## Lighthouse summary (desktop, warn-only)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Route | Perf | A11y | BP | FCP (ms) | LCP (ms) | TBT (ms) | CLS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---:|---:|---:|---:|---:|---:|---:|" >> "$GITHUB_STEP_SUMMARY"
+          for route in pipeline library reader; do
+            f="lh-reports/${route}.report.json"
+            if [ -f "$f" ]; then
+              node -e "
+                const j=require('./${f}');
+                const a=j.audits;
+                const c=j.categories;
+                const row=['${route}',
+                  Math.round(c.performance.score*100),
+                  Math.round(c.accessibility.score*100),
+                  Math.round(c['best-practices'].score*100),
+                  Math.round(a['first-contentful-paint'].numericValue),
+                  Math.round(a['largest-contentful-paint'].numericValue),
+                  Math.round(a['total-blocking-time'].numericValue),
+                  (a['cumulative-layout-shift'].numericValue).toFixed(3)
+                ];
+                console.log('| ' + row.join(' | ') + ' |');
+              " >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "| ${route} | (no report) | | | | | | |" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+      - name: Upload Lighthouse artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: lh-reports/
+          retention-days: 14

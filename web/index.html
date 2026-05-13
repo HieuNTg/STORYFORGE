@@ -27,12 +27,14 @@
        Run `npm run build:vite` to produce production bundle, or `npm run dev` for HMR. -->
   <!-- Tailwind CSS + tokens + supplementary styles — all bundled via PostCSS -->
   <link rel="stylesheet" href="/static/css/main.built.css">
-  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script defer src="/static/vendor/alpine/alpine.min.js"></script>
   <script defer src="/static/js/feedback-widget.js"></script>
   <script defer src="/static/js/report-issue.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
+    /* forge-critical: inline (StaticFiles doesn't gzip; inline rides HTML gzip). */
     [x-cloak] { display: none !important; }
     .page-enter { animation: fadeSlideIn 0.25s ease-out; }
     @keyframes fadeSlideIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
@@ -44,8 +46,6 @@
     .btn-primary:hover { background: linear-gradient(135deg,#1D4ED8,#2563EB); box-shadow:0 4px 14px rgba(37,99,235,0.35); transform:translateY(-1px); }
     .btn-primary:active { transform:translateY(0); box-shadow:0 1px 4px rgba(37,99,235,0.2); }
     .card { background:white; border:1px solid #E2E8F0; border-radius:12px; transition: border-color 0.2s ease, box-shadow 0.2s ease; }
-    /* Explicit light-mode backgrounds for form controls — prevents OS dark
-       color-scheme from leaking dark native inputs when theme is light */
     input:not([type=range]):not([type=checkbox]),
     textarea { background: #fff; color: #1e293b; }
     textarea:focus, input:focus, select:focus { outline:none; border-color:#3B82F6; box-shadow:0 0 0 3px rgba(59,130,246,0.15); }
@@ -61,11 +61,6 @@
       0% { background-position: 200% 0; }
       100% { background-position: -200% 0; }
     }
-
-    /* ── Dark mode overrides ──
-       Uses CSS custom properties defined in tokens.css (.dark class block).
-       Raw hex values removed — single source of truth is tokens.css.
-    */
     .dark body { background: var(--dm-bg); color: var(--dm-text); }
     .dark .card { background: var(--dm-surface); border-color: var(--dm-border); }
     .dark .text-slate-800 { color: var(--dm-text); }
@@ -96,8 +91,6 @@
       background: linear-gradient(90deg, var(--dm-surface) 25%, var(--dm-border) 50%, var(--dm-surface) 75%);
       background-size: 200% 100%;
     }
-
-    /* ── Pipeline page redesign ── */
     .sf-card-hero {
       position: relative; overflow: hidden;
       border-color: #DBEAFE;
@@ -128,8 +121,6 @@
     .sf-config-pill:hover { border-color: #93c5fd; background: #F0F7FF; }
     .dark .sf-config-pill { background: var(--dm-bg); border-color: var(--dm-border); }
     .dark .sf-config-pill:hover { border-color: rgba(96,165,250,0.35); background: rgba(37,99,235,0.06); }
-
-    /* ── Segmented pill group (drama level, etc) ── */
     .sf-pill-group {
       display: flex; gap: 3px;
       padding: 3px;
@@ -166,8 +157,6 @@
       font-weight: 600;
       box-shadow: 0 2px 8px rgba(59,130,246,0.4);
     }
-
-    /* ── Toggle chip (advanced quick toggles) ── */
     .sf-toggle-chip {
       display: inline-flex; align-items: center; gap: 6px;
       padding: 6px 10px;
@@ -190,8 +179,6 @@
     .dark .sf-toggle-chip { background: var(--dm-surface); border-color: var(--dm-border); color: #E2E8F0; }
     .dark .sf-toggle-chip:hover { border-color: rgba(96,165,250,0.4); }
     .dark .sf-toggle-chip.active { color: #60A5FA; border-color: #3B82F6; background: rgba(37,99,235,0.12); }
-
-    /* ── Hero CTA with shimmer ── */
     .sf-cta-hero {
       position: relative; overflow: hidden;
       background: linear-gradient(135deg, #2563EB 0%, #4F46E5 50%, #8B5CF6 100%);
@@ -215,8 +202,6 @@
       transition: left 0.65s ease;
     }
     .sf-cta-hero:hover:not(:disabled)::after { left: 150%; }
-
-    /* ── Pipeline phase timeline (compact vertical cells) ── */
     .sf-phase {
       display: flex; flex-direction: column; align-items: center; gap: 5px;
       padding: 10px 4px;
@@ -257,8 +242,6 @@
     .dark .sf-phase.active { background: rgba(37,99,235,0.1); }
     .dark .sf-phase.active .sf-phase-label { color: #60A5FA; }
     .dark .sf-phase.done .sf-phase-label { color: #34D399; }
-
-    /* ── Example idea chips ── */
     .sf-example-chip {
       padding: 11px 12px;
       background: white;
@@ -277,8 +260,6 @@
     }
     .dark .sf-example-chip { background: var(--dm-surface); border-color: var(--dm-border); }
     .dark .sf-example-chip:hover { border-color: #60A5FA; background: rgba(37,99,235,0.08); box-shadow: 0 4px 12px rgba(37,99,235,0.15); }
-
-    /* ── Estimate badge (cost / time) ── */
     .sf-estimate {
       display: inline-flex; align-items: center; gap: 4px;
       font-size: 10.5px;
@@ -290,8 +271,6 @@
       font-variant-numeric: tabular-nums;
     }
     .dark .sf-estimate { background: rgba(30,41,59,0.6); color: #CBD5E1; }
-
-    /* ── Inline select (genre/style/lang) ── */
     .sf-select-compact {
       font-size: 13px; font-weight: 500;
       padding: 7px 28px 7px 10px;
@@ -305,16 +284,12 @@
       border-color: var(--dm-border);
       background: linear-gradient(135deg, rgba(30,41,59,0.3), rgba(15,23,42,0.3));
     }
-
-    /* ── Field label — tighter uppercase ── */
     .sf-label {
       font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em;
       text-transform: uppercase;
       color: #64748b;
     }
     .dark .sf-label { color: #CBD5E1; }
-
-    /* ── Hero page header (shared across Library/Settings/etc.) ── */
     .sf-page-hero {
       position: relative; overflow: hidden;
       padding: 18px 20px 16px;
@@ -337,8 +312,6 @@
     .dark .sf-page-hero h1 { color: var(--dm-text); }
     .sf-page-hero p { font-size: 12.5px; color: #64748b; margin-top: 2px; }
     .dark .sf-page-hero p { color: var(--dm-text-secondary); }
-
-    /* ── Step badge (numbered section markers) ── */
     .sf-step-badge {
       display: inline-flex; align-items: center; justify-content: center;
       width: 22px; height: 22px; border-radius: 50%;
@@ -347,8 +320,6 @@
       color: white;
       flex-shrink: 0;
     }
-
-    /* ── Compact story card (Library) ── */
     .sf-story-card {
       padding: 14px 16px;
       border: 1px solid #E2E8F0;
@@ -372,8 +343,6 @@
     .sf-story-card:hover::before { opacity: 1; }
     .dark .sf-story-card { background: var(--dm-surface); border-color: var(--dm-border); }
     .dark .sf-story-card:hover { border-color: rgba(96,165,250,0.4); box-shadow: 0 6px 18px rgba(37,99,235,0.15); }
-
-    /* ── Stat tile (Analytics) ── */
     .sf-stat-tile {
       padding: 14px 12px;
       border-radius: 12px;
@@ -398,8 +367,6 @@
     .sf-stat-tile .l { font-size: 10.5px; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
     .dark .sf-stat-tile { background: linear-gradient(135deg, rgba(30,41,59,0.6), rgba(15,23,42,0.6)); border-color: var(--dm-border); }
     .dark .sf-stat-tile .l { color: var(--dm-text-muted); }
-
-    /* ── Empty state hero (Reader/Export/Analytics empty views) ── */
     .sf-empty-hero {
       position: relative; overflow: hidden;
       padding: 48px 32px;
@@ -425,8 +392,6 @@
       z-index: -1;
     }
     .dark .sf-empty-hero { background: linear-gradient(135deg, var(--dm-surface), var(--dm-bg)); border-color: var(--dm-border); }
-
-    /* ── Export format tile ── */
     .sf-export-tile {
       display: flex; flex-direction: column; align-items: center; gap: 8px;
       padding: 18px 12px;
@@ -450,8 +415,6 @@
     }
     .dark .sf-export-tile { background: var(--dm-surface); border-color: var(--dm-border); }
     .dark .sf-export-tile:hover { border-color: #60A5FA; }
-
-    /* ── Guide step card ── */
     .sf-guide-step {
       padding: 16px 18px;
       border-radius: 12px;
@@ -464,8 +427,6 @@
     .sf-guide-step .sf-step-badge { margin-top: 1px; }
     .dark .sf-guide-step { background: var(--dm-surface); border-color: var(--dm-border); }
     .dark .sf-guide-step:hover { border-color: rgba(96,165,250,0.4); }
-
-    /* ── Search input (Library) ── */
     .sf-search {
       padding: 9px 12px 9px 38px;
       border: 1px solid #E2E8F0;
@@ -2243,7 +2204,8 @@
       </template>
 
       <!-- ═══ LIBRARY PAGE (combined with Reader) ═══ -->
-      <div x-show="$store.app.page === 'library'" x-cloak class="page-enter" x-data="libraryPage()">
+      <template x-if="$store.app.page === 'library'">
+      <div class="page-enter" x-data="libraryPage()">
         <div class="max-w-3xl mx-auto space-y-4">
 
           <!-- ══ LIST VIEW ══ -->
@@ -2844,12 +2806,14 @@
 
         </div>
       </div>
+      </template>
 
       <!-- ═══ READER PAGE (redirects to library) ═══ -->
       <div x-show="$store.app.page === 'reader'" x-cloak x-init="$store.app.navigate('library')"></div>
 
       <!-- ═══ EXPORT PAGE ═══ -->
-      <div x-show="$store.app.page === 'export'" x-cloak class="page-enter" x-data="exportPage()">
+      <template x-if="$store.app.page === 'export'">
+      <div class="page-enter" x-data="exportPage()">
         <div class="max-w-3xl mx-auto space-y-4">
           <!-- Loading state -->
           <div x-show="loading" class="flex items-center justify-center py-12">
@@ -3006,6 +2970,7 @@
           </template>
         </div>
       </div>
+      </template>
 
       <!-- ═══ ANALYTICS PAGE ═══ -->
       <template x-if="$store.app.page === 'analytics'">
@@ -3540,7 +3505,8 @@
 
 
       <!-- ═══ PROVIDERS PAGE (live LLM health) ═══ -->
-      <div x-show="$store.app.page === 'providers'" x-cloak class="page-enter" x-data="providersPage()" x-init="init()">
+      <template x-if="$store.app.page === 'providers'">
+      <div class="page-enter" x-data="providersPage()" x-init="init()">
         <div class="max-w-5xl mx-auto space-y-4">
           <div class="sf-page-hero">
             <div class="flex items-start justify-between gap-3">
@@ -3639,9 +3605,11 @@
           </template>
         </div>
       </div>
+      </template>
 
       <!-- ═══ GUIDE PAGE ═══ -->
-      <div x-show="$store.app.page === 'guide'" x-cloak class="page-enter">
+      <template x-if="$store.app.page === 'guide'">
+      <div class="page-enter">
         <div class="max-w-3xl mx-auto space-y-4">
           <!-- Hero header -->
           <div class="sf-page-hero">
@@ -3754,24 +3722,14 @@
           </div>
         </div>
       </div>
+      </template>
 
     </div>
   </main>
 
-  <!-- ═══ JS ═══ -->
-  <script src="/static/js/storage-manager.js"></script>
-  <script src="/static/js/api-client.js"></script>
-  <script src="/static/js/pages/library.js"></script>
-  <script src="/static/js/pages/export.js"></script>
-  <script src="/static/js/pages/analytics.js"></script>
-  <script src="/static/js/pages/branching.js"></script>
-  <script src="/static/js/pages/pipeline.js"></script>
-  <script src="/static/js/pages/providers.js"></script>
-  <script src="/static/js/pages/settings.js"></script>
-  <script src="/static/js/branch-reader.js"></script>
-  <script src="/static/js/tree-visualizer.js"></script>
-  <script src="/static/js/i18n.js"></script>
-  <script src="/static/js/app.js"></script>
+  <!-- ═══ JS ═══ Single bundled runtime (perf/forge-shell P2: 13 reqs → 1). -->
+  <!-- Rebuild via: npm run build:bundle  (concat + minify of web/js/{*,pages/*}.js) -->
+  <script defer src="/static/dist/js/runtime-bundle.min.js"></script>
   <script>
     /* Heroicons SVG helper — returns inline SVG for nav icons */
     function getNavIcon(name) {
