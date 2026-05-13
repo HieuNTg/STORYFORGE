@@ -25,6 +25,7 @@ warnings.filterwarnings(
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -180,6 +181,9 @@ def main():
             {"name": "audio", "description": "Text-to-speech and audio generation"},
         ],
     )
+
+    # --- GZip compression (≥1KB responses; HTML/JS/CSS shrink ~5–7×) ---
+    main_app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
 
     # --- CORS middleware (restrictive: explicit origins only, no wildcard) ---
     allowed_origins = _get_allowed_origins()

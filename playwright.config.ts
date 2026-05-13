@@ -34,6 +34,12 @@ export default defineConfig({
       testDir: './web/e2e',
       use: { ...devices['Desktop Chrome'] },
     },
+    // Live a11y scans (web/tests/a11y/) — sprint-close gate, requires live backend
+    {
+      name: 'a11y-chromium',
+      testDir: './web/tests/a11y',
+      use: { ...devices['Desktop Chrome'] },
+    },
   ],
 
   // FastAPI dev server — start before tests, skip if already running.
