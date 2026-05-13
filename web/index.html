@@ -30,10 +30,26 @@
   <script defer src="/static/vendor/alpine/alpine.min.js"></script>
   <script defer src="/static/js/feedback-widget.js"></script>
   <script defer src="/static/js/report-issue.js"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Inter self-hosted (sprint perf/forge-shell-2 S2). Subset = Latin + Vietnamese. -->
+  <link rel="preload" href="/static/fonts/inter/Inter-roman.var.woff2" as="font" type="font/woff2" crossorigin>
   <style>
+    /* Inter variable, self-hosted. unicode-range gates italic to italic glyphs only. */
+    @font-face {
+      font-family: 'Inter';
+      src: url('/static/fonts/inter/Inter-roman.var.woff2') format('woff2-variations');
+      font-weight: 100 900;
+      font-style: normal;
+      font-display: swap;
+      unicode-range: U+0000-00FF, U+0100-017F, U+0102, U+0103, U+0110, U+0111, U+0128, U+0129, U+0168, U+0169, U+01A0, U+01A1, U+01AF, U+01B0, U+1EA0-1EF9, U+20AB;
+    }
+    @font-face {
+      font-family: 'Inter';
+      src: url('/static/fonts/inter/Inter-italic.var.woff2') format('woff2-variations');
+      font-weight: 100 900;
+      font-style: italic;
+      font-display: swap;
+      unicode-range: U+0000-00FF, U+0100-017F, U+0102, U+0103, U+0110, U+0111, U+0128, U+0129, U+0168, U+0169, U+01A0, U+01A1, U+01AF, U+01B0, U+1EA0-1EF9, U+20AB;
+    }
     /* forge-critical: inline (StaticFiles doesn't gzip; inline rides HTML gzip). */
     [x-cloak] { display: none !important; }
     .page-enter { animation: fadeSlideIn 0.25s ease-out; }
