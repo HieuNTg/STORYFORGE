@@ -444,7 +444,7 @@ export function createPipelineStore() {
           title: this.collaborativeTitle,
           polish_level: this.polishLevel,
         })) {
-          if (event.type === 'progress') {
+          if (event.type === 'log') {
             this.currentLog = event.data as string;
             this.logs.push(event.data as string);
           } else if (event.type === 'done') {
@@ -472,7 +472,7 @@ export function createPipelineStore() {
           checkpoint: this.continuationMeta.checkpoint,
           chapter_numbers: chapterNumbers || [],
         })) {
-          if (event.type === 'progress') {
+          if (event.type === 'log') {
             this.currentLog = event.data as string;
             this.logs.push(event.data as string);
           } else if (event.type === 'done') {
