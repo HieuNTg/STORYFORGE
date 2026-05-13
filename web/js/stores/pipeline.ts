@@ -220,6 +220,9 @@ export function createPipelineStore() {
     // shape the L1 chapter_writer emits on completion. Returns null when the
     // log line isn't a chapter completion notice. Pure-function: kept here so
     // unit tests can exercise it directly through the store factory.
+    //
+    // Canonical regex: shared with web/js/stores/sse-sniffers.ts —
+    // sniffChapterCompletion(). Keep both in sync if you change either.
     _sniffChapterCompletion(msg: string): string | null {
       // Examples: "✅ Chương 3: Đại Đạo Triều Thiên" or "✅ Chapter 3: ...".
       const m = msg.match(/^(?:✅\s*)?(?:Chương|Chapter)\s+(\d+):\s*(.+?)\s*$/);

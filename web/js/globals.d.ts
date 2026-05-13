@@ -37,10 +37,28 @@ declare var Alpine: AlpineStatic
 /* ── API Client ────────────────────────────────────────────────────────── */
 
 interface StreamEvent {
-  type: 'progress' | 'chapter' | 'done' | 'error' | 'interrupted' | 'session' | 'log' | 'stream'
+  /**
+   * Two conventions exist in the backend (see m2-sse-payload-audit.md):
+   *   - /pipeline/run, /pipeline/resume                 → 'session' | 'log' | 'stream' | 'done' | 'error'
+   *   - /pipeline/continue, /collaborative-chapter,
+   *     /polish, /check-consistency, /write-from-path  → 'session' | 'progress' | 'stream' | 'done' | 'error' (+ 'start' on path-write)
+   * The frontend api-client synthesises 'interrupted' on transport failures.
+   * 'chapter' is reserved for a future typed event and is NOT emitted today.
+   */
+  type:
+    | 'session'
+    | 'log'
+    | 'progress'
+    | 'start'
+    | 'stream'
+    | 'done'
+    | 'error'
+    | 'interrupted'
   /** `data` is string for most event types; the `done` event delivers a parsed PipelineResult object */
   data: unknown
   session_id?: string
+  /** Server-side counter attached only to `log` events. */
+  logs_count?: number
   payload?: unknown
 }
 
