@@ -18,6 +18,7 @@ import { storyCard } from './components/StoryCard';
 import { agentBubble } from './components/AgentBubble';
 import { qualityGauge } from './components/QualityGauge';
 import { characterGraph } from './components/CharacterGraph';
+import { branchTree } from './components/BranchTree';
 import { createTheaterStore } from './stores/theater';
 import { createReaderStore } from './stores/reader';
 import {
@@ -74,6 +75,11 @@ document.addEventListener('alpine:init', () => {
     // characters[] and relationships[] derived via stores/character-edges.ts
     // (co-occurrence heuristic, audit D2). Template wiring lands in Day-5.
     Alpine.data('characterGraph', characterGraph);
+
+    // M3 BranchTree — Canvas-rendered branch tree replacing legacy SVG treeVisualizer.
+    // Registered here (flag-gated); branching page wires template behind x-if.
+    // Legacy treeVisualizer (tree-visualizer.ts) is untouched; both coexist.
+    Alpine.data('branchTree', branchTree);
 
     // M2 Day-5 — theater store. Pipeline-page derived state populated by
     // sniffers from the SSE log stream (see stores/pipeline.ts bridge).

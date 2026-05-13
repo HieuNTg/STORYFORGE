@@ -364,3 +364,48 @@ function branchingPage() {
     },
   };
 }
+
+// ── BranchTree forge integration (additive, behind STORYFORGE_FORGE_UI) ────
+//
+// When the Forge UI flag is on, the branching page template can mount a
+// <canvas x-data="branchTree(...)"> instead of (or alongside) the legacy
+// <div x-data="treeVisualizer"> SVG tree.  The template decides which to
+// show via  x-if="$store.flags.forgeUi".  Legacy SVG tree remains untouched.
+//
+// This helper converts the branch /tree API response (TreeApiResponse shape
+// from tree-visualizer.ts) into the flat BranchNode[] that BranchTree needs.
+// It is a pure function — no side effects — so it is easy to unit-test.
+
+interface BranchTreeApiNode {
+  id: string;
+  text: string;
+  choices?: string[];
+  parent: string | null;
+  child_ids: string[];
+  depth: number;
+}
+
+interface BranchTreeApiResponse {
+  session_id: string;
+  root: string;
+  current: string;
+  nodes: Record<string, BranchTreeApiNode>;
+}
+
+/**
+ * Convert the /api/branch/:id/tree JSON response to a BranchNode[] list
+ * suitable for BranchTree.setData().
+ *
+ * Exported for unit testing (no Alpine dependency).
+ */
+export function treeApiToBranchNodes(
+  data: BranchTreeApiResponse,
+): Array<{ id: string; label: string; parentId: string | null; depth: number }> {
+  if (!data || !data.nodes) return [];
+  return Object.values(data.nodes).map((n) => ({
+    id: n.id,
+    label: n.text.slice(0, 40) + (n.text.length > 40 ? '…' : ''),
+    parentId: n.parent,
+    depth: n.depth,
+  }));
+}
