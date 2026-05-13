@@ -15,6 +15,7 @@ import { phaseTimeline } from './components/PhaseTimeline';
 import { genreOrb } from './components/GenreOrb';
 import { configPanel } from './components/ConfigPanel';
 import { storyCard } from './components/StoryCard';
+import { agentBubble } from './components/AgentBubble';
 import {
   createToastStore,
   toastItem,
@@ -56,6 +57,10 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('configPanel', configPanel);
     Alpine.data('storyCard', storyCard);
     Alpine.data('toastItem', toastItem);
+
+    // M2 Day-2 — AgentBubble factory. Template integration arrives when the
+    // pipeline page binds sniffers (sse-sniffers.ts) to per-agent state.
+    Alpine.data('agentBubble', agentBubble);
 
     // Toast store — singleton stack consumed by the toast region template.
     // attachToastHelper rebinds window.sfShowToast to the wider Forge
