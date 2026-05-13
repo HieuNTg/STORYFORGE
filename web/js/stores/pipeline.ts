@@ -165,6 +165,7 @@ export function createPipelineStore() {
       // emit calls are no-ops when the Forge flag is off (toast store absent).
       let lastPhase = 0;
       this._emitToast('info', 'Generation started');
+      this._theaterReset();
 
       try {
         for await (const event of API.stream(url, body)) {
@@ -182,6 +183,7 @@ export function createPipelineStore() {
             if (chapterTitle) {
               this._emitToast('success', `Chapter complete: ${chapterTitle}`);
             }
+            this._theaterApplyLog(event.data as string, nextPhase);
             lastPhase = nextPhase;
           } else if (event.type === 'stream') {
             this.livePreview = event.data as string;
@@ -195,14 +197,17 @@ export function createPipelineStore() {
             this.runFinishedAt = Date.now();
             // Sticky success — user must acknowledge.
             this._emitToast('success', 'Generation complete', 0);
+            this._theaterApplyDone(result);
           } else if (event.type === 'error') {
             this.error = event.data as string;
             this.status = 'error';
             this._emitToast('error', (event.data as string) || 'Generation failed');
+            this._theaterApplyError(event.data as string);
           } else if (event.type === 'interrupted') {
             this.error = 'Connection lost. You can resume from the last checkpoint.';
             this.status = 'interrupted';
             this._emitToast('warning', 'Connection lost — resume from checkpoint available');
+            this._theaterApplyInterrupted();
           }
         }
         if (this.status === 'running') {
@@ -247,6 +252,55 @@ export function createPipelineStore() {
       } catch {
         // Never let a toast error break the SSE pipeline. Diagnostic only.
       }
+    },
+
+    // Forge theater bridge — silent no-op when forge flag off (store absent).
+    // Mirrors the toast bridge pattern: try/catch wrapped, never lets a UI
+    // error break the SSE pipeline.
+    _theaterStore(): {
+      reset?: () => void;
+      applyLog?: (msg: string, progress: number) => void;
+      applyDone?: (payload: unknown) => void;
+      applyError?: (msg: string | null) => void;
+      applyInterrupted?: (msg: string | null) => void;
+    } | null {
+      try {
+        return (typeof Alpine !== 'undefined'
+          ? (Alpine as unknown as { store: (k: string) => unknown }).store('theater')
+          : null) as ReturnType<typeof this._theaterStore>;
+      } catch {
+        return null;
+      }
+    },
+    _theaterReset(): void {
+      try {
+        const s = this._theaterStore();
+        if (s && typeof s.reset === 'function') s.reset();
+      } catch { /* diagnostic only */ }
+    },
+    _theaterApplyLog(msg: string, progress: number): void {
+      try {
+        const s = this._theaterStore();
+        if (s && typeof s.applyLog === 'function') s.applyLog(msg, progress);
+      } catch { /* diagnostic only */ }
+    },
+    _theaterApplyDone(payload: unknown): void {
+      try {
+        const s = this._theaterStore();
+        if (s && typeof s.applyDone === 'function') s.applyDone(payload);
+      } catch { /* diagnostic only */ }
+    },
+    _theaterApplyError(msg: string | null): void {
+      try {
+        const s = this._theaterStore();
+        if (s && typeof s.applyError === 'function') s.applyError(msg);
+      } catch { /* diagnostic only */ }
+    },
+    _theaterApplyInterrupted(msg?: string | null): void {
+      try {
+        const s = this._theaterStore();
+        if (s && typeof s.applyInterrupted === 'function') s.applyInterrupted(msg ?? null);
+      } catch { /* diagnostic only */ }
     },
 
     async run(): Promise<void> {

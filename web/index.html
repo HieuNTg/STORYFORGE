@@ -663,7 +663,9 @@
 
       <!-- ═══ PIPELINE PAGE ═══ -->
       <template x-if="$store.app.page === 'pipeline'">
-      <div class="page-enter" x-data="pipelinePage()" x-init="init()" @keydown.escape.window="branchOpen = false">
+      <div class="page-enter" x-data="pipelinePage()" x-init="init()" @keydown.escape.window="branchOpen = false"
+           data-page="pipeline"
+           :data-state="$store.flags?.forgeUi ? ($store.theater?.pageState || 'idle') : null">
         <div class="max-w-3xl mx-auto space-y-4">
             <!-- Piece O: resume-from-checkpoint callout. Only renders when the user
                  came from the library "Tiếp từ ch.N" button (resumeFromChapter is set)
@@ -720,6 +722,105 @@
                 <span class="text-brand-500">›</span> <span x-text="$store.pipeline.currentLog"></span>
               </p>
             </div>
+
+            <!-- ═══ FORGE THEATER (flag-gated, additive) ═══
+                 Live AgentBubble stack + QualityGauge + CharacterGraph bound
+                 to $store.theater. Only renders while generating/done — idle
+                 stays out of the way. CSS state morphs live under
+                 :root[data-forge-ui="on"] [data-page="pipeline"][data-state="..."]. -->
+            <template x-if="$store.flags?.forgeUi && $store.theater && $store.theater.pageState !== 'idle'">
+              <section class="sf-theater" aria-label="Pipeline theater">
+                <header class="sf-theater__header">
+                  <h3 class="sf-theater__title">Forge Theater</h3>
+                  <span class="sf-theater__state" x-text="$store.theater.pageState"></span>
+                </header>
+
+                <!-- Agent bubble stack -->
+                <div class="sf-theater__agents" role="list" aria-label="Agents speaking">
+                  <template x-for="a in $store.theater.agents" :key="a.id">
+                    <div role="listitem" x-data="agentBubble({
+                          id: a.id, name: a.name, state: a.state,
+                          message: a.message, score: a.score
+                        })">
+                      <article class="sf-agent-bubble" :data-state="state" :aria-label="ariaLabel">
+                        <header class="sf-agent-bubble__head">
+                          <span class="sf-agent-bubble__name" x-text="name"></span>
+                          <span class="sf-agent-bubble__state" x-text="state"></span>
+                        </header>
+                        <p class="sf-agent-bubble__msg" x-text="message"></p>
+                      </article>
+                    </div>
+                  </template>
+                  <p x-show="$store.theater.agents.length === 0" class="sf-theater__empty">
+                    Đang chờ tín hiệu agent…
+                  </p>
+                </div>
+
+                <!-- Quality gauge — only when we have a value (done state). -->
+                <template x-if="$store.theater.pageState === 'done' && $store.theater.quality && $store.theater.quality.value > 0">
+                  <div x-data="qualityGauge({
+                        value: $store.theater.quality.value,
+                        dimensions: $store.theater.quality.dimensions
+                      })" class="sf-theater__quality">
+                    <div class="sf-quality-gauge" :aria-label="ariaLabel" role="img">
+                      <div class="sf-quality-gauge__value" x-text="display"></div>
+                      <ul class="sf-quality-gauge__dims">
+                        <template x-for="d in dimensions" :key="d.name">
+                          <li class="sf-quality-gauge__dim">
+                            <span class="sf-quality-gauge__dim-name" x-text="d.name"></span>
+                            <span class="sf-quality-gauge__dim-value" x-text="(d.value * 100).toFixed(0) + '%'"></span>
+                          </li>
+                        </template>
+                      </ul>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- Character graph — renders once we have characters. -->
+                <template x-if="$store.theater.characters && $store.theater.characters.length > 0">
+                  <div x-data="characterGraph({
+                        characters: $store.theater.characters,
+                        relationships: $store.theater.relationships,
+                        width: 600, height: 360,
+                        prefersReducedMotion: window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+                      })" x-init="init(); $watch('$store.theater.graphTick', () => setData($store.theater.characters, $store.theater.relationships))"
+                      @beforeunload.window="destroy()" class="sf-theater__graph">
+                    <canvas x-ref="canvas" x-init="attachCanvas($refs.canvas)"
+                            @pointerdown="handlePointerDown($event)"
+                            @pointermove="handlePointerMove($event)"
+                            @pointerup="handlePointerUp($event)"
+                            @pointerleave="handlePointerUp($event)"
+                            class="sf-character-graph" role="img"
+                            aria-label="Đồ thị quan hệ nhân vật"></canvas>
+                    <!-- SR fallback: per-character edge list. -->
+                    <ul class="sr-only">
+                      <template x-for="entry in srEntries" :key="entry.name">
+                        <li>
+                          <strong x-text="entry.name"></strong>
+                          <template x-if="entry.edges.length === 0"><span> không có quan hệ.</span></template>
+                          <ul>
+                            <template x-for="e in entry.edges" :key="e.otherName + e.type">
+                              <li x-text="e.otherName + ' — ' + e.type + ' (' + (e.intensity * 100).toFixed(0) + '%)'"></li>
+                            </template>
+                          </ul>
+                        </li>
+                      </template>
+                    </ul>
+                  </div>
+                </template>
+
+                <!-- Debate marker strip — most recent [DEBATE] line. -->
+                <p x-show="$store.theater.lastDebateMarker"
+                   class="sf-theater__debate" aria-live="polite">
+                  <span class="sf-theater__debate-tag">DEBATE</span>
+                  <span x-text="$store.theater.lastDebateMarker"></span>
+                </p>
+                <p x-show="$store.theater.readerChapter !== null"
+                   class="sf-theater__reader" aria-live="polite">
+                  Reader đang mô phỏng chương <span x-text="$store.theater.readerChapter"></span>
+                </p>
+              </section>
+            </template>
 
             <!-- Story Idea — Hero element -->
             <div class="card sf-card-hero p-5 pt-[18px] space-y-3">

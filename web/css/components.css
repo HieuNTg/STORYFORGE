@@ -472,6 +472,204 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
+
+/* ── Forge Theater (Day-5 pipeline surface) ────────────────────────────── */
+:root[data-forge-ui="on"] .sf-theater {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sf-space-3);
+  padding: var(--sf-space-4);
+  border-radius: var(--sf-radius-lg);
+  background: var(--sf-bg-surface);
+  border: 1px solid var(--sf-border-subtle, rgba(148, 163, 184, 0.18));
+  transition: background 320ms ease, border-color 320ms ease;
+}
+:root[data-forge-ui="on"] .sf-theater__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+:root[data-forge-ui="on"] .sf-theater__title {
+  font-size: var(--sf-text-body);
+  font-weight: 600;
+  color: var(--sf-text-primary);
+}
+:root[data-forge-ui="on"] .sf-theater__state {
+  font-size: var(--sf-text-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sf-text-secondary);
+}
+:root[data-forge-ui="on"] .sf-theater__agents {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--sf-space-2);
+}
+:root[data-forge-ui="on"] .sf-theater__empty {
+  font-size: var(--sf-text-caption);
+  color: var(--sf-text-secondary);
+  text-align: center;
+  padding: var(--sf-space-4) 0;
+}
+:root[data-forge-ui="on"] .sf-agent-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sf-space-1);
+  padding: var(--sf-space-2);
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-elevated);
+  border: 1px solid transparent;
+  transition: border-color 200ms ease, transform 200ms ease;
+}
+:root[data-forge-ui="on"] .sf-agent-bubble__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--sf-text-caption);
+}
+:root[data-forge-ui="on"] .sf-agent-bubble__name {
+  font-weight: 600;
+  color: var(--sf-text-primary);
+}
+:root[data-forge-ui="on"] .sf-agent-bubble__state {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--sf-text-secondary);
+}
+:root[data-forge-ui="on"] .sf-agent-bubble__msg {
+  font-size: var(--sf-text-caption);
+  color: var(--sf-text-primary);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+:root[data-forge-ui="on"] .sf-agent-bubble[data-state="thinking"] {
+  border-color: rgba(99, 102, 241, 0.45);
+}
+:root[data-forge-ui="on"] .sf-agent-bubble[data-state="speaking"] {
+  border-color: rgba(16, 185, 129, 0.45);
+}
+:root[data-forge-ui="on"] .sf-agent-bubble[data-state="debating"] {
+  border-color: rgba(244, 114, 182, 0.55);
+  transform: translateY(-1px);
+}
+:root[data-forge-ui="on"] .sf-agent-bubble[data-state="voting"] {
+  border-color: rgba(245, 158, 11, 0.6);
+}
+:root[data-forge-ui="on"] .sf-agent-bubble[data-state="done"] {
+  opacity: 0.7;
+}
+
+/* Quality gauge */
+:root[data-forge-ui="on"] .sf-quality-gauge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sf-space-2);
+  padding: var(--sf-space-3);
+  border-radius: var(--sf-radius-md);
+  background: var(--sf-bg-elevated);
+}
+:root[data-forge-ui="on"] .sf-quality-gauge__value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--sf-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+:root[data-forge-ui="on"] .sf-quality-gauge__dims {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sf-space-2);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+:root[data-forge-ui="on"] .sf-quality-gauge__dim {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sf-space-1);
+  padding: 0 var(--sf-space-2);
+  border-radius: var(--sf-radius-pill, 9999px);
+  background: var(--sf-bg-surface);
+  font-size: var(--sf-text-caption);
+}
+:root[data-forge-ui="on"] .sf-quality-gauge__dim-name {
+  color: var(--sf-text-secondary);
+}
+:root[data-forge-ui="on"] .sf-quality-gauge__dim-value {
+  color: var(--sf-text-primary);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Character graph canvas */
+:root[data-forge-ui="on"] .sf-theater__graph {
+  display: block;
+  border-radius: var(--sf-radius-md);
+  overflow: hidden;
+  background: var(--sf-bg-elevated);
+}
+:root[data-forge-ui="on"] .sf-character-graph {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 360px;
+  touch-action: none;
+}
+
+/* Debate + reader strips */
+:root[data-forge-ui="on"] .sf-theater__debate,
+:root[data-forge-ui="on"] .sf-theater__reader {
+  font-size: var(--sf-text-caption);
+  color: var(--sf-text-primary);
+  padding: var(--sf-space-1) var(--sf-space-2);
+  border-radius: var(--sf-radius-sm, 6px);
+  background: var(--sf-bg-elevated);
+}
+:root[data-forge-ui="on"] .sf-theater__debate-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(236, 72, 153, 0.95);
+  margin-right: var(--sf-space-2);
+}
+
+/* Pipeline-page state morphs — driven by data-state on the page wrapper. */
+:root[data-forge-ui="on"] [data-page="pipeline"][data-state="generating"] .sf-theater {
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.05), var(--sf-bg-surface));
+  border-color: rgba(99, 102, 241, 0.25);
+}
+:root[data-forge-ui="on"] [data-page="pipeline"][data-state="done"] .sf-theater {
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.06), var(--sf-bg-surface));
+  border-color: rgba(16, 185, 129, 0.3);
+}
+:root[data-forge-ui="on"] [data-page="pipeline"][data-state="error"] .sf-theater {
+  background: linear-gradient(180deg, rgba(244, 63, 94, 0.06), var(--sf-bg-surface));
+  border-color: rgba(244, 63, 94, 0.35);
+  animation: sf-theater-shake 320ms ease;
+}
+:root[data-forge-ui="on"] [data-page="pipeline"][data-state="interrupted"] .sf-theater {
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.06), var(--sf-bg-surface));
+  border-color: rgba(245, 158, 11, 0.35);
+}
+@keyframes sf-theater-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-forge-ui="on"] [data-page="pipeline"][data-state="error"] .sf-theater {
+    animation: none;
+  }
+  :root[data-forge-ui="on"] .sf-agent-bubble {
+    transition: none;
+  }
+}
 :root[data-forge-ui="on"] .sf-story-card__cover .sf-genre-orb {
   width: 56px;
   height: 56px;

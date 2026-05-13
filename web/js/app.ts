@@ -18,6 +18,7 @@ import { storyCard } from './components/StoryCard';
 import { agentBubble } from './components/AgentBubble';
 import { qualityGauge } from './components/QualityGauge';
 import { characterGraph } from './components/CharacterGraph';
+import { createTheaterStore } from './stores/theater';
 import {
   createToastStore,
   toastItem,
@@ -72,6 +73,11 @@ document.addEventListener('alpine:init', () => {
     // characters[] and relationships[] derived via stores/character-edges.ts
     // (co-occurrence heuristic, audit D2). Template wiring lands in Day-5.
     Alpine.data('characterGraph', characterGraph);
+
+    // M2 Day-5 — theater store. Pipeline-page derived state populated by
+    // sniffers from the SSE log stream (see stores/pipeline.ts bridge).
+    // Components (AgentBubble / QualityGauge / CharacterGraph) bind here.
+    Alpine.store('theater', createTheaterStore());
 
     // Toast store — singleton stack consumed by the toast region template.
     // attachToastHelper rebinds window.sfShowToast to the wider Forge
