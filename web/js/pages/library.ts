@@ -145,7 +145,7 @@ function libraryPage() {
     jumpDismissed: false as boolean,
 
     // Forge surface — view-mode toggle (Grid / List). Only used when the
-    // STORYFORGE_FORGE_UI flag is on; legacy list is unaffected.
+    // Forge UI is shipped on (legacy list removed sprint perf/forge-shell-2).
     viewMode: 'grid' as LibraryViewMode,
 
     // Computed: current view mode

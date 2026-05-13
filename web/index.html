@@ -644,7 +644,7 @@
       <template x-if="$store.app.page === 'pipeline'">
       <div class="page-enter" x-data="pipelinePage()" x-init="init()" @keydown.escape.window="branchOpen = false"
            data-page="pipeline"
-           :data-state="$store.flags?.forgeUi ? ($store.theater?.pageState || 'idle') : null">
+           :data-state="$store.theater?.pageState || 'idle'">
         <div class="max-w-3xl mx-auto space-y-4">
             <!-- Piece O: resume-from-checkpoint callout. Only renders when the user
                  came from the library "Tiếp từ ch.N" button (resumeFromChapter is set)
@@ -702,12 +702,12 @@
               </p>
             </div>
 
-            <!-- ═══ FORGE THEATER (flag-gated, additive) ═══
+            <!-- ═══ FORGE THEATER (additive) ═══
                  Live AgentBubble stack + QualityGauge + CharacterGraph bound
                  to $store.theater. Only renders while generating/done — idle
                  stays out of the way. CSS state morphs live under
                  :root[data-forge-ui="on"] [data-page="pipeline"][data-state="..."]. -->
-            <template x-if="$store.flags?.forgeUi && $store.theater && $store.theater.pageState !== 'idle'">
+            <template x-if="$store.theater && $store.theater.pageState !== 'idle'">
               <section class="sf-theater" aria-label="Pipeline theater">
                 <header class="sf-theater__header">
                   <h3 class="sf-theater__title">Forge Theater</h3>
@@ -1703,9 +1703,8 @@
       <template x-if="$store.app.page === 'settings'">
       <div class="page-enter" x-data="settingsPage()">
 
-        <!-- Forge: first-time wizard (flag-gated) -->
-        <template x-if="$store.flags?.forgeUi">
-          <div x-data="forgeSettingsWizard()" x-init="show = shouldShow()">
+        <!-- Forge: first-time wizard -->
+        <div x-data="forgeSettingsWizard()" x-init="show = shouldShow()">
             <template x-if="show">
               <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Settings wizard">
                 <div class="bg-white dark:bg-surface-900 rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-5">
@@ -1782,7 +1781,6 @@
               </div>
             </template>
           </div>
-        </template>
 
         <div class="max-w-3xl mx-auto space-y-4">
 
@@ -2296,120 +2294,7 @@
             </div>
           </template>
 
-          <!-- Story list — LEGACY surface (flag OFF, default). -->
-          <template x-if="stories.length > 0 && !$store.flags?.forgeUi">
-            <div class="space-y-2.5">
-              <template x-for="story in filteredStories" :key="story.path">
-                <div class="sf-story-card group" @click="openStory(story.path)">
-                  <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-50 to-violet-50 dark:from-brand-900/20 dark:to-violet-900/20 flex items-center justify-center flex-shrink-0">
-                      <svg class="w-4.5 h-4.5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                      <div class="flex items-center gap-2 mb-0.5">
-                        <h3 class="font-semibold text-sm text-slate-800 dark:text-slate-200 truncate" x-text="story.title || story.path"></h3>
-                        <span class="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide" :class="layerColor(story.current_layer)" x-text="layerLabel(story.current_layer)"></span>
-                      </div>
-                      <div class="flex items-center gap-2.5 text-[11px] text-slate-400 dark:text-slate-300">
-                        <span x-show="story.genre" class="inline-flex items-center gap-1">
-                          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/></svg>
-                          <span x-text="story.genre"></span>
-                        </span>
-                        <span class="inline-flex items-center gap-1">
-                          <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.01v.01H3.75V6.75z"/></svg>
-                          <span x-text="story.chapter_count + ' chương'"></span>
-                        </span>
-                        <span x-text="story.modified"></span>
-                        <span class="text-slate-300 dark:text-slate-600">·</span>
-                        <span x-text="story.size_kb + ' KB'"></span>
-                        <template x-if="qualityForStory(story.path)">
-                          <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-medium"
-                                :class="overallPillClass(qualityForStory(story.path).overall)">
-                            <span x-text="'Tổng: ' + qualityForStory(story.path).overall.toFixed(1) + '/5'"></span>
-                            <span class="opacity-60">·</span>
-                            <span x-text="'Yếu nhất: ch.' + qualityForStory(story.path).weakest_chapter + ' (' + qualityForStory(story.path).weakest_score.toFixed(1) + ')'"></span>
-                          </span>
-                        </template>
-                        <template x-if="recentContinuationFor(story)">
-                          <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-medium bg-emerald-50 text-emerald-700 border-emerald-200">
-                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z"/></svg>
-                            <span x-text="'Vừa viết tiếp +' + recentContinuationFor(story).added + ' chương · ' + relativeTimeVi(recentContinuationFor(story).ts)"></span>
-                          </span>
-                        </template>
-                        <template x-if="interruptedInfo(story)">
-                          <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-medium bg-rose-50 text-rose-700 border-rose-200"
-                                :title="'Pipeline dừng giữa chừng — còn ' + (interruptedInfo(story).target - (story.chapter_count || 0)) + ' chương chưa viết'">
-                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
-                            <span x-text="'Tạm dừng — chương ' + (story.chapter_count || 0) + '/' + interruptedInfo(story).target"></span>
-                          </span>
-                        </template>
-                        <template x-if="usageForStory(story)">
-                          <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-medium"
-                                :class="usagePillClass(usageForStory(story))"
-                                :title="'Chi phí LLM ước tính cho truyện này'">
-                            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                            <span x-text="formatUsageLabel(usageForStory(story))"></span>
-                          </span>
-                        </template>
-                      </div>
-                    </div>
-                    <div class="flex items-center gap-0.5 flex-shrink-0">
-                      <template x-if="loadingStory === story.path">
-                        <svg class="w-5 h-5 animate-spin text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                      </template>
-                      <template x-if="interruptedInfo(story)">
-                        <button
-                          @click.stop="resumeStory(story)"
-                          class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-all cursor-pointer"
-                          :title="'Tiếp tục từ chương ' + interruptedInfo(story).resumeFrom"
-                        >
-                          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
-                          <span x-text="'Tiếp từ ch.' + interruptedInfo(story).resumeFrom"></span>
-                        </button>
-                      </template>
-                      <button
-                        @click.stop="continueStory(story)"
-                        class="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
-                        title="Viết tiếp chương mới"
-                      >
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z"/></svg>
-                      </button>
-                      <button
-                        @click.stop="generateImages(story)"
-                        :disabled="generatingImages === story.path"
-                        class="p-1.5 rounded-lg text-slate-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 opacity-0 group-hover:opacity-100 transition-all cursor-pointer disabled:opacity-50"
-                        title="Tạo ảnh minh hoạ cho từng chương"
-                      >
-                        <template x-if="generatingImages === story.path">
-                          <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                        </template>
-                        <template x-if="generatingImages !== story.path">
-                          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"/></svg>
-                        </template>
-                      </button>
-                      <span class="text-xs text-brand-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity px-1">Mở</span>
-                      <button
-                        @click.stop="confirmDelete === story.path ? deleteStory(story.path) : confirmDelete = story.path"
-                        class="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
-                        :class="{ '!opacity-100 text-red-500 bg-red-50 dark:bg-red-900/20': confirmDelete === story.path }"
-                        :title="confirmDelete === story.path ? 'Click lần nữa để xác nhận xóa' : 'Xóa truyện'"
-                      >
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </template>
 
-              <!-- Empty search result -->
-              <template x-if="filteredStories.length === 0 && searchQuery">
-                <div class="text-center py-8 text-sm text-slate-400">Không tìm thấy truyện nào khớp "<span x-text="searchQuery" class="font-medium"></span>"</div>
-              </template>
-            </div>
-          </template>
-
-          <!-- Story list — FORGE surface (flag ON). Uses StoryCard + GenreOrb. -->
-          <template x-if="stories.length > 0 && $store.flags?.forgeUi">
             <div class="sf-library-forge"
                  @sf:story-open.window="onStoryOpen($event.detail.id)"
                  @sf:story-continue.window="onStoryContinue($event.detail.id)"
@@ -2493,30 +2378,24 @@
                 </template>
               </div>
             </div>
-          </template>
           </div>
           </template>
 
           <!-- ══ READER VIEW ══ -->
           <template x-if="isReading">
           <div
-            :class="$store.flags?.forgeUi && $store.reader ? 'sf-reader sf-reader--' + $store.reader.theme + ' sf-reader--col-' + $store.reader.column : ''"
-            :style="$store.flags?.forgeUi && $store.reader ? ('--sf-reader-font-size:' + $store.reader.fontSize + 'px; --sf-reader-line-height:' + $store.reader.lineHeight + '; --sf-reader-font-family:' + $store.reader.fontFamilyCss) : ''">
-            <!-- M3: Reading progress bar — fixed at viewport top, forgeUi only. -->
-            <template x-if="$store.flags?.forgeUi">
+            :class="$store.reader ? 'sf-reader sf-reader--' + $store.reader.theme + ' sf-reader--col-' + $store.reader.column : ''"
+            :style="$store.reader ? ('--sf-reader-font-size:' + $store.reader.fontSize + 'px; --sf-reader-line-height:' + $store.reader.lineHeight + '; --sf-reader-font-family:' + $store.reader.fontFamilyCss) : ''">
+            <!-- M3: Reading progress bar — fixed at viewport top. -->
               <div class="sf-reader__progress-bar" role="progressbar" :aria-valuenow="readingProgress" aria-valuemin="0" aria-valuemax="100" aria-label="Tiến độ đọc">
                 <div class="sf-reader__progress-fill" :style="'width:' + readingProgress + '%'"></div>
               </div>
-            </template>
-            <!-- M3: Chapter sidebar scrim (mobile overlay), forgeUi only. -->
-            <template x-if="$store.flags?.forgeUi">
+            <!-- M3: Chapter sidebar scrim (mobile overlay). -->
               <div class="sf-reader__sidebar-scrim"
                    :data-open="sidebarOpen ? 'true' : 'false'"
                    @click="toggleSidebar()"
                    aria-hidden="true"></div>
-            </template>
-            <!-- M3: Chapter sidebar, forgeUi only. -->
-            <template x-if="$store.flags?.forgeUi">
+            <!-- M3: Chapter sidebar. -->
               <nav class="sf-reader__sidebar"
                    :data-open="sidebarOpen ? 'true' : 'false'"
                    aria-label="Danh sách chương">
@@ -2545,9 +2424,8 @@
                   </template>
                 </ul>
               </nav>
-            </template>
             <!-- Forge reader toolbar — typography + theme controls, persisted via $store.reader. -->
-            <template x-if="$store.flags?.forgeUi && $store.reader">
+            <template x-if="$store.reader">
               <div class="sf-reader__toolbar" role="toolbar" aria-label="Reader preferences">
                 <div class="sf-reader__group" aria-label="Cỡ chữ">
                   <span class="sf-reader__group-label" aria-hidden="true">Aa</span>
@@ -2622,8 +2500,7 @@
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
-                  <!-- M3: Chapter sidebar toggle — forgeUi only. -->
-                  <template x-if="$store.flags?.forgeUi">
+                  <!-- M3: Chapter sidebar toggle. -->
                     <button type="button"
                             class="sf-reader__sidebar-toggle"
                             @click="toggleSidebar()"
@@ -2633,16 +2510,7 @@
                       <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12"/></svg>
                       <span x-text="(chapter+1) + '/' + chapters.length"></span>
                     </button>
-                  </template>
                   <!-- Legacy inline font-size control (flag-OFF path). -->
-                  <template x-if="!$store.flags?.forgeUi">
-                    <div class="inline-flex items-center gap-1 bg-surface-50 dark:bg-surface-800 rounded-lg px-2 py-1">
-                      <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wide">Aa</span>
-                      <button @click="fontSize = Math.max(14, fontSize - 2)" class="w-6 h-6 rounded text-slate-500 text-sm font-bold cursor-pointer hover:bg-white">−</button>
-                      <span class="text-[11px] text-slate-600 w-5 text-center font-mono" x-text="fontSize"></span>
-                      <button @click="fontSize = Math.min(28, fontSize + 2)" class="w-6 h-6 rounded text-slate-500 text-sm font-bold cursor-pointer hover:bg-white">+</button>
-                    </div>
-                  </template>
                   <button @click="continueStory()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z"/></svg>
                     Viết tiếp
@@ -2783,8 +2651,8 @@
                       </template>
                     </div>
                   </div>
-                  <!-- M3: Portrait-injected prose (forgeUi). Paragraphs come from readerPage.paragraphs. -->
-                  <template x-if="$store.flags?.forgeUi && paragraphs.length > 0">
+                  <!-- M3: Portrait-injected prose. Paragraphs come from readerPage.paragraphs. -->
+                  <template x-if="paragraphs.length > 0">
                     <div class="sf-reader__prose" data-reader-content>
                       <template x-for="(para, i) in paragraphs" :key="i">
                         <div class="sf-reader__para-block">
@@ -2800,11 +2668,11 @@
                       </template>
                     </div>
                   </template>
-                  <!-- Fallback prose (forgeUi but no paragraphs yet, or flag-OFF). -->
-                  <template x-if="!(($store.flags?.forgeUi) && paragraphs.length > 0)">
+                  <!-- Fallback prose (no paragraphs yet). -->
+                  <template x-if="!(paragraphs.length > 0)">
                     <div
-                      :class="$store.flags?.forgeUi && $store.reader ? 'sf-reader__prose' : 'text-slate-700 whitespace-pre-wrap leading-[1.9]'"
-                      :style="$store.flags?.forgeUi && $store.reader ? '' : ('font-size:' + fontSize + 'px')"
+                      :class="$store.reader ? 'sf-reader__prose' : 'text-slate-700 whitespace-pre-wrap leading-[1.9]'"
+                      :style="$store.reader ? '' : ('font-size:' + fontSize + 'px')"
                       data-reader-content
                       x-html="(currentChapter.content || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
                   </template>
@@ -2870,7 +2738,6 @@
                 </select>
               </div>
               <!-- Document formats — Forge visual cards (flag ON) -->
-              <template x-if="$store.flags?.forgeUi">
                 <div x-data="forgeExportCards()" class="space-y-3">
                   <div class="card p-5">
                     <div class="flex items-center gap-2 mb-4">
@@ -2942,40 +2809,8 @@
                     </template>
                   </div>
                 </div>
-              </template>
 
               <!-- Document formats — legacy tiles (flag OFF) -->
-              <template x-if="!$store.flags?.forgeUi">
-                <div class="card p-5">
-                  <div class="flex items-center gap-2 mb-4">
-                    <span class="sf-step-badge">2</span>
-                    <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn định dạng</h3>
-                  </div>
-                  <div class="grid grid-cols-3 gap-3">
-                    <button @click="exportFormat('pdf')" :disabled="exporting" class="sf-export-tile">
-                      <div class="ico" style="background: linear-gradient(135deg, rgba(239,68,68,0.12), rgba(249,115,22,0.08));">
-                        <svg class="w-5 h-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
-                      </div>
-                      <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'pdf' ? 'Đang xuất...' : 'PDF'"></span>
-                      <span class="text-[10px] text-slate-400">In ấn · A4</span>
-                    </button>
-                    <button @click="exportFormat('epub')" :disabled="exporting" class="sf-export-tile">
-                      <div class="ico" style="background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(37,99,235,0.08));">
-                        <svg class="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"/></svg>
-                      </div>
-                      <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'epub' ? 'Đang xuất...' : 'EPUB'"></span>
-                      <span class="text-[10px] text-slate-400">Kindle · đọc số</span>
-                    </button>
-                    <button @click="exportZip()" :disabled="exporting" class="sf-export-tile">
-                      <div class="ico" style="background: linear-gradient(135deg, rgba(37,99,235,0.12), rgba(139,92,246,0.08));">
-                        <svg class="w-5 h-5 text-brand-600" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/></svg>
-                      </div>
-                      <span class="text-sm font-semibold text-slate-700 dark:text-slate-200" x-text="exporting === 'zip' ? 'Đang xuất...' : 'ZIP'"></span>
-                      <span class="text-[10px] text-slate-400">Tất cả · lưu trữ</span>
-                    </button>
-                  </div>
-                </div>
-              </template>
               <div x-show="message" x-transition class="flex items-center gap-2 px-4 py-3 rounded-lg text-sm"
                 :class="message.startsWith('Error') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'">
                 <svg x-show="!message.startsWith('Error')" class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
@@ -3435,7 +3270,6 @@
                       </div>
 
                       <!-- Tree visualization — Forge canvas (flag ON) -->
-                      <template x-if="$store.flags?.forgeUi">
                         <div x-data="forgeBranchTreeMount()" x-effect="setSession(sessionId)" class="sf-branch-tree-wrap">
                           <button @click="refresh()"
                             class="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors bg-surface-100 dark:bg-surface-800 text-slate-600 dark:text-slate-300 hover:bg-surface-200 dark:hover:bg-surface-700 inline-flex items-center gap-1.5"
@@ -3469,44 +3303,8 @@
                             </div>
                           </template>
                         </div>
-                      </template>
 
                       <!-- Tree visualization — legacy SVG (flag OFF) -->
-                      <template x-if="!$store.flags?.forgeUi">
-                        <div x-data="treeVisualizer()" x-effect="setSession(sessionId)">
-                          <button @click="toggleTree(sessionId)"
-                            class="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors bg-surface-100 dark:bg-surface-800 text-slate-600 dark:text-slate-300 hover:bg-surface-200 dark:hover:bg-surface-700 inline-flex items-center gap-1.5">
-                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 01-1.125-1.125v-3.75zM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-8.25zM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-2.25z"/></svg>
-                            <span x-text="showTree ? 'Hide Tree' : 'Show Tree'"></span>
-                          </button>
-                          <div x-show="showTree" x-transition class="mt-3 card overflow-x-auto">
-                            <template x-if="treeLoading">
-                              <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-300">Loading tree...</div>
-                            </template>
-                            <template x-if="treeLayout && treeLayout.nodes.length > 0">
-                              <svg :viewBox="viewBox" class="min-w-full" :style="'min-height:' + treeLayout.height + 'px'" xmlns="http://www.w3.org/2000/svg">
-                                <template x-for="edge in treeLayout.edges" :key="edge.x1 + '-' + edge.y1 + '-' + edge.x2 + '-' + edge.y2">
-                                  <line :x1="edge.x1" :y1="edge.y1" :x2="edge.x2" :y2="edge.y2" class="stroke-surface-300 dark:stroke-surface-600" stroke-width="2"/>
-                                </template>
-                                <template x-for="node in treeLayout.nodes" :key="node.id">
-                                  <g class="cursor-pointer" @click="gotoNode($data.sessionId || sessionId, node.id).then(n => { if(n) { $data.currentNode = n; if($data.history) $data.history = []; refreshTree($data.sessionId || sessionId); } })">
-                                    <circle :cx="node.x" :cy="node.y" r="18"
-                                      :class="node.isCurrent ? 'fill-brand-500 stroke-brand-300' : 'fill-surface-200 dark:fill-surface-700 stroke-surface-400 dark:stroke-surface-500'"
-                                      stroke-width="2"/>
-                                    <text :x="node.x" :y="node.y + 32" text-anchor="middle" class="fill-slate-500 dark:fill-slate-400" font-size="9" x-text="node.label"></text>
-                                  </g>
-                                </template>
-                              </svg>
-                            </template>
-                            <template x-if="!treeLoading && treeError">
-                              <div class="p-4 text-center text-sm text-red-500 dark:text-red-400" x-text="treeError"></div>
-                            </template>
-                            <template x-if="!treeLoading && !treeError && (!treeLayout || treeLayout.nodes.length === 0)">
-                              <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-300">No tree data available. Try navigating first.</div>
-                            </template>
-                          </div>
-                        </div>
-                      </template>
                     </div>
                   </template>
                 </div>
@@ -3773,7 +3571,6 @@
        (WCAG 2.1 SC 4.1.3). The store is registered in app.ts only when the
        flag is on, so `$store.toasts` is undefined for legacy users — the
        optional chain keeps the template inert in that path. -->
-  <template x-if="$store.flags?.forgeUi">
     <div>
       <ul class="sf-toast-region" aria-label="Notifications" role="status" aria-live="polite">
         <template x-for="t in ($store.toasts?.items || []).filter((x) => !$store.toasts.isAssertive(x.variant))" :key="t.id">
@@ -3796,6 +3593,5 @@
         </template>
       </ul>
     </div>
-  </template>
 </body>
 </html>

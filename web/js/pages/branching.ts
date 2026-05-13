@@ -365,12 +365,11 @@ function branchingPage() {
   };
 }
 
-// ── BranchTree forge integration (additive, behind STORYFORGE_FORGE_UI) ────
+// ── BranchTree forge integration ──────────────────────────────────────────
 //
-// When the Forge UI flag is on, the branching page template can mount a
-// <canvas x-data="branchTree(...)"> instead of (or alongside) the legacy
-// <div x-data="treeVisualizer"> SVG tree.  The template decides which to
-// show via  x-if="$store.flags.forgeUi".  Legacy SVG tree remains untouched.
+// The branching page template mounts a <canvas x-data="branchTree(...)">
+// alongside the legacy <div x-data="treeVisualizer"> SVG tree.  Both render;
+// the template decides which is shown.  Legacy SVG tree remains untouched.
 //
 // This helper converts the branch /tree API response (TreeApiResponse shape
 // from tree-visualizer.ts) into the flat BranchNode[] that BranchTree needs.
@@ -414,8 +413,8 @@ export function treeApiToBranchNodes(
  * forgeBranchTreeMount — Alpine.data factory that owns the data-fetch lifecycle
  * for the Forge BranchTree canvas component.
  *
- * Registered in app.ts inside the forgeUiOn block as Alpine.data('forgeBranchTreeMount', forgeBranchTreeMount).
- * The branching page template mounts this behind <template x-if="$store.flags?.forgeUi">.
+ * Registered in app.ts as Alpine.data('forgeBranchTreeMount', forgeBranchTreeMount).
+ * The branching page template mounts this directly (Forge UI shipped on).
  *
  * setSession(s) is called via x-effect whenever the parent branchReader's
  * sessionId changes. refresh() fetches /api/branch/:id/tree, converts the

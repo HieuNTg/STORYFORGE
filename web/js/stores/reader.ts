@@ -1,7 +1,7 @@
 /**
  * reader store — Forge UI typography + bookmark state for the Reader surface.
  *
- * Singleton store registered as `$store.reader`, only when STORYFORGE_FORGE_UI
+ * Singleton store registered as `$store.reader` (Forge UI shipped on, STORYFORGE_FORGE_UI
  * is on. Pure presenter state — every field is hydrated from localStorage on
  * construction, and every setter persists back to localStorage immediately.
  *

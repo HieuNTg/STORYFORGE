@@ -1,10 +1,10 @@
 /**
- * E2E smoke spec — Branching page (flag ON).
+ * E2E smoke spec — Branching page.
  *
  * Gate: STORYFORGE_E2E_LIVE=1 → real backend; absent → fully mocked.
  *
  * What is tested (mocked):
- *   1. forgeBranchTreeMount renders (canvas mount visible after forgeUi flag set).
+ *   1. forgeBranchTreeMount renders (canvas mount visible).
  *   2. srEntries <ul> is present in DOM (screen-reader fallback).
  *   3. Keyboard nav fires sf:branch-navigate custom event.
  *   4. axe-core: 0 critical violations.
@@ -26,15 +26,9 @@ const MOCK_TREE = {
   current_node_id: 'n0',
 };
 
-test.describe('Branching page smoke (flag ON)', () => {
+test.describe('Branching page smoke', () => {
   test.beforeEach(async ({ page }) => {
     if (LIVE) return;
-
-    await page.addInitScript(() => {
-      try {
-        localStorage.setItem('sf_flag_forgeUi', '1');
-      } catch (_) {}
-    });
 
     // Mock /api/branch/:id/tree
     await page.route('**/api/branch/*/tree', (route) =>

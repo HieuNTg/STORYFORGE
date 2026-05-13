@@ -63,7 +63,6 @@ function ensureReportsDir(): void {
 async function setTheme(page: Page, theme: 'light' | 'dark'): Promise<void> {
   await page.addInitScript((t: string) => {
     try { localStorage.setItem('sf_theme', t); } catch (_) {}
-    try { localStorage.setItem('STORYFORGE_FORGE_UI', '1'); } catch (_) {}
   }, theme);
 }
 

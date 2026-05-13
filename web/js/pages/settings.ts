@@ -397,7 +397,7 @@ function settingsPage() {
   };
 }
 
-// ── Settings Guided Wizard (M4-B2, flag-gated behind STORYFORGE_FORGE_UI) ──
+// ── Settings Guided Wizard (M4-B2) ──
 //
 // First-time user heuristic: no API key configured AND no localStorage flag
 // `sf:settings-wizard-dismissed`. Three steps: pick provider → paste key →

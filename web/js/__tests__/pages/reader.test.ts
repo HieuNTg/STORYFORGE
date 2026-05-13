@@ -8,8 +8,8 @@
  *   - estimateMinutes: zero for empty, min 1 for short text, scales with word count
  *   - parsePortraitParagraphs: no characters, character matched, character not matched,
  *     only first mention per character gets portrait, second character can still match
- *   - readerPage factory: default state, forgeUi off (store read returns false),
- *     goToChapter clamps, toggleSidebar toggles, readTime delegates to estimateMinutes
+ *   - readerPage factory: default state, goToChapter clamps, toggleSidebar
+ *     toggles, readTime delegates to estimateMinutes
  *   - prefers-reduced-motion flag: reducedMotion initialises from window.matchMedia
  *   - ARIA: readingProgress 0..100, never negative, never over 100
  */
@@ -209,21 +209,6 @@ describe('readerPage factory', () => {
 
   it('chapters returns empty array when no story', () => {
     expect(makeReader().chapters).toEqual([]);
-  });
-
-  it('forgeUi returns false when store.flags is null', () => {
-    vi.mocked(Alpine.store).mockReturnValue(null);
-    const r = makeReader();
-    expect(r.forgeUi).toBe(false);
-  });
-
-  it('forgeUi returns true when $store.flags.forgeUi is true', () => {
-    vi.mocked(Alpine.store).mockImplementation((key: string) => {
-      if (key === 'flags') return { forgeUi: true };
-      return null;
-    });
-    const r = makeReader();
-    expect(r.forgeUi).toBe(true);
   });
 
   it('toggleSidebar flips sidebarOpen', () => {

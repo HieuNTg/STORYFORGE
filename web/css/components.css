@@ -1,9 +1,8 @@
 /* web/css/components.css — Forge UI redesign component styles
  *
- * All rules are gated behind :root[data-forge-ui="on"] so the new visuals
- * apply ONLY when the STORYFORGE_FORGE_UI flag is enabled. With the flag
- * off, every selector below is inert (no specificity bump, no overrides),
- * which keeps the legacy UI byte-identical.
+ * All rules are gated behind :root[data-forge-ui="on"]. The attribute is set
+ * at boot (web/js/app.ts) since the Forge UI is shipped on
+ * (STORYFORGE_FORGE_UI flag removed sprint perf/forge-shell-2).
  *
  * Sourced from plans/260512-1949-uiux-prd-implementation/02-ux-architecture.md §2.
  */

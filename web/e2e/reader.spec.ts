@@ -25,7 +25,6 @@ test.describe('Reader surface smoke (flag ON)', () => {
       try {
         localStorage.setItem('forge_reader_font_family', 'serif');
         localStorage.setItem('forge_reader_font_size', '18');
-        localStorage.setItem('sf_flag_forgeUi', '1');
       } catch (_) {}
     });
 

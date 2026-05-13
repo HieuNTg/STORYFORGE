@@ -57,8 +57,6 @@ test.describe('Sprint-close smoke (live backend, LLM mocked)', () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       try {
-        localStorage.setItem('STORYFORGE_FORGE_UI', '1');
-        localStorage.setItem('sf_flag_forgeUi', '1');
         localStorage.setItem('sf_theme', 'light');
       } catch (_) {}
     });
