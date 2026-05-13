@@ -1,15 +1,14 @@
 /**
  * Reader page — read generated story with chapter navigation.
  *
- * M3 additions (behind STORYFORGE_FORGE_UI flag):
+ * M3 features:
  *   - Chapter navigation sidebar (slide in/out, estimated reading time per chapter)
  *   - Reading progress bar (scroll position 0-100% of current chapter content)
  *   - Inline character portrait fade-in on first mention per chapter
  *   - Font-size toolbar wired to $store.reader (persists via localStorage)
  *
- * When forgeUi flag is OFF the function returns the original shape (backward-compat).
- * Alpine.store calls are wrapped in try/catch with silent no-ops so a missing store
- * never breaks the reader (mirrors M2 bridge pattern).
+ * Alpine.store calls are wrapped in try/catch with silent no-ops so a missing
+ * store never breaks the reader (mirrors M2 bridge pattern).
  */
 
 interface StoryData {
@@ -103,8 +102,8 @@ function readerPage() {
     chapter: 0,
 
     /**
-     * Legacy local fontSize — kept for flag-OFF backward compat.
-     * When forgeUi is ON, the toolbar drives $store.reader.fontSize instead.
+     * Legacy local fontSize — superseded by $store.reader.fontSize but kept
+     * as an init seed so the first paint is stable before the store mounts.
      */
     fontSize: 18,
 
@@ -152,17 +151,9 @@ function readerPage() {
       return chars.filter((c) => c.portrait_url ?? c.reference_url);
     },
 
-    /** Whether the Forge UI flag is enabled. */
-    get forgeUi(): boolean {
-      return storeGet(() => !!Alpine.store('flags')?.forgeUi, false);
-    },
-
-    /** Font size from store (if forgeUi) or legacy local field. */
+    /** Font size from store. */
     get activeFontSize(): number {
-      if (this.forgeUi) {
-        return storeGet(() => (Alpine.store('reader') as { fontSize: number }).fontSize, this.fontSize);
-      }
-      return this.fontSize;
+      return storeGet(() => (Alpine.store('reader') as { fontSize: number }).fontSize, this.fontSize);
     },
 
     /** Estimated read time for a chapter in minutes. */
@@ -177,19 +168,14 @@ function readerPage() {
         this.paragraphs = [];
         return;
       }
-      if (this.forgeUi) {
-        this.paragraphs = parsePortraitParagraphs(
-          ch.content,
-          this.story?.characters ?? [],
-        );
-      } else {
-        this.paragraphs = [];
-      }
+      this.paragraphs = parsePortraitParagraphs(
+        ch.content,
+        this.story?.characters ?? [],
+      );
     },
 
-    /** Scroll handler: update readingProgress (M3, forgeUi only). */
+    /** Scroll handler: update readingProgress (M3). */
     _onScroll(): void {
-      if (!this.forgeUi) return;
       const el = document.querySelector('[data-reader-content]') as HTMLElement | null;
       if (!el) return;
       const rect = el.getBoundingClientRect();
@@ -213,25 +199,23 @@ function readerPage() {
         this.reducedMotion = false;
       }
 
-      // Set up scroll listener for progress bar (forgeUi path).
-      if (this.forgeUi) {
-        const handler = () => { this._onScroll(); };
-        window.addEventListener('scroll', handler, { passive: true });
-        // Alpine.$watch is available on the component instance at runtime.
-        // Cast to any to avoid TS error in non-Alpine context.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const self = this as any;
-        if (typeof self.$watch === 'function') {
-          self.$watch('chapter', () => {
-            this.readingProgress = 0;
-            this._rebuildParagraphs();
-            if (!this.reducedMotion) {
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            } else {
-              window.scrollTo(0, 0);
-            }
-          });
-        }
+      // Set up scroll listener for progress bar.
+      const handler = () => { this._onScroll(); };
+      window.addEventListener('scroll', handler, { passive: true });
+      // Alpine.$watch is available on the component instance at runtime.
+      // Cast to any to avoid TS error in non-Alpine context.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const self = this as any;
+      if (typeof self.$watch === 'function') {
+        self.$watch('chapter', () => {
+          this.readingProgress = 0;
+          this._rebuildParagraphs();
+          if (!this.reducedMotion) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          } else {
+            window.scrollTo(0, 0);
+          }
+        });
       }
 
       this._rebuildParagraphs();

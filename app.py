@@ -30,6 +30,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from config import ConfigManager
+from services.gzipped_static_files import GzippedStaticFiles
 
 # Logging
 from services.structured_logger import configure_logging
@@ -293,9 +294,9 @@ def main():
 
     # Mount locales FIRST (more specific path takes precedence)
     if os.path.isdir(locales_dir):
-        main_app.mount("/static/locales", StaticFiles(directory=locales_dir), name="locales")
+        main_app.mount("/static/locales", GzippedStaticFiles(directory=locales_dir), name="locales")
     # Then mount web/ for remaining static files
-    main_app.mount("/static", StaticFiles(directory=web_dir), name="static")
+    main_app.mount("/static", GzippedStaticFiles(directory=web_dir), name="static")
 
     # Generated chapter images
     images_dir = os.path.join(base_dir, "output", "images")

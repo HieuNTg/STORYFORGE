@@ -15,7 +15,7 @@
  *   - navigateTo dispatches sf:branch-navigate DOM event
  *   - Reduced-motion path: settles synchronously, no rAF loop
  *   - init() creates simulation; destroy() stops it
- *   - Flag-gate: module importable without forgeUi flag (flag gate is in app.ts)
+ *   - Module importable as a plain Alpine.data factory (no flag gating)
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

@@ -27,7 +27,7 @@
  *   - Tab cycles tree canvas → minimap → metadata panel (managed by tabIndex
  *     on the canvas elements; the component only sets/clears focus classes).
  *
- * Flag gate: this module is imported only when STORYFORGE_FORGE_UI is on.
+ * Imported unconditionally (Forge UI shipped on, STORYFORGE_FORGE_UI removed).
  *   The legacy treeVisualizer (tree-visualizer.ts) remains untouched.
  */
 

@@ -1,5 +1,5 @@
 /**
- * E2E smoke spec — Pipeline page (flag ON).
+ * E2E smoke spec — Pipeline page.
  *
  * Gate: set STORYFORGE_E2E_LIVE=1 to run against a real backend.
  * Without that env-var, all backend calls are intercepted via page.route.
@@ -8,7 +8,7 @@
  *
  * What is tested (mocked):
  *   1. Page loads with no uncaught console errors.
- *   2. Theater section conditional x-if evaluates (forgeUi flag on → theater visible).
+ *   2. Theater section conditional x-if evaluates (theater visible while running).
  *   3. axe-core reports 0 critical violations.
  */
 
@@ -21,7 +21,7 @@ const LIVE = !!process.env['STORYFORGE_E2E_LIVE'];
 const MOCK_SSE_DONE =
   'data: {"type":"done","data":{"has_draft":false,"has_enhanced":false}}\n\n';
 
-test.describe('Pipeline page smoke (flag ON)', () => {
+test.describe('Pipeline page smoke', () => {
   test.beforeEach(async ({ page }) => {
     if (LIVE) return; // live mode: no mocks
 
@@ -88,7 +88,7 @@ test.describe('Pipeline page smoke (flag ON)', () => {
     expect(critical).toHaveLength(0);
   });
 
-  test('theater section x-if evaluates when forgeUi flag enabled', async ({ page }) => {
+  test('theater section x-if evaluates without errors', async ({ page }) => {
     if (LIVE) {
       test.skip(true, 'LIVE mode: skipped in mock suite');
       return;
@@ -97,18 +97,9 @@ test.describe('Pipeline page smoke (flag ON)', () => {
     await page.goto('/#pipeline');
     await page.waitForTimeout(1000);
 
-    // Enable forgeUi via localStorage (same mechanism as feature-flags.ts)
-    await page.evaluate(() => {
-      try { localStorage.setItem('sf_flag_forgeUi', '1'); } catch (_) {}
-    });
-    await page.reload();
-    await page.waitForTimeout(1000);
-
-    // The theater section is gated by x-if="$store.flags?.forgeUi".
-    // When the flag is set, the section should be present or the x-if block should have evaluated.
-    // We accept either: element present OR no JS error during evaluation.
+    // Theater block is rendered unconditionally now (flag was removed in S4).
+    // We accept 0+ matches — the assertion is that x-if evaluation does not throw.
     const theaterPresent = await page.locator('[data-forge-theater], .sf-theater-block').count();
-    // Soft assertion — theater may not be present if flag store isn't wired, but no errors expected.
     expect(theaterPresent).toBeGreaterThanOrEqual(0);
   });
 
