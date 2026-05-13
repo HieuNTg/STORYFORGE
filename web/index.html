@@ -3532,7 +3532,9 @@
       </template>
 
       <!-- ═══ READER PAGE (redirects to library) ═══ -->
-      <div x-show="$store.app.page === 'reader'" x-cloak x-init="$store.app.navigate('library')"></div>
+      <template x-if="$store.app.page === 'reader'">
+        <div x-init="$store.app.navigate('library')"></div>
+      </template>
 
       <!-- ═══ EXPORT PAGE ═══ -->
       <template x-if="$store.app.page === 'export'">
