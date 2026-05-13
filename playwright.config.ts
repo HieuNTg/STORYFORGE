@@ -1,11 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Playwright configuration for StoryForge visual regression baselines.
+ * Playwright configuration for StoryForge visual regression baselines + e2e smoke specs.
  * See https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
-  testDir: './web/tests/visual',
+  testDir: './web',
   // Run tests sequentially (visual snapshots are order-dependent)
   fullyParallel: false,
   // Retry on CI to tolerate flakiness
@@ -22,8 +22,16 @@ export default defineConfig({
   },
 
   projects: [
+    // Visual regression baselines (web/tests/visual/)
     {
-      name: 'chromium',
+      name: 'visual-chromium',
+      testDir: './web/tests/visual',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // E2E smoke specs (web/e2e/) — mocked by default; STORYFORGE_E2E_LIVE=1 for real backend
+    {
+      name: 'e2e-chromium',
+      testDir: './web/e2e',
       use: { ...devices['Desktop Chrome'] },
     },
   ],
