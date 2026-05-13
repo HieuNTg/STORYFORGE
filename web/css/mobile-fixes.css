@@ -161,6 +161,54 @@
   }
 }
 
+/* ── Forge components on mobile (M4-B4) ──────────────────────────────────── */
+@media (max-width: 767px) {
+  /* BranchTree canvas: limit to viewport width to prevent horizontal scroll. */
+  .sf-branch-tree-block canvas,
+  .sf-branch-tree__canvas {
+    max-width: 100vw !important;
+    width: 100% !important;
+  }
+
+  /* Forge sidebar (reader chapter list): slide overlay on mobile. */
+  .sf-reader__sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 40;
+    width: 80vw;
+    max-width: 300px;
+    transform: translateX(-100%);
+    transition: transform 200ms ease;
+    overflow-y: auto;
+  }
+  .sf-reader__sidebar[data-open="true"] {
+    transform: translateX(0);
+  }
+
+  /* Forge stat tiles: 2-col on mobile (already Tailwind grid-cols-2, ensure). */
+  .sf-stat-tile {
+    min-height: 44px;
+  }
+
+  /* Agent bubbles: full width on small screens. */
+  .sf-agent-bubble {
+    width: 100%;
+  }
+
+  /* Theater section: no overflow-x. */
+  .sf-theater {
+    overflow-x: hidden;
+  }
+
+  /* Export / settings form rows: stack on mobile. */
+  .sf-export-cards,
+  .sf-settings-providers {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 /* ── Safe area (iOS notch / Android gesture bar) ─────────────────────────── */
 @supports (padding: env(safe-area-inset-bottom)) {
   body {
