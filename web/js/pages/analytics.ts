@@ -43,7 +43,7 @@ interface StoriesResponse {
   total: number;
 }
 
-function analyticsPage() {
+export function analyticsPage() {
   return {
     loaded: false as boolean,
     stats: null as AnalyticsStats | null,

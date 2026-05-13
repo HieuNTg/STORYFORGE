@@ -307,6 +307,13 @@ def main():
     async def serve_favicon():
         return FileResponse(os.path.join(web_dir, "favicon.svg"), media_type="image/svg+xml")
 
+    # Redirect legacy /dashboard URL to the SPA analytics page (M4-B1).
+    from fastapi.responses import RedirectResponse as _RedirectResponse
+
+    @main_app.get("/dashboard")
+    async def redirect_dashboard():
+        return _RedirectResponse(url="/#/analytics", status_code=301)
+
     # Health check — lightweight with cached DB/Redis probes (30s TTL)
     from fastapi.responses import JSONResponse as _JSONResponse
     _health_cache: dict = {}
