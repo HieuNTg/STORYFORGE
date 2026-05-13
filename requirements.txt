@@ -1,4 +1,4 @@
-# ── Core framework ──
+﻿# ── Core framework ──
 fastapi>=0.109.0,<1.0
 uvicorn[standard]>=0.27.0,<1.0
 
@@ -7,6 +7,9 @@ uvicorn[standard]>=0.27.0,<1.0
 openai>=1.51.0,<2.0
 # chromadb <0.5: 1.x is a full rewrite with incompatible collection/query API
 chromadb>=0.4.24,<0.5
+# Force CPU-only PyTorch on Linux deploys; otherwise recent torch wheels pull huge CUDA deps.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.5.1+cpu; platform_system == "Linux"
 sentence-transformers>=2.7.0,<3.0
 # spaCy for NER-based structural detection (Sprint 2 P4).
 # After installing, download the multilingual model:
@@ -41,3 +44,5 @@ nh3>=0.2.18,<1.0
 # ── Optional LLM provider SDKs (install for native support) ──
 # anthropic>=0.39.0
 # google-genai>=1.0.0
+
+
