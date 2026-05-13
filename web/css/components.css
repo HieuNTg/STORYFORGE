@@ -1074,6 +1074,21 @@
 
 /* ── BranchTree (M3 §3.3) ──────────────────────────────────────────────── */
 
+/* Mount wrapper — mirrors CharacterGraph block spacing. */
+:root[data-forge-ui="on"] .sf-branch-tree-wrap {
+  margin-top: 12px;
+}
+
+/* Canvas block container — positions minimap overlay. */
+:root[data-forge-ui="on"] .sf-branch-tree-block {
+  position: relative;
+  margin-top: 12px;
+  border: 1px solid var(--sf-border-subtle, #2D3348);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--sf-bg-surface, #1A1F2E);
+}
+
 :root[data-forge-ui="on"] .sf-branch-tree {
   position: relative;
   display: flex;

@@ -3292,40 +3292,78 @@
                         </button>
                       </div>
 
-                      <!-- Tree visualization -->
-                      <div x-data="treeVisualizer()" x-effect="setSession(sessionId)">
-                        <button @click="toggleTree(sessionId)"
-                          class="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors bg-surface-100 dark:bg-surface-800 text-slate-600 dark:text-slate-300 hover:bg-surface-200 dark:hover:bg-surface-700 inline-flex items-center gap-1.5">
-                          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 01-1.125-1.125v-3.75zM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-8.25zM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-2.25z"/></svg>
-                          <span x-text="showTree ? 'Hide Tree' : 'Show Tree'"></span>
-                        </button>
-                        <div x-show="showTree" x-transition class="mt-3 card overflow-x-auto">
-                          <template x-if="treeLoading">
-                            <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-300">Loading tree...</div>
+                      <!-- Tree visualization — Forge canvas (flag ON) -->
+                      <template x-if="$store.flags?.forgeUi">
+                        <div x-data="forgeBranchTreeMount()" x-effect="setSession(sessionId)" class="sf-branch-tree-wrap">
+                          <button @click="refresh()"
+                            class="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors bg-surface-100 dark:bg-surface-800 text-slate-600 dark:text-slate-300 hover:bg-surface-200 dark:hover:bg-surface-700 inline-flex items-center gap-1.5"
+                            :disabled="loading || !sessionId">
+                            <svg class="w-4 h-4" :class="loading && 'animate-spin'" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 01-1.125-1.125v-3.75zM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-8.25zM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-2.25z"/></svg>
+                            <span x-text="loaded ? 'Refresh Tree' : 'Show Forge Tree'"></span>
+                          </button>
+                          <template x-if="loading">
+                            <div class="mt-3 p-4 text-center text-sm text-slate-400 dark:text-slate-300">Loading tree...</div>
                           </template>
-                          <template x-if="treeLayout && treeLayout.nodes.length > 0">
-                            <svg :viewBox="viewBox" class="min-w-full" :style="'min-height:' + treeLayout.height + 'px'" xmlns="http://www.w3.org/2000/svg">
-                              <template x-for="edge in treeLayout.edges" :key="edge.x1 + '-' + edge.y1 + '-' + edge.x2 + '-' + edge.y2">
-                                <line :x1="edge.x1" :y1="edge.y1" :x2="edge.x2" :y2="edge.y2" class="stroke-surface-300 dark:stroke-surface-600" stroke-width="2"/>
-                              </template>
-                              <template x-for="node in treeLayout.nodes" :key="node.id">
-                                <g class="cursor-pointer" @click="gotoNode($data.sessionId || sessionId, node.id).then(n => { if(n) { $data.currentNode = n; if($data.history) $data.history = []; refreshTree($data.sessionId || sessionId); } })">
-                                  <circle :cx="node.x" :cy="node.y" r="18"
-                                    :class="node.isCurrent ? 'fill-brand-500 stroke-brand-300' : 'fill-surface-200 dark:fill-surface-700 stroke-surface-400 dark:stroke-surface-500'"
-                                    stroke-width="2"/>
-                                  <text :x="node.x" :y="node.y + 32" text-anchor="middle" class="fill-slate-500 dark:fill-slate-400" font-size="9" x-text="node.label"></text>
-                                </g>
-                              </template>
-                            </svg>
+                          <template x-if="error">
+                            <div class="mt-3 p-4 text-center text-sm text-red-500 dark:text-red-400" x-text="error"></div>
                           </template>
-                          <template x-if="!treeLoading && treeError">
-                            <div class="p-4 text-center text-sm text-red-500 dark:text-red-400" x-text="treeError"></div>
-                          </template>
-                          <template x-if="!treeLoading && !treeError && (!treeLayout || treeLayout.nodes.length === 0)">
-                            <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-300">No tree data available. Try navigating first.</div>
+                          <template x-if="loaded && nodes.length > 0">
+                            <div :key="'forge-tree-' + _sessionId"
+                                 x-data="branchTree({ nodes: nodes, currentNodeId: currentNode, width: 800, height: 480 })"
+                                 @sf:branch-navigate.stop="$event.detail && gotoNode(sessionId, $event.detail.nodeId)"
+                                 class="sf-branch-tree-block">
+                              <canvas x-init="attachCanvas($el)" tabindex="0" role="img"
+                                :aria-label="`Branch tree, ${nodes.length} nodes`"
+                                class="sf-branch-tree__canvas"></canvas>
+                              <canvas x-init="attachMinimapCanvas($el)"
+                                class="sf-branch-tree__minimap"
+                                :width="minimapWidth" :height="minimapHeight"></canvas>
+                              <ul class="sr-only" aria-label="Branch tree nodes">
+                                <template x-for="entry in srEntries" :key="entry.id">
+                                  <li :data-id="entry.id" x-text="entry.label + ' (depth ' + entry.depth + ')'"></li>
+                                </template>
+                              </ul>
+                            </div>
                           </template>
                         </div>
-                      </div>
+                      </template>
+
+                      <!-- Tree visualization — legacy SVG (flag OFF) -->
+                      <template x-if="!$store.flags?.forgeUi">
+                        <div x-data="treeVisualizer()" x-effect="setSession(sessionId)">
+                          <button @click="toggleTree(sessionId)"
+                            class="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors bg-surface-100 dark:bg-surface-800 text-slate-600 dark:text-slate-300 hover:bg-surface-200 dark:hover:bg-surface-700 inline-flex items-center gap-1.5">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 7.125C2.25 6.504 2.754 6 3.375 6h6c.621 0 1.125.504 1.125 1.125v3.75c0 .621-.504 1.125-1.125 1.125h-6a1.125 1.125 0 01-1.125-1.125v-3.75zM14.25 8.625c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v8.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-8.25zM3.75 16.125c0-.621.504-1.125 1.125-1.125h5.25c.621 0 1.125.504 1.125 1.125v2.25c0 .621-.504 1.125-1.125 1.125h-5.25a1.125 1.125 0 01-1.125-1.125v-2.25z"/></svg>
+                            <span x-text="showTree ? 'Hide Tree' : 'Show Tree'"></span>
+                          </button>
+                          <div x-show="showTree" x-transition class="mt-3 card overflow-x-auto">
+                            <template x-if="treeLoading">
+                              <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-300">Loading tree...</div>
+                            </template>
+                            <template x-if="treeLayout && treeLayout.nodes.length > 0">
+                              <svg :viewBox="viewBox" class="min-w-full" :style="'min-height:' + treeLayout.height + 'px'" xmlns="http://www.w3.org/2000/svg">
+                                <template x-for="edge in treeLayout.edges" :key="edge.x1 + '-' + edge.y1 + '-' + edge.x2 + '-' + edge.y2">
+                                  <line :x1="edge.x1" :y1="edge.y1" :x2="edge.x2" :y2="edge.y2" class="stroke-surface-300 dark:stroke-surface-600" stroke-width="2"/>
+                                </template>
+                                <template x-for="node in treeLayout.nodes" :key="node.id">
+                                  <g class="cursor-pointer" @click="gotoNode($data.sessionId || sessionId, node.id).then(n => { if(n) { $data.currentNode = n; if($data.history) $data.history = []; refreshTree($data.sessionId || sessionId); } })">
+                                    <circle :cx="node.x" :cy="node.y" r="18"
+                                      :class="node.isCurrent ? 'fill-brand-500 stroke-brand-300' : 'fill-surface-200 dark:fill-surface-700 stroke-surface-400 dark:stroke-surface-500'"
+                                      stroke-width="2"/>
+                                    <text :x="node.x" :y="node.y + 32" text-anchor="middle" class="fill-slate-500 dark:fill-slate-400" font-size="9" x-text="node.label"></text>
+                                  </g>
+                                </template>
+                              </svg>
+                            </template>
+                            <template x-if="!treeLoading && treeError">
+                              <div class="p-4 text-center text-sm text-red-500 dark:text-red-400" x-text="treeError"></div>
+                            </template>
+                            <template x-if="!treeLoading && !treeError && (!treeLayout || treeLayout.nodes.length === 0)">
+                              <div class="p-4 text-center text-sm text-slate-400 dark:text-slate-300">No tree data available. Try navigating first.</div>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
                     </div>
                   </template>
                 </div>

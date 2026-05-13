@@ -409,3 +409,67 @@ export function treeApiToBranchNodes(
     depth: n.depth,
   }));
 }
+
+/**
+ * forgeBranchTreeMount — Alpine.data factory that owns the data-fetch lifecycle
+ * for the Forge BranchTree canvas component.
+ *
+ * Registered in app.ts inside the forgeUiOn block as Alpine.data('forgeBranchTreeMount', forgeBranchTreeMount).
+ * The branching page template mounts this behind <template x-if="$store.flags?.forgeUi">.
+ *
+ * setSession(s) is called via x-effect whenever the parent branchReader's
+ * sessionId changes. refresh() fetches /api/branch/:id/tree, converts the
+ * response via treeApiToBranchNodes, and sets state.
+ *
+ * Exported for unit testing.
+ */
+export interface ForgeBranchTreeMountState {
+  _sessionId: string | null;
+  nodes: Array<{ id: string; label: string; parentId: string | null; depth: number }>;
+  currentNode: string | null;
+  loading: boolean;
+  error: string | null;
+  loaded: boolean;
+  setSession(s: string | null): void;
+  refresh(): Promise<void>;
+}
+
+export function forgeBranchTreeMount(): ForgeBranchTreeMountState {
+  return {
+    _sessionId: null as string | null,
+    nodes: [] as Array<{ id: string; label: string; parentId: string | null; depth: number }>,
+    currentNode: null as string | null,
+    loading: false,
+    error: null as string | null,
+    loaded: false,
+
+    setSession(s: string | null) {
+      if (s === this._sessionId) return;
+      this._sessionId = s;
+      // Reset when session changes so stale data doesn't show.
+      this.nodes = [];
+      this.currentNode = null;
+      this.loaded = false;
+      this.error = null;
+    },
+
+    async refresh() {
+      if (!this._sessionId) return;
+      this.loading = true;
+      this.error = null;
+      try {
+        const res = await fetch(`/api/branch/${this._sessionId}/tree`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data: BranchTreeApiResponse = await res.json() as BranchTreeApiResponse;
+        this.nodes = treeApiToBranchNodes(data);
+        this.currentNode = data.current ?? null;
+        this.loaded = true;
+      } catch (e) {
+        this.error = (e instanceof Error ? e.message : String(e));
+        this.loaded = false;
+      } finally {
+        this.loading = false;
+      }
+    },
+  };
+}

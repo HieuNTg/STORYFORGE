@@ -19,6 +19,7 @@ import { agentBubble } from './components/AgentBubble';
 import { qualityGauge } from './components/QualityGauge';
 import { characterGraph } from './components/CharacterGraph';
 import { branchTree } from './components/BranchTree';
+import { forgeBranchTreeMount } from './pages/branching';
 import { createTheaterStore } from './stores/theater';
 import { createReaderStore } from './stores/reader';
 import {
@@ -80,6 +81,10 @@ document.addEventListener('alpine:init', () => {
     // Registered here (flag-gated); branching page wires template behind x-if.
     // Legacy treeVisualizer (tree-visualizer.ts) is untouched; both coexist.
     Alpine.data('branchTree', branchTree);
+
+    // M3-tail: forgeBranchTreeMount — owns the fetch lifecycle for the BranchTree
+    // canvas. Parent branchReader passes its sessionId via x-effect setSession().
+    Alpine.data('forgeBranchTreeMount', forgeBranchTreeMount);
 
     // M2 Day-5 — theater store. Pipeline-page derived state populated by
     // sniffers from the SSE log stream (see stores/pipeline.ts bridge).
