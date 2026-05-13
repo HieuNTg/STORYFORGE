@@ -1051,6 +1051,140 @@
       .sf-story-card__cover { width:58px; height:76px; }
     }
 
+
+    /* === Dynamic UI Sprint 3: Branch Constellation + Story Vital Signs === */
+    [data-page='analytics'] > .max-w-3xl,
+    [data-page='branching'] > .max-w-3xl,
+    .sf-vitals-stage,
+    .sf-branch-stage { max-width: 1180px; }
+    .sf-vitals-hero,
+    .sf-branch-hero {
+      position: relative;
+      overflow: hidden;
+      border-radius: 24px;
+      padding: 24px;
+      border: 1px solid rgba(37,99,235,.18);
+      box-shadow: 0 24px 76px rgba(15,23,42,.09);
+    }
+    .sf-vitals-hero {
+      background:
+        radial-gradient(circle at 16% 18%, rgba(16,185,129,.16), transparent 32%),
+        radial-gradient(circle at 88% 10%, rgba(37,99,235,.14), transparent 30%),
+        linear-gradient(135deg, rgba(255,255,255,.94), rgba(248,250,252,.84));
+    }
+    .sf-branch-hero {
+      background:
+        radial-gradient(circle at 18% 18%, rgba(124,58,237,.18), transparent 34%),
+        radial-gradient(circle at 88% 5%, rgba(245,158,11,.14), transparent 32%),
+        linear-gradient(135deg, rgba(255,255,255,.94), rgba(248,250,252,.84));
+    }
+    .dark .sf-vitals-hero,
+    .dark .sf-branch-hero {
+      background:
+        radial-gradient(circle at 16% 18%, rgba(96,165,250,.16), transparent 32%),
+        radial-gradient(circle at 88% 10%, rgba(167,139,250,.15), transparent 30%),
+        linear-gradient(135deg, rgba(15,23,42,.92), rgba(2,6,23,.84));
+      border-color: rgba(96,165,250,.20);
+      box-shadow: 0 28px 84px rgba(0,0,0,.34);
+    }
+    .sf-vitals-hero::after,
+    .sf-branch-hero::after {
+      content:'';
+      position:absolute;
+      inset:auto -40px -62px auto;
+      width:260px;
+      height:180px;
+      opacity:.42;
+      pointer-events:none;
+    }
+    .sf-vitals-hero::after {
+      background:
+        linear-gradient(90deg, rgba(16,185,129,.24) 2px, transparent 2px) 0 0/34px 100%,
+        linear-gradient(180deg, transparent 42%, rgba(37,99,235,.22) 42% 45%, transparent 45%);
+      clip-path: polygon(0 70%, 14% 52%, 28% 62%, 42% 24%, 56% 48%, 70% 30%, 84% 58%, 100% 38%, 100% 100%, 0 100%);
+    }
+    .sf-branch-hero::after {
+      background:
+        radial-gradient(circle at 18% 70%, rgba(124,58,237,.44) 0 5px, transparent 6px),
+        radial-gradient(circle at 46% 38%, rgba(37,99,235,.38) 0 5px, transparent 6px),
+        radial-gradient(circle at 78% 62%, rgba(245,158,11,.40) 0 5px, transparent 6px),
+        linear-gradient(28deg, transparent 48%, rgba(124,58,237,.22) 49% 51%, transparent 52%),
+        linear-gradient(-18deg, transparent 48%, rgba(37,99,235,.20) 49% 51%, transparent 52%);
+    }
+    .sf-vitals-kicker,
+    .sf-branch-kicker {
+      display:inline-flex; align-items:center; gap:7px;
+      font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.24em;
+      color:#2563EB; margin-bottom:8px;
+    }
+    .dark .sf-vitals-kicker,.dark .sf-branch-kicker { color:#93C5FD; }
+    .sf-vitals-hero h1,.sf-branch-hero h1 {
+      font-size:clamp(1.55rem,3vw,2.35rem); line-height:1; letter-spacing:-.04em; color:#0F172A;
+    }
+    .dark .sf-vitals-hero h1,.dark .sf-branch-hero h1 { color:#F8FAFC; }
+    .sf-vitals-hero p,.sf-branch-hero p { max-width:650px; margin-top:8px; color:#475569; }
+    .dark .sf-vitals-hero p,.dark .sf-branch-hero p { color:#CBD5E1; }
+    .sf-vitals-selector,
+    .sf-branch-selector {
+      border-radius:20px;
+      background:rgba(255,255,255,.78);
+      backdrop-filter:blur(16px);
+      border:1px solid rgba(148,163,184,.22);
+      box-shadow:0 18px 54px rgba(15,23,42,.07);
+    }
+    .dark .sf-vitals-selector,.dark .sf-branch-selector { background:rgba(15,23,42,.72); border-color:rgba(148,163,184,.16); }
+    [data-page='analytics'] .sf-stat-tile {
+      min-height:112px;
+      border-radius:20px;
+      position:relative;
+      overflow:hidden;
+      background:
+        radial-gradient(circle at 18% 0%, rgba(37,99,235,.12), transparent 34%),
+        linear-gradient(135deg, rgba(255,255,255,.94), rgba(248,250,252,.78));
+      box-shadow:0 16px 46px rgba(15,23,42,.07);
+    }
+    [data-page='analytics'] .sf-stat-tile::after {
+      content:''; position:absolute; left:12px; right:12px; bottom:10px; height:22px; opacity:.36;
+      background:linear-gradient(90deg, #2563EB 0 20%, transparent 20% 28%, #7C3AED 28% 52%, transparent 52% 60%, #10B981 60% 78%, transparent 78% 86%, #F59E0B 86%);
+      clip-path:polygon(0 75%,10% 44%,22% 58%,34% 18%,46% 52%,58% 35%,70% 62%,82% 28%,100% 48%,100% 100%,0 100%);
+    }
+    .dark [data-page='analytics'] .sf-stat-tile { background:linear-gradient(135deg, rgba(15,23,42,.88), rgba(2,6,23,.72)); }
+    .sf-vitals-panel {
+      border-radius:22px;
+      background:
+        radial-gradient(circle at 12% 0%, rgba(16,185,129,.12), transparent 30%),
+        rgba(255,255,255,.82);
+      box-shadow:0 22px 68px rgba(15,23,42,.08);
+    }
+    .dark .sf-vitals-panel { background:radial-gradient(circle at 12% 0%, rgba(96,165,250,.14), transparent 30%), rgba(15,23,42,.78); }
+    .sf-branch-constellation {
+      border-radius:22px;
+      padding:16px;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(124,58,237,.14), transparent 30%),
+        radial-gradient(circle at 80% 25%, rgba(245,158,11,.10), transparent 28%),
+        linear-gradient(180deg, rgba(255,255,255,.74), rgba(248,250,252,.66));
+      border:1px solid rgba(148,163,184,.22);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.75), 0 22px 70px rgba(15,23,42,.08);
+    }
+    .dark .sf-branch-constellation {
+      background:
+        radial-gradient(circle at 20% 10%, rgba(167,139,250,.16), transparent 30%),
+        radial-gradient(circle at 80% 25%, rgba(245,158,11,.11), transparent 28%),
+        linear-gradient(180deg, rgba(15,23,42,.74), rgba(2,6,23,.66));
+      border-color:rgba(148,163,184,.16);
+    }
+    .sf-branch-constellation .card { box-shadow:0 18px 54px rgba(15,23,42,.08); }
+    .sf-branch-tree-wrap {
+      border-radius:20px;
+      background:
+        radial-gradient(circle at 50% 45%, rgba(37,99,235,.10), transparent 38%),
+        repeating-radial-gradient(circle at 50% 45%, rgba(148,163,184,.10) 0 1px, transparent 1px 38px);
+      border:1px solid rgba(148,163,184,.22);
+      overflow:hidden;
+    }
+    .dark .sf-branch-tree-wrap { background:radial-gradient(circle at 50% 45%, rgba(96,165,250,.12), transparent 38%), rgba(2,6,23,.55); }
+
   </style>
 </head>
 <body class="h-full bg-surface-50 font-sans text-slate-800" x-data x-init="$store.app.init()">
@@ -3323,7 +3457,7 @@
                 <p>Chọn truyện và định dạng phù hợp — PDF cho in giấy, EPUB cho đọc số, ZIP để lưu toàn bộ.</p>
               </div>
               <!-- Story selector -->
-              <div class="card p-5">
+              <div class="card p-5 sf-vitals-panel">
                 <div class="flex items-center gap-2 mb-4">
                   <span class="sf-step-badge">1</span>
                   <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn truyện</h3>
@@ -3424,14 +3558,15 @@
 
       <!-- ═══ ANALYTICS PAGE ═══ -->
       <template x-if="$store.app.page === 'analytics'">
-      <div class="page-enter" x-data="analyticsPage()">
-        <div class="max-w-3xl mx-auto space-y-4">
+      <div class="page-enter" x-data="analyticsPage()" data-page="analytics">
+        <div class="max-w-3xl mx-auto space-y-5 sf-vitals-stage">
         <!-- Story selector -->
-        <div class="sf-page-hero">
+        <div class="sf-vitals-hero">
+          <span class="sf-vitals-kicker"><span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_18px_rgba(16,185,129,.75)]"></span> Story Vital Signs</span>
           <h1>Phân tích truyện</h1>
-          <p>Thống kê tổng quan về số chữ, thời gian đọc và chất lượng từng lớp xử lý.</p>
+          <p>Dashboard sinh hiệu của bản thảo: nhịp chương, mật độ chữ, thời gian đọc và chất lượng từng lớp xử lý.</p>
         </div>
-        <div class="card p-5">
+        <div class="card p-5 sf-vitals-selector">
           <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div class="flex items-center gap-2">
               <span class="sf-step-badge">1</span>
@@ -3544,8 +3679,8 @@
 
       <!-- ═══ BRANCHING PAGE ═══ -->
       <template x-if="$store.app.page === 'branching'">
-      <div class="page-enter" x-data="branchingPage()">
-        <div class="max-w-3xl mx-auto space-y-4">
+      <div class="page-enter" x-data="branchingPage()" data-page="branching">
+        <div class="max-w-3xl mx-auto space-y-5 sf-branch-stage">
 
           <!-- Empty state: no current story and no saved stories -->
           <template x-if="!hasCurrentStory && !loadingStories && stories.length === 0">
@@ -3567,13 +3702,14 @@
             <div class="space-y-4">
 
               <!-- Hero header -->
-              <div class="sf-page-hero">
+              <div class="sf-branch-hero">
+                <span class="sf-branch-kicker"><span class="w-2 h-2 rounded-full bg-violet-500 shadow-[0_0_18px_rgba(124,58,237,.75)]"></span> Branch Constellation</span>
                 <h1>Phân nhánh truyện</h1>
-                <p>Chọn một chương rồi cho AI viết tiếp theo hướng khác — khám phá các kết cục song song.</p>
+                <p>Chọn một chương rồi mở constellation các tuyến truyện song song — mỗi lựa chọn là một ngôi sao mới trong vũ trụ bản thảo.</p>
               </div>
 
               <!-- Story source card -->
-              <div class="card p-5">
+              <div class="card p-5 sf-branch-selector">
                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                   <div class="flex items-center gap-2">
                     <span class="sf-step-badge">1</span>
@@ -3656,7 +3792,7 @@
 
               <!-- Branch reader (appears when chapter selected) — :key forces re-init on chapter switch -->
               <template x-if="selectedChapter !== null">
-                <div x-data="branchReader()" :key="'branch-ch-' + selectedChapter" x-init="pendingRestoreSessionId ? restoreSession(pendingRestoreSessionId).then(() => { pendingRestoreSessionId = null }) : startSession(getSelectedContent(), getStoryContext())" class="space-y-4">
+                <div x-data="branchReader()" :key="'branch-ch-' + selectedChapter" x-init="pendingRestoreSessionId ? restoreSession(pendingRestoreSessionId).then(() => { pendingRestoreSessionId = null }) : startSession(getSelectedContent(), getStoryContext())" class="space-y-4 sf-branch-constellation">
 
                   <!-- Error banner -->
                   <div x-show="error" x-transition class="card p-4 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800">
