@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 # Tier configuration
 # ---------------------------------------------------------------------------
 _LIMITS: dict[str, int] = {
-    "expensive": 10,
-    "default": 60,
+    "expensive": int(os.environ.get("STORYFORGE_RATE_LIMIT_EXPENSIVE", "10")),
+    "default": int(os.environ.get("STORYFORGE_RATE_LIMIT_DEFAULT", "60")),
 }
 
 _EXPENSIVE_PREFIXES = (
@@ -182,8 +182,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
 
-        # Only rate-limit API routes
-        if not path.startswith("/api/") or path in self.EXEMPT_PATHS:
+        # Only rate-limit API routes. Test/dev browser suites can opt out or raise
+        # limits via env without changing production defaults.
+        if (
+            os.environ.get("STORYFORGE_DISABLE_RATE_LIMIT", "").lower() in ("1", "true", "yes")
+            or not path.startswith("/api/")
+            or path in self.EXEMPT_PATHS
+        ):
             return await call_next(request)
 
         ip = _get_ip(request)

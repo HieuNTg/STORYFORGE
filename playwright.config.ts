@@ -50,5 +50,9 @@ export default defineConfig({
     url: 'http://localhost:7860',
     reuseExistingServer: true,
     timeout: 30000,
+    env: {
+      ...process.env,
+      STORYFORGE_DISABLE_RATE_LIMIT: '1',
+    },
   },
 });

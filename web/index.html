@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <!-- Dark mode class is applied immediately by the inline script below to
      avoid a flash of unstyled content (FOUC). Alpine then keeps it in sync. -->
 <html lang="en" class="h-full">
@@ -27,6 +27,9 @@
        Run `npm run build:vite` to produce production bundle, or `npm run dev` for HMR. -->
   <!-- Tailwind CSS + tokens + supplementary styles — all bundled via PostCSS -->
   <link rel="stylesheet" href="/static/css/main.built.css">
+  <!-- Load StoryForge runtime before Alpine so its alpine:init listeners are registered
+       before Alpine starts scanning x-data / $store expressions. -->
+  <script defer src="/static/dist/js/runtime-bundle.min.js"></script>
   <script defer src="/static/vendor/alpine/alpine.min.js"></script>
   <script defer src="/static/js/feedback-widget.js"></script>
   <script defer src="/static/js/report-issue.js"></script>
@@ -147,8 +150,8 @@
       flex: 1;
       padding: 6px 10px;
       font-size: 11.5px;
-      font-weight: 500;
-      color: #64748b;
+      font-weight: 600;
+      color: #334155;
       border-radius: 7px;
       cursor: pointer;
       transition: all 0.15s ease;
@@ -165,7 +168,7 @@
       font-weight: 600;
     }
     .dark .sf-pill-group { background: rgba(30,41,59,0.8); }
-    .dark .sf-pill { color: #94A3B8; }
+    .dark .sf-pill { color: #CBD5E1; }
     .dark .sf-pill:hover { color: #E2E8F0; background: rgba(255,255,255,0.05); }
     .dark .sf-pill.active {
       background: linear-gradient(135deg, #1E40AF, #3B82F6);
@@ -258,6 +261,15 @@
     .dark .sf-phase.active { background: rgba(37,99,235,0.1); }
     .dark .sf-phase.active .sf-phase-label { color: #60A5FA; }
     .dark .sf-phase.done .sf-phase-label { color: #34D399; }
+    /* Small status pills must retain WCAG contrast in both themes. */
+    .px-1\.5 { color: #1E293B; }
+    .dark .px-1\.5 { color: #E2E8F0; }
+    .text-slate-400 { color: #475569; }
+    .dark .text-slate-400, .dark .dark\:text-slate-500 { color: #CBD5E1; }
+    .text-green-600 { color: #166534; }
+    .dark .text-green-600 { color: #86EFAC; }
+    span[x-text="maskedKey"] { color: #334155; }
+    .dark span[x-text="maskedKey"] { color: #E2E8F0; }
     .sf-example-chip {
       padding: 11px 12px;
       background: white;
@@ -280,7 +292,7 @@
       display: inline-flex; align-items: center; gap: 4px;
       font-size: 10.5px;
       font-weight: 500;
-      color: #64748b;
+      color: #334155;
       background: #F1F5F9;
       padding: 3px 8px;
       border-radius: 6px;
@@ -1718,7 +1730,7 @@
                     </button>
                   </div>
                   <!-- Step indicator dots -->
-                  <div class="flex gap-1.5" aria-label="Wizard progress">
+                  <div class="flex gap-1.5" role="img" aria-label="Wizard progress">
                     <template x-for="s in [1,2,3]" :key="s">
                       <div class="h-1.5 rounded-full transition-all" :class="s <= step ? 'bg-brand-500 flex-1' : 'bg-surface-200 dark:bg-surface-700 flex-1'"></div>
                     </template>
@@ -1770,7 +1782,7 @@
                   </template>
                   <!-- Footer actions -->
                   <div class="flex items-center justify-between pt-2">
-                    <button @click="dismiss()" class="text-sm text-slate-400 hover:text-slate-600 cursor-pointer">Skip</button>
+                    <button @click="dismiss()" class="text-sm text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white cursor-pointer">Skip</button>
                     <button @click="step < 3 ? next() : finish()"
                       class="px-5 py-2 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 cursor-pointer transition-colors"
                       :disabled="step === 2 && apiKey.trim().length < 5">
@@ -2263,7 +2275,7 @@
               <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
               <input type="text" x-model="searchQuery" class="sf-search w-full" placeholder="Tìm theo tiêu đề, thể loại...">
             </div>
-            <select x-model="qualityFilter" class="sf-search text-xs flex-shrink-0 w-36" title="Lọc theo trạng thái chấm điểm">
+            <select x-model="qualityFilter" class="sf-search text-xs flex-shrink-0 w-36" aria-label="Filter stories by quality status" title="Lọc theo trạng thái chấm điểm">
               <option value="all">Tất cả</option>
               <option value="scored">Đã chấm</option>
               <option value="unscored">Chưa chấm</option>
@@ -2336,11 +2348,7 @@
                     :data-status="status"
                     :data-story-id="storyId"
                     :aria-label="ariaLabel"
-                    role="button"
-                    tabindex="0"
                     @click="handleOpen($event)"
-                    @keydown.enter.prevent="handleOpen($event)"
-                    @keydown.space.prevent="handleOpen($event)"
                     @mouseenter="setHovered(true)"
                     @mouseleave="setHovered(false)">
                     <div class="sf-story-card__cover">
@@ -2729,7 +2737,7 @@
                   <span class="sf-step-badge">1</span>
                   <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn truyện</h3>
                 </div>
-                <select x-model="selectedStory" class="sf-input w-full">
+                <select x-model="selectedStory" class="sf-input w-full" aria-label="Select story to export">
                   <option value="" x-show="sessionId">[Truyện hiện tại]</option>
                   <option value="" x-show="!sessionId" disabled>-- Chọn truyện --</option>
                   <template x-for="s in stories" :key="s.filename">
@@ -2752,7 +2760,7 @@
                           :aria-label="`Export as ${fmt.label}`"
                           class="flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer"
                           :class="selectedFormat === fmt.id ? 'border-brand-500 bg-brand-50 dark:bg-brand-900/30' : 'border-surface-200 dark:border-surface-700 hover:border-brand-300 bg-white dark:bg-surface-900'">
-                          <span class="text-base font-bold" :style="`color: ${fmt.color}`" x-text="fmt.label"></span>
+                          <span class="text-base font-bold text-slate-800 dark:text-slate-50" x-text="fmt.label"></span>
                           <span class="text-[10px] text-slate-400 dark:text-slate-500 text-center leading-tight" x-text="fmt.hint"></span>
                         </button>
                       </template>
@@ -2846,7 +2854,7 @@
                 </button>
               </template>
               <template x-if="stories.length > 0">
-                <select @change="$event.target.value && loadStory($event.target.value)" class="px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all bg-surface-50 dark:bg-surface-800 text-slate-600 dark:text-slate-300 border border-surface-200 dark:border-surface-700">
+                <select aria-label="Select analytics story" @change="$event.target.value && loadStory($event.target.value)" class="px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all bg-surface-50 dark:bg-surface-800 text-slate-600 dark:text-slate-300 border border-surface-200 dark:border-surface-700">
                   <option value="">Chọn từ thư viện...</option>
                   <template x-for="story in stories" :key="story.filename">
                     <option :value="story.filename" :selected="selectedStory === story.filename" x-text="story.title + ' (' + story.chapter_count + ' ch.)'"></option>
@@ -3542,8 +3550,7 @@
   </main>
 
   <!-- ═══ JS ═══ Single bundled runtime (perf/forge-shell P2: 13 reqs → 1). -->
-  <!-- Rebuild via: npm run build:bundle  (concat + minify of web/js/{*,pages/*}.js) -->
-  <script defer src="/static/dist/js/runtime-bundle.min.js"></script>
+  <!-- Runtime is loaded in <head> before Alpine; keep non-Alpine helpers below. -->
   <script>
     /* Heroicons SVG helper — returns inline SVG for nav icons */
     function getNavIcon(name) {

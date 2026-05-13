@@ -1,0 +1,249 @@
+---
+title: StoryForge Nexus Graph
+---
+flowchart LR
+    %% =====================
+    %% Entry / UI
+    %% =====================
+    User((User / Author)) --> UI[web/ Frontend UI]
+
+    subgraph WEB[web/]
+        UI --> Pages[pages/*]
+        UI --> Components[components/*]
+        UI --> Stores[stores/*]
+        UI --> ApiClient[api-client.ts]
+        Pages --> Library[library]
+        Pages --> PipelinePage[pipeline theater]
+        Pages --> Branching[branching reader]
+        Pages --> ExportPage[export]
+        Pages --> Settings[settings]
+    end
+
+    ApiClient --> FastAPI[app.py / FastAPI]
+
+    %% =====================
+    %% API Layer
+    %% =====================
+    subgraph API[api/]
+        FastAPI --> PipelineRoutes[pipeline_routes.py]
+        FastAPI --> ConfigRoutes[config_routes.py]
+        FastAPI --> ExportRoutes[export_routes.py]
+        FastAPI --> ImageRoutes[image_routes.py]
+        FastAPI --> BranchRoutes[branch_routes.py]
+        FastAPI --> AuthRoutes[auth_routes.py]
+        FastAPI --> QualityRoutes[quality_routes.py]
+        FastAPI --> AnalyticsRoutes[analytics_routes.py]
+        FastAPI --> ProviderRoutes[provider_status_routes.py]
+    end
+
+    FastAPI --> Middleware[middleware/]
+
+    subgraph MIDDLEWARE[middleware/]
+        Middleware --> AuthMW[auth]
+        Middleware --> RBAC[rbac]
+        Middleware --> CSRF[csrf]
+        Middleware --> RateLimit[rate_limiter]
+        Middleware --> Sanitization[sanitization]
+        Middleware --> SecurityHeaders[security_headers]
+        Middleware --> MetricsMW[metrics / trace]
+    end
+
+    %% =====================
+    %% Orchestrator
+    %% =====================
+    PipelineRoutes --> Orchestrator[PipelineOrchestrator]
+
+    subgraph ORCH[pipeline/orchestrator*.py]
+        Orchestrator --> Preflight[Pre-flight]
+        Orchestrator --> Checkpoint[checkpoint]
+        Orchestrator --> Continuation[continuation]
+        Orchestrator --> MediaOrch[media orchestration]
+        Orchestrator --> ExportOrch[export orchestration]
+    end
+
+    Preflight --> Config[config/]
+    Preflight --> LLMClient[services/llm/client.py]
+    Preflight --> Trace[trace / progress tracker]
+
+    %% =====================
+    %% Layer 1
+    %% =====================
+    Orchestrator --> L1[Layer 1: Story Generation]
+
+    subgraph L1SG[pipeline/layer1_story/]
+        L1 --> Theme[theme_premise_generator]
+        Theme --> Characters[character_generator]
+        Characters --> VoiceProfile[character_voice_profiler]
+        VoiceProfile --> Outline[outline_builder]
+        Outline --> OutlineCritic[outline_critic]
+        OutlineCritic --> ConflictWeb[conflict_web_builder]
+        ConflictWeb --> Foreshadow[foreshadowing_manager]
+        Foreshadow --> SceneDecomp[scene_decomposer]
+        SceneDecomp --> SceneBeats[scene_beat_generator]
+        SceneBeats --> ChapterWriter[chapter_writer]
+        ChapterWriter --> PostProcess[post_processing]
+    end
+
+    PostProcess --> Draft[(Story Draft)]
+
+    Draft --> L1Quality[L1 quality / analytics]
+    L1Quality --> QualityScorer[services/pipeline/quality_scorer]
+    L1Quality --> QualityGate[services/pipeline/quality_gate]
+    L1Quality --> StoryAnalytics[services/story_analytics]
+    L1Quality --> KnowledgeGraph[services/knowledge_graph]
+
+    %% =====================
+    %% L1 -> L2 Handoff
+    %% =====================
+    Draft --> Handoff[L1 -> L2 Handoff Envelope]
+
+    subgraph MODELS[models/]
+        Handoff --> HandoffSchemas[handoff_schemas.py]
+        Draft --> NarrativeSchemas[narrative_schemas.py]
+        Draft --> VoiceSchemas[voice_schemas.py]
+        Draft --> SemanticSchemas[semantic_schemas.py]
+    end
+
+    Handoff --> Signals[L1 Signals]
+    Signals --> ArcWaypoints[arc_waypoints]
+    Signals --> Threads[plot_threads]
+    Signals --> ConflictSignal[conflict_web]
+    Signals --> ForeshadowSignal[foreshadowing_plan]
+    Signals --> VoiceSignal[voice_fingerprints]
+
+    %% =====================
+    %% Layer 2
+    %% =====================
+    Handoff --> L2[Layer 2: Drama Enhancement]
+
+    subgraph L2EN[pipeline/layer2_enhance/]
+        L2 --> Thematic[thematic_tracker]
+        Thematic --> Analyzer[analyzer]
+        Analyzer --> Simulator[simulator]
+        Simulator --> Psych[psychology_engine]
+        Simulator --> Causal[causal_chain]
+        Simulator --> KnowledgeReg[knowledge_system]
+        Simulator --> DramaPatterns[drama_patterns]
+        Simulator --> Enhancer[enhancer]
+        Enhancer --> SceneEnhancer[scene_enhancer]
+        Enhancer --> VoiceFP[voice_fingerprint]
+        Enhancer --> Coherence[coherence_validator]
+        Enhancer --> ContractGate[contract_gate]
+    end
+
+    L2 --> Agents[Multi-agent Review / Debate]
+
+    subgraph AGENTS[pipeline/agents/]
+        Agents --> AgentRegistry[agent_registry]
+        AgentRegistry --> AgentGraph[agent_graph]
+        AgentRegistry --> DramaCritic[drama_critic]
+        AgentRegistry --> Editor[editor_in_chief]
+        AgentRegistry --> ReaderSim[reader_simulator]
+        AgentRegistry --> DialogueExpert[dialogue_expert]
+        AgentRegistry --> Pacing[pacing_analyzer]
+        AgentRegistry --> Continuity[continuity_checker]
+        AgentRegistry --> Style[style_consistency]
+    end
+
+    ContractGate --> Enhanced[(Enhanced Story)]
+    Enhanced --> SmartRevision[services/pipeline/smart_revision]
+    SmartRevision --> Enhanced
+
+    %% =====================
+    %% Optional L3 / Media / Export
+    %% =====================
+    Enhanced --> L3[Optional L3: sensory polish]
+    L3 --> FinalStory[(Final Story Output)]
+
+    FinalStory --> Media[services/media/]
+    Media --> ImagePrompt[image_prompt_generator]
+    Media --> ImageGen[image_generator]
+    ImageGen --> Portraits[character portraits]
+    ImageGen --> Backgrounds[scene backgrounds]
+
+    FinalStory --> Export[services/export/]
+    Export --> PDF[pdf_exporter]
+    Export --> EPUB[epub_exporter]
+    Export --> HTML[html_exporter]
+    Export --> Wattpad[wattpad_exporter]
+    Export --> ZIP[ZIP / assets]
+
+    %% =====================
+    %% LLM / Prompts / Providers
+    %% =====================
+    LLMClient --> Providers[LLM Providers]
+
+    subgraph LLM[services/llm/]
+        Providers --> OpenAI[openai_provider]
+        Providers --> Gemini[gemini_provider]
+        Providers --> Anthropic[anthropic_provider]
+        Providers --> OpenRouter[OpenAI-compatible / OpenRouter / custom]
+        LLMClient --> Retry[retry]
+        LLMClient --> Streaming[streaming]
+        LLMClient --> Fallback[model_fallback]
+    end
+
+    dataPrompts[data/prompts/] --> PromptManager[services/prompt_manager]
+    PromptManager --> LLMClient
+    L1 --> PromptManager
+    L2 --> PromptManager
+    Agents --> PromptManager
+
+    %% =====================
+    %% Persistence / Infra
+    %% =====================
+    ConfigRoutes --> Config
+    Config --> Defaults[defaults.py]
+    Config --> Persistence[persistence.py]
+    Config --> Presets[presets.py]
+    Config --> Validation[validation.py]
+
+    FastAPI --> Infra[services/infra/]
+    Infra --> DB[database]
+    Infra --> Metrics[metrics]
+    Infra --> Logger[structured_logger]
+    Infra --> ConfigRepo[config_repository]
+
+    DB --> Alembic[alembic migrations]
+    DB --> DataConfig[(data/config.json / DB)]
+    Enhanced --> SessionStore[(Redis/session cache)]
+
+    %% =====================
+    %% Branching / Reader
+    %% =====================
+    BranchRoutes --> BranchService[services/story_brancher]
+    BranchService --> BranchReader[Branch Reader / CYOA]
+    BranchReader --> BranchTree[SVG tree + minimap]
+    BranchReader --> BranchEPUB[branch_epub_exporter]
+
+    %% =====================
+    %% Security / Evaluation / Tests
+    %% =====================
+    AuthRoutes --> AuthService[services/auth/]
+    AuthService --> JWT[jwt_manager]
+    AuthService --> Users[user_manager / user_store]
+
+    QualityRoutes --> Eval[services/pipeline/eval_pipeline]
+    Eval --> Golden[data/evals/golden_dataset.json]
+
+    Tests[tests/] -. validates .-> API
+    Tests -. validates .-> PipelineRoutes
+    Tests -. validates .-> L1SG
+    Tests -. validates .-> L2EN
+    Tests -. validates .-> LLM
+    Tests -. validates .-> Middleware
+
+    %% =====================
+    %% Styling
+    %% =====================
+    classDef core fill:#1f6feb,color:#fff,stroke:#0d419d,stroke-width:2px;
+    classDef layer fill:#8250df,color:#fff,stroke:#512a97,stroke-width:2px;
+    classDef data fill:#238636,color:#fff,stroke:#196c2e,stroke-width:2px;
+    classDef risk fill:#d29922,color:#000,stroke:#9e6a03,stroke-width:2px;
+    classDef infra fill:#57606a,color:#fff,stroke:#24292f,stroke-width:2px;
+
+    class FastAPI,Orchestrator core;
+    class L1,L2,L3,Agents layer;
+    class Draft,Enhanced,FinalStory,SessionStore,DataConfig data;
+    class Middleware,AuthMW,RBAC,CSRF,RateLimit,Sanitization,SecurityHeaders risk;
+    class Infra,DB,Alembic,Config,LLMClient infra;
