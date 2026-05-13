@@ -2440,6 +2440,50 @@
           <div
             :class="$store.flags?.forgeUi && $store.reader ? 'sf-reader sf-reader--' + $store.reader.theme + ' sf-reader--col-' + $store.reader.column : ''"
             :style="$store.flags?.forgeUi && $store.reader ? ('--sf-reader-font-size:' + $store.reader.fontSize + 'px; --sf-reader-line-height:' + $store.reader.lineHeight + '; --sf-reader-font-family:' + $store.reader.fontFamilyCss) : ''">
+            <!-- M3: Reading progress bar — fixed at viewport top, forgeUi only. -->
+            <template x-if="$store.flags?.forgeUi">
+              <div class="sf-reader__progress-bar" role="progressbar" :aria-valuenow="readingProgress" aria-valuemin="0" aria-valuemax="100" aria-label="Tiến độ đọc">
+                <div class="sf-reader__progress-fill" :style="'width:' + readingProgress + '%'"></div>
+              </div>
+            </template>
+            <!-- M3: Chapter sidebar scrim (mobile overlay), forgeUi only. -->
+            <template x-if="$store.flags?.forgeUi">
+              <div class="sf-reader__sidebar-scrim"
+                   :data-open="sidebarOpen ? 'true' : 'false'"
+                   @click="toggleSidebar()"
+                   aria-hidden="true"></div>
+            </template>
+            <!-- M3: Chapter sidebar, forgeUi only. -->
+            <template x-if="$store.flags?.forgeUi">
+              <nav class="sf-reader__sidebar"
+                   :data-open="sidebarOpen ? 'true' : 'false'"
+                   aria-label="Danh sách chương">
+                <div class="sf-reader__sidebar-header">
+                  <span>Chương (<span x-text="chapters.length"></span>)</span>
+                  <button type="button"
+                          class="sf-reader__sidebar-close"
+                          @click="toggleSidebar()"
+                          aria-label="Đóng danh sách chương">
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                  </button>
+                </div>
+                <ul class="sf-reader__sidebar-list" role="list">
+                  <template x-for="(ch, idx) in chapters" :key="idx">
+                    <li>
+                      <button type="button"
+                              class="sf-reader__sidebar-item"
+                              :aria-current="chapter === idx ? 'true' : 'false'"
+                              @click="goToChapter(idx)">
+                        <span class="sf-reader__sidebar-num" x-text="'Ch.' + (ch.number || idx+1)"></span>
+                        <span class="sf-reader__sidebar-title" x-text="ch.title || ('Chương ' + (ch.number || idx+1))"></span>
+                        <span class="sf-reader__sidebar-eta"
+                              x-text="readTime(ch) > 0 ? readTime(ch) + ' ph' : ''"></span>
+                      </button>
+                    </li>
+                  </template>
+                </ul>
+              </nav>
+            </template>
             <!-- Forge reader toolbar — typography + theme controls, persisted via $store.reader. -->
             <template x-if="$store.flags?.forgeUi && $store.reader">
               <div class="sf-reader__toolbar" role="toolbar" aria-label="Reader preferences">
@@ -2516,12 +2560,27 @@
                   </div>
                 </div>
                 <div class="flex items-center gap-2">
-                  <div class="inline-flex items-center gap-1 bg-surface-50 dark:bg-surface-800 rounded-lg px-2 py-1">
-                    <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wide">Aa</span>
-                    <button @click="fontSize = Math.max(14, fontSize - 2)" class="w-6 h-6 rounded text-slate-500 text-sm font-bold cursor-pointer hover:bg-white">−</button>
-                    <span class="text-[11px] text-slate-600 w-5 text-center font-mono" x-text="fontSize"></span>
-                    <button @click="fontSize = Math.min(28, fontSize + 2)" class="w-6 h-6 rounded text-slate-500 text-sm font-bold cursor-pointer hover:bg-white">+</button>
-                  </div>
+                  <!-- M3: Chapter sidebar toggle — forgeUi only. -->
+                  <template x-if="$store.flags?.forgeUi">
+                    <button type="button"
+                            class="sf-reader__sidebar-toggle"
+                            @click="toggleSidebar()"
+                            :aria-expanded="sidebarOpen ? 'true' : 'false'"
+                            aria-controls="sf-reader-sidebar"
+                            aria-label="Danh sách chương">
+                      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12"/></svg>
+                      <span x-text="(chapter+1) + '/' + chapters.length"></span>
+                    </button>
+                  </template>
+                  <!-- Legacy inline font-size control (flag-OFF path). -->
+                  <template x-if="!$store.flags?.forgeUi">
+                    <div class="inline-flex items-center gap-1 bg-surface-50 dark:bg-surface-800 rounded-lg px-2 py-1">
+                      <span class="text-[10px] font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-wide">Aa</span>
+                      <button @click="fontSize = Math.max(14, fontSize - 2)" class="w-6 h-6 rounded text-slate-500 text-sm font-bold cursor-pointer hover:bg-white">−</button>
+                      <span class="text-[11px] text-slate-600 w-5 text-center font-mono" x-text="fontSize"></span>
+                      <button @click="fontSize = Math.min(28, fontSize + 2)" class="w-6 h-6 rounded text-slate-500 text-sm font-bold cursor-pointer hover:bg-white">+</button>
+                    </div>
+                  </template>
                   <button @click="continueStory()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z"/></svg>
                     Viết tiếp
@@ -2662,10 +2721,31 @@
                       </template>
                     </div>
                   </div>
-                  <div
-                    :class="$store.flags?.forgeUi && $store.reader ? 'sf-reader__prose' : 'text-slate-700 whitespace-pre-wrap leading-[1.9]'"
-                    :style="$store.flags?.forgeUi && $store.reader ? '' : ('font-size:' + fontSize + 'px')"
-                    x-html="(currentChapter.content || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
+                  <!-- M3: Portrait-injected prose (forgeUi). Paragraphs come from readerPage.paragraphs. -->
+                  <template x-if="$store.flags?.forgeUi && paragraphs.length > 0">
+                    <div class="sf-reader__prose" data-reader-content>
+                      <template x-for="(para, i) in paragraphs" :key="i">
+                        <div class="sf-reader__para-block">
+                          <template x-if="para.portraitUrl">
+                            <img :src="para.portraitUrl"
+                                 class="sf-reader__portrait"
+                                 alt=""
+                                 aria-hidden="true"
+                                 loading="lazy" />
+                          </template>
+                          <span x-html="para.text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                  <!-- Fallback prose (forgeUi but no paragraphs yet, or flag-OFF). -->
+                  <template x-if="!(($store.flags?.forgeUi) && paragraphs.length > 0)">
+                    <div
+                      :class="$store.flags?.forgeUi && $store.reader ? 'sf-reader__prose' : 'text-slate-700 whitespace-pre-wrap leading-[1.9]'"
+                      :style="$store.flags?.forgeUi && $store.reader ? '' : ('font-size:' + fontSize + 'px')"
+                      data-reader-content
+                      x-html="(currentChapter.content || '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>')"></div>
+                  </template>
                 </div>
               </template>
             </div>
