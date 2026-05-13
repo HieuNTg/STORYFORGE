@@ -1185,6 +1185,111 @@
     }
     .dark .sf-branch-tree-wrap { background:radial-gradient(circle at 50% 45%, rgba(96,165,250,.12), transparent 38%), rgba(2,6,23,.55); }
 
+
+    /* === Dynamic UI Sprint 4: Artifact Foundry + Model Observatory + Advanced Lab === */
+    [data-page='export'] > .max-w-3xl,
+    [data-page='settings'] > .max-w-3xl,
+    [data-page='providers'] > .max-w-5xl,
+    .sf-foundry-stage,
+    .sf-lab-stage,
+    .sf-observatory-stage { max-width: 1180px; }
+    .sf-foundry-hero,
+    .sf-lab-hero,
+    .sf-observatory-hero {
+      position:relative; overflow:hidden; border-radius:24px; padding:24px;
+      border:1px solid rgba(37,99,235,.18);
+      box-shadow:0 24px 76px rgba(15,23,42,.09);
+    }
+    .sf-foundry-hero {
+      background:
+        radial-gradient(circle at 16% 20%, rgba(245,158,11,.18), transparent 34%),
+        radial-gradient(circle at 86% 8%, rgba(124,58,237,.15), transparent 30%),
+        linear-gradient(135deg, rgba(255,255,255,.94), rgba(248,250,252,.84));
+    }
+    .sf-lab-hero {
+      background:
+        radial-gradient(circle at 16% 20%, rgba(37,99,235,.16), transparent 34%),
+        radial-gradient(circle at 86% 8%, rgba(16,185,129,.13), transparent 30%),
+        linear-gradient(135deg, rgba(255,255,255,.94), rgba(248,250,252,.84));
+    }
+    .sf-observatory-hero {
+      background:
+        radial-gradient(circle at 16% 20%, rgba(124,58,237,.17), transparent 34%),
+        radial-gradient(circle at 86% 8%, rgba(37,99,235,.15), transparent 30%),
+        linear-gradient(135deg, rgba(255,255,255,.94), rgba(248,250,252,.84));
+    }
+    .dark .sf-foundry-hero,.dark .sf-lab-hero,.dark .sf-observatory-hero {
+      background:
+        radial-gradient(circle at 16% 20%, rgba(96,165,250,.16), transparent 34%),
+        radial-gradient(circle at 86% 8%, rgba(167,139,250,.15), transparent 30%),
+        linear-gradient(135deg, rgba(15,23,42,.92), rgba(2,6,23,.84));
+      border-color:rgba(96,165,250,.20); box-shadow:0 28px 84px rgba(0,0,0,.34);
+    }
+    .sf-foundry-hero::after,.sf-lab-hero::after,.sf-observatory-hero::after {
+      content:''; position:absolute; right:-36px; bottom:-54px; width:260px; height:170px; opacity:.45; pointer-events:none;
+    }
+    .sf-foundry-hero::after {
+      background:
+        linear-gradient(90deg, rgba(245,158,11,.34), transparent 2px) 0 100%/36px 72px repeat-x,
+        linear-gradient(135deg, rgba(245,158,11,.18), rgba(124,58,237,.14));
+      clip-path:polygon(0 55%,14% 45%,28% 58%,42% 34%,56% 50%,70% 28%,84% 48%,100% 36%,100% 100%,0 100%);
+    }
+    .sf-lab-hero::after {
+      background:
+        linear-gradient(90deg, transparent 48%, rgba(37,99,235,.25) 49% 51%, transparent 52%) 0 0/42px 42px,
+        linear-gradient(0deg, transparent 48%, rgba(16,185,129,.20) 49% 51%, transparent 52%) 0 0/42px 42px;
+      border-radius:28px; transform:rotate(-8deg);
+    }
+    .sf-observatory-hero::after {
+      background:
+        radial-gradient(circle at 25% 50%, rgba(124,58,237,.35) 0 5px, transparent 6px),
+        radial-gradient(circle at 55% 32%, rgba(37,99,235,.35) 0 5px, transparent 6px),
+        radial-gradient(circle at 82% 64%, rgba(16,185,129,.30) 0 5px, transparent 6px),
+        conic-gradient(from 120deg, rgba(124,58,237,.16), rgba(37,99,235,.12), transparent, rgba(124,58,237,.16));
+      border-radius:50%;
+    }
+    .sf-foundry-kicker,.sf-lab-kicker,.sf-observatory-kicker {
+      display:inline-flex; align-items:center; gap:7px; font-size:10px; font-weight:800;
+      text-transform:uppercase; letter-spacing:.24em; color:#2563EB; margin-bottom:8px;
+    }
+    .dark .sf-foundry-kicker,.dark .sf-lab-kicker,.dark .sf-observatory-kicker { color:#93C5FD; }
+    .sf-foundry-hero h1,.sf-lab-hero h1,.sf-observatory-hero h1 {
+      font-size:clamp(1.55rem,3vw,2.35rem); line-height:1; letter-spacing:-.04em; color:#0F172A;
+    }
+    .dark .sf-foundry-hero h1,.dark .sf-lab-hero h1,.dark .sf-observatory-hero h1 { color:#F8FAFC; }
+    .sf-foundry-hero p,.sf-lab-hero p,.sf-observatory-hero p { max-width:680px; margin-top:8px; color:#475569; }
+    .dark .sf-foundry-hero p,.dark .sf-lab-hero p,.dark .sf-observatory-hero p { color:#CBD5E1; }
+    .sf-foundry-panel,.sf-lab-panel,.sf-observatory-panel {
+      border-radius:22px; background:rgba(255,255,255,.82); backdrop-filter:blur(16px);
+      border:1px solid rgba(148,163,184,.22); box-shadow:0 22px 68px rgba(15,23,42,.08);
+    }
+    .dark .sf-foundry-panel,.dark .sf-lab-panel,.dark .sf-observatory-panel { background:rgba(15,23,42,.76); border-color:rgba(148,163,184,.16); }
+    .sf-export-cards button {
+      min-height:126px; position:relative; overflow:hidden; border-radius:18px !important;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(245,158,11,.12), transparent 36%),
+        linear-gradient(135deg, rgba(255,255,255,.96), rgba(248,250,252,.80)) !important;
+      box-shadow:0 14px 38px rgba(15,23,42,.07);
+    }
+    .sf-export-cards button::after {
+      content:''; position:absolute; left:18px; right:18px; bottom:12px; height:18px; opacity:.36;
+      background:linear-gradient(90deg,#2563EB,#7C3AED,#F59E0B); clip-path:polygon(0 70%,20% 35%,40% 60%,60% 25%,80% 52%,100% 32%,100% 100%,0 100%);
+    }
+    .dark .sf-export-cards button { background:linear-gradient(135deg, rgba(15,23,42,.88), rgba(2,6,23,.72)) !important; }
+    [data-page='settings'] .sf-card-hero,
+    [data-page='settings'] .card,
+    [data-page='providers'] .card { border-radius:20px; }
+    [data-page='settings'] .grid button,
+    [data-page='providers'] table { transition: transform var(--sf-motion-base) var(--sf-ease-out), box-shadow var(--sf-motion-base) var(--sf-ease-out); }
+    [data-page='settings'] .grid button:hover { transform:translateY(-2px); box-shadow:0 14px 34px rgba(37,99,235,.10); }
+    .sf-observatory-table {
+      border-radius:22px; overflow:hidden; background:rgba(255,255,255,.82); box-shadow:0 22px 68px rgba(15,23,42,.08);
+    }
+    .dark .sf-observatory-table { background:rgba(15,23,42,.76); }
+    .sf-observatory-table tr:hover { background:rgba(37,99,235,.05); }
+    .dark .sf-observatory-table tr:hover { background:rgba(96,165,250,.08); }
+    @media (max-width: 760px) { .sf-export-cards { grid-template-columns:1fr 1fr !important; } }
+
   </style>
 </head>
 <body class="h-full bg-surface-50 font-sans text-slate-800" x-data x-init="$store.app.init()">
@@ -2434,7 +2539,7 @@
 
       <!-- ═══ SETTINGS PAGE ═══ -->
       <template x-if="$store.app.page === 'settings'">
-      <div class="page-enter" x-data="settingsPage()">
+      <div class="page-enter" x-data="settingsPage()" data-page="settings">
 
         <!-- Forge: first-time wizard -->
         <div x-data="forgeSettingsWizard()" x-init="show = shouldShow()">
@@ -2515,7 +2620,7 @@
             </template>
           </div>
 
-        <div class="max-w-3xl mx-auto space-y-4">
+        <div class="max-w-3xl mx-auto space-y-5 sf-lab-stage">
 
           <!-- Loading skeleton while config loads -->
           <template x-if="!Alpine.store('settings').config">
@@ -2540,13 +2645,14 @@
           <div x-show="Alpine.store('settings').config" x-cloak class="space-y-4">
 
           <!-- Hero header -->
-          <div class="sf-page-hero">
+          <div class="sf-lab-hero">
+            <span class="sf-lab-kicker"><span class="w-2 h-2 rounded-full bg-brand-500 shadow-[0_0_18px_rgba(37,99,235,.75)]"></span> Advanced Lab</span>
             <h1>Cài đặt</h1>
-            <p>Chọn nhà cung cấp AI, nhập API key và tuỳ chỉnh mô hình tạo sinh.</p>
+            <p>Phòng lab cấu hình StoryForge: chọn provider, khóa API, model, hình ảnh và các tham số tạo sinh nâng cao.</p>
           </div>
 
           <!-- Quick Setup: Model Presets -->
-          <div class="card sf-card-hero p-5 pt-[18px]">
+          <div class="card sf-card-hero sf-lab-panel p-5 pt-[18px]">
             <div class="flex items-center gap-2 mb-1.5">
               <span class="sf-step-badge">★</span>
               <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Thiết lập nhanh — preset miễn phí</h3>
@@ -3430,8 +3536,8 @@
 
       <!-- ═══ EXPORT PAGE ═══ -->
       <template x-if="$store.app.page === 'export'">
-      <div class="page-enter" x-data="exportPage()">
-        <div class="max-w-3xl mx-auto space-y-4">
+      <div class="page-enter" x-data="exportPage()" data-page="export">
+        <div class="max-w-3xl mx-auto space-y-5 sf-foundry-stage">
           <!-- Loading state -->
           <div x-show="loading" class="flex items-center justify-center py-12">
             <svg class="w-6 h-6 animate-spin text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
@@ -3452,12 +3558,13 @@
           <template x-if="!loading && (sessionId || stories.length > 0)">
             <div class="space-y-4">
               <!-- Hero header -->
-              <div class="sf-page-hero">
+              <div class="sf-foundry-hero">
+                <span class="sf-foundry-kicker"><span class="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_18px_rgba(245,158,11,.75)]"></span> Artifact Foundry</span>
                 <h1>Xuất truyện</h1>
-                <p>Chọn truyện và định dạng phù hợp — PDF cho in giấy, EPUB cho đọc số, ZIP để lưu toàn bộ.</p>
+                <p>Đúc bản thảo thành artifact hoàn chỉnh — PDF cho in giấy, EPUB cho thiết bị đọc, HTML/ZIP để chia sẻ và lưu trữ.</p>
               </div>
               <!-- Story selector -->
-              <div class="card p-5 sf-vitals-panel">
+              <div class="card p-5 sf-foundry-panel">
                 <div class="flex items-center gap-2 mb-4">
                   <span class="sf-step-badge">1</span>
                   <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn truyện</h3>
@@ -3472,7 +3579,7 @@
               </div>
               <!-- Document formats — Forge visual cards (flag ON) -->
                 <div x-data="forgeExportCards()" class="space-y-3">
-                  <div class="card p-5">
+                  <div class="card p-5 sf-foundry-panel">
                     <div class="flex items-center gap-2 mb-4">
                       <span class="sf-step-badge">2</span>
                       <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn định dạng</h3>
@@ -4055,13 +4162,14 @@
 
       <!-- ═══ PROVIDERS PAGE (live LLM health) ═══ -->
       <template x-if="$store.app.page === 'providers'">
-      <div class="page-enter" x-data="providersPage()" x-init="init()">
-        <div class="max-w-5xl mx-auto space-y-4">
-          <div class="sf-page-hero">
+      <div class="page-enter" x-data="providersPage()" x-init="init()" data-page="providers">
+        <div class="max-w-5xl mx-auto space-y-5 sf-observatory-stage">
+          <div class="sf-observatory-hero">
             <div class="flex items-start justify-between gap-3">
               <div class="flex-1 min-w-0">
+                <span class="sf-observatory-kicker"><span class="w-2 h-2 rounded-full bg-violet-500 shadow-[0_0_18px_rgba(124,58,237,.75)]"></span> Model Observatory</span>
                 <h1>Providers · Live status</h1>
-                <p>Snapshot in-memory health, latency và rate-limit cooldown của fallback chain. Auto-refresh mỗi 10 giây.</p>
+                <p>Đài quan sát model: latency, cooldown, lỗi gần nhất và sức khỏe fallback chain, tự refresh mỗi 10 giây.</p>
               </div>
               <button @click="loadHealth()" :disabled="loading"
                 class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-surface-200 bg-white/70 text-slate-600 hover:border-brand-400 hover:text-brand-600 transition-colors cursor-pointer disabled:opacity-50">
@@ -4084,7 +4192,7 @@
 
           <!-- Provider table -->
           <template x-if="providers.length > 0">
-            <div class="card overflow-hidden">
+            <div class="card overflow-hidden sf-observatory-table">
               <div class="px-4 py-3 border-b border-surface-200 flex items-center justify-between">
                 <h3 class="font-semibold text-sm text-slate-700">Models</h3>
                 <span class="text-xs text-slate-400" x-text="snapshot ? ('Snapshot: ' + snapshot.snapshot_ts) : ''"></span>
