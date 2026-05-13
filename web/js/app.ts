@@ -16,6 +16,7 @@ import { genreOrb } from './components/GenreOrb';
 import { configPanel } from './components/ConfigPanel';
 import { storyCard } from './components/StoryCard';
 import { agentBubble } from './components/AgentBubble';
+import { qualityGauge } from './components/QualityGauge';
 import {
   createToastStore,
   toastItem,
@@ -61,6 +62,10 @@ document.addEventListener('alpine:init', () => {
     // M2 Day-2 — AgentBubble factory. Template integration arrives when the
     // pipeline page binds sniffers (sse-sniffers.ts) to per-agent state.
     Alpine.data('agentBubble', agentBubble);
+
+    // M2 Day-3 — QualityGauge factory. Binds to done.data.quality[] entries
+    // when the pipeline page is wired in Day-5.
+    Alpine.data('qualityGauge', qualityGauge);
 
     // Toast store — singleton stack consumed by the toast region template.
     // attachToastHelper rebinds window.sfShowToast to the wider Forge
