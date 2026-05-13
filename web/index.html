@@ -541,13 +541,13 @@
       </div>
       <div>
         <div class="font-bold text-lg leading-tight">StoryForge</div>
-        <div class="text-xs text-slate-400">AI Story Generator</div>
+        <div class="text-xs text-slate-500">AI Story Generator</div>
       </div>
     </div>
 
     <!-- Nav links -->
     <nav class="flex-1 overflow-y-auto py-3 px-3">
-      <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-3 mb-2">Create</div>
+      <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 mb-2">Create</div>
       <template x-for="item in $store.app.navItems.filter(n => n.group === 'main')" :key="item.id">
         <button
           class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-600 cursor-pointer"
@@ -560,7 +560,7 @@
         </button>
       </template>
 
-      <div class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-3 mt-5 mb-2">System</div>
+      <div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider px-3 mt-5 mb-2">System</div>
       <template x-for="item in $store.app.navItems.filter(n => n.group === 'bottom')" :key="item.id">
         <button
           class="sidebar-link w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-600 cursor-pointer"
@@ -575,7 +575,7 @@
     </nav>
 
     <!-- Status -->
-    <div class="px-4 py-3 border-t border-surface-200 text-xs text-slate-400">
+    <div class="px-4 py-3 border-t border-surface-200 text-xs text-slate-500">
       v2.3 &middot; <span x-text="$store.pipeline.status === 'running' ? 'Running...' : 'Ready'"></span>
     </div>
   </aside>
@@ -615,8 +615,10 @@
       <!-- Dark mode toggle button -->
       <button
         @click="$store.app.toggleDarkMode()"
-        :aria-label="$store.app.darkMode ? 'Switch to light mode' : 'Switch to dark mode'"
-        :title="$store.app.darkMode ? 'Light mode' : 'Dark mode'"
+        :aria-label="($store?.app?.darkMode) ? 'Switch to light mode' : 'Switch to dark mode'"
+        :title="($store?.app?.darkMode) ? 'Light mode' : 'Dark mode'"
+        aria-label="Toggle theme"
+        title="Toggle theme"
         class="p-1.5 rounded-lg hover:bg-surface-100 dark:hover:bg-slate-700 cursor-pointer ml-auto"
       >
         <!-- Sun icon: shown in dark mode -->
