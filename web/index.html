@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <!-- Dark mode class is applied immediately by the inline script below to
      avoid a flash of unstyled content (FOUC). Alpine then keeps it in sync. -->
 <html lang="en" class="h-full">
@@ -2107,14 +2107,14 @@
                 <svg class="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/></svg>
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-semibold text-amber-800 dark:text-amber-200">
-                    Đang tiếp tục truyện
+                    Continuing truyện
                     <span class="font-bold" x-text="'„' + ($store.pipeline.continuationMeta.title || 'Untitled') + '"'"></span>
-                    từ chương
+                    from chapter
                     <span class="tabular-nums" x-text="$store.pipeline.continuationMeta.resumeFromChapter"></span>/<span class="tabular-nums" x-text="$store.pipeline.continuationMeta.targetChapters || '?'"></span>
                   </p>
                   <p class="text-xs text-amber-700/80 dark:text-amber-300/80 mt-0.5">
                     Pipeline đã dừng giữa chừng<template x-if="$store.pipeline.continuationMeta.interruptedAt"><span x-text="' · ' + relativeTimeVi($store.pipeline.continuationMeta.interruptedAt)"></span></template>.
-                    Form đã điền sẵn <span class="font-semibold tabular-nums" x-text="$store.pipeline.form.num_chapters"></span> chương còn lại — bấm chạy để tiếp tục.
+                    Form is filled sẵn <span class="font-semibold tabular-nums" x-text="$store.pipeline.form.num_chapters"></span> chapters còn lại — bấm chạy để tiếp tục.
                   </p>
                 </div>
                 <button type="button" @click="$store.pipeline.dismissContinuationCallout()"
@@ -2182,7 +2182,7 @@
                     </div>
                   </template>
                   <p x-show="$store.theater.agents.length === 0" class="sf-theater__empty">
-                    Đang chờ tín hiệu agent…
+                    Waiting for agent signal…
                   </p>
                 </div>
 
@@ -2247,7 +2247,7 @@
                 </p>
                 <p x-show="$store.theater.readerChapter !== null"
                    class="sf-theater__reader" aria-live="polite">
-                  Reader đang mô phỏng chương <span x-text="$store.theater.readerChapter"></span>
+                  Reader is simulating chapter <span x-text="$store.theater.readerChapter"></span>
                 </p>
               </section>
             </template>
@@ -2798,7 +2798,7 @@
                     <svg class="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     <div class="flex-1 min-w-0">
                       <p class="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
-                        Đã thêm chương
+                        Added chapters
                         <span class="tabular-nums" x-text="$store.pipeline.continuationMeta.resumeFromChapter"></span>
                         → <span class="tabular-nums" x-text="resumeRangeEnd()"></span>
                         <template x-if="formatElapsedVi($store.pipeline.runStartedAt, $store.pipeline.runFinishedAt)">
@@ -2813,7 +2813,7 @@
                     </div>
                     <button type="button" @click="openReaderFromRibbon()"
                       class="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer transition-colors">
-                      Đến chương mới
+                      To chapter mới
                       <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"/></svg>
                     </button>
                     <button type="button" @click="$store.pipeline.clearResumeRibbon()"
@@ -3263,17 +3263,17 @@
           <!-- Hero header -->
           <div class="sf-lab-hero">
             <span class="sf-lab-kicker"><span class="w-2 h-2 rounded-full bg-brand-500 shadow-[0_0_18px_rgba(37,99,235,.75)]"></span> Advanced Lab</span>
-            <h1>Cài đặt</h1>
-            <p>Phòng lab cấu hình StoryForge: chọn provider, khóa API, model, hình ảnh và các tham số tạo sinh nâng cao.</p>
+            <h1>Settings</h1>
+            <p>Configure StoryForge providers, API keys, models, images, and advanced generation settings.</p>
           </div>
 
           <!-- Quick Setup: Model Presets -->
           <div class="card sf-card-hero sf-lab-panel p-5 pt-[18px]">
             <div class="flex items-center gap-2 mb-1.5">
               <span class="sf-step-badge">★</span>
-              <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Thiết lập nhanh — preset miễn phí</h3>
+              <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Quick setup — free presets</h3>
             </div>
-            <p class="text-sm text-slate-500 dark:text-slate-300 mb-4">Một click cài model miễn phí qua OpenRouter — chỉ cần thêm API key bên dưới.</p>
+            <p class="text-sm text-slate-500 dark:text-slate-300 mb-4">One-click free model setup via OpenRouter — just add your API key below.</p>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <button @click="applyModelPreset('openrouter-free-basic')"
                 class="flex flex-col gap-1 p-3 rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 hover:border-brand-400 hover:shadow-sm transition-all cursor-pointer text-left">
@@ -3281,7 +3281,7 @@
                   <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z"/></svg>
                   Basic
                 </span>
-                <span class="text-[11px] text-slate-500 dark:text-slate-300">Qwen 3.6 Plus cho mọi layer</span>
+                <span class="text-[11px] text-slate-500 dark:text-slate-300">Qwen 3.6 Plus for every layer</span>
               </button>
               <button @click="applyModelPreset('openrouter-free-optimized')"
                 class="flex flex-col gap-1 p-3 rounded-xl border-2 border-brand-400 bg-gradient-to-br from-brand-50 to-violet-50 dark:from-brand-900/20 dark:to-violet-900/20 shadow-sm hover:border-brand-500 transition-all cursor-pointer text-left">
@@ -3289,8 +3289,8 @@
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
                   Optimized
                 </span>
-                <span class="text-[11px] text-slate-500 dark:text-slate-300">Qwen 3.6 + Nemotron theo layer</span>
-                <span class="text-[9px] font-bold tracking-wider text-orange-500 uppercase">Khuyên dùng</span>
+                <span class="text-[11px] text-slate-500 dark:text-slate-300">Qwen 3.6 + Nemotron by layer</span>
+                <span class="text-[9px] font-bold tracking-wider text-orange-500 uppercase">RECOMMENDED</span>
               </button>
               <button @click="applyModelPreset('openrouter-free-max')"
                 class="flex flex-col gap-1 p-3 rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 hover:border-brand-400 hover:shadow-sm transition-all cursor-pointer text-left">
@@ -3312,8 +3312,8 @@
             <div class="flex items-center gap-2">
               <span class="sf-step-badge">1</span>
               <div>
-                <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Nhà cung cấp & API Key</h3>
-                <p class="text-xs text-slate-500 dark:text-slate-300 mt-0.5">Chọn provider, nhập API key, pick model.</p>
+                <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Provider & API Key</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-300 mt-0.5">Choose a provider, enter an API key, and pick a model.</p>
               </div>
             </div>
 
@@ -3505,7 +3505,7 @@
               <span class="sf-step-badge">2</span>
               <div>
                 <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Tạo hình minh hoạ</h3>
-                <p class="text-xs text-slate-500 dark:text-slate-300 mt-0.5">Chọn provider tạo ảnh AI và phong cách mặc định.</p>
+                <p class="text-xs text-slate-500 dark:text-slate-300 mt-0.5">Choose the AI image provider and default style.</p>
               </div>
             </div>
 
@@ -3685,8 +3685,8 @@
             <div class="flex items-start justify-between gap-3">
               <div class="flex-1 min-w-0">
                 <p class="text-[10px] uppercase tracking-[0.24em] text-brand-500 font-bold mb-1">Story Archive Shelf</p>
-                <h1>Thư viện truyện</h1>
-                <p x-text="stories.length > 0 ? (stories.length + ' artifact truyện đã lưu — mở kệ, đọc tiếp, hoặc rèn nhánh mới') : 'Tất cả checkpoint sẽ tự động hoá thành artifact trên kệ này'"></p>
+                <h1>Story Library</h1>
+                <p x-text="stories.length > 0 ? (stories.length + ' saved story artifacts — open the shelf, continue reading, or forge a new branch') : 'Tất cả checkpoint sẽ tự động hoá thành artifact trên kệ này'"></p>
               </div>
               <div class="flex items-center gap-2 flex-shrink-0">
                 <button @click="loadStories()" :disabled="loading"
@@ -3697,7 +3697,7 @@
                 <button @click="$store.app.navigate('pipeline')"
                   class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-600 text-white hover:bg-brand-700 transition-colors cursor-pointer">
                   <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                  Tạo mới
+                  New Story
                 </button>
               </div>
             </div>
@@ -3745,7 +3745,7 @@
               <p class="text-sm text-slate-500 dark:text-slate-300 max-w-sm mx-auto mb-6">Rèn truyện đầu tiên — mỗi checkpoint sẽ xuất hiện như một artifact sống trên kệ.</p>
               <button @click="$store.app.navigate('pipeline')" class="sf-cta-hero inline-flex items-center gap-2 px-6 py-2.5 text-sm cursor-pointer">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                Bắt đầu tạo truyện
+                Start Creating
               </button>
             </div>
           </template>
@@ -3803,7 +3803,7 @@
                       <h3 class="sf-story-card__title" x-text="title"></h3>
                       <div class="sf-story-card__meta">
                         <span x-show="story.genre" x-text="story.genre"></span>
-                        <span x-text="(story.chapter_count || 0) + ' chương'"></span>
+                        <span x-text="(story.chapter_count || 0) + ' chapters'"></span>
                         <span>artifact</span>
                         <span x-show="story.modified" x-text="story.modified"></span>
                       </div>
@@ -3817,12 +3817,12 @@
                     <div class="sf-story-card__actions">
                       <button type="button" class="sf-forge-btn" data-variant="ghost"
                         @click.stop="handleContinue($event)"
-                        :aria-label="'Viết tiếp ' + title">Viết tiếp</button>
+                        :aria-label="'Continue ' + title">Continue</button>
                       <button type="button" class="sf-forge-btn" data-variant="ghost"
                         @click.stop="handleDelete($event)"
-                        :aria-label="'Xoá ' + title"
+                        :aria-label="'Delete ' + title"
                         :data-state="$root.confirmDelete === storyId ? 'danger' : ''"
-                        x-text="$root.confirmDelete === storyId ? 'Xác nhận?' : 'Xoá'"></button>
+                        x-text="$root.confirmDelete === storyId ? 'Xác nhận?' : 'Delete'"></button>
                     </div>
                   </article>
                 </template>
@@ -3851,13 +3851,13 @@
             <!-- M3: Chapter sidebar. -->
               <nav class="sf-reader__sidebar"
                    :data-open="sidebarOpen ? 'true' : 'false'"
-                   aria-label="Danh sách chương">
+                   aria-label="Danh sách chapters">
                 <div class="sf-reader__sidebar-header">
-                  <span>Chương (<span x-text="chapters.length"></span>)</span>
+                  <span>Chapter (<span x-text="chapters.length"></span>)</span>
                   <button type="button"
                           class="sf-reader__sidebar-close"
                           @click="toggleSidebar()"
-                          aria-label="Đóng danh sách chương">
+                          aria-label="Đóng danh sách chapters">
                     <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                   </button>
                 </div>
@@ -3869,7 +3869,7 @@
                               :aria-current="chapter === idx ? 'true' : 'false'"
                               @click="goToChapter(idx)">
                         <span class="sf-reader__sidebar-num" x-text="'Ch.' + (ch.number || idx+1)"></span>
-                        <span class="sf-reader__sidebar-title" x-text="ch.title || ('Chương ' + (ch.number || idx+1))"></span>
+                        <span class="sf-reader__sidebar-title" x-text="ch.title || ('Chapter ' + (ch.number || idx+1))"></span>
                         <span class="sf-reader__sidebar-eta"
                               x-text="readTime(ch) > 0 ? readTime(ch) + ' ph' : ''"></span>
                       </button>
@@ -3926,7 +3926,7 @@
                   @click="selectedStory && selectedStory.filename && $store.reader.saveBookmark(selectedStory.filename, chapter)"
                   class="sf-reader__bookmark"
                   :aria-pressed="!!(selectedStory && selectedStory.filename && $store.reader.getBookmark(selectedStory.filename) && $store.reader.getBookmark(selectedStory.filename).chapter === chapter)"
-                  aria-label="Đánh dấu chương">
+                  aria-label="Đánh dấu chapters">
                   <span aria-hidden="true">★</span>
                   <span class="sf-reader__bookmark-label">Đánh dấu</span>
                 </button>
@@ -3938,7 +3938,7 @@
                 <div class="flex-1 min-w-0">
                   <button @click="backToList()" class="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-brand-600 mb-2 cursor-pointer">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
-                    Quay lại thư viện
+                    Back to Library
                   </button>
                   <p class="text-[10px] uppercase tracking-[0.24em] text-brand-500 font-bold mb-1">Immersive Reading Room</p>
                   <p class="text-[10px] uppercase tracking-[0.22em] text-brand-500 font-bold mb-1">Reading Room</p>
@@ -3946,7 +3946,7 @@
                   <div class="flex items-center gap-3 mt-1.5 text-xs text-slate-500 dark:text-slate-300">
                     <span class="inline-flex items-center gap-1">
                       <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12"/></svg>
-                      <span x-text="chapters.length + ' chương'"></span>
+                      <span x-text="chapters.length + ' chapters'"></span>
                     </span>
                     <span x-show="currentChapter" class="inline-flex items-center gap-1">
                       <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5l16.5-15M3.75 4.5h16.5"/></svg>
@@ -3961,14 +3961,14 @@
                             @click="toggleSidebar()"
                             :aria-expanded="sidebarOpen ? 'true' : 'false'"
                             aria-controls="sf-reader-sidebar"
-                            aria-label="Danh sách chương">
+                            aria-label="Danh sách chapters">
                       <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12"/></svg>
                       <span x-text="(chapter+1) + '/' + chapters.length"></span>
                     </button>
                   <!-- Legacy inline font-size control (flag-OFF path). -->
                   <button @click="continueStory()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer">
                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z"/></svg>
-                    Viết tiếp
+                    Continue
                   </button>
                 </div>
               </div>
@@ -3977,8 +3977,8 @@
             <template x-if="showJumpToNew">
               <div class="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800">
                 <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061A1.125 1.125 0 013 16.811V8.69zM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 010 1.954l-7.108 4.061a1.125 1.125 0 01-1.683-.977V8.69z"/></svg>
-                <span class="flex-1" x-text="'Có ' + latestContinuation.added + ' chương mới (Ch.' + firstNewChapter + ' trở đi)'"></span>
-                <button @click="jumpToNewChapter()" class="px-2.5 py-1 rounded-md font-semibold bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer">Xem chương mới</button>
+                <span class="flex-1" x-text="'Có ' + latestContinuation.added + ' chapters mới (Ch.' + firstNewChapter + ' trở đi)'"></span>
+                <button @click="jumpToNewChapter()" class="px-2.5 py-1 rounded-md font-semibold bg-emerald-600 text-white hover:bg-emerald-700 cursor-pointer">Xem chapters mới</button>
                 <button @click="jumpDismissed = true" class="p-1 rounded text-emerald-600 hover:bg-emerald-100 cursor-pointer" title="Đóng">
                   <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
@@ -3994,7 +3994,7 @@
             <div class="card p-6 md:p-10">
               <template x-if="currentChapter">
                 <div>
-                  <h3 class="text-xl font-bold text-slate-800 mb-2" x-text="'Chương ' + (currentChapter.number || currentChapter.chapter_number || chapter+1) + ': ' + (currentChapter.title || '').replace(/\*\*/g, '').replace(/^#+\s*/gm, '')"></h3>
+                  <h3 class="text-xl font-bold text-slate-800 mb-2" x-text="'Chapter ' + (currentChapter.number || currentChapter.chapter_number || chapter+1) + ': ' + (currentChapter.title || '').replace(/\*\*/g, '').replace(/^#+\s*/gm, '')"></h3>
                   <!-- L2 quality badge: render only when scoring exists for this chapter -->
                   <template x-if="chapterScore(currentChapter.chapter_number || currentChapter.number || chapter+1)">
                     <div class="mb-3 flex flex-wrap items-center gap-1.5 text-[11px]">
@@ -4039,21 +4039,21 @@
                   </template>
                   <div class="mb-6">
                     <template x-if="currentChapter.images && currentChapter.images.length">
-                      <img :src="'/media/' + currentChapter.images[0]" :alt="'Minh hoạ chương ' + (currentChapter.number || currentChapter.chapter_number || chapter+1)" class="w-full rounded-lg shadow-sm" loading="lazy" />
+                      <img :src="'/media/' + currentChapter.images[0]" :alt="'Minh hoạ chapters ' + (currentChapter.number || currentChapter.chapter_number || chapter+1)" class="w-full rounded-lg shadow-sm" loading="lazy" />
                     </template>
                     <div class="flex items-center gap-2 mt-2">
                       <button
                         @click="generateChapterImage(currentChapter.chapter_number || currentChapter.number || chapter+1)"
                         :disabled="generatingChapterImage === (currentChapter.chapter_number || currentChapter.number || chapter+1)"
                         class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold cursor-pointer bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 disabled:opacity-50"
-                        :title="(currentChapter.images && currentChapter.images.length) ? 'Tạo lại ảnh chương này' : 'Tạo ảnh cho chương này'">
+                        :title="(currentChapter.images && currentChapter.images.length) ? 'Tạo lại ảnh chapters này' : 'Tạo ảnh cho chapters này'">
                         <template x-if="generatingChapterImage === (currentChapter.chapter_number || currentChapter.number || chapter+1)">
                           <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                         </template>
                         <template x-if="generatingChapterImage !== (currentChapter.chapter_number || currentChapter.number || chapter+1)">
                           <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M2.25 6v12a1.5 1.5 0 001.5 1.5h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6z"/></svg>
                         </template>
-                        <span x-text="(currentChapter.images && currentChapter.images.length) ? 'Tạo lại ảnh' : 'Tạo ảnh chương'"></span>
+                        <span x-text="(currentChapter.images && currentChapter.images.length) ? 'Tạo lại ảnh' : 'Tạo ảnh chapters'"></span>
                       </button>
                       <span x-show="imageStatus" class="text-[11px] text-violet-600" x-text="imageStatus"></span>
                     </div>
@@ -4169,7 +4169,7 @@
             <p class="text-sm text-slate-500 dark:text-slate-300 max-w-sm mx-auto mb-6">Tạo truyện trước — sau đó bạn có thể xuất ra PDF cho in ấn, EPUB cho Kindle, hoặc ZIP để lưu trữ.</p>
             <button @click="$store.app.navigate('pipeline')" class="sf-cta-hero inline-flex items-center gap-2 px-6 py-2.5 text-sm cursor-pointer">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-              Tạo truyện mới
+              Create New Story
             </button>
           </div>
           <!-- Main export UI -->
@@ -4178,20 +4178,20 @@
               <!-- Hero header -->
               <div class="sf-foundry-hero">
                 <span class="sf-foundry-kicker"><span class="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_18px_rgba(245,158,11,.75)]"></span> Artifact Foundry</span>
-                <h1>Xuất truyện</h1>
+                <h1>Export Story</h1>
                 <p>Đúc bản thảo thành artifact hoàn chỉnh — PDF cho in giấy, EPUB cho thiết bị đọc, HTML/ZIP để chia sẻ và lưu trữ.</p>
               </div>
               <!-- Story selector -->
               <div class="card p-5 sf-foundry-panel">
                 <div class="flex items-center gap-2 mb-4">
                   <span class="sf-step-badge">1</span>
-                  <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn truyện</h3>
+                  <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Choose Story</h3>
                 </div>
                 <select x-model="selectedStory" class="sf-input w-full" aria-label="Select story to export">
                   <option value="" x-show="sessionId">[Truyện hiện tại]</option>
-                  <option value="" x-show="!sessionId" disabled>-- Chọn truyện --</option>
+                  <option value="" x-show="!sessionId" disabled>-- Choose Story --</option>
                   <template x-for="s in stories" :key="s.filename">
-                    <option :value="s.filename" x-text="`${s.title || s.filename} (${s.chapter_count} chương)`"></option>
+                    <option :value="s.filename" x-text="`${s.title || s.filename} (${s.chapter_count} chapters)`"></option>
                   </template>
                 </select>
               </div>
@@ -4200,7 +4200,7 @@
                   <div class="card p-5 sf-foundry-panel">
                     <div class="flex items-center gap-2 mb-4">
                       <span class="sf-step-badge">2</span>
-                      <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn định dạng</h3>
+                      <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Choose Format</h3>
                     </div>
                     <div class="sf-export-cards grid grid-cols-4 gap-3">
                       <template x-for="fmt in formats" :key="fmt.id">
@@ -4288,20 +4288,20 @@
         <!-- Story selector -->
         <div class="sf-vitals-hero">
           <span class="sf-vitals-kicker"><span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_18px_rgba(16,185,129,.75)]"></span> Story Vital Signs</span>
-          <h1>Phân tích truyện</h1>
-          <p>Dashboard sinh hiệu của bản thảo: nhịp chương, mật độ chữ, thời gian đọc và chất lượng từng lớp xử lý.</p>
+          <h1>Story Analytics</h1>
+          <p>Dashboard sinh hiệu của bản thảo: nhịp chapters, mật độ chữ, thời gian đọc và chất lượng từng lớp xử lý.</p>
         </div>
         <div class="card p-5 sf-vitals-selector">
           <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div class="flex items-center gap-2">
               <span class="sf-step-badge">1</span>
-              <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn truyện</h3>
+              <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Choose Story</h3>
             </div>
             <div class="flex gap-1.5">
               <template x-if="hasCurrentResult">
                 <button @click="useCurrent()" class="px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all"
                   :class="storySource === 'current' ? 'bg-gradient-to-br from-brand-600 to-violet-600 text-white shadow-sm' : 'bg-surface-50 dark:bg-surface-800 text-slate-600 dark:text-slate-300 border border-surface-200 dark:border-surface-700 hover:border-brand-400'">
-                  Đang mở
+                  Current
                 </button>
               </template>
               <template x-if="stories.length > 0">
@@ -4316,7 +4316,7 @@
           </div>
           <template x-if="result">
             <p class="text-sm text-slate-500 dark:text-slate-300">
-              Đang phân tích: <span class="font-semibold text-slate-700 dark:text-slate-200" x-text="currentStoryTitle"></span>
+              Analyzing: <span class="font-semibold text-slate-700 dark:text-slate-200" x-text="currentStoryTitle"></span>
             </p>
           </template>
           <template x-if="loadingCheckpoint">
@@ -4330,10 +4330,10 @@
               <svg class="w-9 h-9 text-brand-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
             </div>
             <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1.5">Chưa có truyện</h3>
-            <p class="text-sm text-slate-500 dark:text-slate-300 max-w-sm mx-auto mb-6">Tạo truyện mới để xem thống kê phân tích.</p>
+            <p class="text-sm text-slate-500 dark:text-slate-300 max-w-sm mx-auto mb-6">Create New Story để xem thống kê phân tích.</p>
             <button @click="$store.app.navigate('pipeline')" class="sf-cta-hero inline-flex items-center gap-2 px-6 py-2.5 text-sm cursor-pointer">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-              Tạo truyện mới
+              Create New Story
             </button>
           </div>
         </template>
@@ -4343,7 +4343,7 @@
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div class="sf-stat-tile">
                 <div class="n" x-text="stats.totalChapters"></div>
-                <div class="l">Chương</div>
+                <div class="l">Chapter</div>
               </div>
               <div class="sf-stat-tile">
                 <div class="n" x-text="stats.totalWords.toLocaleString()"></div>
@@ -4351,7 +4351,7 @@
               </div>
               <div class="sf-stat-tile">
                 <div class="n" x-text="stats.avgWords.toLocaleString()"></div>
-                <div class="l">TB / chương</div>
+                <div class="l">TB / chapters</div>
               </div>
               <div class="sf-stat-tile">
                 <div class="n" x-text="'~' + stats.readingTime"></div>
@@ -4414,10 +4414,10 @@
                 <svg class="w-9 h-9 text-orange-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15"/></svg>
               </div>
               <h3 class="text-lg font-semibold text-slate-800 dark:text-slate-200 mb-1.5">Chưa có truyện để phân nhánh</h3>
-              <p class="text-sm text-slate-500 dark:text-slate-300 max-w-sm mx-auto mb-6">Tạo truyện trước, rồi khám phá các hướng đi thay thế từ bất kỳ chương nào. AI sẽ viết song song nhiều phiên bản.</p>
+              <p class="text-sm text-slate-500 dark:text-slate-300 max-w-sm mx-auto mb-6">Tạo truyện trước, rồi khám phá các hướng đi thay thế từ bất kỳ chapters nào. AI sẽ viết song song nhiều phiên bản.</p>
               <button @click="$store.app.navigate('pipeline')" class="sf-cta-hero inline-flex items-center gap-2 px-6 py-2.5 text-sm cursor-pointer">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-                Tạo truyện mới
+                Create New Story
               </button>
             </div>
           </template>
@@ -4429,8 +4429,8 @@
               <!-- Hero header -->
               <div class="sf-branch-hero">
                 <span class="sf-branch-kicker"><span class="w-2 h-2 rounded-full bg-violet-500 shadow-[0_0_18px_rgba(124,58,237,.75)]"></span> Branch Constellation</span>
-                <h1>Phân nhánh truyện</h1>
-                <p>Chọn một chương rồi mở constellation các tuyến truyện song song — mỗi lựa chọn là một ngôi sao mới trong vũ trụ bản thảo.</p>
+                <h1>Story Branching</h1>
+                <p>Chọn một chapters rồi mở constellation các tuyến truyện song song — mỗi lựa chọn là một ngôi sao mới trong vũ trụ bản thảo.</p>
               </div>
 
               <!-- Story source card -->
@@ -4438,19 +4438,19 @@
                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                   <div class="flex items-center gap-2">
                     <span class="sf-step-badge">1</span>
-                    <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Chọn nguồn truyện</h3>
+                    <h3 class="font-semibold text-sm text-slate-700 dark:text-slate-200">Choose Story Source</h3>
                   </div>
                   <div class="flex gap-1.5">
                     <template x-if="hasCurrentStory">
                       <button @click="useCurrent()" class="px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all"
                         :class="storySource === 'current' ? 'bg-gradient-to-br from-brand-600 to-violet-600 text-white shadow-sm' : 'bg-surface-50 dark:bg-surface-800 text-slate-600 dark:text-slate-300 border border-surface-200 dark:border-surface-700 hover:border-brand-400'">
-                        Đang mở
+                        Current
                       </button>
                     </template>
                     <template x-if="stories.length > 0">
                       <button @click="showStoryPicker = !showStoryPicker" class="px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-all"
                         :class="storySource === 'saved' ? 'bg-gradient-to-br from-brand-600 to-violet-600 text-white shadow-sm' : 'bg-surface-50 dark:bg-surface-800 text-slate-600 dark:text-slate-300 border border-surface-200 dark:border-surface-700 hover:border-brand-400'">
-                        <span x-text="loadingStories ? 'Đang tải...' : 'Đã lưu (' + stories.length + ')'"></span>
+                        <span x-text="loadingStories ? 'Đang tải...' : 'Saved (' + stories.length + ')'"></span>
                       </button>
                     </template>
                   </div>
@@ -4460,7 +4460,7 @@
                 <template x-if="hasAnyStory">
                   <p class="text-sm text-slate-500 dark:text-slate-300 mb-4">
                     <span class="font-semibold text-slate-700 dark:text-slate-200" x-text="storyTitle"></span>
-                    — chọn chương để bắt đầu phân nhánh
+                    — chọn chapters để bắt đầu phân nhánh
                   </p>
                 </template>
 
@@ -4806,7 +4806,7 @@
           <!-- Empty state -->
           <template x-if="!loading && !error && isEmpty">
             <div class="card p-6 text-center text-sm text-slate-500">
-              Chưa có dữ liệu — chưa có LLM call nào trong session này.
+              No data yet — no LLM calls in this session.
             </div>
           </template>
 
@@ -4890,7 +4890,7 @@
         <div class="max-w-3xl mx-auto space-y-4">
           <!-- Hero header -->
           <div class="sf-page-hero">
-            <h1>Hướng dẫn sử dụng</h1>
+            <h1>How to Use</h1>
             <p>Pipeline 2 tầng biến ý tưởng thành truyện dài — từ outline đến kịch tính cao trào.</p>
           </div>
 
@@ -4919,7 +4919,7 @@
               <ul class="space-y-1.5 text-[13px] text-slate-600 dark:text-slate-300">
                 <li class="flex gap-2"><svg class="w-3.5 h-3.5 mt-0.5 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>Tạo nhân vật: tính cách, backstory, động cơ</li>
                 <li class="flex gap-2"><svg class="w-3.5 h-3.5 mt-0.5 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>Xây thế giới & bối cảnh</li>
-                <li class="flex gap-2"><svg class="w-3.5 h-3.5 mt-0.5 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>Outline chi tiết + viết từng chương song song</li>
+                <li class="flex gap-2"><svg class="w-3.5 h-3.5 mt-0.5 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>Outline chi tiết + viết từng chapters song song</li>
               </ul>
             </div>
             <div class="card p-5">
@@ -4945,8 +4945,8 @@
               <div class="sf-guide-step">
                 <span class="sf-step-badge">1</span>
                 <div class="text-[13px] flex-1">
-                  <div class="font-semibold text-slate-700 dark:text-slate-200">Cài đặt API</div>
-                  <div class="text-slate-500 dark:text-slate-300">Vào <strong class="text-brand-600">Cài đặt</strong> → nhập API Key và chọn model</div>
+                  <div class="font-semibold text-slate-700 dark:text-slate-200">Settings API</div>
+                  <div class="text-slate-500 dark:text-slate-300">Vào <strong class="text-brand-600">Settings</strong> → nhập API Key và chọn model</div>
                 </div>
               </div>
               <div class="sf-guide-step">
@@ -4960,7 +4960,7 @@
                 <span class="sf-step-badge">3</span>
                 <div class="text-[13px] flex-1">
                   <div class="font-semibold text-slate-700 dark:text-slate-200">Tuỳ chỉnh</div>
-                  <div class="text-slate-500 dark:text-slate-300">Chọn thể loại, số chương, độ dài — hoặc giữ mặc định</div>
+                  <div class="text-slate-500 dark:text-slate-300">Chọn thể loại, số chapters, độ dài — hoặc giữ mặc định</div>
                 </div>
               </div>
               <div class="sf-guide-step">
