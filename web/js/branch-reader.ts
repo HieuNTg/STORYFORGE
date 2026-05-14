@@ -160,7 +160,7 @@ document.addEventListener('alpine:init', () => {
       treeLayout: null,
       minimapData: null,
       active: false,
-      useStreaming: true, // Enable SSE streaming by default
+      useStreaming: false, // Prefer stable non-streaming choice; streaming endpoint may be unavailable in some deployments/tests.
       canUndo: false,
       canRedo: false,
       zoom: 1,
@@ -414,12 +414,17 @@ document.addEventListener('alpine:init', () => {
 
       async loadMinimap(this: BranchReaderComponent): Promise<void> {
         if (!this.sessionId) return;
+        this.minimapData = null;
         try {
           const res = await fetch(`/api/branch/${this.sessionId}/tree/minimap`);
           if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
-          this.minimapData = await res.json();
-        } catch (e) {
-          this.error = (e as Error).message;
+          const data = await res.json();
+          const hasShape = Array.isArray(data?.nodes) && Array.isArray(data?.edges) && data?.bounds;
+          this.minimapData = hasShape ? data : null;
+        } catch {
+          // Minimap is optional chrome. Do not break the branch reader if the
+          // endpoint is missing or returns an older tree shape.
+          this.minimapData = null;
         }
       },
 
