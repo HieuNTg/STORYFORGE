@@ -1822,6 +1822,70 @@
       animation: sfPulseGlow 2.4s ease-in-out infinite;
     }
 
+    /* Contrast rescue: keep cinematic surfaces readable over gradients/glass. */
+    [data-page='pipeline'] .sf-card-hero:first-of-type,
+    [data-page='pipeline'] .sf-card-hero:first-of-type * {
+      text-shadow: 0 1px 3px rgba(2, 6, 23, .75);
+    }
+    [data-page='pipeline'] .sf-phase-label {
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      margin-top: .2rem !important;
+      padding: .12rem .38rem !important;
+      border-radius: 999px !important;
+      color: #F8FAFC !important;
+      background: rgba(2, 6, 23, .64) !important;
+      border: 1px solid rgba(226, 232, 240, .18) !important;
+      font-weight: 800 !important;
+      text-shadow: 0 1px 3px rgba(2, 6, 23, .86), 0 0 16px rgba(15, 23, 42, .42) !important;
+    }
+    [data-page='pipeline'] .sf-phase.active .sf-phase-label,
+    [data-page='pipeline'] .sf-phase.done .sf-phase-label {
+      color: #FFFFFF !important;
+    }
+    [data-page='pipeline'] .sf-theater {
+      color: #F8FAFC !important;
+      background:
+        linear-gradient(180deg, rgba(15, 23, 42, .96), rgba(15, 23, 42, .91)) !important;
+      border-color: rgba(148, 163, 184, .42) !important;
+      box-shadow: 0 24px 70px rgba(2, 6, 23, .34), inset 0 1px 0 rgba(255, 255, 255, .12) !important;
+    }
+    [data-page='pipeline'] .sf-theater__header {
+      padding: .55rem .7rem !important;
+      border-radius: .85rem !important;
+      background: rgba(2, 6, 23, .58) !important;
+      border: 1px solid rgba(226, 232, 240, .16) !important;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.08) !important;
+    }
+    [data-page='pipeline'] .sf-theater__title,
+    [data-page='pipeline'] .sf-theater__state,
+    [data-page='pipeline'] .sf-theater__empty,
+    [data-page='pipeline'] .sf-agent-bubble__name,
+    [data-page='pipeline'] .sf-agent-bubble__state,
+    [data-page='pipeline'] .sf-agent-bubble__msg,
+    [data-page='pipeline'] .sf-theater__debate,
+    [data-page='pipeline'] .sf-theater__reader {
+      color: #F8FAFC !important;
+      text-shadow: 0 1px 2px rgba(2, 6, 23, .72) !important;
+    }
+    [data-page='pipeline'] .sf-theater__state,
+    [data-page='pipeline'] .sf-theater__empty,
+    [data-page='pipeline'] .sf-agent-bubble__state {
+      color: #E2E8F0 !important;
+    }
+    [data-page='pipeline'] .sf-theater__empty,
+    [data-page='pipeline'] .sf-theater__debate,
+    [data-page='pipeline'] .sf-theater__reader {
+      background: rgba(2, 6, 23, .42) !important;
+      border: 1px solid rgba(226, 232, 240, .12) !important;
+      border-radius: .85rem !important;
+    }
+    [data-page='pipeline'] .sf-agent-bubble {
+      background: rgba(30, 41, 59, .82) !important;
+      border-color: rgba(148, 163, 184, .30) !important;
+    }
+
     @media (prefers-reduced-motion: reduce) {
       .sf-page-hero,
       .sf-archive-hero,
