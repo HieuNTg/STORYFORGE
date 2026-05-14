@@ -82,6 +82,9 @@ var API: ApiClient = {
   },
 
   async post<T = unknown>(path: string, body: RequestBody = {}): Promise<T> {
+    const timeoutMs = path.startsWith('/images/') && path.endsWith('/generate')
+      ? STREAM_TIMEOUT_MS
+      : DEFAULT_TIMEOUT_MS
     const res = await fetchWithTimeout(
       this.base + path,
       {
@@ -89,7 +92,7 @@ var API: ApiClient = {
         headers: mutationHeaders(),
         body: JSON.stringify(body),
       },
-      DEFAULT_TIMEOUT_MS,
+      timeoutMs,
     )
     if (!res.ok) {
       let detail = `POST ${path}: ${res.status}`

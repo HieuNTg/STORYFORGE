@@ -515,7 +515,7 @@ function libraryPage() {
           '/images/' + encodeURIComponent(story.path) + '/generate',
           {}
         );
-        this.imageStatus = data.message || `Đã tạo ${data.count} ảnh`;
+        this.imageStatus = data.message || `Generated ${data.count} image(s)`;
         // If we are currently reading this story, splice the new images onto loaded chapters.
         if (this.selectedStory && this.selectedStory.filename === story.path && data.chapter_images) {
           const map = data.chapter_images;
@@ -528,7 +528,7 @@ function libraryPage() {
           });
         }
       } catch (e) {
-        this.error = 'Tạo ảnh thất bại: ' + (e as Error).message;
+        this.error = 'Image generation failed: ' + (e as Error).message;
       }
       this.generatingImages = null;
       setTimeout(() => { this.imageStatus = ''; }, 5000);
@@ -546,7 +546,7 @@ function libraryPage() {
           '/images/' + encodeURIComponent(filename) + '/generate',
           { chapter: chapterNumber }
         );
-        this.imageStatus = data.message || `Đã tạo ${data.count} ảnh cho chương ${chapterNumber}`;
+        this.imageStatus = data.message || `Generated ${data.count} image(s) for chapter ${chapterNumber}`;
         const map = data.chapter_images || {};
         const target = (this.selectedStory?.enhanced || this.selectedStory?.draft);
         const ch = target?.chapters?.find((c: StoryChapter) =>
@@ -556,7 +556,7 @@ function libraryPage() {
           (ch as { images?: string[] }).images = map[String(chapterNumber)];
         }
       } catch (e) {
-        this.error = 'Tạo ảnh chương thất bại: ' + (e as Error).message;
+        this.error = 'Chapter image generation failed: ' + (e as Error).message;
       }
       this.generatingChapterImage = null;
       setTimeout(() => { this.imageStatus = ''; }, 5000);

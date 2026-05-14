@@ -16,7 +16,7 @@ def validate_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> list[str]:
         for fb in getattr(llm, "fallback_models", [])
     )
     if not has_any_provider:
-        errors.append("API key bắt buộc")
+        errors.append("No LLM API key configured; story generation requires a provider key")
 
     if pipeline.num_chapters < 1:
         errors.append("Số chương phải >= 1")

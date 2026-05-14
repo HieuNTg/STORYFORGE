@@ -19,13 +19,22 @@ class ImageGenerator:
     PROVIDERS = ["dalle", "sd-api", "seedream", "replicate", "huggingface", "none"]
 
     def __init__(self, provider: str = "none", api_key: str = "", base_url: str = ""):
-        cfg = ConfigManager().pipeline
+        config = ConfigManager()
+        cfg = config.pipeline
         self.provider = provider or cfg.image_provider
-        self.api_key = api_key or cfg.image_api_key or os.environ.get("IMAGE_API_KEY", "")
+        # DALL-E should work when the user has already configured an OpenAI LLM
+        # key; a separate image_api_key remains an optional override.
+        self.api_key = (
+            api_key
+            or cfg.image_api_key
+            or os.environ.get("IMAGE_API_KEY", "")
+            or (config.llm.api_key if "openai.com" in (config.llm.base_url or "") else "")
+        )
         self.base_url = (
             base_url
             or cfg.image_api_url
-            or os.environ.get("IMAGE_API_URL", "https://api.openai.com/v1")
+            or os.environ.get("IMAGE_API_URL", "")
+            or (config.llm.base_url if "openai.com" in (config.llm.base_url or "") else "https://api.openai.com/v1")
         )
         self.hf_token = cfg.hf_token or os.environ.get("HF_TOKEN", "")
         self.hf_model = cfg.hf_image_model
