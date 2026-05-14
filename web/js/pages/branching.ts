@@ -450,6 +450,9 @@ export function forgeBranchTreeMount(): ForgeBranchTreeMountState {
       this.currentNode = null;
       this.loaded = false;
       this.error = null;
+      if (s) {
+        void this.refresh();
+      }
     },
 
     async refresh() {
