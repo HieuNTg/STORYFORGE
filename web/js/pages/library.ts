@@ -143,6 +143,13 @@ function libraryPage() {
     readerUsage: null as UsageSummary | null,
     latestContinuation: null as ContinuationEvent | null,
     jumpDismissed: false as boolean,
+    // Inline reader surface state. The library page owns the reader markup, so
+    // these must live here instead of only in readerPage(); otherwise Alpine
+    // evaluates the reader template against libraryPage and throws runtime
+    // errors when a saved story is opened from the library.
+    sidebarOpen: false as boolean,
+    readingProgress: 0 as number,
+    paragraphs: [] as Array<{ text: string; portraitUrl: string | null }>,
 
     // Forge surface — view-mode toggle (Grid / List). Only used when the
     // Forge UI is shipped on (legacy list removed sprint perf/forge-shell-2).
@@ -259,6 +266,32 @@ function libraryPage() {
       const idx = Math.min(target - 1, Math.max(0, this.chapters.length - 1));
       this.chapter = idx;
       this.jumpDismissed = true;
+      this.rebuildParagraphs();
+    },
+
+    readTime(ch: StoryChapter): number {
+      const words = (ch.content || '').trim().split(/\s+/).filter(Boolean).length;
+      return Math.max(1, Math.ceil(words / 220));
+    },
+
+    rebuildParagraphs(): void {
+      const content = this.currentChapter?.content || '';
+      this.paragraphs = content
+        .split(/\n{2,}/)
+        .map((text) => ({ text: text.trim(), portraitUrl: null }))
+        .filter((p) => p.text.length > 0);
+    },
+
+    toggleSidebar(): void {
+      this.sidebarOpen = !this.sidebarOpen;
+    },
+
+    goToChapter(idx: number): void {
+      if (idx < 0 || idx >= this.chapters.length) return;
+      this.chapter = idx;
+      this.readingProgress = 0;
+      this.rebuildParagraphs();
+      if (window.innerWidth < 768) this.sidebarOpen = false;
     },
 
     overallPillClass(value: number): string {
@@ -308,6 +341,8 @@ function libraryPage() {
         // Set selected story for inline reading
         this.selectedStory = data;
         this.chapter = 0;
+        this.sidebarOpen = false;
+        this.readingProgress = 0;
         this.characterProfiles = [];
         this.qualityScores = null;
         this.jumpDismissed = false;
@@ -326,6 +361,7 @@ function libraryPage() {
           pipelineStore.pendingJumpAfterOpen = false;
           this.jumpToNewChapter();
         }
+        this.rebuildParagraphs();
         // Fire-and-forget: don't block reader render on profiles or quality
         this.loadCharacterProfiles(filename);
         this.loadQuality(filename);
@@ -393,6 +429,9 @@ function libraryPage() {
       this.readerUsage = null;
       this.latestContinuation = null;
       this.jumpDismissed = false;
+      this.sidebarOpen = false;
+      this.readingProgress = 0;
+      this.paragraphs = [];
     },
 
     async deleteStory(filename: string): Promise<void> {
@@ -640,7 +679,11 @@ function libraryPage() {
     },
 
     // Reader navigation
-    prev(): void { if (this.chapter > 0) this.chapter--; },
-    next(): void { if (this.chapter < this.chapters.length - 1) this.chapter++; },
+    prev(): void {
+      if (this.chapter > 0) this.goToChapter(this.chapter - 1);
+    },
+    next(): void {
+      if (this.chapter < this.chapters.length - 1) this.goToChapter(this.chapter + 1);
+    },
   };
 }
