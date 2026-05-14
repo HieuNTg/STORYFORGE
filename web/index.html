@@ -1578,6 +1578,268 @@
       width: fit-content;
     }
 
+
+
+    /* === Lively Motion Pass: make StoryForge feel alive, not just reskinned === */
+    :root {
+      --sf-live-cyan: #22D3EE;
+      --sf-live-blue: #3B82F6;
+      --sf-live-violet: #A855F7;
+      --sf-live-pink: #EC4899;
+      --sf-live-amber: #F59E0B;
+      --sf-live-green: #22C55E;
+    }
+    @property --sf-spin {
+      syntax: '<angle>';
+      inherits: false;
+      initial-value: 0deg;
+    }
+    @keyframes sfAuroraDrift {
+      0%,100% { background-position: 0% 50%, 100% 50%, 50% 100%; }
+      50% { background-position: 100% 50%, 0% 50%, 50% 0%; }
+    }
+    @keyframes sfFloaty {
+      0%,100% { transform: translate3d(0,0,0) rotate(0deg); }
+      33% { transform: translate3d(10px,-12px,0) rotate(3deg); }
+      66% { transform: translate3d(-8px,8px,0) rotate(-2deg); }
+    }
+    @keyframes sfScanline {
+      0% { transform: translateY(-120%); opacity: 0; }
+      12% { opacity: .65; }
+      55% { opacity: .20; }
+      100% { transform: translateY(220%); opacity: 0; }
+    }
+    @keyframes sfConicSpin { to { --sf-spin: 360deg; } }
+    @keyframes sfEnergyFlow {
+      from { background-position: 0 0; }
+      to { background-position: 220px 0; }
+    }
+    @keyframes sfPulseGlow {
+      0%,100% { box-shadow: 0 0 0 rgba(34,211,238,0), 0 18px 44px rgba(15,23,42,.10); }
+      50% { box-shadow: 0 0 34px rgba(34,211,238,.32), 0 28px 80px rgba(59,130,246,.20); }
+    }
+    @keyframes sfCaretBeat {
+      0%,100% { transform: scaleY(.45); opacity:.45; }
+      50% { transform: scaleY(1); opacity:1; }
+    }
+    @keyframes sfShimmerAcross {
+      0% { transform: translateX(-140%) rotate(16deg); }
+      100% { transform: translateX(170%) rotate(16deg); }
+    }
+    body::before {
+      animation: sfAuroraDrift 18s ease-in-out infinite !important;
+      background-size: 140% 140%, 130% 130%, 120% 120% !important;
+    }
+    .page-enter { animation: sfPagePop .48s cubic-bezier(.16,1,.3,1) both !important; }
+    @keyframes sfPagePop {
+      from { opacity:0; transform: translateY(18px) scale(.985); filter: blur(6px); }
+      to { opacity:1; transform: translateY(0) scale(1); filter: blur(0); }
+    }
+
+    /* Alive hero surfaces */
+    .sf-page-hero,
+    .sf-archive-hero,
+    .sf-foundry-hero,
+    .sf-vitals-hero,
+    .sf-branch-hero,
+    .sf-lab-hero,
+    .sf-observatory-hero,
+    [data-page='pipeline'] .sf-card-hero:first-of-type {
+      isolation: isolate;
+      overflow: hidden !important;
+      animation: sfPulseGlow 5.2s ease-in-out infinite;
+    }
+    .sf-page-hero::before,
+    .sf-archive-hero::before,
+    .sf-foundry-hero::before,
+    .sf-vitals-hero::before,
+    .sf-branch-hero::before,
+    .sf-lab-hero::before,
+    .sf-observatory-hero::before,
+    [data-page='pipeline'] .sf-card-hero:first-of-type::before {
+      content: '' !important;
+      position: absolute !important;
+      inset: -2px !important;
+      height: auto !important;
+      z-index: -1 !important;
+      opacity: .86 !important;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(34,211,238,.38), transparent 28%),
+        radial-gradient(circle at 82% 8%, rgba(168,85,247,.34), transparent 26%),
+        radial-gradient(circle at 76% 78%, rgba(245,158,11,.20), transparent 30%),
+        linear-gradient(135deg, rgba(8,11,22,.98), rgba(30,41,59,.90), rgba(88,28,135,.86)) !important;
+      background-size: 150% 150%, 130% 130%, 120% 120%, 100% 100% !important;
+      animation: sfAuroraDrift 14s ease-in-out infinite !important;
+    }
+    .sf-page-hero::after,
+    .sf-archive-hero::after,
+    .sf-foundry-hero::after,
+    .sf-vitals-hero::after,
+    .sf-branch-hero::after,
+    .sf-lab-hero::after,
+    .sf-observatory-hero::after,
+    [data-page='pipeline'] .sf-card-hero:first-of-type::after {
+      content: '' !important;
+      position: absolute !important;
+      inset: -80px -80px auto auto !important;
+      width: 310px !important;
+      height: 310px !important;
+      border-radius: 999px !important;
+      opacity: .58 !important;
+      pointer-events: none !important;
+      background:
+        conic-gradient(from var(--sf-spin), rgba(34,211,238,.0), rgba(34,211,238,.75), rgba(168,85,247,.62), rgba(245,158,11,.52), rgba(34,211,238,.0));
+      filter: blur(1px);
+      animation: sfConicSpin 9s linear infinite, sfFloaty 8s ease-in-out infinite !important;
+      mask: radial-gradient(circle, transparent 0 34%, black 35% 62%, transparent 63%);
+    }
+    .sf-page-hero h1,
+    .sf-archive-hero h1,
+    .sf-foundry-hero h1,
+    .sf-vitals-hero h1,
+    .sf-branch-hero h1,
+    .sf-lab-hero h1,
+    .sf-observatory-hero h1 {
+      position: relative;
+    }
+    .sf-page-hero h1::after,
+    .sf-archive-hero h1::after,
+    .sf-foundry-hero h1::after,
+    .sf-vitals-hero h1::after,
+    .sf-branch-hero h1::after,
+    .sf-lab-hero h1::after,
+    .sf-observatory-hero h1::after {
+      content: '';
+      display: inline-block;
+      width: .08em;
+      height: .8em;
+      margin-left: .14em;
+      vertical-align: -.06em;
+      border-radius: 999px;
+      background: #7DD3FC;
+      box-shadow: 0 0 18px rgba(125,211,252,.9);
+      animation: sfCaretBeat 1.35s ease-in-out infinite;
+    }
+
+    /* Pipeline energy rail */
+    .sf-phase::after {
+      height: 4px !important;
+      border-radius: 999px !important;
+      background: repeating-linear-gradient(90deg, rgba(34,211,238,.95) 0 18px, rgba(168,85,247,.85) 18px 36px, rgba(245,158,11,.85) 36px 54px) !important;
+      background-size: 220px 100% !important;
+      animation: sfEnergyFlow 2.2s linear infinite !important;
+      opacity: .88 !important;
+      box-shadow: 0 0 18px rgba(34,211,238,.35);
+    }
+    .sf-phase-dot {
+      transition: transform .24s cubic-bezier(.2,.9,.2,1.2), box-shadow .24s ease !important;
+    }
+    .sf-phase:hover .sf-phase-dot,
+    .sf-phase.active .sf-phase-dot {
+      transform: translateY(-4px) scale(1.16) !important;
+      box-shadow: 0 0 0 8px rgba(34,211,238,.12), 0 0 38px rgba(34,211,238,.52) !important;
+    }
+
+    /* Cards: actual hover life */
+    .card,
+    .sf-story-card,
+    .sf-export-cards button,
+    .sf-example-chip,
+    .sf-stat-tile {
+      transform-style: preserve-3d;
+      transition: transform .28s cubic-bezier(.16,1,.3,1), box-shadow .28s ease, border-color .28s ease, filter .28s ease !important;
+    }
+    .card:hover,
+    .sf-stat-tile:hover {
+      transform: translateY(-5px) !important;
+      border-color: rgba(34,211,238,.42) !important;
+      box-shadow: 0 32px 90px rgba(59,130,246,.18), inset 0 1px 0 rgba(255,255,255,.72) !important;
+    }
+    .sf-story-card::after,
+    .sf-export-cards button::before,
+    .sf-example-chip::after {
+      content: '';
+      position: absolute;
+      top: -40%;
+      left: -30%;
+      width: 28%;
+      height: 190%;
+      pointer-events: none;
+      opacity: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.50), transparent);
+      filter: blur(1px);
+    }
+    .sf-story-card:hover::after,
+    .sf-export-cards button:hover::before,
+    .sf-example-chip:hover::after {
+      opacity: 1;
+      animation: sfShimmerAcross .9s ease-out both;
+    }
+    .sf-story-card:hover .sf-story-card__cover::before {
+      transform: perspective(420px) rotateY(-18deg) rotateX(5deg) translateY(-8px) !important;
+    }
+    .sf-story-card__cover .sf-genre-orb {
+      animation: sfFloaty 5.5s ease-in-out infinite;
+    }
+
+    /* Export cards feel selectable/alive */
+    .sf-export-cards button[aria-pressed='true'] {
+      transform: translateY(-8px) scale(1.035) !important;
+      border-color: rgba(125,211,252,.82) !important;
+      box-shadow: 0 0 0 6px rgba(34,211,238,.12), 0 34px 100px rgba(34,211,238,.28) !important;
+    }
+    .sf-export-cards button:hover {
+      transform: translateY(-8px) rotateX(3deg) scale(1.02) !important;
+      filter: saturate(1.22) brightness(1.06);
+    }
+
+    /* Buttons/input tactile feedback */
+    button:not(:disabled) {
+      transition: transform .18s cubic-bezier(.16,1,.3,1), filter .18s ease, box-shadow .18s ease !important;
+    }
+    button:not(:disabled):active { transform: translateY(1px) scale(.985) !important; }
+    .sf-cta-hero,
+    .sf-forge-btn[data-variant='primary'],
+    .btn-primary {
+      background: linear-gradient(100deg, #2563EB, #7C3AED, #EC4899, #F59E0B) !important;
+      background-size: 240% 100% !important;
+      animation: sfEnergyFlow 5s linear infinite;
+      box-shadow: 0 14px 40px rgba(124,58,237,.28) !important;
+    }
+    input:focus, textarea:focus, select:focus, .sf-search:focus, .sf-input:focus {
+      transform: translateY(-2px);
+      box-shadow: 0 0 0 4px rgba(34,211,238,.16), 0 18px 48px rgba(59,130,246,.12) !important;
+    }
+
+    /* Live status dots */
+    .sf-step-badge,
+    .sf-archive-kicker .w-2,
+    .sf-foundry-kicker .w-2,
+    .sf-vitals-kicker .w-2,
+    .sf-branch-kicker .w-2,
+    .sf-lab-kicker .w-2,
+    .sf-observatory-kicker .w-2 {
+      animation: sfPulseGlow 2.4s ease-in-out infinite;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .sf-page-hero,
+      .sf-archive-hero,
+      .sf-foundry-hero,
+      .sf-vitals-hero,
+      .sf-branch-hero,
+      .sf-lab-hero,
+      .sf-observatory-hero,
+      .sf-page-hero::before,
+      .sf-page-hero::after,
+      .sf-phase::after,
+      .sf-genre-orb,
+      .sf-cta-hero,
+      .sf-forge-btn[data-variant='primary'] {
+        animation: none !important;
+      }
+    }
+
   </style>
 </head>
 <body class="h-full bg-surface-50 font-sans text-slate-800" x-data x-init="$store.app.init()">
