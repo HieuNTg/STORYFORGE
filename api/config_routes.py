@@ -198,6 +198,10 @@ def get_config(response: Response):
             "hf_token_masked": masked_hf_token,
             "hf_image_model": cfg.pipeline.hf_image_model,
             "image_prompt_style": cfg.pipeline.image_prompt_style,
+            "enable_simulation_transcript": getattr(
+                cfg.pipeline, "enable_simulation_transcript", False
+            ),
+            "enable_drama_climax": getattr(cfg.pipeline, "enable_drama_climax", False),
         },
     }
 

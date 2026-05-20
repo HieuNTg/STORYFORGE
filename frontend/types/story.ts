@@ -112,6 +112,37 @@ export const storySchema = z.object({
 });
 export type Story = z.infer<typeof storySchema>;
 
+// ---------------------------------------------------------------------------
+// Simulation Transcript (Phase 3) — mirrors models/schemas.py
+// ---------------------------------------------------------------------------
+
+export const dramaLevelSchema = z.enum(["low", "medium", "high", "climax"]);
+export type DramaLevel = z.infer<typeof dramaLevelSchema>;
+
+export const transcriptTurnSchema = z.object({
+  id: z.string().min(1).max(64),
+  senderId: z.string().min(1).max(80),
+  senderName: z.string().min(1).max(80),
+  emotion: z.string().max(80).default(""),
+  actionDetails: z.string().max(2000).default(""),
+  speech: z.string().max(2000).default(""),
+});
+export type TranscriptTurn = z.infer<typeof transcriptTurnSchema>;
+
+export const simulationTranscriptSchema = z.object({
+  logs: z.array(transcriptTurnSchema).default([]),
+  outcomeSummary: z.string().max(4000).default(""),
+});
+export type SimulationTranscript = z.infer<typeof simulationTranscriptSchema>;
+
+export const simulationContinueRequestSchema = z.object({
+  characters: z.array(z.record(z.string(), z.unknown())).min(1).max(10),
+  historyLogs: z.array(transcriptTurnSchema).max(6).default([]),
+  topic: z.string().min(1).max(2000),
+  dramaLevel: dramaLevelSchema.default("high"),
+});
+export type SimulationContinueRequest = z.infer<typeof simulationContinueRequestSchema>;
+
 export const storyExportSchema = z.object({
   version: z.literal(1),
   story: storySchema,

@@ -366,6 +366,11 @@ class PipelineConfig:
     enable_character_traits: bool = False
     character_traits_cheap_model_override: str = ""  # empty = use LLMConfig.cheap_model
 
+    # Simulation Transcript (Phase 3) — structured TranscriptTurn[] + /api/simulation/* endpoints.
+    enable_simulation_transcript: bool = False
+    enable_drama_climax: bool = False  # extends drama_level to {low,medium,high,climax}
+    simulation_continue_cheap_model_override: str = ""  # empty = use LLMConfig.cheap_model
+
     # RFC voice-handling-consolidation Phase A: nested view of voice flags.
     # Defaults match flat voice_* / l2_voice_* fields. Synced in __post_init__.
     voice: VoiceConfig = field(default_factory=VoiceConfig)

@@ -10,7 +10,9 @@ import time
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from models.schemas import normalize_drama as _normalize_drama
 
 from middleware.rbac import Permission, require_permission_if_enabled
 from services.i18n import I18n
@@ -111,6 +113,27 @@ class PipelineRequest(BaseModel):
     word_count: int = Field(2000, ge=100, le=20000)
     num_sim_rounds: int = Field(3, ge=1, le=10)
     drama_level: str = Field("cao", max_length=50)
+
+    @field_validator("drama_level")
+    @classmethod
+    def _validate_drama_level(cls, v: str) -> str:
+        """Accept VN aliases (thấp/vừa/cao/đỉnh) and EN (low/medium/high/climax).
+        Returns the original VN-or-EN string for backward compat with downstream
+        consumers that branch on "cao"; the canonical Literal is exposed via
+        ``normalize_drama()`` for routes that need it."""
+        try:
+            _normalize_drama(v)
+        except ValueError:
+            raise ValueError(
+                "drama_level must be one of: thấp/vừa/cao/đỉnh, low/medium/high/climax"
+            )
+        # Gate "climax"/"đỉnh" behind feature flag.
+        from config import ConfigManager
+        if v.strip().lower() in {"climax", "đỉnh"}:
+            cfg = ConfigManager()
+            if not getattr(cfg.pipeline, "enable_drama_climax", False):
+                raise ValueError("drama_level 'climax' requires enable_drama_climax=True")
+        return v
     enable_agents: bool = True
     enable_scoring: bool = True
     enable_media: bool = False

@@ -900,6 +900,56 @@ class CharacterGenerateRequest(BaseModel):
     extraContext: Optional[str] = Field(default=None, max_length=2000)
 
 
+# === Phase 3: Simulation Transcript + Drama Climax ===
+DramaLevel = Literal["low", "medium", "high", "climax"]
+
+_DRAMA_ALIAS: dict[str, DramaLevel] = {
+    "thấp": "low",
+    "vừa": "medium",
+    "trung bình": "medium",
+    "cao": "high",
+    "đỉnh": "climax",
+    "low": "low",
+    "medium": "medium",
+    "high": "high",
+    "climax": "climax",
+}
+
+
+def normalize_drama(v: str) -> DramaLevel:
+    """VN/EN drama-level alias → canonical Literal. Raises ValueError on unknown."""
+    if not isinstance(v, str):
+        raise ValueError(f"drama level must be str, got {type(v).__name__}")
+    key = v.strip().lower()
+    if key not in _DRAMA_ALIAS:
+        raise ValueError(f"unknown drama level: {v!r}")
+    return _DRAMA_ALIAS[key]
+
+
+class TranscriptTurn(BaseModel):
+    """One turn in a simulation transcript."""
+    id: str = Field(min_length=1, max_length=64)
+    senderId: str = Field(min_length=1, max_length=80)
+    senderName: str = Field(min_length=1, max_length=80)
+    emotion: str = Field(default="", max_length=80)
+    actionDetails: str = Field(default="", max_length=2000)
+    speech: str = Field(default="", max_length=2000)
+
+
+class SimulationTranscript(BaseModel):
+    """Structured simulator output for the SimulationView UI."""
+    logs: list[TranscriptTurn] = Field(default_factory=list)
+    outcomeSummary: str = Field(default="", max_length=4000)
+
+
+class SimulationContinueRequest(BaseModel):
+    """POST /api/simulation/continue payload."""
+    characters: list[dict] = Field(min_length=1, max_length=10)
+    historyLogs: list[TranscriptTurn] = Field(default_factory=list, max_length=6)
+    topic: str = Field(min_length=1, max_length=2000)
+    dramaLevel: Optional[str] = Field(default="high", max_length=50)
+
+
 try:
     from models.narrative_schemas import ChapterContract
     Chapter.model_rebuild(_types_namespace={"ChapterContract": ChapterContract})
