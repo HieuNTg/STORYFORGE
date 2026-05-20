@@ -142,6 +142,49 @@
     "disabled": "Endpoint mô phỏng đang tắt. Bật cờ enable_simulation_transcript.",
     "error_generic": "Lỗi mô phỏng: {msg}"
   },
+  "settings_panel": {
+    "api": {
+      "title": "Khóa API",
+      "configured": "Đã cấu hình",
+      "missing": "Thiếu cấu hình",
+      "test": "Kiểm tra tất cả",
+      "testing": "Đang kiểm tra…",
+      "ok": "OK",
+      "fail": "Lỗi"
+    }
+  },
+  "usage": {
+    "requests": "Yêu cầu",
+    "tokens": "Tokens",
+    "cost": "Chi phí USD",
+    "today": "Hôm nay",
+    "7d": "7 ngày",
+    "30d": "30 ngày",
+    "by_model": "Tokens theo model",
+    "empty": "Chưa có dữ liệu sử dụng."
+  },
+  "providers": {
+    "refresh": "Làm mới",
+    "models": "Mô hình",
+    "status": "Trạng thái",
+    "test": "Kiểm tra",
+    "testing": "Đang kiểm tra…",
+    "verified": "Đã xác minh",
+    "failed": "Lỗi kết nối",
+    "idle": "Chưa kiểm tra"
+  },
+  "export": {
+    "pdf": "PDF",
+    "epub": "EPUB",
+    "html": "HTML",
+    "zip": "ZIP",
+    "json": "JSON",
+    "downloading": "Đang tải…",
+    "downloaded": "Đã tải {format}",
+    "failed": "Tải xuống thất bại",
+    "no_story": "Vui lòng chọn truyện từ Thư viện để xuất bản.",
+    "open_library": "Mở Thư viện"
+  },
   "forge": {
     "title": "Forge từ một câu ý tưởng",
     "placeholder": "VD: Một kiếm khách bị phế võ công đi tìm sư phụ đã chết để hỏi tội…",

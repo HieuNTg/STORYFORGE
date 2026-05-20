@@ -3,10 +3,10 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import {
-  ProviderRow,
   type ProviderRowData,
   type ProviderTestStatus,
 } from "./ProviderRow";
+import { ProviderCard } from "./ProviderCard";
 
 export type { ProviderRowData, ProviderTestStatus };
 
@@ -20,14 +20,6 @@ export interface ProviderTableProps {
   className?: string;
 }
 
-const columns: Array<{ key: string; label: string; className?: string }> = [
-  { key: "name", label: "Tên" },
-  { key: "status", label: "Trạng thái" },
-  { key: "baseUrl", label: "URL gốc" },
-  { key: "enabled", label: "Kích hoạt" },
-  { key: "test", label: "Kiểm tra" },
-];
-
 export function ProviderTable({
   providers,
   onTestConnection,
@@ -37,55 +29,36 @@ export function ProviderTable({
   testResults,
   className,
 }: ProviderTableProps) {
+  if (providers.length === 0) {
+    return (
+      <div
+        className={cn(
+          "rounded-xl border border-dashed border-border bg-card/30 px-4 py-8 text-center text-sm text-muted-foreground",
+          className,
+        )}
+      >
+        Chưa có nhà cung cấp.
+      </div>
+    );
+  }
   return (
     <div
       className={cn(
-        "overflow-x-auto rounded-xl bg-card ring-1 ring-foreground/10",
+        "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3",
         className,
       )}
     >
-      <table className="w-full min-w-[640px] border-collapse text-sm">
-        <thead>
-          <tr className="border-b bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-            {columns.map((col) => (
-              <th
-                key={col.key}
-                scope="col"
-                className={cn(
-                  "px-3 py-2 text-left font-medium",
-                  col.className,
-                )}
-              >
-                {col.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {providers.length === 0 ? (
-            <tr>
-              <td
-                colSpan={columns.length}
-                className="px-3 py-8 text-center text-sm text-muted-foreground"
-              >
-                Chưa có nhà cung cấp.
-              </td>
-            </tr>
-          ) : (
-            providers.map((provider) => (
-              <ProviderRow
-                key={provider.name}
-                data={provider}
-                onTestConnection={onTestConnection}
-                onToggleEnabled={onToggleEnabled}
-                onEditBaseUrl={onEditBaseUrl}
-                isTesting={testingName === provider.name}
-                testResult={testResults?.[provider.name] ?? "idle"}
-              />
-            ))
-          )}
-        </tbody>
-      </table>
+      {providers.map((provider) => (
+        <ProviderCard
+          key={provider.name}
+          data={provider}
+          onTestConnection={onTestConnection}
+          onToggleEnabled={onToggleEnabled}
+          onEditBaseUrl={onEditBaseUrl}
+          isTesting={testingName === provider.name || testingName === "__all__"}
+          testResult={testResults?.[provider.name] ?? "idle"}
+        />
+      ))}
     </div>
   );
 }

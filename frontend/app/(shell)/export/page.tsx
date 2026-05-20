@@ -1,15 +1,10 @@
 "use client";
 
 /**
- * /export — single static page, story id read from `?id=` search param.
+ * /export — 5-button export grid, story id from `?id=`.
  *
- * Previously `/export/[id]` with `generateStaticParams = [{id:"demo"}]` and
- * `dynamicParams = false` — that only pre-rendered `/export/demo` and broke
- * for real user-generated story ids under `output: 'export'`. The new shape
- * is one statically-exported page that reads the id at runtime in the client.
- *
- * Next requires `useSearchParams()` to live inside a `<Suspense>` boundary
- * during static export — the inner `<ExportPageInner>` is wrapped below.
+ * PDF / EPUB / ZIP hit existing backend endpoints. HTML + JSON are
+ * client-side blobs (no backend HTML endpoint per phase-05 NF2).
  */
 
 import * as React from "react";
@@ -18,7 +13,7 @@ import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { PageHero } from "@/components/common/PageHero";
-import { ExportClient } from "@/components/export/ExportClient";
+import { ExportButton } from "@/components/export/ExportButton";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -48,7 +43,13 @@ function ExportPageInner() {
   return (
     <div className="flex flex-col gap-6">
       <PageHero title={t("title")} subtitle={`Truyện #${id}`} />
-      <ExportClient id={id} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <ExportButton format="pdf" sid={id} />
+        <ExportButton format="epub" sid={id} />
+        <ExportButton format="html" sid={id} />
+        <ExportButton format="zip" sid={id} />
+        <ExportButton format="json" sid={id} />
+      </div>
     </div>
   );
 }

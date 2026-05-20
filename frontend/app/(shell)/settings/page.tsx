@@ -1,12 +1,10 @@
 "use client";
 
 /**
- * /settings — 4-tab settings page composing Designer's `SettingsTabs` shell
- * with RHF + zod form bodies. First-run wizard mounts here too; it opens
- * automatically when no API key is configured (see SettingsWizardController).
- *
- * Tab choice persists across reloads via `settings-store` (NEVER stores
- * secrets — only the last opened tab id and a "wizard dismissed" flag).
+ * /settings — gold-themed 3-col snapshot (API status + usage tiles + token
+ * chart) above the existing 4-tab form shell. The form tabs (General / API
+ * Keys / L1 / L2) remain the canonical write surface; the snapshot adds the
+ * at-a-glance read surface called for by phase-05 F1–F4.
  */
 
 import * as React from "react";
@@ -22,6 +20,9 @@ import { GeneralFormFields } from "@/components/settings/GeneralFormFields";
 import { ApiKeysFormFields } from "@/components/settings/ApiKeysFormFields";
 import { AdvancedL1FormFields } from "@/components/settings/AdvancedL1FormFields";
 import { AdvancedL2FormFields } from "@/components/settings/AdvancedL2FormFields";
+import { ApiKeyPanel } from "@/components/settings/ApiKeyPanel";
+import { UsageTiles } from "@/components/settings/UsageTiles";
+import { TokenUsageChart } from "@/components/settings/TokenUsageChart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConfig } from "@/lib/api/queries";
 import {
@@ -89,6 +90,15 @@ export default function SettingsPage() {
         <LoadingFallback />
       ) : (
         <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="md:col-span-1">
+              <ApiKeyPanel />
+            </div>
+            <div className="flex flex-col gap-4 md:col-span-2">
+              <UsageTiles />
+              <TokenUsageChart />
+            </div>
+          </div>
           <SettingsTabs
             tabs={tabs}
             value={lastTab}
