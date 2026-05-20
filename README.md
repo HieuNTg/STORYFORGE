@@ -31,8 +31,10 @@ Most AI writers produce flat stories. StoryForge turns each character into an **
 git clone https://github.com/HieuNTg/STORYFORGE.git
 cd STORYFORGE
 pip install -r requirements.txt
-npm install && npm run build && npm run build:css
-python app.py            # → http://localhost:7860
+python app.py                       # API → http://localhost:7860
+
+# In a second terminal, the Next.js UI:
+cd frontend && npm install && npm run dev   # UI → http://localhost:3000
 ```
 
 Then **Settings** (provider + API key) → **Create Story** → **Run** → **Export** (PDF/EPUB/HTML/ZIP).

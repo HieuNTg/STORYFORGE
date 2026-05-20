@@ -6,12 +6,11 @@ above the routing layer but StaticFiles writes the body directly to the ASGI
 
 This class restores gzip on static responses two ways:
 
-1.  If a sibling `<path>.gz` file exists on disk (e.g. produced by
-    ``scripts/precompress-static.mjs``), serve it verbatim with the right
-    headers.  Highest compression level, zero CPU per request.
+1.  If a sibling `<path>.gz` file exists on disk, serve it verbatim with the
+    right headers.  Highest compression level, zero CPU per request.
 2.  Otherwise, if the client accepts gzip and the payload is over the size
     threshold, compress in-process and cache the result by ``(path, mtime)``
-    in a bounded LRU.  Dev mode without a build step still works.
+    in a bounded LRU.
 
 Small files (< ~1 KB) are served uncompressed: gzip framing overhead can
 exceed the savings and the CPU cost is wasted.
