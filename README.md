@@ -48,7 +48,7 @@ Then **Settings** (provider + API key) → **Create Story** → **Run** → **Ex
 - **Vietnamese-first** — VN names default; Chinese tiên hiệp / wuxia / xianxia and Western/Sci-Fi optional; arc scaling by chapter count
 - **Continuation tools** — multi-path preview, outline editor, collaborative polish, consistency checker, mid-story insertion, retroactive fixes
 - **Branch reader** — LLM-generated CYOA, SVG tree + minimap, undo/redo, bookmarks, WebSocket multi-user, EPUB tree export
-- **Images** — IP-Adapter character portraits + scene backgrounds
+- **Images & Video** — IP-Adapter character portraits + scene backgrounds; optional [FlowKit provider](docs/flowkit-integration.md) proxies a local Google Labs session for free Imagen 3 + Veo via a Chrome MV3 extension (local-only, account-ban risk — use a secondary Google account)
 - **Any OpenAI-compatible LLM** — OpenAI, Gemini, Anthropic, OpenRouter (290+), Z.AI, Kyma, Ollama, custom; preemptive rate-limit switching, latency-aware primary, smart cheap/premium routing (~45% saved), SQLite cache
 - **Security** — CSRF double-submit, 10 MB body cap, prompt-injection middleware, encrypted secrets at rest
 

@@ -48,7 +48,7 @@ Sau đó **Cài đặt** (provider + API key) → **Tạo truyện** → **Chạ
 - **Tiếng Việt mặc định** — tên VN; tuỳ chọn phong cách Trung (tiên hiệp / kiếm hiệp / tu tiên / wuxia / xianxia) và Fantasy phương Tây / Sci-Fi; arc scale theo số chương
 - **Tiếp tục truyện** — preview đa hướng, outline editor, viết cộng tác, kiểm tra nhất quán, chèn chương giữa truyện, sửa hồi tố
 - **Branch reader** — CYOA do LLM sinh, cây SVG + minimap, undo/redo, bookmarks, WebSocket multi-user, xuất EPUB cây
-- **Hình ảnh** — chân dung IP-Adapter nhất quán + phông cảnh điện ảnh
+- **Hình ảnh & Video** — chân dung IP-Adapter nhất quán + phông cảnh điện ảnh; provider [FlowKit](docs/flowkit-integration.md) tuỳ chọn proxy phiên Google Labs local để sinh Imagen 3 + Veo miễn phí qua Chrome MV3 extension (chỉ local, có rủi ro cấm tài khoản — dùng tài khoản Google phụ)
 - **Mọi LLM tương thích OpenAI** — OpenAI, Gemini, Anthropic, OpenRouter (290+), Z.AI, Kyma, Ollama, custom; rate-limit switch chủ động, primary theo latency, định tuyến cheap/premium (~45% tiết kiệm), cache SQLite
 - **Bảo mật** — CSRF double-submit, body cap 10 MB, middleware chặn prompt injection, mã hoá secrets at-rest
 

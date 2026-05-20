@@ -2,6 +2,8 @@
 
 Local Chrome MV3 extension that proxies Google Labs Flow (Imagen 3 + Veo) to the StoryForge backend over WebSocket.
 
+> Full integration guide: [`docs/flowkit-integration.md`](../docs/flowkit-integration.md) — install, `FLOWKIT_BROWSER_API_KEY` capture, config flags, troubleshooting, account-policy notes.
+
 ## Install
 
 1. Open `chrome://extensions`.
