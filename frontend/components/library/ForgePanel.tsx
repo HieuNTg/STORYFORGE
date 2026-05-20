@@ -10,7 +10,7 @@
  */
 
 import * as React from "react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,7 @@ const STAGE_LABEL: Record<ForgeStreamStage, string> = {
 };
 
 export function ForgePanel({ onForged, disabled, className }: ForgePanelProps) {
+  const reduce = useReducedMotion();
   const [sentence, setSentence] = React.useState("");
   const [streaming, setStreaming] = React.useState(false);
   const [log, setLog] = React.useState<string[]>([]);
@@ -167,9 +168,9 @@ export function ForgePanel({ onForged, disabled, className }: ForgePanelProps) {
 
       {log.length > 0 && (
         <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          transition={{ duration: 0.2 }}
+          initial={reduce ? false : { opacity: 0, height: 0 }}
+          animate={reduce ? undefined : { opacity: 1, height: "auto" }}
+          transition={reduce ? undefined : { duration: 0.2 }}
           className="mt-3"
         >
           <div

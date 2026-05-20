@@ -7,7 +7,7 @@
  */
 
 import * as React from "react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { BookOpen } from "lucide-react";
 import { StoryCard, type LibraryStory } from "./StoryCard";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -38,6 +38,7 @@ export function BookshelfGrid({
   onSelect,
   className,
 }: BookshelfGridProps) {
+  const reduce = useReducedMotion();
   if (stories.length === 0) {
     return (
       <EmptyState
@@ -59,9 +60,9 @@ export function BookshelfGrid({
       {stories.map((story, idx) => (
         <motion.li
           key={story.id}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.25, delay: Math.min(idx * 0.03, 0.3) }}
+          initial={reduce ? false : { opacity: 0, y: 8 }}
+          animate={reduce ? undefined : { opacity: 1, y: 0 }}
+          transition={reduce ? undefined : { duration: 0.25, delay: Math.min(idx * 0.03, 0.3) }}
           className={cn(
             "relative",
             selectedId === story.id &&
