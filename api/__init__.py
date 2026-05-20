@@ -36,6 +36,7 @@ from api.diagnostics_routes import router as diagnostics_router
 from api.forge_routes import router as forge_router
 from api.character_routes import router as character_router
 from api.simulation_routes import router as simulation_router
+from api.flowkit import ws_router as flowkit_ws_router, http_router as flowkit_http_router
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth_router)
@@ -62,6 +63,8 @@ api_router.include_router(diagnostics_router)
 api_router.include_router(forge_router)
 api_router.include_router(character_router)
 api_router.include_router(simulation_router)
+api_router.include_router(flowkit_ws_router)
+api_router.include_router(flowkit_http_router)
 
 _log = logging.getLogger(__name__)
 

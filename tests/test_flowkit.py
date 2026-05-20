@@ -269,6 +269,181 @@ def test_extract_fife_url_nested():
     assert FlowService._extract_fife_url(payload) == "https://storage.googleapis.com/foo"
 
 
+# ---------------------------------------------------------------------------
+# Phase 04: WS router + HTTP callback + status
+# ---------------------------------------------------------------------------
+
+import hashlib
+import hmac
+import json as _json
+
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+
+@pytest.fixture
+def flowkit_app(tmp_path, monkeypatch):
+    """Mount FlowKit routers on an isolated FastAPI app with a clean singleton."""
+    monkeypatch.chdir(tmp_path)
+    import services.media.flow_service as fs_mod
+
+    monkeypatch.setattr(fs_mod, "_DB_DIR", str(tmp_path / "data" / "flowkit"))
+    monkeypatch.setattr(fs_mod, "_DB_PATH", str(tmp_path / "data" / "flowkit" / "jobs.db"))
+    fs_mod.FlowService._instance = None
+    svc = fs_mod.FlowService()
+
+    import api.flowkit as flowkit_mod  # singleton looked up dynamically — no reload needed
+
+    app = FastAPI()
+    app.include_router(flowkit_mod.ws_router, prefix="/api")
+    app.include_router(flowkit_mod.http_router, prefix="/api")
+
+    yield app, svc, flowkit_mod
+    fs_mod.FlowService._instance = None
+
+
+def test_ws_lifecycle(flowkit_app):
+    app, svc, _ = flowkit_app
+    with TestClient(app) as client:
+        with client.websocket_connect("/api/ws/flowkit") as ws:
+            secret_msg = ws.receive_json()
+            assert secret_msg["type"] == "callback_secret"
+            assert secret_msg["secret"] == svc.callback_secret
+            assert svc.active_ws is not None
+            ws.send_json({"type": "extension_ready", "version": "1.0.0"})
+            ws.send_json({"type": "token_captured", "flowKey": "AIza-fake"})
+        # context exit closes ws → server hits WebSocketDisconnect → clear_active_ws
+        # TestClient runs sync, so the disconnect handler completes before we get here.
+    assert svc.active_ws is None
+    assert svc.flow_key == "AIza-fake"
+
+
+def test_ws_response_resolves_future(flowkit_app):
+    app, svc, _ = flowkit_app
+    with TestClient(app) as client:
+        with client.websocket_connect("/api/ws/flowkit") as ws:
+            ws.receive_json()  # callback_secret
+
+            # Pre-register a pending future for a known request id.
+            loop = asyncio.new_event_loop()
+            try:
+                fut = loop.create_future()
+                svc.pending_requests["req-xyz"] = fut
+                ws.send_json({"id": "req-xyz", "status": 200, "data": {"ok": True}})
+                # Pump the server's dispatch by sending another message + reading nothing
+                # — TestClient is synchronous so by the time send_json returns the server
+                # task has been scheduled. A small wait lets it run.
+                import time as _t
+                deadline = _t.time() + 2.0
+                while not fut.done() and _t.time() < deadline:
+                    _t.sleep(0.01)
+                assert fut.done(), "future not resolved by WS response"
+                assert fut.result() == {"id": "req-xyz", "status": 200, "data": {"ok": True}}
+            finally:
+                loop.close()
+
+
+def test_ext_callback_hmac_disabled_accepts_plaintext(flowkit_app, monkeypatch):
+    app, svc, _ = flowkit_app
+    from config import ConfigManager
+    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_callback_hmac_required", False)
+
+    loop = asyncio.new_event_loop()
+    try:
+        fut = loop.create_future()
+        svc.pending_requests["req-plain"] = fut
+        with TestClient(app) as client:
+            r = client.post(
+                "/api/ext/callback",
+                json={"id": "req-plain", "status": 200, "data": {"v": 1}},
+            )
+        assert r.status_code == 200
+        assert fut.done() and fut.result()["data"] == {"v": 1}
+    finally:
+        loop.close()
+
+
+def test_ext_callback_hmac_invalid_401(flowkit_app, monkeypatch):
+    app, svc, _ = flowkit_app
+    from config import ConfigManager
+    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_callback_hmac_required", True)
+
+    body = b'{"id":"req-bad","status":200,"data":{}}'
+    with TestClient(app) as client:
+        r = client.post(
+            "/api/ext/callback",
+            content=body,
+            headers={"X-Callback-Signature": "deadbeef", "Content-Type": "application/json"},
+        )
+    assert r.status_code == 401
+
+
+def test_ext_callback_hmac_valid_resolves(flowkit_app, monkeypatch):
+    app, svc, _ = flowkit_app
+    from config import ConfigManager
+    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_callback_hmac_required", True)
+
+    loop = asyncio.new_event_loop()
+    try:
+        fut = loop.create_future()
+        svc.pending_requests["req-good"] = fut
+        body = _json.dumps({"id": "req-good", "status": 200, "data": {"ok": True}}).encode()
+        sig = hmac.new(svc.callback_secret.encode(), body, hashlib.sha256).hexdigest()
+        with TestClient(app) as client:
+            r = client.post(
+                "/api/ext/callback",
+                content=body,
+                headers={"X-Callback-Signature": sig, "Content-Type": "application/json"},
+            )
+        assert r.status_code == 200
+        assert fut.done() and fut.result()["data"] == {"ok": True}
+    finally:
+        loop.close()
+
+
+def test_flowkit_status_disconnected(flowkit_app):
+    app, svc, _ = flowkit_app
+    svc.active_ws = None
+    with TestClient(app) as client:
+        r = client.get("/api/flowkit/status")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["connected"] is False
+    assert body["pending_ws_requests"] == 0
+    assert body["workers_current"] >= 1
+
+
+def test_flowkit_status_connected(flowkit_app):
+    app, svc, _ = flowkit_app
+    with TestClient(app) as client:
+        with client.websocket_connect("/api/ws/flowkit") as ws:
+            ws.receive_json()  # secret
+            r = client.get("/api/flowkit/status")
+            assert r.status_code == 200
+            assert r.json()["connected"] is True
+
+
+def test_ext_callback_rejects_invalid_json(flowkit_app, monkeypatch):
+    app, _, _ = flowkit_app
+    from config import ConfigManager
+    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_callback_hmac_required", False)
+    with TestClient(app) as client:
+        r = client.post(
+            "/api/ext/callback",
+            content=b"not-json{",
+            headers={"Content-Type": "application/json"},
+        )
+    assert r.status_code == 400
+
+
+def test_redact_strips_sensitive_keys():
+    from api.flowkit import _redact
+    out = _redact({"flowKey": "secret", "nested": {"Authorization": "Bearer x", "ok": 1}})
+    assert out["flowKey"] == "<redacted>"
+    assert out["nested"]["Authorization"] == "<redacted>"
+    assert out["nested"]["ok"] == 1
+
+
 @pytest.mark.asyncio
 async def test_no_overshoot_on_ramp_down_mid_flight(isolated_flow_service):
     """Regression: a ramp reset while N callers are in-flight must not let a new

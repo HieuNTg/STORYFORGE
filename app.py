@@ -253,11 +253,34 @@ def main():
         start_session_reaper()
         logger.info("Session reaper started")
 
+        # FlowKit: init jobs.db + start Veo poll loop (gated on flowkit_enabled).
+        try:
+            from config import ConfigManager
+            if ConfigManager().pipeline.flowkit_enabled:
+                from services.media.flow_service import flow_service
+                await flow_service.init_db()
+                await flow_service.start_polling()
+                logger.info("FlowKit poll loop started")
+        except Exception:
+            logger.exception("FlowKit startup failed (continuing)")
+
     # Graceful shutdown: cancel and await active pipeline tasks
     @main_app.on_event("shutdown")
     async def on_shutdown():
         from api.pipeline_routes import shutdown_pipeline_tasks
         await shutdown_pipeline_tasks(timeout=30)
+
+        try:
+            from services.media.flow_service import flow_service
+            await flow_service.stop_polling()
+            if flow_service.active_ws is not None:
+                try:
+                    await flow_service.active_ws.close()
+                except Exception:
+                    pass
+                flow_service.clear_active_ws()
+        except Exception:
+            logger.exception("FlowKit shutdown failed")
 
     # API routes
     main_app.include_router(api_router)
