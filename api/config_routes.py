@@ -127,6 +127,19 @@ class ConfigUpdate(BaseModel):
     hf_token: Optional[str] = None
     hf_image_model: Optional[str] = None
     image_prompt_style: Optional[str] = None
+    # FlowKit (Chrome Extension + Google Labs proxy)
+    flowkit_enabled: Optional[bool] = None
+    flowkit_port: Optional[int] = None
+    flowkit_style_reference_path: Optional[str] = None
+    flowkit_concurrent_workers_max: Optional[int] = None
+    flowkit_workers_ramp_threshold: Optional[int] = None
+    flowkit_veo_poll_interval: Optional[float] = None
+    flowkit_account_warning_shown: Optional[bool] = None
+    flowkit_risk_acknowledged: Optional[bool] = None
+    flowkit_image_input_type_split: Optional[bool] = None
+    flowkit_callback_hmac_required: Optional[bool] = None
+    flowkit_use_refiner: Optional[bool] = None
+    flowkit_request_timeout: Optional[float] = None
 
 
 _CONFIGURE_PIPELINE = Depends(require_permission_if_enabled(Permission.CONFIGURE_PIPELINE))
@@ -208,6 +221,19 @@ def get_config(response: Response):
             "enable_chapter_illustration": getattr(
                 cfg.pipeline, "enable_chapter_illustration", False
             ),
+            "flowkit_enabled": cfg.pipeline.flowkit_enabled,
+            "flowkit_port": cfg.pipeline.flowkit_port,
+            "flowkit_style_reference_path": cfg.pipeline.flowkit_style_reference_path,
+            "flowkit_concurrent_workers": cfg.pipeline.flowkit_concurrent_workers,
+            "flowkit_concurrent_workers_max": cfg.pipeline.flowkit_concurrent_workers_max,
+            "flowkit_workers_ramp_threshold": cfg.pipeline.flowkit_workers_ramp_threshold,
+            "flowkit_veo_poll_interval": cfg.pipeline.flowkit_veo_poll_interval,
+            "flowkit_account_warning_shown": cfg.pipeline.flowkit_account_warning_shown,
+            "flowkit_risk_acknowledged": cfg.pipeline.flowkit_risk_acknowledged,
+            "flowkit_image_input_type_split": cfg.pipeline.flowkit_image_input_type_split,
+            "flowkit_callback_hmac_required": cfg.pipeline.flowkit_callback_hmac_required,
+            "flowkit_use_refiner": cfg.pipeline.flowkit_use_refiner,
+            "flowkit_request_timeout": cfg.pipeline.flowkit_request_timeout,
         },
     }
 
@@ -215,6 +241,23 @@ def get_config(response: Response):
 @router.put("", dependencies=[_CONFIGURE_PIPELINE])
 def save_config(body: ConfigUpdate):
     """Save settings to config.json."""
+    # FlowKit hard gate: enabling the provider requires explicit risk
+    # acknowledgement. Evaluated against the post-PATCH effective state
+    # (delta + current) so a previously-acked user can toggle enabled alone.
+    cfg = ConfigManager()
+    eff_provider = body.image_provider if body.image_provider is not None else cfg.pipeline.image_provider
+    eff_enabled = body.flowkit_enabled if body.flowkit_enabled is not None else cfg.pipeline.flowkit_enabled
+    eff_ack = (
+        body.flowkit_risk_acknowledged
+        if body.flowkit_risk_acknowledged is not None
+        else cfg.pipeline.flowkit_risk_acknowledged
+    )
+    if eff_provider == "flowkit" and eff_enabled and not eff_ack:
+        raise HTTPException(
+            status_code=400,
+            detail="flowkit_risk_acknowledged required when enabling flowkit",
+        )
+
     # F5 guard: reject mask-shaped values for any secret field. A correctly-
     # behaving frontend uses delta-only PUT and never sends the masked echo
     # back. This catches the regression where a bug echoes `sk-***1234` as
@@ -240,7 +283,6 @@ def save_config(body: ConfigUpdate):
                     status_code=400,
                     detail="masked echo cannot be persisted as a real api_keys entry",
                 )
-    cfg = ConfigManager()
     if body.api_key is not None:
         cfg.llm.api_key = body.api_key
     if body.api_keys is not None:
@@ -280,6 +322,18 @@ def save_config(body: ConfigUpdate):
         cfg.pipeline.hf_image_model = body.hf_image_model
     if body.image_prompt_style is not None:
         cfg.pipeline.image_prompt_style = body.image_prompt_style
+    # FlowKit persistence (gate already enforced above)
+    for _attr in (
+        "flowkit_enabled", "flowkit_port", "flowkit_style_reference_path",
+        "flowkit_concurrent_workers_max", "flowkit_workers_ramp_threshold",
+        "flowkit_veo_poll_interval", "flowkit_account_warning_shown",
+        "flowkit_risk_acknowledged", "flowkit_image_input_type_split",
+        "flowkit_callback_hmac_required", "flowkit_use_refiner",
+        "flowkit_request_timeout",
+    ):
+        _val = getattr(body, _attr, None)
+        if _val is not None:
+            setattr(cfg.pipeline, _attr, _val)
     try:
         cfg.save()
     except ValueError as exc:

@@ -290,6 +290,27 @@ export function useUpdateConfig() {
   });
 }
 
+// ---------- FlowKit (Settings → Provider=flowkit) ----------
+
+export interface FlowkitStatus {
+  connected: boolean;
+  last_token_age_s: number;
+  pending_ws_requests: number;
+  poll_running: boolean;
+  workers_current: number;
+  workers_max: number;
+}
+
+export function useFlowkitStatus(enabled: boolean) {
+  return useQuery<FlowkitStatus, Error>({
+    queryKey: ["flowkit", "status"],
+    queryFn: () => apiFetch<FlowkitStatus>("/api/flowkit/status"),
+    enabled,
+    refetchInterval: enabled ? 5_000 : false,
+    staleTime: 2_000,
+  });
+}
+
 // ---------- Providers (Providers page) ----------
 
 /**

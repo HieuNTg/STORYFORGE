@@ -808,3 +808,135 @@ def test_handlers_relpath_subdirs(isolated_image_gen_env, monkeypatch):
     assert paths == [fake_path]
     # Chapter image entries should retain the per-session subdir, not just basename.
     assert _Orch.output.enhanced_story.chapters[0].images == ["t_sid1/ch01_panel01.png"]
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — config_routes risk-ack validator
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def config_app():
+    from api.config_routes import router as config_router
+
+    app = FastAPI()
+    app.include_router(config_router, prefix="/api")
+    return app
+
+
+def test_config_patch_rejects_enable_without_ack(config_app, monkeypatch):
+    """Enabling flowkit without prior risk acknowledgement must 400."""
+    from config import ConfigManager
+
+    cfg = ConfigManager()
+    cfg.pipeline.flowkit_risk_acknowledged = False
+    cfg.pipeline.flowkit_enabled = False
+    cfg.pipeline.image_provider = "none"
+    monkeypatch.setattr(cfg, "save", lambda: None)
+
+    with TestClient(config_app) as client:
+        resp = client.put(
+            "/api/config",
+            json={"image_provider": "flowkit", "flowkit_enabled": True},
+        )
+        assert resp.status_code == 400
+        assert "flowkit_risk_acknowledged" in resp.json()["detail"]
+
+
+def test_config_patch_accepts_enable_when_acked(config_app, monkeypatch):
+    """Same PATCH succeeds when ack is in the body alongside the enable flag."""
+    from config import ConfigManager
+
+    cfg = ConfigManager()
+    cfg.pipeline.flowkit_risk_acknowledged = False
+    cfg.pipeline.flowkit_enabled = False
+    cfg.pipeline.image_provider = "none"
+    monkeypatch.setattr(cfg, "save", lambda: None)
+
+    with TestClient(config_app) as client:
+        resp = client.put(
+            "/api/config",
+            json={
+                "image_provider": "flowkit",
+                "flowkit_enabled": True,
+                "flowkit_risk_acknowledged": True,
+            },
+        )
+        assert resp.status_code == 200
+        assert cfg.pipeline.flowkit_enabled is True
+        assert cfg.pipeline.flowkit_risk_acknowledged is True
+        assert cfg.pipeline.image_provider == "flowkit"
+
+
+def test_config_patch_accepts_enable_when_previously_acked(config_app, monkeypatch):
+    """Toggling enabled alone is fine if ack already on current state."""
+    from config import ConfigManager
+
+    cfg = ConfigManager()
+    cfg.pipeline.flowkit_risk_acknowledged = True
+    cfg.pipeline.flowkit_enabled = False
+    cfg.pipeline.image_provider = "flowkit"
+    monkeypatch.setattr(cfg, "save", lambda: None)
+
+    with TestClient(config_app) as client:
+        resp = client.put("/api/config", json={"flowkit_enabled": True})
+        assert resp.status_code == 200
+        assert cfg.pipeline.flowkit_enabled is True
+
+
+def test_config_patch_persists_all_flowkit_fields(config_app, monkeypatch):
+    """Every flowkit_* field in ConfigUpdate must round-trip into PipelineConfig."""
+    from config import ConfigManager
+
+    cfg = ConfigManager()
+    cfg.pipeline.flowkit_risk_acknowledged = True  # pre-ack so gate passes
+    monkeypatch.setattr(cfg, "save", lambda: None)
+
+    body = {
+        "flowkit_enabled": True,
+        "flowkit_port": 9000,
+        "flowkit_style_reference_path": "C:/refs/style.png",
+        "flowkit_concurrent_workers_max": 7,
+        "flowkit_workers_ramp_threshold": 25,
+        "flowkit_veo_poll_interval": 12.5,
+        "flowkit_account_warning_shown": True,
+        "flowkit_risk_acknowledged": True,
+        "flowkit_image_input_type_split": True,
+        "flowkit_callback_hmac_required": True,
+        "flowkit_use_refiner": False,
+        "flowkit_request_timeout": 240.0,
+    }
+    with TestClient(config_app) as client:
+        resp = client.put("/api/config", json=body)
+        assert resp.status_code == 200
+
+    for attr, expected in body.items():
+        assert getattr(cfg.pipeline, attr) == expected, attr
+
+
+def test_config_get_returns_all_flowkit_fields(config_app, monkeypatch):
+    """GET /api/config must echo persisted flowkit_* so the UI can rehydrate."""
+    from config import ConfigManager
+
+    cfg = ConfigManager()
+    cfg.pipeline.flowkit_enabled = True
+    cfg.pipeline.flowkit_port = 9999
+    cfg.pipeline.flowkit_risk_acknowledged = True
+    cfg.pipeline.flowkit_request_timeout = 222.0
+
+    with TestClient(config_app) as client:
+        resp = client.get("/api/config")
+        assert resp.status_code == 200
+        pipeline = resp.json()["pipeline"]
+        for key in (
+            "flowkit_enabled", "flowkit_port", "flowkit_style_reference_path",
+            "flowkit_concurrent_workers", "flowkit_concurrent_workers_max",
+            "flowkit_workers_ramp_threshold", "flowkit_veo_poll_interval",
+            "flowkit_account_warning_shown", "flowkit_risk_acknowledged",
+            "flowkit_image_input_type_split", "flowkit_callback_hmac_required",
+            "flowkit_use_refiner", "flowkit_request_timeout",
+        ):
+            assert key in pipeline, key
+        assert pipeline["flowkit_enabled"] is True
+        assert pipeline["flowkit_port"] == 9999
+        assert pipeline["flowkit_request_timeout"] == 222.0

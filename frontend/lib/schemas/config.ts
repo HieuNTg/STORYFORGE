@@ -76,6 +76,7 @@ export const configPipelineSchema = z
     flowkit_image_input_type_split: z.boolean().default(false),
     flowkit_callback_hmac_required: z.boolean().default(false),
     flowkit_use_refiner: z.boolean().default(true),
+    flowkit_request_timeout: z.number().default(180.0),
   })
   .strict();
 
@@ -114,7 +115,6 @@ export const configUpdateSchema = z
     flowkit_enabled: z.boolean().optional(),
     flowkit_port: z.number().int().min(1024).max(65535).optional(),
     flowkit_style_reference_path: z.string().optional(),
-    flowkit_concurrent_workers: z.number().int().min(1).max(10).optional(),
     flowkit_concurrent_workers_max: z.number().int().min(1).max(10).optional(),
     flowkit_workers_ramp_threshold: z.number().int().min(1).max(50).optional(),
     flowkit_veo_poll_interval: z.number().min(1).max(60).optional(),
@@ -123,6 +123,7 @@ export const configUpdateSchema = z
     flowkit_image_input_type_split: z.boolean().optional(),
     flowkit_callback_hmac_required: z.boolean().optional(),
     flowkit_use_refiner: z.boolean().optional(),
+    flowkit_request_timeout: z.number().min(30).max(900).optional(),
   })
   .strict();
 

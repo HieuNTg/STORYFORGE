@@ -238,3 +238,29 @@ async def test_chapter_generation():
 - `frontend/components/branching/CustomBranchInput.tsx` (dead code)
 
 See **plans/260520-1804-ui-redesign-storyforge-ai-style** for full Phase 4 details.
+
+## FlowKit Integration (Phase 6)
+
+**Optional local-only Imagen 3 + Veo video generation via Google Labs.**
+
+Adds Chrome MV3 extension + WebSocket bridge for character image & scene video generation without API keys. Backend manages adaptive worker ramp (1-4 workers), job queue (SQLite), and callback-driven asset download.
+
+**Key files:**
+- `flowkit_extension/` — Chrome MV3 source (manifest, service worker, content scripts)
+- `api/flowkit.py` — `/api/ws/flowkit`, `/api/ext/callback`, `/api/flowkit/status` endpoints
+- `services/media/flow_service.py` — WebSocket server + job queue + adaptive worker ramp
+- `services/media/image_generator.py` — Sync→async bridge
+- `config/defaults.py` — 13 `flowkit_*` flags (enabled, port, workers, timeouts, risk gates)
+
+**Key flags:**
+- `flowkit_enabled` (default False) — Master switch, gated by `flowkit_risk_acknowledged`
+- `flowkit_use_refiner` (default True) — Gemini prompt-refiner pre-pass
+- `flowkit_request_timeout` (default 180s) — Sync-bridge timeout
+- `flowkit_concurrent_workers_max` (default 4) — Adaptive ramp ceiling
+
+**Frontend integration:**
+- `frontend/components/settings/FlowkitSettings.tsx` — NEW gated config panel
+- `frontend/lib/api/queries.ts` — `useFlowkitStatus(enabled)` polling query (5s)
+- Risk acknowledgement surfaced in Settings when `image_provider === "flowkit"`
+
+See [docs/flowkit-integration.md](./flowkit-integration.md) for install, account policy, & troubleshooting.

@@ -14,6 +14,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 
 import { GeneralForm } from "@/components/settings/GeneralForm";
+import { FlowkitSettings } from "@/components/settings/FlowkitSettings";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -113,6 +114,7 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
   });
 
   const errors = form.formState.errors;
+  const currentProvider = form.watch("image_provider");
 
   return (
     <GeneralForm
@@ -121,6 +123,7 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
       canReset={form.formState.isDirty}
       onReset={() => form.reset(defaults)}
       form={
+        <>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field
             label="Ngôn ngữ"
@@ -214,6 +217,10 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
             />
           </Field>
         </div>
+        {currentProvider === "flowkit" ? (
+          <FlowkitSettings config={config} />
+        ) : null}
+        </>
       }
     />
   );

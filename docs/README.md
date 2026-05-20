@@ -7,6 +7,7 @@
 | [system-architecture.md](./system-architecture.md) | Architects, DevOps | Pipeline flow, signal integration, retry semantics |
 | [code-standards.md](./code-standards.md) | Contributors | Python/TypeScript style, design patterns, security |
 | [deployment-production.md](./deployment-production.md) | Self-hosters | Production setup, scaling, monitoring |
+| [flowkit-integration.md](./flowkit-integration.md) | Image gen users | Google Labs Imagen/Veo, extension install, config |
 
 ## Architecture Decision Records
 
