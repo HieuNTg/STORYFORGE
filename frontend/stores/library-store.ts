@@ -19,6 +19,7 @@ import {
   type Story,
   type StoryChapter,
   type StoryExport,
+  type ForgeCharacter,
 } from "@/types/story";
 
 const STORAGE_KEY = "storyforge_library_v1";
@@ -34,6 +35,7 @@ interface LibraryState {
   selectStory: (id: string | null) => void;
   updateStory: (id: string, patch: Partial<Story>) => void;
   appendChapter: (storyId: string, chapter: StoryChapter) => void;
+  upsertCharacter: (storyId: string, character: ForgeCharacter) => void;
   importFromJSON: (payload: unknown) => Story;
   exportToJSON: (id: string) => StoryExport | null;
   clearAll: () => void;
@@ -99,6 +101,21 @@ export const useLibraryStore = create<LibraryState>()(
                 }
               : s,
           ),
+        });
+      },
+
+      upsertCharacter: (storyId, character) => {
+        const { stories } = get();
+        set({
+          stories: stories.map((s) => {
+            if (s.id !== storyId) return s;
+            const idx = s.characters.findIndex((c) => c.name === character.name);
+            const next =
+              idx >= 0
+                ? s.characters.map((c, i) => (i === idx ? character : c))
+                : [...s.characters, character];
+            return { ...s, characters: next, updatedAt: nowIso() };
+          }),
         });
       },
 

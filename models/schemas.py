@@ -891,6 +891,15 @@ class ForgeResponse(BaseModel):
     firstChapter: ForgeChapter
 
 
+# === Phase 2: Character Traits ===
+
+class CharacterGenerateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    role: ForgeRole
+    genre: str = Field(min_length=1, max_length=80)
+    extraContext: Optional[str] = Field(default=None, max_length=2000)
+
+
 try:
     from models.narrative_schemas import ChapterContract
     Chapter.model_rebuild(_types_namespace={"ChapterContract": ChapterContract})

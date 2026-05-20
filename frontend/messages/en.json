@@ -63,6 +63,46 @@
     "delete_confirm_title": "Delete story?",
     "delete_confirm_body": "This cannot be undone. Export to JSON first if you want a backup."
   },
+  "traits": {
+    "strength": "STR",
+    "wisdom": "WIS",
+    "agility": "AGI",
+    "scheme": "SCH",
+    "strength_long": "Strength",
+    "wisdom_long": "Wisdom",
+    "agility_long": "Agility",
+    "scheme_long": "Scheme"
+  },
+  "roles": {
+    "protagonist": "Protagonist",
+    "antagonist": "Antagonist",
+    "rival": "Rival",
+    "supporting": "Supporting"
+  },
+  "characters": {
+    "title": "Characters",
+    "subtitle": "Profiles + 4-axis radar",
+    "empty": "No characters yet",
+    "empty_hint": "Create a character or pick one from a story in the library.",
+    "create": "Create character",
+    "generate": "Generate",
+    "generating": "Generating…",
+    "name_label": "Name",
+    "name_placeholder": "e.g. Lý Trầm",
+    "role_label": "Role",
+    "genre_label": "Genre",
+    "extra_label": "Extra context (optional)",
+    "extra_placeholder": "e.g. A disgraced swordsman carrying a broken blade…",
+    "secret_label": "Secret",
+    "conflict_label": "Conflict",
+    "backstory_label": "Backstory",
+    "description_label": "Description",
+    "portrait_alt": "Portrait of {name}",
+    "portrait_placeholder": "No portrait",
+    "generation_failed": "Character generation failed",
+    "story_label": "Story",
+    "loading": "Loading…"
+  },
   "forge": {
     "title": "Forge from a sentence",
     "placeholder": "e.g. A disgraced swordsman searches for his dead master to demand answers…",

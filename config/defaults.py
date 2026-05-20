@@ -362,6 +362,10 @@ class PipelineConfig:
     enable_sentence_forge: bool = False
     forge_cheap_model_override: str = ""  # empty = use LLMConfig.cheap_model
 
+    # Character Traits (Phase 2) — 4-axis (strength/wisdom/agility/scheme) generation endpoint.
+    enable_character_traits: bool = False
+    character_traits_cheap_model_override: str = ""  # empty = use LLMConfig.cheap_model
+
     # RFC voice-handling-consolidation Phase A: nested view of voice flags.
     # Defaults match flat voice_* / l2_voice_* fields. Synced in __post_init__.
     voice: VoiceConfig = field(default_factory=VoiceConfig)

@@ -63,6 +63,46 @@
     "delete_confirm_title": "Xoá truyện?",
     "delete_confirm_body": "Hành động này không thể hoàn tác. Hãy xuất JSON nếu bạn muốn giữ lại bản sao."
   },
+  "traits": {
+    "strength": "Lực",
+    "wisdom": "Trí",
+    "agility": "Khí",
+    "scheme": "Mưu",
+    "strength_long": "Sức mạnh",
+    "wisdom_long": "Trí tuệ",
+    "agility_long": "Linh hoạt",
+    "scheme_long": "Mưu kế"
+  },
+  "roles": {
+    "protagonist": "Chính diện",
+    "antagonist": "Phản diện",
+    "rival": "Đối thủ",
+    "supporting": "Phụ trợ"
+  },
+  "characters": {
+    "title": "Nhân vật",
+    "subtitle": "Hồ sơ + chỉ số 4 trục",
+    "empty": "Chưa có nhân vật",
+    "empty_hint": "Tạo nhân vật mới hoặc chọn từ truyện trong thư viện.",
+    "create": "Tạo nhân vật",
+    "generate": "Sinh tự động",
+    "generating": "Đang sinh…",
+    "name_label": "Tên",
+    "name_placeholder": "VD: Lý Trầm",
+    "role_label": "Vai trò",
+    "genre_label": "Thể loại",
+    "extra_label": "Bối cảnh thêm (tuỳ chọn)",
+    "extra_placeholder": "VD: Là kiếm khách bị phế võ công, mang kiếm gãy đi tìm thật tướng…",
+    "secret_label": "Bí mật",
+    "conflict_label": "Xung đột",
+    "backstory_label": "Tiểu sử",
+    "description_label": "Mô tả",
+    "portrait_alt": "Chân dung {name}",
+    "portrait_placeholder": "Chưa có chân dung",
+    "generation_failed": "Sinh nhân vật thất bại",
+    "story_label": "Truyện",
+    "loading": "Đang tải…"
+  },
   "forge": {
     "title": "Forge từ một câu ý tưởng",
     "placeholder": "VD: Một kiếm khách bị phế võ công đi tìm sư phụ đã chết để hỏi tội…",

@@ -71,6 +71,14 @@ export const forgeRequestSchema = z.object({
 });
 export type ForgeRequest = z.infer<typeof forgeRequestSchema>;
 
+export const characterGenerateRequestSchema = z.object({
+  name: z.string().min(1).max(80),
+  role: forgeRoleSchema,
+  genre: z.string().min(1).max(80),
+  extraContext: z.string().max(2000).optional(),
+});
+export type CharacterGenerateRequest = z.infer<typeof characterGenerateRequestSchema>;
+
 // ---------------------------------------------------------------------------
 // Library Story (client-side persisted shape)
 // ---------------------------------------------------------------------------

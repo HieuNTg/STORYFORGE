@@ -1,0 +1,148 @@
+"""Character generation routes — fast synchronous BFF over cheap_model.
+
+Endpoints
+---------
+- ``POST /api/characters/generate`` — sync; returns ForgeCharacter JSON.
+
+Behavior:
+- Returns 404 when ``PipelineConfig.enable_character_traits`` is False.
+- Rate-limited 10 req/min/IP (in-memory or Redis), separate bucket from forge.
+- Mocked-LLM-testable via ``_get_llm`` indirection (same pattern as forge_routes).
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import threading
+import time
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+
+from config import ConfigManager
+from models.schemas import CharacterGenerateRequest, ForgeCharacter
+from services.character_service import generate_character
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/characters", tags=["characters"])
+
+
+CHARACTER_LIMIT_PER_MIN = int(os.environ.get("STORYFORGE_CHARACTER_RATE_LIMIT", "10"))
+_CHARACTER_WINDOW = 60.0
+
+_character_lock = threading.Lock()
+_character_state: dict[str, list[float]] = {}
+
+
+def _client_ip(request: Request) -> str:
+    """Resolve client IP, honoring X-Forwarded-For only from trusted proxies."""
+    try:
+        from middleware.rate_limiter import _get_ip  # type: ignore
+
+        return _get_ip(request)
+    except Exception:  # noqa: BLE001
+        return request.client.host if request.client else "unknown"
+
+
+def _check_character_rate(ip: str) -> bool:
+    """True if request is allowed under N/min/IP. Sliding window per IP."""
+    if os.environ.get("REDIS_URL"):
+        try:
+            from middleware.rate_limiter import _get_redis  # type: ignore
+            r = _get_redis()
+            if r is not None:
+                key = f"sf:ratelimit:character:{ip}"
+                count = r.incr(key)
+                if count == 1:
+                    r.expire(key, int(_CHARACTER_WINDOW))
+                return int(count) <= CHARACTER_LIMIT_PER_MIN
+        except Exception as e:  # noqa: BLE001
+            logger.debug("character rate redis path failed: %s", e)
+
+    now = time.monotonic()
+    with _character_lock:
+        bucket = _character_state.setdefault(ip, [])
+        cutoff = now - _CHARACTER_WINDOW
+        i = 0
+        while i < len(bucket) and bucket[i] < cutoff:
+            i += 1
+        if i:
+            del bucket[:i]
+        if len(bucket) >= CHARACTER_LIMIT_PER_MIN:
+            return False
+        bucket.append(now)
+        return True
+
+
+def _ensure_enabled() -> None:
+    cfg = ConfigManager()
+    if not getattr(cfg.pipeline, "enable_character_traits", False):
+        raise HTTPException(status_code=404, detail="character endpoint disabled")
+
+
+def _rate_limit_dep(request: Request) -> None:
+    ip = _client_ip(request)
+    if not _check_character_rate(ip):
+        raise HTTPException(
+            status_code=429,
+            detail=f"character rate limit exceeded ({CHARACTER_LIMIT_PER_MIN}/min)",
+        )
+
+
+def _get_llm():
+    """Lazy import + return the LLMClient singleton. Tests monkey-patch this."""
+    from services.llm_client import LLMClient
+    return LLMClient()
+
+
+def _resolve_model() -> str | None:
+    cfg = ConfigManager()
+    override = (getattr(cfg.pipeline, "character_traits_cheap_model_override", "") or "").strip()
+    if override:
+        return override
+    cheap = (getattr(cfg.llm, "cheap_model", "") or "").strip()
+    return cheap or None
+
+
+@router.post(
+    "/generate",
+    response_model=ForgeCharacter,
+    dependencies=[Depends(_rate_limit_dep)],
+)
+async def generate_character_route(
+    req: CharacterGenerateRequest,
+    _enabled: None = Depends(_ensure_enabled),
+) -> ForgeCharacter:
+    """Synchronous character generation. Runs the (sync) LLM call in a threadpool."""
+    llm = _get_llm()
+    model = _resolve_model()
+    try:
+        result = await asyncio.wait_for(
+            asyncio.to_thread(
+                generate_character,
+                llm,
+                req.name,
+                req.role,
+                req.genre,
+                req.extraContext,
+                model,
+            ),
+            timeout=30.0,
+        )
+        return result
+    except asyncio.TimeoutError:
+        logger.warning("character generation timeout for name=%s", req.name)
+        raise HTTPException(status_code=504, detail="character generation timeout")
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        logger.exception("generate_character_route failed")
+        raise HTTPException(
+            status_code=502,
+            detail=f"character generation failed: {type(e).__name__}",
+        )
+
+
+__all__ = ["router"]
