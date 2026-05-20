@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>StoryForge FlowKit</title>
+  <style>
+    body { font: 13px system-ui, sans-serif; width: 360px; margin: 0; padding: 12px; }
+    h1 { font-size: 14px; margin: 0 0 8px 0; }
+    .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+    .badge { padding: 2px 8px; border-radius: 999px; font-size: 11px; color: #fff; }
+    .badge.connected { background: #2a7; }
+    .badge.disconnected { background: #888; }
+    .badge.captcha { background: #d22; animation: blink 1s infinite; }
+    @keyframes blink { 50% { opacity: 0.6; } }
+    input[type=number] { width: 80px; padding: 2px 4px; }
+    button { padding: 4px 8px; cursor: pointer; }
+    .log { max-height: 240px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 4px; font-family: ui-monospace, monospace; font-size: 11px; }
+    .log-entry { padding: 2px 0; border-bottom: 1px solid #eee; }
+    .log-entry .ts { color: #999; }
+    .warning { background: #fee; border: 1px solid #fcc; color: #900; padding: 6px 8px; border-radius: 4px; margin: 8px 0; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <h1>StoryForge FlowKit</h1>
+  <div class="warning">
+    Automated traffic on a personal Google account may trigger rate limits or suspension. Use a secondary account.
+  </div>
+  <div class="row">
+    Status: <span id="status" class="badge disconnected">disconnected</span>
+    <span id="token-state"></span>
+  </div>
+  <div class="row">
+    <label for="port">Backend port:</label>
+    <input id="port" type="number" min="1024" max="65535" />
+    <button id="save-port">Save</button>
+  </div>
+  <div class="row"><strong>Recent activity</strong></div>
+  <div id="log" class="log"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
