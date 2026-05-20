@@ -123,6 +123,7 @@ export function ForgePanel({ onForged, disabled, className }: ForgePanelProps) {
         rows={3}
         disabled={streaming || disabled}
         aria-invalid={tooShort || tooLong || undefined}
+        aria-labelledby="forge-panel-title"
         aria-describedby="forge-help"
         className="resize-none"
       />

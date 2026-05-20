@@ -86,7 +86,7 @@ function NavLink({
       className={cn(
         "group relative flex items-center gap-3 rounded-md py-2.5 pl-4 pr-3 text-sm transition-all duration-200",
         active
-          ? "border-l-2 border-[var(--accent)] bg-[color-mix(in_oklab,var(--accent)_8%,transparent)] text-[var(--accent)]"
+          ? "border-l-2 border-[var(--accent)] bg-[color-mix(in_oklab,var(--accent)_8%,transparent)] text-[var(--accent-strong)]"
           : "border-l-2 border-transparent text-muted-foreground hover:bg-[color-mix(in_oklab,var(--accent)_5%,transparent)] hover:pl-5 hover:text-foreground",
       )}
     >
@@ -95,7 +95,7 @@ function NavLink({
         <span className="flex min-w-0 flex-1 flex-col leading-tight">
           <span className="truncate font-medium">{label}</span>
           {description && (
-            <span className="truncate text-[11px] text-muted-foreground/70">
+            <span className="truncate text-[11px] text-muted-foreground">
               {description}
             </span>
           )}
@@ -143,7 +143,7 @@ export function Sidebar() {
           {!collapsed && (
             <span className="flex flex-col leading-tight">
               <span
-                className="text-lg font-semibold tracking-wide text-[var(--accent)]"
+                className="text-lg font-semibold tracking-wide text-[var(--accent-strong)]"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 STORYFORGE
@@ -191,7 +191,7 @@ export function Sidebar() {
         </ul>
 
         {!collapsed && (
-          <div className="mt-6 px-4 pb-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60">
+          <div className="mt-6 px-4 pb-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
             More
           </div>
         )}

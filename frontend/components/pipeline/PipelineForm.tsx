@@ -152,7 +152,7 @@ export function PipelineForm({ onSubmit, pending = false }: PipelineFormProps) {
             name="genre"
             render={({ field }) => (
               <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Thể loại">
                   <SelectValue placeholder="Chọn thể loại" />
                 </SelectTrigger>
                 <SelectContent>
@@ -174,7 +174,7 @@ export function PipelineForm({ onSubmit, pending = false }: PipelineFormProps) {
             name="style"
             render={({ field }) => (
               <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Phong cách">
                   <SelectValue placeholder="Phong cách" />
                 </SelectTrigger>
                 <SelectContent>
@@ -196,7 +196,7 @@ export function PipelineForm({ onSubmit, pending = false }: PipelineFormProps) {
             name="language"
             render={({ field }) => (
               <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Ngôn ngữ">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -228,7 +228,7 @@ export function PipelineForm({ onSubmit, pending = false }: PipelineFormProps) {
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label>Mức kịch tính</Label>
+          <Label htmlFor="pipeline-drama">Mức kịch tính</Label>
           <span className="text-xs text-muted-foreground">
             {form.watch("drama")} / 10
           </span>
@@ -238,10 +238,12 @@ export function PipelineForm({ onSubmit, pending = false }: PipelineFormProps) {
           name="drama"
           render={({ field }) => (
             <Slider
+              id="pipeline-drama"
               value={[field.value]}
               min={1}
               max={10}
               step={1}
+              aria-label="Mức kịch tính (1-10)"
               onValueChange={(v) =>
                 field.onChange(Array.isArray(v) ? v[0] : v)
               }

@@ -35,7 +35,7 @@ function StepCard({ icon: Icon, title, description, href, cta }: StepCardProps) 
         <p className="text-sm text-muted-foreground">{description}</p>
         <Link
           href={href}
-          className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline"
+          className="inline-flex items-center gap-1 text-sm font-medium text-[var(--accent-strong)] hover:underline"
         >
           {cta}
           <ArrowRight className="size-3.5" aria-hidden="true" />

@@ -1,0 +1,86 @@
+[
+  {
+    "route": "/",
+    "performance": 0,
+    "accessibility": 0,
+    "best-practices": 0,
+    "passed": false
+  },
+  {
+    "route": "/library/",
+    "performance": 46,
+    "accessibility": 100,
+    "best-practices": 96,
+    "passed": false
+  },
+  {
+    "route": "/library/demo/",
+    "performance": 57,
+    "accessibility": 100,
+    "best-practices": 96,
+    "passed": false
+  },
+  {
+    "route": "/branching/demo/",
+    "performance": 46,
+    "accessibility": 100,
+    "best-practices": 96,
+    "passed": false
+  },
+  {
+    "route": "/analytics/demo/",
+    "performance": 47,
+    "accessibility": 100,
+    "best-practices": 96,
+    "passed": false
+  },
+  {
+    "route": "/settings/",
+    "performance": 46,
+    "accessibility": 98,
+    "best-practices": 96,
+    "passed": false
+  },
+  {
+    "route": "/providers/",
+    "performance": 48,
+    "accessibility": 98,
+    "best-practices": 96,
+    "passed": false
+  },
+  {
+    "route": "/export/demo/",
+    "performance": 0,
+    "accessibility": 0,
+    "best-practices": 0,
+    "passed": false
+  },
+  {
+    "route": "/account/",
+    "performance": 38,
+    "accessibility": 100,
+    "best-practices": 96,
+    "passed": false
+  },
+  {
+    "route": "/gallery/",
+    "performance": 41,
+    "accessibility": 98,
+    "best-practices": 96,
+    "passed": false
+  },
+  {
+    "route": "/usage/",
+    "performance": 45,
+    "accessibility": 100,
+    "best-practices": 96,
+    "passed": false
+  },
+  {
+    "route": "/guide/",
+    "performance": 0,
+    "accessibility": 0,
+    "best-practices": 0,
+    "passed": false
+  }
+]

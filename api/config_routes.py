@@ -202,6 +202,12 @@ def get_config(response: Response):
                 cfg.pipeline, "enable_simulation_transcript", False
             ),
             "enable_drama_climax": getattr(cfg.pipeline, "enable_drama_climax", False),
+            "enable_pipeline_overlay": getattr(
+                cfg.pipeline, "enable_pipeline_overlay", False
+            ),
+            "enable_chapter_illustration": getattr(
+                cfg.pipeline, "enable_chapter_illustration", False
+            ),
         },
     }
 

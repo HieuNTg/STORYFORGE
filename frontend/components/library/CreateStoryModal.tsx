@@ -131,7 +131,7 @@ export function CreateStoryModal({
               control={control}
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger aria-invalid={!!errors.genre || undefined}>
+                  <SelectTrigger aria-label="Thể loại" aria-invalid={!!errors.genre || undefined}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -152,7 +152,7 @@ export function CreateStoryModal({
               control={control}
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger aria-invalid={!!errors.tone || undefined}>
+                  <SelectTrigger aria-label="Tông giọng" aria-invalid={!!errors.tone || undefined}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

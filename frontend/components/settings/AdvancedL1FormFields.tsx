@@ -98,6 +98,7 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
               max={2}
               step={0.05}
               value={[temperature]}
+              aria-label="Temperature"
               onValueChange={(v) => {
                 const next = Array.isArray(v) ? v[0] : v;
                 form.setValue("temperature", next, { shouldDirty: true });
@@ -211,6 +212,7 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
               max={5}
               step={0.1}
               value={[threshold]}
+              aria-label="Ngưỡng tự đánh giá"
               onValueChange={(v) => {
                 const next = Array.isArray(v) ? v[0] : v;
                 form.setValue("self_review_threshold", next, {

@@ -79,7 +79,7 @@ export function StatCard({
           </span>
           <span className="text-sm text-muted-foreground">{label}</span>
           {description ? (
-            <span className="text-xs text-muted-foreground/80">
+            <span className="text-xs text-muted-foreground">
               {description}
             </span>
           ) : null}

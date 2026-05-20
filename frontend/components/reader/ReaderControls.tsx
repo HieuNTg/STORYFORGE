@@ -109,6 +109,7 @@ export function ReaderControls({
                 max={22}
                 step={1}
                 value={[fontSize]}
+                aria-label="Cỡ chữ"
                 onValueChange={(v) => {
                   const n = toSingle(v);
                   if (typeof n === "number") onFontSize(n);
@@ -131,6 +132,7 @@ export function ReaderControls({
                 max={2.0}
                 step={0.05}
                 value={[lineHeight]}
+                aria-label="Giãn dòng"
                 onValueChange={(v) => {
                   const n = toSingle(v);
                   if (typeof n === "number") onLineHeight(Math.round(n * 100) / 100);

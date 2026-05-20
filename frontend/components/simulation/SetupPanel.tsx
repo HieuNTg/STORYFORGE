@@ -74,7 +74,7 @@ export function SetupPanel({ climaxUnlocked = false }: SetupPanelProps) {
           <p className="text-xs text-muted-foreground">{t("characters_pick_hint")}</p>
         ) : (
           <Select value={storyId ?? undefined} onValueChange={(v) => setStoryId(v)}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="w-full" aria-label={t("characters_label")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

@@ -136,7 +136,8 @@ export function BookshelfScreen() {
             accept="application/json,.json"
             className="sr-only"
             onChange={handleImportFile}
-            aria-hidden
+            tabIndex={-1}
+            aria-label="Chọn tệp JSON để nhập vào kho truyện"
           />
           <Button
             type="button"

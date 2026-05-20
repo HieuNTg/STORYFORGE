@@ -117,7 +117,7 @@ export function CreateCharacterForm({
               onValueChange={field.onChange}
               disabled={submitting}
             >
-              <SelectTrigger aria-invalid={!!errors.role || undefined}>
+              <SelectTrigger aria-label={t("role_label")} aria-invalid={!!errors.role || undefined}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -144,7 +144,7 @@ export function CreateCharacterForm({
               onValueChange={field.onChange}
               disabled={submitting}
             >
-              <SelectTrigger aria-invalid={!!errors.genre || undefined}>
+              <SelectTrigger aria-label={t("genre_label")} aria-invalid={!!errors.genre || undefined}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

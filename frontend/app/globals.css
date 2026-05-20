@@ -120,7 +120,7 @@
   --foreground: #1a1208;
 
   --muted: #e5d7c4;
-  --muted-foreground: rgba(26, 18, 8, 0.6);
+  --muted-foreground: #4a3520;
 
   --card: #ede2d4;
   --card-foreground: #1a1208;
@@ -137,6 +137,7 @@
   --primary-foreground: #080808;
   --accent: #c5a47e;
   --accent-foreground: #080808;
+  --accent-strong: #6e4f23;
 
   /* Secondary surface — slightly deeper sepia for chips/secondary buttons */
   --secondary: #e5d7c4;
@@ -206,7 +207,7 @@
   --foreground: #e0e0e0;
 
   --muted: #1a1a1a;
-  --muted-foreground: rgba(224, 224, 224, 0.5);
+  --muted-foreground: #b8b8b8;
 
   --card: #121212;
   --card-foreground: #e0e0e0;
@@ -221,6 +222,7 @@
   --primary-foreground: #080808;
   --accent: #c5a47e;
   --accent-foreground: #080808;
+  --accent-strong: #d8b88c;
 
   --secondary: #1a1a1a;
   --secondary-foreground: #e0e0e0;
