@@ -1,0 +1,50 @@
+{
+  "nav": {
+    "library": "Thư viện",
+    "forge": "Khai sinh",
+    "characters": "Nhân vật",
+    "simulation": "Mô phỏng",
+    "branching": "Phân nhánh",
+    "reader": "Đọc truyện",
+    "settings": "Cài đặt",
+    "pipeline": "Pipeline",
+    "providers": "Nhà cung cấp",
+    "gallery": "Bộ sưu tập",
+    "analytics": "Phân tích",
+    "export": "Xuất bản",
+    "usage": "Sử dụng",
+    "account": "Tài khoản",
+    "guide": "Hướng dẫn"
+  },
+  "nav_desc": {
+    "library": "Truyện đã tạo",
+    "forge": "Khởi tạo từ một câu",
+    "characters": "Hồ sơ + radar",
+    "simulation": "Sân khấu hội thoại",
+    "branching": "Cây nhánh tương tác",
+    "reader": "Chế độ đọc trang giấy",
+    "settings": "Theme · LLM · Ngôn ngữ"
+  },
+  "pages": {
+    "pipeline": { "title": "Pipeline", "subtitle": "Tạo truyện mới" },
+    "library": { "title": "Thư viện", "subtitle": "Danh sách truyện đã tạo" },
+    "library_detail": { "title": "Chi tiết truyện" },
+    "branching": { "title": "Phân nhánh" },
+    "analytics": { "title": "Phân tích" },
+    "export": { "title": "Xuất bản" },
+    "settings": { "title": "Cài đặt" },
+    "providers": { "title": "Nhà cung cấp" },
+    "account": { "title": "Tài khoản" },
+    "gallery": { "title": "Bộ sưu tập" },
+    "usage": { "title": "Sử dụng" },
+    "guide": { "title": "Hướng dẫn" }
+  },
+  "shell": {
+    "search": "Tìm kiếm",
+    "theme_toggle": "Đổi chủ đề",
+    "locale_switch": "Đổi ngôn ngữ",
+    "open_palette": "Mở bảng lệnh",
+    "backend_online": "Backend kết nối",
+    "backend_offline": "Backend offline"
+  }
+}

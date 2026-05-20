@@ -1,0 +1,50 @@
+{
+  "nav": {
+    "library": "Library",
+    "forge": "Forge",
+    "characters": "Characters",
+    "simulation": "Simulation",
+    "branching": "Branching",
+    "reader": "Reader",
+    "settings": "Settings",
+    "pipeline": "Pipeline",
+    "providers": "Providers",
+    "gallery": "Gallery",
+    "analytics": "Analytics",
+    "export": "Export",
+    "usage": "Usage",
+    "account": "Account",
+    "guide": "Guide"
+  },
+  "nav_desc": {
+    "library": "Stories you've made",
+    "forge": "Spin from one sentence",
+    "characters": "Profiles + radar",
+    "simulation": "Dialogue theater",
+    "branching": "Interactive branch tree",
+    "reader": "Paper reading mode",
+    "settings": "Theme · LLM · language"
+  },
+  "pages": {
+    "pipeline": { "title": "Pipeline", "subtitle": "Generate a new story" },
+    "library": { "title": "Library", "subtitle": "Your generated stories" },
+    "library_detail": { "title": "Story detail" },
+    "branching": { "title": "Branching" },
+    "analytics": { "title": "Analytics" },
+    "export": { "title": "Export" },
+    "settings": { "title": "Settings" },
+    "providers": { "title": "Providers" },
+    "account": { "title": "Account" },
+    "gallery": { "title": "Gallery" },
+    "usage": { "title": "Usage" },
+    "guide": { "title": "Guide" }
+  },
+  "shell": {
+    "search": "Search",
+    "theme_toggle": "Toggle theme",
+    "locale_switch": "Switch language",
+    "open_palette": "Open command palette",
+    "backend_online": "Backend online",
+    "backend_offline": "Backend offline"
+  }
+}

@@ -1,0 +1,491 @@
+/* StoryForge — Design Tokens (Tailwind v4, Cinema Gold + Warm Sepia)
+ * Dark-first cinematic palette inspired by reference `storyforge-ai`.
+ *   gold       #C5A47E
+ *   bg dark    #080808
+ *   surface    #121212
+ *   bg light   #F4EBE1 (warm sepia paper)
+ *   text light #1A1208
+ * All shadcn primitive token NAMES preserved — only values flip.
+ * Reader keeps its own scoped theme system (.reader-theme-day/-sepia/-night).
+ * No infinite animations.
+ */
+
+@import "tailwindcss";
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Tailwind v4 @theme — maps CSS vars into utility classes.
+ * (bg-background, text-foreground, border-border, text-accent, rounded-lg, …)
+ * ────────────────────────────────────────────────────────────────────────── */
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+
+  /* Cinema aliases — gold tile, neutral surface ramp. */
+  --color-gold: var(--color-gold-base);
+  --color-gold-bg: var(--color-gold-bg-base);
+  --color-gold-surface: var(--color-gold-surface-base);
+
+  /* Neutral ramp — exposed for utilities (text-neutral-700, etc.) */
+  --color-neutral-50: var(--neutral-50);
+  --color-neutral-100: var(--neutral-100);
+  --color-neutral-200: var(--neutral-200);
+  --color-neutral-300: var(--neutral-300);
+  --color-neutral-400: var(--neutral-400);
+  --color-neutral-500: var(--neutral-500);
+  --color-neutral-600: var(--neutral-600);
+  --color-neutral-700: var(--neutral-700);
+  --color-neutral-800: var(--neutral-800);
+  --color-neutral-900: var(--neutral-900);
+  --color-neutral-950: var(--neutral-950);
+
+  /* Sidebar tokens — referenced by existing Sidebar.tsx via bg-sidebar etc. */
+  --color-sidebar: var(--card);
+  --color-sidebar-foreground: var(--card-foreground);
+  --color-sidebar-accent: var(--secondary);
+  --color-sidebar-accent-foreground: var(--secondary-foreground);
+
+  /* Radius */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Fonts — variables provided by next/font in app/fonts.ts. */
+  --font-sans: var(--font-inter), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), var(--font-geist-mono), ui-monospace, "JetBrains Mono", monospace;
+  --font-serif: var(--font-source-serif), ui-serif, Georgia, serif;
+  --font-display: var(--font-playfair), ui-serif, Georgia, serif;
+
+  /* Typography scale */
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 22px;
+  --text-3xl: 28px;
+  --text-display: 36px;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * :root — Light mode = warm sepia paper. Gold accent retained.
+ * ────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Neutral ramp (warm sepia → deep cocoa) */
+  --neutral-50:  #fbf5ec;
+  --neutral-100: #f4ebe1;
+  --neutral-200: #ede2d4;
+  --neutral-300: #e0d3bf;
+  --neutral-400: #c9b89a;
+  --neutral-500: #a08a64;
+  --neutral-600: #79633f;
+  --neutral-700: #574630;
+  --neutral-800: #382b1c;
+  --neutral-900: #241a10;
+  --neutral-950: #160f08;
+
+  /* Surfaces & text */
+  --background: #f4ebe1;
+  --foreground: #1a1208;
+
+  --muted: #e5d7c4;
+  --muted-foreground: rgba(26, 18, 8, 0.6);
+
+  --card: #ede2d4;
+  --card-foreground: #1a1208;
+
+  --popover: #ede2d4;
+  --popover-foreground: #1a1208;
+
+  /* Borders & inputs */
+  --border: rgba(197, 164, 126, 0.25);
+  --input: rgba(197, 164, 126, 0.35);
+
+  /* Gold accent (primary + accent share). */
+  --primary: #c5a47e;
+  --primary-foreground: #080808;
+  --accent: #c5a47e;
+  --accent-foreground: #080808;
+
+  /* Secondary surface — slightly deeper sepia for chips/secondary buttons */
+  --secondary: #e5d7c4;
+  --secondary-foreground: #1a1208;
+
+  /* Focus ring — gold halo */
+  --ring: rgba(197, 164, 126, 0.6);
+
+  /* Status */
+  --destructive: #b14848;
+  --destructive-foreground: #fbf5ec;
+
+  --success: #4f7a4a;
+  --success-foreground: #fbf5ec;
+
+  --warning: #b58a3a;
+  --warning-foreground: #1a1208;
+
+  /* Cinema aliases */
+  --color-gold-base: #c5a47e;
+  --color-gold-bg-base: #f4ebe1;
+  --color-gold-surface-base: #ede2d4;
+
+  /* Geometry */
+  --radius: 0.5rem;
+
+  /* Motion — single-shot only, no infinite */
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+
+  /* Phase 4 motion-token aliases (semantic) */
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --motion-slow: 300ms;
+
+  /* Chart palette — gold + earth tones on sepia background. */
+  --chart-1: #c5a47e; /* gold */
+  --chart-2: #79633f; /* deep tan */
+  --chart-3: #b58a3a; /* amber */
+  --chart-4: #8a4a4a; /* maroon */
+  --chart-5: #4f7a4a; /* sage */
+
+  color-scheme: light;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * .dark — Cinema gold / deep black surfaces.
+ * ────────────────────────────────────────────────────────────────────────── */
+.dark {
+  /* Inverted neutral ramp — same warm hue, lightness flipped */
+  --neutral-50:  #0a0a0a;
+  --neutral-100: #121212;
+  --neutral-200: #1a1a1a;
+  --neutral-300: #242424;
+  --neutral-400: #3a3a3a;
+  --neutral-500: #5a5a5a;
+  --neutral-600: #8a8a8a;
+  --neutral-700: #b0b0b0;
+  --neutral-800: #cccccc;
+  --neutral-900: #e0e0e0;
+  --neutral-950: #f5f5f5;
+
+  --background: #080808;
+  --foreground: #e0e0e0;
+
+  --muted: #1a1a1a;
+  --muted-foreground: rgba(224, 224, 224, 0.5);
+
+  --card: #121212;
+  --card-foreground: #e0e0e0;
+
+  --popover: #121212;
+  --popover-foreground: #e0e0e0;
+
+  --border: rgba(197, 164, 126, 0.15);
+  --input: rgba(197, 164, 126, 0.2);
+
+  --primary: #c5a47e;
+  --primary-foreground: #080808;
+  --accent: #c5a47e;
+  --accent-foreground: #080808;
+
+  --secondary: #1a1a1a;
+  --secondary-foreground: #e0e0e0;
+
+  --ring: rgba(197, 164, 126, 0.5);
+
+  /* Status — bump lightness +0.05 for legibility on dark surfaces */
+  --destructive: #d96666;
+  --destructive-foreground: #080808;
+
+  --success: #79b06c;
+  --success-foreground: #080808;
+
+  --warning: #d9aa5a;
+  --warning-foreground: #080808;
+
+  /* Cinema aliases */
+  --color-gold-base: #c5a47e;
+  --color-gold-bg-base: #080808;
+  --color-gold-surface-base: #121212;
+
+  /* Dark-mode chart palette */
+  --chart-1: #c5a47e; /* gold */
+  --chart-2: #d9aa5a; /* warm amber */
+  --chart-3: #8a6a4a; /* bronze */
+  --chart-4: #c97070; /* rose */
+  --chart-5: #7aa57a; /* sage */
+
+  color-scheme: dark;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Base layer — typography defaults, focus ring, page-enter.
+ * ────────────────────────────────────────────────────────────────────────── */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-size: var(--text-base);
+    line-height: 1.55;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Body-level page enter — single-shot. */
+  @media (prefers-reduced-motion: no-preference) {
+    body {
+      animation: sf-page-enter var(--duration-base) var(--ease-emphasized) both;
+    }
+  }
+
+  /* Per-element opt-in page-enter. */
+  @media (prefers-reduced-motion: no-preference) {
+    .page-enter {
+      animation: sf-page-enter-150 150ms cubic-bezier(0.4, 0, 0.2, 1) both;
+    }
+  }
+
+  @keyframes sf-page-enter {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  @keyframes sf-page-enter-150 {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  /* Bounded skeleton shimmer. */
+  @media (prefers-reduced-motion: no-preference) {
+    .animate-pulse {
+      animation: sf-skeleton-shimmer 1.5s ease-in-out 8;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-pulse {
+      animation: none;
+    }
+  }
+
+  @keyframes sf-skeleton-shimmer {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+  }
+
+  /* Motion utility classes. */
+  @media (prefers-reduced-motion: no-preference) {
+    .motion-fade-in {
+      animation: sf-fade-in var(--motion-fast) var(--ease-out) both;
+    }
+    .motion-lift {
+      transition:
+        transform var(--motion-base) var(--ease-out),
+        box-shadow var(--motion-base) var(--ease-out);
+    }
+    .motion-lift:hover {
+      transform: translateY(-2px);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .motion-fade-in,
+    .motion-lift {
+      animation: none;
+      transition: none;
+    }
+  }
+
+  @keyframes sf-fade-in {
+    from { opacity: 0; transform: translateY(2px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Cinema brand pulse — gold dot on active nav item.
+   * Bounded by `motion-safe` and respects reduced motion. */
+  @media (prefers-reduced-motion: no-preference) {
+    .gold-pulse {
+      animation: sf-gold-pulse 2s ease-in-out infinite;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .gold-pulse { animation: none; }
+  }
+  @keyframes sf-gold-pulse {
+    0%, 100% { opacity: 1;   transform: scale(1); }
+    50%      { opacity: 0.5; transform: scale(0.85); }
+  }
+
+  /* Long-form prose discipline for the Guide page. */
+  .prose-guide {
+    max-width: 70ch;
+    color: var(--foreground);
+    font-size: var(--text-base);
+    line-height: 1.7;
+  }
+  .prose-guide h1 {
+    font-size: var(--text-3xl);
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.015em;
+    margin-block: 0 0.5em;
+  }
+  .prose-guide h2 {
+    font-size: var(--text-xl);
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.011em;
+    margin-block: 1.5em 0.5em;
+  }
+  .prose-guide h3 {
+    font-size: var(--text-lg);
+    font-weight: 600;
+    line-height: 1.35;
+    margin-block: 1.25em 0.4em;
+  }
+  .prose-guide p,
+  .prose-guide ul,
+  .prose-guide ol {
+    margin-block: 0.5em 0.75em;
+  }
+  .prose-guide ul,
+  .prose-guide ol {
+    padding-left: 1.25rem;
+  }
+  .prose-guide a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: 1px;
+  }
+  .prose-guide a:hover {
+    text-decoration-thickness: 2px;
+  }
+  .prose-guide code {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    background: var(--muted);
+    color: var(--foreground);
+    border-radius: var(--radius-sm);
+    padding: 0.1em 0.35em;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: -0.011em;
+  }
+
+  /* Universal focus ring */
+  button,
+  input,
+  select,
+  textarea,
+  a {
+    outline: none;
+  }
+  :focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  a:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Reader theme — scoped tokens for prose surface only.
+ * Independent from app .dark; the rest of the page keeps its app theme.
+ * Apply on the prose container: <div class="reader-theme-{day|sepia|night}">.
+ * ────────────────────────────────────────────────────────────────────────── */
+.reader-theme-day {
+  --reader-bg: #fbf5ec;
+  --reader-fg: #1a1208;
+  --reader-muted: #574630;
+  --reader-rule: rgba(197, 164, 126, 0.3);
+  color-scheme: light;
+}
+
+.reader-theme-sepia {
+  --reader-bg: #f0e0c4;
+  --reader-fg: #3a2810;
+  --reader-muted: #6a5230;
+  --reader-rule: rgba(197, 164, 126, 0.45);
+  color-scheme: light;
+}
+
+.reader-theme-night {
+  --reader-bg: #121212;
+  --reader-fg: #d8c8a8;
+  --reader-muted: rgba(216, 200, 168, 0.55);
+  --reader-rule: rgba(197, 164, 126, 0.2);
+  color-scheme: dark;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Reduced motion — zero out durations, disable transforms.
+ * ────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  .dark {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+    transform: none !important;
+    scroll-behavior: auto !important;
+  }
+}
