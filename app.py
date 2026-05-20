@@ -1,7 +1,7 @@
 """StoryForge — thin entry point.
 
 Starts FastAPI, mounts API routes and static files.
-The UI is served from web/ as a static Alpine.js SPA.
+The UI is served by Next.js from frontend/ (run separately on :3000).
 
 CORS policy:
   Allowed origins are read from the STORYFORGE_ALLOWED_ORIGINS env var
@@ -26,7 +26,6 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from config import ConfigManager
@@ -287,37 +286,17 @@ def main():
 
     main_app.add_middleware(BodySizeLimitMiddleware)
 
-    # Static files
+    # Static files (locales only — UI served by Next.js from frontend/)
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    web_dir = os.path.join(base_dir, "web")
     locales_dir = os.path.join(base_dir, "locales")
 
-    # Mount locales FIRST (more specific path takes precedence)
     if os.path.isdir(locales_dir):
         main_app.mount("/static/locales", GzippedStaticFiles(directory=locales_dir), name="locales")
-    # Then mount web/ for remaining static files
-    main_app.mount("/static", GzippedStaticFiles(directory=web_dir), name="static")
 
     # Generated chapter images
     images_dir = os.path.join(base_dir, "output", "images")
     os.makedirs(images_dir, exist_ok=True)
     main_app.mount("/media", StaticFiles(directory=images_dir), name="media")
-
-    # Serve index.html at root
-    @main_app.get("/")
-    async def serve_index():
-        return FileResponse(os.path.join(web_dir, "index.html"))
-
-    @main_app.get("/favicon.svg")
-    async def serve_favicon():
-        return FileResponse(os.path.join(web_dir, "favicon.svg"), media_type="image/svg+xml")
-
-    # Redirect legacy /dashboard URL to the SPA analytics page (M4-B1).
-    from fastapi.responses import RedirectResponse as _RedirectResponse
-
-    @main_app.get("/dashboard")
-    async def redirect_dashboard():
-        return _RedirectResponse(url="/#/analytics", status_code=301)
 
     # Health check — lightweight with cached DB/Redis probes (30s TTL)
     from fastapi.responses import JSONResponse as _JSONResponse

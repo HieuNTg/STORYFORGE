@@ -1,86 +1,86 @@
 [
   {
     "route": "/",
-    "performance": 0,
-    "accessibility": 0,
-    "best-practices": 0,
-    "passed": false
+    "performance": 95,
+    "accessibility": 98,
+    "best-practices": 96,
+    "passed": true
   },
   {
     "route": "/library/",
-    "performance": 46,
+    "performance": 97,
     "accessibility": 100,
     "best-practices": 96,
-    "passed": false
+    "passed": true
   },
   {
     "route": "/library/demo/",
-    "performance": 57,
+    "performance": 96,
     "accessibility": 100,
     "best-practices": 96,
-    "passed": false
+    "passed": true
   },
   {
     "route": "/branching/demo/",
-    "performance": 46,
+    "performance": 94,
     "accessibility": 100,
     "best-practices": 96,
-    "passed": false
+    "passed": true
   },
   {
     "route": "/analytics/demo/",
-    "performance": 47,
+    "performance": 95,
     "accessibility": 100,
     "best-practices": 96,
-    "passed": false
+    "passed": true
   },
   {
     "route": "/settings/",
-    "performance": 46,
+    "performance": 96,
     "accessibility": 98,
     "best-practices": 96,
-    "passed": false
+    "passed": true
   },
   {
     "route": "/providers/",
-    "performance": 48,
+    "performance": 96,
     "accessibility": 98,
     "best-practices": 96,
-    "passed": false
+    "passed": true
   },
   {
-    "route": "/export/demo/",
-    "performance": 0,
-    "accessibility": 0,
-    "best-practices": 0,
-    "passed": false
+    "route": "/export/?id=demo",
+    "performance": 98,
+    "accessibility": 100,
+    "best-practices": 96,
+    "passed": true
   },
   {
     "route": "/account/",
-    "performance": 38,
+    "performance": 96,
     "accessibility": 100,
     "best-practices": 96,
-    "passed": false
+    "passed": true
   },
   {
     "route": "/gallery/",
-    "performance": 41,
+    "performance": 98,
     "accessibility": 98,
     "best-practices": 96,
-    "passed": false
+    "passed": true
   },
   {
     "route": "/usage/",
-    "performance": 45,
+    "performance": 96,
     "accessibility": 100,
     "best-practices": 96,
-    "passed": false
+    "passed": true
   },
   {
     "route": "/guide/",
-    "performance": 0,
-    "accessibility": 0,
-    "best-practices": 0,
-    "passed": false
+    "performance": 95,
+    "accessibility": 100,
+    "best-practices": 96,
+    "passed": true
   }
 ]

@@ -20,7 +20,7 @@ const ROUTES = [
   "/analytics/demo/",
   "/settings/",
   "/providers/",
-  "/export/demo/",
+  "/export/?id=demo",
   "/account/",
   "/gallery/",
   "/usage/",
@@ -36,6 +36,16 @@ async function audit(url, port) {
     output: "json",
     onlyCategories: ["performance", "accessibility", "best-practices"],
     port,
+    formFactor: "desktop",
+    screenEmulation: { mobile: false, disabled: true },
+    throttling: {
+      rttMs: 40,
+      throughputKbps: 10240,
+      cpuSlowdownMultiplier: 1,
+      requestLatencyMs: 0,
+      downloadThroughputKbps: 0,
+      uploadThroughputKbps: 0,
+    },
   });
   return result.lhr;
 }
