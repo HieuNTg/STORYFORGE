@@ -840,6 +840,57 @@ class PipelineOutput(BaseModel):
     handoff_envelope: Optional[dict] = Field(default=None, description="Serialised L1Handoff dict")
 
 
+# === Phase 1: Forge-from-Sentence ===
+
+ForgeRole = Literal["protagonist", "antagonist", "rival", "supporting"]
+ForgeTraitKey = Literal["strength", "wisdom", "agility", "scheme"]
+
+
+class ForgeRequest(BaseModel):
+    sentenceIdea: str = Field(min_length=10, max_length=500)
+
+
+class ForgeCharacter(BaseModel):
+    name: str
+    role: ForgeRole
+    traits: dict[ForgeTraitKey, int]
+    description: str
+    backstory: str
+    secret: str
+    conflict: str
+
+    @field_validator("traits")
+    @classmethod
+    def _clamp_traits(cls, v: dict[str, int]) -> dict[str, int]:
+        required = {"strength", "wisdom", "agility", "scheme"}
+        if set(v.keys()) != required:
+            raise ValueError(f"traits must have exactly keys {required}")
+        return {k: max(0, min(100, int(val))) for k, val in v.items()}
+
+
+class ForgeChoice(BaseModel):
+    id: str
+    label: str
+    actionPrompt: str
+
+
+class ForgeChapter(BaseModel):
+    title: str
+    content: str
+    summary: str
+    choices: list[ForgeChoice] = Field(min_length=2, max_length=2)
+
+
+class ForgeResponse(BaseModel):
+    title: str
+    genre: str
+    setting: str
+    tone: str
+    description: str
+    characters: list[ForgeCharacter] = Field(min_length=2, max_length=2)
+    firstChapter: ForgeChapter
+
+
 try:
     from models.narrative_schemas import ChapterContract
     Chapter.model_rebuild(_types_namespace={"ChapterContract": ChapterContract})

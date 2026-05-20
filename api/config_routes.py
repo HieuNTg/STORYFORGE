@@ -36,7 +36,7 @@ Import the helpers from middleware.rbac and add them as Depends():
 import logging
 import re
 import time
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from typing import Optional
 
@@ -133,9 +133,28 @@ _CONFIGURE_PIPELINE = Depends(require_permission_if_enabled(Permission.CONFIGURE
 _MANAGE_API_KEYS = Depends(require_permission_if_enabled(Permission.MANAGE_API_KEYS))
 
 
+# Mask-shape regex: matches the masked echo emitted by `_mask_key` and the
+# primary api_key mask (e.g. `sk-12***abcd`, `***abcd`, `abc***xyz`). Used to
+# reject PUT bodies that round-trip the masked echo as a "new" key (F5).
+_MASKED_KEY_RE = re.compile(r"^.{0,8}\*{2,}.{0,8}$")
+
+
+def _is_masked_echo(value: Optional[str]) -> bool:
+    """Return True if `value` looks like a masked echo (`abc***xyz` or `***abcd`)."""
+    if not value or not isinstance(value, str):
+        return False
+    return bool(_MASKED_KEY_RE.match(value))
+
+
 @router.get("", dependencies=[_CONFIGURE_PIPELINE])
-def get_config():
-    """Return current config (API key and HF token masked)."""
+def get_config(response: Response):
+    """Return current config (API key and HF token masked).
+
+    `Cache-Control: no-store, private` is set as defense-in-depth (F17): the
+    response carries masked secrets today, but we never want a service-worker,
+    proxy, or browser cache holding a copy in case of future regressions.
+    """
+    response.headers["Cache-Control"] = "no-store, private"
     cfg = ConfigManager()
     key = cfg.llm.api_key or ""
     masked_key = key[:4] + "***" + key[-4:] if len(key) > 8 else "***"
@@ -186,6 +205,31 @@ def get_config():
 @router.put("", dependencies=[_CONFIGURE_PIPELINE])
 def save_config(body: ConfigUpdate):
     """Save settings to config.json."""
+    # F5 guard: reject mask-shaped values for any secret field. A correctly-
+    # behaving frontend uses delta-only PUT and never sends the masked echo
+    # back. This catches the regression where a bug echoes `sk-***1234` as
+    # the new key, which would otherwise overwrite the real key with the mask.
+    for field_name in ("api_key", "hf_token"):
+        if _is_masked_echo(getattr(body, field_name, None)):
+            raise HTTPException(
+                status_code=400,
+                detail=f"masked echo cannot be persisted as a real {field_name}",
+            )
+    if body.api_keys is not None:
+        for k in body.api_keys:
+            key_value = k if isinstance(k, str) else (k or {}).get("key") or (k or {}).get("api_key")
+            if _is_masked_echo(key_value):
+                raise HTTPException(
+                    status_code=400,
+                    detail="masked echo cannot be persisted as a real api_keys entry",
+                )
+    if body.append_api_keys:
+        for k in body.append_api_keys:
+            if _is_masked_echo(k if isinstance(k, str) else None):
+                raise HTTPException(
+                    status_code=400,
+                    detail="masked echo cannot be persisted as a real api_keys entry",
+                )
     cfg = ConfigManager()
     if body.api_key is not None:
         cfg.llm.api_key = body.api_key
@@ -392,6 +436,11 @@ def get_provider_models(body: ModelsRequest):
 @router.post("/profiles", dependencies=[_MANAGE_API_KEYS])
 def add_profile(body: ProfileCreate):
     """Add an API provider profile. Auto-detects provider from key prefix if fields empty."""
+    if _is_masked_echo(body.api_key):
+        raise HTTPException(
+            status_code=400,
+            detail="masked echo cannot be persisted as a real api_key",
+        )
     detected = _detect_provider_from_key(body.api_key) if body.api_key else None
     cfg = ConfigManager()
     profile = {
@@ -427,6 +476,11 @@ def add_profile(body: ProfileCreate):
 @router.put("/profiles/{index}", dependencies=[_MANAGE_API_KEYS])
 def update_profile(index: int, body: ProfileCreate):
     """Update an API provider profile."""
+    if _is_masked_echo(body.api_key):
+        raise HTTPException(
+            status_code=400,
+            detail="masked echo cannot be persisted as a real api_key",
+        )
     cfg = ConfigManager()
     profiles = list(cfg.llm.fallback_models)
     if index < 0 or index >= len(profiles):

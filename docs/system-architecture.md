@@ -2,7 +2,7 @@
 
 ## Overview
 
-StoryForge is a 2-layer AI story generation pipeline (plus optional L3 sensory polish) with a FastAPI backend, Alpine.js frontend, and production-ready monitoring stack.
+StoryForge is a 2-layer AI story generation pipeline (plus optional L3 sensory polish) with a FastAPI backend, Alpine.js frontend, and production-ready monitoring stack. **Phase 1 (Forge):** Quick-sketch BFF endpoints (`/api/forge/sentence{/stream}`, flag: `enable_sentence_forge`) accept single sentences and return story outlines via cheap_model; frontend library store (zustand+localStorage) persists 50 sketches.
 
 **Entry point:** `PipelineOrchestrator.run_full_pipeline()` → `pipeline/orchestrator_layers.py::run_full_pipeline()` (async; blocking LLM calls offloaded via `asyncio.to_thread`).
 

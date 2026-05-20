@@ -358,6 +358,10 @@ class PipelineConfig:
     # Incremental L2 Publish (P-C) — stream chapters as they're enhanced
     enable_incremental_publish: bool = False  # Opt-in — emits chapter_enhanced events
 
+    # Forge-from-Sentence (Phase 1) — fast synchronous BFF over cheap_model.
+    enable_sentence_forge: bool = False
+    forge_cheap_model_override: str = ""  # empty = use LLMConfig.cheap_model
+
     # RFC voice-handling-consolidation Phase A: nested view of voice flags.
     # Defaults match flat voice_* / l2_voice_* fields. Synced in __post_init__.
     voice: VoiceConfig = field(default_factory=VoiceConfig)

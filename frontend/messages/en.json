@@ -46,5 +46,39 @@
     "open_palette": "Open command palette",
     "backend_online": "Backend online",
     "backend_offline": "Backend offline"
+  },
+  "library": {
+    "empty": "Bookshelf is empty",
+    "empty_hint": "Forge a sentence idea or create a story manually to get started.",
+    "create": "Create story",
+    "import": "Import JSON",
+    "export": "Export JSON",
+    "delete": "Delete story",
+    "select_hint": "Pick a story to see details.",
+    "count": "{count} / {max} stories on shelf",
+    "limit_reached": "Reached {max}-story limit",
+    "imported": "Story imported",
+    "exported": "JSON exported",
+    "deleted": "Story deleted",
+    "delete_confirm_title": "Delete story?",
+    "delete_confirm_body": "This cannot be undone. Export to JSON first if you want a backup."
+  },
+  "forge": {
+    "title": "Forge from a sentence",
+    "placeholder": "e.g. A disgraced swordsman searches for his dead master to demand answers…",
+    "cta": "Forge story",
+    "streaming": "Forging…",
+    "cancel": "Cancel",
+    "min_length": "Need at least {min} characters",
+    "max_length": "Exceeds {max} characters",
+    "max_hint": "Max {max} characters",
+    "done": "Done: \"{title}\"",
+    "failed": "Forge failed",
+    "stage": {
+      "planning": "Sketching setting…",
+      "characters": "Building characters…",
+      "chapter": "Writing chapter 1…",
+      "choices": "Weighing branch choices…"
+    }
   }
 }

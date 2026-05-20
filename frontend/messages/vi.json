@@ -46,5 +46,39 @@
     "open_palette": "Mở bảng lệnh",
     "backend_online": "Backend kết nối",
     "backend_offline": "Backend offline"
+  },
+  "library": {
+    "empty": "Kho truyện trống",
+    "empty_hint": "Forge một câu ý tưởng hoặc tạo truyện thủ công để bắt đầu.",
+    "create": "Tạo truyện",
+    "import": "Nhập JSON",
+    "export": "Xuất JSON",
+    "delete": "Xoá truyện",
+    "select_hint": "Chọn một truyện để xem chi tiết.",
+    "count": "{count} / {max} truyện trong kho",
+    "limit_reached": "Đã đạt giới hạn {max} truyện",
+    "imported": "Đã nhập truyện",
+    "exported": "Đã xuất JSON",
+    "deleted": "Đã xoá truyện",
+    "delete_confirm_title": "Xoá truyện?",
+    "delete_confirm_body": "Hành động này không thể hoàn tác. Hãy xuất JSON nếu bạn muốn giữ lại bản sao."
+  },
+  "forge": {
+    "title": "Forge từ một câu ý tưởng",
+    "placeholder": "VD: Một kiếm khách bị phế võ công đi tìm sư phụ đã chết để hỏi tội…",
+    "cta": "Forge truyện",
+    "streaming": "Đang forge…",
+    "cancel": "Huỷ",
+    "min_length": "Cần ít nhất {min} ký tự",
+    "max_length": "Vượt {max} ký tự",
+    "max_hint": "Tối đa {max} ký tự",
+    "done": "Hoàn thành: \"{title}\"",
+    "failed": "Forge thất bại",
+    "stage": {
+      "planning": "Đang phác thảo bối cảnh…",
+      "characters": "Đang tạo nhân vật…",
+      "chapter": "Đang viết chương 1…",
+      "choices": "Đang cân nhắc các ngả rẽ…"
+    }
   }
 }
