@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class ImageGenerator:
     """Generate images from prompts using various AI providers."""
 
-    PROVIDERS = ["dalle", "sd-api", "seedream", "replicate", "huggingface", "none"]
+    PROVIDERS = ["dalle", "sd-api", "seedream", "replicate", "huggingface", "flowkit", "none"]
 
     def __init__(self, provider: str = "none", api_key: str = "", base_url: str = ""):
         config = ConfigManager()

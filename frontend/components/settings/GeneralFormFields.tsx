@@ -170,6 +170,7 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
                 <SelectItem value="huggingface">HuggingFace (free)</SelectItem>
                 <SelectItem value="dalle">DALL·E</SelectItem>
                 <SelectItem value="seedream">Seedream</SelectItem>
+                <SelectItem value="flowkit">Flowkit (Google Labs)</SelectItem>
               </SelectContent>
             </Select>
           </Field>
