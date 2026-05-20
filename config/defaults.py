@@ -139,6 +139,7 @@ class PipelineConfig:
     flowkit_image_input_type_split: bool = False  # split REFERENCE → CHARACTER/STYLE (requires live enum sniff)
     flowkit_callback_hmac_required: bool = False  # verify X-Callback-Secret on /api/ext/callback
     flowkit_use_refiner: bool = True
+    flowkit_request_timeout: float = 180.0  # seconds; sync-bridge wait when ImageGenerator dispatches to FlowService loop
 
     # Self-review (CoT quality check)
     enable_self_review: bool = True  # CoT self-review for quality

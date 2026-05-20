@@ -15,7 +15,7 @@ class MediaProducer:
     def __init__(self, config: ConfigManager):
         self.config = config
 
-    def run(self, draft, enhanced, progress_callback=None) -> dict:
+    def run(self, draft, enhanced, progress_callback=None, session_id: str | None = None) -> dict:
         """Generate character reference images and scene images.
 
         Returns dict with paths: {character_refs, scene_images}
@@ -89,7 +89,11 @@ class MediaProducer:
             if consistency_provider == "seedream" and not provider.is_configured():
                 consistency_provider = cfg.image_provider
             from services.image_generator import ImageGenerator
-            image_gen = ImageGenerator(provider=consistency_provider)
+            image_gen = ImageGenerator(
+                provider=consistency_provider,
+                session_id=session_id,
+                story_title=getattr(draft, "title", None),
+            )
         else:
             image_gen = None
 

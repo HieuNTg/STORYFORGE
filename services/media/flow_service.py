@@ -118,6 +118,12 @@ class FlowService:
 
     def set_active_ws(self, ws) -> None:
         self.active_ws = ws
+        # Capture the loop the WS lives on so sync callers (executor workers)
+        # can hand coroutines back via run_coroutine_threadsafe.
+        try:
+            self._main_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._main_loop = None
         self.log_account_warning()
 
     def clear_active_ws(self) -> None:

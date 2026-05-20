@@ -1,5 +1,6 @@
 """AI image generation from story prompts — supports DALL-E and SD-compatible APIs."""
 
+import asyncio
 import os
 import logging
 import base64
@@ -9,6 +10,7 @@ from typing import Optional
 import requests
 
 from config import ConfigManager
+from services.media._util import slug_session_dir
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +20,14 @@ class ImageGenerator:
 
     PROVIDERS = ["dalle", "sd-api", "seedream", "replicate", "huggingface", "flowkit", "none"]
 
-    def __init__(self, provider: str = "none", api_key: str = "", base_url: str = ""):
+    def __init__(
+        self,
+        provider: str = "none",
+        api_key: str = "",
+        base_url: str = "",
+        session_id: Optional[str] = None,
+        story_title: Optional[str] = None,
+    ):
         config = ConfigManager()
         cfg = config.pipeline
         self.provider = provider or cfg.image_provider
@@ -38,7 +47,12 @@ class ImageGenerator:
         )
         self.hf_token = cfg.hf_token or os.environ.get("HF_TOKEN", "")
         self.hf_model = cfg.hf_image_model
-        self.output_dir = "output/images"
+        self.session_id = session_id
+        self.story_title = story_title
+        if session_id and story_title:
+            self.output_dir = os.path.join("output/images", slug_session_dir(story_title, session_id))
+        else:
+            self.output_dir = "output/images"
         os.makedirs(self.output_dir, exist_ok=True)
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -59,6 +73,8 @@ class ImageGenerator:
             return self._generate_seedream(prompt, filename)
         if self.provider == "huggingface":
             return self._generate_huggingface(prompt, filename)
+        if self.provider == "flowkit":
+            return self._generate_flowkit(prompt, filename, size)
 
         logger.warning("Unknown image provider: %s", self.provider)
         return None
@@ -78,6 +94,8 @@ class ImageGenerator:
         if not reference_paths:
             return self.generate(prompt, filename, size)
 
+        if self.provider == "flowkit":
+            return self._flowkit_with_ref(prompt, reference_paths, filename)
         if self.provider == "seedream":
             return self._seedream_with_ref(prompt, reference_paths, filename)
         if self.provider == "replicate":
@@ -269,3 +287,77 @@ class ImageGenerator:
             logger.warning("Replicate not configured for reference generation")
             return self.generate(prompt, filename)
         return client.generate(prompt, reference_path, filename)
+
+    # ── FlowKit (Google Labs proxy via Chrome extension WS) ───────────────────
+
+    def _flowkit_refine(self, prompt: str) -> str:
+        """Run cinematic refiner if flag enabled; on failure, fall back to raw prompt."""
+        cfg = ConfigManager().pipeline
+        if not cfg.flowkit_use_refiner:
+            return prompt
+        try:
+            from services.media.image_prompt_generator import ImagePromptGenerator
+            return ImagePromptGenerator().refine_to_cinematic_prompt(prompt) or prompt
+        except Exception as e:
+            logger.warning("FlowKit refiner failed, using raw prompt: %s", e)
+            return prompt
+
+    def _flowkit_call(self, coro_factory) -> Optional[str]:
+        """Bridge a sync executor worker to FlowService's asyncio loop.
+
+        Precondition: caller is on a worker thread (not the FlowService loop);
+        FlowService captured ``_main_loop`` when the WS connected.
+        """
+        from services.media.flow_service import FlowService
+        flow_service = FlowService()
+        cfg = ConfigManager().pipeline
+        if not cfg.flowkit_enabled or flow_service.active_ws is None:
+            logger.warning(
+                "FlowKit not ready (enabled=%s, ws_connected=%s)",
+                cfg.flowkit_enabled, flow_service.active_ws is not None,
+            )
+            return None
+        loop = getattr(flow_service, "_main_loop", None)
+        if loop is None:
+            logger.error("FlowKit unavailable: FlowService has no captured main loop")
+            return None
+        try:
+            fut = asyncio.run_coroutine_threadsafe(coro_factory(), loop)
+            timeout = max(30.0, float(cfg.flowkit_request_timeout))
+            return fut.result(timeout=timeout)
+        except Exception as e:
+            logger.error("FlowKit generation failed: %s", e)
+            return None
+
+    def _generate_flowkit(
+        self, prompt: str, filename: str, size: str = "1024x1024"
+    ) -> Optional[str]:
+        """Text-only image generation via Google Labs Flow (Imagen)."""
+        from services.media.flow_service import FlowService
+        flow_service = FlowService()
+        refined = self._flowkit_refine(prompt)
+        return self._flowkit_call(
+            lambda: flow_service.request_image(
+                refined, [], None, self.output_dir, filename
+            )
+        )
+
+    def _flowkit_with_ref(
+        self, prompt: str, reference_paths: list, filename: str
+    ) -> Optional[str]:
+        """Reference-conditioned generation. Splits CHARACTER/STYLE refs when split flag set."""
+        from services.media.flow_service import FlowService
+        flow_service = FlowService()
+        cfg = ConfigManager().pipeline
+        refined = self._flowkit_refine(prompt)
+        char_refs = list(reference_paths or [])
+        style_ref: Optional[str] = None
+        if cfg.flowkit_image_input_type_split:
+            style_path = cfg.flowkit_style_reference_path
+            if style_path and os.path.isfile(style_path):
+                style_ref = style_path
+        return self._flowkit_call(
+            lambda: flow_service.request_image(
+                refined, char_refs, style_ref, self.output_dir, filename
+            )
+        )

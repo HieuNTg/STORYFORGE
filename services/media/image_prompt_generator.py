@@ -34,6 +34,32 @@ class ImagePromptGenerator:
         summary = chapter.summary or chapter.title or f"Chapter {chapter.chapter_number}"
         return f"{self.style} style, {summary}"
 
+    def refine_to_cinematic_prompt(self, text: str) -> str:
+        """Rewrite a scene description into a cinematic Imagen prompt.
+
+        Schema: [Camera angle] + [Composition/Lighting] + [Character details] + [Art style].
+        Returns the refined prompt; on parse failure or empty result, returns the input verbatim.
+        """
+        system = (
+            "You rewrite scene descriptions into cinematic Imagen prompts. "
+            "Return JSON {\"prompt\": \"...\"} where prompt follows: "
+            "[Camera angle] + [Composition/Lighting] + [Character details] + [Art style]. "
+            "Keep it under 60 words, no extra commentary."
+        )
+        try:
+            result = self.llm.generate_json(
+                system_prompt=system,
+                user_prompt=text,
+                temperature=0.7,
+                max_tokens=200,
+                model_tier="cheap",
+            )
+            refined = (result or {}).get("prompt") or ""
+            return refined.strip() or text
+        except Exception as e:
+            logger.warning("Cinematic refiner failed: %s", e)
+            return text
+
     def generate_from_chapter(
         self,
         chapter: Chapter,

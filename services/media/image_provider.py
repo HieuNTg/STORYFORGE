@@ -68,7 +68,20 @@ class ImageProvider:
             return None
 
     def is_configured(self) -> bool:
-        """Return True if at least one provider is configured."""
+        """Return True if at least one provider is configured.
+
+        FlowKit counts as configured only when the Chrome extension is currently
+        connected — without an active WS the proxy can't reach Google Labs.
+        """
+        try:
+            from config import ConfigManager
+            cfg = ConfigManager().pipeline
+            if cfg.image_provider == "flowkit":
+                from services.media.flow_service import FlowService
+                flow_service = FlowService()
+                return bool(cfg.flowkit_enabled and flow_service.active_ws is not None)
+        except Exception:
+            pass
         try:
             if self.seedream.is_configured():
                 return True

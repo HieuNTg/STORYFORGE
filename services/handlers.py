@@ -310,7 +310,13 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
             logger.debug("Visual profile lookup skipped: %s", _vp_e)
 
         prompt_gen = ImagePromptGenerator()
-        image_gen = ImageGenerator(provider=provider)
+        _story_title = getattr(draft, "title", None) if draft else None
+        _session_id = getattr(orch_state, "session_id", None)
+        image_gen = ImageGenerator(
+            provider=provider,
+            session_id=_session_id,
+            story_title=_story_title,
+        )
 
         if chapter_number is not None:
             target_chapters = [c for c in story.chapters if c.chapter_number == chapter_number]
@@ -335,7 +341,10 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
                 chapter_number=ch.chapter_number,
                 character_references=character_references or None,
             )
-            ch.images = [os.path.basename(p) for p in ch_paths]
+            ch.images = [
+                os.path.relpath(p, "output/images").replace(os.sep, "/")
+                for p in ch_paths
+            ]
             all_paths.extend(ch_paths)
 
         msg = t("msg_images_generated") if t else f"Generated {len(all_paths)} image(s)."

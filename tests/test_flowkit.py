@@ -495,3 +495,316 @@ async def test_no_overshoot_on_ramp_down_mid_flight(isolated_flow_service):
     # After reset, no NEW caller may enter while the active count >= 1.
     # Peak observed under the new cap must be <= 1 (current).
     assert state["peak_after_reset"] <= 1, f"overshoot after ramp-down: {state['peak_after_reset']}"
+
+
+# ---------------------------------------------------------------------------
+# Phase 05: ImageGenerator flowkit provider + per-session dirs + refiner
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def isolated_image_gen_env(tmp_path, monkeypatch):
+    """Run image-gen tests in a tmp cwd so output/ writes don't pollute the repo."""
+    monkeypatch.chdir(tmp_path)
+    import services.media.flow_service as fs_mod
+    monkeypatch.setattr(fs_mod, "_DB_DIR", str(tmp_path / "data" / "flowkit"))
+    monkeypatch.setattr(fs_mod, "_DB_PATH", str(tmp_path / "data" / "flowkit" / "jobs.db"))
+    fs_mod.FlowService._instance = None
+    yield tmp_path
+    fs_mod.FlowService._instance = None
+
+
+def test_output_dir_per_session(isolated_image_gen_env):
+    from services.media.image_generator import ImageGenerator
+    gen = ImageGenerator(provider="none", session_id="abc123", story_title="Tiên Hiệp Test!")
+    assert gen.output_dir.replace("\\", "/").endswith("output/images/tien_hiep_test__abc123")
+    assert os.path.isdir(gen.output_dir)
+
+
+def test_output_dir_fallback(isolated_image_gen_env):
+    from services.media.image_generator import ImageGenerator
+    gen = ImageGenerator(provider="none")
+    assert gen.output_dir.replace("\\", "/") == "output/images"
+
+
+def test_slug_session_dir_helper():
+    from services.media._util import slug_session_dir
+    assert slug_session_dir("Hello World!", "sid1") == "hello_world__sid1"
+    assert slug_session_dir("", "x") == "story_x"
+    assert slug_session_dir("a" * 100, "s") == "a" * 60 + "_s"
+
+
+@pytest.mark.asyncio
+async def test_generate_with_ref_flowkit_branch(isolated_image_gen_env, monkeypatch):
+    """Patch flow_service.request_image; assert _flowkit_with_ref routes correctly."""
+    from config import ConfigManager
+    monkeypatch.setattr(ConfigManager().pipeline, "image_provider", "flowkit")
+    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_enabled", True)
+    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_use_refiner", False)
+
+    import services.media.flow_service as fs_mod
+    fs_mod.FlowService._instance = None
+    svc = fs_mod.FlowService()
+    svc.active_ws = MagicMock()  # truthy
+    svc._main_loop = asyncio.get_running_loop()
+
+    captured: dict = {}
+
+    async def fake_request_image(prompt, char_refs, style_ref, output_dir, filename):
+        captured.update(
+            prompt=prompt, char_refs=list(char_refs),
+            style_ref=style_ref, output_dir=output_dir, filename=filename,
+        )
+        return os.path.join(output_dir, filename)
+
+    monkeypatch.setattr(svc, "request_image", fake_request_image)
+
+    from services.media.image_generator import ImageGenerator
+    gen = ImageGenerator(provider="flowkit", session_id="s1", story_title="Story")
+
+    result = await asyncio.to_thread(
+        gen.generate_with_reference, "a hero", ["/tmp/ref.png"], "scene_1.png"
+    )
+    assert result is not None
+    assert captured["prompt"] == "a hero"
+    assert captured["char_refs"] == ["/tmp/ref.png"]
+    assert captured["style_ref"] is None  # split flag off → no style ref
+    assert captured["filename"] == "scene_1.png"
+
+
+@pytest.mark.asyncio
+async def test_flowkit_image_input_type_split_off_no_style(isolated_image_gen_env, monkeypatch, tmp_path):
+    from config import ConfigManager
+    cfg = ConfigManager().pipeline
+    monkeypatch.setattr(cfg, "flowkit_enabled", True)
+    monkeypatch.setattr(cfg, "flowkit_use_refiner", False)
+    monkeypatch.setattr(cfg, "flowkit_image_input_type_split", False)
+    style_path = tmp_path / "style.png"; style_path.write_bytes(b"x")
+    monkeypatch.setattr(cfg, "flowkit_style_reference_path", str(style_path))
+
+    import services.media.flow_service as fs_mod
+    fs_mod.FlowService._instance = None
+    svc = fs_mod.FlowService()
+    svc.active_ws = MagicMock()
+    svc._main_loop = asyncio.get_running_loop()
+
+    captured: dict = {}
+
+    async def fake_request_image(prompt, char_refs, style_ref, output_dir, filename):
+        captured["style_ref"] = style_ref
+        return os.path.join(output_dir, filename)
+
+    monkeypatch.setattr(svc, "request_image", fake_request_image)
+
+    from services.media.image_generator import ImageGenerator
+    gen = ImageGenerator(provider="flowkit")
+    await asyncio.to_thread(gen.generate_with_reference, "p", ["/tmp/c.png"], "f.png")
+    # Split flag off: style_ref must be None even if path is configured.
+    assert captured["style_ref"] is None
+
+
+@pytest.mark.asyncio
+async def test_flowkit_image_input_type_split_on_passes_style(isolated_image_gen_env, monkeypatch, tmp_path):
+    from config import ConfigManager
+    cfg = ConfigManager().pipeline
+    monkeypatch.setattr(cfg, "flowkit_enabled", True)
+    monkeypatch.setattr(cfg, "flowkit_use_refiner", False)
+    monkeypatch.setattr(cfg, "flowkit_image_input_type_split", True)
+    style_path = tmp_path / "style.png"; style_path.write_bytes(b"x")
+    monkeypatch.setattr(cfg, "flowkit_style_reference_path", str(style_path))
+
+    import services.media.flow_service as fs_mod
+    fs_mod.FlowService._instance = None
+    svc = fs_mod.FlowService()
+    svc.active_ws = MagicMock()
+    svc._main_loop = asyncio.get_running_loop()
+
+    captured: dict = {}
+
+    async def fake_request_image(prompt, char_refs, style_ref, output_dir, filename):
+        captured["style_ref"] = style_ref
+        return os.path.join(output_dir, filename)
+
+    monkeypatch.setattr(svc, "request_image", fake_request_image)
+
+    from services.media.image_generator import ImageGenerator
+    gen = ImageGenerator(provider="flowkit")
+    await asyncio.to_thread(gen.generate_with_reference, "p", ["/tmp/c.png"], "f.png")
+    assert captured["style_ref"] == str(style_path)
+
+
+@pytest.mark.asyncio
+async def test_refiner_called_when_enabled(isolated_image_gen_env, monkeypatch):
+    from config import ConfigManager
+    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_enabled", True)
+    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_use_refiner", True)
+
+    import services.media.flow_service as fs_mod
+    fs_mod.FlowService._instance = None
+    svc = fs_mod.FlowService()
+    svc.active_ws = MagicMock()
+    svc._main_loop = asyncio.get_running_loop()
+
+    captured: dict = {}
+
+    async def fake_request_image(prompt, *a, **kw):
+        captured["prompt"] = prompt
+        return "/tmp/x.png"
+
+    monkeypatch.setattr(svc, "request_image", fake_request_image)
+
+    refine_calls = {"n": 0}
+
+    def fake_refine(self_, text):
+        refine_calls["n"] += 1
+        return f"CINEMATIC: {text}"
+
+    from services.media.image_prompt_generator import ImagePromptGenerator
+    monkeypatch.setattr(
+        ImagePromptGenerator, "refine_to_cinematic_prompt", fake_refine, raising=True
+    )
+
+    from services.media.image_generator import ImageGenerator
+    gen = ImageGenerator(provider="flowkit")
+    await asyncio.to_thread(gen.generate, "raw scene", "f.png")
+    assert refine_calls["n"] == 1
+    assert captured["prompt"] == "CINEMATIC: raw scene"
+
+
+@pytest.mark.asyncio
+async def test_refiner_skipped_when_disabled(isolated_image_gen_env, monkeypatch):
+    from config import ConfigManager
+    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_enabled", True)
+    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_use_refiner", False)
+
+    import services.media.flow_service as fs_mod
+    fs_mod.FlowService._instance = None
+    svc = fs_mod.FlowService()
+    svc.active_ws = MagicMock()
+    svc._main_loop = asyncio.get_running_loop()
+
+    captured: dict = {}
+
+    async def fake_request_image(prompt, *a, **kw):
+        captured["prompt"] = prompt
+        return "/tmp/x.png"
+
+    monkeypatch.setattr(svc, "request_image", fake_request_image)
+
+    refine_calls = {"n": 0}
+
+    def fake_refine(self_, text):
+        refine_calls["n"] += 1
+        return f"CINEMATIC: {text}"
+
+    from services.media.image_prompt_generator import ImagePromptGenerator
+    monkeypatch.setattr(
+        ImagePromptGenerator, "refine_to_cinematic_prompt", fake_refine, raising=True
+    )
+
+    from services.media.image_generator import ImageGenerator
+    gen = ImageGenerator(provider="flowkit")
+    await asyncio.to_thread(gen.generate, "raw scene", "f.png")
+    assert refine_calls["n"] == 0
+    assert captured["prompt"] == "raw scene"
+
+
+def test_refine_to_cinematic_prompt_returns_refined(monkeypatch):
+    from services.media.image_prompt_generator import ImagePromptGenerator
+    gen = ImagePromptGenerator()
+    monkeypatch.setattr(
+        gen.llm, "generate_json",
+        MagicMock(return_value={"prompt": "wide shot, golden hour, hero, oil painting"}),
+        raising=False,
+    )
+    out = gen.refine_to_cinematic_prompt("hero stands on cliff")
+    assert "golden hour" in out
+
+
+def test_refine_to_cinematic_prompt_fallback_on_error(monkeypatch):
+    from services.media.image_prompt_generator import ImagePromptGenerator
+    gen = ImagePromptGenerator()
+    monkeypatch.setattr(
+        gen.llm, "generate_json",
+        MagicMock(side_effect=RuntimeError("llm down")),
+        raising=False,
+    )
+    out = gen.refine_to_cinematic_prompt("hero stands on cliff")
+    assert out == "hero stands on cliff"
+
+
+def test_is_configured_requires_ws(isolated_image_gen_env, monkeypatch):
+    from config import ConfigManager
+    monkeypatch.setattr(ConfigManager().pipeline, "image_provider", "flowkit")
+    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_enabled", True)
+
+    import services.media.flow_service as fs_mod
+    fs_mod.FlowService._instance = None
+    svc = fs_mod.FlowService()
+    svc.active_ws = None
+
+    from services.media.image_provider import ImageProvider
+    p = ImageProvider()
+    assert p.is_configured() is False
+
+    svc.active_ws = MagicMock()
+    assert p.is_configured() is True
+
+
+def test_flowkit_not_ready_returns_none(isolated_image_gen_env, monkeypatch):
+    """No WS connected → _generate_flowkit returns None, no crash."""
+    from config import ConfigManager
+    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_enabled", True)
+
+    import services.media.flow_service as fs_mod
+    fs_mod.FlowService._instance = None
+    svc = fs_mod.FlowService()
+    svc.active_ws = None
+
+    from services.media.image_generator import ImageGenerator
+    gen = ImageGenerator(provider="flowkit")
+    assert gen.generate("scene", "f.png") is None
+
+
+def test_handlers_relpath_subdirs(isolated_image_gen_env, monkeypatch):
+    """services.handlers maps absolute paths under output/images/ to subdir-relative names."""
+    import services.handlers as handlers_mod
+
+    # Build minimal fake objects to drive handle_generate_images.
+    class _Ch:
+        chapter_number = 1
+        title = "ch1"
+        content = "x"
+        summary = ""
+        images: list = []
+
+    class _Story:
+        chapters = [_Ch()]
+
+    class _Output:
+        enhanced_story = _Story()
+        story_draft = type("D", (), {"title": "T", "characters": []})()
+
+    class _Orch:
+        session_id = "sid1"
+        output = _Output()
+
+    # Patch the heavy dependencies.
+    monkeypatch.setattr(
+        "services.media.image_prompt_generator.ImagePromptGenerator.generate_from_chapter",
+        lambda self, *a, **kw: [MagicMock(panel_number=1)],
+    )
+
+    sub = tmp_dir = "output/images/t_sid1"
+    os.makedirs(sub, exist_ok=True)
+    fake_path = os.path.join(sub, "ch01_panel01.png")
+
+    monkeypatch.setattr(
+        "services.media.image_generator.ImageGenerator.generate_story_images",
+        lambda self, *a, **kw: [fake_path],
+    )
+
+    paths, msg = handlers_mod.handle_generate_images(_Orch(), provider="none")
+    assert paths == [fake_path]
+    # Chapter image entries should retain the per-session subdir, not just basename.
+    assert _Orch.output.enhanced_story.chapters[0].images == ["t_sid1/ch01_panel01.png"]

@@ -1241,6 +1241,7 @@ async def run_full_pipeline(
                 self.media_producer.run,
                 draft, enhanced,
                 progress_callback=lambda m: _log(m),
+                session_id=getattr(self, "session_id", None),
             )
             _log(f"Media hoàn tất trong {time.time() - layer_start:.1f}s")
         except Exception as e:
