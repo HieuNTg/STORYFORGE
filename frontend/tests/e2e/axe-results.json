@@ -1,0 +1,146 @@
+[
+  {
+    "route": "pipeline",
+    "url": "/",
+    "theme": "light",
+    "violations": []
+  },
+  {
+    "route": "library",
+    "url": "/library/",
+    "theme": "light",
+    "violations": []
+  },
+  {
+    "route": "library-detail",
+    "url": "/library/demo/",
+    "theme": "light",
+    "violations": []
+  },
+  {
+    "route": "branching",
+    "url": "/branching/demo/",
+    "theme": "light",
+    "violations": []
+  },
+  {
+    "route": "analytics",
+    "url": "/analytics/demo/",
+    "theme": "light",
+    "violations": []
+  },
+  {
+    "route": "settings",
+    "url": "/settings/",
+    "theme": "light",
+    "violations": []
+  },
+  {
+    "route": "providers",
+    "url": "/providers/",
+    "theme": "light",
+    "violations": []
+  },
+  {
+    "route": "export",
+    "url": "/export/demo/",
+    "theme": "light",
+    "violations": []
+  },
+  {
+    "route": "account",
+    "url": "/account/",
+    "theme": "light",
+    "violations": []
+  },
+  {
+    "route": "gallery",
+    "url": "/gallery/",
+    "theme": "light",
+    "violations": []
+  },
+  {
+    "route": "usage",
+    "url": "/usage/",
+    "theme": "light",
+    "violations": []
+  },
+  {
+    "route": "guide",
+    "url": "/guide/",
+    "theme": "light",
+    "violations": []
+  },
+  {
+    "route": "pipeline",
+    "url": "/",
+    "theme": "dark",
+    "violations": []
+  },
+  {
+    "route": "library",
+    "url": "/library/",
+    "theme": "dark",
+    "violations": []
+  },
+  {
+    "route": "library-detail",
+    "url": "/library/demo/",
+    "theme": "dark",
+    "violations": []
+  },
+  {
+    "route": "branching",
+    "url": "/branching/demo/",
+    "theme": "dark",
+    "violations": []
+  },
+  {
+    "route": "analytics",
+    "url": "/analytics/demo/",
+    "theme": "dark",
+    "violations": []
+  },
+  {
+    "route": "settings",
+    "url": "/settings/",
+    "theme": "dark",
+    "violations": []
+  },
+  {
+    "route": "providers",
+    "url": "/providers/",
+    "theme": "dark",
+    "violations": []
+  },
+  {
+    "route": "export",
+    "url": "/export/demo/",
+    "theme": "dark",
+    "violations": []
+  },
+  {
+    "route": "account",
+    "url": "/account/",
+    "theme": "dark",
+    "violations": []
+  },
+  {
+    "route": "gallery",
+    "url": "/gallery/",
+    "theme": "dark",
+    "violations": []
+  },
+  {
+    "route": "usage",
+    "url": "/usage/",
+    "theme": "dark",
+    "violations": []
+  },
+  {
+    "route": "guide",
+    "url": "/guide/",
+    "theme": "dark",
+    "violations": []
+  }
+]

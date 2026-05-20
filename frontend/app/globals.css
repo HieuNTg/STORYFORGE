@@ -442,14 +442,16 @@
 /* ──────────────────────────────────────────────────────────────────────────
  * Reader theme — scoped tokens for prose surface only.
  * Independent from app .dark; the rest of the page keeps its app theme.
- * Apply on the prose container: <div class="reader-theme-{day|sepia|night}">.
+ * Apply on the prose container:
+ *   <div class="reader-theme-{midnight|sepia|dark|light}">
+ * Legacy `day`/`night` aliases retained for the R2.2 cutover window.
  * ────────────────────────────────────────────────────────────────────────── */
-.reader-theme-day {
-  --reader-bg: #fbf5ec;
-  --reader-fg: #1a1208;
-  --reader-muted: #574630;
-  --reader-rule: rgba(197, 164, 126, 0.3);
-  color-scheme: light;
+.reader-theme-midnight {
+  --reader-bg: #0f0a06;
+  --reader-fg: #f0e5d0;
+  --reader-muted: rgba(216, 200, 168, 0.65);
+  --reader-rule: rgba(197, 164, 126, 0.28);
+  color-scheme: dark;
 }
 
 .reader-theme-sepia {
@@ -460,12 +462,22 @@
   color-scheme: light;
 }
 
+.reader-theme-dark,
 .reader-theme-night {
   --reader-bg: #121212;
   --reader-fg: #d8c8a8;
   --reader-muted: rgba(216, 200, 168, 0.55);
   --reader-rule: rgba(197, 164, 126, 0.2);
   color-scheme: dark;
+}
+
+.reader-theme-light,
+.reader-theme-day {
+  --reader-bg: #fbf5ec;
+  --reader-fg: #1a1208;
+  --reader-muted: #574630;
+  --reader-rule: rgba(197, 164, 126, 0.3);
+  color-scheme: light;
 }
 
 /* ──────────────────────────────────────────────────────────────────────────

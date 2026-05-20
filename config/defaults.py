@@ -371,6 +371,12 @@ class PipelineConfig:
     enable_drama_climax: bool = False  # extends drama_level to {low,medium,high,climax}
     simulation_continue_cheap_model_override: str = ""  # empty = use LLMConfig.cheap_model
 
+    # Reader + Branching + Pipeline overlay (Phase 4) — cinematic reader chrome,
+    # per-chapter illustration trigger, SSE-driven overlay during branch generation.
+    # Default off per Rule 8 — flip via /api/config after a sprint of validation.
+    enable_pipeline_overlay: bool = False
+    enable_chapter_illustration: bool = False
+
     # RFC voice-handling-consolidation Phase A: nested view of voice flags.
     # Defaults match flat voice_* / l2_voice_* fields. Synced in __post_init__.
     voice: VoiceConfig = field(default_factory=VoiceConfig)
