@@ -36,6 +36,12 @@ describe("sniffChapterCompletion", () => {
     );
   });
 
+  it("tolerates [L1] layer prefix from orchestrator wrapper", () => {
+    expect(sniffChapterCompletion("[L1] ✅ Chương 3: Đại Đạo")).toBe(
+      "Ch. 3 — Đại Đạo"
+    );
+  });
+
   it("collapses internal whitespace in the title", () => {
     expect(sniffChapterCompletion("Chương 5:    Title   With    Spaces  ")).toBe(
       "Ch. 5 — Title With Spaces"
@@ -58,6 +64,15 @@ describe("sniffChapterCompletion", () => {
 describe("sniffAgentTurn", () => {
   it("parses canonical simulator.py:633 form", () => {
     expect(sniffAgentTurn("[Agent 3/6] Sage: argue")).toEqual({
+      idx: 3,
+      total: 6,
+      name: "Sage",
+      action: "argue",
+    });
+  });
+
+  it("tolerates [L2] layer prefix from orchestrator_layers.py wrapper", () => {
+    expect(sniffAgentTurn("[L2] [Agent 3/6] Sage: argue")).toEqual({
       idx: 3,
       total: 6,
       name: "Sage",
@@ -108,6 +123,16 @@ describe("sniffAgentsPhase", () => {
     });
   });
 
+  it("tolerates [L2] layer prefix from orchestrator wrapper", () => {
+    expect(sniffAgentsPhase("[L2] [AGENTS] Layer 2 được duyệt!")).toEqual({
+      phase: "approved",
+      layer: 2,
+    });
+    expect(
+      sniffAgentsPhase("[L1] [AGENTS] Cần chỉnh sửa, vòng tiếp theo...")
+    ).toEqual({ phase: "revision" });
+  });
+
   it("returns null for unrelated [AGENTS] prose", () => {
     expect(sniffAgentsPhase("[AGENTS] doing something else")).toBeNull();
   });
@@ -128,6 +153,12 @@ describe("sniffDebateMarker", () => {
     expect(sniffDebateMarker("[AGENTS] anything")).toBeNull();
     expect(sniffDebateMarker("arbitrary")).toBeNull();
   });
+
+  it("tolerates [L2] layer prefix from orchestrator wrapper", () => {
+    expect(
+      sniffDebateMarker("[L2] [DEBATE] Round 2 token budget would be exceeded")
+    ).toBe("Round 2 token budget would be exceeded");
+  });
 });
 
 describe("sniffReaderTurn", () => {
@@ -139,6 +170,12 @@ describe("sniffReaderTurn", () => {
 
   it("returns null for non-Reader prefixes", () => {
     expect(sniffReaderTurn("[Agent 1/6] Sage: argue")).toBeNull();
+  });
+
+  it("tolerates [L1] layer prefix from orchestrator wrapper", () => {
+    expect(sniffReaderTurn("[L1] [Reader] Simulating chapter 4...")).toEqual({
+      chapter: 4,
+    });
   });
 });
 
@@ -152,6 +189,12 @@ describe("sniffStateRegistryTick", () => {
   it("returns null for setting-graph lookalike", () => {
     expect(sniffStateRegistryTick("[SettingGraph] Processed ch7")).toBeNull();
   });
+
+  it("tolerates [L1] layer prefix from orchestrator wrapper", () => {
+    expect(
+      sniffStateRegistryTick("[L1] [StateRegistry] Extracted states for ch7")
+    ).toEqual({ chapter: 7 });
+  });
 });
 
 describe("sniffParallelBatch", () => {
@@ -163,5 +206,11 @@ describe("sniffParallelBatch", () => {
 
   it("returns null for non-ASYNC prefixes", () => {
     expect(sniffParallelBatch("[Reader] Simulating chapter 1...")).toBeNull();
+  });
+
+  it("tolerates [L1] layer prefix from orchestrator wrapper", () => {
+    expect(
+      sniffParallelBatch("[L1] [ASYNC] Đang viết 5 chương song song...")
+    ).toEqual({ batchSize: 5 });
   });
 });
