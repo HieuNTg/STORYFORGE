@@ -122,6 +122,8 @@ export const usePipelineStore = create<PipelineState>((set) => ({
 /** Map free-form log phrasing → phase index. Mirrors `_detectLayer` from web/js/stores/pipeline.ts. */
 export function detectPhaseFromLog(msg: string, fallback: number): number {
   const up = msg.toUpperCase();
+  if (up.startsWith("[L2]")) return 2;
+  if (up.startsWith("[L1]")) return 1;
   if (up.includes("MEDIA") || up.includes("IMAGE")) return 3;
   if (up.includes("LAYER 2") || up.includes("MÔ PHỎNG") || up.includes("ENHANCE")) return 2;
   if (up.includes("LAYER 1") || up.includes("TẠO TRUYỆN") || up.includes("CHƯƠNG")) return 1;
