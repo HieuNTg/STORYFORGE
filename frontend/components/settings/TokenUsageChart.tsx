@@ -21,11 +21,11 @@ const Chart = dynamic(() => import("./TokenUsageChartInner"), { ssr: false });
 export function TokenUsageChart() {
   const { data, isLoading, error } = useUsageSession();
 
-  if (isLoading) return <Skeleton className="h-64 w-full" />;
+  if (isLoading) return <Skeleton className="h-24 w-full" />;
 
   if (error || !data) {
     return (
-      <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-border bg-card/30 text-xs text-muted-foreground">
+      <div className="flex h-24 items-center justify-center rounded-xl border border-dashed border-border bg-card/30 text-xs text-muted-foreground">
         {error?.message ?? "Chưa có dữ liệu để vẽ biểu đồ."}
       </div>
     );
@@ -38,7 +38,7 @@ export function TokenUsageChart() {
 
   if (points.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-border bg-card/30 text-xs text-muted-foreground">
+      <div className="flex h-24 items-center justify-center rounded-xl border border-dashed border-border bg-card/30 text-xs text-muted-foreground">
         Chưa có lệnh gọi LLM nào trong phiên này.
       </div>
     );
