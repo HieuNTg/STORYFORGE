@@ -264,7 +264,7 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
                 Thêm Gemini, Anthropic, OpenAI, OpenRouter… vào danh sách nhà cung cấp fallback.
               </p>
             </div>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {PROVIDER_PRESETS.map((preset) => {
                 const existing = profileByName.get(preset.name);
                 const busy = savingProvider === preset.name;

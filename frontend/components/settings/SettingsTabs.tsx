@@ -77,7 +77,7 @@ export function SettingsTabs({
       orientation="horizontal"
       className={cn("w-full", className)}
     >
-      <section className="grid gap-4 rounded-2xl border border-border/70 bg-card/35 p-3 shadow-sm shadow-black/5 lg:grid-cols-[280px_minmax(0,1fr)] lg:p-4">
+      <section className="grid w-full max-w-none gap-4 rounded-2xl border border-border/70 bg-card/35 p-3 shadow-sm shadow-black/5 lg:grid-cols-[260px_minmax(0,1fr)] lg:p-4">
         <aside className="rounded-xl border border-border/60 bg-background/55 p-2 shadow-inner shadow-black/[0.03]">
           <div className="mb-2 hidden px-2 py-1 lg:block">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -125,7 +125,7 @@ export function SettingsTabs({
           </div>
         </aside>
 
-        <div className="min-w-0 overflow-hidden rounded-xl border border-border/70 bg-background/65 shadow-sm">
+        <div className="min-w-0 w-full overflow-hidden rounded-xl border border-border/70 bg-background/65 shadow-sm">
           {activeTab ? (
             <div className="flex items-center gap-3 border-b border-border/70 bg-gradient-to-r from-accent/12 via-background/80 to-background/40 px-4 py-3">
               {ActiveIcon ? (
@@ -146,7 +146,7 @@ export function SettingsTabs({
             </div>
           ) : null}
 
-          <div className="p-4">
+          <div className="w-full p-4">
             {tabs.map((tab) => (
               <TabsContent key={tab.id} value={tab.id} className="mt-0">
                 <div className="animate-in fade-in-0 slide-in-from-bottom-1 duration-200">
