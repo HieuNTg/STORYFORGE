@@ -45,21 +45,13 @@ export default function ProvidersPage() {
 
   const rows: ProviderRowData[] = React.useMemo(() => {
     if (!config) return [];
-    const primary: ProviderRowData = {
-      name: "__primary__",
-      label: `Mặc định (${config.llm.model || "—"})`,
-      enabled: true,
-      baseUrl: config.llm.base_url,
-      hasKey: Boolean(config.llm.api_key_masked),
-    };
-    const profiles: ProviderRowData[] = config.llm.profiles.map((p) => ({
+    return config.llm.profiles.map((p) => ({
       name: p.name,
       label: `${p.name} (${p.model})`,
       enabled: p.enabled,
       baseUrl: p.base_url,
       hasKey: Boolean(p.api_key_masked),
     }));
-    return [primary, ...profiles];
   }, [config]);
 
   const handleEditBaseUrl = React.useCallback(
@@ -105,8 +97,6 @@ export default function ProvidersPage() {
       for (const p of result.profiles) {
         next[p.name] = p.ok === true ? "pass" : p.ok === false ? "fail" : "idle";
       }
-      // Map global ok onto __primary__ row (it isn't in profiles).
-      next["__primary__"] = result.ok ? "pass" : "fail";
       setTestResults((prev) => ({ ...prev, ...next }));
       if (result.ok) {
         toast.success(result.message || "Kết nối thành công");

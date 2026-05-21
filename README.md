@@ -34,10 +34,10 @@ pip install -r requirements.txt
 python app.py                       # API → http://localhost:7860
 
 # In a second terminal, the Next.js UI:
-cd frontend && npm install && npm run dev   # UI → http://localhost:3000
+cd frontend && npm install && npm run dev -- --port 3001   # UI → http://localhost:3001
 ```
 
-Then **Settings** (provider + API key) → **Create Story** → **Run** → **Export** (PDF/EPUB/HTML/ZIP).
+Then **Settings → API Keys** (add provider profiles + choose models) → **Forge** → **Run** → **Library / Reader / Branching / Simulation** → **Export** (PDF/EPUB/HTML/ZIP).
 
 ---
 
@@ -47,9 +47,11 @@ Then **Settings** (provider + API key) → **Create Story** → **Run** → **Ex
 - **13 specialized agents** — drama critic, editor, pacing, dialogue, reader simulator, …; 6-dim LLM-as-judge auto-revision
 - **Vietnamese-first** — VN names default; Chinese tiên hiệp / wuxia / xianxia and Western/Sci-Fi optional; arc scaling by chapter count
 - **Continuation tools** — multi-path preview, outline editor, collaborative polish, consistency checker, mid-story insertion, retroactive fixes
+- **Local-library-first flows** — Reader, Branching, Simulation, and Characters start from stories already saved in the local library; no fake `demo` sessions or pasted orphan text.
 - **Branch reader** — LLM-generated CYOA, SVG tree + minimap, undo/redo, bookmarks, WebSocket multi-user, EPUB tree export
 - **Images & Video** — IP-Adapter character portraits + scene backgrounds; optional [FlowKit provider](docs/flowkit-integration.md) proxies a local Google Labs session for free Imagen 3 + Veo via a Chrome MV3 extension (local-only, account-ban risk — use a secondary Google account)
-- **Any OpenAI-compatible LLM** — OpenAI, Gemini, Anthropic, OpenRouter (290+), Z.AI, Kyma, Ollama, custom; preemptive rate-limit switching, latency-aware primary, smart cheap/premium routing (~45% saved), SQLite cache
+- **Provider profiles + model dropdowns** — Settings has quick-add cards for Gemini, Anthropic, OpenAI, OpenRouter Free, Z.AI, and Kyma. Model choice is a select list (including Gemini/Gemma, OpenRouter free text models, OpenAI/Anthropic, GLM/Qwen/DeepSeek fallbacks), and L1/L2/cheap-model routing chooses from configured provider profiles instead of raw text fields.
+- **Any OpenAI-compatible LLM** — OpenAI, Gemini, Anthropic, OpenRouter, Z.AI, Kyma, Ollama, custom; preemptive rate-limit switching, latency-aware routing, smart cheap/premium routing, SQLite cache
 - **Security** — CSRF double-submit, 10 MB body cap, prompt-injection middleware, encrypted secrets at rest
 
 ---
@@ -71,6 +73,20 @@ sensitive fields in that file are encrypted. Key env vars:
 | `CHROMA_PERSIST_DIR` / `CHROMA_COLLECTION_NAME` | RAG persistence |
 
 Per-layer model overrides, drama ceilings, batch size, voice-revert anchoring, etc. live in `config/defaults.py` (`PipelineConfig`) and the Settings UI. Agent prompts are editable in `data/prompts/agent_prompts.yaml`.
+
+### Current UI routes
+
+| Route | Purpose | Notes |
+|-------|---------|-------|
+| `/library/` | Local story library | Source of truth for reader, branching, simulation, and character tools |
+| `/forge/` | One-sentence story creation pipeline | Runs the main generation flow |
+| `/reader/` | Story/chapter picker | Opens `/reader/[storyId]/[chapterId]` after a local story is selected |
+| `/branching/` | Branch-session starter | Selects a local story, then creates a real `/branching/[sessionId]/` session |
+| `/simulation/` | Multi-character stage setup | Selects a local story and characters; transcript simulation can be enabled via config |
+| `/characters/` | Character list/detail/generation | Story picker is controlled and library-backed |
+| `/settings/` | General, API Keys, L1/L2 settings | Provider quick-add, model dropdowns, image style select |
+| `/providers/` | Provider status table | Shows configured provider profiles only; legacy Primary/Mặc định row is hidden |
+
 
 ### Test markers
 

@@ -13,6 +13,13 @@ import { toast } from "sonner";
 
 import { AdvancedL1Form } from "@/components/settings/AdvancedL1Form";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -71,6 +78,25 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
   const temperature = form.watch("temperature");
   const threshold = form.watch("self_review_threshold");
   const selfReview = form.watch("enable_self_review");
+  const cheapModel = form.watch("cheap_model");
+  const layer1Model = form.watch("layer1_model");
+
+  const configuredModels = React.useMemo(() => {
+    const options = config.llm.profiles
+      .filter((profile) => profile.enabled && profile.model.trim())
+      .map((profile) => ({
+        value: profile.model,
+        label: `${profile.name} · ${profile.model}`,
+      }));
+
+    for (const value of [cheapModel, layer1Model]) {
+      if (value && !options.some((option) => option.value === value)) {
+        options.push({ value, label: `Hiện tại · ${value}` });
+      }
+    }
+
+    return options;
+  }, [cheapModel, config.llm.profiles, layer1Model]);
 
   return (
     <AdvancedL1Form
@@ -146,12 +172,26 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
               >
                 Mô hình rẻ (cheap_model)
               </label>
-              <Input
-                id="adv-cheap-model"
-                autoComplete="off"
-                placeholder="gpt-4o-mini"
-                {...form.register("cheap_model")}
-              />
+              <Select
+                value={cheapModel || "__default__"}
+                onValueChange={(v) =>
+                  form.setValue("cheap_model", v === "__default__" ? "" : v, {
+                    shouldDirty: true,
+                  })
+                }
+              >
+                <SelectTrigger id="adv-cheap-model">
+                  <SelectValue placeholder="Chọn model đã cấu hình" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__default__">Dùng model mặc định</SelectItem>
+                  {configuredModels.map((model) => (
+                    <SelectItem key={model.value} value={model.value}>
+                      {model.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <p className="text-xs text-muted-foreground">
                 Dùng cho phân tích/tóm tắt.
               </p>
@@ -164,12 +204,26 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
               >
                 Mô hình Layer 1
               </label>
-              <Input
-                id="adv-l1-model"
-                autoComplete="off"
-                placeholder="để trống để dùng mô hình mặc định"
-                {...form.register("layer1_model")}
-              />
+              <Select
+                value={layer1Model || "__default__"}
+                onValueChange={(v) =>
+                  form.setValue("layer1_model", v === "__default__" ? "" : v, {
+                    shouldDirty: true,
+                  })
+                }
+              >
+                <SelectTrigger id="adv-l1-model">
+                  <SelectValue placeholder="Chọn model đã cấu hình" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__default__">Dùng model mặc định</SelectItem>
+                  {configuredModels.map((model) => (
+                    <SelectItem key={model.value} value={model.value}>
+                      {model.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

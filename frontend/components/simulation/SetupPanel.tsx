@@ -2,13 +2,6 @@
 
 import * as React from "react";
 import { useTranslations } from "next-intl";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { useLibraryStore } from "@/stores/library-store";
@@ -24,6 +17,8 @@ interface SetupPanelProps {
 export function SetupPanel({ climaxUnlocked = false }: SetupPanelProps) {
   const t = useTranslations("simulation");
   const stories = useLibraryStore((s) => s.stories);
+  const selectedId = useLibraryStore((s) => s.selectedId);
+  const hydrated = useLibraryStore((s) => s.hydrated);
   const topic = useSimulationStore((s) => s.topic);
   const dramaLevel = useSimulationStore((s) => s.dramaLevel);
   const setTopic = useSimulationStore((s) => s.setTopic);
@@ -32,12 +27,17 @@ export function SetupPanel({ climaxUnlocked = false }: SetupPanelProps) {
   const loadFromSession = useSimulationStore((s) => s.loadFromSession);
   const sessionId = useSimulationStore((s) => s.sessionId);
 
-  const [storyId, setStoryId] = React.useState<string | null>(null);
+  const [storyId, setStoryId] = React.useState("");
   const [sessionInput, setSessionInput] = React.useState("");
 
   React.useEffect(() => {
-    if (!storyId && stories.length) setStoryId(stories[0].id);
-  }, [storyId, stories]);
+    if (!hydrated || storyId) return;
+    if (selectedId && stories.some((s) => s.id === selectedId)) {
+      setStoryId(selectedId);
+      return;
+    }
+    if (stories.length > 0) setStoryId(stories[0].id);
+  }, [hydrated, selectedId, stories, storyId]);
 
   const activeStory = React.useMemo(
     () => stories.find((s) => s.id === storyId) ?? null,
@@ -53,10 +53,13 @@ export function SetupPanel({ climaxUnlocked = false }: SetupPanelProps) {
       activeStory.characters.map((c) => ({
         name: c.name,
         role: c.role,
-        description: c.description,
+        description: c.description || c.backstory || "",
       })),
     );
-  }, [activeStory, setCharacters]);
+    if (!topic.trim() && activeStory.description) {
+      setTopic(activeStory.description);
+    }
+  }, [activeStory, setCharacters, setTopic, topic]);
 
   return (
     <aside className="space-y-5 rounded-xl border border-border/40 bg-card/40 p-4">
@@ -67,29 +70,38 @@ export function SetupPanel({ climaxUnlocked = false }: SetupPanelProps) {
       </header>
 
       <div className="space-y-2">
-        <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          {t("characters_label")}
+        <label htmlFor="sim-story" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Bộ truyện
         </label>
-        {stories.length === 0 ? (
-          <p className="text-xs text-muted-foreground">{t("characters_pick_hint")}</p>
+        {!hydrated ? (
+          <p className="text-xs text-muted-foreground">Đang tải kho truyện…</p>
+        ) : stories.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Tạo hoặc nhập một bộ truyện trong Thư viện trước.</p>
         ) : (
-          <Select value={storyId ?? undefined} onValueChange={(v) => setStoryId(v)}>
-            <SelectTrigger className="w-full" aria-label={t("characters_label")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {stories.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <select
+            id="sim-story"
+            value={storyId}
+            onChange={(e) => setStoryId(e.target.value)}
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {stories.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.title}
+              </option>
+            ))}
+          </select>
         )}
-        {activeStory && activeStory.characters.length === 0 ? (
-          <p className="text-xs text-muted-foreground">{t("characters_none")}</p>
-        ) : null}
-        {activeStory && activeStory.characters.length > 0 ? (
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Nhân vật trong cảnh
+        </label>
+        {!activeStory ? (
+          <p className="text-xs text-muted-foreground">Chọn truyện để tải nhân vật.</p>
+        ) : activeStory.characters.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Truyện này chưa có nhân vật.</p>
+        ) : (
           <ul className="flex flex-wrap gap-1.5">
             {activeStory.characters.map((c) => (
               <li
@@ -100,7 +112,7 @@ export function SetupPanel({ climaxUnlocked = false }: SetupPanelProps) {
               </li>
             ))}
           </ul>
-        ) : null}
+        )}
       </div>
 
       <div className="space-y-2">

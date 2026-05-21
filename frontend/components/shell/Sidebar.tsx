@@ -42,7 +42,7 @@ const PRIMARY: NavItem[] = [
   { key: "forge", href: "/forge/", icon: WandSparkles, match: "/forge" },
   { key: "characters", href: "/characters/", icon: Users, match: "/characters" },
   { key: "simulation", href: "/simulation/", icon: Drama, match: "/simulation" },
-  { key: "branching", href: "/branching/demo/", icon: GitBranch, match: "/branching" },
+  { key: "branching", href: "/branching/", icon: GitBranch, match: "/branching" },
   { key: "reader", href: "/reader/", icon: BookOpen, match: "/reader" },
   { key: "settings", href: "/settings/", icon: Settings, match: "/settings" },
 ];

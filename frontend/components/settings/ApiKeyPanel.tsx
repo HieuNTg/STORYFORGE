@@ -30,26 +30,18 @@ export function ApiKeyPanel() {
 
   const rows = React.useMemo(() => {
     if (!config) return [] as Array<{ name: string; provider: string; configured: boolean; model: string }>;
-    const primary = {
-      name: "Primary",
-      provider: config.llm.base_url || "—",
-      configured: (config.llm.api_keys_count ?? 0) > 0,
-      model: config.llm.model || "—",
-    };
-    const profiles = config.llm.profiles.map((p) => ({
+    return config.llm.profiles.map((p) => ({
       name: p.name,
       provider: p.provider,
       configured: Boolean(p.api_key_masked) && p.enabled,
       model: p.model,
     }));
-    return [primary, ...profiles];
   }, [config]);
 
   const handleTest = React.useCallback(async () => {
     try {
       const out = await test.mutateAsync();
       const next: Record<string, RowState> = {};
-      next["Primary"] = { ok: out.ok, message: out.message };
       for (const p of out.profiles) {
         next[p.name] = { ok: p.ok, message: p.message };
       }

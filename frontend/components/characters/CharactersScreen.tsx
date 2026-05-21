@@ -93,8 +93,8 @@ export function CharactersScreen() {
           Truyện
         </label>
         <Select
-          value={storyId ?? undefined}
-          onValueChange={(v) => setStoryId(v)}
+          value={storyId ?? ""}
+          onValueChange={(v) => setStoryId(v || null)}
         >
           <SelectTrigger className="w-[280px]" aria-label="Truyện">
             <SelectValue />

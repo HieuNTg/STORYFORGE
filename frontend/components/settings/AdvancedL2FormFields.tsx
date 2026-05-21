@@ -13,7 +13,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 
 import { AdvancedL2Form } from "@/components/settings/AdvancedL2Form";
-import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   advancedL2FormSchema,
   type AdvancedL2FormValues,
@@ -44,6 +50,22 @@ export function AdvancedL2FormFields({ config }: AdvancedL2FormFieldsProps) {
   React.useEffect(() => {
     form.reset(defaults);
   }, [defaults, form]);
+
+  const layer2Model = form.watch("layer2_model");
+  const configuredModels = React.useMemo(() => {
+    const options = config.llm.profiles
+      .filter((profile) => profile.enabled && profile.model.trim())
+      .map((profile) => ({
+        value: profile.model,
+        label: `${profile.name} · ${profile.model}`,
+      }));
+
+    if (layer2Model && !options.some((option) => option.value === layer2Model)) {
+      options.push({ value: layer2Model, label: `Hiện tại · ${layer2Model}` });
+    }
+
+    return options;
+  }, [config.llm.profiles, layer2Model]);
 
   const onSave = form.handleSubmit(async (values) => {
     // Delta-only PUT: only send fields the user actually touched (F4/F5).
@@ -76,12 +98,26 @@ export function AdvancedL2FormFields({ config }: AdvancedL2FormFieldsProps) {
             >
               Mô hình Layer 2
             </label>
-            <Input
-              id="adv-l2-model"
-              autoComplete="off"
-              placeholder="để trống để dùng mô hình mặc định"
-              {...form.register("layer2_model")}
-            />
+            <Select
+              value={layer2Model || "__default__"}
+              onValueChange={(v) =>
+                form.setValue("layer2_model", v === "__default__" ? "" : v, {
+                  shouldDirty: true,
+                })
+              }
+            >
+              <SelectTrigger id="adv-l2-model">
+                <SelectValue placeholder="Chọn model đã cấu hình" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__default__">Dùng model mặc định</SelectItem>
+                {configuredModels.map((model) => (
+                  <SelectItem key={model.value} value={model.value}>
+                    {model.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <p className="text-xs text-muted-foreground">
               Layer 2 dùng để khuếch đại kịch tính và phân tích nhịp truyện.
             </p>

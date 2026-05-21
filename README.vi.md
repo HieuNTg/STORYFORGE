@@ -34,10 +34,10 @@ pip install -r requirements.txt
 python app.py                       # API → http://localhost:7860
 
 # Cửa sổ thứ hai: Next.js UI
-cd frontend && npm install && npm run dev   # UI → http://localhost:3000
+cd frontend && npm install && npm run dev -- --port 3001   # UI → http://localhost:3001
 ```
 
-Sau đó **Cài đặt** (provider + API key) → **Tạo truyện** → **Chạy** → **Xuất** (PDF/EPUB/HTML/ZIP).
+Sau đó **Cài đặt → Khóa API** (thêm provider + chọn model) → **Khai sinh** → **Chạy** → **Thư viện / Đọc truyện / Phân nhánh / Mô phỏng** → **Xuất** (PDF/EPUB/HTML/ZIP).
 
 ---
 
@@ -47,9 +47,11 @@ Sau đó **Cài đặt** (provider + API key) → **Tạo truyện** → **Chạ
 - **13 tác nhân chuyên biệt** — drama critic, editor, pacing, dialogue, reader simulator, …; chấm 6 chiều + tự sửa bằng LLM-as-judge
 - **Tiếng Việt mặc định** — tên VN; tuỳ chọn phong cách Trung (tiên hiệp / kiếm hiệp / tu tiên / wuxia / xianxia) và Fantasy phương Tây / Sci-Fi; arc scale theo số chương
 - **Tiếp tục truyện** — preview đa hướng, outline editor, viết cộng tác, kiểm tra nhất quán, chèn chương giữa truyện, sửa hồi tố
+- **Luồng dựa trên thư viện local** — Đọc truyện, Phân nhánh, Mô phỏng và Nhân vật đều bắt đầu bằng chọn truyện đã lưu trong thư viện; không dùng session giả `demo` hoặc text rời rạc.
 - **Branch reader** — CYOA do LLM sinh, cây SVG + minimap, undo/redo, bookmarks, WebSocket multi-user, xuất EPUB cây
 - **Hình ảnh & Video** — chân dung IP-Adapter nhất quán + phông cảnh điện ảnh; provider [FlowKit](docs/flowkit-integration.md) tuỳ chọn proxy phiên Google Labs local để sinh Imagen 3 + Veo miễn phí qua Chrome MV3 extension (chỉ local, có rủi ro cấm tài khoản — dùng tài khoản Google phụ)
-- **Mọi LLM tương thích OpenAI** — OpenAI, Gemini, Anthropic, OpenRouter (290+), Z.AI, Kyma, Ollama, custom; rate-limit switch chủ động, primary theo latency, định tuyến cheap/premium (~45% tiết kiệm), cache SQLite
+- **Provider profile + dropdown model** — Cài đặt có thẻ thêm nhanh cho Gemini, Anthropic, OpenAI, OpenRouter Free, Z.AI và Kyma. Model được chọn bằng dropdown (Gemini/Gemma, OpenRouter free text models, OpenAI/Anthropic, fallback GLM/Qwen/DeepSeek); cheap/L1/L2 cũng chọn từ provider đã cấu hình thay vì nhập tay.
+- **Mọi LLM tương thích OpenAI** — OpenAI, Gemini, Anthropic, OpenRouter, Z.AI, Kyma, Ollama, custom; rate-limit switch chủ động, routing theo latency, định tuyến cheap/premium, cache SQLite
 - **Bảo mật** — CSRF double-submit, body cap 10 MB, middleware chặn prompt injection, mã hoá secrets at-rest
 
 ---
@@ -71,6 +73,20 @@ các trường nhạy cảm trong file này sẽ được mã hoá. Biến môi 
 | `CHROMA_PERSIST_DIR` / `CHROMA_COLLECTION_NAME` | persistence cho RAG |
 
 Override model theo lớp, drama ceiling, batch size, voice-revert anchoring, … nằm trong `config/defaults.py` (`PipelineConfig`) và tab Cài đặt. Prompt tác nhân chỉnh trong `data/prompts/agent_prompts.yaml`.
+
+### Route UI hiện tại
+
+| Route | Mục đích | Ghi chú |
+|-------|----------|---------|
+| `/library/` | Thư viện truyện local | Nguồn truyện cho reader, branching, simulation và character tools |
+| `/forge/` | Khai sinh truyện từ một câu | Chạy pipeline tạo truyện chính |
+| `/reader/` | Chọn truyện/chương | Mở `/reader/[storyId]/[chapterId]` sau khi chọn truyện local |
+| `/branching/` | Tạo phiên phân nhánh | Chọn truyện local rồi tạo session thật `/branching/[sessionId]/` |
+| `/simulation/` | Setup sân khấu hội thoại | Chọn truyện local + nhân vật; transcript simulation bật qua config |
+| `/characters/` | Danh sách/chi tiết/tạo nhân vật | Story picker controlled, lấy dữ liệu từ thư viện |
+| `/settings/` | Chung, Khóa API, L1/L2 | Provider nhanh, dropdown model, select style ảnh |
+| `/providers/` | Bảng trạng thái provider | Chỉ hiện provider profile đã cấu hình; ẩn dòng Primary/Mặc định legacy |
+
 
 ### Test marker
 

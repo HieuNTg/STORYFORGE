@@ -15,7 +15,6 @@ import { toast } from "sonner";
 
 import { GeneralForm } from "@/components/settings/GeneralForm";
 import { FlowkitSettings } from "@/components/settings/FlowkitSettings";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -23,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 import {
   generalFormSchema,
   IMAGE_PROVIDERS,
@@ -60,6 +58,17 @@ function Field({
     </div>
   );
 }
+
+const IMAGE_PROMPT_STYLES = [
+  { value: "cinematic", label: "Cinematic" },
+  { value: "anime", label: "Anime" },
+  { value: "manga", label: "Manga" },
+  { value: "webtoon", label: "Webtoon" },
+  { value: "realistic", label: "Realistic" },
+  { value: "fantasy", label: "Fantasy" },
+  { value: "watercolor", label: "Watercolor" },
+  { value: "storybook", label: "Storybook" },
+] as const;
 
 export interface GeneralFormFieldsProps {
   config: ConfigResponse;
@@ -183,39 +192,25 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
             htmlFor="gen-style"
             error={errors.image_prompt_style?.message}
           >
-            <Input
-              id="gen-style"
-              autoComplete="off"
-              {...form.register("image_prompt_style")}
-            />
+            <Select
+              value={form.watch("image_prompt_style")}
+              onValueChange={(v) =>
+                form.setValue("image_prompt_style", v, { shouldDirty: true })
+              }
+            >
+              <SelectTrigger id="gen-style">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {IMAGE_PROMPT_STYLES.map((style) => (
+                  <SelectItem key={style.value} value={style.value}>
+                    {style.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
 
-          <Field
-            label="Mô hình mặc định"
-            htmlFor="gen-model"
-            error={errors.model?.message}
-          >
-            <Input
-              id="gen-model"
-              autoComplete="off"
-              {...form.register("model")}
-            />
-          </Field>
-
-          <Field
-            label="Base URL"
-            htmlFor="gen-base-url"
-            error={errors.base_url?.message}
-            hint="Ví dụ: https://api.openai.com/v1"
-          >
-            <Input
-              id="gen-base-url"
-              autoComplete="off"
-              inputMode="url"
-              className={cn(errors.base_url && "border-destructive")}
-              {...form.register("base_url")}
-            />
-          </Field>
         </div>
         {currentProvider === "flowkit" ? (
           <FlowkitSettings config={config} />

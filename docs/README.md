@@ -20,3 +20,11 @@
 ## Contributing
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) at repo root.
+
+
+## UI notes
+
+- The active UI is the Next.js shell in `frontend/` (dev: `npm run dev -- --port 3001`).
+- Library-backed flows are intentional: Reader, Branching, Simulation, and Characters should select an existing local story before doing story-specific work.
+- Settings no longer exposes legacy raw primary `model` / `base_url` fields in normal UX. Provider setup happens through API Keys provider profiles; advanced cheap/L1/L2 routing chooses from those profiles.
+- Avoid restoring fake routes like `/branching/demo/` or legacy provider rows like `Primary` / `Mặc định`.
