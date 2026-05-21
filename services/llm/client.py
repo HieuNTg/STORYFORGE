@@ -573,10 +573,19 @@ class LLMClient(StreamingMixin, GenerationMixin):
         return None
 
     def _get_cheap_client(self):
-        """Return (provider, model) for cheap/fast model tier."""
+        """Return (provider, model) for cheap/fast model tier.
+
+        Auto-resolves a compatible backend when ``cheap_model``'s provider
+        format doesn't match ``cheap_base_url``'s provider type. Mirrors the
+        cross-provider resolution in :meth:`get_layer_config` so a Gemini
+        ``cheap_model`` doesn't get POSTed to an OpenRouter ``cheap_base_url``
+        (a common foot-gun because presets pre-fill ``cheap_base_url`` to
+        OpenRouter while the user only swaps the ``cheap_model`` slug).
+        """
         ConfigManager, _, _ = _imports()
         config = ConfigManager()
-        if not config.llm.cheap_model:
+        cheap_model = config.llm.cheap_model
+        if not cheap_model:
             provider = self._get_client()
             with self._client_lock:
                 model = self._current_model or config.llm.model
@@ -585,11 +594,43 @@ class LLMClient(StreamingMixin, GenerationMixin):
         cheap_base = config.llm.cheap_base_url or config.llm.base_url
         api_key = config.llm.api_key
 
+        cheap_ptype = _detect_provider_type(cheap_base)
+        if not _model_matches_provider(cheap_model, cheap_ptype):
+            primary_base = config.llm.base_url
+            primary_ptype = _detect_provider_type(primary_base)
+            if cheap_base != primary_base and _model_matches_provider(cheap_model, primary_ptype):
+                logger.info(
+                    "cheap_model %r incompatible with cheap_base_url (%s) — "
+                    "routing to primary base_url (%s)",
+                    cheap_model, cheap_ptype, primary_ptype,
+                )
+                cheap_base = primary_base
+                api_key = config.llm.api_key
+            else:
+                resolved = self._find_backend_for_model(config, cheap_model)
+                if resolved is not None:
+                    logger.info(
+                        "cheap_model %r incompatible with cheap_base_url (%s) — "
+                        "auto-resolved to %s",
+                        cheap_model, cheap_ptype, resolved["base_url"],
+                    )
+                    cheap_base = resolved["base_url"]
+                    api_key = resolved["api_key"]
+                else:
+                    logger.warning(
+                        "cheap_model %r is incompatible with cheap_base_url (%s) "
+                        "and no compatible backend was found in fallback_models[] "
+                        "or api_keys[] — call will likely fail. Set cheap_base_url "
+                        "to match the model's provider, or add a matching entry "
+                        "to api_keys[].",
+                        cheap_model, cheap_ptype,
+                    )
+
         with self._client_lock:
             cache_key = f"{cheap_base}:{api_key}"
             if cache_key not in self._providers_cache:
                 self._providers_cache[cache_key] = _get_provider(cheap_base, api_key)
-            return self._providers_cache[cache_key], config.llm.cheap_model
+            return self._providers_cache[cache_key], cheap_model
 
     def _retry_with_backoff(self, fn, label: str = "LLM", provider: str = ""):
         """Execute fn with retry + exponential backoff.
