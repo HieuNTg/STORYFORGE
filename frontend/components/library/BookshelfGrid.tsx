@@ -8,8 +8,9 @@
 
 import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Plus, Sparkles } from "lucide-react";
 import { StoryCard, type LibraryStory } from "./StoryCard";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/common/EmptyState";
 import { cn } from "@/lib/utils";
 import type { Story } from "@/types/story";
@@ -18,6 +19,7 @@ export interface BookshelfGridProps {
   stories: Story[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onCreate?: () => void;
   className?: string;
 }
 
@@ -36,6 +38,7 @@ export function BookshelfGrid({
   stories,
   selectedId,
   onSelect,
+  onCreate,
   className,
 }: BookshelfGridProps) {
   const reduce = useReducedMotion();
@@ -44,7 +47,25 @@ export function BookshelfGrid({
       <EmptyState
         icon={BookOpen}
         title="Kho truyện trống"
-        description="Forge một câu ý tưởng hoặc tạo truyện thủ công để bắt đầu."
+        description="Khai sinh một câu ý tưởng ở phía trên hoặc tạo truyện thủ công để bắt đầu."
+        className={cn(
+          "min-h-[320px] rounded-2xl border border-dashed border-border/70 bg-card/35",
+          className,
+        )}
+        action={
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button type="button" variant="outline" onClick={() => window.location.assign('/forge/')}>
+              <Sparkles className="size-4" aria-hidden />
+              Mở Khai sinh
+            </Button>
+            {onCreate ? (
+              <Button type="button" onClick={onCreate}>
+                <Plus className="size-4" aria-hidden />
+                Tạo truyện thủ công
+              </Button>
+            ) : null}
+          </div>
+        }
       />
     );
   }

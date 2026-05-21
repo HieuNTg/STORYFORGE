@@ -161,20 +161,25 @@ export function BookshelfScreen() {
 
       <ForgePanel onForged={handleForged} />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
+      {stories.length === 0 ? (
         <BookshelfGrid
           stories={stories}
           selectedId={selectedId}
           onSelect={selectStory}
+          onCreate={() => setCreateOpen(true)}
         />
-        {selectedStory ? (
-          <StoryWorkspace story={selectedStory} onDelete={removeStory} />
-        ) : (
-          <aside className="hidden h-fit rounded-xl border border-dashed border-border/60 p-6 text-center text-xs text-muted-foreground lg:block">
-            Chọn một truyện để xem chi tiết.
-          </aside>
-        )}
-      </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
+          <BookshelfGrid
+            stories={stories}
+            selectedId={selectedId}
+            onSelect={selectStory}
+          />
+          {selectedStory ? (
+            <StoryWorkspace story={selectedStory} onDelete={removeStory} />
+          ) : null}
+        </div>
+      )}
 
       <CreateStoryModal
         open={createOpen}
