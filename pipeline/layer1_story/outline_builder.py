@@ -83,11 +83,8 @@ def generate_world(
         system_prompt="Bạn là kiến trúc sư thế giới. BẮT BUỘC viết bằng tiếng Việt. Trả về JSON.",
         user_prompt=world_prompt,
         model=model,
+        expect="dict",
     )
-    # Handle LLM returning list instead of dict - take first element
-    if isinstance(result, list):
-        logger.warning("LLM returned list instead of dict for world, using first element")
-        result = result[0] if result else {}
     return WorldSetting(**result)
 
 
