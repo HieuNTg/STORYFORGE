@@ -52,7 +52,7 @@ const MORE: NavItem[] = [
   { key: "pipeline", href: "/", icon: Workflow, match: "/" },
   { key: "providers", href: "/providers/", icon: Plug, match: "/providers" },
   { key: "gallery", href: "/gallery/", icon: Images, match: "/gallery" },
-  { key: "analytics", href: "/analytics/demo/", icon: ChartBar, match: "/analytics" },
+  { key: "analytics", href: "/analytics/", icon: ChartBar, match: "/analytics" },
   { key: "export", href: "/export/", icon: Download, match: "/export" },
   { key: "usage", href: "/usage/", icon: Gauge, match: "/usage" },
   { key: "account", href: "/account/", icon: User, match: "/account" },

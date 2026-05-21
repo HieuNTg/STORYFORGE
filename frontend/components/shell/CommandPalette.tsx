@@ -65,7 +65,7 @@ const PAGES: PageEntry[] = [
   { key: "pipeline", label: "Pipeline", href: "/", icon: Workflow, keywords: ["home", "tạo", "generate"] },
   { key: "library", label: "Thư viện", href: "/library/", icon: Library, keywords: ["library", "stories", "truyện"] },
   { key: "branching", label: "Phân nhánh", href: "/branching/", icon: GitBranch, keywords: ["branch", "choice", "tree"] },
-  { key: "analytics", label: "Phân tích", href: "/analytics/demo/", icon: ChartBar, keywords: ["analytics", "stats", "chart"] },
+  { key: "analytics", label: "Phân tích", href: "/analytics/", icon: ChartBar, keywords: ["analytics", "stats", "chart"] },
   { key: "settings", label: "Cài đặt", href: "/settings/", icon: Settings, keywords: ["settings", "config", "cấu hình"] },
   { key: "providers", label: "Nhà cung cấp", href: "/providers/", icon: Plug, keywords: ["llm", "provider", "openai"] },
   { key: "export", label: "Xuất bản", href: "/export/", icon: Download, keywords: ["pdf", "epub", "export"] },
