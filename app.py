@@ -381,7 +381,10 @@ def main():
         logger.error("Preflight checks failed — aborting startup")
         sys.exit(1)
 
-    logger.info("StoryForge starting — Web UI at http://localhost:7860")
+    logger.info(
+        "StoryForge backend API at http://localhost:7860 — "
+        "UI runs separately at http://localhost:3001 (cd frontend && npm run dev -- --port 3001)"
+    )
     uvicorn.run(main_app, host="0.0.0.0", port=7860, log_level="info")
 
 
