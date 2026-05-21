@@ -31,13 +31,15 @@ Most AI writers produce flat stories. StoryForge turns each character into an **
 git clone https://github.com/HieuNTg/STORYFORGE.git
 cd STORYFORGE
 pip install -r requirements.txt
-python app.py                       # API → http://localhost:7860
+cd frontend && npm install && cd ..
 
-# In a second terminal, the Next.js UI:
-cd frontend && npm install && npm run dev -- --port 3001   # UI → http://localhost:3001
+# Windows PowerShell: start backend + frontend in two windows
+./dev.ps1
 ```
 
-Then **Settings → API Keys** (add provider profiles + choose models) → **Forge** → **Run** → **Library / Reader / Branching / Simulation** → **Export** (PDF/EPUB/HTML/ZIP).
+Manual mode is still available: run `python app.py` for the API (`:7860`) and `cd frontend && npm run dev -- --port 3001` for the UI (`:3001`).
+
+Then open **http://localhost:3001/forge/** → **Settings → API Keys** (add provider profiles + choose models) → **Forge** → **Run** → **Library / Reader / Branching / Simulation** → **Export** (PDF/EPUB/HTML/ZIP).
 
 ---
 

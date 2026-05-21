@@ -31,13 +31,15 @@ Hầu hết công cụ viết AI cho ra truyện phẳng. StoryForge biến mỗ
 git clone https://github.com/HieuNTg/STORYFORGE.git
 cd STORYFORGE
 pip install -r requirements.txt
-python app.py                       # API → http://localhost:7860
+cd frontend && npm install && cd ..
 
-# Cửa sổ thứ hai: Next.js UI
-cd frontend && npm install && npm run dev -- --port 3001   # UI → http://localhost:3001
+# Windows PowerShell: tự mở backend + frontend trong hai cửa sổ
+./dev.ps1
 ```
 
-Sau đó **Cài đặt → Khóa API** (thêm provider + chọn model) → **Khai sinh** → **Chạy** → **Thư viện / Đọc truyện / Phân nhánh / Mô phỏng** → **Xuất** (PDF/EPUB/HTML/ZIP).
+Vẫn có thể chạy thủ công: `python app.py` cho API (`:7860`) và `cd frontend && npm run dev -- --port 3001` cho UI (`:3001`).
+
+Sau đó mở **http://localhost:3001/forge/** → **Cài đặt → Khóa API** (thêm provider + chọn model) → **Khai sinh** → **Chạy** → **Thư viện / Đọc truyện / Phân nhánh / Mô phỏng** → **Xuất** (PDF/EPUB/HTML/ZIP).
 
 ---
 
