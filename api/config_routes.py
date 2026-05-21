@@ -36,6 +36,7 @@ Import the helpers from middleware.rbac and add them as Depends():
 import logging
 import re
 import time
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from typing import Optional
@@ -182,6 +183,9 @@ def get_config(response: Response):
             "api_key_masked": _mask_key(fb.get("api_key", "")),
             "model": fb.get("model", ""),
             "enabled": fb.get("enabled", True),
+            "last_test_ok": fb.get("last_test_ok"),
+            "last_tested_at": fb.get("last_tested_at", ""),
+            "last_test_message": fb.get("last_test_message", ""),
         })
     return {
         "llm": {
@@ -356,23 +360,38 @@ def test_connection():
     ok, msg = client.check_connection()
     results = [{"name": "Primary", "ok": ok, "message": msg}]
 
-    # Test each profile (fallback_models) — 30s aggregate timeout guard
+    # Test each profile (fallback_models) — 30s aggregate timeout guard.
+    # Per-profile results are persisted onto the fallback_models dict so the
+    # UI can surface the last status on page reload (it was previously kept
+    # only in React state and lost on refresh).
+    profiles = list(cfg.llm.fallback_models)
+    now_iso = datetime.now(timezone.utc).isoformat()
     _fanout_deadline = time.monotonic() + 30
-    for i, fb in enumerate(cfg.llm.fallback_models):
+    for i, fb in enumerate(profiles):
+        name = fb.get("name", f"Profile-{i+1}")
         if fb.get("enabled") is False:
-            results.append({"name": fb.get("name", f"Profile-{i+1}"), "ok": None, "message": "disabled"})
+            results.append({"name": name, "ok": None, "message": "disabled"})
             continue
         if time.monotonic() >= _fanout_deadline:
-            results.append({"name": fb.get("name", f"Profile-{i+1}"), "ok": None, "message": "skipped — aggregate timeout (30s) exceeded"})
+            results.append({"name": name, "ok": None, "message": "skipped — aggregate timeout (30s) exceeded"})
             continue
         base_url = fb.get("base_url", "")
         api_key = fb.get("api_key", "")
         model = fb.get("model", "")
         if not base_url or not api_key or not model:
-            results.append({"name": fb.get("name", f"Profile-{i+1}"), "ok": False, "message": "missing config"})
-            continue
-        fb_ok, fb_msg = client.check_provider(base_url, api_key, model)
-        results.append({"name": fb.get("name", f"Profile-{i+1}"), "ok": fb_ok, "message": fb_msg})
+            fb_ok, fb_msg = False, "missing config"
+        else:
+            fb_ok, fb_msg = client.check_provider(base_url, api_key, model)
+        results.append({"name": name, "ok": fb_ok, "message": fb_msg})
+        fb["last_test_ok"] = fb_ok
+        fb["last_tested_at"] = now_iso
+        fb["last_test_message"] = fb_msg
+
+    cfg.llm.fallback_models = profiles
+    try:
+        cfg.save()
+    except Exception as e:  # pragma: no cover — persistence is best-effort here
+        logger.warning("test-connection persist failed: %s", e)
 
     all_ok = all(r["ok"] for r in results if r["ok"] is not None)
     return {"ok": all_ok, "message": msg if not all_ok else "All providers OK", "profiles": results}

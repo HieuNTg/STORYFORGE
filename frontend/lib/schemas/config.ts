@@ -43,6 +43,9 @@ export const configLlmSchema = z
           api_key_masked: z.string(),
           model: z.string(),
           enabled: z.boolean(),
+          last_test_ok: z.boolean().nullable().optional(),
+          last_tested_at: z.string().default(""),
+          last_test_message: z.string().default(""),
         }),
       )
       .default([]),

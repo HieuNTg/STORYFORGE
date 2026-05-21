@@ -43,6 +43,22 @@ export default function ProvidersPage() {
     Record<string, ProviderTestStatus>
   >({});
 
+  // Hydrate testResults from the per-profile `last_test_ok` persisted by the
+  // backend so a passing test survives a page refresh. In-session results
+  // (set by `runTestAll`) take precedence over the persisted snapshot.
+  React.useEffect(() => {
+    if (!config) return;
+    setTestResults((prev) => {
+      const next = { ...prev };
+      for (const p of config.llm.profiles) {
+        if (next[p.name] && next[p.name] !== "idle") continue;
+        if (p.last_test_ok === true) next[p.name] = "pass";
+        else if (p.last_test_ok === false) next[p.name] = "fail";
+      }
+      return next;
+    });
+  }, [config]);
+
   const rows: ProviderRowData[] = React.useMemo(() => {
     if (!config) return [];
     return config.llm.profiles.map((p) => ({
