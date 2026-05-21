@@ -28,6 +28,21 @@ import {
 import { useUpdateConfig } from "@/lib/api/queries";
 import { pickDirty } from "@/lib/forms/dirty";
 
+const GEMINI_PROFILE_MODELS = [
+  { value: "gemini-3.5-flash", label: "Google Gemini · Gemini 3.5 Flash" },
+  { value: "gemini-3.1-flash-lite", label: "Google Gemini · Gemini 3.1 Flash Lite" },
+  { value: "gemini-3.1-flash-lite-preview", label: "Google Gemini · Gemini 3.1 Flash Lite Preview" },
+  { value: "gemini-2.5-pro", label: "Google Gemini · Gemini 2.5 Pro" },
+  { value: "gemini-2.5-flash", label: "Google Gemini · Gemini 2.5 Flash" },
+  { value: "gemini-2.0-flash", label: "Google Gemini · Gemini 2.0 Flash" },
+  { value: "gemma-4-31b-it", label: "Google Gemini · Gemma 4 31B" },
+  { value: "gemma-4-26b-a4b-it", label: "Google Gemini · Gemma 4 26B A4B" },
+];
+
+function isGeminiProfile(profile: ConfigResponse["llm"]["profiles"][number]) {
+  return /gemini|google/i.test(`${profile.name} ${profile.provider} ${profile.base_url}`);
+}
+
 export interface AdvancedL2FormFieldsProps {
   config: ConfigResponse;
 }
@@ -59,6 +74,14 @@ export function AdvancedL2FormFields({ config }: AdvancedL2FormFieldsProps) {
         value: profile.model,
         label: `${profile.name} · ${profile.model}`,
       }));
+
+    if (config.llm.profiles.some((profile) => profile.enabled && isGeminiProfile(profile))) {
+      for (const model of GEMINI_PROFILE_MODELS) {
+        if (!options.some((option) => option.value === model.value)) {
+          options.push(model);
+        }
+      }
+    }
 
     if (layer2Model && !options.some((option) => option.value === layer2Model)) {
       options.push({ value: layer2Model, label: `Hiện tại · ${layer2Model}` });
@@ -106,7 +129,7 @@ export function AdvancedL2FormFields({ config }: AdvancedL2FormFieldsProps) {
                 })
               }
             >
-              <SelectTrigger id="adv-l2-model">
+              <SelectTrigger id="adv-l2-model" className="w-full">
                 <SelectValue placeholder="Chọn model đã cấu hình" />
               </SelectTrigger>
               <SelectContent>
