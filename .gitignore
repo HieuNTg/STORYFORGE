@@ -88,3 +88,6 @@ gemini_resp.json
 data/provider_status/
 playwright-report/
 test-results/
+
+# ── Browser Extension Runtime Artifacts ────────────────────────────
+flowkit_extension/_metadata/
