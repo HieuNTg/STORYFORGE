@@ -52,6 +52,7 @@ class StoryAnalyzer:
                 synopsis=synopsis,
             ),
             model_tier="cheap",
+            expect="dict",
         )
 
         # Parse relationships from LLM

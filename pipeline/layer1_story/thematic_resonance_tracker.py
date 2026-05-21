@@ -133,6 +133,8 @@ Phân tích sự hiện diện của từng chủ đề:
         temperature=0.2,
         max_tokens=500,
         model_tier="cheap",
+        expect="dict",
+        list_key="themes",
     )
 
     presences = []

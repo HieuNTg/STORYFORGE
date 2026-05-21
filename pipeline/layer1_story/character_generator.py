@@ -44,6 +44,8 @@ def generate_characters(
             naming_instruction=get_naming_instruction(genre),
         ),
         model=model,
+        expect="dict",
+        list_key="characters",
     )
     characters = []
     for c in result.get("characters", []):
@@ -111,6 +113,8 @@ def extract_character_states(
         temperature=0.3,
         max_tokens=1000,
         model_tier="cheap",
+        expect="dict",
+        list_key="character_states",
     )
     states = []
     for s in result.get("character_states", []):

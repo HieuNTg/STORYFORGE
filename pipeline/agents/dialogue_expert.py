@@ -22,6 +22,7 @@ class DialogueExpertAgent(BaseAgent):
             system_prompt="Bạn là chuyên gia viết đối thoại tiếng Việt. Trả về JSON hợp lệ.",
             user_prompt=prompt,
             temperature=0.3,
+            expect="dict",
         )
         return self._parse_review_json(result, layer, iteration)
 

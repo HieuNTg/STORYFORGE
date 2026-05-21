@@ -38,6 +38,7 @@ def extract_plot_threads(
         temperature=0.3,
         max_tokens=1500,
         model_tier="cheap",
+        expect="dict",
     )
     return result
 

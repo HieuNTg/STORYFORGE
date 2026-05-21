@@ -145,6 +145,8 @@ Nhân vật: {', '.join(char_names)}
                     temperature=0.2,
                     max_tokens=300,
                     model_tier="cheap",
+                    expect="dict",
+                    list_key="attributions",
                 )
 
                 for attr in result.get("attributions", []):

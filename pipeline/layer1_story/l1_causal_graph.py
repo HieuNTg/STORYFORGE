@@ -110,10 +110,9 @@ def extract_causal_events(
             temperature=0.2,
             max_tokens=600,
             model_tier="cheap",
+            expect="dict",
+            list_key="events",
         )
-        if not isinstance(result, dict):
-            logger.warning("extract_causal_events ch%d: expected dict, got %s", chapter_num, type(result).__name__)
-            return []
         raw_events = result.get("events", [])[:5]
     except Exception as exc:
         logger.debug("extract_causal_events failed for ch%d: %s", chapter_num, exc)

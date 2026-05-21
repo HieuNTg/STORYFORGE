@@ -216,6 +216,7 @@ Trả về JSON:
                 temperature=0.1,
                 max_tokens=600,
                 model_tier="cheap",
+                expect="dict",
             )
 
             updates = []
@@ -529,6 +530,8 @@ Trả về JSON:
                 ),
                 temperature=0.7,
                 max_tokens=1000,
+                expect="dict",
+                list_key="resolutions_added",
             )
 
             resolutions = result.get("resolutions_added", [])

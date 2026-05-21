@@ -91,6 +91,7 @@ Chỉ ghi nhận thông tin rõ ràng trong văn bản."""
                 temperature=0.1,
                 max_tokens=800,
                 model_tier="cheap",
+                expect="dict",
             )
 
             # Process locations
@@ -276,6 +277,7 @@ Trả về:
                 temperature=0.1,
                 max_tokens=400,
                 model_tier="cheap",
+                expect="dict",
             )
 
             # Check movement validity

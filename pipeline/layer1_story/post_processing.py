@@ -363,6 +363,8 @@ def process_chapter_post_write(
             temperature=0.2,
             max_tokens=300,
             model_tier="cheap",
+            expect="dict",
+            list_key="world_changes",
         )
         new_world_changes = world_changes_result.get("world_changes", [])
         if new_world_changes and hasattr(story_context, 'world_state_changes'):

@@ -70,6 +70,7 @@ def validate_outline_arc_coherence(
             temperature=0.3,
             max_tokens=1000,
             model=model,
+            expect="dict",
         )
     except Exception as e:
         logger.warning("Outline-arc validation failed: %s", e)

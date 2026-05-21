@@ -727,6 +727,8 @@ def extract_plot_events(
         temperature=0.3,
         max_tokens=1000,
         model_tier="cheap",
+        expect="dict",
+        list_key="events",
     )
     events = []
     for e in result.get("events", []):

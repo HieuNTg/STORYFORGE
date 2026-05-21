@@ -269,6 +269,7 @@ def validate_arc_execution_llm(
             max_tokens=300,
             model=model,
             model_tier="cheap",
+            expect="dict",
         )
 
         found = bool(result.get("found", False))

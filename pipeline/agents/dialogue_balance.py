@@ -26,6 +26,7 @@ class DialogueBalanceAgent(BaseAgent):
             ),
             user_prompt=prompt,
             temperature=0.4,
+            expect="dict",
         )
         return self._parse_review_json(result, layer, iteration)
 

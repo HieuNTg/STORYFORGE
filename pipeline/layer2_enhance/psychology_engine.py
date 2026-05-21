@@ -50,6 +50,7 @@ class PsychologyEngine:
                     other_characters=other_names,
                 ),
                 temperature=0.7,
+                expect="dict",
             )
 
             goals = GoalHierarchy(

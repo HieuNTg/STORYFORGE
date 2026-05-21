@@ -634,6 +634,7 @@ class BranchManager:
                         user_prompt=f"Story so far:\n{current_text[-2000:]}\n\n"
                                     f"The reader chose: {choice_text}\n\nContinue the story.",
                         temperature=0.9,
+                        expect="dict",
                     )
                     continuation = result.get("continuation") or result.get("text", "")
                     new_choices = result.get("choices", ["Continue", "Take a different path"])
@@ -951,6 +952,7 @@ Return JSON:
                 system_prompt="You merge story branches. Return JSON.",
                 user_prompt=prompt,
                 temperature=0.7,
+                expect="dict",
             )
             return {
                 "text": result.get("text", f"{node_a['text']}\n\n{node_b['text']}"),

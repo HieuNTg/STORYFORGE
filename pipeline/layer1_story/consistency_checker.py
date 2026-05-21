@@ -299,6 +299,7 @@ Return JSON:
                     system_prompt="You are a story editor checking for consistency issues.",
                     user_prompt=prompt,
                     temperature=0.3,
+                    expect="dict",
                 )
 
                 issue.description = result.get("description", issue.description)

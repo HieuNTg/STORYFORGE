@@ -32,6 +32,7 @@ class QualityScorer:
             temperature=0.2,
             max_tokens=500,
             model_tier="cheap",
+            expect="dict",
         )
 
         # Clamp values to 1-5 range

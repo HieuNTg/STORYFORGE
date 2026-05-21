@@ -69,12 +69,8 @@ Xác định:
         temperature=0.1,
         max_tokens=150,
         model_tier="cheap",
+        expect="dict",
     )
-
-    if isinstance(result, list):
-        result = next((x for x in result if isinstance(x, dict)), {})
-    if not isinstance(result, dict):
-        result = {}
 
     return {
         "character": result.get("character", ""),

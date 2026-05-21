@@ -36,10 +36,11 @@ def generate_conflict_web(
         ),
         temperature=0.85,
         model=model,
+        expect="dict",
+        list_key="conflicts",
     )
     conflicts = []
-    # Handle LLM returning list directly instead of {conflicts} dict
-    conflict_data = result if isinstance(result, list) else result.get("conflicts", [])
+    conflict_data = result.get("conflicts", [])
     for c in conflict_data:
         if isinstance(c, dict):
             try:
@@ -117,9 +118,10 @@ def update_conflict_status(
             temperature=0.2,
             max_tokens=300,
             model_tier="cheap",
+            expect="dict",
+            list_key="activated",
         )
-        # Handle LLM returning list directly instead of {activated} dict
-        activated_ids = set(result if isinstance(result, list) else result.get("activated", []))
+        activated_ids = set(result.get("activated", []))
         for c in dormant_with_triggers:
             if c.conflict_id in activated_ids:
                 c.status = "active"

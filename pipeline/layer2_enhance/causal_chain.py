@@ -222,8 +222,10 @@ def audit_revelation_causality(
                 temperature=0.1,
                 max_tokens=500,
                 model_tier="cheap",
+                expect="dict",
+                list_key="fact_mentions",
             )
-            mentions = result.get("fact_mentions", []) if isinstance(result, dict) else []
+            mentions = result.get("fact_mentions", [])
         except Exception as e:
             logger.debug(f"audit LLM ch{ch_num} failed: {e}")
             continue

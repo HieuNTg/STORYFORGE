@@ -93,6 +93,7 @@ class SelfReviewer:
                 ),
                 temperature=0.3,
                 model_tier="cheap",
+                expect="dict",
             )
             # Ensure overall is computed from subscores
             score_keys = ["coherence", "character_consistency", "pacing", "writing_quality"]

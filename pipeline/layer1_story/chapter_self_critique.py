@@ -121,11 +121,9 @@ def critique_chapter(
             user_prompt=user_prompt,
             model=model,
             model_tier="cheap",
+            expect="dict",
         )
-        if isinstance(result, dict):
-            return result
-        logger.warning("critique_chapter: unexpected LLM response type %s", type(result))
-        return {}
+        return result
     except Exception as exc:
         logger.warning("critique_chapter failed (non-fatal): %s", exc)
         return {}

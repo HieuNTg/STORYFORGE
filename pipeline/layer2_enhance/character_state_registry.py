@@ -75,6 +75,7 @@ Chỉ ghi nhận thông tin CHẮC CHẮN xuất hiện trong văn bản. Nếu 
                     temperature=0.1,
                     max_tokens=500,
                     model_tier="cheap",
+                    expect="dict",
                 )
 
                 state = CharacterState(
@@ -213,6 +214,7 @@ Trả về:
                         temperature=0.1,
                         max_tokens=200,
                         model_tier="cheap",
+                        expect="dict",
                     )
 
                     if result.get("location_changed") and not result.get("transition_explained"):

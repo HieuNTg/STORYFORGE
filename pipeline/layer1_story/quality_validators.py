@@ -33,6 +33,8 @@ def validate_world_rules(
         temperature=0.2,
         max_tokens=400,
         model_tier="cheap",
+        expect="dict",
+        list_key="violations",
     )
     violations = result.get("violations", [])
     out: list[str] = []
@@ -79,6 +81,8 @@ def validate_dialogue_voice(
         temperature=0.3,
         max_tokens=600,
         model_tier="cheap",
+        expect="dict",
+        list_key="warnings",
     )
     warnings = result.get("warnings", [])
     out: list[str] = []

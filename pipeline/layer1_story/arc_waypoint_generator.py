@@ -75,6 +75,8 @@ def generate_arc_waypoints(
             temperature=0.5,
             max_tokens=2000,
             model=model,
+            expect="dict",
+            list_key="characters",
         )
     except Exception as e:
         logger.warning("Arc waypoint generation failed: %s", e)

@@ -108,6 +108,8 @@ def extract_emotional_memories(
         temperature=0.3,
         max_tokens=1500,
         model_tier="cheap",
+        expect="dict",
+        list_key="characters",
     )
 
     banks: dict[str, CharacterMemoryBank] = {}

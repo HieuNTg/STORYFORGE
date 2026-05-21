@@ -81,6 +81,8 @@ def generate_arc_milestones(
             ),
             temperature=0.5,
             model=model,
+            expect="dict",
+            list_key="milestones",
         )
     except Exception as e:
         logger.warning("Arc milestone generation failed: %s", e)

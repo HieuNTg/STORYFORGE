@@ -66,6 +66,7 @@ def generate_premise(
                 idea=wrap_user_input(idea),
             ),
             model=model,
+            expect="dict",
         )
     except Exception as e:
         logger.warning("generate_premise: LLM call failed: %s", e)
@@ -127,6 +128,7 @@ def build_idea_summary_for_chapters(
             ),
             user_prompt=SUMMARIZE_IDEA_FOR_CHAPTERS.format(idea=wrap_user_input(idea)),
             model=cheap_model,
+            expect="dict",
         )
     except Exception as e:
         logger.warning("build_idea_summary_for_chapters: LLM call failed: %s", e)

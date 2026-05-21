@@ -73,6 +73,7 @@ class CharacterVisualExtractor:
                 system_prompt=_SYSTEM_PROMPT,
                 user_prompt=user_prompt,
                 temperature=0.3,
+                expect="dict",
             )
             # Merge with defaults to ensure all keys exist
             attributes = dict(_DEFAULT_ATTRIBUTES)

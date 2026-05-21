@@ -46,10 +46,11 @@ def generate_macro_arcs(
         ),
         temperature=0.85,
         model=model,
+        expect="dict",
+        list_key="macro_arcs",
     )
     arcs = []
-    # Handle LLM returning list directly instead of {macro_arcs} dict
-    arc_data = result if isinstance(result, list) else result.get("macro_arcs", [])
+    arc_data = result.get("macro_arcs", [])
     for a in arc_data:
         if isinstance(a, dict):
             try:

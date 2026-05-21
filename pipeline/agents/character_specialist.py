@@ -39,6 +39,7 @@ class CharacterSpecialistAgent(BaseAgent):
             system_prompt="Bạn là chuyên gia phân tích nhân vật. Trả về JSON hợp lệ.",
             user_prompt=prompt,
             temperature=0.3,
+            expect="dict",
         )
         return self._parse_review_json(result, layer, iteration)
 
@@ -79,6 +80,8 @@ class CharacterSpecialistAgent(BaseAgent):
             user_prompt=prompt,
             temperature=0.4,
             max_tokens=500,
+            expect="dict",
+            list_key="entries",
         )
         return self._parse_debate_llm_response(result, all_reviews)
 

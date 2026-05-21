@@ -66,6 +66,7 @@ class EditorInChiefAgent(BaseAgent):
             system_prompt="Bạn là biên tập viên chuyên nghiệp. Trả về JSON hợp lệ.",
             user_prompt=prompt,
             temperature=0.3,
+            expect="dict",
         )
         return self._parse_review_json(result, layer, iteration)
 

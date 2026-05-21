@@ -186,6 +186,7 @@ class StoryAnalytics:
                     temperature=0.2,
                     max_tokens=300,
                     model_tier="cheap",
+                    expect="dict",
                 )
 
                 def _clamp(val, lo=0, hi=10):

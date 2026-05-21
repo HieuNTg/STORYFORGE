@@ -151,6 +151,8 @@ def audit_chapter_telling(
             user_prompt=AUDIT_TELLING.format(content=content, genre=genre),
             model=model,
             model_tier="cheap",
+            expect="dict",
+            list_key="violations",
         )
         violations = result.get("violations", [])
         if not isinstance(violations, list):

@@ -167,6 +167,7 @@ Lời thoại sau enhance:
                 temperature=0.2,
                 max_tokens=500,
                 model_tier="cheap",
+                expect="dict",
             )
 
             # Unified VoiceProfile: emotional_expression is dict; coerce legacy str result
@@ -350,6 +351,7 @@ Lời thoại sau enhance:
                     temperature=0.1,
                     max_tokens=400,
                     model_tier="cheap",
+                    expect="dict",
                 )
 
                 score = result.get("consistency_score", 1.0)

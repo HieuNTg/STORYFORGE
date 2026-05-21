@@ -68,6 +68,8 @@ class DialogueSubtextAnalyzer:
                 temperature=0.3,
                 max_tokens=1024,
                 model_tier="cheap",
+                expect="dict",
+                list_key="dialogue_analysis",
             )
             lines = result.get("dialogue_analysis", [])
             return [

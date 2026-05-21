@@ -33,6 +33,7 @@ class ContinuityCheckerAgent(BaseAgent):
             system_prompt="Bạn là kiểm soát viên chuyên tìm lỗi liên tục. Trả về JSON hợp lệ.",
             user_prompt=prompt,
             temperature=0.2,
+            expect="dict",
         )
         return self._parse_review_json(result, layer, iteration)
 

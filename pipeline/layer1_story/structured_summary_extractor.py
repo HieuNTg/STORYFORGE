@@ -39,6 +39,7 @@ def extract_structured_summary(
         temperature=0.3,
         max_tokens=1500,
         model_tier="cheap",
+        expect="dict",
     )
 
     structured = StructuredSummary(

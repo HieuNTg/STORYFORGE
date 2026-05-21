@@ -34,6 +34,8 @@ def generate_foreshadowing_plan(
         ),
         temperature=0.8,
         model=model,
+        expect="dict",
+        list_key="foreshadowing",
     )
     entries = []
     for f in result.get("foreshadowing", []):

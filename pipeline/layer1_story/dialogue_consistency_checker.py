@@ -104,6 +104,7 @@ Dialogue: "{dialogue}"
                     temperature=0.1,
                     max_tokens=200,
                     model_tier="cheap",
+                    expect="dict",
                 )
 
                 if not result.get('match', True):

@@ -458,6 +458,22 @@ class TestAnalyzeThemePresence:
         assert result == []
         llm.generate_json.assert_not_called()
 
+    def test_llm_returns_bare_list_treated_as_themes(self):
+        # generate_json(expect="dict", list_key="themes") auto-wraps a bare
+        # list at the LLM boundary; analyze_theme_presence therefore sees
+        # the wrapped dict here. End-to-end behavior unchanged: themes are
+        # parsed into ThemePresence entries.
+        llm = MagicMock()
+        llm.generate_json.return_value = {
+            "themes": [
+                {"theme": "tình yêu", "strength": 0.6, "manifestation": "ánh mắt", "symbols": ["hoa hồng"]},
+            ]
+        }
+        result = analyze_theme_presence(llm, "nội dung chương", 2, ["tình yêu"])
+        assert len(result) == 1
+        assert result[0].theme == "tình yêu"
+        assert result[0].strength == 0.6
+
 
 
 # ---------------------------------------------------------------------------

@@ -51,6 +51,8 @@ def validate_coherence(
             ),
             temperature=0.2,
             model_tier="cheap",
+            expect="dict",
+            list_key="issues",
         )
 
         issues = result.get("issues", [])

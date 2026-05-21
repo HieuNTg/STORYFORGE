@@ -85,6 +85,8 @@ class StoryBrancher:
                 ),
                 temperature=0.8,
                 model_tier="cheap",
+                expect="dict",
+                list_key="choices",
             )
             choices = []
             for i, c in enumerate(result.get("choices", [])[:3]):

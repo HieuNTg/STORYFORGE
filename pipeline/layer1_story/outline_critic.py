@@ -291,8 +291,9 @@ def critique_outline(
                 outlines=_format_outlines_for_prompt(outlines),
             ),
             model=model,
+            expect="dict",
         )
-        return result if isinstance(result, dict) else {}
+        return result
     except Exception as e:
         logger.warning("critique_outline failed (non-fatal): %s", e)
         return {}

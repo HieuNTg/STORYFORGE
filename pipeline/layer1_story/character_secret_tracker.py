@@ -150,6 +150,8 @@ Kiểm tra:
         temperature=0.1,
         max_tokens=400,
         model_tier="cheap",
+        expect="dict",
+        list_key="reveals",
     )
 
     reveals = result.get("reveals", [])

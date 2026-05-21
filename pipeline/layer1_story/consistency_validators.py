@@ -48,11 +48,8 @@ def extract_timeline_and_locations(llm, chapter_content: str, chapter_number: in
             temperature=0.2,
             max_tokens=400,
             model_tier="cheap",
+            expect="dict",
         )
-        # Handle LLM returning unexpected list
-        if isinstance(result, list):
-            logger.warning("LLM returned list instead of dict for timeline extraction")
-            result = {}
         new_timeline = result.get("timeline_positions", {})
         new_locations = result.get("character_locations", {})
         # Merge with previous (update, not replace)

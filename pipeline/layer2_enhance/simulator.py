@@ -478,14 +478,8 @@ class DramaSimulator:
                     recent_posts=recent_posts,
                 ),
                 temperature=self._intensity.get("temperature", 0.95),
+                expect="dict",
             )
-
-            if not isinstance(result, dict):
-                logger.warning(
-                    f"Agent {name} vòng {round_number}: LLM returned {type(result).__name__}, "
-                    f"expected dict — using defaults."
-                )
-                result = {}
 
             # Log agent reasoning if present (L2-D)
             reasoning = result.get("reasoning", "")
@@ -564,13 +558,8 @@ class DramaSimulator:
                     f"Hãy phản ứng tự nhiên. JSON: reasoning (suy nghĩ 1 câu), content, action_type, sentiment, new_mood, trust_change"
                 ),
                 temperature=0.9,
+                expect="dict",
             )
-            if not isinstance(result, dict):
-                logger.warning(
-                    f"Reaction from {agent.character.name}: LLM returned "
-                    f"{type(result).__name__}, expected dict — using defaults."
-                )
-                result = {}
             # Log reaction reasoning (L2-D)
             reasoning = result.get("reasoning", "")
             if reasoning:
@@ -760,6 +749,7 @@ class DramaSimulator:
                 actions=actions_text,
                 relationships=rel_text,
             ),
+            expect="dict",
         )
 
     def _check_escalation(self, round_num: int, total_rounds: int = 5, genre: str = "") -> list[EscalationPattern]:
@@ -819,6 +809,7 @@ class DramaSimulator:
                     characters_list=", ".join(f'"{c.strip()}"' for c in chars),
                 ),
                 temperature=0.9,
+                expect="dict",
             )
             raw_score = result.get("drama_score", 0.7)
             boosted = min(1.0, raw_score * pattern.intensity_multiplier)
@@ -1160,4 +1151,5 @@ class DramaSimulator:
                 simulation_summary=sim_summary,
                 story_summary=story_summary,
             ),
+            expect="dict",
         )

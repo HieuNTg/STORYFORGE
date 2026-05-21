@@ -173,6 +173,7 @@ def choose_branch(session_id: str, body: ChooseBody):
                     "and 'character_states' for any characters that changed."
                 ),
                 temperature=0.9,
+                expect="dict",
             )
         except Exception as exc:
             logger.error(f"LLM generation failed: {exc}")
@@ -188,6 +189,7 @@ def choose_branch(session_id: str, body: ChooseBody):
                     f"The reader chose: {choice_text}\n\nContinue the story."
                 ),
                 temperature=0.9,
+                expect="dict",
             )
         except Exception as exc:
             logger.error(f"LLM generation failed: {exc}")

@@ -92,6 +92,7 @@ class ThematicTracker:
                 temperature=0.3,
                 max_tokens=512,
                 model_tier="cheap",
+                expect="dict",
             )
             return ThemeProfile(
                 central_theme=result.get("central_theme", ""),
@@ -127,6 +128,7 @@ class ThematicTracker:
                 temperature=0.2,
                 max_tokens=400,
                 model_tier="cheap",
+                expect="dict",
             )
             return ChapterThematicScore(
                 chapter_number=chapter.chapter_number,

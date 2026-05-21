@@ -166,6 +166,7 @@ Trả về JSON: {{"chapter_number": {new_chapter_number}, "title": "...", "summ
         user_prompt=outline_prompt,
         temperature=0.9,
         model=generator._layer_model,
+        expect="dict",
     )
 
     outline = ChapterOutline(
@@ -387,6 +388,8 @@ Các dàn ý PHẢI thể hiện sự chuyển đổi arc của nhân vật theo
         user_prompt=base_prompt,
         temperature=0.9,
         model=generator._layer_model,
+        expect="dict",
+        list_key="outlines",
     )
     outlines = [ChapterOutline(**o) for o in result.get("outlines", [])]
     _log(f"Generated {len(outlines)} outlines.")
@@ -485,6 +488,8 @@ Trả về JSON:
         user_prompt=prompt,
         temperature=1.0,  # Higher temperature for more diverse paths
         model=generator._layer_model,
+        expect="dict",
+        list_key="paths",
     )
 
     paths = result.get("paths", [])
@@ -916,6 +921,7 @@ Trả về JSON:
         user_prompt=prompt,
         temperature=0.3,  # Low temperature for editing
         model=generator._layer_model,
+        expect="dict",
     )
 
     polished_text = result.get("polished_text", user_text)

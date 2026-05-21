@@ -65,6 +65,8 @@ def generate_scene_beats(
             temperature=0.7,
             max_tokens=700,
             model_tier=model_tier,
+            expect="dict",
+            list_key="scenes",
         )
         raw_scenes = result.get("scenes", [])
         if not raw_scenes:

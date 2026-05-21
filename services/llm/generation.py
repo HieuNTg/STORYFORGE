@@ -26,8 +26,71 @@ class GenerationMixin:
         max_tokens: Optional[int] = None,
         model_tier: str = "default",
         model: Optional[str] = None,
-    ) -> dict:
-        """Call LLM and parse JSON result with auto-repair."""
+        expect: Optional[str] = None,
+        list_key: Optional[str] = None,
+    ):
+        """Call LLM and parse JSON result with auto-repair.
+
+        Optional shape validation at the JSON boundary:
+
+        - ``expect="dict"``: result must be a ``dict``. If the LLM returns a
+          bare list and ``list_key`` is given, it is auto-wrapped as
+          ``{list_key: [...]}``. Otherwise a shape-mismatch retry is attempted
+          (one extra call with a hint appended to the user prompt), and on
+          continued mismatch ``ValueError`` is raised.
+        - ``expect="list"``: result must be a ``list``. If the LLM returns a
+          dict with exactly one list-valued key, that list is extracted.
+          Otherwise the shape-mismatch retry runs, then ``ValueError``.
+        - ``expect=None`` (default): no validation — current behavior, return
+          whatever ``json.loads`` produces.
+
+        ``list_key`` is only meaningful when ``expect="dict"``.
+        """
+        result = self._parse_json_with_repair(
+            system_prompt, user_prompt, temperature, max_tokens, model_tier, model,
+        )
+
+        if expect is None:
+            return result
+
+        coerced, ok = _coerce_to_shape(result, expect, list_key)
+        if ok:
+            return coerced
+
+        # Shape mismatch — one retry with a shape hint appended.
+        logger.warning(
+            "generate_json: shape mismatch (expected %s, got %s); retrying with hint",
+            expect, type(result).__name__,
+        )
+        hint = (
+            "\n\nIMPORTANT: Your output MUST be a JSON "
+            f"{'object' if expect == 'dict' else 'array'}."
+        )
+        if expect == "dict" and list_key:
+            hint += f' Use the key "{list_key}" for the list of items.'
+        retry_result = self._parse_json_with_repair(
+            system_prompt, user_prompt + hint, temperature, max_tokens, model_tier, model,
+        )
+        coerced, ok = _coerce_to_shape(retry_result, expect, list_key)
+        if ok:
+            return coerced
+        raise ValueError(
+            f"generate_json: schema mismatch after retry. "
+            f"Expected {expect}"
+            f"{f' (with list_key={list_key!r})' if list_key else ''}, "
+            f"got {type(retry_result).__name__}: {str(retry_result)[:300]!r}"
+        )
+
+    def _parse_json_with_repair(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: Optional[float],
+        max_tokens: Optional[int],
+        model_tier: str,
+        model: Optional[str],
+    ):
+        """Run the LLM and parse JSON with the existing 3-attempt repair flow."""
         text = self._generate_json_text(
             system_prompt, user_prompt, temperature, max_tokens,
             model_tier, model,
@@ -235,6 +298,30 @@ class GenerationMixin:
             return True, "OK"
         except Exception as e:
             return False, str(e)[:200]
+
+
+def _coerce_to_shape(value, expect: str, list_key: Optional[str]):
+    """Validate/coerce a parsed JSON value to the expected shape.
+
+    Returns ``(coerced_value, ok)``. When ``ok`` is False the caller should
+    retry or raise; the returned value is meaningless in that case.
+    """
+    if expect == "dict":
+        if isinstance(value, dict):
+            return value, True
+        if isinstance(value, list) and list_key:
+            return {list_key: value}, True
+        return value, False
+    if expect == "list":
+        if isinstance(value, list):
+            return value, True
+        if isinstance(value, dict):
+            list_keys = [k for k, v in value.items() if isinstance(v, list)]
+            if len(list_keys) == 1:
+                return value[list_keys[0]], True
+        return value, False
+    # Unknown expect value — be permissive rather than crash callers.
+    return value, True
 
 
 def _repair_json(text: str) -> str:

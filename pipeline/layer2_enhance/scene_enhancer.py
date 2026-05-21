@@ -296,6 +296,8 @@ class SceneEnhancer:
                 temperature=0.2,
                 max_tokens=4096,
                 model_tier="cheap",
+                expect="dict",
+                list_key="scenes",
             )
             scenes = result.get("scenes", [])
         except Exception as e:
@@ -328,6 +330,7 @@ class SceneEnhancer:
                     temperature=0.2,
                     max_tokens=300,
                     model_tier="cheap",
+                    expect="dict",
                 )
                 score = SceneScore(
                     scene_number=scene.get("scene_number", 1),
@@ -555,6 +558,7 @@ class SceneEnhancer:
                             temperature=0.2,
                             max_tokens=300,
                             model_tier="cheap",
+                            expect="dict",
                         )
                         new_score = float(rescore.get("drama_score", 0.5))
 

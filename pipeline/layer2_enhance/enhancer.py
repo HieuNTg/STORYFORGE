@@ -123,6 +123,8 @@ Trả về JSON: {{"issues": ["issue1", "issue2"]}} hoặc {{"issues": []}} nế
             temperature=0.1,
             model_tier="cheap",
             max_tokens=300,
+            expect="dict",
+            list_key="issues",
         )
         issues = result.get("issues", [])
         if not issues:
@@ -783,6 +785,7 @@ class StoryEnhancer:
                             temperature=0.2,
                             max_tokens=100,
                             model_tier="cheap",
+                            expect="dict",
                         )
                         chapter_scores[ch.chapter_number] = float(result.get("drama_score", 0.5))
                     except Exception:
@@ -1064,6 +1067,7 @@ class StoryEnhancer:
                     temperature=0.2,
                     max_tokens=300,
                     model_tier="cheap",
+                    expect="dict",
                 )
                 score = result.get("drama_score", 0.5)
                 if score < MIN_DRAMA_SCORE:

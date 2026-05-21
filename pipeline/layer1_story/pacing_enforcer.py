@@ -66,9 +66,8 @@ def verify_pacing(
             user_prompt=prompt,
             model=model,
             model_tier="cheap",
+            expect="dict",
         )
-        if not isinstance(result, dict):
-            return {}
         detected = str(result.get("detected", "")).strip().lower()
         conf = float(result.get("confidence", 0.0) or 0.0)
         return {

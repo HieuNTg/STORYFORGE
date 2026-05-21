@@ -529,6 +529,18 @@ class TestCheckSecretReveal:
         assert len(result["hints"]) == 1
         assert reg.secrets[0].partial_hints[0]["hint"] == "một dấu hiệu bí ẩn"
 
+    def test_llm_returns_bare_list_treated_as_reveals(self):
+        # generate_json(expect="dict", list_key="reveals") auto-wraps a bare
+        # list at the LLM boundary; check_secret_reveal therefore sees the
+        # wrapped dict here. End-to-end behavior unchanged: reveals are
+        # processed, hints stay empty, registry is updated.
+        reg = self._registry_with_secret("Lan")
+        llm = _make_llm({"reveals": [{"character": "Lan", "revealed_to": ["Minh"]}]})
+        result = check_secret_reveal(llm, "Lan tiết lộ bí mật.", 3, reg)
+        assert len(result["reveals"]) == 1
+        assert result["hints"] == []
+        assert reg.secrets[0].actual_reveal == 3
+
 
 # ---------------------------------------------------------------------------
 # character_secret_tracker — audit_secrets & format helpers

@@ -53,6 +53,7 @@ class ImagePromptGenerator:
                 temperature=0.7,
                 max_tokens=200,
                 model_tier="cheap",
+                expect="dict",
             )
             refined = (result or {}).get("prompt") or ""
             return refined.strip() or text
@@ -97,6 +98,8 @@ class ImagePromptGenerator:
                 ),
                 temperature=0.7,
                 max_tokens=1500,
+                expect="dict",
+                list_key="scenes",
             )
             prompts_list = []
             for i, scene in enumerate(result.get("scenes", [])[:num_images], 1):

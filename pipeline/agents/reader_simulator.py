@@ -69,6 +69,7 @@ class ReaderSimulator:
                 temperature=0.3,
                 model_tier="cheap",
                 max_tokens=500,
+                expect="dict",
             )
             return ReaderFeedback(
                 chapter_number=chapter.chapter_number,

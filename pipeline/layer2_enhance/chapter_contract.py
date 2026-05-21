@@ -148,6 +148,7 @@ def validate_chapter_against_contract(
             user_prompt=prompt,
             temperature=0.2,
             model_tier=model_tier,
+            expect="dict",
         )
     except Exception as exc:
         logger.warning("Contract validation LLM call failed for ch%d: %s", ch_num, exc)
@@ -156,9 +157,6 @@ def validate_chapter_against_contract(
             passed=False,
             reason=f"validation_llm_error: {exc}",
         )
-
-    if not isinstance(raw, dict):
-        raw = {}
 
     drama_actual = _clip(float(raw.get("drama_actual", 0.0) or 0.0), 0.0, 1.0)
     missing_esc = [str(x) for x in (raw.get("missing_escalations") or []) if x]
@@ -370,6 +368,7 @@ def validate_chapter_voice(
             user_prompt=prompt,
             temperature=0.2,
             model_tier=model_tier,
+            expect="dict",
         )
     except Exception as exc:
         logger.warning("Voice validation LLM call failed for ch%d: %s", contract.chapter_number, exc)
@@ -378,9 +377,6 @@ def validate_chapter_voice(
             passed=False,
             reason=f"voice_llm_error: {type(exc).__name__}",
         )
-
-    if not isinstance(raw, dict):
-        return VoiceValidation(chapter_number=contract.chapter_number, passed=False, reason="malformed")
 
     per_char_result = raw.get("per_character", {}) or {}
     per_scores: dict[str, float] = {}

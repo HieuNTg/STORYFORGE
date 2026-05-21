@@ -125,6 +125,8 @@ def decompose_chapter_scenes(
             system_prompt="Bạn là biên kịch chuyên nghiệp. BẮT BUỘC viết bằng tiếng Việt. Trả về JSON.",
             user_prompt=user_prompt,
             model=model,
+            expect="dict",
+            list_key="scenes",
         )
         scenes = result.get("scenes", [])
         if not isinstance(scenes, list):
