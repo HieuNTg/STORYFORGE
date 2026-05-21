@@ -54,13 +54,22 @@ export function PhaseTimeline({ phases, current, className }: PhaseTimelineProps
     >
       {phases.map((phase, idx) => {
         const isCurrent = current === idx;
+        const isFirst = idx === 0;
         const isLast = idx === phases.length - 1;
+        const prevStatus: PhaseStatus = idx > 0 ? phases[idx - 1].status : "pending";
         return (
           <li
             key={`${phase.label}-${idx}`}
-            className="flex items-center gap-3 sm:flex-1"
+            className="flex items-center gap-3 sm:flex-1 sm:justify-center"
             aria-current={isCurrent ? "step" : undefined}
           >
+            <span
+              aria-hidden
+              className={cn(
+                "hidden h-px flex-1 sm:block",
+                isFirst ? "sm:invisible" : connectorClasses(prevStatus)
+              )}
+            />
             <div className="flex items-center gap-3 sm:flex-col sm:items-center sm:gap-1.5">
               <span
                 className={cn(
@@ -86,15 +95,13 @@ export function PhaseTimeline({ phases, current, className }: PhaseTimelineProps
                 {phase.label}
               </span>
             </div>
-            {!isLast ? (
-              <span
-                aria-hidden
-                className={cn(
-                  "hidden h-px flex-1 sm:block",
-                  connectorClasses(phase.status)
-                )}
-              />
-            ) : null}
+            <span
+              aria-hidden
+              className={cn(
+                "hidden h-px flex-1 sm:block",
+                isLast ? "sm:invisible" : connectorClasses(phase.status)
+              )}
+            />
           </li>
         );
       })}

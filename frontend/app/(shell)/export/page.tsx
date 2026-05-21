@@ -8,14 +8,12 @@
  */
 
 import * as React from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
+import { EmptyState } from "@/components/common/EmptyState";
 import { PageHero } from "@/components/common/PageHero";
 import { ExportButton } from "@/components/export/ExportButton";
-import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 
 function ExportPageInner() {
   const t = useTranslations("pages.export");
@@ -26,16 +24,12 @@ function ExportPageInner() {
     return (
       <div className="flex flex-col gap-6">
         <PageHero title={t("title")} subtitle="Chưa chọn truyện" />
-        <Card>
-          <CardContent className="flex flex-col items-start gap-3 py-6">
-            <p className="text-sm text-muted-foreground">
-              Vui lòng chọn truyện từ Thư viện để xuất bản.
-            </p>
-            <Link href="/library/" className={buttonVariants()}>
-              Mở Thư viện
-            </Link>
-          </CardContent>
-        </Card>
+        <EmptyState
+          variant="export-empty"
+          title="Chưa chọn truyện để xuất bản"
+          description="Chọn một truyện từ Thư viện, rồi quay lại đây để xuất PDF, EPUB, HTML, ZIP hoặc JSON."
+          className="min-h-[320px] rounded-2xl border border-dashed border-border/70 bg-card/35"
+        />
       </div>
     );
   }
