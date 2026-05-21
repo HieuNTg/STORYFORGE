@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/screenshots/v3-settings-providers.png" alt="StoryForge" width="780" />
+  <img src="assets/screenshots/v3-settings-providers.png" alt="StoryForge" width="100%" />
 </p>
 
 ---
