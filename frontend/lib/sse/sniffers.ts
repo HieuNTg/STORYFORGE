@@ -59,7 +59,8 @@ export type AgentsPhase =
   | { phase: "approved"; layer: number }
   | { phase: "revision" }
   | { phase: "evaluating"; layer: number }
-  | { phase: "round"; round: number; totalRounds: number; layer: number };
+  | { phase: "round"; round: number; totalRounds: number; layer: number }
+  | { phase: "tier"; tier: number; totalTiers: number };
 
 /**
  * Parse the `[AGENTS] …` phase markers from `agent_registry.py:237/242`.
@@ -89,6 +90,16 @@ export function sniffAgentsPhase(msg: string): AgentsPhase | null {
       round: parseInt(round[1]!, 10),
       totalRounds: parseInt(round[2]!, 10),
       layer: parseInt(round[3]!, 10),
+    };
+  }
+  const tier = msg.match(
+    new RegExp(`^${LAYER_PREFIX}\\[AGENTS\\]\\s+Tier\\s+(\\d+)\\/(\\d+):`)
+  );
+  if (tier) {
+    return {
+      phase: "tier",
+      tier: parseInt(tier[1]!, 10),
+      totalTiers: parseInt(tier[2]!, 10),
     };
   }
   return null;

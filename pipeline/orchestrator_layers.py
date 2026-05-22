@@ -625,6 +625,7 @@ async def run_full_pipeline(
                 )
                 self.output.reviews.extend(reviews)
             except Exception as e:
+                _log(f"[AGENTS] WARN Phòng ban gặp lỗi: {e}")
                 logger.warning(f"Agent review Layer 1 lỗi: {e}")
     except Exception as e:
         self.output.status = "error"
@@ -1162,6 +1163,7 @@ async def run_full_pipeline(
                 )
                 self.output.reviews.extend(reviews)
             except Exception as e:
+                _log(f"[AGENTS] WARN Phòng ban gặp lỗi: {e}")
                 logger.warning(f"Agent review Layer 2 lỗi: {e}")
 
         # Smart chapter revision: auto-fix weak chapters using agent reviews

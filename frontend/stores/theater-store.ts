@@ -170,6 +170,36 @@ export const useTheaterStore = create<TheaterState>((set) => ({
         set((state) => ({
           agents: state.agents.map((a) => ({ ...a, status: "done" as AgentStatus })),
         }));
+      } else if (phase.phase === "evaluating") {
+        const placeholder: TheaterAgent = {
+          id: `__phase-evaluating-l${phase.layer}`,
+          name: `Phòng ban Layer ${phase.layer}`,
+          status: "thinking",
+          message: `Đang đánh giá Layer ${phase.layer}...`,
+        };
+        set((state) => ({
+          agents: dedupePush(state.agents, placeholder, MAX_AGENT_BUBBLES),
+        }));
+      } else if (phase.phase === "round") {
+        const placeholder: TheaterAgent = {
+          id: `__phase-round-l${phase.layer}-${phase.round}`,
+          name: `Vòng ${phase.round}/${phase.totalRounds}`,
+          status: "thinking",
+          message: `Layer ${phase.layer} — vòng ${phase.round}/${phase.totalRounds}`,
+        };
+        set((state) => ({
+          agents: dedupePush(state.agents, placeholder, MAX_AGENT_BUBBLES),
+        }));
+      } else if (phase.phase === "tier") {
+        const placeholder: TheaterAgent = {
+          id: `__phase-tier-${phase.tier}`,
+          name: `Tier ${phase.tier}/${phase.totalTiers}`,
+          status: "thinking",
+          message: `Tier ${phase.tier}/${phase.totalTiers} đang chạy...`,
+        };
+        set((state) => ({
+          agents: dedupePush(state.agents, placeholder, MAX_AGENT_BUBBLES),
+        }));
       }
       return;
     }
