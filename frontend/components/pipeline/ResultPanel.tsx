@@ -32,6 +32,12 @@ export interface ResultStory {
 export interface ResultPanelProps {
   story?: ResultStory;
   onOpenReader?: () => void;
+  /**
+   * Extra header content rendered next to / instead of the "Đọc truyện"
+   * button. Used by Khai sinh to surface a "Lưu vào thư viện" CTA without
+   * binding this panel to the library store.
+   */
+  headerAction?: React.ReactNode;
   className?: string;
 }
 
@@ -39,7 +45,12 @@ function formatNumber(n: number): string {
   return new Intl.NumberFormat("vi-VN").format(n);
 }
 
-export function ResultPanel({ story, onOpenReader, className }: ResultPanelProps) {
+export function ResultPanel({
+  story,
+  onOpenReader,
+  headerAction,
+  className,
+}: ResultPanelProps) {
   if (!story) {
     return (
       <Card className={className}>
@@ -63,12 +74,17 @@ export function ResultPanel({ story, onOpenReader, className }: ResultPanelProps
         <CardDescription>
           {formatNumber(story.chapters.length)} chương · {formatNumber(totalWords)} từ
         </CardDescription>
-        {onOpenReader ? (
+        {onOpenReader || headerAction ? (
           <CardAction>
-            <Button onClick={onOpenReader}>
-              <BookOpen aria-hidden />
-              Đọc truyện
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {headerAction}
+              {onOpenReader ? (
+                <Button onClick={onOpenReader}>
+                  <BookOpen aria-hidden />
+                  Đọc truyện
+                </Button>
+              ) : null}
+            </div>
           </CardAction>
         ) : null}
       </CardHeader>

@@ -16,7 +16,7 @@ import { useQueryState } from "nuqs";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { Card, CardContent } from "@/components/ui/card";
-import { PipelineForm } from "./PipelineForm";
+import { PipelineForm, type PipelineMode } from "./PipelineForm";
 import { TheaterPanel } from "./TheaterPanel";
 import { ResultPanel, type ResultStory } from "./ResultPanel";
 import { usePostStream } from "@/lib/sse/usePostStream";
@@ -26,7 +26,38 @@ import { useTheaterStore } from "@/stores/theater-store";
 import type { CreateStoryRequest } from "@/lib/api/queries";
 import type { AgentBubbleProps } from "./AgentBubble";
 
-export function PipelineScreen() {
+export interface PipelineScreenProps {
+  /**
+   * Pipeline mode forwarded to `PipelineForm`. Defaults to `"l2"` to keep
+   * the legacy `/` route behavior. The Khai sinh page at `/forge/` flips
+   * this via a toggle.
+   */
+  mode?: PipelineMode;
+  /**
+   * Optional header rendered above the form column. Used by Khai sinh to
+   * surface the L1/L2 toggle inside the form card without coupling the
+   * toggle UI to this component.
+   */
+  formHeader?: React.ReactNode;
+  /**
+   * Fires when a run finishes. Receives the raw `done.data` summary from
+   * `/api/pipeline/run`, suitable for `pipelineSummaryToStory`. Enables
+   * the Khai sinh "Save to library" CTA without re-parsing internal state.
+   */
+  onResult?: (rawDone: unknown) => void;
+  /**
+   * Optional action node rendered in the `ResultPanel` header (e.g. a
+   * "Save to library" button). Hidden until a run has completed.
+   */
+  resultAction?: React.ReactNode;
+}
+
+export function PipelineScreen({
+  mode = "l2",
+  formHeader,
+  onResult,
+  resultAction,
+}: PipelineScreenProps = {}) {
   const [sessionQuery, setSessionQuery] = useQueryState("session");
   const [pendingBody, setPendingBody] = React.useState<CreateStoryRequest | null>(
     null
@@ -54,18 +85,25 @@ export function PipelineScreen() {
     }
   }, [sessionId, sessionQuery, setSessionQuery]);
 
-  const handleMessage = React.useCallback((event: { data: string }) => {
-    applySseEventToStores(event, {
-      onChapterComplete: (label) => toast.success(`Hoàn tất ${label}`),
-      onDone: (payload) => {
-        const story = buildResultStoryFromDone(payload);
-        if (story) setResultStory(story);
-        toast.success("Sinh truyện hoàn tất");
-      },
-      onError: (msg) => toast.error(msg || "Pipeline thất bại"),
-      onInterrupted: () => toast.warning("Kết nối bị gián đoạn"),
-    });
-  }, []);
+  const handleMessage = React.useCallback(
+    (event: { data: string }) => {
+      applySseEventToStores(event, {
+        onChapterComplete: (label) => toast.success(`Hoàn tất ${label}`),
+        onDone: (payload) => {
+          const story = buildResultStoryFromDone(payload);
+          if (story) setResultStory(story);
+          // Expose the raw `done.data` for richer consumers (e.g. save-to-library).
+          // PipelineBridge already unwrapped the outer envelope; some backends
+          // double-wrap the payload, so forward whatever we got.
+          onResult?.(payload);
+          toast.success("Sinh truyện hoàn tất");
+        },
+        onError: (msg) => toast.error(msg || "Pipeline thất bại"),
+        onInterrupted: () => toast.warning("Kết nối bị gián đoạn"),
+      });
+    },
+    [onResult]
+  );
 
   const stream = usePostStream({
     url: pendingBody ? "/api/pipeline/run" : null,
@@ -108,8 +146,9 @@ export function PipelineScreen() {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[420px_1fr]">
       <Card>
-        <CardContent>
-          <PipelineForm onSubmit={onSubmit} pending={pending} />
+        <CardContent className="space-y-4">
+          {formHeader}
+          <PipelineForm onSubmit={onSubmit} pending={pending} mode={mode} />
         </CardContent>
       </Card>
 
@@ -122,7 +161,10 @@ export function PipelineScreen() {
           characters={characterList}
           debateMarker={debateMarker ?? undefined}
         />
-        <ResultPanel story={resultStory} />
+        <ResultPanel
+          story={resultStory}
+          headerAction={resultStory ? resultAction : undefined}
+        />
       </div>
     </div>
   );
