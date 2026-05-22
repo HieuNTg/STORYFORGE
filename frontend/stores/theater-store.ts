@@ -11,6 +11,7 @@
 import { create } from "zustand";
 import {
   sniffAgentTurn,
+  sniffAgentScore,
   sniffAgentsPhase,
   sniffDebateMarker,
   sniffReaderTurn,
@@ -149,11 +150,27 @@ export const useTheaterStore = create<TheaterState>((set) => ({
       return;
     }
 
+    const score = sniffAgentScore(msg);
+    if (score) {
+      const agent: TheaterAgent = {
+        id: bubbleId(score.name),
+        name: score.name,
+        status: score.status === "OK" ? "done" : "speaking",
+        message: `${score.name}: ${score.score}/1.0 (${score.issues} vấn đề)`,
+      };
+      set((state) => ({
+        agents: dedupePush(state.agents, agent, MAX_AGENT_BUBBLES),
+      }));
+      return;
+    }
+
     const phase = sniffAgentsPhase(msg);
     if (phase) {
-      set((state) => ({
-        agents: state.agents.map((a) => ({ ...a, status: "done" as AgentStatus })),
-      }));
+      if (phase.phase === "approved" || phase.phase === "revision") {
+        set((state) => ({
+          agents: state.agents.map((a) => ({ ...a, status: "done" as AgentStatus })),
+        }));
+      }
       return;
     }
 

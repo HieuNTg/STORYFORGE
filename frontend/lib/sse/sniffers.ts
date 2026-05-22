@@ -55,12 +55,11 @@ export function sniffAgentTurn(msg: string): AgentTurn | null {
   };
 }
 
-export interface AgentsPhase {
-  /** 'approved' when a layer passed agent review; 'revision' when another round is needed. */
-  phase: "approved" | "revision";
-  /** Layer number (1 or 2) when known. */
-  layer?: number;
-}
+export type AgentsPhase =
+  | { phase: "approved"; layer: number }
+  | { phase: "revision" }
+  | { phase: "evaluating"; layer: number }
+  | { phase: "round"; round: number; totalRounds: number; layer: number };
 
 /**
  * Parse the `[AGENTS] …` phase markers from `agent_registry.py:237/242`.
@@ -75,7 +74,47 @@ export function sniffAgentsPhase(msg: string): AgentsPhase | null {
   if (new RegExp(`^${LAYER_PREFIX}\\[AGENTS\\]\\s+Cần\\s+chỉnh\\s+sửa`).test(msg)) {
     return { phase: "revision" };
   }
+  const evaluating = msg.match(
+    new RegExp(`^${LAYER_PREFIX}\\[AGENTS\\]\\s+Phòng\\s+ban\\s+đang\\s+đánh\\s+giá\\s+Layer\\s+(\\d+)`)
+  );
+  if (evaluating) {
+    return { phase: "evaluating", layer: parseInt(evaluating[1]!, 10) };
+  }
+  const round = msg.match(
+    new RegExp(`^${LAYER_PREFIX}\\[AGENTS\\]\\s+Vòng\\s+đánh\\s+giá\\s+(\\d+)\\/(\\d+)\\s+-\\s+Layer\\s+(\\d+)`)
+  );
+  if (round) {
+    return {
+      phase: "round",
+      round: parseInt(round[1]!, 10),
+      totalRounds: parseInt(round[2]!, 10),
+      layer: parseInt(round[3]!, 10),
+    };
+  }
   return null;
+}
+
+export interface AgentScore {
+  name: string;
+  status: "OK" | "WARN";
+  score: number;
+  issues: number;
+}
+
+/**
+ * Parse `[AGENTS] OK|WARN <name>: <score>/1.0 (<n> vấn đề)` from `agent_registry.py`.
+ */
+export function sniffAgentScore(msg: string): AgentScore | null {
+  const m = msg.match(
+    new RegExp(`^${LAYER_PREFIX}\\[AGENTS\\]\\s+(OK|WARN)\\s+([^:]+):\\s+([\\d.]+)\\/1\\.0\\s+\\((\\d+)\\s+vấn đề\\)`)
+  );
+  if (!m) return null;
+  return {
+    name: m[2]!.trim(),
+    status: m[1] as "OK" | "WARN",
+    score: parseFloat(m[3]!),
+    issues: parseInt(m[4]!, 10),
+  };
 }
 
 /**

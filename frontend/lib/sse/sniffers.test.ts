@@ -10,6 +10,7 @@ import { describe, it, expect } from "vitest";
 import {
   sniffChapterCompletion,
   sniffAgentTurn,
+  sniffAgentScore,
   sniffAgentsPhase,
   sniffDebateMarker,
   sniffReaderTurn,
@@ -123,6 +124,22 @@ describe("sniffAgentsPhase", () => {
     });
   });
 
+  it("parses evaluating-layer marker", () => {
+    expect(sniffAgentsPhase("[AGENTS] Phòng ban đang đánh giá Layer 1...")).toEqual({
+      phase: "evaluating",
+      layer: 1,
+    });
+  });
+
+  it("parses round marker", () => {
+    expect(sniffAgentsPhase("[AGENTS] Vòng đánh giá 2/3 - Layer 1")).toEqual({
+      phase: "round",
+      round: 2,
+      totalRounds: 3,
+      layer: 1,
+    });
+  });
+
   it("tolerates [L2] layer prefix from orchestrator wrapper", () => {
     expect(sniffAgentsPhase("[L2] [AGENTS] Layer 2 được duyệt!")).toEqual({
       phase: "approved",
@@ -139,6 +156,39 @@ describe("sniffAgentsPhase", () => {
 
   it("returns null for non-[AGENTS] lines", () => {
     expect(sniffAgentsPhase("Chương 1: Khởi đầu")).toBeNull();
+  });
+});
+
+describe("sniffAgentScore", () => {
+  it("parses OK agent score line", () => {
+    expect(sniffAgentScore("[AGENTS] OK Biên kịch: 0.85/1.0 (2 vấn đề)")).toEqual({
+      name: "Biên kịch",
+      status: "OK",
+      score: 0.85,
+      issues: 2,
+    });
+  });
+
+  it("parses WARN agent score with [L1] prefix", () => {
+    expect(sniffAgentScore("[L1] [AGENTS] WARN Đạo diễn: 0.4/1.0 (5 vấn đề)")).toEqual({
+      name: "Đạo diễn",
+      status: "WARN",
+      score: 0.4,
+      issues: 5,
+    });
+  });
+
+  it("returns null for empty string", () => {
+    expect(sniffAgentScore("")).toBeNull();
+  });
+
+  it("returns null for unrelated log lines", () => {
+    expect(sniffAgentScore("[AGENTS] Layer 1 được duyệt!")).toBeNull();
+    expect(sniffAgentScore("Chương 1: Khởi đầu")).toBeNull();
+  });
+
+  it("returns null when score is missing", () => {
+    expect(sniffAgentScore("[AGENTS] OK Biên kịch: (2 vấn đề)")).toBeNull();
   });
 });
 
