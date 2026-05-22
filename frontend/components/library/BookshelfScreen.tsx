@@ -20,39 +20,8 @@ import {
   LIBRARY_MAX_STORIES,
 } from "@/stores/library-store";
 import { importStory } from "@/lib/library/json-io";
-import { genStoryId } from "@/lib/library/ids";
-import type { ForgeResponse, Story, StoryChapter } from "@/types/story";
-
-function genChapterId(): string {
-  return `ch-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-}
-
-function forgeToStory(forge: ForgeResponse): Story {
-  const now = new Date().toISOString();
-  const chapter: StoryChapter = {
-    id: genChapterId(),
-    title: forge.firstChapter.title,
-    content: forge.firstChapter.content,
-    summary: forge.firstChapter.summary,
-    badge: "ĐK",
-    status: "ready",
-    createdAt: now,
-  };
-  return {
-    id: genStoryId(),
-    title: forge.title,
-    genre: forge.genre,
-    setting: forge.setting,
-    tone: forge.tone,
-    description: forge.description,
-    coverUrl: null,
-    characters: forge.characters,
-    chapters: [chapter],
-    pendingChoices: forge.firstChapter.choices,
-    createdAt: now,
-    updatedAt: now,
-  };
-}
+import { forgeToStory } from "@/lib/library/story-mappers";
+import type { ForgeResponse, Story } from "@/types/story";
 
 export function BookshelfScreen() {
   const stories = useLibraryStore((s) => s.stories);
