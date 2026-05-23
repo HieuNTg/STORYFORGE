@@ -10,13 +10,23 @@ import { ProviderCard } from "./ProviderCard";
 
 export type { ProviderRowData, ProviderTestStatus };
 
+export interface ProviderEditPayload {
+  name: string;
+  base_url: string;
+  api_key: string;
+  model: string;
+  enabled: boolean;
+}
+
 export interface ProviderTableProps {
   providers: ProviderRowData[];
-  onTestConnection: (name: string) => void;
-  onToggleEnabled: (name: string, enabled: boolean) => void;
-  onEditBaseUrl: (name: string, url: string) => void;
-  testingName?: string;
-  testResults?: Record<string, ProviderTestStatus>;
+  onTestConnection: (index: number) => void;
+  onToggleEnabled: (index: number, enabled: boolean) => void;
+  onEditBaseUrl: (index: number, url: string) => void;
+  onEditProfile: (index: number, payload: ProviderEditPayload) => void;
+  onDeleteProfile: (index: number) => void;
+  testingIndex?: number | "__all__";
+  testResults?: Record<number, ProviderTestStatus>;
   className?: string;
 }
 
@@ -25,7 +35,9 @@ export function ProviderTable({
   onTestConnection,
   onToggleEnabled,
   onEditBaseUrl,
-  testingName,
+  onEditProfile,
+  onDeleteProfile,
+  testingIndex,
   testResults,
   className,
 }: ProviderTableProps) {
@@ -50,13 +62,17 @@ export function ProviderTable({
     >
       {providers.map((provider) => (
         <ProviderCard
-          key={provider.name}
+          key={provider.index}
           data={provider}
           onTestConnection={onTestConnection}
           onToggleEnabled={onToggleEnabled}
           onEditBaseUrl={onEditBaseUrl}
-          isTesting={testingName === provider.name || testingName === "__all__"}
-          testResult={testResults?.[provider.name] ?? "idle"}
+          onEditProfile={onEditProfile}
+          onDeleteProfile={onDeleteProfile}
+          isTesting={
+            testingIndex === provider.index || testingIndex === "__all__"
+          }
+          testResult={testResults?.[provider.index] ?? "idle"}
         />
       ))}
     </div>

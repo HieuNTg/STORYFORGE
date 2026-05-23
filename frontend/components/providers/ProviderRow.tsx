@@ -9,10 +9,14 @@ import { Switch } from "@/components/ui/switch";
 export type ProviderTestStatus = "idle" | "pass" | "fail";
 
 export interface ProviderRowData {
-  /** Stable provider name / id. */
+  /** Stable index into the backend fallback_models list — the real identity. */
+  index: number;
+  /** Provider display name (may collide across rows when two share a vendor). */
   name: string;
   /** Human-readable display label. */
   label?: string;
+  /** Provider model id (used for the edit form). */
+  model?: string;
   /** Whether the provider is enabled. */
   enabled: boolean;
   /** Base URL for API endpoint, editable. */

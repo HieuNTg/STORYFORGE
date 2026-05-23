@@ -372,6 +372,50 @@ export function useToggleProfile() {
   });
 }
 
+/**
+ * PUT /api/config/profiles/{index} — replace a fallback profile in place.
+ * Pass `api_key: ""` to keep the existing stored key (backend preserves it).
+ */
+export interface ProfileUpdate {
+  index: number;
+  name: string;
+  base_url: string;
+  api_key: string;
+  model: string;
+  enabled: boolean;
+}
+
+export function useUpdateProfile() {
+  const qc = useQueryClient();
+  return useMutation<{ status: string }, Error, ProfileUpdate>({
+    mutationFn: ({ index, ...body }) =>
+      apiFetch<{ status: string }>(`/api/config/profiles/${index}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["config"] });
+    },
+  });
+}
+
+/**
+ * DELETE /api/config/profiles/{index} — remove a fallback profile by index.
+ */
+export function useDeleteProfile() {
+  const qc = useQueryClient();
+  return useMutation<{ status: string; remaining: number }, Error, number>({
+    mutationFn: (index) =>
+      apiFetch<{ status: string; remaining: number }>(
+        `/api/config/profiles/${index}`,
+        { method: "DELETE" },
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["config"] });
+    },
+  });
+}
+
 // ---------- Usage (Account page) ----------
 
 /**

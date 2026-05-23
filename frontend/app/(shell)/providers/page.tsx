@@ -2,12 +2,18 @@
 
 /**
  * /providers — provider table with per-row test-connection, base URL edit,
- * and enabled toggle. Data comes from:
+ * enabled toggle, edit, and delete. Data comes from:
  *   - useConfig:         the canonical list of profiles + primary credentials
- *   - useProviderStatus: live availability + rate-limit (refresh every 30s)
- *   - useToggleProfile:  PATCH /api/config/profiles/{index}/toggle
- *   - useUpdateConfig:   PUT  /api/config (used for primary base URL edits)
- *   - useTestConnection: POST /api/config/test-connection
+ *   - useToggleProfile:  PATCH  /api/config/profiles/{index}/toggle
+ *   - useUpdateProfile:  PUT    /api/config/profiles/{index} (full replace)
+ *   - useDeleteProfile:  DELETE /api/config/profiles/{index}
+ *   - useTestConnection: POST   /api/config/test-connection
+ *
+ * Rows are identified by their `index` into `config.llm.profiles`, NOT by
+ * `name` — multiple profiles can share a vendor name (e.g. two "Google Gemini"
+ * fallbacks) which would otherwise collide as React keys and corrupt
+ * per-row state. The backend addresses profiles by index too, so this is the
+ * stable identity end-to-end.
  *
  * `test-connection` is a global probe — it returns per-profile pass/fail
  * once. We surface that as the per-row `testResult` map.
@@ -27,20 +33,28 @@ import {
 } from "@/components/providers/ProviderTable";
 import {
   useConfig,
-  useUpdateConfig,
   useToggleProfile,
+  useUpdateProfile,
+  useDeleteProfile,
   useTestConnection,
 } from "@/lib/api/queries";
+import type { ProviderEditPayload } from "@/components/providers/ProviderTable";
 
 export default function ProvidersPage() {
   const { data: config, isLoading, error, refetch } = useConfig();
-  const update = useUpdateConfig();
   const toggle = useToggleProfile();
+  const updateProfile = useUpdateProfile();
+  const deleteProfile = useDeleteProfile();
   const test = useTestConnection();
 
-  const [testingName, setTestingName] = React.useState<string | undefined>();
+  const [testingIndex, setTestingIndex] = React.useState<
+    number | "__all__" | undefined
+  >();
+  // Per-row test status, keyed by profile index. Index is stable for the
+  // lifetime of a config snapshot — when profiles are added/removed the
+  // backend reissues fresh indices and React Query invalidation resets state.
   const [testResults, setTestResults] = React.useState<
-    Record<string, ProviderTestStatus>
+    Record<number, ProviderTestStatus>
   >({});
 
   // Hydrate testResults from the per-profile `last_test_ok` persisted by the
@@ -50,20 +64,22 @@ export default function ProvidersPage() {
     if (!config) return;
     setTestResults((prev) => {
       const next = { ...prev };
-      for (const p of config.llm.profiles) {
-        if (next[p.name] && next[p.name] !== "idle") continue;
-        if (p.last_test_ok === true) next[p.name] = "pass";
-        else if (p.last_test_ok === false) next[p.name] = "fail";
-      }
+      config.llm.profiles.forEach((p, idx) => {
+        if (next[idx] && next[idx] !== "idle") return;
+        if (p.last_test_ok === true) next[idx] = "pass";
+        else if (p.last_test_ok === false) next[idx] = "fail";
+      });
       return next;
     });
   }, [config]);
 
   const rows: ProviderRowData[] = React.useMemo(() => {
     if (!config) return [];
-    return config.llm.profiles.map((p) => ({
+    return config.llm.profiles.map((p, idx) => ({
+      index: idx,
       name: p.name,
       label: `${p.name} (${p.model})`,
+      model: p.model,
       enabled: p.enabled,
       baseUrl: p.base_url,
       hasKey: Boolean(p.api_key_masked),
@@ -71,32 +87,32 @@ export default function ProvidersPage() {
   }, [config]);
 
   const handleEditBaseUrl = React.useCallback(
-    async (name: string, url: string) => {
-      if (name !== "__primary__") {
-        toast.error("Chỉ chỉnh được URL của hồ sơ mặc định ở đây");
-        return;
-      }
+    async (index: number, url: string) => {
+      const profile = config?.llm.profiles[index];
+      if (!profile) return;
       try {
-        await update.mutateAsync({ base_url: url });
+        await updateProfile.mutateAsync({
+          index,
+          name: profile.name,
+          base_url: url,
+          api_key: "",
+          model: profile.model,
+          enabled: profile.enabled,
+        });
         toast.success("Đã cập nhật URL gốc");
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Cập nhật thất bại";
         toast.error(msg);
       }
     },
-    [update],
+    [config, updateProfile],
   );
 
   const handleToggleEnabled = React.useCallback(
-    async (name: string, _enabled: boolean) => {
-      if (name === "__primary__") {
-        toast.error("Không thể tắt hồ sơ mặc định");
-        return;
-      }
-      const idx = config?.llm.profiles.findIndex((p) => p.name === name) ?? -1;
-      if (idx < 0) return;
+    async (index: number, _enabled: boolean) => {
+      if (!config?.llm.profiles[index]) return;
       try {
-        await toggle.mutateAsync(idx);
+        await toggle.mutateAsync(index);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Đổi trạng thái thất bại";
         toast.error(msg);
@@ -105,14 +121,53 @@ export default function ProvidersPage() {
     [config, toggle],
   );
 
+  const handleEditProfile = React.useCallback(
+    async (index: number, payload: ProviderEditPayload) => {
+      try {
+        await updateProfile.mutateAsync({ index, ...payload });
+        toast.success("Đã cập nhật nhà cung cấp");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Cập nhật thất bại";
+        toast.error(msg);
+      }
+    },
+    [updateProfile],
+  );
+
+  const handleDeleteProfile = React.useCallback(
+    async (index: number) => {
+      try {
+        await deleteProfile.mutateAsync(index);
+        setTestResults((prev) => {
+          // Drop the deleted index and shift everything above it down by one
+          // so persisted per-row status stays aligned with the new list.
+          const next: Record<number, ProviderTestStatus> = {};
+          for (const [k, v] of Object.entries(prev)) {
+            const i = Number(k);
+            if (i === index) continue;
+            next[i > index ? i - 1 : i] = v;
+          }
+          return next;
+        });
+        toast.success("Đã xóa nhà cung cấp");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Xóa thất bại";
+        toast.error(msg);
+      }
+    },
+    [deleteProfile],
+  );
+
   const runTestAll = React.useCallback(async () => {
-    setTestingName("__all__");
+    setTestingIndex("__all__");
     try {
       const result = await test.mutateAsync();
-      const next: Record<string, ProviderTestStatus> = {};
-      for (const p of result.profiles) {
-        next[p.name] = p.ok === true ? "pass" : p.ok === false ? "fail" : "idle";
-      }
+      // Backend returns results in the order [primary, ...fallback_models],
+      // so skip the leading "Primary" entry to align with profile indices.
+      const next: Record<number, ProviderTestStatus> = {};
+      result.profiles.slice(1).forEach((p, idx) => {
+        next[idx] = p.ok === true ? "pass" : p.ok === false ? "fail" : "idle";
+      });
       setTestResults((prev) => ({ ...prev, ...next }));
       if (result.ok) {
         toast.success(result.message || "Kết nối thành công");
@@ -123,12 +178,12 @@ export default function ProvidersPage() {
       const msg = e instanceof Error ? e.message : "Kiểm tra kết nối thất bại";
       toast.error(msg);
     } finally {
-      setTestingName(undefined);
+      setTestingIndex(undefined);
     }
   }, [test]);
 
   const handleTestConnection = React.useCallback(
-    async (_name: string) => {
+    async (_index: number) => {
       // Backend exposes a single all-profiles test endpoint. We run it once
       // and demultiplex into the per-row map.
       await runTestAll();
@@ -159,9 +214,9 @@ export default function ProvidersPage() {
             type="button"
             variant="outline"
             onClick={runTestAll}
-            disabled={testingName === "__all__" || test.isPending}
+            disabled={testingIndex === "__all__" || test.isPending}
           >
-            {testingName === "__all__"
+            {testingIndex === "__all__"
               ? "Đang kiểm tra..."
               : "Kiểm tra tất cả"}
           </Button>
@@ -175,7 +230,9 @@ export default function ProvidersPage() {
           onTestConnection={handleTestConnection}
           onToggleEnabled={handleToggleEnabled}
           onEditBaseUrl={handleEditBaseUrl}
-          testingName={testingName}
+          onEditProfile={handleEditProfile}
+          onDeleteProfile={handleDeleteProfile}
+          testingIndex={testingIndex}
           testResults={testResults}
         />
       )}
