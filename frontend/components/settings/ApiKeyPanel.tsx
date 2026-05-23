@@ -83,12 +83,12 @@ export function ApiKeyPanel() {
         {rows.length === 0 ? (
           <li className="text-xs text-muted-foreground">Chưa cấu hình nhà cung cấp.</li>
         ) : (
-          rows.map((r) => {
+          rows.map((r, index) => {
             const res = results[r.name];
             const ok = res?.ok ?? null;
             return (
               <li
-                key={r.name}
+                key={`${r.name}:${r.provider}:${r.model}:${r.base_url}:${index}`}
                 className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/40 px-3 py-2"
               >
                 <div className="flex min-w-0 flex-col">
