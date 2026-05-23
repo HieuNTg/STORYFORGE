@@ -23,7 +23,6 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
-  Workflow,
   Library,
   GitBranch,
   ChartBar,
@@ -62,7 +61,6 @@ interface PageEntry {
 }
 
 const PAGES: PageEntry[] = [
-  { key: "pipeline", label: "Pipeline", href: "/", icon: Workflow, keywords: ["home", "tạo", "generate"] },
   { key: "library", label: "Thư viện", href: "/library/", icon: Library, keywords: ["library", "stories", "truyện"] },
   { key: "branching", label: "Phân nhánh", href: "/branching/", icon: GitBranch, keywords: ["branch", "choice", "tree"] },
   { key: "analytics", label: "Phân tích", href: "/analytics/", icon: ChartBar, keywords: ["analytics", "stats", "chart"] },

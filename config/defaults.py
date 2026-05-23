@@ -15,9 +15,6 @@ class VoiceConfig:
     New call sites should read this nested shape; legacy call sites can keep
     using flat fields without breaking.
     """
-    # Generation (L1)
-    dedup_l1_l2: bool = True
-
     # Validation (L2)
     enabled: bool = True
     min_compliance: float = 0.75
@@ -272,7 +269,6 @@ class PipelineConfig:
     # L2 enhancement quality signals
     l2_use_l1_signals: bool = True  # wire L1 waypoints/summary/pacing/thread.status into L2
     l2_causal_audit: bool = True  # post-L2 causality verification (Phase B)
-    l2_agent_reasoning: bool = True  # DEAD: L2-D CoT-pre-action never wired; reserved name only
     l2_thread_pressure: bool = True  # thread.urgency → psychology pressure (Phase C)
     l2_contract_gate: bool = True  # post-L2 contract validation + optional rewrite (Phase E)
 
@@ -288,7 +284,6 @@ class PipelineConfig:
     enable_voice_contract_retry: bool = True         # Refine-with-hint on drift (vs. binary revert)
     voice_contract_retry_max: int = 1
     voice_min_compliance: float = 0.75               # Pass threshold per chapter
-    voice_dedup_l1_l2: bool = True                   # DEAD: dedup behaviour already implicit in enhancer; flag is read nowhere
     voice_binary_revert_floor: float = 0.5           # Below this compliance → last-resort revert
 
     # L2 Consistency Engine (master switch + thread watchdog sub-gate)
@@ -374,7 +369,7 @@ class PipelineConfig:
     enable_incremental_publish: bool = False  # Opt-in — emits chapter_enhanced events
 
     # Forge-from-Sentence (Phase 1) — fast synchronous BFF over cheap_model.
-    enable_sentence_forge: bool = False
+    enable_sentence_forge: bool = True
     forge_cheap_model_override: str = ""  # empty = use LLMConfig.cheap_model
 
     # Character Traits (Phase 2) — 4-axis (strength/wisdom/agility/scheme) generation endpoint.
@@ -382,15 +377,14 @@ class PipelineConfig:
     character_traits_cheap_model_override: str = ""  # empty = use LLMConfig.cheap_model
 
     # Simulation Transcript (Phase 3) — structured TranscriptTurn[] + /api/simulation/* endpoints.
-    enable_simulation_transcript: bool = False
+    enable_simulation_transcript: bool = True
     enable_drama_climax: bool = False  # extends drama_level to {low,medium,high,climax}
     simulation_continue_cheap_model_override: str = ""  # empty = use LLMConfig.cheap_model
 
     # Reader + Branching + Pipeline overlay (Phase 4) — cinematic reader chrome,
     # per-chapter illustration trigger, SSE-driven overlay during branch generation.
-    # Default off per Rule 8 — flip via /api/config after a sprint of validation.
-    enable_pipeline_overlay: bool = False
-    enable_chapter_illustration: bool = False
+    enable_pipeline_overlay: bool = True
+    enable_chapter_illustration: bool = True
 
     # RFC voice-handling-consolidation Phase A: nested view of voice flags.
     # Defaults match flat voice_* / l2_voice_* fields. Synced in __post_init__.
@@ -403,7 +397,6 @@ class PipelineConfig:
         """
         if self.voice == VoiceConfig():
             self.voice = VoiceConfig(
-                dedup_l1_l2=self.voice_dedup_l1_l2,
                 enabled=self.l2_voice_preservation,
                 min_compliance=self.voice_min_compliance,
                 drift_warn_threshold=self.l2_voice_drift_threshold,

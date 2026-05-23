@@ -65,23 +65,10 @@ const DRAMA_TO_LABEL: Record<number, string> = {
   10: "cao",
 };
 
-/**
- * Pipeline mode:
- *   - `"l2"` (default) — Full Layer-2 enhanced run (kịch tính, enhancer, debate).
- *     Matches the legacy `/` pipeline behavior; emits an `enhanced` story.
- *   - `"l1"` — Layer-1 only. Skips the enhancer, debate, smart revision, and
- *     L2 thresholds. Emits a plain `draft` story. Per CLAUDE.md the L1/L2
- *     pipelines are independent at the backend level; this flag composes the
- *     request payload so the user does not have to know which knob is which.
- */
-export type PipelineMode = "l1" | "l2";
-
 export interface PipelineFormProps {
   /** Called with a backend-ready request when the form passes validation. */
   onSubmit: (req: CreateStoryRequest) => void;
   pending?: boolean;
-  /** Defaults to `"l2"` to preserve legacy `/` behavior. */
-  mode?: PipelineMode;
 }
 
 const DEFAULTS: PipelineFormValues = {
@@ -98,7 +85,6 @@ const DEFAULTS: PipelineFormValues = {
 export function PipelineForm({
   onSubmit,
   pending = false,
-  mode = "l2",
 }: PipelineFormProps) {
   const { data: choices } = useGenres();
 
@@ -109,7 +95,6 @@ export function PipelineForm({
 
   const submit = form.handleSubmit((values) => {
     const dramaLabel = DRAMA_TO_LABEL[Math.round(values.drama)] ?? "cao";
-    const isL1 = mode === "l1";
     const req: CreateStoryRequest = {
       title: "",
       genre: values.genre,
@@ -123,23 +108,19 @@ export function PipelineForm({
       drama_level: dramaLabel,
       enable_agents: values.enable_agents,
       enable_quality_gate: values.enable_quality_gate,
-      // L1 keeps the foundation: emotional memory, proactive constraints,
-      // thread enforcement, beat writing, causal graph, self-review.
-      // L2-only knobs (debate / smart revision / drama enhancer thresholds)
-      // are zeroed out when mode === "l1" so the backend skips them.
       enable_l1_consistency: false,
       enable_emotional_memory: true,
       enable_proactive_constraints: true,
       enable_thread_enforcement: true,
-      enable_emotional_bridge: !isL1,
+      enable_emotional_bridge: true,
       enable_scene_beat_writing: true,
       enable_l1_causal_graph: true,
       enable_self_review: true,
-      enable_agent_debate: !isL1 && values.enable_agents,
-      l2_drama_threshold: isL1 ? 1.0 : 0.5,
-      l2_drama_target: isL1 ? 1.0 : 0.65,
+      enable_agent_debate: values.enable_agents,
+      l2_drama_threshold: 0.5,
+      l2_drama_target: 0.65,
       quality_gate_threshold: 2.5,
-      enable_smart_revision: !isL1,
+      enable_smart_revision: true,
       smart_revision_threshold: 3.5,
       shots_per_chapter: 8,
       enable_scoring: values.enable_quality_gate,

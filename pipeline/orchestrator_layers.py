@@ -397,7 +397,15 @@ async def run_full_pipeline(
             self.output.logs.append(msg)
         logger.info(msg)
         if progress_callback:
-            progress_callback(msg)
+            _probe_key = "Layer 1 hoàn tất" in msg
+            try:
+                progress_callback(msg)
+            except Exception as _e:
+                logger.exception("[PROBE-OLOG] _log progress_callback raised: %s", _e)
+                raise
+            else:
+                if _probe_key:
+                    logger.info("[PROBE-OLOG] _log progress_callback returned for: %s", msg[:80])
 
     with self._lock:
         self.output = PipelineOutput(status="running", current_layer=1)
@@ -476,19 +484,69 @@ async def run_full_pipeline(
                 except Exception as e:
                     logger.warning(f"Chapter checkpoint save failed (non-fatal): {e}")
 
-        draft = await asyncio.to_thread(
-            self.story_gen.generate_full_story,
-            title=title, genre=genre, idea=idea, style=style,
-            num_chapters=num_chapters, num_characters=num_characters,
-            word_count=word_count,
-            progress_callback=lambda m: _log(f"[L1] {m}"),
-            stream_callback=stream_callback,
-            batch_checkpoint_callback=_l1_chkpt_cb,
-        )
+        # Live per-chapter agent review hook — when the user enables the
+        # "Hội thoại tác giả" debate, fire a single-iteration review on the
+        # partial draft right after each chapter is written so [AGENTS] log
+        # lines stream into the SSE while L1 is still in progress (the post-L1
+        # cycle below still runs the full review).
+        _l1_chapter_review_cb = None
+        if enable_agents and AgentRegistry is not None and getattr(
+            self.config.pipeline, "enable_agent_debate", False
+        ):
+            _registry = AgentRegistry()
+            def _l1_chapter_review_cb(_chapter, partial_draft, _total):
+                try:
+                    self.output.story_draft = partial_draft
+                    _registry.run_review_cycle(
+                        self.output,
+                        layer=1,
+                        max_iterations=1,
+                        progress_callback=lambda m: _log(f"[L1] {m}"),
+                    )
+                except Exception as e:
+                    logger.warning(f"Per-chapter agent review failed (non-fatal): {e}")
+
+        logger.info("[PROBE-O1] orchestrator: about to await to_thread(generate_full_story)")
+        _heartbeat_stop = asyncio.Event()
+
+        async def _heartbeat():
+            n = 0
+            while not _heartbeat_stop.is_set():
+                logger.info("[PROBE-HB] main loop alive tick=%d", n)
+                n += 1
+                try:
+                    await asyncio.wait_for(_heartbeat_stop.wait(), timeout=0.5)
+                except asyncio.TimeoutError:
+                    pass
+
+        _hb_task = asyncio.create_task(_heartbeat())
+        try:
+            draft = await asyncio.to_thread(
+                self.story_gen.generate_full_story,
+                title=title, genre=genre, idea=idea, style=style,
+                num_chapters=num_chapters, num_characters=num_characters,
+                word_count=word_count,
+                progress_callback=lambda m: _log(f"[L1] {m}"),
+                stream_callback=stream_callback,
+                batch_checkpoint_callback=_l1_chkpt_cb,
+                chapter_complete_callback=_l1_chapter_review_cb,
+            )
+        finally:
+            _heartbeat_stop.set()
+            try:
+                await _hb_task
+            except Exception:
+                pass
+        logger.info("[PROBE-O2] orchestrator: to_thread returned, draft type=%s chapters=%d",
+                    type(draft).__name__, len(getattr(draft, "chapters", []) or []))
+        logger.info("[PROBE-O3] orchestrator: about to acquire self._lock")
         with self._lock:
+            logger.info("[PROBE-O4] orchestrator: inside self._lock, assigning story_draft")
             self.output.story_draft = draft
             self.output.progress = 0.33
+        logger.info("[PROBE-O5] orchestrator: released self._lock, about to _log Layer 1 hoàn tất trong")
         _log(f"Layer 1 hoàn tất trong {time.time() - layer_start:.1f}s")
+        logger.info("[PROBE-O6] orchestrator: post-_log returned, entering context-health block")
 
         # Surface context health (Sprint 1 Task 1)
         try:

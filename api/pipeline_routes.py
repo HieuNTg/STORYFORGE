@@ -8,6 +8,8 @@ import queue as _queue
 import os
 import time
 import uuid
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
@@ -18,6 +20,7 @@ from middleware.rbac import Permission, require_permission_if_enabled
 from services.i18n import I18n
 from services.text_utils import sanitize_story_html
 from pipeline.orchestrator import PipelineOrchestrator
+from api import pipeline_job_registry as _jobs
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
@@ -362,8 +365,14 @@ async def run_pipeline(request: Request, body: PipelineRequest):
         async with _orchestrators_lock:
             _sessions[session_id] = (orch, time.time(), client_ip)
 
-        logs = []
-        progress_queue: _queue.Queue = _queue.Queue()
+        # Register a long-lived job record so the pipeline survives if the
+        # client disconnects. The job carries the progress_queue, logs and
+        # final summary; FE can poll GET /api/pipeline/run/{session_id} to
+        # recover the result after SSE drop. See pipeline_job_registry.py.
+        job = await _jobs.register(session_id, kind="run")
+        job.orchestrator = orch
+        progress_queue: _queue.Queue = job.progress_queue
+        logs = job.logs
         stream_text = [""]
 
         def on_progress(msg):
@@ -472,8 +481,33 @@ async def run_pipeline(request: Request, body: PipelineRequest):
             except Exception as e:
                 logger.exception(f"Pipeline error (session={session_id}): {e}")
                 progress_queue.put_nowait(("error", "An unexpected error occurred. Please try again."))
+            finally:
+                # Persist final state into the registry so FE can recover via
+                # GET /api/pipeline/run/{session_id} even if SSE was lost.
+                final_summary = None
+                final_error = None
+                output = result[0]
+                if output is not None:
+                    try:
+                        from api.pipeline_output_builder import build_output_summary
+                        safe_output = output.model_copy(deep=True)
+                        final_summary = build_output_summary(safe_output)
+                        final_summary["session_id"] = session_id
+                        final_summary["logs"] = list(job.logs)
+                        _sanitize_summary(final_summary)
+                    except Exception as exc:
+                        logger.exception(
+                            f"Failed to build final summary (session={session_id}): {exc}"
+                        )
+                        final_error = "Failed to assemble pipeline result."
+                else:
+                    final_error = "Pipeline produced no output."
+                await _jobs.mark_done(
+                    session_id, summary=final_summary, error=final_error
+                )
 
         task = asyncio.create_task(_run_async())
+        job.task = task
         _active_tasks.add(task)
         task.add_done_callback(_active_tasks.discard)
 
@@ -481,11 +515,18 @@ async def run_pipeline(request: Request, body: PipelineRequest):
             # Send session_id first
             yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
 
+            last_yield = time.monotonic()
             while not task.done():
-                # Check for client disconnect
+                # Client disconnect: close THIS stream only. Do NOT cancel
+                # the pipeline task — the worker thread cannot be killed
+                # anyway, and discarding its output silently is the bug
+                # this whole refactor fixes. The job keeps running; its
+                # final state is poll-able via GET /api/pipeline/run/{sid}.
                 if await request.is_disconnected():
-                    logger.info(f"Client disconnected from /run stream (session={session_id})")
-                    task.cancel()
+                    logger.info(
+                        f"Client disconnected from /run stream (session={session_id}) — "
+                        f"job continues in background"
+                    )
                     return
                 try:
                     msg_type, msg_data = await asyncio.to_thread(progress_queue.get, timeout=0.2)
@@ -503,7 +544,15 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                     if msg_type == "log":
                         event["logs_count"] = len(logs)
                     yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                    last_yield = time.monotonic()
                 except _queue.Empty:
+                    # Heartbeat: keep proxies + browsers from closing the idle socket
+                    # during long LLM calls with no progress events. SSE comment
+                    # frames are ignored by EventSource clients but reset proxy
+                    # idle timers (Next dev proxy ~30s, Cloudflare 100s, etc.).
+                    if time.monotonic() - last_yield > 10:
+                        yield ": ping\n\n"
+                        last_yield = time.monotonic()
                     continue
 
             # Drain any remaining messages after task completion
@@ -517,38 +566,38 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                 except _queue.Empty:
                     break
 
-            # Send final result
-            output = result[0]
-            if output:
-                from api.pipeline_output_builder import build_output_summary
-                safe_output = output.model_copy(deep=True)
-                summary = build_output_summary(safe_output)
-                summary["session_id"] = session_id
-                summary["logs"] = logs
-                _sanitize_summary(summary)
-                yield f"data: {json.dumps({'type': 'done', 'data': summary}, ensure_ascii=False, default=str)}\n\n"
+            # Send final result — prefer the summary already persisted in
+            # the job (built in `_run_async` finally) so the wire shape
+            # matches what GET /api/pipeline/run/{sid} returns.
+            if job.summary is not None:
+                yield (
+                    "data: "
+                    + json.dumps(
+                        {"type": "done", "data": job.summary},
+                        ensure_ascii=False,
+                        default=str,
+                    )
+                    + "\n\n"
+                )
             else:
-                yield f"data: {json.dumps({'type': 'error', 'data': 'Pipeline thất bại'})}\n\n"
+                err_msg = job.error or "Pipeline thất bại"
+                yield f"data: {json.dumps({'type': 'error', 'data': err_msg})}\n\n"
         except asyncio.CancelledError:
+            # SSE generator itself was cancelled (e.g. server shutdown).
+            # Leave the background job alone — it'll finish on its own,
+            # and the result will be available via the GET endpoint.
             logger.info(f"SSE /run stream cancelled (session={session_id})")
-            if not task.done():
-                task.cancel()
         except (ConnectionError, ConnectionResetError):
             logger.info(f"SSE /run client connection lost (session={session_id})")
-            if not task.done():
-                task.cancel()
         except (ValueError, TypeError) as e:
             logger.warning(f"SSE /run serialization error (session={session_id}): {e}")
-            if not task.done():
-                task.cancel()
         except Exception:
             logger.exception(f"SSE /run unexpected error (session={session_id})")
-            if not task.done():
-                task.cancel()
             raise
         finally:
-            async with _orchestrators_lock:
-                _sessions.pop(session_id, None)
+            # Do NOT pop _sessions here — the orchestrator must remain
+            # findable for the simulator and for follow-up requests within
+            # the TTL window. _session_reaper handles eviction by age.
             logger.debug(f"SSE /run stream closed (session={session_id})")
 
     return StreamingResponse(
@@ -556,6 +605,33 @@ async def run_pipeline(request: Request, body: PipelineRequest):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.get("/run/{session_id}", dependencies=[_READ_STORIES])
+async def get_run_status(session_id: str):
+    """Poll a pipeline job's current status + final summary.
+
+    Lets the FE recover the result after a lost SSE stream. The job stays
+    in the registry for `JOB_RETENTION_SECONDS` (default 1h) after it
+    finishes, so a refresh inside that window returns the same payload the
+    SSE `done` event would have sent.
+    """
+    job = _jobs.get(session_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Session không tồn tại hoặc đã hết hạn.")
+
+    payload: dict[str, Any] = {
+        "session_id": job.session_id,
+        "status": job.status,
+        "kind": job.kind,
+        "logs_count": len(job.logs),
+        "created_at": job.created_at,
+        "completed_at": job.completed_at,
+    }
+    if job.status in ("done", "error", "cancelled"):
+        payload["summary"] = job.summary
+        payload["error"] = job.error
+    return payload
 
 
 @router.post("/resume", dependencies=[_CREATE_STORIES])
@@ -597,8 +673,12 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
         async with _orchestrators_lock:
             _sessions[session_id] = (orch, time.time(), client_ip)
 
-        logs = []
-        progress_queue: _queue.Queue = _queue.Queue()
+        # Register a long-lived job so the resume keeps running even if the
+        # SSE client drops. FE recovers via GET /api/pipeline/run/{session_id}.
+        job = await _jobs.register(session_id, kind="resume")
+        job.orchestrator = orch
+        progress_queue: _queue.Queue = job.progress_queue
+        logs = job.logs
 
         def on_progress(msg):
             logs.append(msg)
@@ -625,19 +705,46 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
             except Exception as e:
                 logger.exception(f"Resume error (session={session_id}): {e}")
                 progress_queue.put_nowait(("error", "An unexpected error occurred. Please try again."))
+            finally:
+                final_summary = None
+                final_error = None
+                output = result[0]
+                if output is not None:
+                    try:
+                        from api.pipeline_output_builder import build_output_summary
+                        safe_output = output.model_copy(deep=True)
+                        final_summary = build_output_summary(safe_output)
+                        final_summary["session_id"] = session_id
+                        final_summary["logs"] = list(job.logs)
+                        _sanitize_summary(final_summary)
+                    except Exception as exc:
+                        logger.exception(
+                            f"Failed to build final resume summary (session={session_id}): {exc}"
+                        )
+                        final_error = "Failed to assemble resume result."
+                else:
+                    final_error = "Resume produced no output."
+                await _jobs.mark_done(
+                    session_id, summary=final_summary, error=final_error
+                )
 
         task = asyncio.create_task(_run_async())
+        job.task = task
         _active_tasks.add(task)
         task.add_done_callback(_active_tasks.discard)
 
         try:
             yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
 
+            last_yield = time.monotonic()
             while not task.done():
-                # Check for client disconnect
+                # Client disconnect: stop streaming but let the resume run
+                # to completion — its result is recoverable via the GET endpoint.
                 if await request.is_disconnected():
-                    logger.info(f"Client disconnected from /resume stream (session={session_id})")
-                    task.cancel()
+                    logger.info(
+                        f"Client disconnected from /resume stream (session={session_id}) — "
+                        f"job continues in background"
+                    )
                     return
                 try:
                     msg_type, msg_data = await asyncio.to_thread(progress_queue.get, timeout=0.2)
@@ -652,7 +759,11 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
                     if msg_type == "log":
                         event["logs_count"] = len(logs)
                     yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                    last_yield = time.monotonic()
                 except _queue.Empty:
+                    if time.monotonic() - last_yield > 10:
+                        yield ": ping\n\n"
+                        last_yield = time.monotonic()
                     continue
 
             # Drain remaining messages after task completion
@@ -666,37 +777,31 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
                 except _queue.Empty:
                     break
 
-            output = result[0]
-            if output:
-                from api.pipeline_output_builder import build_output_summary
-                safe_output = output.model_copy(deep=True)
-                summary = build_output_summary(safe_output)
-                summary["session_id"] = session_id
-                summary["logs"] = logs
-                _sanitize_summary(summary)
-                yield f"data: {json.dumps({'type': 'done', 'data': summary}, ensure_ascii=False, default=str)}\n\n"
+            if job.summary is not None:
+                yield (
+                    "data: "
+                    + json.dumps(
+                        {"type": "done", "data": job.summary},
+                        ensure_ascii=False,
+                        default=str,
+                    )
+                    + "\n\n"
+                )
             else:
-                yield f"data: {json.dumps({'type': 'error', 'data': 'Resume failed'})}\n\n"
+                err_msg = job.error or "Resume failed"
+                yield f"data: {json.dumps({'type': 'error', 'data': err_msg})}\n\n"
         except asyncio.CancelledError:
             logger.info(f"SSE /resume stream cancelled (session={session_id})")
-            if not task.done():
-                task.cancel()
         except (ConnectionError, ConnectionResetError):
             logger.info(f"SSE /resume client connection lost (session={session_id})")
-            if not task.done():
-                task.cancel()
         except (ValueError, TypeError) as e:
             logger.warning(f"SSE /resume serialization error (session={session_id}): {e}")
-            if not task.done():
-                task.cancel()
         except Exception:
             logger.exception(f"SSE /resume unexpected error (session={session_id})")
-            if not task.done():
-                task.cancel()
             raise
         finally:
-            async with _orchestrators_lock:
-                _sessions.pop(session_id, None)
+            # Leave _sessions alone — the TTL reaper handles eviction so the
+            # orchestrator stays findable for downstream lookups within TTL.
             logger.debug(f"SSE /resume stream closed (session={session_id})")
 
     return StreamingResponse(

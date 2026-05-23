@@ -128,6 +128,11 @@ class ConfigUpdate(BaseModel):
     hf_token: Optional[str] = None
     hf_image_model: Optional[str] = None
     image_prompt_style: Optional[str] = None
+    # Feature toggles (PipelineConfig flags exposed in Settings UI)
+    enable_drama_climax: Optional[bool] = None
+    enable_pipeline_overlay: Optional[bool] = None
+    enable_chapter_illustration: Optional[bool] = None
+    enable_simulation_transcript: Optional[bool] = None
     # FlowKit (Chrome Extension + Google Labs proxy)
     flowkit_enabled: Optional[bool] = None
     flowkit_port: Optional[int] = None
@@ -326,6 +331,16 @@ def save_config(body: ConfigUpdate):
         cfg.pipeline.hf_image_model = body.hf_image_model
     if body.image_prompt_style is not None:
         cfg.pipeline.image_prompt_style = body.image_prompt_style
+    # Feature toggles (plain on/off, no gate)
+    for _attr in (
+        "enable_drama_climax",
+        "enable_pipeline_overlay",
+        "enable_chapter_illustration",
+        "enable_simulation_transcript",
+    ):
+        _val = getattr(body, _attr, None)
+        if _val is not None:
+            setattr(cfg.pipeline, _attr, _val)
     # FlowKit persistence (gate already enforced above)
     for _attr in (
         "flowkit_enabled", "flowkit_port", "flowkit_style_reference_path",

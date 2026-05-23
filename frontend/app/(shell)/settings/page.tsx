@@ -20,6 +20,7 @@ import { GeneralFormFields } from "@/components/settings/GeneralFormFields";
 import { ApiKeysFormFields } from "@/components/settings/ApiKeysFormFields";
 import { AdvancedL1FormFields } from "@/components/settings/AdvancedL1FormFields";
 import { AdvancedL2FormFields } from "@/components/settings/AdvancedL2FormFields";
+import { FeatureTogglesSettings } from "@/components/settings/FeatureTogglesSettings";
 import { ApiKeyPanel } from "@/components/settings/ApiKeyPanel";
 import { UsageTiles } from "@/components/settings/UsageTiles";
 import { TokenUsageChart } from "@/components/settings/TokenUsageChart";
@@ -63,7 +64,12 @@ export default function SettingsPage() {
         {
           id: "general",
           label: "Chung",
-          content: <GeneralFormFields config={config} />,
+          content: (
+            <div className="flex flex-col gap-6">
+              <FeatureTogglesSettings config={config} />
+              <GeneralFormFields config={config} />
+            </div>
+          ),
         },
         {
           id: "api-keys",

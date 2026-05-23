@@ -216,7 +216,9 @@ class StoryGenerator:
     def generate_full_story(self, title, genre, idea, style="Miêu tả chi tiết",
                              num_chapters=10, num_characters=5, word_count=2000,
                              progress_callback=None, stream_callback=None,
-                             batch_checkpoint_callback=None, resume_from_batch=0) -> StoryDraft:
+                             batch_checkpoint_callback=None,
+                             chapter_complete_callback=None,
+                             resume_from_batch=0) -> StoryDraft:
         """Generate complete story from start to finish."""
 
         def _log(msg):
@@ -533,6 +535,7 @@ class StoryGenerator:
             premise=premise,
             voice_profiles=voice_profiles,
             batch_checkpoint_callback=batch_checkpoint_callback,
+            chapter_complete_callback=chapter_complete_callback,
             resume_from_batch=resume_from_batch,
             idea=idea or "",
             idea_summary=idea_summary_for_chapters,
@@ -589,6 +592,12 @@ class StoryGenerator:
             logger.warning("L1 handoff envelope build failed (non-fatal): %s", e)
 
         _log("Layer 1 hoàn tất - Bản thảo truyện đã sẵn sàng!")
+        logger.info("[PROBE-G1] generator: about to return draft from worker thread")
+        import threading as _t_probe
+        logger.info(
+            "[PROBE-G2] generator: worker tid=%s daemon=%s draft_id=%s",
+            _t_probe.get_ident(), _t_probe.current_thread().daemon, id(draft),
+        )
         return draft
 
     def rebuild_context(self, draft: StoryDraft) -> StoryContext:

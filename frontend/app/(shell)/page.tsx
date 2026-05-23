@@ -1,15 +1,5 @@
-import { getTranslations } from "next-intl/server";
-import { PipelineScreen } from "@/components/pipeline/PipelineScreen";
+import { redirect } from "next/navigation";
 
-export default async function PipelinePage() {
-  const t = await getTranslations("pages.pipeline");
-  return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-medium text-foreground">{t("title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
-      </header>
-      <PipelineScreen />
-    </div>
-  );
+export default function RootPage() {
+  redirect("/forge/");
 }

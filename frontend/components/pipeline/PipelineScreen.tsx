@@ -16,7 +16,7 @@ import { useQueryState } from "nuqs";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
 import { Card, CardContent } from "@/components/ui/card";
-import { PipelineForm, type PipelineMode } from "./PipelineForm";
+import { PipelineForm } from "./PipelineForm";
 import { TheaterPanel } from "./TheaterPanel";
 import { ResultPanel, type ResultStory } from "./ResultPanel";
 import { usePostStream } from "@/lib/sse/usePostStream";
@@ -28,15 +28,7 @@ import type { AgentBubbleProps } from "./AgentBubble";
 
 export interface PipelineScreenProps {
   /**
-   * Pipeline mode forwarded to `PipelineForm`. Defaults to `"l2"` to keep
-   * the legacy `/` route behavior. The Khai sinh page at `/forge/` flips
-   * this via a toggle.
-   */
-  mode?: PipelineMode;
-  /**
-   * Optional header rendered above the form column. Used by Khai sinh to
-   * surface the L1/L2 toggle inside the form card without coupling the
-   * toggle UI to this component.
+   * Optional header rendered above the form column.
    */
   formHeader?: React.ReactNode;
   /**
@@ -53,7 +45,6 @@ export interface PipelineScreenProps {
 }
 
 export function PipelineScreen({
-  mode = "l2",
   formHeader,
   onResult,
   resultAction,
@@ -148,7 +139,7 @@ export function PipelineScreen({
       <Card>
         <CardContent className="space-y-4">
           {formHeader}
-          <PipelineForm onSubmit={onSubmit} pending={pending} mode={mode} />
+          <PipelineForm onSubmit={onSubmit} pending={pending} />
         </CardContent>
       </Card>
 

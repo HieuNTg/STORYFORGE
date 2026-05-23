@@ -436,6 +436,7 @@ class BatchChapterGenerator:
         progress_callback: Optional[Callable] = None,
         stream_callback: Optional[Callable] = None,
         batch_checkpoint_callback: Optional[Callable] = None,
+        chapter_complete_callback: Optional[Callable] = None,
         resume_from_batch: int = 0,
         # NEW:
         macro_arcs=None,
@@ -549,6 +550,13 @@ class BatchChapterGenerator:
 
                 for ch in batch_chapters:
                     draft.chapters.append(ch)
+                    if chapter_complete_callback:
+                        try:
+                            chapter_complete_callback(ch, draft, len(outlines))
+                        except Exception as e:
+                            logger.warning(
+                                "chapter_complete_callback failed (non-fatal): %s", e
+                            )
 
                 # Context health check (Sprint 1 Task 1)
                 self._check_context_health(story_context, batch_idx, _log)

@@ -74,6 +74,8 @@ repomix-output.xml
 .repomixignore
 release-manifest.json
 .serena/cache
+.serena/
+.understand-anything/
 
 # ── Claude Code / AI tools ────────────────────────────────────────
 .claude/

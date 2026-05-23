@@ -252,6 +252,9 @@ def main():
         from api.pipeline_routes import start_session_reaper
         start_session_reaper()
         logger.info("Session reaper started")
+        from api.pipeline_job_registry import start_job_reaper
+        start_job_reaper()
+        logger.info("Pipeline job reaper started")
 
         # FlowKit: init jobs.db + start Veo poll loop (gated on flowkit_enabled).
         try:

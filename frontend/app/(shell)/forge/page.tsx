@@ -3,16 +3,14 @@
 /**
  * Khai sinh — the canonical entry point for spec-to-story generation.
  *
- * Hosts the full `/api/pipeline/run` flow (via `PipelineScreen`) wrapped with:
- *   - An L1 / L2 mode toggle (single source of truth for the run's depth).
- *   - A "Lưu vào thư viện" CTA on the result panel that maps the pipeline's
- *     `done.data` summary onto a `Story` and pushes it into `useLibraryStore`.
+ * Hosts the full `/api/pipeline/run` flow (via `PipelineScreen`) plus a
+ * "Lưu vào thư viện" CTA on the result panel that maps the pipeline's
+ * `done.data` summary onto a `Story` and pushes it into `useLibraryStore`.
  *
  * Locked product decisions (do not re-litigate inside the page):
- *   - This page uses the full pipeline. The cheap 1-sentence forge stays
- *     inside the Library and is unaffected.
- *   - L1 and L2 live behind a single toggle here; backend pipelines remain
- *     independent (CLAUDE.md). The toggle just composes the request payload.
+ *   - Every run uses the full A-Z pipeline (L1 → L2). No user-facing mode
+ *     picker — CEO decision.
+ *   - The cheap 1-sentence forge stays inside the Library and is unaffected.
  *   - Sidebar PRIMARY count stays locked at 7 — no new nav entry.
  */
 
@@ -22,7 +20,6 @@ import { toast } from "sonner";
 import { BookmarkPlus, BookmarkCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PipelineScreen } from "@/components/pipeline/PipelineScreen";
-import type { PipelineMode } from "@/components/pipeline/PipelineForm";
 import {
   useLibraryStore,
   rehydrateLibrary,
@@ -32,75 +29,10 @@ import {
   pipelineSummaryToStory,
   type PipelineDoneSummary,
 } from "@/lib/library/story-mappers";
-import { cn } from "@/lib/utils";
-
-/**
- * Visual L1 / L2 segmented control. Lives inside the form card via
- * `PipelineScreen`'s `formHeader` slot so the toggle moves with the form
- * column at narrow widths.
- */
-function ModeToggle({
-  mode,
-  onChange,
-  disabled,
-  l1Label,
-  l2Label,
-  l1Description,
-  l2Description,
-  ariaLabel,
-}: {
-  mode: PipelineMode;
-  onChange: (m: PipelineMode) => void;
-  disabled?: boolean;
-  l1Label: string;
-  l2Label: string;
-  l1Description: string;
-  l2Description: string;
-  ariaLabel: string;
-}) {
-  const items: Array<{ key: PipelineMode; label: string; desc: string }> = [
-    { key: "l1", label: l1Label, desc: l1Description },
-    { key: "l2", label: l2Label, desc: l2Description },
-  ];
-  return (
-    <div
-      role="radiogroup"
-      aria-label={ariaLabel}
-      className="grid grid-cols-2 gap-2"
-    >
-      {items.map((item) => {
-        const active = mode === item.key;
-        return (
-          <button
-            type="button"
-            role="radio"
-            aria-checked={active}
-            disabled={disabled}
-            key={item.key}
-            onClick={() => onChange(item.key)}
-            className={cn(
-              "flex flex-col items-start gap-0.5 rounded-md border px-3 py-2 text-left text-sm transition-colors",
-              "disabled:cursor-not-allowed disabled:opacity-50",
-              active
-                ? "border-[var(--accent)] bg-[color-mix(in_oklab,var(--accent)_8%,transparent)] text-[var(--accent-strong)]"
-                : "border-border bg-card text-foreground hover:bg-[color-mix(in_oklab,var(--accent)_5%,transparent)]"
-            )}
-          >
-            <span className="font-medium">{item.label}</span>
-            <span className="text-[11px] leading-tight text-muted-foreground">
-              {item.desc}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 export default function ForgePage() {
   const t = useTranslations("forge");
   const tNav = useTranslations("nav_desc");
-  const [mode, setMode] = React.useState<PipelineMode>("l2");
   const [doneSummary, setDoneSummary] =
     React.useState<PipelineDoneSummary | null>(null);
   const [savedStoryId, setSavedStoryId] = React.useState<string | null>(null);
@@ -176,18 +108,6 @@ export default function ForgePage() {
       </header>
 
       <PipelineScreen
-        mode={mode}
-        formHeader={
-          <ModeToggle
-            mode={mode}
-            onChange={setMode}
-            ariaLabel={t("mode_label")}
-            l1Label={t("mode_l1")}
-            l2Label={t("mode_l2")}
-            l1Description={t("mode_l1_desc")}
-            l2Description={t("mode_l2_desc")}
-          />
-        }
         onResult={handleResult}
         resultAction={saveButton}
       />

@@ -18,7 +18,6 @@ import {
   Gauge,
   ChartBar,
   Download,
-  Workflow,
   PanelLeftClose,
   PanelLeftOpen,
   type LucideIcon,
@@ -49,7 +48,6 @@ const PRIMARY: NavItem[] = [
 
 /** Secondary routes still reachable; visually demoted under "More". */
 const MORE: NavItem[] = [
-  { key: "pipeline", href: "/", icon: Workflow, match: "/" },
   { key: "providers", href: "/providers/", icon: Plug, match: "/providers" },
   { key: "gallery", href: "/gallery/", icon: Images, match: "/gallery" },
   { key: "analytics", href: "/analytics/", icon: ChartBar, match: "/analytics" },
