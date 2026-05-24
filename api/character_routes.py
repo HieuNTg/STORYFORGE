@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from config import ConfigManager
 from models.schemas import CharacterGenerateRequest, ForgeCharacter
+from pydantic import Field, BaseModel
 from services.character_service import generate_character
 
 logger = logging.getLogger(__name__)
@@ -144,5 +145,76 @@ async def generate_character_route(
             detail=f"character generation failed: {type(e).__name__}",
         )
 
+
+
+class CharacterExtractRequest(BaseModel):
+    title: str = Field(..., max_length=200)
+    description: str = Field("", max_length=2000)
+    setting: str = Field("", max_length=2000)
+    text_context: str = Field(..., min_length=50, max_length=50000)
+
+@router.post("/extract-story", response_model=list[ForgeCharacter])
+async def extract_story_characters_route(req: CharacterExtractRequest) -> list[ForgeCharacter]:
+    llm = _get_llm()
+    model = _resolve_model()
+    
+    prompt = f"""
+Trích xuất danh sách nhân vật từ nội dung truyện dưới đây.
+Trả về danh sách 1-6 nhân vật chính và phụ quan trọng nhất. KHÔNG bịa tên nhân vật nếu không có trong văn bản.
+
+Thông tin truyện:
+- Tên truyện: {req.title}
+- Tóm tắt: {req.description}
+- Bối cảnh: {req.setting}
+
+Nội dung các chương:
+{req.text_context[:10000]}
+
+Định dạng trả về là JSON hợp lệ, tuân thủ CẤU TRÚC CHÍNH XÁC SAU ĐÂY:
+[
+  {{
+    "name": "Tên nhân vật",
+    "role": "protagonist",
+    "traits": {{
+      "strength": 50,
+      "wisdom": 50,
+      "agility": 50,
+      "scheme": 50
+    }},
+    "description": "Mô tả ngắn gọn về nhân vật",
+    "backstory": "Tiểu sử nhân vật",
+    "secret": "Bí mật hoặc ẩn ý của nhân vật",
+    "conflict": "Mâu thuẫn chính của nhân vật"
+  }}
+]
+Vai trò (role) phải là một trong: protagonist, antagonist, rival, supporting.
+"""
+    try:
+        raw_json = await asyncio.wait_for(
+            asyncio.to_thread(llm.generate, prompt=prompt, model=model, temperature=0.7),
+            timeout=45.0
+        )
+        if "```json" in raw_json:
+            raw_json = raw_json.split("```json")[1].split("```")[0].strip()
+        elif "```" in raw_json:
+            raw_json = raw_json.split("```")[1].strip()
+            
+        import json
+        data = json.loads(raw_json)
+        if not isinstance(data, list):
+            data = [data]
+            
+        characters = []
+        for item in data[:6]:
+            char = ForgeCharacter(**item)
+            characters.append(char)
+            
+        return characters
+    except asyncio.TimeoutError:
+        logger.warning("character extraction timeout")
+        raise HTTPException(status_code=504, detail="character extraction timeout")
+    except Exception as e:
+        logger.exception("Failed to extract characters")
+        raise HTTPException(status_code=500, detail=f"Failed to extract characters: {str(e)}")
 
 __all__ = ["router"]

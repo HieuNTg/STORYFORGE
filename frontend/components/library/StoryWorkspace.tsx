@@ -11,6 +11,7 @@
 import * as React from "react";
 import {
   BookOpen,
+  ChevronDown,
   Download,
   Trash2,
   Users,
@@ -29,6 +30,15 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
   exportStory,
@@ -40,6 +50,8 @@ import type { Story, StoryChapter } from "@/types/story";
 export interface StoryWorkspaceProps {
   story: Story;
   onDelete: (id: string) => void;
+  onOpenReader?: (id: string) => void;
+  onOpenContinue?: (id: string) => void;
   className?: string;
 }
 
@@ -58,6 +70,8 @@ const STATUS_VARIANT: Record<StoryChapter["status"], "outline" | "secondary" | "
 export function StoryWorkspace({
   story,
   onDelete,
+  onOpenReader,
+  onOpenContinue,
   className,
 }: StoryWorkspaceProps) {
   const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -87,6 +101,14 @@ export function StoryWorkspace({
       setExportingFmt(null);
     }
   };
+
+  const handleOpenReader = React.useCallback(() => {
+    onOpenReader?.(story.id);
+  }, [onOpenReader, story.id]);
+
+  const handleOpenContinue = React.useCallback(() => {
+    onOpenContinue?.(story.id);
+  }, [onOpenContinue, story.id]);
 
   return (
     <aside
@@ -186,62 +208,59 @@ export function StoryWorkspace({
         )}
       </div>
 
-      <div className="space-y-2">
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleExport}
-            className="flex-1 gap-1.5"
+      <div className="grid grid-cols-2 gap-2">
+        <Button type="button" onClick={handleOpenReader} className="gap-1.5">
+          <BookOpen className="size-4" aria-hidden />
+          Đọc truyện
+        </Button>
+        <Button type="button" variant="secondary" onClick={handleOpenContinue} className="gap-1.5">
+          <ChevronDown className="size-4 rotate-[-90deg]" aria-hidden />
+          Viết tiếp
+        </Button>
+      </div>
+
+      <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                type="button"
+                variant="outline"
+                disabled={exportingFmt !== null}
+                className="flex-1 gap-1.5"
+              />
+            }
           >
             <Download className="size-4" aria-hidden />
-            Xuất JSON
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setConfirmOpen(true)}
-            className="text-destructive hover:bg-destructive/10"
-            aria-label="Xoá truyện"
-          >
-            <Trash2 className="size-4" aria-hidden />
-          </Button>
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={exportingFmt !== null}
-            onClick={() => void handleServerExport("docx")}
-            className="gap-1.5"
-            aria-label="Xuất DOCX (Word)"
-          >
-            {exportingFmt === "docx" ? "…" : "DOCX"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={exportingFmt !== null}
-            onClick={() => void handleServerExport("pdf")}
-            className="gap-1.5"
-            aria-label="Xuất PDF"
-          >
-            {exportingFmt === "pdf" ? "…" : "PDF"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={exportingFmt !== null}
-            onClick={() => void handleServerExport("epub")}
-            className="gap-1.5"
-            aria-label="Xuất EPUB (ebook)"
-          >
-            {exportingFmt === "epub" ? "…" : "EPUB"}
-          </Button>
-        </div>
+            {exportingFmt ? `Đang xuất ${exportingFmt.toUpperCase()}…` : "Export"}
+            <ChevronDown className="ml-auto size-4" aria-hidden />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-44">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Chọn định dạng</DropdownMenuLabel>
+              <DropdownMenuItem onClick={handleExport}>JSON</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => void handleServerExport("docx")}>
+                DOCX / Word
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => void handleServerExport("pdf")}>
+                PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => void handleServerExport("epub")}>
+                EPUB
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setConfirmOpen(true)}
+          className="text-destructive hover:bg-destructive/10"
+          aria-label="Xoá truyện"
+        >
+          <Trash2 className="size-4" aria-hidden />
+        </Button>
       </div>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>

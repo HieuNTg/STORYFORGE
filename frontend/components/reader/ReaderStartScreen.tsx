@@ -17,6 +17,7 @@ import {
   type ReaderColumnUi,
 } from "@/stores/reader-store";
 
+
 export function ReaderStartScreen() {
   const searchParams = useSearchParams();
   const queryId = searchParams?.get("id") ?? null;
@@ -90,8 +91,8 @@ export function ReaderStartScreen() {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-lg border border-border/70 bg-card p-5 shadow-sm">
+    <div className="mx-auto flex flex-col items-center space-y-6" style={{ maxWidth: columnUi === "narrow" ? 720 : columnUi === "wide" ? 1040 : 860 }}>
+      <section className="w-full rounded-lg border border-border/70 bg-card p-5 shadow-sm">
         <div className="mb-5 flex items-start gap-3">
           <span className="rounded-md border border-[var(--accent)]/30 bg-[color-mix(in_oklab,var(--accent)_10%,transparent)] p-2 text-[var(--accent-strong)]">
             <BookOpen className="size-5" aria-hidden="true" />
@@ -141,10 +142,7 @@ export function ReaderStartScreen() {
       </section>
 
       {currentChapter ? (
-        <section
-          className="rounded-lg border border-border/70 bg-card p-5 shadow-sm"
-          style={{ maxWidth: columnUi === "narrow" ? 720 : columnUi === "wide" ? 1040 : 860 }}
-        >
+        <section className="w-full rounded-lg border border-border/70 bg-card p-5 shadow-sm">
           <div className="mb-4 flex justify-end">
             <ReaderControls
               fontSize={fontSize}

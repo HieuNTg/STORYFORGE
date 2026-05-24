@@ -41,6 +41,14 @@ export function BookshelfScreen() {
     [router, selectStory],
   );
 
+  const handleOpenContinue = React.useCallback(
+    (id: string) => {
+      selectStory(id);
+      router.push(`/continue/?id=${encodeURIComponent(id)}`);
+    },
+    [router, selectStory],
+  );
+
   const [createOpen, setCreateOpen] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -147,18 +155,15 @@ export function BookshelfScreen() {
           onSelect={handleOpenReader}
           onCreate={() => setCreateOpen(true)}
         />
-      ) : (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
-          <BookshelfGrid
-            stories={stories}
-            selectedId={selectedId}
-            onSelect={handleOpenReader}
-          />
-          {selectedStory ? (
-            <StoryWorkspace story={selectedStory} onDelete={removeStory} />
-          ) : null}
-        </div>
-      )}
+      ) : selectedStory ? (
+        <StoryWorkspace
+          story={selectedStory}
+          onDelete={removeStory}
+          onOpenReader={handleOpenReader}
+          onOpenContinue={handleOpenContinue}
+          className="max-w-sm"
+        />
+      ) : null}
 
       <CreateStoryModal
         open={createOpen}

@@ -23,7 +23,8 @@ import type {
   TimelineEvent,
   TimelineEventType,
 } from "@/components/analytics/EventTimeline";
-import { useStory, useStoryAnalytics } from "@/lib/api/queries";
+import { useStory, useStoryAnalytics, type StoryAnalytics } from "@/lib/api/queries";
+import { rehydrateLibrary, useLibraryStore } from "@/stores/library-store";
 
 const WORDS_PER_MINUTE = 220; // VN reader baseline used by legacy `web/js/reader.ts`.
 
@@ -47,17 +48,34 @@ function inferEventType(label: string): TimelineEventType {
   return "simulation";
 }
 
+function countWords(text: string): number {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  return words.length;
+}
+
 export default function AnalyticsPage() {
   const params = useParams<{ id: string }>();
   const storyId = params?.id ?? null;
 
-  const analytics = useStoryAnalytics(storyId);
+  const stories = useLibraryStore((s) => s.stories);
+  const hydrated = useLibraryStore((s) => s.hydrated);
+  const localStory = React.useMemo(
+    () => (storyId ? stories.find((s) => s.id === storyId) ?? null : null),
+    [stories, storyId],
+  );
+  const backendStoryId = storyId && hydrated && !localStory ? storyId : null;
+
+  const analytics = useStoryAnalytics(backendStoryId);
   // We also pull the raw story to source characters for the optional graph
-  // (TanStack will dedupe with useStoryAnalytics under the same query key
-  // for the checkpoint fetch).
-  const story = useStory(storyId);
+  // when this route points at a backend checkpoint filename instead of a
+  // client-side library story id.
+  const story = useStory(backendStoryId);
 
   const [show, setShow] = useQueryState("show");
+
+  React.useEffect(() => {
+    rehydrateLibrary();
+  }, []);
 
   // Stable per-mount epoch so re-renders don't shift fallback timestamps.
   // Lazy initializer runs once — keeps the render pure (no Date.now() at render).
@@ -66,17 +84,45 @@ export default function AnalyticsPage() {
   if (!storyId) {
     return <p className="text-sm text-muted-foreground">Không tìm thấy truyện.</p>;
   }
-  if (analytics.isLoading) {
+  if (!hydrated) {
+    return <p className="text-sm text-muted-foreground">Đang tải thư viện…</p>;
+  }
+
+  const localAnalytics: StoryAnalytics | null = localStory
+    ? (() => {
+        const chapters = localStory.chapters.map((c, i) => ({
+          number: i + 1,
+          title: c.title || `Chương ${i + 1}`,
+          wordCount: countWords(c.content),
+        }));
+        const wordCount = chapters.reduce((sum, c) => sum + c.wordCount, 0);
+        return {
+          wordCount,
+          chapterCount: chapters.length,
+          averageWords: chapters.length > 0 ? Math.round(wordCount / chapters.length) : 0,
+          qualityScore: null,
+          chapters,
+          events: [
+            { label: "Tạo truyện", at: localStory.createdAt },
+            ...(localStory.updatedAt !== localStory.createdAt
+              ? [{ label: "Cập nhật truyện", at: localStory.updatedAt }]
+              : []),
+          ],
+        };
+      })()
+    : null;
+
+  if (!localAnalytics && analytics.isLoading) {
     return <p className="text-sm text-muted-foreground">Đang tính số liệu…</p>;
   }
-  if (analytics.error) {
+  if (!localAnalytics && analytics.error) {
     return (
       <p className="text-sm text-destructive">
         Lỗi tải số liệu: {analytics.error.message}
       </p>
     );
   }
-  const a = analytics.data;
+  const a = localAnalytics ?? analytics.data;
   if (!a) {
     return <p className="text-sm text-muted-foreground">Chưa có số liệu.</p>;
   }
@@ -99,14 +145,19 @@ export default function AnalyticsPage() {
   });
 
   const characters: Array<{ id: string; name: string; role?: string }> =
-    Array.isArray(story.data?.characters)
-      ? (story.data!.characters as CharacterShape[])
-          .map((c, i) => ({
+    localStory
+      ? localStory.characters.map((c, i) => ({
+          id: c.name || String(i),
+          name: c.name || `Nhân vật ${i + 1}`,
+          role: c.role,
+        }))
+      : Array.isArray(story.data?.characters)
+        ? (story.data!.characters as CharacterShape[]).map((c, i) => ({
             id: c?.id ?? String(i),
             name: c?.name ?? `Nhân vật ${i + 1}`,
             role: c?.role,
           }))
-      : [];
+        : [];
 
   const showCharacters = show === "characters";
 

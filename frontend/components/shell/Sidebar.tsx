@@ -15,9 +15,7 @@ import {
   Plug,
   User,
   Images,
-  Gauge,
   ChartBar,
-  Download,
   PanelLeftClose,
   PanelLeftOpen,
   type LucideIcon,
@@ -51,8 +49,6 @@ const MORE: NavItem[] = [
   { key: "providers", href: "/providers/", icon: Plug, match: "/providers" },
   { key: "gallery", href: "/gallery/", icon: Images, match: "/gallery" },
   { key: "analytics", href: "/analytics/", icon: ChartBar, match: "/analytics" },
-  { key: "export", href: "/export/", icon: Download, match: "/export" },
-  { key: "usage", href: "/usage/", icon: Gauge, match: "/usage" },
   { key: "account", href: "/account/", icon: User, match: "/account" },
   { key: "guide", href: "/guide/", icon: BookOpen, match: "/guide" },
 ];

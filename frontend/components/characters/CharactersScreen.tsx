@@ -21,13 +21,18 @@ import { useLibraryStore, rehydrateLibrary } from "@/stores/library-store";
 import { CharacterList } from "./CharacterList";
 import { CharacterDetail } from "./CharacterDetail";
 import { CreateCharacterForm } from "./CreateCharacterForm";
-import type { ForgeCharacter } from "@/types/story";
+import type { ForgeCharacter, Story } from "@/types/story";
+import { extractStoryCharacters } from "@/lib/api/characters";
+import { toast } from "sonner";
+import { Sparkles, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function CharactersScreen() {
   const t = useTranslations("characters");
   const stories = useLibraryStore((s) => s.stories);
   const hydrated = useLibraryStore((s) => s.hydrated);
   const upsertCharacter = useLibraryStore((s) => s.upsertCharacter);
+  const updateStory = useLibraryStore((s) => s.updateStory);
 
   const [storyId, setStoryId] = React.useState<string | null>(null);
   const [selectedName, setSelectedName] = React.useState<string | null>(null);
@@ -44,6 +49,40 @@ export function CharactersScreen() {
     () => stories.find((s) => s.id === storyId) ?? null,
     [storyId, stories],
   );
+
+  const [isExtracting, setIsExtracting] = React.useState(false);
+
+  const handleExtract = React.useCallback(async () => {
+    if (!activeStory || isExtracting) return;
+    setIsExtracting(true);
+    try {
+      const textContext = activeStory.chapters.map((c) => `${c.title}\n${c.summary || c.content}`).join("\n\n").slice(0, 10000);
+      if (textContext.length < 50) {
+        toast.error("Truyện quá ngắn để trích xuất.");
+        setIsExtracting(false);
+        return;
+      }
+      const chars = await extractStoryCharacters({
+        title: activeStory.title,
+        description: activeStory.description || "",
+        setting: activeStory.setting || "",
+        text_context: textContext,
+      });
+      if (chars.length === 0) {
+        toast.error("AI không tìm thấy nhân vật nào.");
+      } else {
+        updateStory(activeStory.id, { characters: chars });
+        setSelectedName(chars[0]?.name || null);
+        toast.success(`Đã trích xuất ${chars.length} nhân vật.`);
+      }
+    } catch (err) {
+      toast.error("Lỗi trích xuất nhân vật", {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setIsExtracting(false);
+    }
+  }, [activeStory, isExtracting, updateStory]);
 
   React.useEffect(() => {
     if (!activeStory) {
@@ -133,8 +172,22 @@ export function CharactersScreen() {
             genre={activeStory?.genre}
           />
         ) : (
-          <div className="rounded-xl border border-dashed border-border/60 p-8 text-center text-sm text-muted-foreground">
-            {t("empty_hint")}
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 p-8 text-center text-sm text-muted-foreground">
+            {activeStory?.chapters.length ? (
+              <div className="space-y-4">
+                <p>Truyện này đã có chương nhưng chưa có hồ sơ nhân vật.</p>
+                <Button onClick={() => void handleExtract()} disabled={isExtracting}>
+                  {isExtracting ? (
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 size-4 text-[var(--accent)]" />
+                  )}
+                  {isExtracting ? "Đang đọc truyện và trích xuất..." : "Trích xuất nhân vật bằng AI"}
+                </Button>
+              </div>
+            ) : (
+              <p>{t("empty_hint")}</p>
+            )}
           </div>
         )}
       </div>
