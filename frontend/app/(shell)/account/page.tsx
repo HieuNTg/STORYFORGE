@@ -11,6 +11,7 @@
  */
 
 import * as React from "react";
+import { useTranslations, useLocale } from "next-intl";
 import { BookText, Sparkles } from "lucide-react";
 
 import { PageHero } from "@/components/common/PageHero";
@@ -21,52 +22,54 @@ import {
 import type { StatCardProps } from "@/components/account/StatCard";
 import { useStories, useSessionUsage } from "@/lib/api/queries";
 
-function formatNumber(n: number): string {
-  return new Intl.NumberFormat("vi-VN").format(n);
-}
-
 export default function AccountPage() {
+  const t = useTranslations("account");
+  const locale = useLocale();
   const stories = useStories({ pageSize: 1 });
   const usage = useSessionUsage();
 
   const totalStories = stories.data?.pages[0]?.total ?? 0;
   const totalTokens = usage.data?.total_tokens ?? 0;
 
+  const formatNumber = (n: number) => {
+    return new Intl.NumberFormat(locale).format(n);
+  };
+
   const stats: StatCardProps[] = [
     {
       icon: BookText,
-      label: "Truyện đã tạo",
+      label: t("stories_created"),
       value: stories.isLoading ? "—" : formatNumber(totalStories),
-      description: "Tổng số truyện trong thư viện.",
+      description: t("stories_created_desc"),
     },
     {
       icon: Sparkles,
-      label: "Token đã dùng (phiên)",
+      label: t("tokens_used_session"),
       value: usage.isLoading || usage.isError ? "—" : formatNumber(totalTokens),
       description: usage.isError
-        ? "Không lấy được số liệu."
-        : "Tổng prompt + completion của phiên hiện tại.",
+        ? t("tokens_used_error")
+        : t("tokens_used_session_desc"),
     },
   ];
 
   const quickLinks: AccountQuickLink[] = [
     {
-      label: "Chi tiết sử dụng",
+      label: t("usage_detail"),
       href: "/usage",
-      description: "Bóc tách theo truyện và mô hình.",
+      description: t("usage_detail_desc"),
     },
     {
-      label: "Hướng dẫn",
+      label: t("guide"),
       href: "/guide",
-      description: "Mẹo nhanh để tạo truyện chất lượng cao.",
+      description: t("guide_desc"),
     },
   ];
 
   return (
     <div className="flex flex-col gap-6">
       <PageHero
-        title="Tài khoản"
-        subtitle="Tổng quan sử dụng StoryForge"
+        title={t("title")}
+        subtitle={t("subtitle")}
       />
       <AccountSummary stats={stats} quickLinks={quickLinks} />
     </div>

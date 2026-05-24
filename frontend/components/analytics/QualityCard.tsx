@@ -18,11 +18,15 @@ export interface QualityCardProps {
   className?: string;
 }
 
+import { useTranslations } from "next-intl";
+
 export function QualityCard({ score, breakdown, className }: QualityCardProps) {
+  const t = useTranslations("analytics");
+
   return (
     <Card className={cn(className)}>
       <CardHeader>
-        <CardTitle>Chất lượng</CardTitle>
+        <CardTitle>{t("quality_title")}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-5 pb-4">
         <QualityGauge value={score} size={140} />

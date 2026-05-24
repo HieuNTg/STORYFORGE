@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +34,7 @@ export function ChoicePanel({
   streamingText,
   className,
 }: ChoicePanelProps) {
+  const t = useTranslations("branching");
   // Pick the body to display: streaming text wins while active, otherwise the
   // current chapter. Streaming text appears live and is replaced on completion
   // by the next chapter (which the parent fetches and passes via currentChapterText).
@@ -45,10 +47,10 @@ export function ChoicePanel({
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Đoạn hiện tại</CardTitle>
+            <CardTitle>{t("choice_current_segment")}</CardTitle>
             {isStreaming ? (
               <Badge variant="outline" className="text-accent">
-                Đang tạo nội dung...
+                {t("choice_generating")}
               </Badge>
             ) : null}
           </div>
@@ -74,7 +76,7 @@ export function ChoicePanel({
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Chưa có nội dung.
+                {t("choice_no_content")}
               </p>
             )}
           </ScrollArea>
@@ -84,11 +86,11 @@ export function ChoicePanel({
       {/* Choices */}
       <Card>
         <CardHeader>
-          <CardTitle>Lựa chọn tiếp theo</CardTitle>
+          <CardTitle>{t("choice_next_title")}</CardTitle>
         </CardHeader>
         <CardContent className="pb-4">
           {!hasChoices ? (
-            <p className="text-sm text-muted-foreground">Chưa có lựa chọn.</p>
+            <p className="text-sm text-muted-foreground">{t("choice_next_empty")}</p>
           ) : (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {choices.map((c) => (

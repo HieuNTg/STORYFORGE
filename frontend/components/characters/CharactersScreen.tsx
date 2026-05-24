@@ -88,14 +88,13 @@ export function CharactersScreen() {
 
   const [isExtracting, setIsExtracting] = React.useState(false);
   const [createOpen, setCreateOpen] = React.useState(false);
-
   const handleExtract = React.useCallback(async () => {
     if (!activeStory || isExtracting) return;
     setIsExtracting(true);
     try {
       const textContext = activeStory.chapters.map((c) => `${c.title}\n${c.summary || c.content}`).join("\n\n").slice(0, 10000);
       if (textContext.length < 50) {
-        toast.error("Truyện quá ngắn để trích xuất.");
+        toast.error(t("too_short"));
         setIsExtracting(false);
         return;
       }
@@ -106,20 +105,20 @@ export function CharactersScreen() {
         text_context: textContext,
       });
       if (chars.length === 0) {
-        toast.error("AI không tìm thấy nhân vật nào.");
+        toast.error(t("no_characters_found"));
       } else {
         updateStory(activeStory.id, { characters: chars });
         setSelectedName(chars[0]?.name || null);
-        toast.success(`Đã trích xuất ${chars.length} nhân vật.`);
+        toast.success(t("extract_success", { count: chars.length }));
       }
     } catch (err) {
-      toast.error("Lỗi trích xuất nhân vật", {
+      toast.error(t("extract_failed"), {
         description: err instanceof Error ? err.message : String(err),
       });
     } finally {
       setIsExtracting(false);
     }
-  }, [activeStory, isExtracting, updateStory]);
+  }, [activeStory, isExtracting, updateStory, t]);
 
   React.useEffect(() => {
     if (!activeStory) {
@@ -196,13 +195,13 @@ export function CharactersScreen() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
         <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Truyện
+          {t("label_story")}
         </label>
         <Select
           value={storyId ?? ""}
           onValueChange={(v) => setStoryId(v || null)}
         >
-          <SelectTrigger className="w-[280px]" aria-label="Truyện">
+          <SelectTrigger className="w-[280px]" aria-label={t("label_story")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -293,14 +292,14 @@ export function CharactersScreen() {
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 p-8 text-center text-sm text-muted-foreground">
             {activeStory?.chapters.length ? (
               <div className="space-y-4">
-                <p>Truyện này đã có chương nhưng chưa có hồ sơ nhân vật.</p>
+                <p>{t("draft_no_characters")}</p>
                 <Button onClick={() => void handleExtract()} disabled={isExtracting}>
                   {isExtracting ? (
                     <Loader2 className="mr-2 size-4 animate-spin" />
                   ) : (
                     <Sparkles className="mr-2 size-4 text-[var(--accent)]" />
                   )}
-                  {isExtracting ? "Đang đọc truyện và trích xuất..." : "Trích xuất nhân vật bằng AI"}
+                  {isExtracting ? t("extracting_status") : t("extract_cta")}
                 </Button>
               </div>
             ) : (

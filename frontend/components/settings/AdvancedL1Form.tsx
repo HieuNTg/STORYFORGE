@@ -7,6 +7,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
+import { useTranslations } from "next-intl";
+
 export interface AdvancedL1FormProps {
   form: ReactNode;
   isSaving?: boolean;
@@ -27,6 +29,8 @@ export function AdvancedL1Form({
   onReset,
   className,
 }: AdvancedL1FormProps) {
+  const t = useTranslations("settings_panel");
+
   return (
     <div className={cn("flex flex-col gap-4", className)}>
       <div
@@ -38,7 +42,7 @@ export function AdvancedL1Form({
           aria-hidden
         />
         <p className="leading-relaxed">
-          Tùy chọn nâng cao — chỉ thay đổi nếu bạn hiểu rõ tác động.
+          {t("form.l1.banner")}
         </p>
       </div>
 
@@ -54,11 +58,11 @@ export function AdvancedL1Form({
             onClick={onReset}
             disabled={isSaving}
           >
-            Đặt lại
+            {t("form.reset")}
           </Button>
         ) : null}
         <Button type="button" onClick={onSave} disabled={isSaving}>
-          {isSaving ? "Đang lưu..." : "Lưu"}
+          {isSaving ? t("form.saving") : t("form.save")}
         </Button>
       </div>
     </div>

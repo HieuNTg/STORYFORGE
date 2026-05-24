@@ -21,6 +21,7 @@
 import * as React from "react";
 import { useParams } from "next/navigation";
 import { useQueryState } from "nuqs";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { BranchGraph } from "@/components/branching/BranchGraph";
@@ -45,9 +46,9 @@ import type {
   BranchBookmark,
 } from "@/lib/api/branching";
 
-function normalizeChoiceLabel(c: string | { text?: string; label?: string }): string {
+function normalizeChoiceLabel(c: string | { text?: string; label?: string }, fallback: string): string {
   if (typeof c === "string") return c;
-  return c?.text ?? c?.label ?? "Lựa chọn";
+  return c?.text ?? c?.label ?? fallback;
 }
 
 function normalizeChoiceSummary(
@@ -122,6 +123,7 @@ function buildGraph(
 export default function BranchingPage() {
   const params = useParams<{ sessionId: string }>();
   const sessionId = params?.sessionId ?? null;
+  const t = useTranslations("branching");
 
   const s = useBranchSession(sessionId);
   const streamingText = useBranchingStore((st) => st.streamingText);
@@ -160,12 +162,12 @@ export default function BranchingPage() {
     if (!currentNode?.choices) return [];
     return currentNode.choices.map((c, idx) => ({
       id: String(idx),
-      title: normalizeChoiceLabel(c),
+      title: normalizeChoiceLabel(c, t("choice_label_default")),
       summary: normalizeChoiceSummary(
         c as string | { text?: string; label?: string; summary?: string; description?: string },
       ),
     }));
-  }, [currentNode]);
+  }, [currentNode, t]);
 
   // Toolbar capabilities.
   const undoRedo = s.undoRedo.data;
@@ -191,12 +193,12 @@ export default function BranchingPage() {
         s.gotoNode.mutate(
           { node_id: id },
           {
-            onError: (err) => toast.error(`Không thể chuyển: ${err.message}`),
+            onError: (err) => toast.error(t("choice_switch_failed", { msg: err.message })),
           }
         );
       }
     },
-    [setNodeParam, s.gotoNode, currentId]
+    [setNodeParam, s.gotoNode, currentId, t]
   );
 
   const handleChoose = React.useCallback(
@@ -232,29 +234,29 @@ export default function BranchingPage() {
     () =>
       bookmarkList.map((b) => ({
         id: b.id,
-        label: b.label ?? "Đánh dấu",
+        label: b.label ?? t("toolbar_bookmark"),
         created_at: b.created_at ?? "",
         node_id: b.node_id,
       })),
-    [bookmarkList]
+    [bookmarkList, t]
   );
 
   const handleAddBookmark = React.useCallback(
     (label: string) => {
       const target = selectedId ?? currentId;
       if (!target) {
-        toast.error("Chưa chọn nút.");
+        toast.error(t("bookmark_no_node"));
         return;
       }
       s.addBookmark.mutate(
         { node_id: target, label },
         {
-          onSuccess: () => toast.success("Đã đánh dấu"),
+          onSuccess: () => toast.success(t("bookmark_add_success")),
           onError: (err) => toast.error(err.message),
         }
       );
     },
-    [s.addBookmark, selectedId, currentId]
+    [s.addBookmark, selectedId, currentId, t]
   );
 
   const handleDeleteBookmark = React.useCallback(
@@ -280,20 +282,20 @@ export default function BranchingPage() {
 
   if (!sessionId) {
     return (
-      <div className="text-sm text-muted-foreground">Không tìm thấy phiên.</div>
+      <div className="text-sm text-muted-foreground">{t("session_not_found")}</div>
     );
   }
 
   if (s.current.isLoading && !currentNode) {
     return (
-      <div className="text-sm text-muted-foreground">Đang tải nhánh…</div>
+      <div className="text-sm text-muted-foreground">{t("loading_session")}</div>
     );
   }
 
   if (s.current.error) {
     return (
       <div className="text-sm text-destructive">
-        Lỗi tải phiên: {s.current.error.message}
+        {t("load_failed", { msg: s.current.error.message })}
       </div>
     );
   }
@@ -301,7 +303,7 @@ export default function BranchingPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-foreground">Nhánh truyện</h1>
+        <h1 className="text-xl font-semibold text-foreground">{t("title")}</h1>
         <BranchToolbar
           onBack={handleBack}
           onUndo={handleUndo}
@@ -316,7 +318,7 @@ export default function BranchingPage() {
 
       {lastError ? (
         <p className="text-sm text-destructive" role="alert">
-          Lỗi: {lastError}
+          {t("error_label", { msg: lastError })}
         </p>
       ) : null}
 
@@ -331,9 +333,9 @@ export default function BranchingPage() {
 
       <section className="flex flex-col gap-3 rounded-xl border bg-card/40 p-4">
         <header className="flex items-center justify-between">
-          <h2 className="font-serif text-lg text-foreground">Chương hiện tại</h2>
+          <h2 className="font-serif text-lg text-foreground">{t("choice_current_segment")}</h2>
           {streaming ? (
-            <span className="text-xs text-accent">Đang sinh nội dung…</span>
+            <span className="text-xs text-accent">{t("choice_generating_inline")}</span>
           ) : null}
         </header>
         <p className="whitespace-pre-wrap font-serif text-sm leading-relaxed text-foreground/90">
@@ -341,7 +343,7 @@ export default function BranchingPage() {
         </p>
         <div>
           <h3 className="mb-2 font-serif text-sm font-medium text-muted-foreground">
-            Chọn hướng đi tiếp theo
+            {t("choice_next_pick")}
           </h3>
           <ChoiceCardGrid
             choices={choices}

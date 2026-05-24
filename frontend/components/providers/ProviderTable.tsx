@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 import {
   type ProviderRowData,
   type ProviderTestStatus,
@@ -41,6 +42,8 @@ export function ProviderTable({
   testResults,
   className,
 }: ProviderTableProps) {
+  const t = useTranslations("providers");
+
   if (providers.length === 0) {
     return (
       <div
@@ -49,7 +52,7 @@ export function ProviderTable({
           className,
         )}
       >
-        Chưa có nhà cung cấp.
+        {t("no_providers")}
       </div>
     );
   }

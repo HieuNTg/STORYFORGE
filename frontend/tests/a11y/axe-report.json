@@ -12,7 +12,7 @@
         "nodes": 1,
         "targets": [
           [
-            ".lg\\:col-span-2 > .group-data-\\[size\\=sm\\]\\/card\\:px-3.px-4[data-slot=\"card-content\"] > .motion-fade-in.px-6.py-12 > .gap-1\\.5.flex-col.flex > h3"
+            ".lg\\:col-span-2 > .group-data-\\[size\\=sm\\]\\/card\\:px-3.px-4[data-slot=\"card-content\"] > .motion-fade-in.px-6.py-12 > .gap-1\\.5.flex-col > h3"
           ]
         ],
         "messages": [
@@ -59,23 +59,7 @@
     "route": "analytics",
     "url": "/analytics/demo/",
     "theme": "light",
-    "violations": [
-      {
-        "id": "page-has-heading-one",
-        "impact": "moderate",
-        "help": "Page should contain a level-one heading",
-        "helpUrl": "https://dequeuniversity.com/rules/axe/4.11/page-has-heading-one?application=axeAPI",
-        "nodes": 1,
-        "targets": [
-          [
-            "html"
-          ]
-        ],
-        "messages": [
-          "Fix all of the following:\n  Page must have a level-one heading"
-        ]
-      }
-    ]
+    "violations": []
   },
   {
     "route": "settings",

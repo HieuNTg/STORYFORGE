@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { fontSerif } from "@/app/fonts";
 
@@ -51,6 +52,7 @@ export function ChapterReader({
   lineHeight,
   className,
 }: ChapterReaderProps) {
+  const t = useTranslations("reader");
   const paragraphs = React.useMemo(() => paragraphsFrom(content), [content]);
 
   return (
@@ -86,7 +88,7 @@ export function ChapterReader({
       ) : null}
 
       {paragraphs.length === 0 ? (
-        <p style={{ color: "var(--reader-muted)" }}>Chưa có nội dung.</p>
+        <p style={{ color: "var(--reader-muted)" }}>{t("no_content")}</p>
       ) : (
         paragraphs.map((para, idx) => (
           <p

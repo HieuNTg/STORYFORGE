@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard, type StatCardProps } from "./StatCard";
 
+import { useTranslations } from "next-intl";
+
 export interface AccountQuickLink {
   label: string;
   href: string;
@@ -23,6 +25,8 @@ export function AccountSummary({
   quickLinks,
   className,
 }: AccountSummaryProps) {
+  const t = useTranslations("account");
+
   return (
     <div className={cn("flex flex-col gap-4", className)}>
       {stats.length > 0 ? (
@@ -43,7 +47,7 @@ export function AccountSummary({
       {quickLinks.length > 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>Liên kết nhanh</CardTitle>
+            <CardTitle>{t("quick_links")}</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-1 pb-2">
             {quickLinks.map((link) => (

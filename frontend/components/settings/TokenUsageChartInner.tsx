@@ -27,7 +27,12 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
+import { useTranslations } from "next-intl";
+
 export default function TokenUsageChartInner({ points }: TokenUsageChartInnerProps) {
+  const tSettings = useTranslations("settings_panel");
+  const tUsage = useTranslations("usage");
+
   return (
     <div className="h-64 w-full rounded-xl border border-accent/30 bg-card/40 p-3">
       <ResponsiveContainer width="100%" height="100%">
@@ -65,8 +70,8 @@ export default function TokenUsageChartInner({ points }: TokenUsageChartInnerPro
             formatter={(value, name) => {
               const n = typeof value === "number" ? value : Number(value ?? 0);
               const key = String(name ?? "");
-              if (key === "tokens") return [formatTokens(n), "Tokens"];
-              if (key === "cost") return [`$${n.toFixed(4)}`, "Chi phí"];
+              if (key === "tokens") return [formatTokens(n), tUsage("tokens")];
+              if (key === "cost") return [`$${n.toFixed(4)}`, tSettings("cost_label")];
               return [String(value ?? ""), key];
             }}
           />

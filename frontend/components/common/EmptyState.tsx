@@ -160,6 +160,8 @@ export interface EmptyStateProps {
   className?: string;
 }
 
+import { useTranslations } from "next-intl";
+
 function isActionObject(a: unknown): a is EmptyStateAction {
   return (
     !!a &&
@@ -178,13 +180,23 @@ export function EmptyState({
   action,
   className,
 }: EmptyStateProps) {
+  const t = useTranslations("empty_state");
   const preset = variant ? VARIANTS[variant] : undefined;
 
-  const resolvedTitle = title ?? preset?.title ?? "";
-  const resolvedDescription = description ?? preset?.description;
+  const resolvedTitle = title ?? (variant ? t(`${variant}.title`) : preset?.title) ?? "";
+  const resolvedDescription = description ?? (variant ? t(`${variant}.description`) : preset?.description);
+
+  let presetAction = preset?.action;
+  if (variant && presetAction) {
+    presetAction = {
+      ...presetAction,
+      label: t(`${variant}.action_label`),
+    };
+  }
+
   // `action === null` is the explicit "suppress" sentinel.
   const resolvedAction: EmptyStateProps["action"] =
-    action === null ? null : (action ?? preset?.action);
+    action === null ? null : (action ?? presetAction);
 
   let illustrationNode: React.ReactNode = illustration;
   if (!illustrationNode && preset) {

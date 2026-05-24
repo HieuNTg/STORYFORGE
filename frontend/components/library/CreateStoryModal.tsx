@@ -30,6 +30,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { genStoryId } from "@/lib/library/ids";
 import type { Story } from "@/types/story";
@@ -45,11 +46,11 @@ const GENRES = [
 const TONES = ["dark", "light", "epic", "romantic", "comedic"] as const;
 
 const formSchema = z.object({
-  title: z.string().min(1, "Bắt buộc").max(120, "Tối đa 120 ký tự"),
-  genre: z.enum(GENRES, { message: "Chọn thể loại" }),
-  setting: z.string().max(500, "Tối đa 500 ký tự"),
-  tone: z.enum(TONES, { message: "Chọn tông giọng" }),
-  description: z.string().max(800, "Tối đa 800 ký tự"),
+  title: z.string().min(1).max(120),
+  genre: z.enum(GENRES),
+  setting: z.string().max(500),
+  tone: z.enum(TONES),
+  description: z.string().max(800),
 });
 type FormValues = z.infer<typeof formSchema>;
 
@@ -64,6 +65,20 @@ export function CreateStoryModal({
   onOpenChange,
   onCreate,
 }: CreateStoryModalProps) {
+  const t = useTranslations("library.create_manual_form");
+  const tGenres = useTranslations("genres");
+  const tTones = useTranslations("tones");
+
+  const localizedSchema = React.useMemo(() => {
+    return z.object({
+      title: z.string().min(1, t("error_required")).max(120, t("error_max_title")),
+      genre: z.enum(GENRES, { message: t("error_select_genre") }),
+      setting: z.string().max(500, t("error_max_setting")),
+      tone: z.enum(TONES, { message: t("error_select_tone") }),
+      description: z.string().max(800, t("error_max_description")),
+    });
+  }, [t]);
+
   const {
     register,
     handleSubmit,
@@ -71,7 +86,7 @@ export function CreateStoryModal({
     reset,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(localizedSchema),
     defaultValues: {
       title: "",
       genre: "Tiên Hiệp",
@@ -105,39 +120,48 @@ export function CreateStoryModal({
     onOpenChange(false);
   };
 
+  const getGenreLabel = (genre: string) => {
+    const key = genre.toLowerCase().replace(/\s+/g, "_");
+    return tGenres.has(key) ? tGenres(key as any) : genre;
+  };
+
+  const getToneLabel = (tone: string) => {
+    return tTones.has(tone) ? tTones(tone as any) : tone;
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Tạo truyện thủ công</DialogTitle>
+          <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>
-            Khởi tạo khung truyện trống — bạn có thể bổ sung nhân vật và chương sau.
+            {t("description")}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
-          <Field label="Tiêu đề" error={errors.title?.message}>
+          <Field label={t("label_title")} error={errors.title?.message}>
             <Input
               {...register("title")}
-              placeholder="Ví dụ: Bóng Kiếm Trên Đỉnh Tuyết"
+              placeholder={t("placeholder_title")}
               aria-invalid={!!errors.title || undefined}
               autoFocus
             />
           </Field>
 
-          <Field label="Thể loại" error={errors.genre?.message}>
+          <Field label={t("label_genre")} error={errors.genre?.message}>
             <Controller
               name="genre"
               control={control}
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger aria-label="Thể loại" aria-invalid={!!errors.genre || undefined}>
+                  <SelectTrigger aria-label={t("label_genre")} aria-invalid={!!errors.genre || undefined}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {GENRES.map((g) => (
                       <SelectItem key={g} value={g}>
-                        {g}
+                        {getGenreLabel(g)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -146,19 +170,19 @@ export function CreateStoryModal({
             />
           </Field>
 
-          <Field label="Tông giọng" error={errors.tone?.message}>
+          <Field label={t("label_tone")} error={errors.tone?.message}>
             <Controller
               name="tone"
               control={control}
               render={({ field }) => (
                 <Select value={field.value} onValueChange={field.onChange}>
-                  <SelectTrigger aria-label="Tông giọng" aria-invalid={!!errors.tone || undefined}>
+                  <SelectTrigger aria-label={t("label_tone")} aria-invalid={!!errors.tone || undefined}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {TONES.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
+                    {TONES.map((toneVal) => (
+                      <SelectItem key={toneVal} value={toneVal}>
+                        {getToneLabel(toneVal)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -167,30 +191,30 @@ export function CreateStoryModal({
             />
           </Field>
 
-          <Field label="Bối cảnh" error={errors.setting?.message}>
+          <Field label={t("label_setting")} error={errors.setting?.message}>
             <Textarea
               {...register("setting")}
               rows={2}
-              placeholder="Thời đại, địa lý, thế lực…"
+              placeholder={t("placeholder_setting")}
               aria-invalid={!!errors.setting || undefined}
             />
           </Field>
 
-          <Field label="Mô tả tổng quan" error={errors.description?.message}>
+          <Field label={t("label_description")} error={errors.description?.message}>
             <Textarea
               {...register("description")}
               rows={3}
-              placeholder="Câu mở đầu, mâu thuẫn chính, không khí truyện…"
+              placeholder={t("placeholder_description")}
               aria-invalid={!!errors.description || undefined}
             />
           </Field>
 
           <DialogFooter>
             <DialogClose render={<Button type="button" variant="outline" />}>
-              Huỷ
+              {t("cancel")}
             </DialogClose>
             <Button type="submit" disabled={isSubmitting}>
-              Tạo truyện
+              {t("submit")}
             </Button>
           </DialogFooter>
         </form>

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { ChoiceCard } from "./ChoiceCard";
 
@@ -27,10 +28,11 @@ export function ChoiceCardGrid({
   disabled,
   className,
 }: ChoiceCardGridProps) {
+  const t = useTranslations("branching");
   if (choices.length === 0) {
     return (
       <p className="font-serif text-sm italic text-muted-foreground">
-        Chưa có lựa chọn.
+        {t("choice_next_empty")}
       </p>
     );
   }

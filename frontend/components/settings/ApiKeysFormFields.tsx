@@ -19,6 +19,7 @@ import * as React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { ApiKeysForm, MaskedInput } from "@/components/settings/ApiKeysForm";
@@ -153,6 +154,7 @@ export interface ApiKeysFormFieldsProps {
 }
 
 export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
+  const t = useTranslations("settings_panel");
   const update = useUpdateConfig();
   const queryClient = useQueryClient();
   const [providerKeys, setProviderKeys] = React.useState<Record<string, string>>({});
@@ -193,9 +195,9 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
       payload.hf_token = dirty.hf_token;
     }
 
-    // Nothing actually changed â†’ skip the request entirely.
+    // Nothing actually changed → skip the request entirely.
     if (Object.keys(payload).length === 0) {
-      toast.success("KhÃ´ng cÃ³ thay Ä‘á»•i Ä‘á»ƒ lÆ°u");
+      toast.success(t("form.no_changes"));
       return;
     }
 
@@ -204,9 +206,9 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
       // Clear secret fields immediately after a successful save so they
       // don't linger in component state any longer than necessary.
       form.reset({ ...values, api_key: "", hf_token: "" });
-      toast.success("ÄÃ£ lÆ°u khÃ³a API");
+      toast.success(t("form.api.save_success"));
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "LÆ°u tháº¥t báº¡i";
+      const msg = e instanceof Error ? e.message : t("form.save_failed");
       toast.error(msg);
     }
   });
@@ -223,7 +225,7 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
   async function saveProvider(preset: ProviderPreset) {
     const apiKey = providerKeys[preset.name]?.trim() ?? "";
     if (!apiKey) {
-      toast.error(`Nháº­p API key cho ${preset.label} trÆ°á»›c`);
+      toast.error(t("form.api.enter_key_first", { provider: preset.label }));
       return;
     }
     setSavingProvider(preset.name);
@@ -240,9 +242,9 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
       });
       setProviderKeys((prev) => ({ ...prev, [preset.name]: "" }));
       await queryClient.invalidateQueries({ queryKey: ["config"] });
-      toast.success(`ÄÃ£ lÆ°u ${preset.label}`);
+      toast.success(t("form.api.saved_preset", { provider: preset.label }));
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "LÆ°u provider tháº¥t báº¡i";
+      const msg = e instanceof Error ? e.message : t("form.api.save_preset_failed");
       toast.error(msg);
     } finally {
       setSavingProvider(null);
@@ -259,9 +261,9 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
         <div className="flex flex-col gap-5">
           <section className="rounded-lg border border-border/70 bg-background/40 p-4">
             <div className="mb-3">
-              <h3 className="text-sm font-medium text-foreground">Provider nhanh</h3>
+              <h3 className="text-sm font-medium text-foreground">{t("form.api.quick_provider")}</h3>
               <p className="text-xs text-muted-foreground">
-                Thêm Gemini, Anthropic, OpenAI, OpenRouter… vào danh sách nhà cung cấp fallback.
+                {t("form.api.quick_provider_desc")}
               </p>
             </div>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -285,7 +287,7 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
                             }))
                           }
                           className="mt-1 h-8 max-w-56 rounded-md border border-input bg-background px-2 font-mono text-[11px] text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          aria-label={`${preset.label} model`}
+                          aria-label={t("form.api.model_select_label", { provider: preset.label })}
                         >
                           {preset.models.map((model) => (
                             <option key={model.id} value={model.id}>
@@ -295,7 +297,7 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
                         </select>
                       </div>
                       <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-                        {existing?.api_key_masked ? "Đã lưu" : "Chưa có"}
+                        {existing?.api_key_masked ? t("api.configured") : t("api.missing")}
                       </span>
                     </div>
                     <Input
@@ -310,7 +312,7 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
                       }
                       placeholder={
                         existing?.api_key_masked
-                          ? `Hiện tại: ${existing.api_key_masked} — nhập key mới để cập nhật`
+                          ? t("form.api.existing_key_hint", { masked: existing.api_key_masked })
                           : preset.placeholder
                       }
                     />
@@ -325,7 +327,7 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
                         disabled={busy || !(providerKeys[preset.name] ?? "").trim()}
                         onClick={() => saveProvider(preset)}
                       >
-                        {busy ? "Đang lưu…" : existing ? "Cập nhật" : "Thêm"}
+                        {busy ? t("form.saving") : existing ? t("update") : t("add")}
                       </Button>
                     </div>
                   </div>
@@ -336,19 +338,19 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
 
           <div className="flex flex-col gap-1.5">
             <MaskedInput
-              label="HuggingFace token"
+              label={t("form.api.huggingface_label")}
               value={form.watch("hf_token")}
               onChange={(v) =>
                 form.setValue("hf_token", v, { shouldDirty: true })
               }
-              placeholder={hfMasked ? "Để trống nếu không đổi" : "hf_..."}
+              placeholder={hfMasked ? t("form.api.huggingface_placeholder") : "hf_..."}
               error={errors.hf_token?.message}
-              onCopied={() => toast.success("ÄÃ£ sao chÃ©p token")}
+              onCopied={() => toast.success(t("form.api.copied"))}
             />
             <Hint>
               {hfMasked
-                ? `Hiá»‡n táº¡i: ${hfMasked} â€” Ä‘á»ƒ trá»‘ng Ä‘á»ƒ giá»¯ nguyÃªn.`
-                : "Tùy chọn — chỉ cần nếu dùng provider ảnh HuggingFace."}
+                ? t("form.api.huggingface_current_hint", { masked: hfMasked })
+                : t("form.api.huggingface_hint")}
             </Hint>
           </div>
         </div>

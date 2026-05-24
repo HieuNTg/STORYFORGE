@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,12 +24,7 @@ export interface BranchNodeCardProps {
   className?: string;
 }
 
-const STATUS_LABEL: Record<BranchNodeCardStatus, string> = {
-  visited: "Đã đọc",
-  current: "Hiện tại",
-  pending: "Chưa đọc",
-  choice: "Lựa chọn",
-};
+// Removed hardcoded STATUS_LABEL map in favor of next-intl dictionary keys
 
 /**
  * BranchNodeCard — 288px wide card used inside xyflow nodes.
@@ -49,6 +45,7 @@ export function BranchNodeCard({
   onBranch,
   className,
 }: BranchNodeCardProps) {
+  const t = useTranslations("branching");
   const isCurrent = status === "current";
   return (
     <div
@@ -68,11 +65,11 @@ export function BranchNodeCard({
           variant={isCurrent ? "default" : status === "choice" ? "outline" : "secondary"}
           className="shrink-0"
         >
-          {STATUS_LABEL[status]}
+          {t(`node_${status}` as const)}
         </Badge>
         {typeof childCount === "number" && childCount > 0 ? (
           <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-accent">
-            {childCount} nhánh
+            {t("node_branches", { count: childCount })}
           </span>
         ) : null}
       </div>
@@ -100,7 +97,7 @@ export function BranchNodeCard({
               }}
             >
               <BookOpen className="size-3" aria-hidden />
-              Đọc
+              {t("node_read_cta")}
             </Button>
           ) : null}
           {onBranch ? (
@@ -115,7 +112,7 @@ export function BranchNodeCard({
               }}
             >
               <GitBranch className="size-3" aria-hidden />
-              Nhánh
+              {t("node_branch_cta")}
             </Button>
           ) : null}
         </div>

@@ -25,27 +25,30 @@ import type {
 } from "@/components/analytics/EventTimeline";
 import { useStory, useStoryAnalytics, type StoryAnalytics } from "@/lib/api/queries";
 import { rehydrateLibrary, useLibraryStore } from "@/stores/library-store";
+import { useTranslations } from "next-intl";
 
 const WORDS_PER_MINUTE = 220; // VN reader baseline used by legacy `web/js/reader.ts`.
 
 // Code-split — only loaded when ?show=characters per spec.
 const CharacterGraph = dynamic(
   () => import("@/components/branching/CharacterGraph"),
-  { ssr: false, loading: () => <p className="text-sm text-muted-foreground">Đang tải đồ thị nhân vật…</p> }
+  {
+    ssr: false,
+    loading: () => {
+      const isEn = typeof window !== "undefined" && document.documentElement.lang === "en";
+      return (
+        <p className="text-sm text-muted-foreground">
+          {isEn ? "Loading character graph..." : "Đang tải đồ thị nhân vật…"}
+        </p>
+      );
+    },
+  }
 );
 
 interface CharacterShape {
   id?: string;
   name?: string;
   role?: string;
-}
-
-function inferEventType(label: string): TimelineEventType {
-  const l = label.toLowerCase();
-  if (l.includes("rewrite")) return "rewrite";
-  if (l.includes("gate") || l.includes("contract")) return "gate";
-  if (l.includes("enhance") || l.includes("layer 2") || l.includes("l2")) return "enhancement";
-  return "simulation";
 }
 
 function countWords(text: string): number {
@@ -56,6 +59,7 @@ function countWords(text: string): number {
 export default function AnalyticsPage() {
   const params = useParams<{ id: string }>();
   const storyId = params?.id ?? null;
+  const t = useTranslations("analytics");
 
   const stories = useLibraryStore((s) => s.stories);
   const hydrated = useLibraryStore((s) => s.hydrated);
@@ -81,18 +85,26 @@ export default function AnalyticsPage() {
   // Lazy initializer runs once — keeps the render pure (no Date.now() at render).
   const [epoch] = React.useState(() => Date.now());
 
+  function inferEventType(label: string): TimelineEventType {
+    const l = label.toLowerCase();
+    if (l.includes("rewrite")) return "rewrite";
+    if (l.includes("gate") || l.includes("contract")) return "gate";
+    if (l.includes("enhance") || l.includes("layer 2") || l.includes("l2")) return "enhancement";
+    return "simulation";
+  }
+
   if (!storyId) {
-    return <p className="text-sm text-muted-foreground">Không tìm thấy truyện.</p>;
+    return <p className="text-sm text-muted-foreground">{t("story_not_found")}</p>;
   }
   if (!hydrated) {
-    return <p className="text-sm text-muted-foreground">Đang tải thư viện…</p>;
+    return <p className="text-sm text-muted-foreground">{t("loading_library")}</p>;
   }
 
   const localAnalytics: StoryAnalytics | null = localStory
     ? (() => {
         const chapters = localStory.chapters.map((c, i) => ({
           number: i + 1,
-          title: c.title || `Chương ${i + 1}`,
+          title: c.title || t("chapter_name", { num: i + 1 }),
           wordCount: countWords(c.content),
         }));
         const wordCount = chapters.reduce((sum, c) => sum + c.wordCount, 0);
@@ -103,9 +115,9 @@ export default function AnalyticsPage() {
           qualityScore: null,
           chapters,
           events: [
-            { label: "Tạo truyện", at: localStory.createdAt },
+            { label: t("event_create"), at: localStory.createdAt },
             ...(localStory.updatedAt !== localStory.createdAt
-              ? [{ label: "Cập nhật truyện", at: localStory.updatedAt }]
+              ? [{ label: t("event_update"), at: localStory.updatedAt }]
               : []),
           ],
         };
@@ -113,18 +125,18 @@ export default function AnalyticsPage() {
     : null;
 
   if (!localAnalytics && analytics.isLoading) {
-    return <p className="text-sm text-muted-foreground">Đang tính số liệu…</p>;
+    return <p className="text-sm text-muted-foreground">{t("calculating")}</p>;
   }
   if (!localAnalytics && analytics.error) {
     return (
       <p className="text-sm text-destructive">
-        Lỗi tải số liệu: {analytics.error.message}
+        {t("error_loading", { msg: analytics.error.message })}
       </p>
     );
   }
   const a = localAnalytics ?? analytics.data;
   if (!a) {
-    return <p className="text-sm text-muted-foreground">Chưa có số liệu.</p>;
+    return <p className="text-sm text-muted-foreground">{t("no_metrics")}</p>;
   }
 
   const readingTimeMinutes = a.wordCount > 0 ? a.wordCount / WORDS_PER_MINUTE : 0;
@@ -148,13 +160,13 @@ export default function AnalyticsPage() {
     localStory
       ? localStory.characters.map((c, i) => ({
           id: c.name || String(i),
-          name: c.name || `Nhân vật ${i + 1}`,
+          name: c.name || t("character_name", { num: i + 1 }),
           role: c.role,
         }))
       : Array.isArray(story.data?.characters)
         ? (story.data!.characters as CharacterShape[]).map((c, i) => ({
             id: c?.id ?? String(i),
-            name: c?.name ?? `Nhân vật ${i + 1}`,
+            name: c?.name ?? t("character_name", { num: i + 1 }),
             role: c?.role,
           }))
         : [];
@@ -165,7 +177,7 @@ export default function AnalyticsPage() {
     <div className="flex flex-col gap-4">
       <header className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Số liệu</h1>
+          <h1 className="text-xl font-semibold text-foreground">{t("title")}</h1>
           <p className="text-sm text-muted-foreground">{storyId}</p>
         </div>
         <Button
@@ -175,7 +187,7 @@ export default function AnalyticsPage() {
           onClick={() => void setShow(showCharacters ? null : "characters")}
           disabled={characters.length === 0}
         >
-          {showCharacters ? "Ẩn đồ thị nhân vật" : "Đồ thị nhân vật"}
+          {showCharacters ? t("hide_graph") : t("show_graph")}
         </Button>
       </header>
 
@@ -188,7 +200,7 @@ export default function AnalyticsPage() {
         <QualityCard score={a.qualityScore ?? 0} />
         <Card>
           <CardHeader>
-            <CardTitle>Sự kiện</CardTitle>
+            <CardTitle>{t("events_title")}</CardTitle>
           </CardHeader>
           <CardContent className="max-h-[320px] overflow-auto pb-4">
             <EventTimeline events={timelineEvents} />
@@ -198,11 +210,11 @@ export default function AnalyticsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Số từ theo chương</CardTitle>
+          <CardTitle>{t("word_count_by_chapter")}</CardTitle>
         </CardHeader>
         <CardContent>
           {chartData.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Chưa có chương.</p>
+            <p className="text-sm text-muted-foreground">{t("no_chapters")}</p>
           ) : (
             <ChapterChart data={chartData} />
           )}
@@ -212,12 +224,12 @@ export default function AnalyticsPage() {
       {showCharacters ? (
         <Card>
           <CardHeader>
-            <CardTitle>Quan hệ nhân vật</CardTitle>
+            <CardTitle>{t("character_relationships")}</CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
             {characters.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Không có dữ liệu nhân vật.
+                {t("no_character_data")}
               </p>
             ) : (
               <CharacterGraph characters={characters} />

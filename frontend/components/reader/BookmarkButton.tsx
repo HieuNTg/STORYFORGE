@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Bookmark, BookmarkCheck } from "lucide-react";
@@ -18,7 +18,8 @@ export function BookmarkButton({
   loading = false,
   className,
 }: BookmarkButtonProps) {
-  const label = isBookmarked ? "Bỏ đánh dấu" : "Đánh dấu";
+  const t = useTranslations("reader");
+  const label = isBookmarked ? t("bookmark_check") : t("bookmark");
 
   return (
     <Button

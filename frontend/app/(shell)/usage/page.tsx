@@ -30,6 +30,8 @@ import { ApiCallsTable } from "@/components/usage/ApiCallsTable";
 import type { CostBreakdownDatum } from "@/components/usage/CostBreakdownChart";
 import { useUsageSession, type SessionUsageSummary } from "@/lib/api/usage";
 
+import { useTranslations } from "next-intl";
+
 const CostBreakdownChart = dynamic(
   () => import("@/components/usage/CostBreakdownChart"),
   {
@@ -54,7 +56,7 @@ const DEMO: SessionUsageSummary = {
   },
 };
 
-function PendingBanner({ message }: { message: string }) {
+function PendingBanner({ label, message }: { label: string; message: string }) {
   return (
     <div
       role="status"
@@ -62,13 +64,14 @@ function PendingBanner({ message }: { message: string }) {
     >
       <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
       <p>
-        <span className="font-medium">Backend endpoint pending.</span> {message}
+        <span className="font-medium">{label}</span> {message}
       </p>
     </div>
   );
 }
 
 export default function UsagePage() {
+  const t = useTranslations("usage");
   const usage = useUsageSession();
 
   const { data, isLoading, error } = usage;
@@ -78,7 +81,7 @@ export default function UsagePage() {
   if (isLoading && !eff) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHero title="Sử dụng" subtitle="Token và chi phí phiên hiện tại" />
+        <PageHero title={t("title")} subtitle={t("loading_subtitle")} />
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-24 w-full" />
@@ -92,10 +95,10 @@ export default function UsagePage() {
   if (!eff) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHero title="Sử dụng" />
+        <PageHero title={t("title")} />
         <ErrorState
-          title="Không tải được số liệu"
-          description={(error as Error | undefined)?.message ?? "Lỗi không xác định"}
+          title={t("load_failed")}
+          description={(error as Error | undefined)?.message ?? "Error"}
           onRetry={() => usage.refetch()}
         />
       </div>
@@ -121,12 +124,12 @@ export default function UsagePage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHero
-        title="Sử dụng"
-        subtitle="Token và chi phí của phiên server hiện tại"
+        title={t("title")}
+        subtitle={t("subtitle")}
       />
 
       {showDemo ? (
-        <PendingBanner message="Số liệu thật chưa khả dụng (endpoint cần quyền hoặc lỗi mạng). Đang hiển thị dữ liệu mẫu." />
+        <PendingBanner label={t("backend_pending")} message={t("demo_banner")} />
       ) : null}
 
       {empty && !showDemo ? (
@@ -143,11 +146,11 @@ export default function UsagePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Token theo mô hình</CardTitle>
+              <CardTitle>{t("chart_title")}</CardTitle>
             </CardHeader>
             <CardContent>
               {chartData.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Chưa có mô hình nào được gọi.</p>
+                <p className="text-sm text-muted-foreground">{t("chart_empty")}</p>
               ) : (
                 <CostBreakdownChart data={chartData} dataKey="tokens" />
               )}
@@ -155,8 +158,8 @@ export default function UsagePage() {
           </Card>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <ApiCallsTable rows={modelRows} title="Theo mô hình" />
-            <ApiCallsTable rows={storyRows} title="Theo truyện" />
+            <ApiCallsTable rows={modelRows} title={t("table_by_model")} />
+            <ApiCallsTable rows={storyRows} title={t("table_by_story")} />
           </div>
         </>
       )}

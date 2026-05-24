@@ -11,6 +11,7 @@
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useTranslations, useLocale } from "next-intl";
 import { toast } from "sonner";
 
 import { GeneralForm } from "@/components/settings/GeneralForm";
@@ -75,6 +76,8 @@ export interface GeneralFormFieldsProps {
 }
 
 export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
+  const t = useTranslations("settings_panel");
+  const locale = useLocale();
   const update = useUpdateConfig();
 
   const defaults: GeneralFormValues = React.useMemo(
@@ -83,7 +86,9 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
         config.pipeline.language,
       )
         ? (config.pipeline.language as GeneralFormValues["language"])
-        : "vi",
+        : ((SUPPORTED_LANGUAGES as readonly string[]).includes(locale)
+            ? (locale as GeneralFormValues["language"])
+            : "vi"),
       image_provider: (IMAGE_PROVIDERS as readonly string[]).includes(
         config.pipeline.image_provider,
       )
@@ -93,7 +98,7 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
       base_url: config.llm.base_url || "https://api.openai.com/v1",
       model: config.llm.model || "gpt-4o-mini",
     }),
-    [config],
+    [config, locale],
   );
 
   const form = useForm<GeneralFormValues>({
@@ -110,14 +115,14 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
     // Delta-only PUT: only send fields the user actually touched (F4/F5).
     const payload = pickDirty(values, form.formState.dirtyFields);
     if (Object.keys(payload).length === 0) {
-      toast.success("Không có thay đổi để lưu");
+      toast.success(t("form.no_changes"));
       return;
     }
     try {
       await update.mutateAsync(payload);
-      toast.success("Đã lưu cài đặt chung");
+      toast.success(t("form.general.save_success"));
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Lưu thất bại";
+      const msg = e instanceof Error ? e.message : t("form.save_failed");
       toast.error(msg);
     }
   });
@@ -135,7 +140,7 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
         <>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Field
-            label="Ngôn ngữ"
+            label={t("form.general.language")}
             htmlFor="gen-language"
             error={errors.language?.message}
           >
@@ -159,10 +164,10 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
           </Field>
 
           <Field
-            label="Provider hình ảnh"
+            label={t("form.general.image_provider")}
             htmlFor="gen-image-provider"
             error={errors.image_provider?.message}
-            hint="Tắt nếu chưa cần ảnh nhân vật"
+            hint={t("form.general.image_provider_hint")}
           >
             <Select
               value={form.watch("image_provider")}
@@ -178,7 +183,7 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Không sử dụng</SelectItem>
+                <SelectItem value="none">{t("form.general.image_provider_none")}</SelectItem>
                 <SelectItem value="huggingface">HuggingFace (free)</SelectItem>
                 <SelectItem value="dalle">DALL·E</SelectItem>
                 <SelectItem value="seedream">Seedream</SelectItem>
@@ -188,7 +193,7 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
           </Field>
 
           <Field
-            label="Phong cách prompt ảnh"
+            label={t("form.general.image_style")}
             htmlFor="gen-style"
             error={errors.image_prompt_style?.message}
           >

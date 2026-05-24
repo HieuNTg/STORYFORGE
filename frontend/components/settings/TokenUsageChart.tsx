@@ -13,12 +13,14 @@
 
 import * as React from "react";
 import dynamic from "next/dynamic";
+import { useTranslations } from "next-intl";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUsageSession } from "@/lib/api/usage";
 
 const Chart = dynamic(() => import("./TokenUsageChartInner"), { ssr: false });
 
 export function TokenUsageChart() {
+  const t = useTranslations("settings_panel");
   const { data, isLoading, error } = useUsageSession();
 
   if (isLoading) return <Skeleton className="h-24 w-full" />;
@@ -26,7 +28,7 @@ export function TokenUsageChart() {
   if (error || !data) {
     return (
       <div className="flex h-24 items-center justify-center rounded-xl border border-dashed border-border bg-card/30 text-xs text-muted-foreground">
-        {error?.message ?? "Chưa có dữ liệu để vẽ biểu đồ."}
+        {error?.message ?? t("chart_empty")}
       </div>
     );
   }
@@ -39,7 +41,7 @@ export function TokenUsageChart() {
   if (points.length === 0) {
     return (
       <div className="flex h-24 items-center justify-center rounded-xl border border-dashed border-border bg-card/30 text-xs text-muted-foreground">
-        Chưa có lệnh gọi LLM nào trong phiên này.
+        {t("no_calls")}
       </div>
     );
   }

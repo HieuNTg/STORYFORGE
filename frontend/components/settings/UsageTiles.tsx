@@ -10,6 +10,7 @@
 
 import * as React from "react";
 import { Activity, Coins, FileText } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatTile } from "./StatTile";
 import { useUsageSession } from "@/lib/api/usage";
@@ -23,6 +24,8 @@ function formatCost(n: number): string {
 }
 
 export function UsageTiles() {
+  const tSettings = useTranslations("settings_panel");
+  const tUsage = useTranslations("usage");
   const { data, isLoading, error } = useUsageSession();
 
   if (isLoading) {
@@ -38,7 +41,7 @@ export function UsageTiles() {
   if (error || !data) {
     return (
       <div className="rounded-xl border border-dashed border-border bg-card/30 p-4 text-xs text-muted-foreground">
-        {error?.message ?? "Chưa có dữ liệu sử dụng cho phiên này."}
+        {error?.message ?? tSettings("session_empty")}
       </div>
     );
   }
@@ -46,21 +49,24 @@ export function UsageTiles() {
   return (
     <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
       <StatTile
-        label="Yêu cầu"
+        label={tUsage("requests")}
         value={formatNumber(data.call_count)}
-        hint="Phiên hiện tại"
+        hint={tSettings("current_session")}
         icon={<Activity className="size-4" />}
       />
       <StatTile
-        label="Tokens"
+        label={tUsage("tokens")}
         value={formatNumber(data.total_tokens)}
-        hint={`Prompt ${formatNumber(data.total_prompt_tokens)} · Out ${formatNumber(data.total_completion_tokens)}`}
+        hint={tSettings("prompt_out_hint", {
+          prompt: formatNumber(data.total_prompt_tokens),
+          completion: formatNumber(data.total_completion_tokens),
+        })}
         icon={<FileText className="size-4" />}
       />
       <StatTile
-        label="Chi phí USD"
+        label={tUsage("cost")}
         value={formatCost(data.total_cost_usd)}
-        hint={`${Object.keys(data.by_model).length} model${Object.keys(data.by_model).length === 1 ? "" : "s"}`}
+        hint={tSettings("model_count", { count: Object.keys(data.by_model).length })}
         icon={<Coins className="size-4" />}
       />
     </div>

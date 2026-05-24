@@ -20,25 +20,29 @@ export interface ApiCallsTableProps {
   className?: string;
 }
 
-const N = new Intl.NumberFormat("vi-VN");
+import { useTranslations, useLocale } from "next-intl";
 
-export function ApiCallsTable({ rows, title = "Theo mô hình", className }: ApiCallsTableProps) {
+export function ApiCallsTable({ rows, title, className }: ApiCallsTableProps) {
+  const t = useTranslations("usage");
+  const locale = useLocale();
+  const N = React.useMemo(() => new Intl.NumberFormat(locale), [locale]);
+
   return (
     <Card className={cn(className)}>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <CardTitle>{title || t("table_by_model")}</CardTitle>
       </CardHeader>
       <CardContent className="pb-4">
         {rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Chưa có dữ liệu.</p>
+          <p className="text-sm text-muted-foreground">{t("empty")}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="py-2 pr-4 font-medium">Mô hình</th>
-                  <th className="py-2 pr-4 text-right font-medium">Token</th>
-                  <th className="py-2 text-right font-medium">Chi phí (USD)</th>
+                  <th className="py-2 pr-4 font-medium">{t("model")}</th>
+                  <th className="py-2 pr-4 text-right font-medium">{t("tokens")}</th>
+                  <th className="py-2 text-right font-medium">{t("cost_usd")}</th>
                 </tr>
               </thead>
               <tbody>
