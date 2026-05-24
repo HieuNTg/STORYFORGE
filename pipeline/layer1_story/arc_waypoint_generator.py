@@ -73,7 +73,7 @@ def generate_arc_waypoints(
             system_prompt="Bạn là trợ lý tạo cấu trúc arc nhân vật. Trả về JSON bằng tiếng Việt.",
             user_prompt=prompt,
             temperature=0.5,
-            max_tokens=2000,
+            max_tokens=4000,
             model=model,
             expect="dict",
             list_key="characters",

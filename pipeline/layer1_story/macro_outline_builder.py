@@ -50,7 +50,7 @@ def generate_macro_arcs(
         list_key="macro_arcs",
     )
     arcs = []
-    arc_data = result.get("macro_arcs", [])
+    arc_data = result if isinstance(result, list) else result.get("macro_arcs", [])
     for a in arc_data:
         if isinstance(a, dict):
             try:

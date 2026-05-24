@@ -16,22 +16,28 @@ Yêu cầu: Trả về JSON array, mỗi phần tử tương ứng một nhân v
 Mỗi phần tử có cấu trúc:
 {{
   "name": "tên nhân vật",
+  "register": "formal | casual | archaic | mixed",
   "vocabulary_level": "formal | casual | archaic | mixed",
   "sentence_style": "short_punchy | long_flowing | fragmented | poetic",
   "verbal_tics": ["tic 1", "tic 2"],
+  "emotional_baseline": "trạng thái cảm xúc nền (vd: trầm tĩnh, sôi nổi, u uất, kiêu ngạo)",
   "emotional_expression": {{
     "anger": "cách biểu đạt khi giận",
     "joy": "cách biểu đạt khi vui",
     "sadness": "cách biểu đạt khi buồn"
   }},
-  "dialogue_example": ["câu thoại mẫu 1", "câu thoại mẫu 2", "câu thoại mẫu 3"]
+  "avoid_phrases": ["cụm từ không bao giờ nói 1", "cụm từ không bao giờ nói 2"],
+  "dialogue_examples": ["câu thoại mẫu 1", "câu thoại mẫu 2", "câu thoại mẫu 3"]
 }}
 
 Nguyên tắc:
 - Mỗi nhân vật phải có giọng nói RÕ RÀNG KHÁC BIỆT với nhân vật khác
 - verbal_tics phải cụ thể (ví dụ: "hay thêm 'thật ra là...' khi giải thích", "kết câu bằng '...vậy đó'")
-- dialogue_example phải thể hiện rõ tính cách và giọng văn đặc trưng
+- dialogue_examples phải thể hiện rõ tính cách và giọng văn đặc trưng
+- emotional_baseline là TRẠNG THÁI NỀN (không phải cảm xúc tức thời), 2-6 từ
 - emotional_expression phải phù hợp với tính cách và xuất thân nhân vật
+- avoid_phrases: 2-4 cụm từ trái với tính cách nhân vật (giúp tránh OOC)
+- register và vocabulary_level có thể giống nhau
 
 Chỉ trả về JSON array, không giải thích thêm."""
 
@@ -74,7 +80,7 @@ def generate_voice_profiles(llm, characters: list[Character], genre: str, model=
     )
     user_prompt = f"Tạo hồ sơ giọng nói cho {len(characters)} nhân vật trên."
 
-    kwargs = {"system_prompt": system_prompt, "user_prompt": user_prompt}
+    kwargs = {"system_prompt": system_prompt, "user_prompt": user_prompt, "max_tokens": 4096}
     if model:
         kwargs["model"] = model
 
