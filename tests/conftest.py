@@ -22,6 +22,22 @@ def _default_strict_handoff(monkeypatch):
     yield
 
 
+# Reset orchestrator_layers' module-level sync engine before each test so
+# fixtures that patch DATABASE_URL don't inherit a prior test's engine
+# (which would silently write to the wrong DB). Dispose the pool to avoid
+# leaking connections across tests.
+@pytest.fixture(autouse=True)
+def _reset_orchestrator_sync_engine():
+    from pipeline import orchestrator_layers as _ol
+    if _ol._sync_engine is not None:
+        try:
+            _ol._sync_engine.dispose()
+        except Exception:
+            pass
+        _ol._sync_engine = None
+    yield
+
+
 # ---------------------------------------------------------------------------
 # CI Timing Plugin
 # ---------------------------------------------------------------------------

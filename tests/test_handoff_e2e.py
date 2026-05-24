@@ -95,6 +95,8 @@ def temp_db(tmp_path, monkeypatch):
     # blows up on SQLite because audit_logs uses JSONB.
     for table in (Story.__table__, Chapter.__table__, PipelineRun.__table__):
         table.create(engine, checkfirst=True)
+    # Reset of orchestrator_layers._sync_engine is handled by the
+    # autouse fixture _reset_orchestrator_sync_engine in tests/conftest.py.
     return engine, db_url
 
 
@@ -169,7 +171,9 @@ def test_handoff_e2e_3_chapter_run(temp_db, fixture_data, diagnostics_client):
     """
     engine, _db_url = temp_db
     story_id = fixture_data["story_id"]
-    sid_stripped = story_id.replace("-", "")
+    # After migration 005, UUID columns are VARCHAR(36) on SQLite → dashes are
+    # preserved by the ORM, so query/seed/lookup all use the dashed form.
+    sid_stripped = story_id
 
     # Seed story + run + chapters
     _seed_story_and_run(engine, story_id)
@@ -293,7 +297,7 @@ def test_persist_helpers_bug_documentation(temp_db, fixture_data):
         ).fetchall()
     assert len(rows) == 1
     stored_sid, stored_env = rows[0]
-    assert stored_sid == story_id.replace("-", ""), "ORM strips dashes on SQLite"
+    assert stored_sid == story_id, "ORM preserves dashes on SQLite VARCHAR(36) (post-005)"
     assert stored_env is not None, (
         "ORM persist must write handoff_envelope (Bug A fix regression)"
     )
