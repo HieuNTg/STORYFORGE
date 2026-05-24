@@ -38,7 +38,12 @@ test("wizard: auto-opens when api_key is empty; dismiss persists", async ({
   context,
 }) => {
   await context.clearCookies();
-  await page.addInitScript(() => window.localStorage.clear());
+  await page.addInitScript(() => {
+    if (!window.sessionStorage.getItem("settings-wizard-cleared")) {
+      window.localStorage.clear();
+      window.sessionStorage.setItem("settings-wizard-cleared", "1");
+    }
+  });
 
   await page.route("**/api/config", async (route) => {
     if (route.request().method() === "PUT") {
