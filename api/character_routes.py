@@ -191,7 +191,7 @@ Vai trò (role) phải là một trong: protagonist, antagonist, rival, supporti
 """
     try:
         raw_json = await asyncio.wait_for(
-            asyncio.to_thread(llm.generate, prompt=prompt, model=model, temperature=0.7),
+            asyncio.to_thread(llm.generate, system_prompt="Bạn là trợ lý trích xuất thông tin nhân vật. Chỉ trả về JSON hợp lệ.", user_prompt=prompt, model=model, temperature=0.7),
             timeout=45.0
         )
         if "```json" in raw_json:
