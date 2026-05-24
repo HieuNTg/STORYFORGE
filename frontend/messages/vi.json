@@ -26,18 +26,44 @@
     "settings": "Theme · LLM · Ngôn ngữ"
   },
   "pages": {
-    "pipeline": { "title": "Pipeline", "subtitle": "Tạo truyện mới" },
-    "library": { "title": "Thư viện", "subtitle": "Danh sách truyện đã tạo" },
-    "library_detail": { "title": "Chi tiết truyện" },
-    "branching": { "title": "Phân nhánh" },
-    "analytics": { "title": "Phân tích" },
-    "export": { "title": "Xuất bản" },
-    "settings": { "title": "Cài đặt" },
-    "providers": { "title": "Nhà cung cấp" },
-    "account": { "title": "Tài khoản" },
-    "gallery": { "title": "Bộ sưu tập" },
-    "usage": { "title": "Sử dụng" },
-    "guide": { "title": "Hướng dẫn" }
+    "pipeline": {
+      "title": "Pipeline",
+      "subtitle": "Tạo truyện mới"
+    },
+    "library": {
+      "title": "Thư viện",
+      "subtitle": "Danh sách truyện đã tạo"
+    },
+    "library_detail": {
+      "title": "Chi tiết truyện"
+    },
+    "branching": {
+      "title": "Phân nhánh"
+    },
+    "analytics": {
+      "title": "Phân tích"
+    },
+    "export": {
+      "title": "Xuất bản"
+    },
+    "settings": {
+      "title": "Cài đặt"
+    },
+    "providers": {
+      "title": "Nhà cung cấp"
+    },
+    "account": {
+      "title": "Tài khoản"
+    },
+    "gallery": {
+      "title": "Bộ sưu tập"
+    },
+    "usage": {
+      "title": "Sử dụng"
+    },
+    "guide": {
+      "title": "Hướng dẫn"
+    }
   },
   "shell": {
     "search": "Tìm kiếm",
@@ -61,7 +87,51 @@
     "exported": "Đã xuất JSON",
     "deleted": "Đã xoá truyện",
     "delete_confirm_title": "Xoá truyện?",
-    "delete_confirm_body": "Hành động này không thể hoàn tác. Hãy xuất JSON nếu bạn muốn giữ lại bản sao."
+    "delete_confirm_body": "Hành động này không thể hoàn tác. Hãy xuất JSON nếu bạn muốn giữ lại bản sao.",
+    "loading_shelf": "Đang tải kho truyện…",
+    "import_file_label": "Chọn tệp JSON để nhập vào kho truyện",
+    "file_too_large": "Tệp quá lớn (>1MB)",
+    "invalid_json": "Tệp JSON không hợp lệ",
+    "import_failed": "Nhập thất bại",
+    "forge_title": "Forge từ một câu ý tưởng",
+    "forge_placeholder": "VD: Một kiếm khách bị phế võ công đi tìm sư phụ đã chết để hỏi tội…",
+    "forge_sending": "Gửi ý tưởng ({count} ký tự)…",
+    "forge_stage_planning": "Đang phác thảo bối cảnh…",
+    "forge_stage_characters": "Đang tạo nhân vật…",
+    "forge_stage_chapter": "Đang viết chương 1…",
+    "forge_stage_choices": "Đang cân nhắc các ngả rẽ…",
+    "error_with_message": "Lỗi: {msg}",
+    "forge_done": "Hoàn thành: \"{title}\"",
+    "created_new": "Đã tạo truyện mới",
+    "forge_failed": "Forge thất bại",
+    "cancelled": "Đã huỷ.",
+    "min_chars": "Cần ít nhất {min} ký tự",
+    "over_chars": "Vượt {max} ký tự",
+    "max_chars": "Tối đa {max} ký tự",
+    "forging": "Đang forge…",
+    "forge_cta": "Forge truyện",
+    "cancel": "Huỷ",
+    "open_forge": "Mở Khai sinh",
+    "create_manual": "Tạo truyện thủ công",
+    "story_detail_label": "Chi tiết truyện {title}",
+    "setting": "Bối cảnh",
+    "tone": "Tông giọng",
+    "characters": "Nhân vật",
+    "chapters": "Chương",
+    "chapter_list": "Danh sách chương",
+    "no_chapters": "Chưa có chương nào.",
+    "status_draft": "Bản nháp",
+    "status_ready": "Sẵn sàng",
+    "status_enhanced": "Đã tinh chỉnh",
+    "read": "Đọc truyện",
+    "continue": "Viết tiếp",
+    "export_menu": "Export",
+    "exporting": "Đang xuất {format}…",
+    "choose_format": "Chọn định dạng",
+    "export_failed": "Xuất thất bại",
+    "exported_format": "Đã xuất {format}",
+    "export_format_failed": "Xuất {format} thất bại",
+    "delete_action": "Xoá"
   },
   "traits": {
     "strength": "Lực",

@@ -1,8 +1,10 @@
-import { getTranslations } from "next-intl/server";
+"use client";
+
+import { useTranslations } from "next-intl";
 import { BookshelfScreen } from "@/components/library/BookshelfScreen";
 
-export default async function LibraryPage() {
-  const t = await getTranslations("pages.library");
+export default function LibraryPage() {
+  const t = useTranslations("pages.library");
   return (
     <div className="space-y-6">
       <header>

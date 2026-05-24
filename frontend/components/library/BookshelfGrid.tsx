@@ -8,6 +8,7 @@
 
 import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
+import { useTranslations } from "next-intl";
 import { BookOpen, Plus, Sparkles } from "lucide-react";
 import { StoryCard, type LibraryStory } from "./StoryCard";
 import { Button } from "@/components/ui/button";
@@ -42,12 +43,13 @@ export function BookshelfGrid({
   className,
 }: BookshelfGridProps) {
   const reduce = useReducedMotion();
+  const t = useTranslations("library");
   if (stories.length === 0) {
     return (
       <EmptyState
         icon={BookOpen}
-        title="Kho truyện trống"
-        description="Khai sinh một câu ý tưởng ở phía trên hoặc tạo truyện thủ công để bắt đầu."
+        title={t("empty")}
+        description={t("empty_hint")}
         className={cn(
           "min-h-[320px] rounded-2xl border border-dashed border-border/70 bg-card/35",
           className,
@@ -56,12 +58,12 @@ export function BookshelfGrid({
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Button type="button" variant="outline" onClick={() => window.location.assign('/forge/')}>
               <Sparkles className="size-4" aria-hidden />
-              Mở Khai sinh
+              {t("open_forge")}
             </Button>
             {onCreate ? (
               <Button type="button" onClick={onCreate}>
                 <Plus className="size-4" aria-hidden />
-                Tạo truyện thủ công
+                {t("create_manual")}
               </Button>
             ) : null}
           </div>

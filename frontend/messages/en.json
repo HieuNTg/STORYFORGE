@@ -26,18 +26,44 @@
     "settings": "Theme · LLM · language"
   },
   "pages": {
-    "pipeline": { "title": "Pipeline", "subtitle": "Generate a new story" },
-    "library": { "title": "Library", "subtitle": "Your generated stories" },
-    "library_detail": { "title": "Story detail" },
-    "branching": { "title": "Branching" },
-    "analytics": { "title": "Analytics" },
-    "export": { "title": "Export" },
-    "settings": { "title": "Settings" },
-    "providers": { "title": "Providers" },
-    "account": { "title": "Account" },
-    "gallery": { "title": "Gallery" },
-    "usage": { "title": "Usage" },
-    "guide": { "title": "Guide" }
+    "pipeline": {
+      "title": "Pipeline",
+      "subtitle": "Generate a new story"
+    },
+    "library": {
+      "title": "Library",
+      "subtitle": "Your generated stories"
+    },
+    "library_detail": {
+      "title": "Story detail"
+    },
+    "branching": {
+      "title": "Branching"
+    },
+    "analytics": {
+      "title": "Analytics"
+    },
+    "export": {
+      "title": "Export"
+    },
+    "settings": {
+      "title": "Settings"
+    },
+    "providers": {
+      "title": "Providers"
+    },
+    "account": {
+      "title": "Account"
+    },
+    "gallery": {
+      "title": "Gallery"
+    },
+    "usage": {
+      "title": "Usage"
+    },
+    "guide": {
+      "title": "Guide"
+    }
   },
   "shell": {
     "search": "Search",
@@ -61,7 +87,51 @@
     "exported": "JSON exported",
     "deleted": "Story deleted",
     "delete_confirm_title": "Delete story?",
-    "delete_confirm_body": "This cannot be undone. Export to JSON first if you want a backup."
+    "delete_confirm_body": "This cannot be undone. Export to JSON first if you want a backup.",
+    "loading_shelf": "Loading bookshelf…",
+    "import_file_label": "Choose a JSON file to import into the bookshelf",
+    "file_too_large": "File is too large (>1MB)",
+    "invalid_json": "Invalid JSON file",
+    "import_failed": "Import failed",
+    "forge_title": "Forge from a sentence idea",
+    "forge_placeholder": "e.g. A swordsman stripped of his martial arts seeks his dead master for answers…",
+    "forge_sending": "Sending idea ({count} characters)…",
+    "forge_stage_planning": "Drafting the setting…",
+    "forge_stage_characters": "Creating characters…",
+    "forge_stage_chapter": "Writing chapter 1…",
+    "forge_stage_choices": "Considering branch choices…",
+    "error_with_message": "Error: {msg}",
+    "forge_done": "Finished: \"{title}\"",
+    "created_new": "Created a new story",
+    "forge_failed": "Forge failed",
+    "cancelled": "Cancelled.",
+    "min_chars": "At least {min} characters required",
+    "over_chars": "Over {max} characters",
+    "max_chars": "Up to {max} characters",
+    "forging": "Forging…",
+    "forge_cta": "Forge story",
+    "cancel": "Cancel",
+    "open_forge": "Open Forge",
+    "create_manual": "Create story manually",
+    "story_detail_label": "Story details for {title}",
+    "setting": "Setting",
+    "tone": "Tone",
+    "characters": "Characters",
+    "chapters": "Chapters",
+    "chapter_list": "Chapter list",
+    "no_chapters": "No chapters yet.",
+    "status_draft": "Draft",
+    "status_ready": "Ready",
+    "status_enhanced": "Enhanced",
+    "read": "Read story",
+    "continue": "Continue",
+    "export_menu": "Export",
+    "exporting": "Exporting {format}…",
+    "choose_format": "Choose format",
+    "export_failed": "Export failed",
+    "exported_format": "Exported {format}",
+    "export_format_failed": "Export {format} failed",
+    "delete_action": "Delete"
   },
   "traits": {
     "strength": "STR",

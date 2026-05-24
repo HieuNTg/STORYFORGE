@@ -76,6 +76,7 @@ test("library: empty state renders without backend", async ({ page }) => {
       body: JSON.stringify({ items: [], total: 0, limit: 20, offset: 0 }),
     })
   );
-  await page.goto("/library");
-  await expect(page.getByText(/Kho truyện trống/i)).toBeVisible();
+  await page.addInitScript(() => window.localStorage.removeItem("storyforge_locale"));
+  await page.goto("/library", { waitUntil: "domcontentloaded" });
+  await expect(page.getByText(/Kho truyện trống|Bookshelf is empty/i)).toBeVisible();
 });
