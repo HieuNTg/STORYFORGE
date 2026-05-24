@@ -22,6 +22,34 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+
+# ---------------------------------------------------------------------------
+# Cross-dialect type adapters
+# ---------------------------------------------------------------------------
+# Migration 001 declares columns with `postgresql.JSONB` and `postgresql.UUID`.
+# On Postgres production these compile natively. On SQLite (local dev) the
+# default visitor raises "Compiler can't render element of type ...".
+#
+# We register compiler extensions for the `sqlite` dialect only — production
+# Postgres behavior is untouched. Mapping:
+#   postgresql.JSONB              -> JSON       (sa.JSON falls back to TEXT on SQLite)
+#   postgresql.UUID(as_uuid=*)    -> VARCHAR(36)
+#
+# NOTE: This is the SQLAlchemy-recommended public API for dialect-specific
+# type rendering (no monkey-patching of __visit_name__).
+
+
+@compiles(JSONB, "sqlite")
+def _compile_jsonb_sqlite(element, compiler, **kw):  # noqa: D401, ANN001
+    return "JSON"
+
+
+@compiles(UUID, "sqlite")
+def _compile_uuid_sqlite(element, compiler, **kw):  # noqa: D401, ANN001
+    return "VARCHAR(36)"
+
 
 # ---------------------------------------------------------------------------
 # Register all ORM models so their metadata is visible to Alembic
