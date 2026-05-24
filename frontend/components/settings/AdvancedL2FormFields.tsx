@@ -66,7 +66,7 @@ export function AdvancedL2FormFields({ config }: AdvancedL2FormFieldsProps) {
     form.reset(defaults);
   }, [defaults, form]);
 
-  const layer2Model = form.watch("layer2_model");
+  const layer2Model = form.watch("layer2_model") ?? "";
   const configuredModels = React.useMemo(() => {
     const options = config.llm.profiles
       .filter((profile) => profile.enabled && profile.model.trim())
@@ -124,7 +124,7 @@ export function AdvancedL2FormFields({ config }: AdvancedL2FormFieldsProps) {
             <Select
               value={layer2Model || "__default__"}
               onValueChange={(v) =>
-                form.setValue("layer2_model", v === "__default__" ? "" : v, {
+                form.setValue("layer2_model", v === "__default__" ? "" : (v ?? ""), {
                   shouldDirty: true,
                 })
               }

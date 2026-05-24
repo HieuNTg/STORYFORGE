@@ -88,7 +88,7 @@ export function ApiKeyPanel() {
             const ok = res?.ok ?? null;
             return (
               <li
-                key={`${r.name}:${r.provider}:${r.model}:${r.base_url}:${index}`}
+                key={`${r.name}:${r.provider}:${r.model}:${index}`}
                 className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/40 px-3 py-2"
               >
                 <div className="flex min-w-0 flex-col">

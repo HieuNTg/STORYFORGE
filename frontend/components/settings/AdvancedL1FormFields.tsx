@@ -93,8 +93,8 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
   const temperature = form.watch("temperature");
   const threshold = form.watch("self_review_threshold");
   const selfReview = form.watch("enable_self_review");
-  const cheapModel = form.watch("cheap_model");
-  const layer1Model = form.watch("layer1_model");
+  const cheapModel = form.watch("cheap_model") ?? "";
+  const layer1Model = form.watch("layer1_model") ?? "";
 
   const configuredModels = React.useMemo(() => {
     const options = config.llm.profiles
@@ -198,7 +198,7 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
               <Select
                 value={cheapModel || "__default__"}
                 onValueChange={(v) =>
-                  form.setValue("cheap_model", v === "__default__" ? "" : v, {
+                  form.setValue("cheap_model", v === "__default__" ? "" : (v ?? ""), {
                     shouldDirty: true,
                   })
                 }
@@ -230,7 +230,7 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
               <Select
                 value={layer1Model || "__default__"}
                 onValueChange={(v) =>
-                  form.setValue("layer1_model", v === "__default__" ? "" : v, {
+                  form.setValue("layer1_model", v === "__default__" ? "" : (v ?? ""), {
                     shouldDirty: true,
                   })
                 }

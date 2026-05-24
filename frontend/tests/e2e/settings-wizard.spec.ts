@@ -57,13 +57,14 @@ test("wizard: auto-opens when api_key is empty; dismiss persists", async ({
   await page.goto("/settings");
 
   // Wizard dialog should appear automatically.
-  await expect(page.getByText("Chọn nhà cung cấp")).toBeVisible();
+  const wizardTitle = page.getByRole("heading", { name: "Chọn nhà cung cấp" });
+  await expect(wizardTitle).toBeVisible();
 
   // Close it (X button → onOpenChange(false) → dismissWizard).
   await page.keyboard.press("Escape");
-  await expect(page.getByText("Chọn nhà cung cấp")).not.toBeVisible();
+  await expect(wizardTitle).not.toBeVisible();
 
   // Reload — wizard should NOT auto-reopen.
   await page.reload();
-  await expect(page.getByText("Chọn nhà cung cấp")).not.toBeVisible();
+  await expect(wizardTitle).not.toBeVisible();
 });

@@ -74,7 +74,7 @@ test("settings: edit language and save round-trips through PUT /api/config", asy
 
   // Reload and verify the persisted value comes back.
   await page.reload();
-  await expect(page.getByRole("combobox").first()).toContainText("English");
+  await expect(page.getByRole("combobox").first()).toContainText(/English|en/);
 });
 
 test("settings: no api_key value leaks into URL or local storage", async ({

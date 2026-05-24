@@ -193,9 +193,9 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
             error={errors.image_prompt_style?.message}
           >
             <Select
-              value={form.watch("image_prompt_style")}
+              value={form.watch("image_prompt_style") ?? "cinematic"}
               onValueChange={(v) =>
-                form.setValue("image_prompt_style", v, { shouldDirty: true })
+                form.setValue("image_prompt_style", v ?? "cinematic", { shouldDirty: true })
               }
             >
               <SelectTrigger id="gen-style">

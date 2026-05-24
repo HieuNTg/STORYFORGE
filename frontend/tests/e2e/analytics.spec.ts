@@ -27,7 +27,7 @@ test("analytics: renders all four cards", async ({ page }) => {
   await page.goto("/analytics/demo/");
 
   await expect(page.getByText(/Tổng số từ/i)).toBeVisible();
-  await expect(page.getByText(/Chất lượng/i)).toBeVisible();
-  await expect(page.getByText(/Sự kiện/i)).toBeVisible();
+  await expect(page.getByText(/Chất lượng/i).first()).toBeVisible();
+  await expect(page.getByText(/Sự kiện/i).first()).toBeVisible();
   await expect(page.getByText(/Số từ theo chương/i)).toBeVisible();
 });
