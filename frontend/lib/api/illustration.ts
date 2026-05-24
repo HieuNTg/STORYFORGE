@@ -5,6 +5,7 @@
  *
  * Backend routes wrapped (api/image_routes.py):
  *   POST /api/images/{session_id}/generate                              — full or per-chapter
+ *   GET  /api/images/{session_id}/profiles                              — list character profiles
  *   POST /api/images/{session_id}/profiles/{character_name}/rebuild     — avatar refresh
  *
  * Per-chapter regeneration uses the existing `chapter` field on
@@ -32,6 +33,10 @@ export interface CharacterProfileRebuildResponse extends CharacterProfile {
   rebuilt: boolean;
 }
 
+export interface CharacterProfilesResponse {
+  profiles: CharacterProfile[];
+}
+
 export function generateChapterImage(
   sessionId: string,
   chapter: number,
@@ -54,6 +59,15 @@ export function generateAllImages(
   return apiFetch<GenerateImagesResponse>(
     `/api/images/${encodeURIComponent(sessionId)}/generate`,
     { method: "POST", body: JSON.stringify(body) },
+  );
+}
+
+export function listCharacterProfiles(
+  sessionId: string,
+): Promise<CharacterProfilesResponse> {
+  return apiFetch<CharacterProfilesResponse>(
+    `/api/images/${encodeURIComponent(sessionId)}/profiles`,
+    { method: "GET" },
   );
 }
 

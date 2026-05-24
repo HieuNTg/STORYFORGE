@@ -18,24 +18,47 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useLibraryStore, rehydrateLibrary } from "@/stores/library-store";
-import { CharacterList } from "./CharacterList";
+import { CharacterList, type CharacterListItemMeta } from "./CharacterList";
 import { CharacterDetail } from "./CharacterDetail";
 import { CreateCharacterForm } from "./CreateCharacterForm";
 import type { ForgeCharacter, Story } from "@/types/story";
 import { extractStoryCharacters } from "@/lib/api/characters";
+import { useCharacterProfiles } from "@/hooks/useCharacterProfiles";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+
+function normalizeForSearch(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
+    .trim();
+}
 
 export function CharactersScreen() {
   const t = useTranslations("characters");
   const stories = useLibraryStore((s) => s.stories);
   const hydrated = useLibraryStore((s) => s.hydrated);
   const upsertCharacter = useLibraryStore((s) => s.upsertCharacter);
+  const removeCharacter = useLibraryStore((s) => s.removeCharacter);
   const updateStory = useLibraryStore((s) => s.updateStory);
+  const queryClient = useQueryClient();
 
   const [storyId, setStoryId] = React.useState<string | null>(null);
   const [selectedName, setSelectedName] = React.useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = React.useState("");
 
   React.useEffect(() => {
     rehydrateLibrary();
@@ -50,7 +73,21 @@ export function CharactersScreen() {
     [storyId, stories],
   );
 
+  const { profiles } = useCharacterProfiles(storyId);
+
+  const profilesByName = React.useMemo(() => {
+    const map = new Map<string, CharacterListItemMeta>();
+    profiles.forEach((p, name) => {
+      map.set(name, {
+        avatarUrl: p.reference_url ?? null,
+        hasReferenceImage: !!p.has_reference_image,
+      });
+    });
+    return map;
+  }, [profiles]);
+
   const [isExtracting, setIsExtracting] = React.useState(false);
+  const [createOpen, setCreateOpen] = React.useState(false);
 
   const handleExtract = React.useCallback(async () => {
     if (!activeStory || isExtracting) return;
@@ -98,6 +135,7 @@ export function CharactersScreen() {
       if (!storyId) return;
       upsertCharacter(storyId, character);
       setSelectedName(character.name);
+      setCreateOpen(false);
     },
     [storyId, upsertCharacter],
   );
@@ -107,6 +145,35 @@ export function CharactersScreen() {
       activeStory?.characters.find((c) => c.name === selectedName) ?? null,
     [activeStory, selectedName],
   );
+
+  const visibleCharacters = React.useMemo(() => {
+    const all = activeStory?.characters ?? [];
+    const q = normalizeForSearch(searchQuery);
+    if (!q) return all;
+    return all.filter((c) => normalizeForSearch(c.name).includes(q));
+  }, [activeStory, searchQuery]);
+
+  const showSearch = (activeStory?.characters.length ?? 0) >= 5;
+
+  const handleDeleteCharacter = React.useCallback(
+    (name: string) => {
+      if (!storyId) return;
+      removeCharacter(storyId, name);
+      const remaining = (activeStory?.characters ?? []).filter(
+        (c) => c.name !== name,
+      );
+      setSelectedName(remaining[0]?.name ?? null);
+      toast.success(t("delete_confirm_action"));
+    },
+    [storyId, removeCharacter, activeStory, t],
+  );
+
+  const handleAvatarRegenerated = React.useCallback(() => {
+    if (!storyId) return;
+    void queryClient.invalidateQueries({
+      queryKey: ["character-profiles", storyId],
+    });
+  }, [queryClient, storyId]);
 
   if (!hydrated) {
     return (
@@ -148,28 +215,79 @@ export function CharactersScreen() {
         </Select>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr]">
-        <div className="space-y-4">
-          <CharacterList
-            characters={activeStory?.characters ?? []}
-            selectedName={selectedName}
-            onSelect={setSelectedName}
-          />
-          <div className="rounded-xl border border-border/40 bg-card/40 p-4">
-            <h3 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              {t("create")}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[320px_1fr]">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2 px-1">
+            <h3 className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+              {t("list_heading")} · {activeStory?.characters.length ?? 0}
             </h3>
-            <CreateCharacterForm
-              defaultGenre={activeStory?.genre}
-              onCreated={handleCreated}
-            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1 px-2 text-xs text-[var(--accent)] hover:text-[var(--accent)]"
+              onClick={() => setCreateOpen(true)}
+              disabled={!storyId}
+            >
+              <Plus className="size-3.5" />
+              {t("create_open")}
+            </Button>
           </div>
+          {showSearch ? (
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t("search_placeholder")}
+                className="h-8 pl-8 text-xs"
+                aria-label={t("search_placeholder")}
+              />
+            </div>
+          ) : null}
+          {searchQuery && visibleCharacters.length === 0 ? (
+            <p className="px-2 py-3 text-xs text-muted-foreground">
+              {t("no_results")}
+            </p>
+          ) : (
+            <CharacterList
+              characters={visibleCharacters}
+              selectedName={selectedName}
+              onSelect={setSelectedName}
+              profilesByName={profilesByName}
+            />
+          )}
         </div>
+
+        <Sheet open={createOpen} onOpenChange={setCreateOpen}>
+          <SheetContent
+            side="right"
+            className="flex w-full flex-col gap-0 sm:max-w-md"
+          >
+            <SheetHeader>
+              <SheetTitle>{t("create_sheet_title")}</SheetTitle>
+              <SheetDescription>
+                {t("create_sheet_description")}
+              </SheetDescription>
+            </SheetHeader>
+            <div className="flex-1 overflow-y-auto px-4 pb-4">
+              <CreateCharacterForm
+                defaultGenre={activeStory?.genre}
+                onCreated={handleCreated}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
 
         {selectedChar ? (
           <CharacterDetail
             character={selectedChar}
             genre={activeStory?.genre}
+            portraitUrl={profilesByName.get(selectedChar.name)?.avatarUrl ?? null}
+            sessionId={storyId}
+            onAvatarRegenerated={handleAvatarRegenerated}
+            onDelete={handleDeleteCharacter}
           />
         ) : (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 p-8 text-center text-sm text-muted-foreground">
