@@ -12,7 +12,7 @@ THỂ LOẠI: {genre}
 NHÂN VẬT: {characters}
 NỘI DUNG TÓM TẮT: {synopsis}
 
-Trả về JSON:
+Trả về JSON (BẮT BUỘC là một JSON OBJECT, không phải array; KHÔNG bọc trong `[ ... ]`):
 {{
   "relationships": [
     {{

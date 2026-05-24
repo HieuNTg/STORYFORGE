@@ -50,6 +50,23 @@ class TestCoerceToShape:
         _, ok = _coerce_to_shape([1, 2], "dict", None)
         assert ok is False
 
+    def test_dict_unwraps_single_element_dict_list(self):
+        # LLM drift: returned [{...}] instead of {...}. Unwrap silently.
+        v, ok = _coerce_to_shape([{"relationships": [1, 2]}], "dict", None)
+        assert ok and v == {"relationships": [1, 2]}
+
+    def test_dict_unwrap_prefers_unwrap_over_list_key_wrap(self):
+        # When both rules could apply, unwrap wins (it preserves the dict
+        # the LLM clearly intended to return).
+        v, ok = _coerce_to_shape([{"a": 1}], "dict", "items")
+        assert ok and v == {"a": 1}
+
+    def test_dict_multi_element_list_does_not_unwrap(self):
+        # Ambiguous — two dicts can't collapse to one. Falls through to
+        # list_key wrap (here: None → fails) so caller can retry.
+        _, ok = _coerce_to_shape([{"a": 1}, {"b": 2}], "dict", None)
+        assert ok is False
+
     def test_list_passthrough(self):
         v, ok = _coerce_to_shape([1, 2], "list", None)
         assert ok and v == [1, 2]
@@ -80,11 +97,13 @@ class TestGenerateJsonExpectDict:
         assert stub.call_count == 1  # no retry needed
 
     def test_bare_list_auto_wraps_with_list_key(self):
-        stub = _Stub([json.dumps([{"character": "Lan"}])])
+        # Multi-element list — single-dict unwrap doesn't apply, falls
+        # through to the list_key wrap branch.
+        stub = _Stub([json.dumps([{"character": "Lan"}, {"character": "Hoa"}])])
         result = stub.generate_json(
             "sys", "user", expect="dict", list_key="reveals",
         )
-        assert result == {"reveals": [{"character": "Lan"}]}
+        assert result == {"reveals": [{"character": "Lan"}, {"character": "Hoa"}]}
         assert stub.call_count == 1  # auto-wrap, no retry
 
     def test_bare_list_without_list_key_triggers_retry_then_raises(self):

@@ -309,8 +309,13 @@ def _coerce_to_shape(value, expect: str, list_key: Optional[str]):
     if expect == "dict":
         if isinstance(value, dict):
             return value, True
-        if isinstance(value, list) and list_key:
-            return {list_key: value}, True
+        if isinstance(value, list):
+            # Common LLM drift: returns ``[{...}]`` instead of ``{...}``.
+            # Safe to unwrap when there is exactly one dict element.
+            if len(value) == 1 and isinstance(value[0], dict):
+                return value[0], True
+            if list_key:
+                return {list_key: value}, True
         return value, False
     if expect == "list":
         if isinstance(value, list):
