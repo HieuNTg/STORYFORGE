@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { BookOpen } from "lucide-react";
 
 import { ChapterReader } from "@/components/reader/ChapterReader";
@@ -17,6 +18,8 @@ import {
 } from "@/stores/reader-store";
 
 export function ReaderStartScreen() {
+  const searchParams = useSearchParams();
+  const queryId = searchParams?.get("id") ?? null;
   const stories = useLibraryStore((s) => s.stories);
   const selectedId = useLibraryStore((s) => s.selectedId);
   const hydrated = useLibraryStore((s) => s.hydrated);
@@ -30,12 +33,16 @@ export function ReaderStartScreen() {
   }, [hydrateReader]);
 
   React.useEffect(() => {
+    if (queryId && stories.some((s) => s.id === queryId)) {
+      if (storyId !== queryId) setStoryId(queryId);
+      return;
+    }
     if (!storyId && selectedId && stories.some((s) => s.id === selectedId)) {
       setStoryId(selectedId);
       return;
     }
     if (!storyId && stories.length > 0) setStoryId(stories[0].id);
-  }, [selectedId, stories, storyId]);
+  }, [queryId, selectedId, stories, storyId]);
 
   const selectedStory = React.useMemo(
     () => stories.find((s) => s.id === storyId) ?? null,

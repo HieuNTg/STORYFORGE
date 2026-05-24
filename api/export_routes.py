@@ -3,12 +3,16 @@
 import logging
 import os
 import pathlib
-from typing import Optional, TYPE_CHECKING
-from fastapi import APIRouter, Depends, HTTPException
+import re
+import tempfile
+import uuid
+from typing import Any, Optional, TYPE_CHECKING
+from fastapi import APIRouter, Body, Depends, HTTPException
 
 if TYPE_CHECKING:
     from models.schemas import PipelineOutput
 from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel, Field
 
 from api.pipeline_routes import _orchestrators
 from middleware.rbac import Permission, require_permission_if_enabled
@@ -228,3 +232,124 @@ async def export_epub(session_id: str):
     if files:
         return _safe_file_response(files[0], "storyforge.epub")
     return JSONResponse({"error": "Xuất EPUB thất bại"}, status_code=500)
+
+
+# ---------------------------------------------------------------------------
+# Library export — accepts a Story payload from the frontend library store
+# (localStorage), converts it to a StoryDraft, and serves the rendered file.
+# ---------------------------------------------------------------------------
+
+_LIBRARY_OUTPUT_DIR = _PROJECT_ROOT / "output" / "library"
+_SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9_\-]+")
+
+
+class _LibraryChapterPayload(BaseModel):
+    title: str = ""
+    content: str = ""
+    summary: str = ""
+
+
+class _LibraryCharacterPayload(BaseModel):
+    name: str = ""
+    role: str = ""
+    description: str = ""
+    backstory: str = ""
+
+
+class _LibraryStoryPayload(BaseModel):
+    id: str = ""
+    title: str = "Untitled"
+    genre: str = ""
+    setting: str = ""
+    tone: str = ""
+    description: str = ""
+    characters: list[_LibraryCharacterPayload] = Field(default_factory=list)
+    chapters: list[_LibraryChapterPayload] = Field(default_factory=list)
+
+
+def _slug(text: str, fallback: str = "story") -> str:
+    cleaned = _SAFE_NAME_RE.sub("-", (text or "").strip())
+    cleaned = cleaned.strip("-")[:60]
+    return cleaned or fallback
+
+
+def _payload_to_story_draft(payload: _LibraryStoryPayload):
+    """Convert frontend Story shape -> backend StoryDraft for reuse of exporters."""
+    from models.schemas import Chapter, Character, StoryDraft
+
+    chars = [
+        Character(
+            name=c.name or "Vô danh",
+            role=c.role or "supporting",
+            personality=c.description or "Chưa xác định",
+            background=c.backstory or "",
+        )
+        for c in payload.characters
+    ]
+    chapters = [
+        Chapter(
+            chapter_number=i + 1,
+            title=ch.title or f"Chương {i + 1}",
+            content=ch.content or "",
+            word_count=len((ch.content or "").split()),
+            summary=ch.summary or "",
+        )
+        for i, ch in enumerate(payload.chapters)
+    ]
+    return StoryDraft(
+        title=payload.title or "Untitled",
+        genre=payload.genre or "",
+        synopsis=payload.description or "",
+        characters=chars,
+        chapters=chapters,
+    )
+
+
+def _serve_library_file(path: str, download_name: str):
+    resolved = pathlib.Path(path).resolve()
+    try:
+        resolved.relative_to(_LIBRARY_OUTPUT_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid export path")
+    if not resolved.exists():
+        raise HTTPException(status_code=404, detail="Export file not found")
+    return FileResponse(str(resolved), filename=pathlib.Path(download_name).name)
+
+
+@router.post("/library/{fmt}", dependencies=[_READ_STORIES])
+async def export_library_story(fmt: str, story: _LibraryStoryPayload = Body(...)):
+    """Export a frontend-library story (localStorage shape) as docx | pdf | epub.
+
+    The story payload travels in the request body; nothing is persisted server-side
+    beyond the generated file in `output/library/`.
+    """
+    fmt_lower = fmt.lower()
+    if fmt_lower not in {"docx", "pdf", "epub"}:
+        raise HTTPException(status_code=400, detail=f"Unsupported format: {fmt}")
+
+    draft = _payload_to_story_draft(story)
+    if not draft.chapters:
+        return JSONResponse({"error": "Truyện chưa có chương để xuất"}, status_code=400)
+
+    _LIBRARY_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    base = f"{_slug(draft.title)}-{uuid.uuid4().hex[:8]}"
+    out_path = str(_LIBRARY_OUTPUT_DIR / f"{base}.{fmt_lower}")
+    download_name = f"{_slug(draft.title)}.{fmt_lower}"
+
+    try:
+        if fmt_lower == "docx":
+            from services.export.docx_exporter import DOCXExporter
+            path = DOCXExporter.export(draft, out_path, characters=draft.characters)
+        elif fmt_lower == "pdf":
+            from services.export.pdf_exporter import PDFExporter
+            path = PDFExporter.export(draft, out_path, characters=draft.characters)
+        else:  # epub
+            from services.export.epub_exporter import EPUBExporter
+            path = EPUBExporter.export(draft, out_path, characters=draft.characters)
+    except Exception as e:  # pragma: no cover — exporter-specific failures surface as 500
+        logger.exception(f"Library export ({fmt_lower}) failed")
+        return JSONResponse({"error": f"Xuất {fmt_lower.upper()} thất bại: {e}"}, status_code=500)
+
+    if not path:
+        return JSONResponse({"error": f"Xuất {fmt_lower.upper()} thất bại"}, status_code=500)
+    return _serve_library_file(path, download_name)

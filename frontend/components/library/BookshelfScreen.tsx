@@ -7,6 +7,7 @@
  */
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,12 +25,21 @@ import { forgeToStory } from "@/lib/library/story-mappers";
 import type { ForgeResponse, Story } from "@/types/story";
 
 export function BookshelfScreen() {
+  const router = useRouter();
   const stories = useLibraryStore((s) => s.stories);
   const selectedId = useLibraryStore((s) => s.selectedId);
   const hydrated = useLibraryStore((s) => s.hydrated);
   const addStory = useLibraryStore((s) => s.addStory);
   const removeStory = useLibraryStore((s) => s.removeStory);
   const selectStory = useLibraryStore((s) => s.selectStory);
+
+  const handleOpenReader = React.useCallback(
+    (id: string) => {
+      selectStory(id);
+      router.push(`/reader/?id=${encodeURIComponent(id)}`);
+    },
+    [router, selectStory],
+  );
 
   const [createOpen, setCreateOpen] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -134,7 +144,7 @@ export function BookshelfScreen() {
         <BookshelfGrid
           stories={stories}
           selectedId={selectedId}
-          onSelect={selectStory}
+          onSelect={handleOpenReader}
           onCreate={() => setCreateOpen(true)}
         />
       ) : (
@@ -142,7 +152,7 @@ export function BookshelfScreen() {
           <BookshelfGrid
             stories={stories}
             selectedId={selectedId}
-            onSelect={selectStory}
+            onSelect={handleOpenReader}
           />
           {selectedStory ? (
             <StoryWorkspace story={selectedStory} onDelete={removeStory} />

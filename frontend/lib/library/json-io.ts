@@ -80,6 +80,56 @@ export function exportStory(story: Story): void {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
+export type LibraryExportFormat = "docx" | "pdf" | "epub";
+
+/**
+ * Server-side export of a localStorage Story as DOCX/PDF/EPUB.
+ *
+ * Uploads the Story payload to `/api/export/library/{fmt}`, downloads the
+ * returned binary, and triggers a Save-As in the browser. Throws on non-2xx.
+ */
+export async function exportStoryToFormat(
+  story: Story,
+  fmt: LibraryExportFormat,
+): Promise<void> {
+  if (typeof window === "undefined") return;
+  const base = process.env.NEXT_PUBLIC_API_BASE ?? "";
+  const csrfMatch =
+    typeof document !== "undefined"
+      ? document.cookie.match(/(?:^|; )csrf_token=([^;]*)/)
+      : null;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (csrfMatch) headers["X-CSRF-Token"] = decodeURIComponent(csrfMatch[1]);
+
+  const url = `${base.replace(/\/+$/, "")}/api/export/library/${fmt}`;
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers,
+    body: JSON.stringify(story),
+  });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const data = await res.json();
+      detail = data?.error ?? data?.detail ?? detail;
+    } catch {
+      /* keep statusText */
+    }
+    throw new Error(detail || `Export ${fmt.toUpperCase()} thất bại`);
+  }
+
+  const blob = await res.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = `${safeFilename(story.title)}.${fmt}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 0);
+}
+
 export async function importStory(file: File): Promise<Story> {
   if (file.size > MAX_IMPORT_BYTES) {
     throw new Error("file_too_large");

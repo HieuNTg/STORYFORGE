@@ -30,7 +30,11 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { exportStory } from "@/lib/library/json-io";
+import {
+  exportStory,
+  exportStoryToFormat,
+  type LibraryExportFormat,
+} from "@/lib/library/json-io";
 import type { Story, StoryChapter } from "@/types/story";
 
 export interface StoryWorkspaceProps {
@@ -57,6 +61,7 @@ export function StoryWorkspace({
   className,
 }: StoryWorkspaceProps) {
   const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [exportingFmt, setExportingFmt] = React.useState<LibraryExportFormat | null>(null);
 
   const handleExport = () => {
     try {
@@ -66,6 +71,20 @@ export function StoryWorkspace({
       toast.error("Xuất thất bại", {
         description: err instanceof Error ? err.message : String(err),
       });
+    }
+  };
+
+  const handleServerExport = async (fmt: LibraryExportFormat) => {
+    setExportingFmt(fmt);
+    try {
+      await exportStoryToFormat(story, fmt);
+      toast.success(`Đã xuất ${fmt.toUpperCase()}`);
+    } catch (err) {
+      toast.error(`Xuất ${fmt.toUpperCase()} thất bại`, {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setExportingFmt(null);
     }
   };
 
@@ -167,25 +186,62 @@ export function StoryWorkspace({
         )}
       </div>
 
-      <div className="flex gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleExport}
-          className="flex-1 gap-1.5"
-        >
-          <Download className="size-4" aria-hidden />
-          Xuất JSON
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setConfirmOpen(true)}
-          className="text-destructive hover:bg-destructive/10"
-          aria-label="Xoá truyện"
-        >
-          <Trash2 className="size-4" aria-hidden />
-        </Button>
+      <div className="space-y-2">
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleExport}
+            className="flex-1 gap-1.5"
+          >
+            <Download className="size-4" aria-hidden />
+            Xuất JSON
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setConfirmOpen(true)}
+            className="text-destructive hover:bg-destructive/10"
+            aria-label="Xoá truyện"
+          >
+            <Trash2 className="size-4" aria-hidden />
+          </Button>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={exportingFmt !== null}
+            onClick={() => void handleServerExport("docx")}
+            className="gap-1.5"
+            aria-label="Xuất DOCX (Word)"
+          >
+            {exportingFmt === "docx" ? "…" : "DOCX"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={exportingFmt !== null}
+            onClick={() => void handleServerExport("pdf")}
+            className="gap-1.5"
+            aria-label="Xuất PDF"
+          >
+            {exportingFmt === "pdf" ? "…" : "PDF"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={exportingFmt !== null}
+            onClick={() => void handleServerExport("epub")}
+            className="gap-1.5"
+            aria-label="Xuất EPUB (ebook)"
+          >
+            {exportingFmt === "epub" ? "…" : "EPUB"}
+          </Button>
+        </div>
       </div>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
