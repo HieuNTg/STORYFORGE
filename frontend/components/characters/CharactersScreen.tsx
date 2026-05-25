@@ -23,6 +23,7 @@ import { CharacterDetail } from "./CharacterDetail";
 import { CreateCharacterForm } from "./CreateCharacterForm";
 import type { ForgeCharacter, Story } from "@/types/story";
 import { extractStoryCharacters } from "@/lib/api/characters";
+import { displayStoryTitle } from "@/lib/library/display-helpers";
 import { useCharacterProfiles } from "@/hooks/useCharacterProfiles";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -49,6 +50,7 @@ function normalizeForSearch(s: string): string {
 
 export function CharactersScreen() {
   const t = useTranslations("characters");
+  const tLib = useTranslations("library");
   const stories = useLibraryStore((s) => s.stories);
   const hydrated = useLibraryStore((s) => s.hydrated);
   const upsertCharacter = useLibraryStore((s) => s.upsertCharacter);
@@ -211,7 +213,7 @@ export function CharactersScreen() {
           <SelectContent>
             {stories.map((s) => (
               <SelectItem key={s.id} value={s.id}>
-                {s.title}
+                {displayStoryTitle(s, tLib("untitled_story"))}
               </SelectItem>
             ))}
           </SelectContent>

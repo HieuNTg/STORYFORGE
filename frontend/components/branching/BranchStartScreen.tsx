@@ -14,6 +14,7 @@ import {
   useLibraryStore,
 } from "@/stores/library-store";
 import type { Story } from "@/types/story";
+import { displayStoryTitle } from "@/lib/library/display-helpers";
 
 interface StartBranchResponse {
   session_id: string;
@@ -45,6 +46,7 @@ function storyText(story: Story, chapterId: string, tSelectChapter: string): str
 export function BranchStartScreen() {
   const router = useRouter();
   const t = useTranslations("branching");
+  const tLib = useTranslations("library");
   const stories = useLibraryStore((s) => s.stories);
   const selectedId = useLibraryStore((s) => s.selectedId);
   const hydrated = useLibraryStore((s) => s.hydrated);
@@ -156,7 +158,7 @@ export function BranchStartScreen() {
               >
                 {stories.map((story) => (
                   <option key={story.id} value={story.id}>
-                    {story.title} · {t("chapters_count", { count: story.chapters.length })}
+                    {displayStoryTitle(story, tLib("untitled_story"))} · {t("chapters_count", { count: story.chapters.length })}
                   </option>
                 ))}
               </select>

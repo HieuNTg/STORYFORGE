@@ -47,6 +47,7 @@ import {
   type LibraryExportFormat,
 } from "@/lib/library/json-io";
 import type { Story, StoryChapter } from "@/types/story";
+import { displayStoryTitle } from "@/lib/library/display-helpers";
 
 export interface StoryWorkspaceProps {
   story: Story;
@@ -118,7 +119,7 @@ export function StoryWorkspace({
         "flex h-full flex-col gap-4 rounded-xl border border-border/60 bg-card/70 p-4 shadow-sm backdrop-blur",
         className,
       )}
-      aria-label={t("story_detail_label", { title: story.title })}
+      aria-label={t("story_detail_label", { title: displayStoryTitle(story, t("untitled_story")) })}
     >
       <div className="relative aspect-[3/4] overflow-hidden rounded-lg bg-muted">
         {story.coverUrl ? (
@@ -146,7 +147,7 @@ export function StoryWorkspace({
       </div>
 
       <header className="space-y-1">
-        <h2 className="text-lg font-semibold leading-tight">{story.title}</h2>
+        <h2 className="text-lg font-semibold leading-tight">{displayStoryTitle(story, t("untitled_story"))}</h2>
         {story.description ? (
           <p className="line-clamp-3 text-sm text-muted-foreground">
             {story.description}

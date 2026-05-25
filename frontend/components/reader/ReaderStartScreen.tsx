@@ -17,6 +17,7 @@ import {
   useReaderStore,
   type ReaderColumnUi,
 } from "@/stores/reader-store";
+import { displayStoryTitle } from "@/lib/library/display-helpers";
 
 
 export function ReaderStartScreen() {
@@ -74,6 +75,7 @@ export function ReaderStartScreen() {
   const fontUi = fontFamily === "serif" ? "serif" : "sans";
 
   const t = useTranslations("reader");
+  const tLib = useTranslations("library");
 
   if (!hydrated) {
     return <div className="rounded-lg border border-border/70 bg-card p-5 text-sm text-muted-foreground">{t("loading")}</div>;
@@ -116,7 +118,7 @@ export function ReaderStartScreen() {
             >
               {stories.map((story) => (
                 <option key={story.id} value={story.id}>
-                  {story.title} · {t("chapters_count", { count: story.chapters.length })}
+                  {displayStoryTitle(story, tLib("untitled_story"))} · {t("chapters_count", { count: story.chapters.length })}
                 </option>
               ))}
             </select>

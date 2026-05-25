@@ -91,6 +91,7 @@
     "export": "Xuất JSON",
     "delete": "Xoá truyện",
     "select_hint": "Chọn một truyện để xem chi tiết.",
+    "untitled_story": "Truyện chưa đặt tên",
     "count": "{count} / {max} truyện trong kho",
     "limit_reached": "Đã đạt giới hạn {max} truyện",
     "imported": "Đã nhập truyện",

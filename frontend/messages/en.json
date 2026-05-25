@@ -91,6 +91,7 @@
     "export": "Export JSON",
     "delete": "Delete story",
     "select_hint": "Pick a story to see details.",
+    "untitled_story": "Untitled story",
     "count": "{count} / {max} stories on shelf",
     "limit_reached": "Reached {max}-story limit",
     "imported": "Story imported",

@@ -45,6 +45,7 @@ export function forgeToStory(forge: ForgeResponse): Story {
     characters: forge.characters,
     chapters: [chapter],
     pendingChoices: forge.firstChapter.choices,
+    language: "vi",
     createdAt: now,
     updatedAt: now,
   };
@@ -136,6 +137,7 @@ export function pipelineSummaryToStory(
     characters: [],
     chapters,
     pendingChoices: null,
+    language: "vi",
     createdAt: now,
     updatedAt: now,
   };

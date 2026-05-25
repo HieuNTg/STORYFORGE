@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/common/EmptyState";
 import { cn } from "@/lib/utils";
 import type { Story } from "@/types/story";
+import { displayStoryTitle } from "@/lib/library/display-helpers";
 
 export interface BookshelfGridProps {
   stories: Story[];
@@ -24,10 +25,10 @@ export interface BookshelfGridProps {
   className?: string;
 }
 
-function toCard(story: Story): LibraryStory {
+function toCard(story: Story, untitledFallback: string): LibraryStory {
   return {
     id: story.id,
-    title: story.title,
+    title: displayStoryTitle(story, untitledFallback),
     genre: story.genre || undefined,
     chapter_count: story.chapters.length,
     cover_url: story.coverUrl ?? undefined,
@@ -92,7 +93,7 @@ export function BookshelfGrid({
               "rounded-xl outline outline-2 outline-offset-2 outline-[var(--color-accent,#C5A47E)]",
           )}
         >
-          <StoryCard story={toCard(story)} onClick={() => onSelect(story.id)} />
+          <StoryCard story={toCard(story, t("untitled_story"))} onClick={() => onSelect(story.id)} />
         </motion.li>
       ))}
     </ul>

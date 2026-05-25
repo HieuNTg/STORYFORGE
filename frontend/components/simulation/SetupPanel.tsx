@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useLibraryStore } from "@/stores/library-store";
 import { useSimulationStore } from "@/stores/simulation-store";
 import type { DramaLevel } from "@/types/story";
+import { displayStoryTitle } from "@/lib/library/display-helpers";
 
 const DRAMA_LEVELS: DramaLevel[] = ["low", "medium", "high", "climax"];
 
@@ -16,6 +17,7 @@ interface SetupPanelProps {
 
 export function SetupPanel({ climaxUnlocked = false }: SetupPanelProps) {
   const t = useTranslations("simulation");
+  const tLib = useTranslations("library");
   const stories = useLibraryStore((s) => s.stories);
   const selectedId = useLibraryStore((s) => s.selectedId);
   const hydrated = useLibraryStore((s) => s.hydrated);
@@ -24,6 +26,7 @@ export function SetupPanel({ climaxUnlocked = false }: SetupPanelProps) {
   const setTopic = useSimulationStore((s) => s.setTopic);
   const setDramaLevel = useSimulationStore((s) => s.setDramaLevel);
   const setCharacters = useSimulationStore((s) => s.setCharacters);
+  const setLanguage = useSimulationStore((s) => s.setLanguage);
   const loadFromSession = useSimulationStore((s) => s.loadFromSession);
   const sessionId = useSimulationStore((s) => s.sessionId);
 
@@ -47,6 +50,7 @@ export function SetupPanel({ climaxUnlocked = false }: SetupPanelProps) {
   React.useEffect(() => {
     if (!activeStory) {
       setCharacters([]);
+      setLanguage("vi");
       return;
     }
     setCharacters(
@@ -56,10 +60,11 @@ export function SetupPanel({ climaxUnlocked = false }: SetupPanelProps) {
         description: c.description || c.backstory || "",
       })),
     );
+    setLanguage(activeStory.language || "vi");
     if (!topic.trim() && activeStory.description) {
       setTopic(activeStory.description);
     }
-  }, [activeStory, setCharacters, setTopic, topic]);
+  }, [activeStory, setCharacters, setLanguage, setTopic, topic]);
 
   return (
     <aside className="space-y-5 rounded-xl border border-border/40 bg-card/40 p-4">
@@ -86,7 +91,7 @@ export function SetupPanel({ climaxUnlocked = false }: SetupPanelProps) {
           >
             {stories.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.title}
+                {displayStoryTitle(s, tLib("untitled_story"))}
               </option>
             ))}
           </select>

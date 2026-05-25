@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { rehydrateLibrary, useLibraryStore } from "@/stores/library-store";
 import { forgeFromSentenceStream } from "@/lib/api/forge";
 import type { StoryChapter } from "@/types/story";
+import { displayStoryTitle } from "@/lib/library/display-helpers";
 
 const STAGE_LABEL: Record<string, string> = {
   planning: "Đang lập kế hoạch",
@@ -157,7 +158,7 @@ export function ContinueStoryScreen() {
               className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {stories.map((s) => (
-                <option key={s.id} value={s.id}>{s.title} · {s.chapters.length} chương</option>
+                <option key={s.id} value={s.id}>{displayStoryTitle(s, "Truyện chưa đặt tên")} · {s.chapters.length} chương</option>
               ))}
             </select>
           </label>

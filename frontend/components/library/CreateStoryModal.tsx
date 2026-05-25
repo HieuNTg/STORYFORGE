@@ -113,6 +113,7 @@ export function CreateStoryModal({
       characters: [],
       chapters: [],
       pendingChoices: null,
+      language: "vi",
       createdAt: now,
       updatedAt: now,
     };

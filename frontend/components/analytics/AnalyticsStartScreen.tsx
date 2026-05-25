@@ -7,6 +7,7 @@ import { BarChart3, BookOpen, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/common/EmptyState";
 import { rehydrateLibrary, useLibraryStore } from "@/stores/library-store";
+import { displayStoryTitle } from "@/lib/library/display-helpers";
 
 import { useTranslations } from "next-intl";
 
@@ -84,7 +85,7 @@ export function AnalyticsStartScreen() {
               </span>
               <div className="min-w-0">
                 <h3 className="truncate text-sm font-semibold text-foreground">
-                  {story.title}
+                  {displayStoryTitle(story, tLib("untitled_story"))}
                 </h3>
                 <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                   {getGenreLabel(story.genre)} · {t("chapters_count", { count: story.chapters.length })}

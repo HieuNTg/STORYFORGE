@@ -34,6 +34,7 @@ export interface SimulationState {
   dramaLevel: DramaLevel;
   topic: string;
   characters: Array<Record<string, unknown>>;
+  language: string;
   outcomeSummary: string;
   busy: boolean;
   error: string | null;
@@ -43,6 +44,7 @@ export interface SimulationState {
   setTopic(topic: string): void;
   setDramaLevel(level: DramaLevel): void;
   setCharacters(chars: Array<Record<string, unknown>>): void;
+  setLanguage(lang: string): void;
   injectTurn(turn: Omit<TranscriptTurn, "id">): void;
   continueAI(): Promise<void>;
   stepForward(): void;
@@ -67,6 +69,7 @@ export const useSimulationStore = create<SimulationState>((set, get) => ({
   dramaLevel: "high",
   topic: "",
   characters: [],
+  language: "vi",
   outcomeSummary: "",
   busy: false,
   error: null,
@@ -79,6 +82,7 @@ export const useSimulationStore = create<SimulationState>((set, get) => ({
       playing: false,
       topic: "",
       characters: [],
+      language: "vi",
       outcomeSummary: "",
       busy: false,
       error: null,
@@ -114,6 +118,10 @@ export const useSimulationStore = create<SimulationState>((set, get) => ({
     set({ characters: chars.slice(0, 10) });
   },
 
+  setLanguage(lang) {
+    set({ language: lang && lang.trim() ? lang : "vi" });
+  },
+
   injectTurn(turn) {
     const next: TranscriptTurn = {
       id: makeTurnId("t-inj"),
@@ -132,7 +140,7 @@ export const useSimulationStore = create<SimulationState>((set, get) => ({
   },
 
   async continueAI() {
-    const { topic, characters, dramaLevel, logs, busy } = get();
+    const { topic, characters, dramaLevel, language, logs, busy } = get();
     if (busy) return;
     if (!topic.trim() || characters.length === 0) {
       set({ error: "topic and characters required" });
@@ -145,6 +153,7 @@ export const useSimulationStore = create<SimulationState>((set, get) => ({
         historyLogs: logs.slice(-HISTORY_TAIL),
         topic,
         dramaLevel,
+        language,
       });
       set((s) => {
         const appended = s.logs.concat(turn);
