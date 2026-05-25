@@ -8,6 +8,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import type { ForgeResponse, Story } from "@/types/story";
 
 export function BookshelfScreen() {
   const router = useRouter();
+  const t = useTranslations("library");
   const stories = useLibraryStore((s) => s.stories);
   const selectedId = useLibraryStore((s) => s.selectedId);
   const hydrated = useLibraryStore((s) => s.hydrated);
@@ -87,19 +89,19 @@ export function BookshelfScreen() {
       const story = await importStory(file);
       const ok = addStory(story);
       if (!ok) {
-        toast.error(`Đã đạt giới hạn ${LIBRARY_MAX_STORIES} truyện`);
+        toast.error(t("limit_reached", { max: LIBRARY_MAX_STORIES }));
         return;
       }
-      toast.success("Đã nhập truyện", { description: story.title });
+      toast.success(t("imported"), { description: story.title });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       const friendly =
         msg === "file_too_large"
-          ? "Tệp quá lớn (>1MB)"
+          ? t("file_too_large")
           : msg === "invalid_json"
-            ? "Tệp JSON không hợp lệ"
+            ? t("invalid_json")
             : msg;
-      toast.error("Nhập thất bại", { description: friendly });
+      toast.error(t("import_failed"), { description: friendly });
     }
   };
 
@@ -113,8 +115,8 @@ export function BookshelfScreen() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           {hydrated
-            ? `${stories.length} / ${LIBRARY_MAX_STORIES} truyện trong kho`
-            : "Đang tải kho truyện…"}
+            ? t("count", { count: stories.length, max: LIBRARY_MAX_STORIES })
+            : t("loading_shelf")}
         </p>
         <div className="flex gap-2">
           <input
@@ -124,7 +126,7 @@ export function BookshelfScreen() {
             className="sr-only"
             onChange={handleImportFile}
             tabIndex={-1}
-            aria-label="Chọn tệp JSON để nhập vào kho truyện"
+            aria-label={t("import_file_label")}
           />
           <Button
             type="button"
@@ -133,7 +135,7 @@ export function BookshelfScreen() {
             className="gap-1.5"
           >
             <Upload className="size-4" aria-hidden />
-            Nhập JSON
+            {t("import")}
           </Button>
           <Button
             type="button"
@@ -141,7 +143,7 @@ export function BookshelfScreen() {
             className="gap-1.5"
           >
             <Plus className="size-4" aria-hidden />
-            Tạo truyện
+            {t("create")}
           </Button>
         </div>
       </div>
@@ -173,3 +175,4 @@ export function BookshelfScreen() {
     </div>
   );
 }
+

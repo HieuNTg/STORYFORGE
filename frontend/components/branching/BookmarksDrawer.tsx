@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
@@ -53,6 +54,7 @@ export function BookmarksDrawer({
   onAdd,
   className,
 }: BookmarksDrawerProps) {
+  const t = useTranslations("branching");
   const [draft, setDraft] = React.useState("");
 
   function handleAdd() {
@@ -66,9 +68,9 @@ export function BookmarksDrawer({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className={cn("w-96 max-w-[90vw]", className)}>
         <SheetHeader>
-          <SheetTitle>Đánh dấu</SheetTitle>
+          <SheetTitle>{t("bookmarks_title")}</SheetTitle>
           <SheetDescription>
-            Lưu vị trí trong nhánh để quay lại nhanh.
+            {t("bookmarks_desc")}
           </SheetDescription>
         </SheetHeader>
 
@@ -83,8 +85,8 @@ export function BookmarksDrawer({
                   handleAdd();
                 }
               }}
-              placeholder="Tên đánh dấu..."
-              aria-label="Tên đánh dấu mới"
+              placeholder={t("bookmarks_placeholder")}
+              aria-label={t("bookmarks_aria_new")}
             />
             <Button
               type="button"
@@ -92,10 +94,10 @@ export function BookmarksDrawer({
               size="sm"
               onClick={handleAdd}
               disabled={!draft.trim()}
-              aria-label="Thêm đánh dấu"
+              aria-label={t("bookmarks_aria_add")}
             >
               <Plus />
-              <span className="hidden sm:inline">Thêm</span>
+              <span className="hidden sm:inline">{t("bookmarks_add_cta")}</span>
             </Button>
           </div>
         </div>
@@ -104,8 +106,8 @@ export function BookmarksDrawer({
           {bookmarks.length === 0 ? (
             <EmptyState
               icon={Bookmark}
-              title="Chưa có đánh dấu"
-              description="Lưu một điểm trong nhánh để quay lại sau."
+              title={t("bookmarks_empty")}
+              description={t("bookmarks_empty_desc")}
             />
           ) : (
             <ul className="flex flex-col gap-1 px-2">
@@ -127,8 +129,8 @@ export function BookmarksDrawer({
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => onGoto(b.id)}
-                    aria-label="Đi tới"
-                    title="Đi tới"
+                    aria-label={t("bookmarks_goto")}
+                    title={t("bookmarks_goto")}
                   >
                     <ArrowRight />
                   </Button>
@@ -137,8 +139,8 @@ export function BookmarksDrawer({
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => onDelete(b.id)}
-                    aria-label="Xoá đánh dấu"
-                    title="Xoá"
+                    aria-label={t("bookmarks_delete_aria")}
+                    title={t("bookmarks_delete")}
                     className="text-muted-foreground hover:text-destructive"
                   >
                     <Trash2 />

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { BookOpen, GitBranch, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -26,11 +27,11 @@ function FieldLabel({ htmlFor, children }: { htmlFor: string; children: React.Re
   );
 }
 
-function storyText(story: Story, chapterId: string): string {
+function storyText(story: Story, chapterId: string, tSelectChapter: string): string {
   if (chapterId === "__all__") {
     const chapters = story.chapters
       .map((chapter, idx) => {
-        const title = chapter.title || `Chương ${idx + 1}`;
+        const title = chapter.title || `${tSelectChapter} ${idx + 1}`;
         return [`# ${title}`, chapter.summary, chapter.content].filter(Boolean).join("\n\n");
       })
       .filter(Boolean);
@@ -43,6 +44,7 @@ function storyText(story: Story, chapterId: string): string {
 
 export function BranchStartScreen() {
   const router = useRouter();
+  const t = useTranslations("branching");
   const stories = useLibraryStore((s) => s.stories);
   const selectedId = useLibraryStore((s) => s.selectedId);
   const hydrated = useLibraryStore((s) => s.hydrated);
@@ -73,7 +75,7 @@ export function BranchStartScreen() {
     setConflictSummary(selectedStory?.description ?? "");
   }, [selectedStory?.id, selectedStory?.description]);
 
-  const branchText = selectedStory ? storyText(selectedStory, chapterId).trim() : "";
+  const branchText = selectedStory ? storyText(selectedStory, chapterId, t("range_chapter_label")).trim() : "";
   const canSubmit = !!selectedStory && branchText.length >= 10 && !loading;
 
   async function startSession() {
@@ -85,6 +87,9 @@ export function BranchStartScreen() {
         body: JSON.stringify({
           text: branchText,
           genre: selectedStory.genre,
+          // Forward source story language so branching continuations and
+          // choice labels are generated in the story's language.
+          language: selectedStory.language || "vi",
           world_summary: selectedStory.setting,
           conflict_summary: conflictSummary.trim() || selectedStory.description,
           characters: selectedStory.characters.map((c) => ({
@@ -94,10 +99,10 @@ export function BranchStartScreen() {
           })),
         }),
       });
-      toast.success("Đã tạo phiên phân nhánh", { description: selectedStory.title });
+      toast.success(t("session_created"), { description: selectedStory.title });
       router.push(`/branching/${encodeURIComponent(res.session_id)}/`);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Không tạo được phiên phân nhánh";
+      const message = err instanceof Error ? err.message : t("session_create_failed");
       toast.error(message);
     } finally {
       setLoading(false);
@@ -105,7 +110,7 @@ export function BranchStartScreen() {
   }
 
   if (!hydrated) {
-    return <div className="rounded-lg border border-border/70 bg-card p-5 text-sm text-muted-foreground">Đang tải kho truyện…</div>;
+    return <div className="rounded-lg border border-border/70 bg-card p-5 text-sm text-muted-foreground">{t("loading")}</div>;
   }
 
   if (stories.length === 0) {
@@ -114,9 +119,9 @@ export function BranchStartScreen() {
         <div className="flex items-start gap-3">
           <BookOpen className="mt-0.5 size-5 text-[var(--accent-strong)]" aria-hidden="true" />
           <div>
-            <h2 className="text-lg font-medium text-foreground">Chưa có truyện để phân nhánh</h2>
+            <h2 className="text-lg font-medium text-foreground">{t("empty")}</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Tạo hoặc nhập một bộ truyện trong Thư viện trước, rồi quay lại Phân nhánh.
+              {t("empty_hint")}
             </p>
           </div>
         </div>
@@ -132,9 +137,9 @@ export function BranchStartScreen() {
             <GitBranch className="size-5" aria-hidden="true" />
           </span>
           <div>
-            <h2 className="text-lg font-medium text-foreground">Chọn truyện để phân nhánh</h2>
+            <h2 className="text-lg font-medium text-foreground">{t("select_title")}</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              StoryForge sẽ dùng nội dung truyện/chương đã chọn làm gốc cho cây lựa chọn tương tác.
+              {t("select_hint")}
             </p>
           </div>
         </div>
@@ -142,7 +147,7 @@ export function BranchStartScreen() {
         <div className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <FieldLabel htmlFor="branch-story">Bộ truyện</FieldLabel>
+              <FieldLabel htmlFor="branch-story">{t("select_story")}</FieldLabel>
               <select
                 id="branch-story"
                 value={storyId}
@@ -151,24 +156,24 @@ export function BranchStartScreen() {
               >
                 {stories.map((story) => (
                   <option key={story.id} value={story.id}>
-                    {story.title} · {story.chapters.length} chương
+                    {story.title} · {t("chapters_count", { count: story.chapters.length })}
                   </option>
                 ))}
               </select>
             </div>
 
             <div className="space-y-2">
-              <FieldLabel htmlFor="branch-chapter">Phạm vi phân nhánh</FieldLabel>
+              <FieldLabel htmlFor="branch-chapter">{t("range_label")}</FieldLabel>
               <select
                 id="branch-chapter"
                 value={chapterId}
                 onChange={(e) => setChapterId(e.target.value)}
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <option value="__all__">Toàn bộ truyện</option>
+                <option value="__all__">{t("range_all")}</option>
                 {selectedStory?.chapters.map((chapter, idx) => (
                   <option key={chapter.id} value={chapter.id}>
-                    {chapter.title || `Chương ${idx + 1}`}
+                    {chapter.title || t("range_chapter", { num: idx + 1 })}
                   </option>
                 ))}
               </select>
@@ -177,31 +182,31 @@ export function BranchStartScreen() {
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <FieldLabel htmlFor="branch-setting">Bối cảnh</FieldLabel>
+              <FieldLabel htmlFor="branch-setting">{t("setting_label")}</FieldLabel>
               <Input id="branch-setting" value={selectedStory?.setting ?? ""} readOnly />
             </div>
             <div className="space-y-2">
-              <FieldLabel htmlFor="branch-conflict">Mâu thuẫn / hướng phân nhánh</FieldLabel>
+              <FieldLabel htmlFor="branch-conflict">{t("conflict_label")}</FieldLabel>
               <Input
                 id="branch-conflict"
                 value={conflictSummary}
                 onChange={(e) => setConflictSummary(e.target.value)}
-                placeholder="VD: Nhân vật phải chọn giữa cứu người thân và giữ bí mật…"
+                placeholder={t("conflict_placeholder")}
               />
             </div>
           </div>
 
           <div className="rounded-md border border-border/70 bg-muted/30 p-3 text-sm text-muted-foreground">
             <div className="font-medium text-foreground">{selectedStory?.title}</div>
-            <div className="mt-1 line-clamp-2">{selectedStory?.description || "Chưa có mô tả."}</div>
+            <div className="mt-1 line-clamp-2">{selectedStory?.description || t("no_description")}</div>
             <div className="mt-2 text-xs">
-              Nguồn phân nhánh: {branchText.length.toLocaleString()} ký tự · {selectedStory?.characters.length ?? 0} nhân vật
+              {t("source_info", { chars: branchText.length.toLocaleString(), characters: selectedStory?.characters.length ?? 0 })}
             </div>
           </div>
 
           <Button type="button" onClick={startSession} disabled={!canSubmit}>
             {loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : <GitBranch className="mr-2 size-4" />}
-            Bắt đầu phân nhánh
+            {t("start_cta")}
           </Button>
         </div>
       </div>

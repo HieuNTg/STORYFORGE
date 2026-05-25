@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
+import { useTranslations } from "next-intl";
 import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ export function IllustrationBanner({
   caption,
   className,
 }: IllustrationBannerProps) {
+  const t = useTranslations("reader");
   const [failed, setFailed] = React.useState(false);
   const hasImage = !!src && !failed;
 
@@ -58,7 +60,7 @@ export function IllustrationBanner({
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
-            {loading ? "Đang minh hoạ…" : "Chưa có minh hoạ"}
+            {loading ? t("illustration_loading") : t("illustration_empty")}
           </div>
         )}
         {/* Vignette */}
@@ -73,8 +75,8 @@ export function IllustrationBanner({
             variant="outline"
             disabled={loading}
             onClick={onRegenerate}
-            aria-label="Tạo lại minh hoạ"
-            title="Tạo lại minh hoạ"
+            aria-label={t("illustration_regenerate")}
+            title={t("illustration_regenerate")}
             className="absolute right-3 top-3 size-8 bg-background/70 backdrop-blur"
           >
             <RefreshCw

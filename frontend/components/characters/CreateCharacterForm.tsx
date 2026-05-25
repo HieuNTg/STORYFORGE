@@ -44,17 +44,25 @@ type FormValues = z.infer<typeof formSchema>;
 
 export interface CreateCharacterFormProps {
   defaultGenre?: string;
+  /**
+   * Source story language code (e.g. "vi", "en"). Forwarded to the
+   * `/api/characters/generate` call so the generated bio/backstory/secret/
+   * conflict text matches the story's language.
+   */
+  language?: string;
   onCreated: (character: ForgeCharacter) => void;
   className?: string;
 }
 
 export function CreateCharacterForm({
   defaultGenre,
+  language,
   onCreated,
   className,
 }: CreateCharacterFormProps) {
   const t = useTranslations("characters");
   const tRoles = useTranslations("roles");
+  const tGenres = useTranslations("genres");
   const [submitting, setSubmitting] = React.useState(false);
 
   const {
@@ -83,6 +91,7 @@ export function CreateCharacterForm({
         role: values.role,
         genre: values.genre,
         extraContext: values.extraContext?.trim() || undefined,
+        language: language || "vi",
       });
       onCreated(character);
       reset();
@@ -93,6 +102,11 @@ export function CreateCharacterForm({
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const getGenreLabel = (genre: string) => {
+    const key = genre.toLowerCase().replace(/\s+/g, "_");
+    return tGenres.has(key) ? tGenres(key as any) : genre;
   };
 
   return (
@@ -150,7 +164,7 @@ export function CreateCharacterForm({
               <SelectContent>
                 {GENRES.map((g) => (
                   <SelectItem key={g} value={g}>
-                    {g}
+                    {getGenreLabel(g)}
                   </SelectItem>
                 ))}
               </SelectContent>

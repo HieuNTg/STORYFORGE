@@ -40,7 +40,10 @@ import {
 } from "@/lib/api/queries";
 import type { ProviderEditPayload } from "@/components/providers/ProviderTable";
 
+import { useTranslations } from "next-intl";
+
 export default function ProvidersPage() {
+  const t = useTranslations("providers");
   const { data: config, isLoading, error, refetch } = useConfig();
   const toggle = useToggleProfile();
   const updateProfile = useUpdateProfile();
@@ -99,13 +102,13 @@ export default function ProvidersPage() {
           model: profile.model,
           enabled: profile.enabled,
         });
-        toast.success("Đã cập nhật URL gốc");
+        toast.success(t("update_url_success"));
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Cập nhật thất bại";
+        const msg = e instanceof Error ? e.message : t("update_failed");
         toast.error(msg);
       }
     },
-    [config, updateProfile],
+    [config, updateProfile, t],
   );
 
   const handleToggleEnabled = React.useCallback(
@@ -114,24 +117,24 @@ export default function ProvidersPage() {
       try {
         await toggle.mutateAsync(index);
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Đổi trạng thái thất bại";
+        const msg = e instanceof Error ? e.message : t("toggle_status_failed");
         toast.error(msg);
       }
     },
-    [config, toggle],
+    [config, toggle, t],
   );
 
   const handleEditProfile = React.useCallback(
     async (index: number, payload: ProviderEditPayload) => {
       try {
         await updateProfile.mutateAsync({ index, ...payload });
-        toast.success("Đã cập nhật nhà cung cấp");
+        toast.success(t("update_provider_success"));
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Cập nhật thất bại";
+        const msg = e instanceof Error ? e.message : t("update_failed");
         toast.error(msg);
       }
     },
-    [updateProfile],
+    [updateProfile, t],
   );
 
   const handleDeleteProfile = React.useCallback(
@@ -149,13 +152,13 @@ export default function ProvidersPage() {
           }
           return next;
         });
-        toast.success("Đã xóa nhà cung cấp");
+        toast.success(t("delete_provider_success"));
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Xóa thất bại";
+        const msg = e instanceof Error ? e.message : t("delete_failed");
         toast.error(msg);
       }
     },
-    [deleteProfile],
+    [deleteProfile, t],
   );
 
   const runTestAll = React.useCallback(async () => {
@@ -170,17 +173,17 @@ export default function ProvidersPage() {
       });
       setTestResults((prev) => ({ ...prev, ...next }));
       if (result.ok) {
-        toast.success(result.message || "Kết nối thành công");
+        toast.success(result.message || t("connect_success"));
       } else {
-        toast.error(result.message || "Một số hồ sơ kết nối thất bại");
+        toast.error(result.message || t("connect_some_failed"));
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Kiểm tra kết nối thất bại";
+      const msg = e instanceof Error ? e.message : t("connect_test_failed");
       toast.error(msg);
     } finally {
       setTestingIndex(undefined);
     }
-  }, [test]);
+  }, [test, t]);
 
   const handleTestConnection = React.useCallback(
     async (_index: number) => {
@@ -194,9 +197,9 @@ export default function ProvidersPage() {
   if (error) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHero title="Nhà cung cấp" />
+        <PageHero title={t("title")} />
         <ErrorState
-          title="Không tải được danh sách nhà cung cấp"
+          title={t("load_failed")}
           description={error.message}
           onRetry={() => refetch()}
         />
@@ -207,8 +210,8 @@ export default function ProvidersPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHero
-        title="Nhà cung cấp"
-        subtitle="Quản lý hồ sơ LLM và kiểm tra kết nối"
+        title={t("title")}
+        subtitle={t("subtitle")}
         actions={
           <Button
             type="button"
@@ -217,8 +220,8 @@ export default function ProvidersPage() {
             disabled={testingIndex === "__all__" || test.isPending}
           >
             {testingIndex === "__all__"
-              ? "Đang kiểm tra..."
-              : "Kiểm tra tất cả"}
+              ? t("testing_all")
+              : t("test_all")}
           </Button>
         }
       />

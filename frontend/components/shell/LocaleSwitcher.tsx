@@ -16,10 +16,12 @@ const LOCALES = [
   { code: "en", label: "English" },
 ] as const;
 
-function setLocaleCookie(locale: string) {
-  // 1 year, root path. Read by lib/i18n/request.ts on next navigation.
+function persistLocale(locale: string) {
+  // 1 year, root path. The static app also mirrors this in localStorage so the
+  // client provider can switch without requiring a server-rendered locale.
   const maxAge = 60 * 60 * 24 * 365;
   document.cookie = `NEXT_LOCALE=${encodeURIComponent(locale)}; Path=/; Max-Age=${maxAge}; SameSite=Lax`;
+  window.localStorage.setItem("storyforge_locale", locale);
 }
 
 export function LocaleSwitcher() {
@@ -28,9 +30,8 @@ export function LocaleSwitcher() {
 
   function pick(code: string) {
     if (code === current) return;
-    setLocaleCookie(code);
-    // Hard reload so the server re-resolves locale + messages.
-    window.location.reload();
+    persistLocale(code);
+    window.dispatchEvent(new CustomEvent("storyforge:locale", { detail: code }));
   }
 
   return (
@@ -46,7 +47,7 @@ export function LocaleSwitcher() {
         {LOCALES.map((l) => (
           <DropdownMenuItem
             key={l.code}
-            onSelect={() => pick(l.code)}
+            onClick={() => pick(l.code)}
             aria-current={l.code === current ? "true" : undefined}
           >
             <span className="font-mono text-xs uppercase">{l.code}</span>

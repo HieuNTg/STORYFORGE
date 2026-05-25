@@ -17,7 +17,7 @@ export interface UsageOverviewProps {
   callCount: number;
 }
 
-const N = new Intl.NumberFormat("vi-VN");
+import { useTranslations, useLocale } from "next-intl";
 
 function formatCost(usd: number): string {
   if (!Number.isFinite(usd)) return "$0";
@@ -76,36 +76,43 @@ export function UsageOverview({
   totalCostUsd,
   callCount,
 }: UsageOverviewProps) {
+  const t = useTranslations("usage");
+  const locale = useLocale();
+  const N = React.useMemo(() => new Intl.NumberFormat(locale), [locale]);
+
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <Stat
         icon={Sigma}
-        label="Tổng token"
+        label={t("total_tokens")}
         value={N.format(totalTokens)}
-        description={`Prompt ${N.format(promptTokens)} · Hoàn thành ${N.format(completionTokens)}`}
+        description={t("prompt_completion_desc", {
+          prompt: N.format(promptTokens),
+          completion: N.format(completionTokens),
+        })}
         accent="--chart-1"
       />
       <Stat
         icon={Coins}
-        label="Chi phí ước tính"
+        label={t("estimated_cost")}
         value={formatCost(totalCostUsd)}
-        description="USD theo bảng giá nhà cung cấp"
+        description={t("cost_desc")}
         accent="--chart-2"
       />
       <Stat
         icon={Activity}
-        label="Số lệnh gọi"
+        label={t("call_count")}
         value={N.format(callCount)}
-        description="Tổng số lượt gọi LLM trong phiên"
+        description={t("call_count_desc")}
         accent="--chart-3"
       />
       <Stat
         icon={Hash}
-        label="Trung bình / lệnh"
+        label={t("avg_per_call")}
         value={
           callCount > 0 ? N.format(Math.round(totalTokens / callCount)) : "—"
         }
-        description="Token mỗi lệnh gọi"
+        description={t("tokens_per_call")}
         accent="--chart-5"
       />
     </div>

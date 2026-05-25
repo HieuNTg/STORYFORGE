@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 export type ReaderTheme = "midnight" | "sepia" | "dark" | "light";
@@ -40,10 +40,11 @@ export function ReaderShell({
   theme,
   className,
 }: ReaderShellProps) {
+  const t = useTranslations("reader");
   return (
     <div className={cn("flex w-full flex-col gap-4 lg:flex-row lg:gap-6", className)}>
       <aside
-        aria-label="Danh sách chương"
+        aria-label={t("chapter_list_title")}
         className="w-full shrink-0 lg:w-[260px]"
       >
         {chapterList}

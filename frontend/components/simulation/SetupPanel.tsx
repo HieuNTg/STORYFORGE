@@ -71,12 +71,12 @@ export function SetupPanel({ climaxUnlocked = false }: SetupPanelProps) {
 
       <div className="space-y-2">
         <label htmlFor="sim-story" className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Bộ truyện
+          {t("setup_story")}
         </label>
         {!hydrated ? (
-          <p className="text-xs text-muted-foreground">Đang tải kho truyện…</p>
+          <p className="text-xs text-muted-foreground">{t("loading_shelf")}</p>
         ) : stories.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Tạo hoặc nhập một bộ truyện trong Thư viện trước.</p>
+          <p className="text-xs text-muted-foreground">{t("empty_library_hint")}</p>
         ) : (
           <select
             id="sim-story"
@@ -95,12 +95,12 @@ export function SetupPanel({ climaxUnlocked = false }: SetupPanelProps) {
 
       <div className="space-y-2">
         <label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Nhân vật trong cảnh
+          {t("characters_label")}
         </label>
         {!activeStory ? (
-          <p className="text-xs text-muted-foreground">Chọn truyện để tải nhân vật.</p>
+          <p className="text-xs text-muted-foreground">{t("characters_pick_hint")}</p>
         ) : activeStory.characters.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Truyện này chưa có nhân vật.</p>
+          <p className="text-xs text-muted-foreground">{t("characters_none")}</p>
         ) : (
           <ul className="flex flex-wrap gap-1.5">
             {activeStory.characters.map((c) => (

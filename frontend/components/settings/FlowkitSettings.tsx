@@ -12,6 +12,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,7 @@ function diff(a: FlowkitDraft, b: FlowkitDraft): Partial<FlowkitDraft> {
 }
 
 export function FlowkitSettings({ config }: FlowkitSettingsProps) {
+  const t = useTranslations("settings_panel");
   const update = useUpdateConfig();
   // Stable serialized key so a background refetch with identical values does
   // NOT clobber in-flight draft edits. Only resets when persisted state actually
@@ -85,14 +87,14 @@ export function FlowkitSettings({ config }: FlowkitSettingsProps) {
 
   const onSave = async () => {
     if (!isDirty) {
-      toast.success("Không có thay đổi để lưu");
+      toast.success(t("form.no_changes"));
       return;
     }
     try {
       await update.mutateAsync(dirtyPayload);
-      toast.success("Đã lưu cài đặt FlowKit");
+      toast.success(t("form.flowkit.save_success"));
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Lưu thất bại";
+      const msg = e instanceof Error ? e.message : t("form.save_failed");
       toast.error(msg);
     }
   };
@@ -104,10 +106,9 @@ export function FlowkitSettings({ config }: FlowkitSettingsProps) {
     <div className="mt-4 flex flex-col gap-4 rounded-lg border border-border bg-background p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col">
-          <h3 className="text-sm font-semibold text-foreground">FlowKit (Google Labs)</h3>
+          <h3 className="text-sm font-semibold text-foreground">{t("form.flowkit.title")}</h3>
           <p className="text-xs text-muted-foreground">
-            Sinh ảnh Imagen 3 / Veo qua phiên Google Labs local. Cần Chrome
-            Extension đã cài và đăng nhập Flow.
+            {t("form.flowkit.desc")}
           </p>
         </div>
         <FlowkitStatusBadge
@@ -118,10 +119,8 @@ export function FlowkitSettings({ config }: FlowkitSettingsProps) {
       </div>
 
       <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
-        <strong className="font-semibold">Cảnh báo cấm tài khoản:</strong> Google
-        Labs có thể giới hạn hoặc khóa tài khoản Google của bạn nếu phát hiện lưu
-        lượng tự động. <strong>Khuyến cáo dùng tài khoản phụ.</strong> Tích vào
-        ô bên dưới để xác nhận bạn hiểu rủi ro trước khi bật provider.
+        <strong className="font-semibold">{t("form.flowkit.warning_title")}</strong>{" "}
+        {t("form.flowkit.warning_body")}
       </div>
 
       <label className="flex items-start gap-2 text-sm">
@@ -133,8 +132,7 @@ export function FlowkitSettings({ config }: FlowkitSettingsProps) {
           data-testid="flowkit-risk-ack"
         />
         <span>
-          Tôi hiểu rủi ro cấm tài khoản Google khi dùng FlowKit và đồng ý tiếp
-          tục.
+          {t("form.flowkit.ack_label")}
         </span>
       </label>
 
@@ -148,10 +146,10 @@ export function FlowkitSettings({ config }: FlowkitSettingsProps) {
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col">
             <label className="text-sm font-medium text-foreground">
-              Bật FlowKit
+              {t("form.flowkit.enable_label")}
             </label>
             <span className="text-xs text-muted-foreground">
-              Kết nối WebSocket tới Chrome Extension trên cổng đã cấu hình.
+              {t("form.flowkit.enable_desc")}
             </span>
           </div>
           <Switch
@@ -162,7 +160,7 @@ export function FlowkitSettings({ config }: FlowkitSettingsProps) {
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Labeled label="Cổng WebSocket" hint="Mặc định 7860">
+          <Labeled label={t("form.flowkit.port_label")} hint={t("form.flowkit.port_hint")}>
             <Input
               type="number"
               min={1024}
@@ -171,7 +169,7 @@ export function FlowkitSettings({ config }: FlowkitSettingsProps) {
               onChange={(e) => set("flowkit_port", Number(e.target.value))}
             />
           </Labeled>
-          <Labeled label="Timeout request (s)" hint="Tối thiểu 30, mặc định 180">
+          <Labeled label={t("form.flowkit.timeout_label")} hint={t("form.flowkit.timeout_hint")}>
             <Input
               type="number"
               min={30}
@@ -182,7 +180,7 @@ export function FlowkitSettings({ config }: FlowkitSettingsProps) {
               }
             />
           </Labeled>
-          <Labeled label="Workers tối đa (ramp)" hint="Tăng dần từ 1 → tối đa">
+          <Labeled label={t("form.flowkit.workers_label")} hint={t("form.flowkit.workers_hint")}>
             <Input
               type="number"
               min={1}
@@ -194,8 +192,8 @@ export function FlowkitSettings({ config }: FlowkitSettingsProps) {
             />
           </Labeled>
           <Labeled
-            label="Ngưỡng ramp"
-            hint="Số request thành công liên tiếp trước khi tăng worker"
+            label={t("form.flowkit.ramp_label")}
+            hint={t("form.flowkit.ramp_hint")}
           >
             <Input
               type="number"
@@ -207,7 +205,7 @@ export function FlowkitSettings({ config }: FlowkitSettingsProps) {
               }
             />
           </Labeled>
-          <Labeled label="Veo poll interval (s)" hint="Khoảng cách polling video">
+          <Labeled label={t("form.flowkit.veo_label")} hint={t("form.flowkit.veo_hint")}>
             <Input
               type="number"
               min={1}
@@ -220,12 +218,12 @@ export function FlowkitSettings({ config }: FlowkitSettingsProps) {
             />
           </Labeled>
           <Labeled
-            label="Style reference (path)"
-            hint="Ảnh tham chiếu phong cách — đường dẫn tuyệt đối"
+            label={t("form.flowkit.ref_label")}
+            hint={t("form.flowkit.ref_hint")}
           >
             <Input
               type="text"
-              placeholder="C:\\refs\\style.png"
+              placeholder={t("form.flowkit.ref_placeholder")}
               value={draft.flowkit_style_reference_path}
               onChange={(e) =>
                 set("flowkit_style_reference_path", e.target.value)
@@ -235,20 +233,20 @@ export function FlowkitSettings({ config }: FlowkitSettingsProps) {
         </div>
 
         <Toggle
-          label="Dùng refiner"
-          hint="Refine pass cuối qua Imagen — tốn token gấp đôi"
+          label={t("form.flowkit.refiner_label")}
+          hint={t("form.flowkit.refiner_hint")}
           checked={draft.flowkit_use_refiner}
           onChange={(v) => set("flowkit_use_refiner", v)}
         />
         <Toggle
-          label="Split character / style input type"
-          hint="Bật sau khi sniff được enum IMAGE_INPUT_TYPE_STYLE / _CHARACTER"
+          label={t("form.flowkit.split_label")}
+          hint={t("form.flowkit.split_hint")}
           checked={draft.flowkit_image_input_type_split}
           onChange={(v) => set("flowkit_image_input_type_split", v)}
         />
         <Toggle
-          label="Yêu cầu HMAC trên callback"
-          hint="Bật sau khi Extension đã echo X-Callback-Secret"
+          label={t("form.flowkit.hmac_label")}
+          hint={t("form.flowkit.hmac_hint")}
           checked={draft.flowkit_callback_hmac_required}
           onChange={(v) => set("flowkit_callback_hmac_required", v)}
         />
@@ -280,14 +278,14 @@ export function FlowkitSettings({ config }: FlowkitSettingsProps) {
           onClick={() => setDraft(initial)}
           disabled={!isDirty || update.isPending}
         >
-          Hoàn tác
+          {t("form.flowkit.undo")}
         </Button>
         <Button
           size="sm"
           onClick={() => void onSave()}
           disabled={!isDirty || update.isPending}
         >
-          {update.isPending ? "Đang lưu…" : "Lưu FlowKit"}
+          {update.isPending ? t("form.saving") : t("form.flowkit.save_flowkit")}
         </Button>
       </div>
     </div>
@@ -345,8 +343,9 @@ function FlowkitStatusBadge({
   connected?: boolean;
   loading: boolean;
 }) {
-  if (!enabled) return <Badge variant="outline">Chưa bật</Badge>;
-  if (loading) return <Badge variant="outline">Đang kiểm tra…</Badge>;
-  if (connected) return <Badge className="bg-emerald-600 text-white">Kết nối</Badge>;
-  return <Badge variant="destructive">Mất kết nối</Badge>;
+  const t = useTranslations("settings_panel");
+  if (!enabled) return <Badge variant="outline">{t("form.flowkit.status_disabled")}</Badge>;
+  if (loading) return <Badge variant="outline">{t("form.flowkit.status_checking")}</Badge>;
+  if (connected) return <Badge className="bg-emerald-600 text-white">{t("form.flowkit.status_connected")}</Badge>;
+  return <Badge variant="destructive">{t("form.flowkit.status_disconnected")}</Badge>;
 }

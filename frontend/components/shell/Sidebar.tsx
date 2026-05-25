@@ -186,7 +186,7 @@ export function Sidebar() {
 
         {!collapsed && (
           <div className="mt-6 px-4 pb-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-            More
+            {t("more")}
           </div>
         )}
         <ul className="flex flex-col gap-0.5">

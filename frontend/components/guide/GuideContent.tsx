@@ -45,200 +45,191 @@ function StepCard({ icon: Icon, title, description, href, cta }: StepCardProps) 
   );
 }
 
-const STEPS: StepCardProps[] = [
-  {
-    icon: KeyRound,
-    title: "1. Cấu hình khoá API",
-    description:
-      "Thêm OpenAI, Anthropic, Google AI hoặc Z.AI. Khoá được lưu trên backend, không bao giờ hiện trong URL.",
-    href: "/settings",
-    cta: "Mở Cài đặt",
-  },
-  {
-    icon: BookOpen,
-    title: "2. Tạo truyện đầu tiên",
-    description:
-      "Chọn thể loại + phong cách, viết ý tưởng vài câu, đặt số chương rồi bấm Chạy.",
-    href: "/",
-    cta: "Bắt đầu",
-  },
-  {
-    icon: GitBranch,
-    title: "3. Khám phá nhánh truyện",
-    description:
-      "Cho phép độc giả chọn ngã rẽ trong cốt truyện qua giao diện đồ thị tương tác.",
-    href: "/library",
-    cta: "Mở Thư viện",
-  },
-  {
-    icon: Download,
-    title: "4. Xuất bản PDF/EPUB",
-    description: "Xuất truyện sang định dạng đọc được trên Kindle, iPad hoặc in ấn.",
-    href: "/export",
-    cta: "Mở Xuất bản",
-  },
-];
-
-const FAQ: FaqItem[] = [
-  {
-    id: "start",
-    question: "Tôi nên bắt đầu từ đâu?",
-    answer: (
-      <>
-        <p>
-          Vào{" "}
-          <Link href="/settings">Cài đặt</Link> trước, thêm ít nhất một khoá API
-          (OpenAI/Anthropic/Google AI). Sau đó quay về trang chính, điền ý tưởng và
-          bấm <strong>Chạy pipeline</strong>. Truyện đầu tiên thường mất 1–3 phút
-          tuỳ độ dài.
-        </p>
-      </>
-    ),
-  },
-  {
-    id: "keys",
-    question: "Khoá API có an toàn không?",
-    answer: (
-      <>
-        <p>
-          Khoá lưu trên backend FastAPI (file <code>data/config.json</code>),
-          không xuất hiện trong URL hoặc localStorage. Endpoint{" "}
-          <code>GET /api/config</code> chỉ trả phần đã che (mask). Bạn có thể
-          xoá khoá bất cứ lúc nào ở trang Cài đặt.
-        </p>
-      </>
-    ),
-  },
-  {
-    id: "first-story",
-    question: "Tạo truyện đầu tiên thế nào?",
-    answer: (
-      <>
-        <ol className="list-decimal pl-5">
-          <li>Vào tab <strong>Pipeline</strong> (trang chủ).</li>
-          <li>Chọn thể loại (vd: tiên hiệp, hiện đại, phiêu lưu) và phong cách.</li>
-          <li>Viết ý tưởng cốt truyện (2–5 câu là đủ).</li>
-          <li>Đặt số chương (5–15 cho lần đầu) và số nhân vật chính.</li>
-          <li>
-            Bấm <strong>Chạy</strong>. Theo dõi pipeline qua thanh tiến trình bên
-            phải. Khi hoàn tất, truyện xuất hiện trong{" "}
-            <Link href="/library">Thư viện</Link>.
-          </li>
-        </ol>
-      </>
-    ),
-  },
-  {
-    id: "branching",
-    question: "Nhánh truyện hoạt động thế nào?",
-    answer: (
-      <>
-        <p>
-          Khi mở một truyện trong{" "}
-          <Link href="/library">Thư viện</Link>, bạn có thể bật chế độ Phân
-          nhánh để cho phép chọn ngã rẽ ở cuối mỗi chương. Mỗi lựa chọn tạo một
-          nhánh mới, hiển thị dưới dạng đồ thị. Có thể quay lại nút cha,
-          undo/redo và đặt bookmark.
-        </p>
-      </>
-    ),
-  },
-  {
-    id: "exports",
-    question: "Xuất bản truyện ra định dạng nào?",
-    answer: (
-      <>
-        <p>
-          StoryForge hỗ trợ xuất <strong>PDF</strong> (qua fpdf2) và{" "}
-          <strong>EPUB</strong> (qua ebooklib). Vào{" "}
-          <Link href="/library">Thư viện</Link>, chọn truyện, rồi bấm{" "}
-          <strong>Xuất bản</strong>. File sẽ tải về sau vài giây.
-        </p>
-      </>
-    ),
-  },
-  {
-    id: "providers",
-    question: "Tôi nên chọn mô hình LLM nào?",
-    answer: (
-      <>
-        <p>
-          Mặc định khuyến nghị <code>gpt-4o-mini</code> hoặc{" "}
-          <code>claude-haiku</code> cho Layer 1 (tạo truyện), kết hợp{" "}
-          <code>gpt-4o</code> hoặc <code>claude-sonnet</code> cho Layer 2 (làm
-          gay cấn). Z.AI là lựa chọn miễn phí có giới hạn quota — phù hợp thử
-          nghiệm. Mở{" "}
-          <Link href="/providers">Nhà cung cấp</Link> để cấu hình fallback chain.
-        </p>
-      </>
-    ),
-  },
-  {
-    id: "cost",
-    question: "Theo dõi chi phí ở đâu?",
-    answer: (
-      <>
-        <p>
-          Mở <Link href="/usage">Sử dụng</Link> để xem token + USD tích luỹ theo
-          phiên hiện tại của server. Số liệu reset khi backend khởi động lại.
-        </p>
-      </>
-    ),
-  },
-  {
-    id: "troubleshooting",
-    question: "Pipeline bị kẹt hoặc lỗi thì sao?",
-    answer: (
-      <>
-        <ul className="list-disc pl-5">
-          <li>
-            Kiểm tra <Link href="/providers">Nhà cung cấp</Link> — nếu mô hình
-            chính bị rate-limit, hệ thống sẽ tự fallback sau vài giây.
-          </li>
-          <li>
-            Mở tab <strong>Console</strong> trong DevTools để xem log SSE chi
-            tiết.
-          </li>
-          <li>
-            Nếu lỗi lặp lại, bấm <strong>Thử lại</strong> trên trang lỗi hoặc tải
-            lại trình duyệt — TanStack Query cache sẽ tự re-fetch.
-          </li>
-          <li>
-            Báo lỗi tại{" "}
-            <a
-              href="https://github.com/xnohat/storyforge/issues"
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              GitHub Issues
-            </a>{" "}
-            kèm log từ DevTools.
-          </li>
-        </ul>
-      </>
-    ),
-  },
-];
-
-const LINKS: Array<{ label: string; href: string; description: string }> = [
-  {
-    label: "GitHub repository",
-    href: "https://github.com/xnohat/storyforge",
-    description: "Mã nguồn, issue tracker, changelog.",
-  },
-  {
-    label: "Tài liệu API (FastAPI)",
-    href: "/docs",
-    description: "Swagger UI cho mọi endpoint backend.",
-  },
-  {
-    label: "CLAUDE.md (kiến trúc)",
-    href: "https://github.com/xnohat/storyforge/blob/master/CLAUDE.md",
-    description: "Giải thích pipeline 2-layer chi tiết.",
-  },
-];
+import { useTranslations } from "next-intl";
 
 export function GuideContent() {
+  const t = useTranslations("guide");
+
+  const steps: StepCardProps[] = [
+    {
+      icon: KeyRound,
+      title: t("steps.step_1_title"),
+      description: t("steps.step_1_desc"),
+      href: "/settings",
+      cta: t("steps.step_1_cta"),
+    },
+    {
+      icon: BookOpen,
+      title: t("steps.step_2_title"),
+      description: t("steps.step_2_desc"),
+      href: "/",
+      cta: t("steps.step_2_cta"),
+    },
+    {
+      icon: GitBranch,
+      title: t("steps.step_3_title"),
+      description: t("steps.step_3_desc"),
+      href: "/library",
+      cta: t("steps.step_3_cta"),
+    },
+    {
+      icon: Download,
+      title: t("steps.step_4_title"),
+      description: t("steps.step_4_desc"),
+      href: "/export",
+      cta: t("steps.step_4_cta"),
+    },
+  ];
+
+  const faq: FaqItem[] = [
+    {
+      id: "start",
+      question: t("faq_items.start_q"),
+      answer: (
+        <p>
+          {t.rich("faq_items.start_a", {
+            settingsLink: (chunks) => <Link href="/settings" className="font-medium text-[var(--accent-strong)] hover:underline">{chunks}</Link>,
+            strong: (chunks) => <strong>{chunks}</strong>,
+          })}
+        </p>
+      ),
+    },
+    {
+      id: "keys",
+      question: t("faq_items.keys_q"),
+      answer: (
+        <p>
+          {t.rich("faq_items.keys_a", {
+            code: (chunks) => <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{chunks}</code>,
+          })}
+        </p>
+      ),
+    },
+    {
+      id: "first-story",
+      question: t("faq_items.first_story_q"),
+      answer: (
+        <ol className="list-decimal pl-5 space-y-1">
+          <li>
+            {t.rich("faq_items.first_story_a_1", {
+              strong: (chunks) => <strong>{chunks}</strong>,
+            })}
+          </li>
+          <li>{t("faq_items.first_story_a_2")}</li>
+          <li>{t("faq_items.first_story_a_3")}</li>
+          <li>{t("faq_items.first_story_a_4")}</li>
+          <li>
+            {t.rich("faq_items.first_story_a_5", {
+              strong: (chunks) => <strong>{chunks}</strong>,
+              libraryLink: (chunks) => <Link href="/library" className="font-medium text-[var(--accent-strong)] hover:underline">{chunks}</Link>,
+            })}
+          </li>
+        </ol>
+      ),
+    },
+    {
+      id: "branching",
+      question: t("faq_items.branching_q"),
+      answer: (
+        <p>
+          {t.rich("faq_items.branching_a", {
+            libraryLink: (chunks) => <Link href="/library" className="font-medium text-[var(--accent-strong)] hover:underline">{chunks}</Link>,
+          })}
+        </p>
+      ),
+    },
+    {
+      id: "exports",
+      question: t("faq_items.exports_q"),
+      answer: (
+        <p>
+          {t.rich("faq_items.exports_a", {
+            strong: (chunks) => <strong>{chunks}</strong>,
+            libraryLink: (chunks) => <Link href="/library" className="font-medium text-[var(--accent-strong)] hover:underline">{chunks}</Link>,
+          })}
+        </p>
+      ),
+    },
+    {
+      id: "providers",
+      question: t("faq_items.providers_q"),
+      answer: (
+        <p>
+          {t.rich("faq_items.providers_a", {
+            code: (chunks) => <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{chunks}</code>,
+            providersLink: (chunks) => <Link href="/providers" className="font-medium text-[var(--accent-strong)] hover:underline">{chunks}</Link>,
+          })}
+        </p>
+      ),
+    },
+    {
+      id: "cost",
+      question: t("faq_items.cost_q"),
+      answer: (
+        <p>
+          {t.rich("faq_items.cost_a", {
+            usageLink: (chunks) => <Link href="/usage" className="font-medium text-[var(--accent-strong)] hover:underline">{chunks}</Link>,
+          })}
+        </p>
+      ),
+    },
+    {
+      id: "troubleshooting",
+      question: t("faq_items.troubleshooting_q"),
+      answer: (
+        <ul className="list-disc pl-5 space-y-1">
+          <li>
+            {t.rich("faq_items.troubleshooting_a_1", {
+              providersLink: (chunks) => <Link href="/providers" className="font-medium text-[var(--accent-strong)] hover:underline">{chunks}</Link>,
+            })}
+          </li>
+          <li>
+            {t.rich("faq_items.troubleshooting_a_2", {
+              strong: (chunks) => <strong>{chunks}</strong>,
+            })}
+          </li>
+          <li>
+            {t.rich("faq_items.troubleshooting_a_3", {
+              strong: (chunks) => <strong>{chunks}</strong>,
+            })}
+          </li>
+          <li>
+            {t.rich("faq_items.troubleshooting_a_4", {
+              githubLink: (chunks) => (
+                <a
+                  href="https://github.com/xnohat/storyforge/issues"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="font-medium text-[var(--accent-strong)] hover:underline"
+                >
+                  {chunks}
+                </a>
+              ),
+            })}
+          </li>
+        </ul>
+      ),
+    },
+  ];
+
+  const links = [
+    {
+      label: "GitHub repository",
+      href: "https://github.com/xnohat/storyforge",
+      description: t("links.github_desc"),
+    },
+    {
+      label: "Tài liệu API (FastAPI)",
+      href: "/docs",
+      description: t("links.api_desc"),
+    },
+    {
+      label: "CLAUDE.md (kiến trúc)",
+      href: "https://github.com/xnohat/storyforge/blob/master/CLAUDE.md",
+      description: t("links.claude_desc"),
+    },
+  ];
+
   return (
     // Phase 4 typography discipline: section headings use the H2 scale
     // (text-xl). FAQ answers inherit `prose-guide` via FaqAccordion, so the
@@ -247,10 +238,10 @@ export function GuideContent() {
     <div className="flex flex-col gap-10">
       <section aria-labelledby="getting-started" className="flex flex-col gap-4">
         <h2 id="getting-started" className="text-xl font-semibold tracking-tight">
-          Bắt đầu nhanh
+          {t("quick_start")}
         </h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {STEPS.map((s) => (
+          {steps.map((s) => (
             <StepCard key={s.title} {...s} />
           ))}
         </div>
@@ -258,19 +249,19 @@ export function GuideContent() {
 
       <section aria-labelledby="faq" className="flex flex-col gap-4">
         <h2 id="faq" className="text-xl font-semibold tracking-tight">
-          Câu hỏi thường gặp
+          {t("faq")}
         </h2>
-        <FaqAccordion items={FAQ} />
+        <FaqAccordion items={faq} />
       </section>
 
       <section aria-labelledby="resources" className="flex flex-col gap-4">
         <h2 id="resources" className="text-xl font-semibold tracking-tight">
-          Tài nguyên
+          {t("resources")}
         </h2>
         <Card>
           <CardContent className="flex flex-col gap-3 pb-4">
             <ul className="flex flex-col gap-2">
-              {LINKS.map((l) => (
+              {links.map((l) => (
                 <li key={l.href} className="flex items-start gap-3">
                   <LifeBuoy className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                   <div className="flex flex-col">
@@ -295,10 +286,10 @@ export function GuideContent() {
                     href="/settings"
                     className="text-sm font-medium text-foreground hover:underline"
                   >
-                    Mở Cài đặt
+                    {t("open_settings")}
                   </Link>
                   <span className="text-xs text-muted-foreground">
-                    Cấu hình khoá API, model, flag pipeline.
+                    {t("settings_desc")}
                   </span>
                 </div>
               </li>

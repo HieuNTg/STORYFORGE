@@ -87,6 +87,7 @@ function useDebounced<T>(value: T, ms = 250): T {
 export function CommandPalette() {
   const router = useRouter();
   const t = useTranslations("shell");
+  const tNav = useTranslations("nav");
   const open = useUiStore((s) => s.paletteOpen);
   const setOpen = useUiStore((s) => s.setPaletteOpen);
 
@@ -189,10 +190,10 @@ export function CommandPalette() {
     >
       <div className="relative">
         <CommandInput
-          placeholder="Lệnh hoặc tên truyện..."
+          placeholder={t("search_placeholder")}
           value={query}
           onValueChange={setQuery}
-          aria-label="Lệnh hoặc tên truyện"
+          aria-label={t("search_placeholder")}
         />
         {/* Trailing ⌘K kbd hint inside the input bar (top-right). */}
         <kbd
@@ -212,20 +213,20 @@ export function CommandPalette() {
         )}
       >
         <CommandEmpty>
-          {isSearching ? "Đang tìm..." : "Không có kết quả."}
+          {isSearching ? t("searching") : t("no_results")}
         </CommandEmpty>
 
-        <CommandGroup heading="Điều hướng">
+        <CommandGroup heading={t("navigation")}>
           {PAGES.filter((p) => p.key !== "search-stories").map((p) => {
             const Icon = p.icon;
             return (
               <CommandItem
                 key={p.key}
-                value={`${p.label} ${(p.keywords ?? []).join(" ")}`}
+                value={`${tNav(p.key)} ${(p.keywords ?? []).join(" ")}`}
                 onSelect={() => go(p.href)}
               >
                 <Icon aria-hidden="true" className="text-muted-foreground" />
-                <span>{p.label}</span>
+                <span>{tNav(p.key)}</span>
               </CommandItem>
             );
           })}
@@ -234,7 +235,7 @@ export function CommandPalette() {
         {visibleStories.length > 0 ? (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Truyện">
+            <CommandGroup heading={t("stories")}>
               {visibleStories.map((s) => (
                 <CommandItem
                   key={s.filename}

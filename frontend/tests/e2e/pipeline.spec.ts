@@ -55,14 +55,14 @@ test("pipeline: submit + mock SSE renders agent + completion toast", async ({
     })
   );
 
-  await page.goto("/");
+  await page.goto("/forge/");
   await page.getByLabel("Ý tưởng truyện").fill(
     "Một thiếu niên tìm đường thành tiên trong một thế giới đầy hiểm nguy"
   );
   await page.getByRole("button", { name: /Khởi động pipeline/i }).click();
 
   // Agent bubble visible.
-  await expect(page.getByText("Sage")).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByText("Sage", { exact: true })).toBeVisible({ timeout: 5_000 });
   // Result panel populated.
   await expect(page.getByText("Truyện thử nghiệm")).toBeVisible({ timeout: 5_000 });
   // ?session= reflected in URL.
@@ -76,6 +76,7 @@ test("library: empty state renders without backend", async ({ page }) => {
       body: JSON.stringify({ items: [], total: 0, limit: 20, offset: 0 }),
     })
   );
-  await page.goto("/library");
-  await expect(page.getByText(/Chưa có truyện/i)).toBeVisible();
+  await page.addInitScript(() => window.localStorage.removeItem("storyforge_locale"));
+  await page.goto("/library", { waitUntil: "domcontentloaded" });
+  await expect(page.getByText(/Kho truyện trống|Bookshelf is empty/i)).toBeVisible();
 });

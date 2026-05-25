@@ -13,6 +13,7 @@ import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -31,14 +32,15 @@ export interface ForgePanelProps {
 const MAX_LEN = 500;
 const MIN_LEN = 10;
 
-const STAGE_LABEL: Record<ForgeStreamStage, string> = {
-  planning: "Đang phác thảo bối cảnh…",
-  characters: "Đang tạo nhân vật…",
-  chapter: "Đang viết chương 1…",
-  choices: "Đang cân nhắc các ngả rẽ…",
+const STAGE_KEYS: Record<ForgeStreamStage, string> = {
+  planning: "forge_stage_planning",
+  characters: "forge_stage_characters",
+  chapter: "forge_stage_chapter",
+  choices: "forge_stage_choices",
 };
 
 export function ForgePanel({ onForged, disabled, className }: ForgePanelProps) {
+  const t = useTranslations("library");
   const reduce = useReducedMotion();
   const [sentence, setSentence] = React.useState("");
   const [streaming, setStreaming] = React.useState(false);
@@ -60,7 +62,7 @@ export function ForgePanel({ onForged, disabled, className }: ForgePanelProps) {
   const canForge = !disabled && !streaming && len >= MIN_LEN && !tooLong;
 
   const appendLog = React.useCallback((line: string) => {
-    setLog((l) => [...l, `[${new Date().toLocaleTimeString("vi-VN")}] ${line}`]);
+    setLog((l) => [...l, `[${new Date().toLocaleTimeString()}] ${line}`]);
   }, []);
 
   async function handleForge() {
@@ -69,24 +71,24 @@ export function ForgePanel({ onForged, disabled, className }: ForgePanelProps) {
     abortRef.current = ctrl;
     setStreaming(true);
     setLog([]);
-    appendLog(`Gửi ý tưởng (${len} ký tự)…`);
+    appendLog(t("forge_sending", { count: len }));
     try {
       const story = await forgeFromSentenceStream(
         { sentenceIdea: sentence.trim() },
         {
           signal: ctrl.signal,
-          onStage: (stage) => appendLog(STAGE_LABEL[stage]),
-          onError: (err) => appendLog(`Lỗi: ${err.message}`),
+          onStage: (stage) => appendLog(t(STAGE_KEYS[stage])),
+          onError: (err) => appendLog(t("error_with_message", { msg: err.message })),
         },
       );
-      appendLog(`Hoàn thành: "${story.title}"`);
+      appendLog(t("forge_done", { title: story.title }));
       onForged(story);
       setSentence("");
-      toast.success("Đã tạo truyện mới", { description: story.title });
+      toast.success(t("created_new"), { description: story.title });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (!ctrl.signal.aborted) {
-        toast.error("Forge thất bại", { description: msg });
+        toast.error(t("forge_failed"), { description: msg });
       }
     } finally {
       setStreaming(false);
@@ -96,7 +98,7 @@ export function ForgePanel({ onForged, disabled, className }: ForgePanelProps) {
 
   function handleCancel() {
     abortRef.current?.abort();
-    appendLog("Đã huỷ.");
+    appendLog(t("cancelled"));
     setStreaming(false);
   }
 
@@ -111,14 +113,14 @@ export function ForgePanel({ onForged, disabled, className }: ForgePanelProps) {
       <header className="mb-3 flex items-center gap-2">
         <Sparkles className="size-4 text-[var(--color-accent,#C5A47E)]" aria-hidden />
         <h2 id="forge-panel-title" className="text-sm font-semibold">
-          Forge từ một câu ý tưởng
+          {t("forge_title")}
         </h2>
       </header>
 
       <Textarea
         value={sentence}
         onChange={(e) => setSentence(e.target.value)}
-        placeholder="VD: Một kiếm khách bị phế võ công đi tìm sư phụ đã chết để hỏi tội…"
+        placeholder={t("forge_placeholder")}
         maxLength={MAX_LEN + 50}
         rows={3}
         disabled={streaming || disabled}
@@ -136,10 +138,10 @@ export function ForgePanel({ onForged, disabled, className }: ForgePanelProps) {
           )}
         >
           {tooShort
-            ? `Cần ít nhất ${MIN_LEN} ký tự`
+            ? t("min_chars", { min: MIN_LEN })
             : tooLong
-              ? `Vượt ${MAX_LEN} ký tự`
-              : `Tối đa ${MAX_LEN} ký tự`}
+              ? t("over_chars", { max: MAX_LEN })
+              : t("max_chars", { max: MAX_LEN })}
         </span>
         <span className="tabular-nums">
           {len} / {MAX_LEN}
@@ -158,11 +160,11 @@ export function ForgePanel({ onForged, disabled, className }: ForgePanelProps) {
           ) : (
             <Sparkles className="size-4" aria-hidden />
           )}
-          {streaming ? "Đang forge…" : "Forge truyện"}
+          {streaming ? t("forging") : t("forge_cta")}
         </Button>
         {streaming && (
           <Button type="button" variant="outline" onClick={handleCancel}>
-            Huỷ
+            {t("cancel")}
           </Button>
         )}
       </div>
@@ -190,3 +192,4 @@ export function ForgePanel({ onForged, disabled, className }: ForgePanelProps) {
     </section>
   );
 }
+

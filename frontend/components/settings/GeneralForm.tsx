@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
+import { useTranslations } from "next-intl";
+
 export interface GeneralFormProps {
   form: ReactNode;
   isSaving?: boolean;
@@ -27,6 +29,8 @@ export function GeneralForm({
   onReset,
   className,
 }: GeneralFormProps) {
+  const t = useTranslations("settings_panel");
+
   return (
     <div className={cn("flex flex-col gap-4", className)}>
       <Card>
@@ -41,11 +45,11 @@ export function GeneralForm({
             onClick={onReset}
             disabled={isSaving}
           >
-            Đặt lại
+            {t("form.reset")}
           </Button>
         ) : null}
         <Button type="button" onClick={onSave} disabled={isSaving}>
-          {isSaving ? "Đang lưu..." : "Lưu"}
+          {isSaving ? t("form.saving") : t("form.save")}
         </Button>
       </div>
     </div>

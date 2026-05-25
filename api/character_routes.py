@@ -129,6 +129,7 @@ async def generate_character_route(
                 req.genre,
                 req.extraContext,
                 model,
+                req.language or "vi",
             ),
             timeout=30.0,
         )
@@ -152,13 +153,30 @@ class CharacterExtractRequest(BaseModel):
     description: str = Field("", max_length=2000)
     setting: str = Field("", max_length=2000)
     text_context: str = Field(..., min_length=50, max_length=50000)
+    # Source story language (e.g. "vi", "en"). Drives the language of every
+    # text field on extracted characters. Defaults to Vietnamese.
+    language: str = Field(default="vi", max_length=16)
 
 @router.post("/extract-story", response_model=list[ForgeCharacter])
 async def extract_story_characters_route(req: CharacterExtractRequest) -> list[ForgeCharacter]:
     llm = _get_llm()
     model = _resolve_model()
-    
+
+    # Pin output language: the source story's language must drive every text
+    # field on the extracted characters (description, backstory, secret,
+    # conflict). Without this, English-leaning base models can drift to
+    # English even when the input is Vietnamese.
+    from services.character_service import _language_label
+    language_label = _language_label(req.language)
+
     prompt = f"""
+LANGUAGE (CRITICAL): Respond ENTIRELY in {language_label}. Every string value
+in the JSON output — name (when not a proper noun already in the source),
+description, backstory, secret, conflict — MUST be written in {language_label}.
+Do NOT mix languages. Character names follow project conventions: Vietnamese
+names by default; Han-Viet / Chinese romanization ONLY for Tiên Hiệp (xianxia)
+/ Wuxia genres.
+
 Trích xuất danh sách nhân vật từ nội dung truyện dưới đây.
 Trả về danh sách 1-6 nhân vật chính và phụ quan trọng nhất. KHÔNG bịa tên nhân vật nếu không có trong văn bản.
 
@@ -188,27 +206,34 @@ Nội dung các chương:
   }}
 ]
 Vai trò (role) phải là một trong: protagonist, antagonist, rival, supporting.
+
+REMINDER: All description / backstory / secret / conflict text MUST be in {language_label}.
 """
+    system_prompt = (
+        f"You are an assistant that extracts character information from a story. "
+        f"Return ONLY valid JSON. LANGUAGE: every text field in the output must "
+        f"be written in {language_label}. Do not mix languages."
+    )
     try:
         raw_json = await asyncio.wait_for(
-            asyncio.to_thread(llm.generate, system_prompt="Bạn là trợ lý trích xuất thông tin nhân vật. Chỉ trả về JSON hợp lệ.", user_prompt=prompt, model=model, temperature=0.7),
+            asyncio.to_thread(llm.generate, system_prompt=system_prompt, user_prompt=prompt, model=model, temperature=0.7),
             timeout=45.0
         )
         if "```json" in raw_json:
             raw_json = raw_json.split("```json")[1].split("```")[0].strip()
         elif "```" in raw_json:
             raw_json = raw_json.split("```")[1].strip()
-            
+
         import json
         data = json.loads(raw_json)
         if not isinstance(data, list):
             data = [data]
-            
+
         characters = []
         for item in data[:6]:
             char = ForgeCharacter(**item)
             characters.append(char)
-            
+
         return characters
     except asyncio.TimeoutError:
         logger.warning("character extraction timeout")

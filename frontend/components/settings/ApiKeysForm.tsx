@@ -21,6 +21,8 @@ export interface ApiKeysFormProps {
  * Presentational shell for the API keys settings tab.
  * Includes a security banner explaining that keys are server-side only.
  */
+import { useTranslations } from "next-intl";
+
 export function ApiKeysForm({
   form,
   isSaving = false,
@@ -29,6 +31,8 @@ export function ApiKeysForm({
   onReset,
   className,
 }: ApiKeysFormProps) {
+  const t = useTranslations("settings_panel");
+
   return (
     <div className={cn("flex flex-col gap-4", className)}>
       <div
@@ -37,8 +41,7 @@ export function ApiKeysForm({
       >
         <Shield className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />
         <p className="leading-relaxed">
-          Khóa API được lưu trên máy chủ và không bao giờ xuất hiện trong URL
-          hoặc nhật ký.
+          {t("form.api.banner")}
         </p>
       </div>
 
@@ -54,11 +57,11 @@ export function ApiKeysForm({
             onClick={onReset}
             disabled={isSaving}
           >
-            Đặt lại
+            {t("form.reset")}
           </Button>
         ) : null}
         <Button type="button" onClick={onSave} disabled={isSaving}>
-          {isSaving ? "Đang lưu..." : "Lưu"}
+          {isSaving ? t("form.saving") : t("form.save")}
         </Button>
       </div>
     </div>
@@ -98,6 +101,7 @@ export function MaskedInput({
   const inputId = id ?? generatedId;
   const errorId = `${inputId}-error`;
   const [revealed, setRevealed] = React.useState(false);
+  const t = useTranslations("settings_panel");
 
   const handleCopy = React.useCallback(async () => {
     if (!value) return;
@@ -144,7 +148,7 @@ export function MaskedInput({
           type="button"
           variant="outline"
           size="icon"
-          aria-label={revealed ? "Ẩn khóa" : "Hiện khóa"}
+          aria-label={revealed ? t("form.api.hide_key") : t("form.api.show_key")}
           aria-pressed={revealed}
           onClick={() => setRevealed((v) => !v)}
         >
@@ -154,7 +158,7 @@ export function MaskedInput({
           type="button"
           variant="outline"
           size="icon"
-          aria-label="Sao chép khóa"
+          aria-label={t("form.api.copy_key")}
           disabled={!value}
           onClick={handleCopy}
         >

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -68,6 +69,7 @@ export function BranchToolbar({
   isPending = false,
   className,
 }: BranchToolbarProps) {
+  const t = useTranslations("branching");
   const disableAll = isPending;
   return (
     <TooltipProvider>
@@ -77,29 +79,29 @@ export function BranchToolbar({
           className
         )}
         role="toolbar"
-        aria-label="Điều khiển nhánh"
+        aria-label={t("toolbar_title")}
       >
         <ToolbarButton
-          label="Quay lại"
+          label={t("toolbar_back")}
           icon={ChevronLeft}
           onClick={onBack}
           disabled={disableAll || !canBack}
         />
         <ToolbarButton
-          label="Hoàn tác"
+          label={t("toolbar_undo")}
           icon={Undo2}
           onClick={onUndo}
           disabled={disableAll || !canUndo}
         />
         <ToolbarButton
-          label="Làm lại"
+          label={t("toolbar_redo")}
           icon={Redo2}
           onClick={onRedo}
           disabled={disableAll || !canRedo}
         />
         <span aria-hidden className="mx-0.5 h-5 w-px bg-border" />
         <ToolbarButton
-          label="Đánh dấu"
+          label={t("toolbar_bookmark")}
           icon={Bookmark}
           onClick={onOpenBookmarks}
           disabled={disableAll}

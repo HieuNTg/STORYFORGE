@@ -12,6 +12,8 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 
+import { useTranslations } from "next-intl";
+
 export interface SettingsTabItem {
   id: string;
   label: string;
@@ -29,24 +31,24 @@ export interface SettingsTabsProps {
 const TAB_META: Record<
   string,
   {
-    description: string;
+    descKey: string;
     icon: React.ComponentType<{ className?: string }>;
   }
 > = {
   general: {
-    description: "Ngôn ngữ, ảnh, giao diện tạo nội dung",
+    descKey: "tab_general_desc",
     icon: Settings2,
   },
   "api-keys": {
-    description: "Provider nhanh, API key, model dropdown",
+    descKey: "tab_api_desc",
     icon: KeyRound,
   },
   "advanced-l1": {
-    description: "Routing model rẻ và tầng viết chính",
+    descKey: "tab_l1_desc",
     icon: SlidersHorizontal,
   },
   "advanced-l2": {
-    description: "Model tăng kịch tính và nhịp truyện",
+    descKey: "tab_l2_desc",
     icon: Sparkles,
   },
 };
@@ -62,6 +64,7 @@ export function SettingsTabs({
   onValueChange,
   className,
 }: SettingsTabsProps) {
+  const t = useTranslations("settings_panel");
   const first = tabs[0]?.id;
   const initialValue = value ?? defaultTab ?? first;
   const activeId = value ?? initialValue;
@@ -81,7 +84,7 @@ export function SettingsTabs({
         <aside className="rounded-xl border border-border/60 bg-background/55 p-2 shadow-inner shadow-black/[0.03]">
           <div className="mb-2 hidden px-2 py-1 lg:block">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Nhóm cài đặt
+              {t("groups_title")}
             </p>
           </div>
           <div className="-mx-1 overflow-x-auto px-1 lg:mx-0 lg:overflow-visible lg:px-0">
@@ -111,9 +114,9 @@ export function SettingsTabs({
                         <span className="block truncate text-sm font-semibold">
                           {tab.label}
                         </span>
-                        {meta?.description ? (
+                        {meta?.descKey ? (
                           <span className="mt-0.5 hidden text-wrap text-[11px] leading-snug text-muted-foreground lg:block">
-                            {meta.description}
+                            {t(meta.descKey)}
                           </span>
                         ) : null}
                       </span>
@@ -137,9 +140,9 @@ export function SettingsTabs({
                 <h2 className="truncate font-serif text-lg text-foreground">
                   {activeTab.label}
                 </h2>
-                {activeMeta?.description ? (
+                {activeMeta?.descKey ? (
                   <p className="text-xs text-muted-foreground">
-                    {activeMeta.description}
+                    {t(activeMeta.descKey)}
                   </p>
                 ) : null}
               </div>

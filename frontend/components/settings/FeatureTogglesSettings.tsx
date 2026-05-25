@@ -20,6 +20,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 import { Switch } from "@/components/ui/switch";
 import { useUpdateConfig } from "@/lib/api/queries";
@@ -37,34 +38,35 @@ type ToggleKey =
 
 interface ToggleSpec {
   key: ToggleKey;
-  label: string;
-  hint: string;
+  labelKey: string;
+  hintKey: string;
 }
 
 const TOGGLES: ToggleSpec[] = [
   {
     key: "enable_pipeline_overlay",
-    label: "Hiển thị overlay pipeline",
-    hint: "Hiện banner tiến trình realtime trong quá trình sinh truyện.",
+    labelKey: "form.features.overlay_label",
+    hintKey: "form.features.overlay_hint",
   },
   {
     key: "enable_chapter_illustration",
-    label: "Sinh minh họa cho chương",
-    hint: "Tự động tạo ảnh minh họa cho mỗi chương khi provider ảnh đang bật.",
+    labelKey: "form.features.illust_label",
+    hintKey: "form.features.illust_hint",
   },
   {
     key: "enable_simulation_transcript",
-    label: "Bật transcript Mô phỏng",
-    hint: "Lưu lại transcript từ sân khấu mô phỏng để hiển thị / debate sau này.",
+    labelKey: "form.features.sim_label",
+    hintKey: "form.features.sim_hint",
   },
   {
     key: "enable_drama_climax",
-    label: "Mở rộng drama → climax",
-    hint: "Cho phép drama_level đạt mức 'climax' (cao hơn 'high'). Tăng cường độ kịch tính.",
+    labelKey: "form.features.drama_label",
+    hintKey: "form.features.drama_hint",
   },
 ];
 
 export function FeatureTogglesSettings({ config }: FeatureTogglesSettingsProps) {
+  const t = useTranslations("settings_panel");
   const update = useUpdateConfig();
 
   // Mirror server state in local component state so we can do optimistic flips
@@ -104,11 +106,11 @@ export function FeatureTogglesSettings({ config }: FeatureTogglesSettingsProps) 
     try {
       const payload: ConfigUpdate = { [key]: next } as ConfigUpdate;
       await update.mutateAsync(payload);
-      toast.success("Đã lưu cài đặt");
+      toast.success(t("form.save_success"));
     } catch (e) {
       // Revert optimistic flip on failure.
       setLocal((s) => ({ ...s, [key]: prev }));
-      const msg = e instanceof Error ? e.message : "Lưu thất bại";
+      const msg = e instanceof Error ? e.message : t("form.save_failed");
       toast.error(msg);
     } finally {
       setPendingKey(null);
@@ -118,28 +120,27 @@ export function FeatureTogglesSettings({ config }: FeatureTogglesSettingsProps) 
   return (
     <div className="mt-4 flex flex-col gap-4 rounded-lg border border-border bg-background p-4">
       <div className="flex flex-col">
-        <h3 className="text-sm font-semibold text-foreground">Tính năng</h3>
+        <h3 className="text-sm font-semibold text-foreground">{t("form.features.title")}</h3>
         <p className="text-xs text-muted-foreground">
-          Bật/tắt các tính năng pipeline. Thay đổi được lưu ngay khi gạt
-          công tắc.
+          {t("form.features.desc")}
         </p>
       </div>
 
       <div className="flex flex-col gap-2">
-        {TOGGLES.map((t) => (
+        {TOGGLES.map((tSpec) => (
           <div
-            key={t.key}
+            key={tSpec.key}
             className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2"
           >
             <div className="flex flex-col">
-              <span className="text-sm font-medium text-foreground">{t.label}</span>
-              <span className="text-xs text-muted-foreground">{t.hint}</span>
+              <span className="text-sm font-medium text-foreground">{t(tSpec.labelKey)}</span>
+              <span className="text-xs text-muted-foreground">{t(tSpec.hintKey)}</span>
             </div>
             <Switch
-              checked={local[t.key]}
-              onCheckedChange={(v) => void onToggle(t.key, v)}
-              disabled={pendingKey === t.key}
-              data-testid={`feature-toggle-${t.key}`}
+              checked={local[tSpec.key]}
+              onCheckedChange={(v) => void onToggle(tSpec.key, v)}
+              disabled={pendingKey === tSpec.key}
+              data-testid={`feature-toggle-${tSpec.key}`}
             />
           </div>
         ))}

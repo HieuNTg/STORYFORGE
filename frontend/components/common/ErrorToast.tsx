@@ -12,18 +12,32 @@ import { toast } from "sonner";
 
 export type ErrorKind = "network" | "server" | "validation" | "unknown";
 
-const TITLES: Record<ErrorKind, string> = {
+const TITLES_VI: Record<ErrorKind, string> = {
   network: "Mất kết nối",
   server: "Máy chủ gặp lỗi",
   validation: "Dữ liệu chưa hợp lệ",
   unknown: "Đã xảy ra lỗi",
 };
 
-const DESCRIPTIONS: Record<ErrorKind, string> = {
+const DESCRIPTIONS_VI: Record<ErrorKind, string> = {
   network: "Kiểm tra mạng rồi thử lại.",
   server: "Vui lòng thử lại sau ít phút.",
   validation: "Hãy xem lại các trường và thử lại.",
   unknown: "Vui lòng thử lại.",
+};
+
+const TITLES_EN: Record<ErrorKind, string> = {
+  network: "Connection Lost",
+  server: "Server Error",
+  validation: "Invalid Data",
+  unknown: "An error occurred",
+};
+
+const DESCRIPTIONS_EN: Record<ErrorKind, string> = {
+  network: "Please check your network and try again.",
+  server: "Please try again in a few minutes.",
+  validation: "Please review the fields and try again.",
+  unknown: "Please try again.",
 };
 
 export interface ErrorToastOptions {
@@ -45,11 +59,15 @@ function classify(err: unknown): ErrorKind {
 
 export function showErrorToast(err: unknown, opts: ErrorToastOptions = {}) {
   const kind = classify(err);
+  const locale = typeof window !== "undefined" ? document.documentElement.lang : "vi";
+  const titles = locale === "en" ? TITLES_EN : TITLES_VI;
+  const descriptions = locale === "en" ? DESCRIPTIONS_EN : DESCRIPTIONS_VI;
+
   const description =
     opts.description ??
     (err instanceof Error ? err.message : undefined) ??
-    DESCRIPTIONS[kind];
-  return toast.error(TITLES[kind], {
+    descriptions[kind];
+  return toast.error(titles[kind], {
     description,
     action: opts.action,
   });
@@ -59,8 +77,12 @@ export function showErrorToastKind(
   kind: ErrorKind,
   opts: ErrorToastOptions = {},
 ) {
-  return toast.error(TITLES[kind], {
-    description: opts.description ?? DESCRIPTIONS[kind],
+  const locale = typeof window !== "undefined" ? document.documentElement.lang : "vi";
+  const titles = locale === "en" ? TITLES_EN : TITLES_VI;
+  const descriptions = locale === "en" ? DESCRIPTIONS_EN : DESCRIPTIONS_VI;
+
+  return toast.error(titles[kind], {
+    description: opts.description ?? descriptions[kind],
     action: opts.action,
   });
 }

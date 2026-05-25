@@ -3,8 +3,8 @@ import { test, expect } from "@playwright/test";
 /**
  * E2E: /export/demo
  *
- * Verifies the 4 format cards render, selecting PDF opens the config sheet,
- * and clicking download POSTs to the backend export endpoint.
+ * Verifies the export format cards render and clicking PDF POSTs to the
+ * backend export endpoint.
  */
 
 test("export: select PDF and trigger download", async ({ page }) => {
@@ -21,20 +21,13 @@ test("export: select PDF and trigger download", async ({ page }) => {
 
   await page.goto("/export/?id=demo");
 
-  await expect(page.getByText("EPUB")).toBeVisible();
-  await expect(page.getByText("PDF")).toBeVisible();
-  await expect(page.getByText("HTML")).toBeVisible();
-  await expect(page.getByText("Markdown")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^EPUB/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^PDF/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^HTML/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^ZIP/ })).toBeVisible();
 
-  // Click the PDF card.
-  await page.getByRole("button", { name: /PDF/ }).first().click();
+  // Click the PDF card; the current export page downloads directly.
+  await page.getByRole("button", { name: /^PDF/ }).click();
 
-  // The slide-in sheet should open with a download button.
-  const download = page.getByRole("button", { name: /Tải xuống/ });
-  await expect(download).toBeVisible();
-  await download.click();
-
-  // Give the JS-triggered POST a moment.
-  await page.waitForTimeout(500);
-  expect(exportPosted).toBe(true);
+  await expect.poll(() => exportPosted).toBe(true);
 });

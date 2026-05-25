@@ -9,6 +9,7 @@
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { AdvancedL1Form } from "@/components/settings/AdvancedL1Form";
@@ -50,6 +51,7 @@ export interface AdvancedL1FormFieldsProps {
 }
 
 export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
+  const t = useTranslations("settings_panel");
   const update = useUpdateConfig();
 
   const defaults: AdvancedL1FormValues = React.useMemo(
@@ -77,14 +79,14 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
     // Delta-only PUT: only send fields the user actually touched (F4/F5).
     const payload = pickDirty(values, form.formState.dirtyFields);
     if (Object.keys(payload).length === 0) {
-      toast.success("Không có thay đổi để lưu");
+      toast.success(t("form.no_changes"));
       return;
     }
     try {
       await update.mutateAsync(payload);
-      toast.success("Đã lưu cài đặt Layer 1");
+      toast.success(t("form.l1.save_success"));
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Lưu thất bại";
+      const msg = e instanceof Error ? e.message : t("form.save_failed");
       toast.error(msg);
     }
   });
@@ -93,8 +95,8 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
   const temperature = form.watch("temperature");
   const threshold = form.watch("self_review_threshold");
   const selfReview = form.watch("enable_self_review");
-  const cheapModel = form.watch("cheap_model");
-  const layer1Model = form.watch("layer1_model");
+  const cheapModel = form.watch("cheap_model") ?? "";
+  const layer1Model = form.watch("layer1_model") ?? "";
 
   const configuredModels = React.useMemo(() => {
     const options = config.llm.profiles
@@ -114,12 +116,12 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
 
     for (const value of [cheapModel, layer1Model]) {
       if (value && !options.some((option) => option.value === value)) {
-        options.push({ value, label: `Hiện tại · ${value}` });
+        options.push({ value, label: t("form.l1.current_model", { model: value }) });
       }
     }
 
     return options;
-  }, [cheapModel, config.llm.profiles, layer1Model]);
+  }, [cheapModel, config.llm.profiles, layer1Model, t]);
 
   return (
     <AdvancedL1Form
@@ -135,7 +137,7 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
                 htmlFor="adv-temp"
                 className="text-sm font-medium text-foreground"
               >
-                Temperature
+                {t("form.l1.temperature")}
               </label>
               <span className="font-mono text-xs tabular-nums text-muted-foreground">
                 {temperature.toFixed(2)}
@@ -147,7 +149,7 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
               max={2}
               step={0.05}
               value={[temperature]}
-              aria-label="Temperature"
+              aria-label={t("form.l1.temperature")}
               onValueChange={(v) => {
                 const next = Array.isArray(v) ? v[0] : v;
                 form.setValue("temperature", next, { shouldDirty: true });
@@ -159,7 +161,7 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">
-                Cao hơn = sáng tạo hơn nhưng kém ổn định.
+                {t("form.l1.temperature_hint")}
               </p>
             )}
           </div>
@@ -170,7 +172,7 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
                 htmlFor="adv-max-tokens"
                 className="text-sm font-medium text-foreground"
               >
-                Max tokens
+                {t("form.l1.max_tokens")}
               </label>
               <Input
                 id="adv-max-tokens"
@@ -193,21 +195,21 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
                 htmlFor="adv-cheap-model"
                 className="text-sm font-medium text-foreground"
               >
-                Mô hình rẻ (cheap_model)
+                {t("form.l1.cheap_model")}
               </label>
               <Select
                 value={cheapModel || "__default__"}
                 onValueChange={(v) =>
-                  form.setValue("cheap_model", v === "__default__" ? "" : v, {
+                  form.setValue("cheap_model", v === "__default__" ? "" : (v ?? ""), {
                     shouldDirty: true,
                   })
                 }
               >
                 <SelectTrigger id="adv-cheap-model" className="w-full">
-                  <SelectValue placeholder="Chọn model đã cấu hình" />
+                  <SelectValue placeholder={t("form.l1.cheap_model_placeholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__default__">Dùng model mặc định</SelectItem>
+                  <SelectItem value="__default__">{t("form.l1.cheap_model_default")}</SelectItem>
                   {configuredModels.map((model) => (
                     <SelectItem key={model.value} value={model.value}>
                       {model.label}
@@ -216,7 +218,7 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Dùng cho phân tích/tóm tắt.
+                {t("form.l1.cheap_model_hint")}
               </p>
             </div>
 
@@ -225,21 +227,21 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
                 htmlFor="adv-l1-model"
                 className="text-sm font-medium text-foreground"
               >
-                Mô hình Layer 1
+                {t("form.l1.layer1_model")}
               </label>
               <Select
                 value={layer1Model || "__default__"}
                 onValueChange={(v) =>
-                  form.setValue("layer1_model", v === "__default__" ? "" : v, {
+                  form.setValue("layer1_model", v === "__default__" ? "" : (v ?? ""), {
                     shouldDirty: true,
                   })
                 }
               >
                 <SelectTrigger id="adv-l1-model" className="w-full">
-                  <SelectValue placeholder="Chọn model đã cấu hình" />
+                  <SelectValue placeholder={t("form.l1.cheap_model_placeholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__default__">Dùng model mặc định</SelectItem>
+                  <SelectItem value="__default__">{t("form.l1.layer1_model_default")}</SelectItem>
                   {configuredModels.map((model) => (
                     <SelectItem key={model.value} value={model.value}>
                       {model.label}
@@ -256,10 +258,10 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
                 htmlFor="adv-self-review"
                 className="text-sm font-medium text-foreground"
               >
-                Tự đánh giá (self-review)
+                {t("form.l1.self_review")}
               </label>
               <span className="text-xs text-muted-foreground">
-                Layer 1 tự chấm điểm và viết lại chương yếu.
+                {t("form.l1.self_review_desc")}
               </span>
             </div>
             <Switch
@@ -277,7 +279,7 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
                 htmlFor="adv-self-threshold"
                 className="text-sm font-medium text-foreground"
               >
-                Ngưỡng tự đánh giá
+                {t("form.l1.self_review_threshold")}
               </label>
               <span className="font-mono text-xs tabular-nums text-muted-foreground">
                 {threshold.toFixed(1)}
@@ -289,7 +291,7 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
               max={5}
               step={0.1}
               value={[threshold]}
-              aria-label="Ngưỡng tự đánh giá"
+              aria-label={t("form.l1.self_review_threshold")}
               onValueChange={(v) => {
                 const next = Array.isArray(v) ? v[0] : v;
                 form.setValue("self_review_threshold", next, {
@@ -304,7 +306,7 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">
-                Chương có điểm thấp hơn ngưỡng sẽ được viết lại.
+                {t("form.l1.self_review_threshold_hint")}
               </p>
             )}
           </div>

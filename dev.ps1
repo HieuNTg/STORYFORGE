@@ -24,7 +24,7 @@ Start-Process powershell -WorkingDirectory $Root -ArgumentList @(
   "-NoExit",
   "-ExecutionPolicy", "Bypass",
   "-Command",
-  "python app.py"
+  "$env:PYTHONNOUSERSITE='1'; python app.py"
 )
 
 Write-Host "Starting StoryForge frontend on http://localhost:$FrontendPort ..." -ForegroundColor Cyan

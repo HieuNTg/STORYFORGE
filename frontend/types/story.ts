@@ -107,6 +107,12 @@ export const storySchema = z.object({
   chapters: z.array(storyChapterSchema).default([]),
   /** When set, the unconsumed pair of choices from the latest forge call. */
   pendingChoices: z.array(forgeChoiceSchema).nullable().default(null),
+  /**
+   * Source story language as an ISO-ish code (e.g. "vi", "en"). Drives the
+   * output language of every derived LLM call (character extraction, simulator
+   * dialogue, branching). Defaults to Vietnamese to match CLAUDE.md.
+   */
+  language: z.string().default("vi"),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -140,6 +146,11 @@ export const simulationContinueRequestSchema = z.object({
   historyLogs: z.array(transcriptTurnSchema).max(6).default([]),
   topic: z.string().min(1).max(2000),
   dramaLevel: dramaLevelSchema.default("high"),
+  /**
+   * Source story language code. Forwarded to the simulator so dialogue is
+   * generated in the story's language. Defaults to "vi".
+   */
+  language: z.string().max(16).default("vi"),
 });
 export type SimulationContinueRequest = z.infer<typeof simulationContinueRequestSchema>;
 

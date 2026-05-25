@@ -97,8 +97,14 @@ def continue_dialogue(
     topic: str,
     drama_level: str = "high",
     model: Optional[str] = None,
+    language: Optional[str] = "vi",
 ) -> TranscriptTurn:
-    """Generate one next TranscriptTurn. Single attempt, no retry."""
+    """Generate one next TranscriptTurn. Single attempt, no retry.
+
+    `language` is an ISO-ish locale code ("vi", "en", ...). The simulator
+    must speak in the source story's language for the lane to make sense.
+    Default is Vietnamese (CLAUDE.md primary audience).
+    """
     if not topic or not topic.strip():
         raise ValueError("topic is required")
     if not characters:
@@ -109,6 +115,10 @@ def continue_dialogue(
     def _safe(s: str) -> str:
         return s.replace("{", "{{").replace("}", "}}")
 
+    # Lazy import to avoid circular concerns; this maps locale -> readable name.
+    from services.character_service import _language_label
+    language_label = _language_label(language)
+
     safe_topic = _safe(topic.strip().replace('"', "'")[:2000])
     user = CONTINUE_USER_TEMPLATE.format(
         topic=safe_topic,
@@ -116,8 +126,29 @@ def continue_dialogue(
         chars=_safe(_format_chars(characters)),
         history=_safe(_format_history(history)),
     )
+    # Hard language pin prepended to the user prompt — the static system
+    # prompt is Vietnamese-anchored, so for non-VI sources we need to make
+    # the override explicit and unambiguous.
+    user = (
+        f"OUTPUT LANGUAGE: {language_label}. The 'speech', 'emotion' and "
+        f"'actionDetails' fields below MUST be written in {language_label}. "
+        f"Do not mix languages.\n\n" + user
+    )
+
+    # Swap the system prompt when language != vi so we don't fight a
+    # Vietnamese-only system anchor.
+    system_prompt = CONTINUE_SYSTEM_PROMPT
+    if (language or "vi").strip().lower() != "vi":
+        system_prompt = (
+            f"You are a character simulator for a novel. SCOPE: generate only "
+            f"character actions + dialogue. Do NOT comment on prose style, "
+            f"pacing, or craft quality. Output MUST be a single valid JSON "
+            f"object — no Markdown, no extra text. LANGUAGE: respond entirely "
+            f"in {language_label}."
+        )
+
     raw = llm.generate(
-        system_prompt=CONTINUE_SYSTEM_PROMPT,
+        system_prompt=system_prompt,
         user_prompt=user,
         temperature=0.9,
         json_mode=True,

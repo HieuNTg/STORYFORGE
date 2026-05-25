@@ -1,8 +1,12 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
 
 export default function ShellLayout({ children }: { children: ReactNode }) {
+  const t = useTranslations("shell");
   return (
     <div className="flex h-screen w-full overflow-hidden">
       {/* Skip link — visible on keyboard focus only. Lets keyboard / screen
@@ -11,7 +15,7 @@ export default function ShellLayout({ children }: { children: ReactNode }) {
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground focus:shadow-md focus:outline focus:outline-2 focus:outline-ring"
       >
-        Chuyển đến nội dung chính
+        {t("skip_link")}
       </a>
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">

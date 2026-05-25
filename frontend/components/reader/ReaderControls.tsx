@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -24,12 +25,7 @@ export interface ReaderControlsProps {
   className?: string;
 }
 
-const THEME_LABEL: Record<ReaderTheme, string> = {
-  midnight: "Midnight",
-  sepia: "Sepia",
-  dark: "Tối",
-  light: "Sáng",
-};
+// Removed local THEME_LABEL mapping in favor of next-intl dictionary keys
 
 const THEME_ICON: Record<ReaderTheme, React.ComponentType<{ className?: string }>> = {
   midnight: Sparkles,
@@ -61,7 +57,9 @@ export function ReaderControls({
   onColumnWidth,
   className,
 }: ReaderControlsProps) {
+  const t = useTranslations("reader");
   const ThemeIcon = THEME_ICON[theme];
+  const themeLabel = t(`theme_${theme}` as const);
 
   return (
     <div className={cn("flex items-center gap-1.5", className)}>
@@ -70,11 +68,11 @@ export function ReaderControls({
         variant="outline"
         size="sm"
         onClick={onCycleTheme}
-        aria-label={`Chủ đề: ${THEME_LABEL[theme]}`}
-        title={`Chủ đề: ${THEME_LABEL[theme]}`}
+        aria-label={t("theme_label", { name: themeLabel })}
+        title={t("theme_label", { name: themeLabel })}
       >
         <ThemeIcon />
-        <span className="hidden sm:inline">{THEME_LABEL[theme]}</span>
+        <span className="hidden sm:inline">{themeLabel}</span>
       </Button>
 
       <Popover>
@@ -84,11 +82,11 @@ export function ReaderControls({
               type="button"
               variant="outline"
               size="sm"
-              aria-label="Tuỳ chỉnh hiển thị"
-              title="Tuỳ chỉnh hiển thị"
+              aria-label={t("display_settings_title")}
+              title={t("display_settings_title")}
             >
               <Settings2 />
-              <span className="hidden sm:inline">Hiển thị</span>
+              <span className="hidden sm:inline">{t("display_settings")}</span>
             </Button>
           }
         />
@@ -98,7 +96,7 @@ export function ReaderControls({
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-medium text-foreground">
-                  Cỡ chữ
+                  {t("font_size")}
                 </label>
                 <span className="text-xs tabular-nums text-muted-foreground">
                   {fontSize}px
@@ -109,7 +107,7 @@ export function ReaderControls({
                 max={22}
                 step={1}
                 value={[fontSize]}
-                aria-label="Cỡ chữ"
+                aria-label={t("font_size")}
                 onValueChange={(v) => {
                   const n = toSingle(v);
                   if (typeof n === "number") onFontSize(n);
@@ -121,7 +119,7 @@ export function ReaderControls({
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-medium text-foreground">
-                  Giãn dòng
+                  {t("line_height")}
                 </label>
                 <span className="text-xs tabular-nums text-muted-foreground">
                   {lineHeight.toFixed(2)}
@@ -132,7 +130,7 @@ export function ReaderControls({
                 max={2.0}
                 step={0.05}
                 value={[lineHeight]}
-                aria-label="Giãn dòng"
+                aria-label={t("line_height")}
                 onValueChange={(v) => {
                   const n = toSingle(v);
                   if (typeof n === "number") onLineHeight(Math.round(n * 100) / 100);
@@ -143,7 +141,7 @@ export function ReaderControls({
             {/* Font family */}
             <div className="flex flex-col gap-2">
               <label className="text-xs font-medium text-foreground">
-                Phông chữ
+                {t("font_family")}
               </label>
               <Tabs
                 value={fontFamily}
@@ -161,16 +159,16 @@ export function ReaderControls({
             {/* Column width */}
             <div className="flex flex-col gap-2">
               <label className="text-xs font-medium text-foreground">
-                Độ rộng cột
+                {t("column_width")}
               </label>
               <Tabs
                 value={columnWidth}
                 onValueChange={(v) => onColumnWidth(v as ReaderColumnWidth)}
               >
                 <TabsList className="w-full">
-                  <TabsTrigger value="narrow">Hẹp</TabsTrigger>
-                  <TabsTrigger value="medium">Vừa</TabsTrigger>
-                  <TabsTrigger value="wide">Rộng</TabsTrigger>
+                  <TabsTrigger value="narrow">{t("width_narrow")}</TabsTrigger>
+                  <TabsTrigger value="medium">{t("width_medium")}</TabsTrigger>
+                  <TabsTrigger value="wide">{t("width_wide")}</TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>

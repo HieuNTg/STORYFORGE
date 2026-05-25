@@ -10,6 +10,7 @@
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 
 import { AdvancedL2Form } from "@/components/settings/AdvancedL2Form";
@@ -48,6 +49,7 @@ export interface AdvancedL2FormFieldsProps {
 }
 
 export function AdvancedL2FormFields({ config }: AdvancedL2FormFieldsProps) {
+  const t = useTranslations("settings_panel");
   const update = useUpdateConfig();
 
   const defaults: AdvancedL2FormValues = React.useMemo(
@@ -66,7 +68,7 @@ export function AdvancedL2FormFields({ config }: AdvancedL2FormFieldsProps) {
     form.reset(defaults);
   }, [defaults, form]);
 
-  const layer2Model = form.watch("layer2_model");
+  const layer2Model = form.watch("layer2_model") ?? "";
   const configuredModels = React.useMemo(() => {
     const options = config.llm.profiles
       .filter((profile) => profile.enabled && profile.model.trim())
@@ -84,24 +86,24 @@ export function AdvancedL2FormFields({ config }: AdvancedL2FormFieldsProps) {
     }
 
     if (layer2Model && !options.some((option) => option.value === layer2Model)) {
-      options.push({ value: layer2Model, label: `Hiện tại · ${layer2Model}` });
+      options.push({ value: layer2Model, label: t("form.l2.current_model", { model: layer2Model }) });
     }
 
     return options;
-  }, [config.llm.profiles, layer2Model]);
+  }, [config.llm.profiles, layer2Model, t]);
 
   const onSave = form.handleSubmit(async (values) => {
     // Delta-only PUT: only send fields the user actually touched (F4/F5).
     const payload = pickDirty(values, form.formState.dirtyFields);
     if (Object.keys(payload).length === 0) {
-      toast.success("Không có thay đổi để lưu");
+      toast.success(t("form.no_changes"));
       return;
     }
     try {
       await update.mutateAsync(payload);
-      toast.success("Đã lưu cài đặt Layer 2");
+      toast.success(t("form.l2.save_success"));
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Lưu thất bại";
+      const msg = e instanceof Error ? e.message : t("form.save_failed");
       toast.error(msg);
     }
   });
@@ -119,21 +121,21 @@ export function AdvancedL2FormFields({ config }: AdvancedL2FormFieldsProps) {
               htmlFor="adv-l2-model"
               className="text-sm font-medium text-foreground"
             >
-              Mô hình Layer 2
+              {t("form.l2.layer2_model")}
             </label>
             <Select
               value={layer2Model || "__default__"}
               onValueChange={(v) =>
-                form.setValue("layer2_model", v === "__default__" ? "" : v, {
+                form.setValue("layer2_model", v === "__default__" ? "" : (v ?? ""), {
                   shouldDirty: true,
                 })
               }
             >
               <SelectTrigger id="adv-l2-model" className="w-full">
-                <SelectValue placeholder="Chọn model đã cấu hình" />
+                <SelectValue placeholder={t("form.l2.layer2_model_placeholder")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__default__">Dùng model mặc định</SelectItem>
+                <SelectItem value="__default__">{t("form.l2.layer2_model_default")}</SelectItem>
                 {configuredModels.map((model) => (
                   <SelectItem key={model.value} value={model.value}>
                     {model.label}
@@ -142,7 +144,7 @@ export function AdvancedL2FormFields({ config }: AdvancedL2FormFieldsProps) {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Layer 2 dùng để khuếch đại kịch tính và phân tích nhịp truyện.
+              {t("form.l2.layer2_model_hint")}
             </p>
           </div>
         </div>

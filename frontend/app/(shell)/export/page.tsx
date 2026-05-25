@@ -16,27 +16,31 @@ import { PageHero } from "@/components/common/PageHero";
 import { ExportButton } from "@/components/export/ExportButton";
 
 function ExportPageInner() {
-  const t = useTranslations("pages.export");
+  const tPages = useTranslations("pages.export");
+  const tExport = useTranslations("export");
   const search = useSearchParams();
   const id = search.get("id");
 
   if (!id) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHero title={t("title")} subtitle="Chưa chọn truyện" />
+        <PageHero title={tPages("title")} subtitle={tExport("no_story_selected")} />
         <EmptyState
           variant="export-empty"
-          title="Chưa chọn truyện để xuất bản"
-          description="Chọn một truyện từ Thư viện, rồi quay lại đây để xuất PDF, EPUB, HTML, ZIP hoặc JSON."
+          title={tExport("no_story")}
+          description={tExport("no_story_empty_desc")}
           className="min-h-[320px] rounded-2xl border border-dashed border-border/70 bg-card/35"
         />
       </div>
     );
   }
 
+  // We can format the story ID label appropriately
+  const idLabel = typeof window !== "undefined" && document.documentElement.lang === "en" ? `Story #${id}` : `Truyện #${id}`;
+
   return (
     <div className="flex flex-col gap-6">
-      <PageHero title={t("title")} subtitle={`Truyện #${id}`} />
+      <PageHero title={tPages("title")} subtitle={idLabel} />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <ExportButton format="pdf" sid={id} />
         <ExportButton format="epub" sid={id} />
@@ -49,11 +53,14 @@ function ExportPageInner() {
 }
 
 export default function ExportPage() {
+  const tPages = useTranslations("pages.export");
+  const tChar = useTranslations("characters");
+
   return (
     <React.Suspense
       fallback={
         <div className="flex flex-col gap-6">
-          <PageHero title="Xuất bản" subtitle="Đang tải..." />
+          <PageHero title={tPages("title")} subtitle={tChar("loading")} />
         </div>
       }
     >

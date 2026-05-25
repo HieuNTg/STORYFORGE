@@ -8,18 +8,30 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/common/EmptyState";
 import { rehydrateLibrary, useLibraryStore } from "@/stores/library-store";
 
+import { useTranslations } from "next-intl";
+
 export function AnalyticsStartScreen() {
   const stories = useLibraryStore((s) => s.stories);
   const hydrated = useLibraryStore((s) => s.hydrated);
+  const t = useTranslations("analytics");
+  const tGenres = useTranslations("genres");
+  const tLib = useTranslations("library");
+  const tExport = useTranslations("export");
 
   React.useEffect(() => {
     rehydrateLibrary();
   }, []);
 
+  const getGenreLabel = (genre?: string) => {
+    if (!genre) return t("no_genre");
+    const key = genre.toLowerCase().replace(/\s+/g, "_");
+    return tGenres.has(key) ? tGenres(key as any) : genre;
+  };
+
   if (!hydrated) {
     return (
       <div className="rounded-2xl border border-border/60 bg-card/35 p-8 text-sm text-muted-foreground">
-        Đang tải thư viện…
+        {t("loading_library")}
       </div>
     );
   }
@@ -28,21 +40,21 @@ export function AnalyticsStartScreen() {
     return (
       <EmptyState
         icon={BarChart3}
-        title="Chưa có truyện để phân tích"
-        description="Tạo hoặc nhập một truyện trong Thư viện trước, rồi quay lại đây để xem số liệu."
+        title={t("empty_title")}
+        description={t("empty_desc")}
         className="min-h-[320px] rounded-2xl border border-dashed border-border/70 bg-card/35"
         action={
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Button asChild variant="outline">
               <Link href="/forge/">
                 <Sparkles className="size-4" aria-hidden />
-                Mở Khai sinh
+                {tLib("open_forge")}
               </Link>
             </Button>
             <Button asChild>
               <Link href="/library/">
                 <BookOpen className="size-4" aria-hidden />
-                Mở Thư viện
+                {tExport("open_library")}
               </Link>
             </Button>
           </div>
@@ -54,9 +66,9 @@ export function AnalyticsStartScreen() {
   return (
     <section className="rounded-2xl border border-border/70 bg-card/35 p-4">
       <div className="mb-4">
-        <h2 className="font-serif text-lg text-foreground">Chọn truyện</h2>
+        <h2 className="font-serif text-lg text-foreground">{t("select_story_title")}</h2>
         <p className="text-sm text-muted-foreground">
-          Phân tích dùng dữ liệu checkpoint/chapter của từng truyện, nên cần chọn truyện cụ thể.
+          {t("select_story_desc")}
         </p>
       </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -75,7 +87,7 @@ export function AnalyticsStartScreen() {
                   {story.title}
                 </h3>
                 <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                  {story.genre || "Chưa có thể loại"} · {story.chapters.length} chương
+                  {getGenreLabel(story.genre)} · {t("chapters_count", { count: story.chapters.length })}
                 </p>
               </div>
             </div>

@@ -13,6 +13,7 @@
 import * as React from "react";
 import { ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ interface RowState {
 }
 
 export function ApiKeyPanel() {
+  const t = useTranslations("settings_panel");
   const { data: config } = useConfig();
   const test = useTestConnection();
   const [results, setResults] = React.useState<Record<string, RowState>>({});
@@ -46,21 +48,21 @@ export function ApiKeyPanel() {
         next[p.name] = { ok: p.ok, message: p.message };
       }
       setResults(next);
-      if (out.ok) toast.success("Tất cả nhà cung cấp OK");
-      else toast.error(out.message || "Một số nhà cung cấp lỗi");
+      if (out.ok) toast.success(t("all_ok"));
+      else toast.error(out.message || t("some_failed"));
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Kiểm tra thất bại";
+      const msg = e instanceof Error ? e.message : t("test_failed");
       toast.error(msg);
     }
-  }, [test]);
+  }, [test, t]);
 
   return (
     <section className="flex flex-col gap-3 rounded-xl border border-accent/30 bg-card/40 p-4">
       <header className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="font-serif text-lg text-foreground">Khóa API</h2>
+          <h2 className="font-serif text-lg text-foreground">{t("api.title")}</h2>
           <p className="text-xs text-muted-foreground">
-            Trạng thái nhà cung cấp · chỉ đọc · chỉnh sửa ở tab “Khóa API”
+            {t("api_status_desc")}
           </p>
         </div>
         <Button
@@ -72,23 +74,23 @@ export function ApiKeyPanel() {
         >
           {test.isPending ? (
             <>
-              <Loader2 className="size-3.5 animate-spin" /> Đang kiểm tra
+              <Loader2 className="size-3.5 animate-spin" /> {t("api.testing")}
             </>
           ) : (
-            "Kiểm tra tất cả"
+            t("api.test")
           )}
         </Button>
       </header>
       <ul className="flex flex-col gap-2">
         {rows.length === 0 ? (
-          <li className="text-xs text-muted-foreground">Chưa cấu hình nhà cung cấp.</li>
+          <li className="text-xs text-muted-foreground">{t("no_providers")}</li>
         ) : (
           rows.map((r, index) => {
             const res = results[r.name];
             const ok = res?.ok ?? null;
             return (
               <li
-                key={`${r.name}:${r.provider}:${r.model}:${r.base_url}:${index}`}
+                key={`${r.name}:${r.provider}:${r.model}:${index}`}
                 className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background/40 px-3 py-2"
               >
                 <div className="flex min-w-0 flex-col">
@@ -122,17 +124,18 @@ function Badge({
   ok: boolean | null;
   message?: string;
 }) {
+  const t = useTranslations("settings_panel");
   if (!configured) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-        <ShieldAlert className="size-3" /> Thiếu cấu hình
+        <ShieldAlert className="size-3" /> {t("api.missing")}
       </span>
     );
   }
   if (ok === true) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-500">
-        <ShieldCheck className="size-3" /> OK
+        <ShieldCheck className="size-3" /> {t("api.ok")}
       </span>
     );
   }
@@ -144,13 +147,13 @@ function Badge({
         )}
         title={message}
       >
-        <ShieldAlert className="size-3" /> Lỗi
+        <ShieldAlert className="size-3" /> {t("api.fail")}
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-xs text-accent">
-      <ShieldCheck className="size-3" /> Đã cấu hình
+      <ShieldCheck className="size-3" /> {t("api.configured")}
     </span>
   );
 }

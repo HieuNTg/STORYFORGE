@@ -17,18 +17,8 @@ export interface EventTimelineProps {
   className?: string;
 }
 
-const EVENT_TYPE_LABEL: Record<TimelineEventType, string> = {
-  simulation: "Mô phỏng",
-  enhancement: "Cải thiện",
-  gate: "Kiểm tra",
-  rewrite: "Viết lại",
-};
+import { useTranslations, useLocale } from "next-intl";
 
-/**
- * Map event types to muted-foreground / accent variants only — no new colors.
- * We don't introduce semantic color per type to stay within the single-accent
- * register. Type is conveyed by label, not hue.
- */
 function dotClasses(type: TimelineEventType): string {
   switch (type) {
     case "simulation":
@@ -42,10 +32,10 @@ function dotClasses(type: TimelineEventType): string {
   }
 }
 
-function formatTs(ts: number): string {
+function formatTs(ts: number, locale: string): string {
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("vi-VN", {
+  return d.toLocaleTimeString(locale, {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
@@ -53,18 +43,31 @@ function formatTs(ts: number): string {
 }
 
 export function EventTimeline({ events, className }: EventTimelineProps) {
+  const t = useTranslations("analytics");
+  const locale = useLocale();
+
   if (events.length === 0) {
     return (
       <p className={cn("text-sm text-muted-foreground", className)}>
-        Chưa có sự kiện.
+        {t("no_events")}
       </p>
     );
   }
 
+  const getEventLabel = (type: TimelineEventType) => {
+    switch (type) {
+      case "simulation": return t("event_simulation");
+      case "enhancement": return t("event_enhancement");
+      case "gate": return t("event_gate");
+      case "rewrite": return t("event_rewrite");
+      default: return type;
+    }
+  };
+
   return (
     <ol
       className={cn("relative flex flex-col gap-3", className)}
-      aria-label="Dòng thời gian sự kiện"
+      aria-label={t("event_timeline")}
     >
       {/* Vertical rule, positioned under the dot center (left-2 = 8px + dot 8px). */}
       <span
@@ -87,15 +90,15 @@ export function EventTimeline({ events, className }: EventTimelineProps) {
                 {evt.label}
               </span>
               <span className="text-xs tabular-nums text-muted-foreground">
-                {formatTs(evt.ts)}
+                {formatTs(evt.ts, locale)}
               </span>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>{EVENT_TYPE_LABEL[evt.type]}</span>
+              <span>{getEventLabel(evt.type)}</span>
               {typeof evt.chapter === "number" ? (
                 <>
                   <span aria-hidden>·</span>
-                  <span className="tabular-nums">Chương {evt.chapter}</span>
+                  <span className="tabular-nums">{t("chapter_name", { num: evt.chapter })}</span>
                 </>
               ) : null}
             </div>

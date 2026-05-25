@@ -18,6 +18,7 @@ import {
   FileText,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -55,10 +56,10 @@ export interface StoryWorkspaceProps {
   className?: string;
 }
 
-const STATUS_LABEL: Record<StoryChapter["status"], string> = {
-  draft: "Bản nháp",
-  ready: "Sẵn sàng",
-  enhanced: "Đã tinh chỉnh",
+const STATUS_KEY: Record<StoryChapter["status"], string> = {
+  draft: "status_draft",
+  ready: "status_ready",
+  enhanced: "status_enhanced",
 };
 
 const STATUS_VARIANT: Record<StoryChapter["status"], "outline" | "secondary" | "default"> = {
@@ -74,15 +75,16 @@ export function StoryWorkspace({
   onOpenContinue,
   className,
 }: StoryWorkspaceProps) {
+  const t = useTranslations("library");
   const [confirmOpen, setConfirmOpen] = React.useState(false);
   const [exportingFmt, setExportingFmt] = React.useState<LibraryExportFormat | null>(null);
 
   const handleExport = () => {
     try {
       exportStory(story);
-      toast.success("Đã xuất JSON");
+      toast.success(t("exported"));
     } catch (err) {
-      toast.error("Xuất thất bại", {
+      toast.error(t("export_failed"), {
         description: err instanceof Error ? err.message : String(err),
       });
     }
@@ -92,9 +94,9 @@ export function StoryWorkspace({
     setExportingFmt(fmt);
     try {
       await exportStoryToFormat(story, fmt);
-      toast.success(`Đã xuất ${fmt.toUpperCase()}`);
+      toast.success(t("exported_format", { format: fmt.toUpperCase() }));
     } catch (err) {
-      toast.error(`Xuất ${fmt.toUpperCase()} thất bại`, {
+      toast.error(t("export_format_failed", { format: fmt.toUpperCase() }), {
         description: err instanceof Error ? err.message : String(err),
       });
     } finally {
@@ -116,7 +118,7 @@ export function StoryWorkspace({
         "flex h-full flex-col gap-4 rounded-xl border border-border/60 bg-card/70 p-4 shadow-sm backdrop-blur",
         className,
       )}
-      aria-label={`Chi tiết truyện ${story.title}`}
+      aria-label={t("story_detail_label", { title: story.title })}
     >
       <div className="relative aspect-[3/4] overflow-hidden rounded-lg bg-muted">
         {story.coverUrl ? (
@@ -153,10 +155,10 @@ export function StoryWorkspace({
       </header>
 
       <dl className="grid grid-cols-2 gap-2 text-xs">
-        <Meta label="Bối cảnh" value={story.setting || "—"} />
-        <Meta label="Tông giọng" value={story.tone || "—"} />
+        <Meta label={t("setting")} value={story.setting || "—"} />
+        <Meta label={t("tone")} value={story.tone || "—"} />
         <Meta
-          label="Nhân vật"
+          label={t("characters")}
           value={
             <span className="inline-flex items-center gap-1">
               <Users className="size-3" aria-hidden />
@@ -165,7 +167,7 @@ export function StoryWorkspace({
           }
         />
         <Meta
-          label="Chương"
+          label={t("chapters")}
           value={
             <span className="inline-flex items-center gap-1">
               <FileText className="size-3" aria-hidden />
@@ -177,10 +179,10 @@ export function StoryWorkspace({
 
       <div className="flex-1 min-h-0">
         <h3 className="mb-1.5 text-xs font-medium text-muted-foreground">
-          Danh sách chương
+          {t("chapter_list")}
         </h3>
         {story.chapters.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Chưa có chương nào.</p>
+          <p className="text-xs text-muted-foreground">{t("no_chapters")}</p>
         ) : (
           <ScrollArea className="h-full max-h-64 rounded-md border border-border/60">
             <ul role="list" className="divide-y divide-border/40">
@@ -199,7 +201,7 @@ export function StoryWorkspace({
                   </Badge>
                   <span className="line-clamp-1 flex-1">{ch.title}</span>
                   <Badge variant={STATUS_VARIANT[ch.status]} className="shrink-0">
-                    {STATUS_LABEL[ch.status]}
+                    {t(STATUS_KEY[ch.status])}
                   </Badge>
                 </li>
               ))}
@@ -211,11 +213,11 @@ export function StoryWorkspace({
       <div className="grid grid-cols-2 gap-2">
         <Button type="button" onClick={handleOpenReader} className="gap-1.5">
           <BookOpen className="size-4" aria-hidden />
-          Đọc truyện
+          {t("read")}
         </Button>
         <Button type="button" variant="secondary" onClick={handleOpenContinue} className="gap-1.5">
           <ChevronDown className="size-4 rotate-[-90deg]" aria-hidden />
-          Viết tiếp
+          {t("continue")}
         </Button>
       </div>
 
@@ -232,12 +234,12 @@ export function StoryWorkspace({
             }
           >
             <Download className="size-4" aria-hidden />
-            {exportingFmt ? `Đang xuất ${exportingFmt.toUpperCase()}…` : "Export"}
+            {exportingFmt ? t("exporting", { format: exportingFmt.toUpperCase() }) : t("export_menu")}
             <ChevronDown className="ml-auto size-4" aria-hidden />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-44">
             <DropdownMenuGroup>
-              <DropdownMenuLabel>Chọn định dạng</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("choose_format")}</DropdownMenuLabel>
               <DropdownMenuItem onClick={handleExport}>JSON</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => void handleServerExport("docx")}>
@@ -257,7 +259,7 @@ export function StoryWorkspace({
           variant="outline"
           onClick={() => setConfirmOpen(true)}
           className="text-destructive hover:bg-destructive/10"
-          aria-label="Xoá truyện"
+          aria-label={t("delete")}
         >
           <Trash2 className="size-4" aria-hidden />
         </Button>
@@ -266,15 +268,12 @@ export function StoryWorkspace({
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Xoá truyện?</DialogTitle>
-            <DialogDescription>
-              Hành động này không thể hoàn tác. Hãy xuất JSON nếu bạn muốn giữ lại bản
-              sao.
-            </DialogDescription>
+            <DialogTitle>{t("delete_confirm_title")}</DialogTitle>
+            <DialogDescription>{t("delete_confirm_body")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose render={<Button type="button" variant="outline" />}>
-              Huỷ
+              {t("cancel")}
             </DialogClose>
             <Button
               type="button"
@@ -282,10 +281,10 @@ export function StoryWorkspace({
               onClick={() => {
                 onDelete(story.id);
                 setConfirmOpen(false);
-                toast.success("Đã xoá truyện");
+                toast.success(t("deleted"));
               }}
             >
-              Xoá
+              {t("delete_action")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -310,3 +309,4 @@ function Meta({
     </div>
   );
 }
+

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { BookOpen } from "lucide-react";
 
 import { ChapterReader } from "@/components/reader/ChapterReader";
@@ -72,8 +73,10 @@ export function ReaderStartScreen() {
   const columnUi: ReaderColumnUi = columnToUi(column);
   const fontUi = fontFamily === "serif" ? "serif" : "sans";
 
+  const t = useTranslations("reader");
+
   if (!hydrated) {
-    return <div className="rounded-lg border border-border/70 bg-card p-5 text-sm text-muted-foreground">Đang tải kho truyện…</div>;
+    return <div className="rounded-lg border border-border/70 bg-card p-5 text-sm text-muted-foreground">{t("loading")}</div>;
   }
 
   if (stories.length === 0) {
@@ -82,8 +85,8 @@ export function ReaderStartScreen() {
         <div className="flex items-start gap-3">
           <BookOpen className="mt-0.5 size-5 text-[var(--accent-strong)]" aria-hidden="true" />
           <div>
-            <h2 className="text-lg font-medium text-foreground">Chưa có truyện để đọc</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Tạo hoặc nhập một bộ truyện trong Thư viện trước.</p>
+            <h2 className="text-lg font-medium text-foreground">{t("empty")}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t("empty_hint")}</p>
           </div>
         </div>
       </div>
@@ -98,14 +101,14 @@ export function ReaderStartScreen() {
             <BookOpen className="size-5" aria-hidden="true" />
           </span>
           <div>
-            <h2 className="text-lg font-medium text-foreground">Chọn truyện để đọc</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Chọn bộ truyện và chương trong thư viện local.</p>
+            <h2 className="text-lg font-medium text-foreground">{t("select_story_title")}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{t("select_story_hint")}</p>
           </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-2 text-sm font-medium text-foreground">
-            <span>Bộ truyện</span>
+            <span>{t("select_story")}</span>
             <select
               value={storyId}
               onChange={(e) => setStoryId(e.target.value)}
@@ -113,14 +116,14 @@ export function ReaderStartScreen() {
             >
               {stories.map((story) => (
                 <option key={story.id} value={story.id}>
-                  {story.title} · {story.chapters.length} chương
+                  {story.title} · {t("chapters_count", { count: story.chapters.length })}
                 </option>
               ))}
             </select>
           </label>
 
           <label className="space-y-2 text-sm font-medium text-foreground">
-            <span>Chương</span>
+            <span>{t("select_chapter")}</span>
             <select
               value={safeIdx}
               onChange={(e) => setChapterIdx(Number(e.target.value))}
@@ -128,11 +131,11 @@ export function ReaderStartScreen() {
               className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
               {chapters.length === 0 ? (
-                <option value={0}>Truyện chưa có chương</option>
+                <option value={0}>{t("no_chapters_option")}</option>
               ) : (
                 chapters.map((chapter, idx) => (
                   <option key={chapter.id} value={idx}>
-                    {chapter.title || `Chương ${idx + 1}`}
+                    {chapter.title || `${t("select_chapter")} ${idx + 1}`}
                   </option>
                 ))
               )}
@@ -167,7 +170,7 @@ export function ReaderStartScreen() {
         </section>
       ) : (
         <div className="rounded-lg border border-border/70 bg-card p-5 text-sm text-muted-foreground">
-          Truyện này chưa có chương để đọc.
+          {t("no_chapters")}
         </div>
       )}
     </div>

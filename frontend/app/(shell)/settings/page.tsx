@@ -9,6 +9,7 @@
 
 import * as React from "react";
 
+import { useTranslations } from "next-intl";
 import { PageHero } from "@/components/common/PageHero";
 import { ErrorState } from "@/components/common/ErrorState";
 import {
@@ -42,6 +43,7 @@ function LoadingFallback() {
 }
 
 export default function SettingsPage() {
+  const t = useTranslations("settings_panel");
   const lastTab = useSettingsStore((s) => s.lastTab);
   const setLastTab = useSettingsStore((s) => s.setLastTab);
   const { data: config, isLoading, error, refetch } = useConfig();
@@ -49,9 +51,9 @@ export default function SettingsPage() {
   if (error) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHero title="Cài đặt" />
+        <PageHero title={t("title")} />
         <ErrorState
-          title="Không tải được cài đặt"
+          title={t("load_failed")}
           description={error.message}
           onRetry={() => refetch()}
         />
@@ -63,7 +65,7 @@ export default function SettingsPage() {
     ? [
         {
           id: "general",
-          label: "Chung",
+          label: t("tab_general"),
           content: (
             <div className="flex flex-col gap-6">
               <FeatureTogglesSettings config={config} />
@@ -73,17 +75,17 @@ export default function SettingsPage() {
         },
         {
           id: "api-keys",
-          label: "Khóa API",
+          label: t("tab_api"),
           content: <ApiKeysFormFields config={config} />,
         },
         {
           id: "advanced-l1",
-          label: "Nâng cao L1",
+          label: t("tab_l1"),
           content: <AdvancedL1FormFields config={config} />,
         },
         {
           id: "advanced-l2",
-          label: "Nâng cao L2",
+          label: t("tab_l2"),
           content: <AdvancedL2FormFields config={config} />,
         },
       ]
@@ -91,7 +93,7 @@ export default function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHero title="Cài đặt" />
+      <PageHero title={t("title")} />
       {isLoading || !config ? (
         <LoadingFallback />
       ) : (

@@ -29,7 +29,23 @@ def _build_system_prompt(
     path_summary: str | None = None,
 ) -> str:
     """Build story-aware system prompt from session context and per-node character states."""
-    parts = ["You are a creative storyteller. Continue the story based on the reader's choice."]
+    from services.character_service import _language_label
+
+    language_code = (context.get("language") or "vi") if isinstance(context, dict) else "vi"
+    language_label = _language_label(language_code)
+
+    parts = [
+        "You are a creative storyteller. Continue the story based on the reader's choice.",
+        # Hard language pin — must come early so models that truncate context
+        # still see it. The source story's language drives output language.
+        (
+            f"LANGUAGE: Respond ENTIRELY in {language_label}. The 'continuation' "
+            f"text AND every 'choices' entry MUST be written in {language_label}. "
+            f"Do NOT mix languages. Character names follow project conventions "
+            f"(Vietnamese names by default; Han-Viet / Chinese romanization only "
+            f"for Tiên Hiệp / Wuxia genre)."
+        ),
+    ]
 
     if context.get("genre"):
         parts.append(f"Genre: {context['genre']}.")
@@ -60,7 +76,8 @@ def _build_system_prompt(
         "Return JSON with:\n"
         "- 'continuation': story text (200-400 words)\n"
         "- 'choices': list of 2-3 short options\n"
-        "- 'character_states': dict of {name: {mood, arc_position}} for characters that changed"
+        "- 'character_states': dict of {name: {mood, arc_position}} for characters that changed\n"
+        f"REMINDER: 'continuation' and all 'choices' MUST be in {language_label}."
     )
     return "\n\n".join(parts)
 
@@ -79,6 +96,10 @@ class StartBody(BaseModel):
     characters: list[BranchCharacter] = Field(default_factory=list, max_length=10)
     world_summary: str = Field(default="", max_length=500)
     conflict_summary: str = Field(default="", max_length=500)
+    # Source story language (e.g. "vi", "en"). Drives the language of the
+    # generated branching continuation text and choice labels. Defaults to
+    # Vietnamese to match the project's primary audience.
+    language: str = Field(default="vi", max_length=16)
 
 
 class ChooseBody(BaseModel):
@@ -110,6 +131,7 @@ def start_session(body: StartBody):
         "characters": [c.model_dump() for c in body.characters] if body.characters else [],
         "world_summary": body.world_summary,
         "conflict_summary": body.conflict_summary,
+        "language": body.language or "vi",
     }
     data = manager.start_session(body.text, context=context)
     return data
@@ -196,9 +218,17 @@ def choose_branch(session_id: str, body: ChooseBody):
             raise HTTPException(status_code=502, detail="LLM generation failed. Please try again.")
 
         continuation = result.get("continuation") or result.get("text", "")
-        new_choices = result.get("choices", ["Continue", "Take a different path"])
+        # Fallback choice labels: pick a localized default based on the
+        # session's language so we don't reintroduce English drift when the
+        # LLM returns an empty/invalid choices list.
+        _lang = (story_context.get("language") or "vi") if isinstance(story_context, dict) else "vi"
+        if str(_lang).lower().startswith("vi"):
+            _fallback_choices = ["Tiếp tục", "Đi hướng khác"]
+        else:
+            _fallback_choices = ["Continue", "Take a different path"]
+        new_choices = result.get("choices", _fallback_choices)
         if not isinstance(new_choices, list):
-            new_choices = ["Continue", "Take a different path"]
+            new_choices = _fallback_choices
         new_choices = [str(c) for c in new_choices[:3]]
 
     # Extract and merge character states from LLM response

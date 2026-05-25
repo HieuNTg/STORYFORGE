@@ -28,11 +28,7 @@ export interface ProviderCardProps {
   className?: string;
 }
 
-const statusLabel: Record<ProviderTestStatus, string> = {
-  idle: "Chưa kiểm tra",
-  pass: "Đã xác minh",
-  fail: "Lỗi kết nối",
-};
+import { useTranslations } from "next-intl";
 
 const statusDot: Record<ProviderTestStatus, string> = {
   idle: "bg-muted-foreground/40",
@@ -51,6 +47,7 @@ export function ProviderCard({
   testResult = "idle",
   className,
 }: ProviderCardProps) {
+  const t = useTranslations("providers");
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(data.baseUrl ?? "");
 
@@ -112,6 +109,17 @@ export function ProviderCard({
     setConfirmDelete(false);
   }, [data.index, onDeleteProfile]);
 
+  const getStatusLabel = (status: ProviderTestStatus) => {
+    switch (status) {
+      case "idle": return t("idle");
+      case "pass": return t("verified");
+      case "fail": return t("failed");
+      default: return status;
+    }
+  };
+
+  const urlLabel = typeof window !== "undefined" && document.documentElement.lang === "en" ? "Base URL" : "URL gốc";
+
   return (
     <article
       className={cn(
@@ -127,19 +135,19 @@ export function ProviderCard({
           </h3>
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             <span aria-hidden className={cn("size-2 rounded-full", statusDot[testResult])} />
-            {statusLabel[testResult]}
+            {getStatusLabel(testResult)}
           </span>
         </div>
         <Switch
           checked={data.enabled}
           onCheckedChange={(checked) => onToggleEnabled(data.index, checked)}
-          aria-label={data.enabled ? "Đã kích hoạt" : "Đã tắt"}
+          aria-label={data.enabled ? t("enabled") : t("disabled")}
         />
       </header>
 
       <div className="flex flex-col gap-1">
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-          URL gốc
+          {urlLabel}
         </span>
         {editing ? (
           <Input
@@ -165,7 +173,7 @@ export function ProviderCard({
             onClick={startEdit}
             className="truncate rounded-md bg-background/40 px-2 py-1 text-left font-mono text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
           >
-            {data.baseUrl?.trim() ? data.baseUrl : "Đặt URL gốc"}
+            {data.baseUrl?.trim() ? data.baseUrl : t("set_base_url")}
           </button>
         )}
       </div>
@@ -177,7 +185,7 @@ export function ProviderCard({
           size="sm"
           onClick={openEditDialog}
         >
-          Sửa
+          {t("edit")}
         </Button>
         <Button
           type="button"
@@ -186,7 +194,7 @@ export function ProviderCard({
           onClick={() => setConfirmDelete(true)}
           className="text-rose-500 hover:bg-rose-500/10 hover:text-rose-500"
         >
-          Xóa
+          {t("delete")}
         </Button>
         <Button
           type="button"
@@ -195,21 +203,21 @@ export function ProviderCard({
           disabled={isTesting}
           onClick={() => onTestConnection(data.index)}
         >
-          {isTesting ? "Đang kiểm tra…" : "Kiểm tra"}
+          {isTesting ? t("testing") : t("test")}
         </Button>
       </footer>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Sửa nhà cung cấp</DialogTitle>
+            <DialogTitle>{t("edit_provider_title")}</DialogTitle>
             <DialogDescription>
-              Cập nhật thông tin hồ sơ. Để trống API key nếu muốn giữ key hiện tại.
+              {t("edit_provider_desc")}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Tên hiển thị</span>
+              <span className="text-xs text-muted-foreground">{t("display_name")}</span>
               <Input
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
@@ -217,7 +225,7 @@ export function ProviderCard({
               />
             </div>
             <div className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">URL gốc</span>
+              <span className="text-xs text-muted-foreground">{urlLabel}</span>
               <Input
                 value={editBaseUrl}
                 onChange={(e) => setEditBaseUrl(e.target.value)}
@@ -236,7 +244,7 @@ export function ProviderCard({
             </div>
             <div className="flex flex-col gap-1">
               <span className="text-xs text-muted-foreground">
-                API key (để trống = giữ key cũ)
+                {t("api_key_placeholder_desc")}
               </span>
               <Input
                 type="password"
@@ -249,13 +257,13 @@ export function ProviderCard({
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setEditOpen(false)}>
-              Hủy
+              {t("cancel")}
             </Button>
             <Button
               onClick={submitEdit}
               disabled={!editName.trim() || !editBaseUrl.trim()}
             >
-              Lưu
+              {t("save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -264,21 +272,20 @@ export function ProviderCard({
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Xóa nhà cung cấp?</DialogTitle>
+            <DialogTitle>{t("delete_provider_title")}</DialogTitle>
             <DialogDescription>
-              Hành động này sẽ xóa hồ sơ &quot;{data.label ?? data.name}&quot; khỏi danh sách.
-              Không thể hoàn tác.
+              {t("delete_provider_desc", { name: data.label ?? data.name })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
-              Hủy
+              {t("cancel")}
             </Button>
             <Button
               onClick={confirmDeleteAction}
               className="bg-rose-500 text-white hover:bg-rose-600"
             >
-              Xóa
+              {t("delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

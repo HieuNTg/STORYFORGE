@@ -229,6 +229,7 @@ export function PipelineForm({
             type="number"
             min={1}
             max={50}
+            defaultValue={DEFAULTS.num_chapters}
             {...form.register("num_chapters", { valueAsNumber: true })}
           />
         </div>

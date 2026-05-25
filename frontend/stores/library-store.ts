@@ -36,6 +36,7 @@ interface LibraryState {
   updateStory: (id: string, patch: Partial<Story>) => void;
   appendChapter: (storyId: string, chapter: StoryChapter) => void;
   upsertCharacter: (storyId: string, character: ForgeCharacter) => void;
+  removeCharacter: (storyId: string, name: string) => void;
   importFromJSON: (payload: unknown) => Story;
   exportToJSON: (id: string) => StoryExport | null;
   clearAll: () => void;
@@ -116,6 +117,21 @@ export const useLibraryStore = create<LibraryState>()(
                 : [...s.characters, character];
             return { ...s, characters: next, updatedAt: nowIso() };
           }),
+        });
+      },
+
+      removeCharacter: (storyId, name) => {
+        const { stories } = get();
+        set({
+          stories: stories.map((s) =>
+            s.id === storyId
+              ? {
+                  ...s,
+                  characters: s.characters.filter((c) => c.name !== name),
+                  updatedAt: nowIso(),
+                }
+              : s,
+          ),
         });
       },
 

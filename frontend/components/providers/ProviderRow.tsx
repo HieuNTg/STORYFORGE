@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 
+import { useTranslations } from "next-intl";
+
 export type ProviderTestStatus = "idle" | "pass" | "fail";
 
 export interface ProviderRowData {
@@ -34,12 +36,6 @@ export interface ProviderRowProps {
   testResult?: ProviderTestStatus;
 }
 
-const statusLabel: Record<ProviderTestStatus, string> = {
-  idle: "Chưa kiểm tra",
-  pass: "Đã xác minh",
-  fail: "Lỗi kết nối",
-};
-
 const statusDotClass: Record<ProviderTestStatus, string> = {
   idle: "bg-muted-foreground/50",
   pass: "bg-accent",
@@ -54,6 +50,7 @@ export function ProviderRow({
   isTesting = false,
   testResult = "idle",
 }: ProviderRowProps) {
+  const t = useTranslations("providers");
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(data.baseUrl ?? "");
 
@@ -74,6 +71,15 @@ export function ProviderRow({
     setDraft(data.baseUrl ?? "");
   }, [data.baseUrl]);
 
+  const getStatusLabel = (status: ProviderTestStatus) => {
+    switch (status) {
+      case "idle": return t("idle");
+      case "pass": return t("verified");
+      case "fail": return t("failed");
+      default: return status;
+    }
+  };
+
   return (
     <tr className="border-b last:border-b-0">
       <td className="px-3 py-2.5 align-middle">
@@ -87,7 +93,7 @@ export function ProviderRow({
             aria-hidden
             className={cn("size-1.5 rounded-full", statusDotClass[testResult])}
           />
-          {statusLabel[testResult]}
+          {getStatusLabel(testResult)}
         </span>
       </td>
       <td className="px-3 py-2.5 align-middle">
@@ -115,7 +121,7 @@ export function ProviderRow({
             onClick={() => setEditing(true)}
             className="w-full truncate rounded-md px-2 py-1 text-left font-mono text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
           >
-            {data.baseUrl?.trim() ? data.baseUrl : "Đặt URL gốc"}
+            {data.baseUrl?.trim() ? data.baseUrl : t("set_base_url")}
           </button>
         )}
       </td>
@@ -125,11 +131,11 @@ export function ProviderRow({
             checked={data.enabled}
             onCheckedChange={(checked) => onToggleEnabled(data.name, checked)}
             aria-label={
-              data.enabled ? "Đã kích hoạt" : "Đã tắt"
+              data.enabled ? t("enabled") : t("disabled")
             }
           />
           <span className="text-xs text-muted-foreground">
-            {data.enabled ? "Đã kích hoạt" : "Đã tắt"}
+            {data.enabled ? t("enabled") : t("disabled")}
           </span>
         </div>
       </td>
@@ -141,7 +147,7 @@ export function ProviderRow({
           disabled={isTesting}
           onClick={() => onTestConnection(data.name)}
         >
-          {isTesting ? "Đang kiểm tra..." : "Kiểm tra kết nối"}
+          {isTesting ? t("testing") : t("test_connection")}
         </Button>
       </td>
     </tr>
