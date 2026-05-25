@@ -75,7 +75,7 @@ export function BranchStartScreen() {
     setConflictSummary(selectedStory?.description ?? "");
   }, [selectedStory?.id, selectedStory?.description]);
 
-  const branchText = selectedStory ? storyText(selectedStory, chapterId, t("range_chapter").replace(" {num}", "")).trim() : "";
+  const branchText = selectedStory ? storyText(selectedStory, chapterId, t("range_chapter_label")).trim() : "";
   const canSubmit = !!selectedStory && branchText.length >= 10 && !loading;
 
   async function startSession() {
@@ -87,6 +87,9 @@ export function BranchStartScreen() {
         body: JSON.stringify({
           text: branchText,
           genre: selectedStory.genre,
+          // Forward source story language so branching continuations and
+          // choice labels are generated in the story's language.
+          language: selectedStory.language || "vi",
           world_summary: selectedStory.setting,
           conflict_summary: conflictSummary.trim() || selectedStory.description,
           characters: selectedStory.characters.map((c) => ({

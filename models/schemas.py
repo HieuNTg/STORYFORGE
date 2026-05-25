@@ -898,6 +898,11 @@ class CharacterGenerateRequest(BaseModel):
     role: ForgeRole
     genre: str = Field(min_length=1, max_length=80)
     extraContext: Optional[str] = Field(default=None, max_length=2000)
+    # Language code (e.g. "vi", "en") that the LLM must respond in. Defaults
+    # to Vietnamese to match project conventions (CLAUDE.md). When set, all
+    # text fields (description, backstory, secret, conflict) are written in
+    # this language.
+    language: Optional[str] = Field(default="vi", max_length=16)
 
 
 # === Phase 3: Simulation Transcript + Drama Climax ===
@@ -948,6 +953,9 @@ class SimulationContinueRequest(BaseModel):
     historyLogs: list[TranscriptTurn] = Field(default_factory=list, max_length=6)
     topic: str = Field(min_length=1, max_length=2000)
     dramaLevel: Optional[str] = Field(default="high", max_length=50)
+    # Source story language (e.g. "vi", "en"). Drives the output language of
+    # generated dialogue. Defaults to Vietnamese.
+    language: Optional[str] = Field(default="vi", max_length=16)
 
 
 try:

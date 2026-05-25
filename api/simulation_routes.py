@@ -160,6 +160,7 @@ async def continue_route(
                 req.topic,
                 req.dramaLevel or "high",
                 model,
+                req.language or "vi",
             ),
             timeout=30.0,
         )

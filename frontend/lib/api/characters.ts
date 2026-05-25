@@ -12,11 +12,11 @@ import { apiFetch } from "./client";
 import { z } from "zod";
 
 export async function generateCharacter(
-  req: CharacterGenerateRequest,
+  req: CharacterGenerateRequest & { language?: string },
 ): Promise<ForgeCharacter> {
   const raw = await apiFetch<unknown>("/api/characters/generate", {
     method: "POST",
-    body: JSON.stringify(req),
+    body: JSON.stringify({ language: "vi", ...req }),
   });
   return forgeCharacterSchema.parse(raw);
 }
@@ -26,10 +26,15 @@ export async function extractStoryCharacters(req: {
   description: string;
   setting: string;
   text_context: string;
+  /**
+   * Source story language. Drives the output language of every text field
+   * on the returned characters. Defaults to "vi" server-side.
+   */
+  language?: string;
 }): Promise<ForgeCharacter[]> {
   const raw = await apiFetch<unknown>("/api/characters/extract-story", {
     method: "POST",
-    body: JSON.stringify(req),
+    body: JSON.stringify({ language: "vi", ...req }),
   });
   return z.array(forgeCharacterSchema).parse(raw);
 }

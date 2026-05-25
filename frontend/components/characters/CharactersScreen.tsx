@@ -103,6 +103,10 @@ export function CharactersScreen() {
         description: activeStory.description || "",
         setting: activeStory.setting || "",
         text_context: textContext,
+        // Drive output language from the source story so a Vietnamese story
+        // doesn't get characters with English bios. Default "vi" matches
+        // CLAUDE.md primary audience.
+        language: activeStory.language || "vi",
       });
       if (chars.length === 0) {
         toast.error(t("no_characters_found"));
@@ -273,6 +277,7 @@ export function CharactersScreen() {
             <div className="flex-1 overflow-y-auto px-4 pb-4">
               <CreateCharacterForm
                 defaultGenre={activeStory?.genre}
+                language={activeStory?.language || "vi"}
                 onCreated={handleCreated}
               />
             </div>

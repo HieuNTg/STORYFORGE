@@ -44,12 +44,19 @@ type FormValues = z.infer<typeof formSchema>;
 
 export interface CreateCharacterFormProps {
   defaultGenre?: string;
+  /**
+   * Source story language code (e.g. "vi", "en"). Forwarded to the
+   * `/api/characters/generate` call so the generated bio/backstory/secret/
+   * conflict text matches the story's language.
+   */
+  language?: string;
   onCreated: (character: ForgeCharacter) => void;
   className?: string;
 }
 
 export function CreateCharacterForm({
   defaultGenre,
+  language,
   onCreated,
   className,
 }: CreateCharacterFormProps) {
@@ -84,6 +91,7 @@ export function CreateCharacterForm({
         role: values.role,
         genre: values.genre,
         extraContext: values.extraContext?.trim() || undefined,
+        language: language || "vi",
       });
       onCreated(character);
       reset();
