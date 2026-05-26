@@ -31,6 +31,7 @@ function toCard(story: Story, untitledFallback: string): LibraryStory {
     title: displayStoryTitle(story, untitledFallback),
     genre: story.genre || undefined,
     chapter_count: story.chapters.length,
+    target_chapters: story.targetChapters ?? null,
     cover_url: story.coverUrl ?? undefined,
     created_at: story.createdAt,
   };

@@ -113,6 +113,13 @@ export const storySchema = z.object({
    * dialogue, branching). Defaults to Vietnamese to match CLAUDE.md.
    */
   language: z.string().default("vi"),
+  /**
+   * Target total chapter count. When set, the L1/forge pipeline is signalled
+   * that the story MUST resolve by this chapter, and the Continue screen
+   * clamps generation to the remaining slack. `null` = legacy/unbounded
+   * (grandfathered stories from before the feature).
+   */
+  targetChapters: z.number().int().min(1).max(500).nullable().default(null),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

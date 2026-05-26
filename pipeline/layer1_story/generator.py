@@ -142,6 +142,7 @@ class StoryGenerator:
         current_arc_context="", chapter_contract="",
         scenes=None, negotiated_contract=None,
         idea: str = "", idea_summary: str = "",
+        total_chapters: int = 0,
     ) -> Chapter:
         # Bug 2: Within a parallel batch, all_chapter_texts is the FROZEN list of
         # already-written chapters from prior batches; siblings in the current
@@ -188,6 +189,7 @@ class StoryGenerator:
                 previous_chapter_tail=prev_tail,
                 idea=idea,
                 idea_summary=idea_summary,
+                total_chapters=total_chapters or getattr(self, "_total_chapters", 0),
             )
             if use_lc:
                 content = self.long_context_client.generate(
@@ -211,7 +213,8 @@ class StoryGenerator:
                                     word_count, story_context, all_chapter_texts, bible_ctx,
                                     layer_model=self._layer_model,
                                     enhancement_context=enhancement_context,
-                                    idea=idea, idea_summary=idea_summary)
+                                    idea=idea, idea_summary=idea_summary,
+                                    total_chapters=total_chapters or getattr(self, "_total_chapters", 0))
 
     def generate_full_story(self, title, genre, idea, style="Miêu tả chi tiết",
                              num_chapters=10, num_characters=5, word_count=2000,
@@ -220,6 +223,11 @@ class StoryGenerator:
                              chapter_complete_callback=None,
                              resume_from_batch=0) -> StoryDraft:
         """Generate complete story from start to finish."""
+
+        # Fixed-length closure: stash the target on `self` so deeply nested
+        # helpers (batch generator, story continuation) can read it without
+        # threading a new kwarg through every signature.
+        self._total_chapters = int(num_chapters) if num_chapters else 0
 
         def _log(msg):
             logger.info(msg)

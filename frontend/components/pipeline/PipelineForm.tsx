@@ -26,6 +26,12 @@ import {
 } from "@/components/ui/select";
 import { useConfig, useGenres, type CreateStoryRequest } from "@/lib/api/queries";
 import { cn } from "@/lib/utils";
+import {
+  CHAPTER_MIN,
+  CHAPTER_MAX,
+  getChapterDefault,
+  getChapterRange,
+} from "@/lib/library/chapter-defaults";
 
 function Label({
   className,
@@ -45,7 +51,7 @@ const schema = z.object({
   style: z.string().min(1, "Chọn phong cách"),
   language: z.string().min(2),
   drama: z.number().min(1).max(10),
-  num_chapters: z.number().int().min(1).max(50),
+  num_chapters: z.number().int().min(CHAPTER_MIN).max(CHAPTER_MAX),
   enable_agents: z.boolean(),
   enable_quality_gate: z.boolean(),
 });
@@ -77,7 +83,7 @@ const DEFAULTS: PipelineFormValues = {
   style: "Miêu tả chi tiết",
   language: "vi",
   drama: 7,
-  num_chapters: 5,
+  num_chapters: getChapterDefault("Tiên Hiệp"),
   enable_agents: true,
   enable_quality_gate: true,
 };
@@ -98,6 +104,37 @@ export function PipelineForm({
     resolver: zodResolver(schema),
     defaultValues: DEFAULTS,
   });
+
+  // Genre-aware num_chapters default: when the user picks a new genre we
+  // bump num_chapters to that genre's recommended value — but only if they
+  // haven't manually edited the field yet. Tracking "manually edited" via
+  // RHF's `isDirty` per-field would require touching every controller, so
+  // we use a simpler heuristic: only auto-update while num_chapters still
+  // matches a known genre default.
+  const watchedGenre = form.watch("genre");
+  React.useEffect(() => {
+    const current = form.getValues("num_chapters");
+    // If the current value matches *any* known genre default, the user
+    // hasn't customised it — safe to bump to the new genre's default.
+    // Otherwise leave their value alone.
+    const knownDefaults = new Set([
+      getChapterDefault("Tiên Hiệp"),
+      getChapterDefault("Huyền Huyễn"),
+      getChapterDefault("Kiếm Hiệp"),
+      getChapterDefault("Hiện Đại"),
+      getChapterDefault("Đô Thị"),
+      getChapterDefault("Lịch Sử"),
+      getChapterDefault("Khoa Huyễn"),
+      getChapterDefault(""),
+    ]);
+    if (knownDefaults.has(current)) {
+      form.setValue("num_chapters", getChapterDefault(watchedGenre), {
+        shouldDirty: false,
+        shouldValidate: false,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedGenre]);
 
   const submit = form.handleSubmit((values) => {
     const dramaLabel = DRAMA_TO_LABEL[Math.round(values.drama)] ?? "cao";
@@ -223,15 +260,23 @@ export function PipelineForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="num_chapters">Số chương</Label>
+          <Label htmlFor="num_chapters">
+            Tổng số chương
+            <span className="ml-1 text-xs font-normal text-muted-foreground">
+              (truyện sẽ kết thúc tại chương này)
+            </span>
+          </Label>
           <Input
             id="num_chapters"
             type="number"
-            min={1}
-            max={50}
-            defaultValue={DEFAULTS.num_chapters}
+            min={getChapterRange(watchedGenre).min}
+            max={getChapterRange(watchedGenre).max}
             {...form.register("num_chapters", { valueAsNumber: true })}
           />
+          <p className="text-xs text-muted-foreground">
+            Gợi ý cho {watchedGenre}: {getChapterDefault(watchedGenre)} chương ·
+            Tối thiểu {CHAPTER_MIN}
+          </p>
         </div>
       </div>
 

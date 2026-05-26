@@ -36,6 +36,9 @@ export default function ForgePage() {
   const [doneSummary, setDoneSummary] =
     React.useState<PipelineDoneSummary | null>(null);
   const [savedStoryId, setSavedStoryId] = React.useState<string | null>(null);
+  const [requestedNumChapters, setRequestedNumChapters] = React.useState<number | null>(
+    null,
+  );
 
   const addStory = useLibraryStore((s) => s.addStory);
   const selectStory = useLibraryStore((s) => s.selectStory);
@@ -63,7 +66,7 @@ export default function ForgePage() {
   }, []);
 
   const handleSave = React.useCallback(() => {
-    const story = pipelineSummaryToStory(doneSummary);
+    const story = pipelineSummaryToStory(doneSummary, "", requestedNumChapters);
     if (!story) {
       toast.error(t("save_failed_empty"));
       return;
@@ -76,7 +79,7 @@ export default function ForgePage() {
     setSavedStoryId(story.id);
     selectStory(story.id);
     toast.success(t("save_success"), { description: story.title });
-  }, [doneSummary, addStory, selectStory, t]);
+  }, [doneSummary, addStory, selectStory, requestedNumChapters, t]);
 
   const saveButton = (
     <Button
@@ -109,6 +112,7 @@ export default function ForgePage() {
 
       <PipelineScreen
         onResult={handleResult}
+        onSubmit={(req) => setRequestedNumChapters(req.num_chapters)}
         resultAction={saveButton}
       />
     </div>

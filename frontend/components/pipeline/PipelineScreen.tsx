@@ -42,12 +42,19 @@ export interface PipelineScreenProps {
    * "Save to library" button). Hidden until a run has completed.
    */
   resultAction?: React.ReactNode;
+  /**
+   * Fires when the form passes validation and the run is about to start.
+   * Receives the full `CreateStoryRequest` so callers can capture the
+   * requested `num_chapters` (= target total length) for later persistence.
+   */
+  onSubmit?: (req: CreateStoryRequest) => void;
 }
 
 export function PipelineScreen({
   formHeader,
   onResult,
   resultAction,
+  onSubmit: externalOnSubmit,
 }: PipelineScreenProps = {}) {
   const [sessionQuery, setSessionQuery] = useQueryState("session");
   const [pendingBody, setPendingBody] = React.useState<CreateStoryRequest | null>(
@@ -106,13 +113,17 @@ export function PipelineScreen({
     },
   });
 
-  const onSubmit = React.useCallback((req: CreateStoryRequest) => {
-    // Reset stores for a fresh run.
-    usePipelineStore.getState().start(null);
-    useTheaterStore.getState().reset();
-    setResultStory(undefined);
-    setPendingBody(req);
-  }, []);
+  const onSubmit = React.useCallback(
+    (req: CreateStoryRequest) => {
+      // Reset stores for a fresh run.
+      usePipelineStore.getState().start(null);
+      useTheaterStore.getState().reset();
+      setResultStory(undefined);
+      setPendingBody(req);
+      externalOnSubmit?.(req);
+    },
+    [externalOnSubmit],
+  );
 
   const pending = status === "running" || stream.readyState === "connecting";
 

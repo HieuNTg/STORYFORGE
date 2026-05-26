@@ -17,6 +17,8 @@ export interface LibraryStory {
   title: string;
   genre?: string;
   chapter_count?: number;
+  /** When set, story has a fixed target length; renders X/N progress chip. */
+  target_chapters?: number | null;
   word_count?: number;
   created_at?: string;
   cover_url?: string;
@@ -98,7 +100,9 @@ export function StoryCard({ story, onClick, className }: StoryCardProps) {
       <CardContent className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
         {typeof story.chapter_count === "number" ? (
           <span className="tabular-nums">
-            {NUMBER_FORMATTER.format(story.chapter_count)} chương
+            {typeof story.target_chapters === "number" && story.target_chapters > 0
+              ? `${NUMBER_FORMATTER.format(story.chapter_count)}/${NUMBER_FORMATTER.format(story.target_chapters)} chương`
+              : `${NUMBER_FORMATTER.format(story.chapter_count)} chương`}
           </span>
         ) : null}
         {typeof story.word_count === "number" ? (
