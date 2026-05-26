@@ -34,6 +34,12 @@ import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { genStoryId } from "@/lib/library/ids";
 import type { Story } from "@/types/story";
+import {
+  CHAPTER_MIN,
+  CHAPTER_MAX,
+  getChapterDefault,
+  getChapterRange,
+} from "@/lib/library/chapter-defaults";
 
 const GENRES = [
   "Tiên Hiệp",
@@ -51,6 +57,7 @@ const formSchema = z.object({
   setting: z.string().max(500),
   tone: z.enum(TONES),
   description: z.string().max(800),
+  targetChapters: z.number().int().min(CHAPTER_MIN).max(CHAPTER_MAX),
 });
 type FormValues = z.infer<typeof formSchema>;
 
@@ -76,6 +83,7 @@ export function CreateStoryModal({
       setting: z.string().max(500, t("error_max_setting")),
       tone: z.enum(TONES, { message: t("error_select_tone") }),
       description: z.string().max(800, t("error_max_description")),
+      targetChapters: z.number().int().min(CHAPTER_MIN).max(CHAPTER_MAX),
     });
   }, [t]);
 
@@ -84,6 +92,8 @@ export function CreateStoryModal({
     handleSubmit,
     control,
     reset,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(localizedSchema),
@@ -93,12 +103,28 @@ export function CreateStoryModal({
       setting: "",
       tone: "epic",
       description: "",
+      targetChapters: getChapterDefault("Tiên Hiệp"),
     },
   });
 
   React.useEffect(() => {
     if (!open) reset();
   }, [open, reset]);
+
+  // Auto-rebase targetChapters when genre changes, but only if user hasn't
+  // manually edited it (heuristic: value matches some known genre default).
+  const watchedGenre = watch("genre");
+  React.useEffect(() => {
+    const knownDefaults = new Set(
+      GENRES.map((g) => getChapterDefault(g)),
+    );
+    knownDefaults.add(getChapterDefault(""));
+    setValue("targetChapters", getChapterDefault(watchedGenre), {
+      shouldDirty: false,
+      shouldValidate: false,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedGenre]);
 
   const onSubmit = (values: FormValues) => {
     const now = new Date().toISOString();
@@ -114,6 +140,7 @@ export function CreateStoryModal({
       chapters: [],
       pendingChoices: null,
       language: "vi",
+      targetChapters: values.targetChapters,
       createdAt: now,
       updatedAt: now,
     };
@@ -208,6 +235,26 @@ export function CreateStoryModal({
               placeholder={t("placeholder_description")}
               aria-invalid={!!errors.description || undefined}
             />
+          </Field>
+
+          <Field
+            label={t("label_target_chapters")}
+            error={errors.targetChapters?.message}
+          >
+            <Input
+              type="number"
+              min={getChapterRange(watchedGenre).min}
+              max={getChapterRange(watchedGenre).max}
+              {...register("targetChapters", { valueAsNumber: true })}
+              aria-invalid={!!errors.targetChapters || undefined}
+            />
+            <span className="block pt-1 text-[11px] text-muted-foreground">
+              {t("hint_target_chapters", {
+                genre: getGenreLabel(watchedGenre),
+                default: getChapterDefault(watchedGenre),
+                min: CHAPTER_MIN,
+              })}
+            </span>
           </Field>
 
           <DialogFooter>

@@ -172,11 +172,32 @@ export function StoryWorkspace({
           value={
             <span className="inline-flex items-center gap-1">
               <FileText className="size-3" aria-hidden />
-              {story.chapters.length}
+              {typeof story.targetChapters === "number" && story.targetChapters > 0
+                ? `${story.chapters.length} / ${story.targetChapters}`
+                : story.chapters.length}
             </span>
           }
         />
       </dl>
+
+      {typeof story.targetChapters === "number" && story.targetChapters > 0 ? (
+        <div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-border/60">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{
+                width: `${Math.min(100, Math.round((story.chapters.length / story.targetChapters) * 100))}%`,
+              }}
+              aria-hidden
+            />
+          </div>
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            {story.chapters.length >= story.targetChapters
+              ? "Đã đủ số chương mục tiêu"
+              : `Còn ${story.targetChapters - story.chapters.length} chương đến đoạn kết`}
+          </p>
+        </div>
+      ) : null}
 
       <div className="flex-1 min-h-0">
         <h3 className="mb-1.5 text-xs font-medium text-muted-foreground">

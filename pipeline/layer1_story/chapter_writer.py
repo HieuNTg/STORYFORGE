@@ -228,6 +228,7 @@ def build_chapter_prompt(
     previous_chapter_tail: str = "",
     idea: str = "",
     idea_summary: str = "",
+    total_chapters: int = 0,
 ) -> tuple[str, str]:
     """Build system/user prompts for chapter writing. Returns (system_prompt, user_prompt).
 
@@ -424,6 +425,26 @@ def build_chapter_prompt(
             "Chương này PHẢI mở đầu liền mạch, tiếp diễn TRỰC TIẾP từ khoảnh khắc trên. "
             "Không nhảy cảnh, không tóm tắt lại, không giới thiệu lại bối cảnh đã thiết lập. "
             "Câu mở đầu phải nối tiếp tự nhiên với câu kết của chương trước."
+        )
+    # Fixed-length closure: when the story has a hard target chapter count and
+    # this is the final chapter, force a self-contained ending. Without this,
+    # models trained on serialised webnovels habitually leave cliffhangers.
+    if total_chapters > 0 and outline.chapter_number >= total_chapters:
+        user_prompt += (
+            "\n\n## ⛓ CHƯƠNG CUỐI — KẾT TRỌN VẸN (BẮT BUỘC)\n"
+            f"Đây là CHƯƠNG {outline.chapter_number}/{total_chapters} — chương kết của truyện. "
+            "BẮT BUỘC:\n"
+            "- Giải quyết mâu thuẫn chính, đóng arc của nhân vật chính.\n"
+            "- Trả lời các câu hỏi cốt lõi đã đặt ra; thanh toán foreshadowing chính.\n"
+            "- KHÔNG để cliffhanger, KHÔNG mở mạch mới, KHÔNG kết bằng câu hỏi treo.\n"
+            "- Đoạn kết phải mang cảm giác trọn vẹn — gấp sách lại không cần đọc tiếp."
+        )
+    elif total_chapters > 0:
+        remaining = total_chapters - outline.chapter_number
+        user_prompt += (
+            f"\n\n[NHỊP ĐỘ: Đây là chương {outline.chapter_number}/{total_chapters} — "
+            f"còn {remaining} chương trước khi kết. Điều tiết cao trào phù hợp, "
+            "tránh giải quyết quá sớm hoặc kéo dài lan man.]"
         )
     # Bug 1: Final reminder to suppress preamble (in addition to sys_prompt rule).
     user_prompt += (

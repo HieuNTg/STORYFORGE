@@ -46,6 +46,7 @@ export function forgeToStory(forge: ForgeResponse): Story {
     chapters: [chapter],
     pendingChoices: forge.firstChapter.choices,
     language: "vi",
+    targetChapters: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -95,6 +96,7 @@ export interface PipelineDoneSummary {
 export function pipelineSummaryToStory(
   summary: PipelineDoneSummary | null | undefined,
   fallbackGenre: string = "",
+  targetChapters: number | null = null,
 ): Story | null {
   if (!summary) return null;
   const enhanced = summary.has_enhanced ? summary.enhanced : null;
@@ -138,6 +140,7 @@ export function pipelineSummaryToStory(
     chapters,
     pendingChoices: null,
     language: "vi",
+    targetChapters,
     createdAt: now,
     updatedAt: now,
   };
