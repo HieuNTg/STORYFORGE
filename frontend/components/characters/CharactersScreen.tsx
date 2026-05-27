@@ -109,6 +109,11 @@ export function CharactersScreen() {
         // doesn't get characters with English bios. Default "vi" matches
         // CLAUDE.md primary audience.
         language: activeStory.language || "vi",
+        // Scope avatars to this story so two unrelated stories with same-named
+        // characters don't write into the same file. Genre drives the avatar
+        // style anchor so a sci-fi character isn't returned in hanfu.
+        story_id: activeStory.id,
+        genre: activeStory.genre || undefined,
       });
       if (chars.length === 0) {
         toast.error(t("no_characters_found"));

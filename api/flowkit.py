@@ -44,7 +44,7 @@ def _redact(payload: Any) -> Any:
 
 async def _dispatch(msg: Dict[str, Any]) -> None:
     if not isinstance(msg, dict):
-        logger.debug("FlowKit WS dropped non-dict frame")
+        logger.warning("FlowKit WS dropped non-dict frame: %r", msg)
         return
 
     if "id" in msg and ("status" in msg or "error" in msg or "data" in msg):

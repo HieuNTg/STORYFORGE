@@ -2,11 +2,25 @@
 
 import logging
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from config import ConfigManager
 from services.media.image_provider import ImageProvider
+from services.safe_name import safe_character_name
 
 logger = logging.getLogger(__name__)
+
+
+def _mentions(name: str, blob: str) -> bool:
+    """Word-boundary check for a character name inside a text blob.
+
+    Substring `name in blob` falsely matches Vietnamese single-syllable names:
+    "An" hits "Anh", "Vũ" hits "Vũ khí". That misroutes refs and anchors the
+    wrong character into the scene prompt. Anchor with `\\w` boundaries instead.
+    """
+    if not name:
+        return False
+    return re.search(rf"(?<!\w){re.escape(name)}(?!\w)", blob) is not None
 
 
 class MediaProducer:
@@ -27,20 +41,56 @@ class MediaProducer:
             if progress_callback:
                 progress_callback(msg)
 
-        # Step 1: Character reference images (via ImageProvider → Seedream)
+        # Step 1: Character reference images.
+        #
+        # Order of preference per character:
+        #   1) extract-endpoint avatar already on disk (output/images/avatars/)
+        #      — this lets the user shape characters via the Forge UI, generate
+        #      avatars there, and have those exact images be the consistency
+        #      anchor for every chapter / comic panel downstream.
+        #   2) Seedream-generated reference (legacy path, only if configured).
+        #
+        # We intentionally do NOT regenerate when an avatar exists — it would
+        # break visual continuity across chapters.
+        from services.character_avatar import find_existing_avatar
+
         provider = ImageProvider()
-        # Propagate config to underlying Seedream client
         provider.seedream.api_key = cfg.seedream_api_key or provider.seedream.api_key
         provider.seedream.base_url = cfg.seedream_api_url or provider.seedream.base_url
-        if provider.is_configured() and draft.characters:
+
+        # Story scope for avatar lookup. The orchestrator runs against a
+        # specific story so we pass that id through to find_existing_avatar
+        # — that way a chapter from "Story A" can't accidentally pick up an
+        # avatar that was generated for a same-named character in "Story B".
+        #
+        # StoryDraft has no id/story_id field in the schema; session_id is
+        # the canonical story scope in StoryForge (session-per-story model,
+        # threaded down from orchestrator_layers.run_full_pipeline). When the
+        # orchestrator runs without a session (CLI / standalone tests), fall
+        # back to a title-derived slug so cross-story isolation still holds.
+        # Falls back to legacy unscoped lookup automatically when both None.
+        story_id = session_id or (
+            safe_character_name(getattr(draft, "title", "") or "")
+            if getattr(draft, "title", None)
+            else None
+        )
+
+        if draft.characters:
             _log("[MEDIA] Tạo ảnh tham chiếu nhân vật...")
             for char in draft.characters:
-                desc = char.appearance or char.personality or char.name
-                ref_path = provider.generate_character_reference(char.name, desc)
-                if ref_path:
-                    char.reference_image = ref_path
-                    result["character_refs"][char.name] = ref_path
-                    _log(f"[MEDIA] + {char.name}")
+                existing = find_existing_avatar(char.name, story_id=story_id)
+                if existing:
+                    char.reference_image = existing
+                    result["character_refs"][char.name] = existing
+                    _log(f"[MEDIA] = {char.name} (avatar có sẵn)")
+                    continue
+                if provider.is_configured():
+                    desc = char.appearance or char.personality or char.name
+                    ref_path = provider.generate_character_reference(char.name, desc)
+                    if ref_path:
+                        char.reference_image = ref_path
+                        result["character_refs"][char.name] = ref_path
+                        _log(f"[MEDIA] + {char.name}")
 
         # Step 1.5: Build/load enhanced character visual profiles
         visual_profiles = {}
@@ -105,20 +155,73 @@ class MediaProducer:
             chapters = enhanced.chapters
             _log(f"[MEDIA] Tạo {len(chapters)} ảnh cảnh (song song)...")
 
+            # Scene-aware ref selection. Detect which characters actually
+            # appear in this chapter's content/summary/title via substring
+            # match against the character name, then prefer those refs over
+            # arbitrary dict-insertion order. The image model only accepts
+            # 2 refs total (FlowKit limit) so picking the wrong two means
+            # the antagonist's face leaks into a chapter that's purely about
+            # the protagonist.
+            def _refs_for_chapter(ch) -> list[str]:
+                if not char_refs:
+                    return []
+                blob = " ".join(
+                    s for s in (
+                        getattr(ch, "content", "") or "",
+                        getattr(ch, "summary", "") or "",
+                        getattr(ch, "title", "") or "",
+                    ) if s
+                )
+                # Order matches `char_refs` (draft.characters order), so
+                # protagonists tend to come first when ties happen — that's
+                # the right default vs. random.
+                mentioned = [
+                    n for n, _ref in char_refs.items() if _mentions(n, blob)
+                ]
+                picked_names = mentioned[:2] if mentioned else list(char_refs.keys())[:2]
+                return [char_refs[n] for n in picked_names if n in char_refs]
+
             prepared = []
             for ch in chapters:
                 try:
                     image_prompt = prompt_gen.generate_scene_prompt(ch)
                 except Exception:
                     image_prompt = ch.summary or ch.title or f"Chapter {ch.chapter_number}"
-                refs = list(char_refs.values())[:2]
+                refs = _refs_for_chapter(ch)
                 if use_consistency and visual_profiles:
-                    # Use frozen English prompts directly (no longer Vietnamese descriptions)
-                    char_descs = "; ".join(
-                        f"[{n}: {visual_profiles[n]}]"
-                        for n in visual_profiles
-                        if n in [getattr(c, 'name', '') for c in (draft.characters or [])]
+                    # When we have image refs to feed FlowKit, the frozen
+                    # English visual description fights the reference image
+                    # (the text prompt re-describes hair/skin/outfit which
+                    # the ref already pins down) and produces drift. With
+                    # refs, only inject the bare name so the model knows
+                    # *who* is in the scene and lets the image ref dominate
+                    # appearance. Without refs, fall back to the full frozen
+                    # description so the model still has appearance anchors.
+                    # Also: scope the injected names to characters who actually
+                    # appear in this chapter (heuristic-driven via the same
+                    # substring match used for refs), so we don't tell the
+                    # model "[Hắc Phong Lão Tổ]" is in a chapter where only
+                    # the protagonist appears.
+                    chapter_blob = " ".join(
+                        s for s in (
+                            getattr(ch, "content", "") or "",
+                            getattr(ch, "summary", "") or "",
+                            getattr(ch, "title", "") or "",
+                        ) if s
                     )
+                    valid_names = [
+                        n for n in visual_profiles
+                        if n in [getattr(c, 'name', '') for c in (draft.characters or [])]
+                    ]
+                    scene_names = [n for n in valid_names if _mentions(n, chapter_blob)]
+                    if not scene_names:
+                        scene_names = valid_names  # fallback: anchor everyone
+                    if refs:
+                        char_descs = "; ".join(f"[{n}]" for n in scene_names)
+                    else:
+                        char_descs = "; ".join(
+                            f"[{n}: {visual_profiles[n]}]" for n in scene_names
+                        )
                     if char_descs:
                         image_prompt = f"{char_descs} {image_prompt}"
                 filename = f"ch{ch.chapter_number:02d}_scene.png"

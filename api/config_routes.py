@@ -146,6 +146,8 @@ class ConfigUpdate(BaseModel):
     flowkit_callback_hmac_required: Optional[bool] = None
     flowkit_use_refiner: Optional[bool] = None
     flowkit_request_timeout: Optional[float] = None
+    flowkit_aspect_ratio: Optional[str] = None
+    flowkit_project_id: Optional[str] = None
 
 
 _CONFIGURE_PIPELINE = Depends(require_permission_if_enabled(Permission.CONFIGURE_PIPELINE))
@@ -243,6 +245,8 @@ def get_config(response: Response):
             "flowkit_callback_hmac_required": cfg.pipeline.flowkit_callback_hmac_required,
             "flowkit_use_refiner": cfg.pipeline.flowkit_use_refiner,
             "flowkit_request_timeout": cfg.pipeline.flowkit_request_timeout,
+            "flowkit_aspect_ratio": cfg.pipeline.flowkit_aspect_ratio,
+            "flowkit_project_id": cfg.pipeline.flowkit_project_id,
         },
     }
 
@@ -348,7 +352,7 @@ def save_config(body: ConfigUpdate):
         "flowkit_veo_poll_interval", "flowkit_account_warning_shown",
         "flowkit_risk_acknowledged", "flowkit_image_input_type_split",
         "flowkit_callback_hmac_required", "flowkit_use_refiner",
-        "flowkit_request_timeout",
+        "flowkit_request_timeout", "flowkit_aspect_ratio", "flowkit_project_id",
     ):
         _val = getattr(body, _attr, None)
         if _val is not None:

@@ -858,6 +858,7 @@ class ForgeCharacter(BaseModel):
     backstory: str
     secret: str
     conflict: str
+    avatar: Optional[str] = None
 
     @field_validator("traits")
     @classmethod

@@ -6,6 +6,8 @@ import shutil
 from typing import Optional
 from datetime import datetime
 
+from services.safe_name import safe_character_name
+
 logger = logging.getLogger(__name__)
 
 
@@ -17,8 +19,15 @@ class CharacterVisualProfileStore:
         os.makedirs(base_dir, exist_ok=True)
 
     def _safe_name(self, name: str) -> str:
-        """Convert character name to filesystem-safe directory name."""
-        return "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in name).strip("_")
+        """Filesystem-safe directory name — delegates to the shared utility.
+
+        Previously had its own implementation that diverged from
+        ``services.character_avatar._safe_name`` for names with punctuation or
+        names longer than 60 chars. Centralizing avoids the bug where the
+        extract endpoint writes an avatar under one slug while the consistency
+        pipeline looks for the profile under a different slug.
+        """
+        return safe_character_name(name)
 
     def _profile_dir(self, name: str) -> str:
         return os.path.join(self.base_dir, self._safe_name(name))

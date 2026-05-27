@@ -124,7 +124,7 @@ class PipelineConfig:
     seedream_api_url: str = ""
 
     # Flowkit (Chrome Extension + Google Labs proxy) — local-only, account-ban risk
-    flowkit_enabled: bool = False
+    flowkit_enabled: bool = True
     flowkit_port: int = 7860
     flowkit_style_reference_path: str = ""
     flowkit_concurrent_workers: int = 1  # runtime initial value; adaptive ramp managed by FlowService
@@ -132,11 +132,15 @@ class PipelineConfig:
     flowkit_workers_ramp_threshold: int = 10  # consecutive successes before incrementing
     flowkit_veo_poll_interval: float = 5.0
     flowkit_account_warning_shown: bool = False
-    flowkit_risk_acknowledged: bool = False  # hard gate; backend rejects flowkit_enabled=True without this
+    flowkit_risk_acknowledged: bool = True  # hard gate; backend rejects flowkit_enabled=True without this
     flowkit_image_input_type_split: bool = False  # split REFERENCE → CHARACTER/STYLE (requires live enum sniff)
     flowkit_callback_hmac_required: bool = False  # verify X-Callback-Secret on /api/ext/callback
-    flowkit_use_refiner: bool = True
+    flowkit_use_refiner: bool = True  # legacy; ignored by new flowMedia:batchGenerateImages schema
     flowkit_request_timeout: float = 180.0  # seconds; sync-bridge wait when ImageGenerator dispatches to FlowService loop
+    flowkit_aspect_ratio: str = "9:16"  # mapped to IMAGE_ASPECT_RATIO_* enum at send time
+    # Google Labs Flow project UUID. Find in URL at labs.google/fx/tools/flow/project/<UUID>.
+    # Required when flowkit_enabled=True — request_image raises if empty.
+    flowkit_project_id: str = ""
 
     # Self-review (CoT quality check)
     enable_self_review: bool = True  # CoT self-review for quality
