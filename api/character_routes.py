@@ -156,6 +156,15 @@ class CharacterExtractRequest(BaseModel):
     # Source story language (e.g. "vi", "en"). Drives the language of every
     # text field on extracted characters. Defaults to Vietnamese.
     language: str = Field(default="vi", max_length=16)
+    # Optional story scope. When provided, avatars are written under
+    # output/images/avatars/<story_id>/ so two unrelated stories with the
+    # same character name don't collide. Falls back to the legacy unscoped
+    # path when omitted, so this is a backward-compatible additive change.
+    story_id: str | None = Field(default=None, max_length=200)
+    # Optional Vietnamese genre label (e.g. "Tiên Hiệp", "Khoa Huyễn"). Drives
+    # the avatar prompt's style anchor so a sci-fi character doesn't come
+    # back in hanfu. Unknown / empty falls back to a generic anime baseline.
+    genre: str | None = Field(default=None, max_length=64)
 
 @router.post("/extract-story", response_model=list[ForgeCharacter])
 async def extract_story_characters_route(req: CharacterExtractRequest) -> list[ForgeCharacter]:
@@ -233,6 +242,29 @@ REMINDER: All description / backstory / secret / conflict text MUST be in {langu
         for item in data[:6]:
             char = ForgeCharacter(**item)
             characters.append(char)
+
+        # Fan out avatar generation in parallel. Best-effort: any failure
+        # returns None and leaves char.avatar unset rather than breaking
+        # the extract response.
+        try:
+            from services.character_avatar import generate_character_avatar
+
+            # No story-level "setting" is passed in — leaking the story setting
+            # into the avatar prompt was triggering calligraphy/landscape
+            # backgrounds in Nano Banana for wuxia stories. Avatars must be
+            # studio portraits regardless of story setting.
+            avatars = await asyncio.gather(
+                *(
+                    generate_character_avatar(c, story_id=req.story_id, genre=req.genre)
+                    for c in characters
+                ),
+                return_exceptions=True,
+            )
+            for c, a in zip(characters, avatars):
+                if isinstance(a, str) and a:
+                    c.avatar = a
+        except Exception:  # noqa: BLE001
+            logger.exception("avatar fan-out failed; returning characters without avatars")
 
         return characters
     except asyncio.TimeoutError:

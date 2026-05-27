@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import random
 import secrets
 import sqlite3
 import time
@@ -42,6 +43,7 @@ _DOWNLOAD_HOSTS = {
     "labs.google",
     "fife.usercontent.google.com",
     "lh3.googleusercontent.com",
+    "flow-content.google",
 }
 
 _SCHEMA = """
@@ -62,21 +64,17 @@ CREATE INDEX IF NOT EXISTS idx_flow_jobs_status ON flow_jobs(status);
 """
 
 
-# SPIKE: aspect ratio enum mapping for Google Labs Flow.
-# Imagen public docs use simple strings ("9:16"). Internal Proto APIs often use
-# verbose enums. We don't know which `flow:batchGenerateImages` accepts yet —
-# CEO will run 3 test scenarios to find the working format.
 _ASPECT_ENUM_MAP = {
     "1:1": "IMAGE_ASPECT_RATIO_SQUARE",
     "9:16": "IMAGE_ASPECT_RATIO_PORTRAIT",
     "16:9": "IMAGE_ASPECT_RATIO_LANDSCAPE",
-    "3:4": "IMAGE_ASPECT_RATIO_PORTRAIT_3_4",
-    "4:3": "IMAGE_ASPECT_RATIO_LANDSCAPE_4_3",
+    "3:4": "IMAGE_ASPECT_RATIO_PORTRAIT_THREE_FOUR",
+    "4:3": "IMAGE_ASPECT_RATIO_LANDSCAPE_FOUR_THREE",
 }
 
 
 def _aspect_to_enum(aspect: str) -> str:
-    return _ASPECT_ENUM_MAP.get(aspect.strip(), aspect.strip())
+    return _ASPECT_ENUM_MAP.get((aspect or "").strip(), "IMAGE_ASPECT_RATIO_PORTRAIT")
 
 
 @dataclass
@@ -232,7 +230,7 @@ class FlowService:
 
     # ------------------------------------------------------------ ws dispatch
 
-    async def _send(self, method: str, params: dict, timeout: float = 60.0) -> dict:
+    async def _send(self, method: str, params: dict, timeout: float = 60.0, ws_method: str = "api_request") -> dict:
         if self.active_ws is None:
             raise ConnectionError("FlowKit extension not connected")
 
@@ -242,7 +240,15 @@ class FlowService:
             loop = asyncio.get_running_loop()
             fut: asyncio.Future = loop.create_future()
             self.pending_requests[req_id] = fut
-            payload = {"id": req_id, "method": method, "params": params}
+            # ws_method = the dispatch verb the extension routes on (background.js:109-110).
+            # "api_request" → handleApiRequest (URL fetch). "solve_captcha" → handleSolveCaptcha.
+            # `method` is just a human-readable label for the logical operation we're invoking
+            # (e.g. "batchGenerateImages") and only appears in logs.
+            payload = {"id": req_id, "method": ws_method, "params": params}
+            logger.info(
+                "FlowKit WS OUT id=%s ws_method=%s op=%s param_keys=%s",
+                req_id, ws_method, method, list(params.keys()),
+            )
             try:
                 await self.active_ws.send_json(payload)
             except Exception:
@@ -262,12 +268,29 @@ class FlowService:
                 raise RuntimeError(f"FlowKit upstream rejected: status={status}")
             if not (200 <= status < 300):
                 self._record_failure()
+                logger.error(
+                    "FlowKit upstream error: status=%s data=%s",
+                    status, str(result.get("data"))[:1500],
+                )
                 raise RuntimeError(f"FlowKit upstream error: status={status}")
 
             self._record_success()
             return result.get("data") or {}
         finally:
             await self._release_slot()
+
+    async def _solve_captcha(self, action: str = "IMAGE_GENERATION", timeout: float = 20.0) -> str:
+        """Ask extension to call grecaptcha.enterprise.execute() and return the token."""
+        data = await self._send(
+            "solve_captcha",
+            {"action": action},
+            timeout=timeout,
+            ws_method="solve_captcha",
+        )
+        token = data.get("token") if isinstance(data, dict) else None
+        if not token:
+            raise RuntimeError("FlowKit captcha solve returned no token (is labs.google tab open?)")
+        return token
 
     def resolve_request(self, payload: dict) -> bool:
         req_id = payload.get("id")
@@ -288,53 +311,80 @@ class FlowService:
         style_ref: Optional[str] = None,
         output_dir: str = "output/images",
         filename: str = "image.png",
+        aspect_override: Optional[str] = None,
+        seed_override: Optional[int] = None,
     ) -> str:
+        """Generate an image via Flow.
+
+        ``aspect_override`` and ``seed_override`` let callers (e.g. the avatar
+        helper) opt out of the global config for one specific call — avatars
+        want a square 1:1 frame plus a deterministic seed derived from the
+        character name so re-extracts are idempotent, even when the user has
+        a portrait/landscape global default.
+        """
         char_refs = char_refs or []
         cfg = self._cfg
 
+        project_id = (cfg.flowkit_project_id or "").strip()
+        if not project_id:
+            raise RuntimeError(
+                "flowkit_project_id is empty. Open labs.google/fx/tools/flow/project/<UUID>, "
+                "copy the UUID, and set pipeline.flowkit_project_id via /api/config."
+            )
+
         media_inputs: List[dict] = []
         for ref_path in char_refs:
-            media_id = await self._upload_image(ref_path)
-            input_type = "IMAGE_INPUT_TYPE_CHARACTER" if cfg.flowkit_image_input_type_split else "IMAGE_INPUT_TYPE_REFERENCE"
-            media_inputs.append({"mediaId": media_id, "inputType": input_type})
+            media_id = await self._upload_image(ref_path, project_id)
+            media_inputs.append({"mediaId": media_id})
         if style_ref:
-            media_id = await self._upload_image(style_ref)
-            input_type = "IMAGE_INPUT_TYPE_STYLE" if cfg.flowkit_image_input_type_split else "IMAGE_INPUT_TYPE_REFERENCE"
-            media_inputs.append({"mediaId": media_id, "inputType": input_type})
+            media_id = await self._upload_image(style_ref, project_id)
+            media_inputs.append({"mediaId": media_id})
 
-        body: Dict[str, Any] = {
-            "prompt": prompt,
-            "imageModel": "GEM_PIX_2",
-            "imageInputs": media_inputs,
-            "useRefiner": cfg.flowkit_use_refiner,
+        recaptcha = await self._solve_captcha("IMAGE_GENERATION")
+        client_ctx = {
+            "recaptchaContext": {
+                "token": recaptcha,
+                "applicationType": "RECAPTCHA_APPLICATION_TYPE_WEB",
+            },
+            "projectId": project_id,
+            "tool": "PINHOLE",
+            "sessionId": f";{int(time.time() * 1000)}",
         }
-        # SPIKE: conditional aspect ratio injection. Field name/format is unconfirmed
-        # for `flow:batchGenerateImages` — try formats via `flowkit_aspect_ratio_format`.
-        # Empty `flowkit_aspect_ratio` skips injection entirely (preserves legacy behavior).
-        aspect = (cfg.flowkit_aspect_ratio or "").strip()
-        if aspect:
-            fmt = (cfg.flowkit_aspect_ratio_format or "simple").strip().lower()
-            if fmt == "enum":
-                body["aspectRatio"] = _aspect_to_enum(aspect)
-            elif fmt == "nested":
-                body["imageModelSettings"] = {"aspectRatio": aspect}
-            else:  # simple (default guess)
-                body["aspectRatio"] = aspect
-            logger.info("FlowKit aspect injection: format=%s value=%s", fmt, body.get("aspectRatio") or body.get("imageModelSettings"))
+        aspect_enum = _aspect_to_enum(aspect_override or cfg.flowkit_aspect_ratio)
+        seed = seed_override if seed_override is not None else random.randint(0, 2_147_483_647)
+        body: Dict[str, Any] = {
+            "clientContext": client_ctx,
+            "mediaGenerationContext": {"batchId": str(uuid4())},
+            "useNewMedia": True,
+            "requests": [
+                {
+                    "clientContext": client_ctx,
+                    "imageModelName": "GEM_PIX_2",
+                    "imageAspectRatio": aspect_enum,
+                    "structuredPrompt": {"parts": [{"text": prompt}]},
+                    "seed": seed,
+                    "imageInputs": media_inputs,
+                }
+            ],
+        }
 
-        logger.info("FlowKit batchGenerateImages REQUEST body keys=%s aspect=%s", list(body.keys()), aspect or "(none)")
+        logger.info(
+            "FlowKit flowMedia:batchGenerateImages REQUEST project=%s aspect=%s refs=%d seed=%d",
+            project_id, aspect_enum, len(media_inputs), seed,
+        )
         result = await self._send(
-            "batchGenerateImages",
+            "flowMedia:batchGenerateImages",
             {
-                "url": "https://aisandbox-pa.googleapis.com/v1/flow:batchGenerateImages",
+                "url": f"https://aisandbox-pa.googleapis.com/v1/projects/{project_id}/flowMedia:batchGenerateImages",
                 "method": "POST",
                 "body": body,
-                "captchaAction": "image_generation",
             },
         )
-        logger.info("FlowKit batchGenerateImages RESPONSE type=%s keys=%s", type(result).__name__, list(result.keys()) if isinstance(result, dict) else "(non-dict)")
-        if isinstance(result, dict) and ("error" in result or "code" in result):
-            logger.warning("FlowKit RESPONSE may contain error payload: %s", str(result)[:800])
+        logger.info(
+            "FlowKit flowMedia:batchGenerateImages RESPONSE type=%s keys=%s",
+            type(result).__name__,
+            list(result.keys()) if isinstance(result, dict) else "(non-dict)",
+        )
 
         fife_url = self._extract_fife_url(result)
         if not fife_url:
@@ -347,7 +397,10 @@ class FlowService:
 
     async def request_video(self, prompt: str, start_image_path: str) -> str:
         await self.init_db()
-        media_id = await self._upload_image(start_image_path)
+        project_id = (self._cfg.flowkit_project_id or "").strip()
+        if not project_id:
+            raise RuntimeError("flowkit_project_id required for video generation")
+        media_id = await self._upload_image(start_image_path, project_id)
         result = await self._send(
             "batchAsyncGenerateVideoStartImage",
             {
@@ -457,23 +510,28 @@ class FlowService:
 
     # ----------------------------------------------------------- file helpers
 
-    async def _upload_image(self, path: str) -> str:
+    async def _upload_image(self, path: str, project_id: str) -> str:
         if not os.path.isfile(path):
             raise FileNotFoundError(path)
         import base64
         with open(path, "rb") as fh:
             blob = base64.b64encode(fh.read()).decode("ascii")
         result = await self._send(
-            "uploadImage",
+            "flow/uploadImage",
             {
-                "url": "https://aisandbox-pa.googleapis.com/v1/flow:uploadImage",
+                "url": "https://aisandbox-pa.googleapis.com/v1/flow/uploadImage",
                 "method": "POST",
-                "body": {"imageData": blob, "mimeType": "image/png"},
+                "body": {
+                    "clientContext": {"projectId": project_id, "tool": "PINHOLE"},
+                    "imageBytes": blob,
+                },
             },
         )
-        media_id = result.get("mediaId") or result.get("media_id")
+        media = result.get("media") if isinstance(result, dict) else None
+        media_id = (media or {}).get("name") if isinstance(media, dict) else None
+        media_id = media_id or result.get("mediaId") or result.get("media_id")
         if not media_id:
-            raise RuntimeError("FlowKit uploadImage returned no mediaId")
+            raise RuntimeError(f"FlowKit uploadImage returned no mediaId; payload keys={list(result.keys()) if isinstance(result, dict) else type(result).__name__}")
         return media_id
 
     async def download_to_local(self, url: str, dest_path: str) -> str:

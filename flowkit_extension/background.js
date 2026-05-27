@@ -174,7 +174,12 @@ function requestCaptchaToken(action) {
         resolve(null);
       }
     }, 15000);
-    chrome.tabs.query({ url: "https://labs.google/fx/tools/flow*" }, (tabs) => {
+    chrome.tabs.query({
+      url: [
+        "https://labs.google/fx/tools/flow*",
+        "https://labs.google/fx/*/tools/flow*",
+      ],
+    }, (tabs) => {
       const tab = tabs && tabs[0];
       if (!tab) {
         state.pendingCaptcha.delete(reqId);

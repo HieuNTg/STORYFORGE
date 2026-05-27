@@ -16,8 +16,10 @@ _DEFAULT_ATTRIBUTES = {
 }
 
 _SYSTEM_PROMPT = (
-    "You are a character visual analyst. Extract physical appearance attributes from the given "
-    "character description. Always respond in JSON format."
+    "You are a character visual analyst. Extract physical appearance attributes ONLY from "
+    "what is EXPLICITLY stated in the provided character description. Do NOT invent, infer "
+    "from genre tropes, or add stylistic flourishes. If a field is not mentioned in the "
+    "source text, return an empty string. Always respond in JSON format."
 )
 
 _USER_PROMPT_TEMPLATE = """Extract the visual/physical appearance attributes of the following character and return structured JSON.
@@ -40,11 +42,17 @@ Return a JSON object with these exact keys:
   "distinguishing_features": ["...", "..."]
 }}
 
-Rules:
-- All values must be in English
-- Use empty string "" if information is not available
-- distinguishing_features should list 0-5 notable items
-- Keep descriptions concise but specific"""
+STRICT EXTRACTION RULES:
+- ONLY extract attributes that are EXPLICITLY stated in the appearance/background/personality text above.
+- If a detail is NOT in the source text, return "" (empty string) — do NOT guess.
+- Do NOT invent props, motifs, animals (cranes, dragons, phoenixes), weapons, or symbolic
+  flourishes based on the character's name or apparent genre. A wuxia name does not mean
+  the character has a sword or carries flowers.
+- Do NOT extrapolate from role or personality (e.g. "antagonist" does NOT imply dark clothing).
+- distinguishing_features must be 0-5 items that are LITERALLY mentioned in the source,
+  not inferred. Empty list is the correct answer when nothing distinctive is described.
+- All values must be in English.
+- Keep descriptions concise but specific."""
 
 
 class CharacterVisualExtractor:

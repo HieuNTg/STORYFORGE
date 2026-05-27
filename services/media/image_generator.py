@@ -326,7 +326,7 @@ class ImageGenerator:
             timeout = max(30.0, float(cfg.flowkit_request_timeout))
             return fut.result(timeout=timeout)
         except Exception as e:
-            logger.error("FlowKit generation failed: %s", e)
+            logger.exception("FlowKit generation failed: %s (%s)", type(e).__name__, e)
             return None
 
     def _generate_flowkit(
