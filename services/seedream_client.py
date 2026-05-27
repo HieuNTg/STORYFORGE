@@ -83,7 +83,16 @@ class SeedreamClient:
             logger.warning("Seedream API key not configured")
             return None
 
-        output_path = os.path.join(self.output_dir, filename)
+        # ImageGenerator passes a story-scoped full path here (e.g.
+        # "output/images/session_xyz/ch01_scene.png") via _seedream_with_ref.
+        # Joining that with self.output_dir again produced a corrupted nested
+        # path ("output/images/output/images/...") that silently collided
+        # between stories with no session. Treat any non-bare filename as
+        # an explicit path and use it as-is.
+        if os.path.dirname(filename):
+            output_path = filename
+        else:
+            output_path = os.path.join(self.output_dir, filename)
 
         if reference_images:
             return self._edit_sequential(scene_prompt, reference_images, output_path)

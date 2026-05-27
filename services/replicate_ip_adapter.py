@@ -111,7 +111,16 @@ class ReplicateIPAdapter:
                     # Download the generated image
                     img_resp = requests.get(image_url, timeout=30)
                     img_resp.raise_for_status()
-                    filepath = os.path.join(self.output_dir, filename)
+                    # Respect story-scoped paths passed by callers (e.g.
+                    # ImageGenerator threads a slug_session_dir-built path
+                    # through here). Joining a directory-bearing filename
+                    # with self.output_dir again double-nests the path and
+                    # silently collides scene images between stories.
+                    if os.path.dirname(filename):
+                        filepath = filename
+                        os.makedirs(os.path.dirname(filepath) or ".", exist_ok=True)
+                    else:
+                        filepath = os.path.join(self.output_dir, filename)
                     with open(filepath, "wb") as f:
                         f.write(img_resp.content)
                     logger.info("Generated IP-Adapter image: %s", filepath)
