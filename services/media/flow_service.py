@@ -257,7 +257,17 @@ class FlowService:
                 raise
             try:
                 result = await asyncio.wait_for(fut, timeout=timeout)
-            except (asyncio.TimeoutError, Exception):
+            except asyncio.TimeoutError:
+                # Distinct branch so the operator can tell timeouts apart from
+                # protocol/transport errors when triaging silent avatar misses.
+                self.pending_requests.pop(req_id, None)
+                self._record_failure()
+                logger.warning(
+                    "FlowKit WS TIMEOUT id=%s op=%s after %.1fs",
+                    req_id, method, timeout,
+                )
+                raise
+            except Exception:
                 self.pending_requests.pop(req_id, None)
                 self._record_failure()
                 raise

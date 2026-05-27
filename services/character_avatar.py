@@ -36,6 +36,13 @@ _GENRE_STYLE_ANCHORS = {
 }
 _DEFAULT_STYLE_ANCHOR = "anime illustration style"
 
+# Case/whitespace-insensitive view of the anchor dict. The frontend sends
+# the genre label exactly as written in CreateStoryModal.tsx but older
+# library entries occasionally carry "tiên hiệp" lowercase or with stray
+# whitespace; without a normalized lookup those silently fell through to
+# the generic anchor and a xianxia character came back in jeans.
+_GENRE_STYLE_ANCHORS_CF = {k.casefold(): v for k, v in _GENRE_STYLE_ANCHORS.items()}
+
 
 def _safe_name(name: str) -> str:
     """Filesystem-safe filename — delegates to the shared utility.
@@ -64,9 +71,11 @@ def _style_anchor_for(genre: Optional[str]) -> str:
     Falls back to the generic anime baseline for unknown or empty genres
     so the prompt always has some style guidance.
     """
-    if not genre:
+    if not genre or not genre.strip():
         return _DEFAULT_STYLE_ANCHOR
-    return _GENRE_STYLE_ANCHORS.get(genre.strip(), _DEFAULT_STYLE_ANCHOR)
+    return _GENRE_STYLE_ANCHORS_CF.get(
+        genre.strip().casefold(), _DEFAULT_STYLE_ANCHOR
+    )
 
 
 def _build_avatar_prompt(char: ForgeCharacter, genre: Optional[str] = None) -> str:
@@ -152,11 +161,28 @@ async def generate_character_avatar(
     the same name don't collide. Defaults to the legacy unscoped location
     when not provided. ``genre`` shapes the prompt's style anchor.
     """
+    # Whitespace guard — an all-whitespace name slugs to an empty string and
+    # writes ".png" or "_.png" into the avatar dir, then every later character
+    # with a blank name collides on it. Bail early instead.
+    if not (char.name and char.name.strip()):
+        logger.info("avatar skip: empty character name")
+        return None
+
     cfg = ConfigManager().pipeline
     if not getattr(cfg, "flowkit_enabled", False):
+        # Surface why no avatars ever appear in dev — silent return was making
+        # it look like the upstream call was failing when in fact the feature
+        # flag was off.
+        logger.info(
+            "avatar skip: flowkit_enabled=false (char=%s, story_id=%s)",
+            char.name, story_id,
+        )
         return None
     if not (getattr(cfg, "flowkit_project_id", "") or "").strip():
-        logger.info("avatar skip: flowkit_project_id empty")
+        logger.info(
+            "avatar skip: flowkit_project_id empty (char=%s, story_id=%s)",
+            char.name, story_id,
+        )
         return None
 
     base_dir, url_prefix = _avatar_dirs(story_id)
@@ -184,7 +210,16 @@ async def generate_character_avatar(
                 seed_override=seed,
             )
             if not path:
-                return None
+                # Distinguish "FlowService returned empty path" from "exception
+                # was raised" — the empty-path branch is the silent failure
+                # mode that historically left no trace in the logs.
+                logger.warning(
+                    "avatar attempt %d returned empty path for %s",
+                    attempt, char.name,
+                )
+                if attempt == 2:
+                    return None
+                continue
             return f"/media/{url_prefix}/{filename}"
         except Exception as exc:  # noqa: BLE001
             last_exc = exc
@@ -212,7 +247,7 @@ def find_existing_avatar(name: str, story_id: Optional[str] = None) -> Optional[
          pre-Batch-3 stories with avatars already on disk keep rendering
          without needing a migration)
     """
-    if not name:
+    if not (name and name.strip()):
         return None
     safe = _safe_name(name)
     candidates: list[str] = []
