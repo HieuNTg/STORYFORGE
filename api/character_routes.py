@@ -166,7 +166,11 @@ class CharacterExtractRequest(BaseModel):
     # back in hanfu. Unknown / empty falls back to a generic anime baseline.
     genre: str | None = Field(default=None, max_length=64)
 
-@router.post("/extract-story", response_model=list[ForgeCharacter])
+@router.post(
+    "/extract-story",
+    response_model=list[ForgeCharacter],
+    dependencies=[Depends(_rate_limit_dep)],
+)
 async def extract_story_characters_route(req: CharacterExtractRequest) -> list[ForgeCharacter]:
     llm = _get_llm()
     model = _resolve_model()
