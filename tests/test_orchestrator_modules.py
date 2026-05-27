@@ -20,10 +20,15 @@ def _make_character(name="Alice"):
     return c
 
 
-def _make_chapter(num=1, content="Some content"):
+def _make_chapter(num=1, content="Some content", summary="", title=""):
     ch = MagicMock()
     ch.chapter_number = num
     ch.content = content
+    # Explicit string defaults — orchestrator_media._refs_for_chapter does
+    # `" ".join(...)` across these three attrs, which TypeErrors if any is
+    # left as the implicit MagicMock child attribute.
+    ch.summary = summary
+    ch.title = title
     return ch
 
 
@@ -83,7 +88,7 @@ class TestMediaProducerRun(unittest.TestCase):
         cfg.pipeline.enable_character_consistency = False
         return cfg
 
-    @patch("pipeline.orchestrator_media.find_existing_avatar", return_value=None)
+    @patch("services.character_avatar.find_existing_avatar", return_value=None)
     @patch("pipeline.orchestrator_media.ImageProvider")
     def test_run_returns_dict_structure(self, MockIP, _mock_avatar):
         from pipeline.orchestrator_media import MediaProducer
@@ -101,7 +106,7 @@ class TestMediaProducerRun(unittest.TestCase):
         self.assertIn("character_refs", result)
         self.assertIn("scene_images", result)
 
-    @patch("pipeline.orchestrator_media.find_existing_avatar", return_value=None)
+    @patch("services.character_avatar.find_existing_avatar", return_value=None)
     @patch("pipeline.orchestrator_media.ImageProvider")
     def test_run_with_seedream_generates_char_refs(self, MockIP, _mock_avatar):
         from pipeline.orchestrator_media import MediaProducer
