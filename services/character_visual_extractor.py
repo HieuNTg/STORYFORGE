@@ -69,12 +69,26 @@ class CharacterVisualExtractor:
         age_appearance, distinguishing_features.
         Falls back to empty-value structure on LLM failure.
         """
+        # Field-name compatibility: `Character` (from StoryDraft) uses
+        # appearance/background; `ForgeCharacter` (from /extract-story) uses
+        # description/backstory. Or-fallback so this extractor stays correct
+        # if a caller ever feeds a Forge character in without re-mapping —
+        # without it the LLM gets empty inputs and starts hallucinating
+        # attributes, defeating the strict-extraction prompt.
         user_prompt = _USER_PROMPT_TEMPLATE.format(
             name=getattr(character, "name", ""),
             role=getattr(character, "role", ""),
             personality=getattr(character, "personality", ""),
-            appearance=getattr(character, "appearance", ""),
-            background=getattr(character, "background", ""),
+            appearance=(
+                getattr(character, "appearance", "")
+                or getattr(character, "description", "")
+                or ""
+            ),
+            background=(
+                getattr(character, "background", "")
+                or getattr(character, "backstory", "")
+                or ""
+            ),
         )
         try:
             result = self.llm.generate_json(
@@ -195,7 +209,11 @@ class CharacterVisualExtractor:
         """Build minimal attributes from character fields without LLM."""
         attributes = {k: (dict(v) if isinstance(v, dict) else list(v) if isinstance(v, list) else v)
                       for k, v in _DEFAULT_ATTRIBUTES.items()}
-        appearance = getattr(character, "appearance", "")
+        appearance = (
+            getattr(character, "appearance", "")
+            or getattr(character, "description", "")
+            or ""
+        )
         if appearance:
             attributes["outfit"]["default"] = appearance[:200]
         return attributes
