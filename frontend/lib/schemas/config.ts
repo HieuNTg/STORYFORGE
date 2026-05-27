@@ -80,6 +80,8 @@ export const configPipelineSchema = z
     flowkit_callback_hmac_required: z.boolean().default(false),
     flowkit_use_refiner: z.boolean().default(true),
     flowkit_request_timeout: z.number().default(180.0),
+    flowkit_aspect_ratio: z.string().default("9:16"),
+    flowkit_project_id: z.string().default(""),
   })
   .strict();
 

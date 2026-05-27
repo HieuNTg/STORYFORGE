@@ -68,9 +68,9 @@ export default function ProvidersPage() {
     setTestResults((prev) => {
       const next = { ...prev };
       config.llm.profiles.forEach((p, idx) => {
-        if (next[idx] && next[idx] !== "idle") return;
         if (p.last_test_ok === true) next[idx] = "pass";
         else if (p.last_test_ok === false) next[idx] = "fail";
+        else if (!next[idx]) next[idx] = "idle";
       });
       return next;
     });
