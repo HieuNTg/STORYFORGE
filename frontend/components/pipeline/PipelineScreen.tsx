@@ -146,7 +146,7 @@ export function PipelineScreen({
   );
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[420px_1fr]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(480px,38%)_1fr]">
       <Card>
         <CardContent className="space-y-4">
           {formHeader}
