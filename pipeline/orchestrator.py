@@ -209,6 +209,7 @@ class PipelineOrchestrator:
         enable_agents: bool = True,
         enable_scoring: bool = True,
         enable_media: bool = False,
+        target_total_chapters: int | None = None,
     ) -> PipelineOutput:
         """Chạy toàn bộ pipeline 2 lớp (async — blocking LLM calls run in thread pool)."""
         return await _run_full_pipeline(
@@ -218,6 +219,7 @@ class PipelineOrchestrator:
             progress_callback=progress_callback, stream_callback=stream_callback,
             enable_agents=enable_agents, enable_scoring=enable_scoring,
             enable_media=enable_media,
+            target_total_chapters=target_total_chapters,
         )
 
     def run_layer1_only(

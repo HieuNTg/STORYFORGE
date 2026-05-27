@@ -69,6 +69,7 @@ export interface CreateStoryRequest {
   language: string;
   idea: string;
   num_chapters: number;
+  target_total_chapters?: number | null;
   num_characters: number;
   word_count: number;
   num_sim_rounds: number;
@@ -345,12 +346,16 @@ export interface ConnectionTestResult {
 }
 
 export function useTestConnection() {
+  const qc = useQueryClient();
   return useMutation<ConnectionTestResult, Error, void>({
     mutationFn: () =>
       apiFetch<ConnectionTestResult>("/api/config/test-connection", {
         method: "POST",
         body: "{}",
       }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["config"] });
+    },
   });
 }
 

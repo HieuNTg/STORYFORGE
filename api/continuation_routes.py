@@ -198,11 +198,23 @@ async def continue_story(request: Request, body: ContinueRequest):
 
                 on_progress(f"Loaded checkpoint: {checkpoint_path.name}")
                 on_progress(f"Existing chapters: {len(draft.chapters)}")
-                on_progress(f"Continuing with {body.additional_chapters} new chapters...")
+
+                target = getattr(draft, "target_total_chapters", None)
+                written = len(draft.chapters)
+                effective = body.additional_chapters
+                if target is not None:
+                    remaining = max(0, int(target) - written)
+                    if remaining <= 0:
+                        progress_queue.put_nowait(("error", f"Truyện đã đạt {target}/{target} chương — không còn dung lượng để viết thêm."))
+                        return
+                    if effective > remaining:
+                        on_progress(f"Yêu cầu {effective} chương nhưng chỉ còn {remaining} chương trong tổng {target}; sẽ viết {remaining}.")
+                        effective = remaining
+                on_progress(f"Continuing with {effective} new chapters...")
 
                 await asyncio.to_thread(
                     orch.continue_story,
-                    additional_chapters=body.additional_chapters,
+                    additional_chapters=effective,
                     word_count=body.word_count,
                     style=body.style,
                     progress_callback=on_progress,
