@@ -380,6 +380,7 @@ async def run_full_pipeline(
     enable_agents: bool = True,
     enable_scoring: bool = True,
     enable_media: bool = False,
+    target_total_chapters: int | None = None,
 ) -> PipelineOutput:
     """Chạy toàn bộ pipeline 2 lớp (story gen → drama sim).
 
@@ -543,6 +544,10 @@ async def run_full_pipeline(
         with self._lock:
             logger.info("[PROBE-O4] orchestrator: inside self._lock, assigning story_draft")
             self.output.story_draft = draft
+            try:
+                draft.target_total_chapters = target_total_chapters if target_total_chapters else num_chapters
+            except Exception:
+                pass
             self.output.progress = 0.33
         logger.info("[PROBE-O5] orchestrator: released self._lock, about to _log Layer 1 hoàn tất trong")
         _log(f"Layer 1 hoàn tất trong {time.time() - layer_start:.1f}s")

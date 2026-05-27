@@ -12,8 +12,8 @@ from .branch_narrative import BranchManager, manager
 from .eval_pipeline import EvalPipeline
 try:
     from .scoring_calibration_service import ScoringCalibrationService
-except ImportError:
-    pass  # requires tests.benchmarks on sys.path
+except Exception:
+    pass  # requires tests.benchmarks on sys.path; site-packages/tests shadow can raise AttributeError via cv2
 
 __all__ = [
     "QualityScorer",

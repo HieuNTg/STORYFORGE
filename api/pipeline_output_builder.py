@@ -17,6 +17,8 @@ def build_output_summary(output) -> dict:
             "title": _san(d.title),
             "genre": _san(d.genre),
             "synopsis": _san(d.synopsis),
+            "target_total_chapters": getattr(d, "target_total_chapters", None),
+            "written_chapters": len(d.chapters),
             "characters": [
                 {"name": _san(c.name), "personality": _san(c.personality)}
                 for c in d.characters

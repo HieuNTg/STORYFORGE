@@ -461,6 +461,8 @@ class StoryDraft(BaseModel):
     # Idea fidelity (P0 fix): preserve user's verbatim story idea + cached summary for long ideas
     original_idea: str = Field(default="", description="User's original story idea, preserved verbatim from input")
     idea_summary_for_chapters: str = Field(default="", description="LLM-compressed idea for chapter prompts (only built when len(idea) > 3000)")
+    # Story-arc cap for multi-session preview/continue. When set, len(chapters)+additional_chapters must not exceed this.
+    target_total_chapters: Optional[int] = Field(default=None, ge=1, le=500, description="Total chapters in the full story arc (preview/continue cap). None = single-session story.")
 
 
 # === Layer 2: Mô phỏng tăng kịch tính ===

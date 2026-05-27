@@ -71,6 +71,8 @@ export interface PipelineDoneSummary {
     title?: string;
     genre?: string;
     synopsis?: string;
+    target_total_chapters?: number | null;
+    written_chapters?: number;
     characters?: Array<{ name?: string; personality?: string }>;
     chapters?: Array<{
       number?: number;
@@ -126,6 +128,13 @@ export function pipelineSummaryToStory(
   // ForgeCharacter (role + traits + backstory + …) required by `storySchema`.
   // Persist an empty character roster for v1; the user can flesh it out later
   // via the Characters page. Avoids forcing a fake `role` / zero-stat traits.
+  // Prefer explicit caller value; fall back to backend's draft.target_total_chapters.
+  const effectiveTarget =
+    targetChapters ??
+    (typeof draft?.target_total_chapters === "number" && draft.target_total_chapters > 0
+      ? draft.target_total_chapters
+      : null);
+
   return {
     id: summary.session_id
       ? `story-${summary.session_id}`
@@ -140,7 +149,7 @@ export function pipelineSummaryToStory(
     chapters,
     pendingChoices: null,
     language: "vi",
-    targetChapters,
+    targetChapters: effectiveTarget,
     createdAt: now,
     updatedAt: now,
   };

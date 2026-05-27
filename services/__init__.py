@@ -37,8 +37,8 @@ _alias("services.quality_gate", "services.pipeline.quality_gate")
 _alias("services.eval_pipeline", "services.pipeline.eval_pipeline")
 try:
     _alias("services.scoring_calibration_service", "services.pipeline.scoring_calibration_service")
-except ImportError:
-    pass  # requires tests.benchmarks on sys.path
+except Exception:
+    pass  # requires tests.benchmarks on sys.path; site-packages/tests shadow can raise AttributeError via cv2
 
 # security domain
 _alias("services.input_sanitizer", "services.security.input_sanitizer")

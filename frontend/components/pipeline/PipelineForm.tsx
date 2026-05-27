@@ -12,6 +12,7 @@ import * as React from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { ChevronRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -45,16 +46,22 @@ function Label({
   );
 }
 
-const schema = z.object({
-  idea: z.string().min(10, "Tối thiểu 10 ký tự"),
-  genre: z.string().min(1, "Chọn thể loại"),
-  style: z.string().min(1, "Chọn phong cách"),
-  language: z.string().min(2),
-  drama: z.number().min(1).max(10),
-  num_chapters: z.number().int().min(CHAPTER_MIN).max(CHAPTER_MAX),
-  enable_agents: z.boolean(),
-  enable_quality_gate: z.boolean(),
-});
+const schema = z
+  .object({
+    idea: z.string().min(10, "Tối thiểu 10 ký tự"),
+    genre: z.string().min(1, "Chọn thể loại"),
+    style: z.string().min(1, "Chọn phong cách"),
+    language: z.string().min(2),
+    drama: z.number().min(1).max(10),
+    num_chapters: z.number().int().min(CHAPTER_MIN).max(CHAPTER_MAX),
+    chapters_this_session: z.number().int().min(1).max(CHAPTER_MAX),
+    enable_agents: z.boolean(),
+    enable_quality_gate: z.boolean(),
+  })
+  .refine((v) => v.chapters_this_session <= v.num_chapters, {
+    message: "Số chương phiên này không thể lớn hơn tổng số chương",
+    path: ["chapters_this_session"],
+  });
 
 export type PipelineFormValues = z.infer<typeof schema>;
 
@@ -84,6 +91,7 @@ const DEFAULTS: PipelineFormValues = {
   language: "vi",
   drama: 7,
   num_chapters: getChapterDefault("Tiên Hiệp"),
+  chapters_this_session: Math.min(5, getChapterDefault("Tiên Hiệp")),
   enable_agents: true,
   enable_quality_gate: true,
 };
@@ -144,7 +152,8 @@ export function PipelineForm({
       style: values.style,
       language: values.language,
       idea: values.idea.trim(),
-      num_chapters: values.num_chapters,
+      num_chapters: values.chapters_this_session,
+      target_total_chapters: values.num_chapters,
       num_characters: 5,
       word_count: 2000,
       num_sim_rounds: 3,
@@ -174,13 +183,16 @@ export function PipelineForm({
   });
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form onSubmit={submit} className="space-y-7">
       <div className="space-y-2">
-        <Label htmlFor="idea">Ý tưởng truyện</Label>
+        <Label htmlFor="idea" className="text-base font-semibold">
+          Ý tưởng truyện
+        </Label>
         <Textarea
           id="idea"
-          rows={4}
+          rows={5}
           placeholder="Mô tả ý tưởng câu chuyện của bạn..."
+          className="min-h-[140px]"
           {...form.register("idea")}
           aria-invalid={!!form.formState.errors.idea}
         />
@@ -189,7 +201,7 @@ export function PipelineForm({
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="space-y-2">
           <Label>Thể loại</Label>
           <Controller
@@ -258,78 +270,113 @@ export function PipelineForm({
             )}
           />
         </div>
+      </div>
+
+      <div className="space-y-4 rounded-lg border border-border/40 bg-muted/20 p-4">
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Phạm vi chương</Label>
+          <div className="flex items-center gap-3">
+            <Input
+              id="chapters_this_session"
+              type="number"
+              min={1}
+              max={form.watch("num_chapters") || CHAPTER_MAX}
+              className="w-24 text-center"
+              {...form.register("chapters_this_session", { valueAsNumber: true })}
+              aria-invalid={!!form.formState.errors.chapters_this_session}
+              aria-label="Số chương phiên này"
+            />
+            <span className="text-2xl font-light text-muted-foreground" aria-hidden>
+              /
+            </span>
+            <Input
+              id="num_chapters"
+              type="number"
+              min={getChapterRange(watchedGenre).min}
+              max={getChapterRange(watchedGenre).max}
+              className="w-24 text-center"
+              {...form.register("num_chapters", { valueAsNumber: true })}
+              aria-label="Tổng số chương"
+            />
+            <span className="text-xs text-muted-foreground">chương</span>
+          </div>
+          {form.formState.errors.chapters_this_session ? (
+            <p className="text-xs text-destructive">
+              {form.formState.errors.chapters_this_session.message}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Viết {form.watch("chapters_this_session")} chương đầu trong tổng {form.watch("num_chapters")} ·
+              Gợi ý cho {watchedGenre}: {getChapterDefault(watchedGenre)} chương
+            </p>
+          )}
+        </div>
 
         <div className="space-y-2">
-          <Label htmlFor="num_chapters">
-            Tổng số chương
-            <span className="ml-1 text-xs font-normal text-muted-foreground">
-              (truyện sẽ kết thúc tại chương này)
+          <div className="flex items-center justify-between">
+            <Label htmlFor="pipeline-drama" className="text-sm font-medium">
+              Mức kịch tính
+            </Label>
+            <span className="text-xs text-muted-foreground">
+              {form.watch("drama")} / 10
             </span>
-          </Label>
-          <Input
-            id="num_chapters"
-            type="number"
-            min={getChapterRange(watchedGenre).min}
-            max={getChapterRange(watchedGenre).max}
-            {...form.register("num_chapters", { valueAsNumber: true })}
+          </div>
+          <Controller
+            control={form.control}
+            name="drama"
+            render={({ field }) => (
+              <Slider
+                id="pipeline-drama"
+                value={[field.value]}
+                min={1}
+                max={10}
+                step={1}
+                aria-label="Mức kịch tính (1-10)"
+                onValueChange={(v) =>
+                  field.onChange(Array.isArray(v) ? v[0] : v)
+                }
+              />
+            )}
           />
-          <p className="text-xs text-muted-foreground">
-            Gợi ý cho {watchedGenre}: {getChapterDefault(watchedGenre)} chương ·
-            Tối thiểu {CHAPTER_MIN}
-          </p>
         </div>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="pipeline-drama">Mức kịch tính</Label>
-          <span className="text-xs text-muted-foreground">
-            {form.watch("drama")} / 10
-          </span>
-        </div>
-        <Controller
-          control={form.control}
-          name="drama"
-          render={({ field }) => (
-            <Slider
-              id="pipeline-drama"
-              value={[field.value]}
-              min={1}
-              max={10}
-              step={1}
-              aria-label="Mức kịch tính (1-10)"
-              onValueChange={(v) =>
-                field.onChange(Array.isArray(v) ? v[0] : v)
-              }
+      <details className="group rounded-md border border-border/30 px-3 py-2">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground">
+          <ChevronRight className="size-3.5 transition-transform group-open:rotate-90" aria-hidden />
+          Tùy chọn nâng cao
+        </summary>
+        <div className="space-y-2 pt-3">
+          <label className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-card px-3 py-2 text-sm">
+            <span>Bật agent thảo luận</span>
+            <Controller
+              control={form.control}
+              name="enable_agents"
+              render={({ field }) => (
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              )}
             />
-          )}
-        />
-      </div>
+          </label>
+          <label className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-card px-3 py-2 text-sm">
+            <span>Quality gate</span>
+            <Controller
+              control={form.control}
+              name="enable_quality_gate"
+              render={({ field }) => (
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              )}
+            />
+          </label>
+        </div>
+      </details>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2.5 text-sm">
-          <span>Bật agent thảo luận</span>
-          <Controller
-            control={form.control}
-            name="enable_agents"
-            render={({ field }) => (
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
-            )}
-          />
-        </label>
-        <label className="flex items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2.5 text-sm">
-          <span>Quality gate</span>
-          <Controller
-            control={form.control}
-            name="enable_quality_gate"
-            render={({ field }) => (
-              <Switch checked={field.value} onCheckedChange={field.onChange} />
-            )}
-          />
-        </label>
-      </div>
-
-      <Button type="submit" disabled={pending} className="w-full sm:w-auto">
+      <Button
+        type="submit"
+        disabled={pending}
+        size="lg"
+        className="h-12 w-full gap-2 text-base font-semibold shadow-lg shadow-primary/20"
+      >
+        <Sparkles className="size-4" aria-hidden />
         {pending ? "Đang tạo..." : "Khởi động pipeline"}
       </Button>
     </form>

@@ -8,7 +8,7 @@ import queue as _queue
 import os
 import time
 import uuid
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -111,11 +111,22 @@ class PipelineRequest(BaseModel):
     genre: str = Field("Tiên Hiệp", max_length=100)
     style: str = Field("Miêu tả chi tiết", max_length=100)
     language: str = Field("vi", max_length=10)
-    num_chapters: int = Field(5, ge=1, le=50)
+    num_chapters: int = Field(5, ge=1, le=50, description="Chapters to write in this session (preview batch)")
+    target_total_chapters: Optional[int] = Field(default=None, ge=1, le=500, description="Total chapters in the full story arc; if set, num_chapters must be <= this")
     num_characters: int = Field(5, ge=1, le=30)
     word_count: int = Field(2000, ge=100, le=20000)
     num_sim_rounds: int = Field(3, ge=1, le=10)
     drama_level: str = Field("cao", max_length=50)
+
+    @field_validator("target_total_chapters")
+    @classmethod
+    def _validate_total_vs_session(cls, v, info):
+        if v is None:
+            return v
+        session = info.data.get("num_chapters")
+        if session is not None and v < session:
+            raise ValueError("target_total_chapters must be >= num_chapters (preview batch fits inside the story arc)")
+        return v
 
     @field_validator("drama_level")
     @classmethod
@@ -459,6 +470,7 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                     idea=idea,
                     style=body.style,
                     num_chapters=body.num_chapters,
+                    target_total_chapters=body.target_total_chapters,
                     num_characters=body.num_characters,
                     word_count=body.word_count,
                     num_sim_rounds=body.num_sim_rounds,
