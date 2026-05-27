@@ -66,6 +66,10 @@ export function applySseFrame(frame: SseFrame, handlers?: BridgeHandlers): void 
       return;
     }
     case "stream": {
+      // Feed partial chapter prose into the active author's bubble so the
+      // "Hội thoại tác giả" panel shows real generated text, not just status
+      // pings. Caller can still observe the raw frame via `onStream`.
+      theater.applyStream(frame.data);
       handlers?.onStream?.(frame.data);
       return;
     }

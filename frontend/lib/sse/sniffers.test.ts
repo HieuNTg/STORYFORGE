@@ -12,7 +12,9 @@ import {
   sniffAgentTurn,
   sniffAgentScore,
   sniffAgentsPhase,
+  sniffAuthorAction,
   sniffDebateMarker,
+  sniffL2Agent,
   sniffReaderTurn,
   sniffStateRegistryTick,
   sniffParallelBatch,
@@ -262,5 +264,99 @@ describe("sniffParallelBatch", () => {
     expect(
       sniffParallelBatch("[L1] [ASYNC] Đang viết 5 chương song song...")
     ).toEqual({ batchSize: 5 });
+  });
+});
+
+describe("sniffAuthorAction (Vietnamese mid-flight form)", () => {
+  it("parses '[L1] Đang viết chương N: title' into Nhà văn bubble", () => {
+    expect(sniffAuthorAction("[L1] Đang viết chương 3: Hồi Tâm")).toEqual({
+      name: "Nhà văn",
+      role: "Layer 1",
+      action: "Đang viết Chương 3: Hồi Tâm",
+    });
+  });
+
+  it("trims trailing ellipsis from the title", () => {
+    expect(sniffAuthorAction("[L1] Đang viết chương 12: Bước Ngoặt...")).toEqual({
+      name: "Nhà văn",
+      role: "Layer 1",
+      action: "Đang viết Chương 12: Bước Ngoặt",
+    });
+  });
+
+  it("is case-insensitive on the 'Chương' keyword", () => {
+    expect(sniffAuthorAction("[L1] Đang viết Chương 5: Đêm Trăng")).toEqual({
+      name: "Nhà văn",
+      role: "Layer 1",
+      action: "Đang viết Chương 5: Đêm Trăng",
+    });
+  });
+
+  it("does NOT false-match [QUALITY] lines wrapped with [L1] prefix", () => {
+    expect(sniffAuthorAction("[L1] [QUALITY] overall=0.8")).toBeNull();
+  });
+
+  it("matches ANY layer prefix via LAYER_PREFIX (sniffer is layer-agnostic)", () => {
+    // Grounded on sniffers.ts:15 — LAYER_PREFIX = /(?:\[L\d+\]\s+)?/ allows
+    // any [L\d+] wrapper, so an [L2]-prefixed Vietnamese write line still
+    // produces the Nhà văn bubble. This is intentional: orchestrator_layers
+    // wraps with whichever layer is active, and the bubble UI shows the role
+    // string from the parsed result. Caller should rely on detectPhaseFromLog
+    // (not this sniffer) for L1-vs-L2 routing.
+    expect(sniffAuthorAction("[L2] Đang viết chương 1: X")).toEqual({
+      name: "Nhà văn",
+      role: "Layer 1",
+      action: "Đang viết Chương 1: X",
+    });
+  });
+});
+
+describe("sniffL2Agent", () => {
+  it("parses canonical [L2] [Agent X/Y] form from simulator.py:623", () => {
+    expect(sniffL2Agent("[L2] [Agent 3/8] Sage: argue")).toEqual({
+      current: 3,
+      total: 8,
+    });
+  });
+
+  it("parses first-agent boundary [L2] [Agent 1/N]", () => {
+    expect(sniffL2Agent("[L2] [Agent 1/6] Cynic: skip")).toEqual({
+      current: 1,
+      total: 6,
+    });
+  });
+
+  it("parses last-agent boundary [L2] [Agent N/N]", () => {
+    expect(sniffL2Agent("[L2] [Agent 8/8] Devil Advocate: raise objection")).toEqual({
+      current: 8,
+      total: 8,
+    });
+  });
+
+  it("returns null for bare [Agent X/Y] without [L2] prefix (avoids phase pollution from [AGENTS] panel)", () => {
+    // sniffAgentTurn still parses this for the agent bubble — but phase-2
+    // progress must be driven only by L2-prefixed lines so the L1 agent
+    // review panel (which also emits [Agent X/Y]) does not advance phase 2.
+    expect(sniffL2Agent("[Agent 3/6] Sage: argue")).toBeNull();
+  });
+
+  it("returns null for [L1]-prefixed agent lines", () => {
+    expect(sniffL2Agent("[L1] [Agent 2/4] Sage: argue")).toBeNull();
+  });
+
+  it("returns null for [L2] [AGENTS] phase markers", () => {
+    expect(sniffL2Agent("[L2] [AGENTS] Layer 2 được duyệt!")).toBeNull();
+  });
+
+  it("returns null for arbitrary [L2] log lines", () => {
+    expect(sniffL2Agent("[L2] Đang phân tích cấu trúc truyện...")).toBeNull();
+  });
+
+  it("returns null for empty string", () => {
+    expect(sniffL2Agent("")).toBeNull();
+  });
+
+  it("returns null when total is zero (defensive against malformed log)", () => {
+    expect(sniffL2Agent("[L2] [Agent 0/0] x: y")).toBeNull();
   });
 });

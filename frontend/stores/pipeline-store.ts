@@ -119,13 +119,28 @@ export const usePipelineStore = create<PipelineState>((set) => ({
   },
 }));
 
-/** Map free-form log phrasing → phase index. Mirrors `_detectLayer` from web/js/stores/pipeline.ts. */
+/** Map free-form log phrasing → phase index. Mirrors `_detectLayer` from web/js/stores/pipeline.ts.
+ *
+ * Outline vs Layer-1 disambiguation: orchestrator_layers wraps every L1
+ * substep with `[L1] `, including the outline-building stage which has no
+ * chapter number yet. We treat `[L1]` lines as phase 0 (outline) UNTIL we see
+ * an explicit chapter token like "Chương 3" — that's our signal the
+ * chapter-writing substep has begun and the stepper can advance to phase 1.
+ */
 export function detectPhaseFromLog(msg: string, fallback: number): number {
   const up = msg.toUpperCase();
+  if (up.includes("[OUTLINE]")) return 0;
   if (up.startsWith("[L2]")) return 2;
-  if (up.startsWith("[L1]")) return 1;
+  if (up.startsWith("[L1]") || up.startsWith("[L1-")) {
+    if (/CHƯƠNG\s+\d+|CHAPTER\s+\d+/.test(up)) return 1;
+    // No chapter token yet → still in the outline substep of L1.
+    return Math.max(fallback, 0);
+  }
   if (up.includes("MEDIA") || up.includes("IMAGE")) return 3;
   if (up.includes("LAYER 2") || up.includes("MÔ PHỎNG") || up.includes("ENHANCE")) return 2;
-  if (up.includes("LAYER 1") || up.includes("TẠO TRUYỆN") || up.includes("CHƯƠNG")) return 1;
+  if (/CHƯƠNG\s+\d+|CHAPTER\s+\d+/.test(up)) return 1;
+  if (up.includes("LAYER 1") || up.includes("TẠO TRUYỆN")) {
+    return Math.max(fallback, 0);
+  }
   return fallback;
 }
