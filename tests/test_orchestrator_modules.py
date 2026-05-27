@@ -83,10 +83,14 @@ class TestMediaProducerRun(unittest.TestCase):
         cfg.pipeline.enable_character_consistency = False
         return cfg
 
-    @patch("pipeline.orchestrator_media.SeedreamClient")
-    def test_run_returns_dict_structure(self, MockSeed):
+    @patch("pipeline.orchestrator_media.find_existing_avatar", return_value=None)
+    @patch("pipeline.orchestrator_media.ImageProvider")
+    def test_run_returns_dict_structure(self, MockIP, _mock_avatar):
         from pipeline.orchestrator_media import MediaProducer
-        MockSeed.return_value.is_configured.return_value = False
+        # MediaProducer now consumes ImageProvider (which wraps seedream + other
+        # providers) instead of instantiating SeedreamClient directly. Patch the
+        # provider façade so .is_configured() drives whether we even try to gen.
+        MockIP.return_value.is_configured.return_value = False
 
         config = self._make_config()
         producer = MediaProducer(config)
@@ -97,12 +101,13 @@ class TestMediaProducerRun(unittest.TestCase):
         self.assertIn("character_refs", result)
         self.assertIn("scene_images", result)
 
-    @patch("pipeline.orchestrator_media.SeedreamClient")
-    def test_run_with_seedream_generates_char_refs(self, MockSeed):
+    @patch("pipeline.orchestrator_media.find_existing_avatar", return_value=None)
+    @patch("pipeline.orchestrator_media.ImageProvider")
+    def test_run_with_seedream_generates_char_refs(self, MockIP, _mock_avatar):
         from pipeline.orchestrator_media import MediaProducer
-        seedream = MockSeed.return_value
-        seedream.is_configured.return_value = True
-        seedream.generate_character_reference.return_value = "ref/alice.png"
+        provider = MockIP.return_value
+        provider.is_configured.return_value = True
+        provider.generate_character_reference.return_value = "ref/alice.png"
 
         config = self._make_config(seedream_key="key123")
         producer = MediaProducer(config)
@@ -458,7 +463,11 @@ class TestStoryContinuationEnhanceChapters(unittest.TestCase):
         self.assertEqual(result, enhanced)
         cm.save.assert_called_with(2)
 
-    def test_enhance_exception_returns_none(self):
+    def test_enhance_exception_propagates(self):
+        # enhance_chapters now re-raises on analyzer failure (commit ca34843
+        # surfaced silent failures during audit remediation) instead of
+        # swallowing them and returning None. Assert the surfacing contract
+        # — silent None on internal failure was the bug being fixed.
         from pipeline.orchestrator_continuation import StoryContinuation
         po = MagicMock()
         po.story_draft = _make_story_draft()
@@ -466,8 +475,9 @@ class TestStoryContinuationEnhanceChapters(unittest.TestCase):
         analyzer.analyze.side_effect = Exception("analyze fail")
         cm = MagicMock()
         sc = StoryContinuation(po, MagicMock(), analyzer, MagicMock(), MagicMock(), cm)
-        result = sc.enhance_chapters()
-        self.assertIsNone(result)
+        with self.assertRaises(Exception):
+            sc.enhance_chapters()
+        self.assertEqual(po.status, "error")
 
     def test_enhance_calls_progress_callback(self):
         from pipeline.orchestrator_continuation import StoryContinuation

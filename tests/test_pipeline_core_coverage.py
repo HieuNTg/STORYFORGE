@@ -939,7 +939,10 @@ class TestOrchestratorLayerFunctions:
 
         result = run_layer2_only(orch, draft)
         assert result is enhanced
-        orch.analyzer.analyze.assert_called_once_with(draft)
+        # analyze() now takes (draft, conflict_web) — the second positional
+        # is the upstream conflict graph (None when no enable_conflict_web).
+        orch.analyzer.analyze.assert_called_once()
+        assert orch.analyzer.analyze.call_args.args[0] is draft
         orch.simulator.run_simulation.assert_called_once()
         orch.enhancer.enhance_with_feedback.assert_called_once()
 
