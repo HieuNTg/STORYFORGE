@@ -462,6 +462,10 @@ async def run_full_pipeline(
             enable_agents = False
 
     # ── Layer 1: Story generation ────────────────────────────────────────────
+    # `[OUTLINE]` marker lights up phase 0 on the FE stepper before any
+    # chapter writing begins — without it the stepper stays inert through
+    # the entire outline-building substep.
+    _log("[OUTLINE] Đang dựng outline truyện (nhân vật · bối cảnh · macro arc)…")
     _log("══════ LAYER 1: TẠO TRUYỆN ══════")
     with self._lock:
         self.output.current_layer = 1
@@ -595,6 +599,15 @@ async def run_full_pipeline(
                     logger.warning(f"Plugin apply_score Layer 1 failed: {_e}")
                 self.output.quality_scores.append(l1_score)
                 tracker.scoring_done(1, l1_score.overall)
+                # Mid-flight quality marker — FE sniffQualityScore parses this
+                # to drive the QualityGauge tween before L2 even starts.
+                _log(
+                    f"[QUALITY] L1 overall={l1_score.overall:.2f} "
+                    f"coherence={l1_score.avg_coherence:.2f} "
+                    f"character={l1_score.avg_character:.2f} "
+                    f"drama={l1_score.avg_drama:.2f} "
+                    f"writing={l1_score.avg_writing:.2f}"
+                )
                 _log(f"[METRICS] Layer 1: {l1_score.overall:.1f}/5 | "
                      f"Chương yếu nhất: {l1_score.weakest_chapter}")
             except Exception as e:
@@ -1025,6 +1038,15 @@ async def run_full_pipeline(
                     logger.warning(f"Plugin apply_score Layer 2 failed: {_e}")
                 self.output.quality_scores.append(l2_score)
                 tracker.scoring_done(2, l2_score.overall)
+                # Mid-flight quality marker — FE sniffQualityScore lights up
+                # the L2 layer entry on the QualityGauge.
+                _log(
+                    f"[QUALITY] L2 overall={l2_score.overall:.2f} "
+                    f"coherence={l2_score.avg_coherence:.2f} "
+                    f"character={l2_score.avg_character:.2f} "
+                    f"drama={l2_score.avg_drama:.2f} "
+                    f"writing={l2_score.avg_writing:.2f}"
+                )
                 delta = ""
                 if len(self.output.quality_scores) >= 2:
                     diff = l2_score.overall - self.output.quality_scores[0].overall

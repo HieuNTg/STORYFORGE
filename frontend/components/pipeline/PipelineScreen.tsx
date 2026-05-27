@@ -15,6 +15,11 @@ import * as React from "react";
 import { useQueryState } from "nuqs";
 import { toast } from "sonner";
 import { useShallow } from "zustand/react/shallow";
+import {
+  loadStartedAt,
+  saveStartedAt,
+  clearStartedAt,
+} from "@/lib/sse/startedAtStore";
 import { Card, CardContent } from "@/components/ui/card";
 import { PipelineForm } from "./PipelineForm";
 import { TheaterPanel } from "./TheaterPanel";
@@ -61,20 +66,27 @@ export function PipelineScreen({
     null
   );
   const [resultStory, setResultStory] = React.useState<ResultStory | undefined>();
+  const [startedAt, setStartedAt] = React.useState<number | null>(null);
+  const [requestedChapters, setRequestedChapters] = React.useState<number | null>(
+    null
+  );
 
   const phases = usePipelineStore((s) => s.phases);
   const currentPhase = usePipelineStore((s) => s.currentPhase);
   const status = usePipelineStore((s) => s.status);
   const sessionId = usePipelineStore((s) => s.sessionId);
 
-  const { agents, quality, characters, debateMarker } = useTheaterStore(
-    useShallow((s) => ({
-      agents: s.agents,
-      quality: s.quality,
-      characters: s.characters,
-      debateMarker: s.debateMarker,
-    }))
-  );
+  const { agents, quality, characters, debateMarker, partialChapters, phaseStats } =
+    useTheaterStore(
+      useShallow((s) => ({
+        agents: s.agents,
+        quality: s.quality,
+        characters: s.characters,
+        debateMarker: s.debateMarker,
+        partialChapters: s.partialChapters,
+        phaseStats: s.phaseStats,
+      })),
+    );
 
   // Keep nuqs `?session=` in sync with the store's session id.
   React.useEffect(() => {
@@ -82,6 +94,54 @@ export function PipelineScreen({
       void setSessionQuery(sessionId);
     }
   }, [sessionId, sessionQuery, setSessionQuery]);
+
+  // ── startedAt persistence (resume the timer across reloads) ───────────────
+  // Lifecycle:
+  //   1. Fresh submit → onSubmit sets startedAt = Date.now(). The effect below
+  //      then persists it once the SSE session id is known.
+  //   2. Reload mid-run → sessionQuery is still in the URL, sessionId hydrates
+  //      from it via the bridge, and the mount effect rehydrates startedAt
+  //      from sessionStorage so the timer keeps counting from the original
+  //      start instant rather than from 0.
+  //   3. done/error/interrupted → clear the persisted entry so the next run
+  //      doesn't accidentally inherit a stale baseline.
+
+  // Hydrate on mount: if a session is already in the URL but we don't have a
+  // startedAt in component state, try sessionStorage. Uses ref to ensure this
+  // only runs once per mount (avoids racing with the save effect below).
+  const hydratedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (hydratedRef.current) return;
+    if (startedAt != null) {
+      hydratedRef.current = true;
+      return;
+    }
+    const sid = sessionId ?? sessionQuery;
+    if (!sid) return;
+    const persisted = loadStartedAt(sid);
+    if (persisted != null) {
+      setStartedAt(persisted);
+    }
+    hydratedRef.current = true;
+  }, [sessionId, sessionQuery, startedAt]);
+
+  // Persist startedAt once we know the session id (sessionId is set by the
+  // bridge from the SSE `session` frame, which arrives shortly after submit).
+  React.useEffect(() => {
+    if (sessionId && startedAt != null) {
+      saveStartedAt(sessionId, startedAt);
+    }
+  }, [sessionId, startedAt]);
+
+  // Clear persistence + local timer when the run reaches a terminal state.
+  React.useEffect(() => {
+    if (status === "done" || status === "error" || status === "interrupted") {
+      clearStartedAt(sessionId);
+      // Keep `startedAt` non-null so the TheaterPanel can show the final
+      // elapsed time; the persisted entry is what we must drop so a future
+      // fresh run on the same tab doesn't inherit a stale baseline.
+    }
+  }, [status, sessionId]);
 
   const handleMessage = React.useCallback(
     (event: { data: string }) => {
@@ -119,21 +179,36 @@ export function PipelineScreen({
       usePipelineStore.getState().start(null);
       useTheaterStore.getState().reset();
       setResultStory(undefined);
+      setStartedAt(Date.now());
+      const reqChapters =
+        typeof (req as { num_chapters?: number }).num_chapters === "number"
+          ? (req as { num_chapters?: number }).num_chapters!
+          : null;
+      setRequestedChapters(reqChapters);
       setPendingBody(req);
       externalOnSubmit?.(req);
     },
     [externalOnSubmit],
   );
 
+  const handleCancel = React.useCallback(() => {
+    stream.abort();
+    setPendingBody(null);
+    usePipelineStore.getState().setStatus("interrupted");
+    toast.warning("Đã huỷ phiên sinh truyện");
+  }, [stream]);
+
   const pending = status === "running" || stream.readyState === "connecting";
 
-  // Map theater agents → AgentBubble props.
+  // Map theater agents → AgentBubble props, forwarding partial buffer + role.
   const agentBubbleProps: AgentBubbleProps[] = React.useMemo(
     () =>
       agents.map((a) => ({
         name: a.name,
+        role: a.role,
         status: a.status,
         message: a.message,
+        partial: a.partial,
         turn: a.turn,
       })),
     [agents]
@@ -143,6 +218,39 @@ export function PipelineScreen({
   const characterList = React.useMemo(
     () => characters.map((c) => ({ id: c.id, name: c.name })),
     [characters]
+  );
+
+  // Inject the requested chapter count into phaseStats[1].total so the
+  // Layer 1 progress bar renders a meaningful percentage.
+  const phaseSubInfo = React.useMemo(() => {
+    if (!requestedChapters) return phaseStats;
+    const prev1 = phaseStats[1];
+    return {
+      ...phaseStats,
+      1: {
+        ...prev1,
+        total: prev1?.total ?? requestedChapters,
+      },
+    };
+  }, [phaseStats, requestedChapters]);
+
+  // ETA heuristic: ~22s per chapter for L1, plus a flat 90s envelope for L2
+  // post-processing. Refined later from real telemetry.
+  const etaSeconds = React.useMemo(() => {
+    if (!requestedChapters || requestedChapters <= 0) return undefined;
+    return Math.max(60, requestedChapters * 22 + 90);
+  }, [requestedChapters]);
+
+  // Convert theater partialChapters → ResultPanel partial-chapter shape.
+  const resultPartials = React.useMemo(
+    () =>
+      partialChapters.map((c) => ({
+        id: c.id,
+        number: c.number,
+        title: c.title,
+        appendedAt: c.appendedAt,
+      })),
+    [partialChapters]
   );
 
   return (
@@ -158,13 +266,22 @@ export function PipelineScreen({
         <TheaterPanel
           phases={phases}
           currentPhase={currentPhase}
+          phaseSubInfo={phaseSubInfo}
           agents={agentBubbleProps}
           quality={qualityPct}
+          qualityLayer={quality.layer}
+          qualityUpdatedAt={quality.updatedAt}
           characters={characterList}
           debateMarker={debateMarker ?? undefined}
+          startedAt={startedAt ?? undefined}
+          etaSeconds={etaSeconds}
+          running={pending}
+          onCancel={pending ? handleCancel : undefined}
         />
         <ResultPanel
           story={resultStory}
+          partialChapters={!resultStory ? resultPartials : undefined}
+          totalChapters={requestedChapters ?? undefined}
           headerAction={resultStory ? resultAction : undefined}
         />
       </div>
