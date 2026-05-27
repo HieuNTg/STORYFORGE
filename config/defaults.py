@@ -137,6 +137,8 @@ class PipelineConfig:
     flowkit_callback_hmac_required: bool = False  # verify X-Callback-Secret on /api/ext/callback
     flowkit_use_refiner: bool = True
     flowkit_request_timeout: float = 180.0  # seconds; sync-bridge wait when ImageGenerator dispatches to FlowService loop
+    flowkit_aspect_ratio: str = ""  # SPIKE: "" | "1:1" | "9:16" | "16:9" | "3:4" | "4:3" — empty skips injection
+    flowkit_aspect_ratio_format: str = "simple"  # SPIKE: "simple" ("9:16") | "enum" ("IMAGE_ASPECT_RATIO_PORTRAIT") | "nested" (imageModelSettings.aspectRatio)
 
     # Self-review (CoT quality check)
     enable_self_review: bool = True  # CoT self-review for quality

@@ -62,6 +62,23 @@ CREATE INDEX IF NOT EXISTS idx_flow_jobs_status ON flow_jobs(status);
 """
 
 
+# SPIKE: aspect ratio enum mapping for Google Labs Flow.
+# Imagen public docs use simple strings ("9:16"). Internal Proto APIs often use
+# verbose enums. We don't know which `flow:batchGenerateImages` accepts yet —
+# CEO will run 3 test scenarios to find the working format.
+_ASPECT_ENUM_MAP = {
+    "1:1": "IMAGE_ASPECT_RATIO_SQUARE",
+    "9:16": "IMAGE_ASPECT_RATIO_PORTRAIT",
+    "16:9": "IMAGE_ASPECT_RATIO_LANDSCAPE",
+    "3:4": "IMAGE_ASPECT_RATIO_PORTRAIT_3_4",
+    "4:3": "IMAGE_ASPECT_RATIO_LANDSCAPE_4_3",
+}
+
+
+def _aspect_to_enum(aspect: str) -> str:
+    return _ASPECT_ENUM_MAP.get(aspect.strip(), aspect.strip())
+
+
 @dataclass
 class _RampState:
     current: int = 1
@@ -285,23 +302,43 @@ class FlowService:
             input_type = "IMAGE_INPUT_TYPE_STYLE" if cfg.flowkit_image_input_type_split else "IMAGE_INPUT_TYPE_REFERENCE"
             media_inputs.append({"mediaId": media_id, "inputType": input_type})
 
+        body: Dict[str, Any] = {
+            "prompt": prompt,
+            "imageModel": "GEM_PIX_2",
+            "imageInputs": media_inputs,
+            "useRefiner": cfg.flowkit_use_refiner,
+        }
+        # SPIKE: conditional aspect ratio injection. Field name/format is unconfirmed
+        # for `flow:batchGenerateImages` — try formats via `flowkit_aspect_ratio_format`.
+        # Empty `flowkit_aspect_ratio` skips injection entirely (preserves legacy behavior).
+        aspect = (cfg.flowkit_aspect_ratio or "").strip()
+        if aspect:
+            fmt = (cfg.flowkit_aspect_ratio_format or "simple").strip().lower()
+            if fmt == "enum":
+                body["aspectRatio"] = _aspect_to_enum(aspect)
+            elif fmt == "nested":
+                body["imageModelSettings"] = {"aspectRatio": aspect}
+            else:  # simple (default guess)
+                body["aspectRatio"] = aspect
+            logger.info("FlowKit aspect injection: format=%s value=%s", fmt, body.get("aspectRatio") or body.get("imageModelSettings"))
+
+        logger.info("FlowKit batchGenerateImages REQUEST body keys=%s aspect=%s", list(body.keys()), aspect or "(none)")
         result = await self._send(
             "batchGenerateImages",
             {
                 "url": "https://aisandbox-pa.googleapis.com/v1/flow:batchGenerateImages",
                 "method": "POST",
-                "body": {
-                    "prompt": prompt,
-                    "imageModel": "GEM_PIX_2",
-                    "imageInputs": media_inputs,
-                    "useRefiner": cfg.flowkit_use_refiner,
-                },
+                "body": body,
                 "captchaAction": "image_generation",
             },
         )
+        logger.info("FlowKit batchGenerateImages RESPONSE type=%s keys=%s", type(result).__name__, list(result.keys()) if isinstance(result, dict) else "(non-dict)")
+        if isinstance(result, dict) and ("error" in result or "code" in result):
+            logger.warning("FlowKit RESPONSE may contain error payload: %s", str(result)[:800])
 
         fife_url = self._extract_fife_url(result)
         if not fife_url:
+            logger.error("FlowKit batchGenerateImages full response (no fifeUrl): %s", str(result)[:2000])
             raise RuntimeError("FlowKit batchGenerateImages returned no fifeUrl")
 
         os.makedirs(output_dir, exist_ok=True)
