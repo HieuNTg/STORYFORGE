@@ -362,7 +362,7 @@ class PipelineConfig:
     enable_arc_milestones: bool = False  # Opt-in — generates + tracks arc-level beats
 
     # L3 Sensory Polish (P-A) — optional post-L2 prose enhancement
-    enable_sensory_polish: bool = False  # Opt-in — adds sensory details to prose
+    enable_sensory_polish: bool = True  # On by default — adds sensory details to prose (L3)
     sensory_polish_model: str = ""  # Empty = use primary model
 
     # Reader Simulator (P-B) — simulates reader experience for quality feedback

@@ -1304,6 +1304,34 @@ async def run_full_pipeline(
         self.output.status = "error"
         return self.output
 
+    # ── Layer 3: Sensory Polish (optional post-L2 prose enhancement) ─────────
+    # Runs after L2 enhancement is finalized (contract reconcile + voice
+    # validation done) and before media. A polish failure is non-fatal: we log
+    # and keep the un-polished enhanced story. `draft` supplies original_idea so
+    # polish doesn't drift proper nouns / gimmicks back to genre default.
+    if getattr(self.config.pipeline, "enable_sensory_polish", False):
+        _log("══════ LAYER 3: ĐÁNH BÓNG GIÁC QUAN ══════")
+        with self._lock:
+            self.output.current_layer = 3
+        set_module("layer3")
+        trace.layer = 3
+        try:
+            from pipeline.layer2_enhance.sensory_polish import apply_sensory_polish
+            _log("[L3] Đang bổ sung chi tiết giác quan cho văn bản...")
+            enhanced = await asyncio.to_thread(
+                apply_sensory_polish,
+                enhanced, True,
+                lambda m: _log(f"[L3] {m}"),
+                draft,
+            )
+            with self._lock:
+                self.output.enhanced_story = enhanced
+            await asyncio.to_thread(self.checkpoint.save, 2)
+            _log("[L3] Đánh bóng giác quan hoàn tất")
+        except Exception as _sp_e:
+            logger.warning(f"Sensory polish (L3) failed (non-fatal): {_sp_e}")
+            _log(f"[L3] Đánh bóng giác quan lỗi ({_sp_e}), tiếp tục với bản L2.")
+
     with self._lock:
         self.output.progress = 1.0
         if self.output.status != "partial":

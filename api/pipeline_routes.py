@@ -452,7 +452,7 @@ class PipelineRequest(BaseModel):
     enable_smart_revision: bool = True
     smart_revision_threshold: float = Field(3.5, ge=1.0, le=5.0)
     # P-A/B/C: Post-enhancement features
-    enable_sensory_polish: bool = False  # L3 sensory details
+    enable_sensory_polish: bool = True  # L3 sensory details — on by default
     enable_reader_simulation: bool = False  # Reader feedback
     enable_incremental_publish: bool = False  # Stream chapters as enhanced
 
