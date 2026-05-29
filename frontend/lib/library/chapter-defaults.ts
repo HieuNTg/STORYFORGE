@@ -55,3 +55,15 @@ export function clampChapterCount(value: number, genre: string | undefined): num
   if (!Number.isFinite(value)) return getChapterDefault(genre);
   return Math.max(min, Math.min(max, Math.round(value)));
 }
+
+/**
+ * Keep "chương phiên này" within the story's total target. When the user lowers
+ * `total` below the current per-session count, the session count must follow it
+ * down (you can't write more chapters this session than the whole story plans).
+ * A non-finite `total` (e.g. an in-progress empty input) leaves `session` alone.
+ */
+export function clampSessionToTotal(session: number, total: number): number {
+  if (!Number.isFinite(total) || total < 1) return session;
+  if (!Number.isFinite(session)) return session;
+  return Math.min(session, total);
+}

@@ -3,10 +3,10 @@
 /**
  * usePostStream — POST-body SSE hook backed by `@microsoft/fetch-event-source`.
  *
- * Why not `useEventSource`? The backend SSE entry points (`POST /api/pipeline/run`,
- * `/pipeline/continue`, …) require a JSON body, which native `EventSource` does
- * not support (R1.1 mitigation in phase-01 spec). `fetch-event-source` is the
- * canonical drop-in.
+ * Why not native `EventSource`? The backend SSE entry points
+ * (`POST /api/pipeline/run`, `/pipeline/continue`, …) require a JSON body, which
+ * native `EventSource` does not support (R1.1 mitigation in phase-01 spec).
+ * `fetch-event-source` is the canonical drop-in.
  *
  * Cleanup: aborts the in-flight stream on unmount or when `body` reference
  * changes. Callers should memoise `body` to avoid reconnect churn.

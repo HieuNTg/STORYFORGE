@@ -111,6 +111,24 @@ class _OrchestratorView:
 # Backward-compatible alias used by api/export_routes.py
 _orchestrators = _OrchestratorView()
 
+
+async def _try_reserve_session(session_id: str, orch: "PipelineOrchestrator", client_ip: str) -> bool:
+    """Atomically enforce the per-IP session cap and reserve a slot.
+
+    The count and the insert MUST happen under a single lock acquire. The old
+    code counted under the lock, released it, built the orchestrator, then
+    re-acquired to insert — a TOCTOU window in which N concurrent same-IP
+    requests each saw a count below the cap and then all inserted, blowing past
+    ``_MAX_SESSIONS_PER_IP``. Returns True if a slot was reserved, False if the
+    caller is already at the cap (no await/yield inside the critical section).
+    """
+    async with _orchestrators_lock:
+        ip_count = sum(1 for (_, _, ip) in _sessions.values() if ip == client_ip)
+        if ip_count >= _MAX_SESSIONS_PER_IP:
+            return False
+        _sessions[session_id] = (orch, time.time(), client_ip)
+        return True
+
 # Active pipeline tasks — tracked for graceful shutdown.
 _active_tasks: set[asyncio.Task] = set()
 
@@ -628,16 +646,13 @@ async def run_pipeline(request: Request, body: PipelineRequest):
     client_ip = request.client.host if request.client else "unknown"
 
     async def event_generator():
-        async with _orchestrators_lock:
-            ip_count = sum(1 for (_, _, ip) in _sessions.values() if ip == client_ip)
-            if ip_count >= _MAX_SESSIONS_PER_IP:
-                yield f"data: {json.dumps({'type': 'error', 'data': f'Too many concurrent sessions (max {_MAX_SESSIONS_PER_IP}). Please wait for current stories to finish.'})}\n\n"
-                return
-
         orch = PipelineOrchestrator()
         session_id = str(uuid.uuid4())
-        async with _orchestrators_lock:
-            _sessions[session_id] = (orch, time.time(), client_ip)
+        # Atomic count+reserve under one lock (TOCTOU fix) — see
+        # _try_reserve_session.
+        if not await _try_reserve_session(session_id, orch, client_ip):
+            yield f"data: {json.dumps({'type': 'error', 'data': f'Too many concurrent sessions (max {_MAX_SESSIONS_PER_IP}). Please wait for current stories to finish.'})}\n\n"
+            return
 
         # Register a long-lived job record so the pipeline survives if the
         # client disconnects. The job carries the progress_queue, logs and
@@ -987,16 +1002,13 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
     client_ip = request.client.host if request.client else "unknown"
 
     async def event_generator():
-        async with _orchestrators_lock:
-            ip_count = sum(1 for (_, _, ip) in _sessions.values() if ip == client_ip)
-            if ip_count >= _MAX_SESSIONS_PER_IP:
-                yield f"data: {json.dumps({'type': 'error', 'data': f'Too many concurrent sessions (max {_MAX_SESSIONS_PER_IP}). Please wait for current stories to finish.'})}\n\n"
-                return
-
         orch = PipelineOrchestrator()
         session_id = str(uuid.uuid4())
-        async with _orchestrators_lock:
-            _sessions[session_id] = (orch, time.time(), client_ip)
+        # Atomic count+reserve under one lock (TOCTOU fix) — see
+        # _try_reserve_session.
+        if not await _try_reserve_session(session_id, orch, client_ip):
+            yield f"data: {json.dumps({'type': 'error', 'data': f'Too many concurrent sessions (max {_MAX_SESSIONS_PER_IP}). Please wait for current stories to finish.'})}\n\n"
+            return
 
         # Register a long-lived job so the resume keeps running even if the
         # SSE client drops. FE recovers via GET /api/pipeline/run/{session_id}.

@@ -357,17 +357,11 @@ interface DoneInner {
   };
 }
 
-interface DoneShape extends DoneInner {
-  data?: DoneInner;
-}
-
 function buildResultStoryFromDone(payload: unknown): ResultStory | null {
   if (!payload || typeof payload !== "object") return null;
-  const p = payload as DoneShape;
-  // Backend sometimes wraps result in `{type:'done', data: {...}}`. We've
-  // already unwrapped the outer envelope in the bridge; payload here may be
-  // the inner result *or* the wrapper. Be defensive.
-  const inner: DoneInner = p.data ?? p;
+  // The bridge unwraps the done envelope exactly once and hands us the
+  // canonical inner summary, so no `p.data ?? p` dance is needed here.
+  const inner = payload as DoneInner;
   const chapters = inner.draft?.chapters ?? [];
   if (chapters.length === 0) return null;
   return {

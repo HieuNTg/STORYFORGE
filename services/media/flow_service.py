@@ -171,9 +171,15 @@ class FlowService:
         self._db_initialized = True
 
     def _init_db_sync(self) -> None:
+        # `timeout=30.0` already installs a 30s busy handler (sqlite3 maps it to
+        # sqlite3_busy_timeout) on EVERY connection we open — init and per-op
+        # alike. A `PRAGMA busy_timeout` is per-connection and would not persist
+        # to the later per-op connections anyway, so a separate (and smaller,
+        # 5000ms) PRAGMA here was both inconsistent and misleading; rely on the
+        # connect timeout uniformly. journal_mode=WAL, by contrast, IS persisted
+        # to the database file, so it correctly stays here.
         with sqlite3.connect(_DB_PATH, timeout=30.0) as conn:
             conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA busy_timeout=5000")
             conn.executescript(_SCHEMA)
             conn.commit()
 
