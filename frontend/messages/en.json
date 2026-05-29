@@ -263,6 +263,11 @@
     "regenerating_avatar": "Regenerating…",
     "regenerate_success": "Avatar regenerated",
     "regenerate_failed": "Avatar regeneration failed",
+    "generate_all_avatars": "Generate all",
+    "generating_all_avatars": "Generating… {done}/{total}",
+    "generate_all_success": "Generated portraits for {count} characters",
+    "generate_all_partial": "Generated {done}/{total} — the rest will appear shortly",
+    "generate_all_failed": "Bulk avatar generation failed",
     "delete_character": "Delete character",
     "delete_confirm_title": "Delete this character?",
     "delete_confirm_body": "This removes \"{name}\" from the story. Existing chapters are not affected.",
@@ -614,7 +619,8 @@
     "bookmark_check": "Unbookmark",
     "illustration_loading": "Illustrating…",
     "illustration_empty": "No illustration yet",
-    "illustration_regenerate": "Regenerate illustration"
+    "illustration_regenerate": "Regenerate illustration",
+    "illustration_panels": "{count} panels"
   },
   "branching": {
     "title": "Story Branching",

@@ -263,6 +263,11 @@
     "regenerating_avatar": "Đang tạo ảnh…",
     "regenerate_success": "Đã tạo lại ảnh đại diện",
     "regenerate_failed": "Tạo lại ảnh thất bại",
+    "generate_all_avatars": "Tạo ảnh tất cả",
+    "generating_all_avatars": "Đang tạo ảnh… {done}/{total}",
+    "generate_all_success": "Đã tạo ảnh cho {count} nhân vật",
+    "generate_all_partial": "Đã tạo {done}/{total} ảnh — số còn lại sẽ xuất hiện sau",
+    "generate_all_failed": "Tạo ảnh hàng loạt thất bại",
     "delete_character": "Xoá nhân vật",
     "delete_confirm_title": "Xoá nhân vật này?",
     "delete_confirm_body": "Hành động này sẽ xoá hồ sơ \"{name}\" khỏi truyện. Các chương đã viết không bị ảnh hưởng.",
@@ -614,7 +619,8 @@
     "bookmark_check": "Bỏ đánh dấu",
     "illustration_loading": "Đang minh hoạ…",
     "illustration_empty": "Chưa có minh hoạ",
-    "illustration_regenerate": "Tạo lại minh hoạ"
+    "illustration_regenerate": "Tạo lại minh hoạ",
+    "illustration_panels": "{count} khung tranh"
   },
   "branching": {
     "title": "Nhánh truyện",

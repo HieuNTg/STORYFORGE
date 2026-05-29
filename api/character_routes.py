@@ -344,6 +344,18 @@ class AvatarRegenerateResponse(BaseModel):
     avatar_url: str | None = None
 
 
+class AvatarBulkGenerateRequest(BaseModel):
+    characters: list[ForgeCharacter] = Field(default_factory=list, max_length=64)
+    story_id: str | None = Field(default=None, max_length=200)
+    genre: str | None = Field(default=None, max_length=64)
+
+
+class AvatarBulkGenerateResponse(BaseModel):
+    # How many portraits were queued. The client polls /avatars/lookup to learn
+    # when each file actually lands; this is just an accept-acknowledgement.
+    accepted: int = 0
+
+
 @router.post("/avatars/lookup", response_model=AvatarLookupResponse)
 async def lookup_character_avatars(req: AvatarLookupRequest) -> AvatarLookupResponse:
     """Map character names to existing on-disk avatar URLs for a story.
@@ -399,6 +411,36 @@ async def regenerate_character_avatar_route(
     # cache-buster (generate_character_avatar returns the bare path).
     url = avatar_url_for(req.character.name, req.story_id) or generated
     return AvatarRegenerateResponse(name=req.character.name, avatar_url=url)
+
+
+@router.post(
+    "/avatars/generate",
+    response_model=AvatarBulkGenerateResponse,
+    dependencies=[Depends(_rate_limit_dep)],
+)
+async def generate_all_character_avatars_route(
+    req: AvatarBulkGenerateRequest,
+) -> AvatarBulkGenerateResponse:
+    """Queue portrait generation for many characters at once (fire-and-forget).
+
+    Same rationale as ``/extract-story``: FlowKit serializes portraits
+    (~25-30s each), so generating N inline would run minutes and trip the dev
+    proxy's reset window ("socket hang up"). So kick the whole batch off the
+    request path via the shared ``_generate_avatars_bg`` helper and return
+    immediately; the client polls ``/avatars/lookup`` until each new file lands.
+    A strong reference is held in ``_avatar_tasks`` so the loop can't GC the task.
+    """
+    chars = req.characters[:64]
+    if not chars:
+        return AvatarBulkGenerateResponse(accepted=0)
+
+    task = asyncio.create_task(
+        _generate_avatars_bg(chars, req.story_id, req.genre)
+    )
+    _avatar_tasks.add(task)
+    task.add_done_callback(_avatar_tasks.discard)
+
+    return AvatarBulkGenerateResponse(accepted=len(chars))
 
 
 __all__ = ["router"]

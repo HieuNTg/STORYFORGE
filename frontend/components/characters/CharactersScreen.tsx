@@ -22,13 +22,17 @@ import { CharacterList, type CharacterListItemMeta } from "./CharacterList";
 import { CharacterDetail } from "./CharacterDetail";
 import { CreateCharacterForm } from "./CreateCharacterForm";
 import type { ForgeCharacter, Story } from "@/types/story";
-import { extractStoryCharacters } from "@/lib/api/characters";
+import {
+  extractStoryCharacters,
+  generateAllCharacterAvatars,
+  waitForAllAvatars,
+} from "@/lib/api/characters";
 import { displayStoryTitle } from "@/lib/library/display-helpers";
 import { useCharacterProfiles } from "@/hooks/useCharacterProfiles";
 import { useStoryAvatars } from "@/hooks/useStoryAvatars";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Sparkles, Loader2, Plus, Search } from "lucide-react";
+import { Sparkles, Loader2, Plus, Search, Images } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -212,6 +216,51 @@ export function CharactersScreen() {
     });
   }, [queryClient, storyId]);
 
+  // Bulk avatar generation: queue every character on the backend (fire-and-
+  // forget — FlowKit serializes ~25-30s/portrait, so holding one request for
+  // all of them would trip the dev proxy), then poll until each file lands,
+  // surfacing portraits on the list as they arrive.
+  const [isGeneratingAll, setIsGeneratingAll] = React.useState(false);
+  const [genDone, setGenDone] = React.useState(0);
+
+  const handleGenerateAll = React.useCallback(async () => {
+    if (!activeStory || !storyId || isGeneratingAll) return;
+    const chars = activeStory.characters ?? [];
+    if (chars.length === 0) return;
+    const names = chars.map((c) => c.name);
+    setIsGeneratingAll(true);
+    setGenDone(0);
+    try {
+      await generateAllCharacterAvatars(
+        chars,
+        storyId,
+        activeStory.genre || undefined,
+      );
+      const final = await waitForAllAvatars(storyId, names, {
+        onTick: (avatars) => {
+          setGenDone(names.filter((n) => avatars[n]).length);
+          // Reveal portraits incrementally as the background task writes them.
+          void queryClient.invalidateQueries({
+            queryKey: ["story-avatars", storyId],
+          });
+        },
+      });
+      void queryClient.invalidateQueries({ queryKey: ["story-avatars", storyId] });
+      const done = names.filter((n) => final[n]).length;
+      if (done >= names.length) {
+        toast.success(t("generate_all_success", { count: done }));
+      } else {
+        toast.warning(t("generate_all_partial", { done, total: names.length }));
+      }
+    } catch (err) {
+      toast.error(t("generate_all_failed"), {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setIsGeneratingAll(false);
+    }
+  }, [activeStory, storyId, isGeneratingAll, queryClient, t]);
+
   if (!hydrated) {
     return (
       <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
@@ -258,17 +307,42 @@ export function CharactersScreen() {
             <h3 className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
               {t("list_heading")} · {activeStory?.characters.length ?? 0}
             </h3>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1 px-2 text-xs text-[var(--accent)] hover:text-[var(--accent)]"
-              onClick={() => setCreateOpen(true)}
-              disabled={!storyId}
-            >
-              <Plus className="size-3.5" />
-              {t("create_open")}
-            </Button>
+            <div className="flex items-center gap-1">
+              {(activeStory?.characters.length ?? 0) > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-xs text-[var(--accent)] hover:text-[var(--accent)]"
+                  onClick={() => void handleGenerateAll()}
+                  disabled={!storyId || isGeneratingAll}
+                  title={t("generate_all_avatars")}
+                >
+                  {isGeneratingAll ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Images className="size-3.5" />
+                  )}
+                  {isGeneratingAll
+                    ? t("generating_all_avatars", {
+                        done: genDone,
+                        total: activeStory?.characters.length ?? 0,
+                      })
+                    : t("generate_all_avatars")}
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 px-2 text-xs text-[var(--accent)] hover:text-[var(--accent)]"
+                onClick={() => setCreateOpen(true)}
+                disabled={!storyId}
+              >
+                <Plus className="size-3.5" />
+                {t("create_open")}
+              </Button>
+            </div>
           </div>
           {showSearch ? (
             <div className="relative">
