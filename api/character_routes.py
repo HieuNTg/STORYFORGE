@@ -157,7 +157,7 @@ class CharacterExtractRequest(BaseModel):
     # text field on extracted characters. Defaults to Vietnamese.
     language: str = Field(default="vi", max_length=16)
     # Optional story scope. When provided, avatars are written under
-    # output/images/avatars/<story_id>/ so two unrelated stories with the
+    # output/<story-slug>/images/avatars/ so two unrelated stories with the
     # same character name don't collide. Falls back to the legacy unscoped
     # path when omitted, so this is a backward-compatible additive change.
     story_id: str | None = Field(default=None, max_length=200)
@@ -165,6 +165,41 @@ class CharacterExtractRequest(BaseModel):
     # the avatar prompt's style anchor so a sci-fi character doesn't come
     # back in hanfu. Unknown / empty falls back to a generic anime baseline.
     genre: str | None = Field(default=None, max_length=64)
+
+
+# Strong references to in-flight background avatar tasks. Without this the event
+# loop can garbage-collect a task that nothing awaits, killing avatar generation
+# mid-flight. Tasks remove themselves on completion via add_done_callback.
+_avatar_tasks: set[asyncio.Task] = set()
+
+
+async def _generate_avatars_bg(
+    characters: list[ForgeCharacter],
+    story_id: str | None,
+    genre: str | None,
+) -> None:
+    """Generate character portraits off the request path (see extract route).
+
+    Best-effort: ``generate_character_avatar`` already swallows per-character
+    failures and returns None; ``return_exceptions=True`` plus the outer guard
+    make sure one bad portrait can't take down the rest or surface anywhere.
+    """
+    try:
+        from services.character_avatar import generate_character_avatar
+
+        # No story-level "setting" is passed in — leaking the story setting into
+        # the avatar prompt triggered calligraphy/landscape backgrounds in Nano
+        # Banana for wuxia stories. Avatars must be studio portraits regardless.
+        await asyncio.gather(
+            *(
+                generate_character_avatar(c, story_id=story_id, genre=genre)
+                for c in characters
+            ),
+            return_exceptions=True,
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("background avatar generation failed")
+
 
 @router.post(
     "/extract-story",
@@ -247,28 +282,21 @@ REMINDER: All description / backstory / secret / conflict text MUST be in {langu
             char = ForgeCharacter(**item)
             characters.append(char)
 
-        # Fan out avatar generation in parallel. Best-effort: any failure
-        # returns None and leaves char.avatar unset rather than breaking
-        # the extract response.
-        try:
-            from services.character_avatar import generate_character_avatar
-
-            # No story-level "setting" is passed in — leaking the story setting
-            # into the avatar prompt was triggering calligraphy/landscape
-            # backgrounds in Nano Banana for wuxia stories. Avatars must be
-            # studio portraits regardless of story setting.
-            avatars = await asyncio.gather(
-                *(
-                    generate_character_avatar(c, story_id=req.story_id, genre=req.genre)
-                    for c in characters
-                ),
-                return_exceptions=True,
-            )
-            for c, a in zip(characters, avatars):
-                if isinstance(a, str) and a:
-                    c.avatar = a
-        except Exception:  # noqa: BLE001
-            logger.exception("avatar fan-out failed; returning characters without avatars")
+        # Avatar generation is intentionally fire-and-forget. FlowKit serializes
+        # portraits (~25-30s each), so a 6-character extract would otherwise run
+        # 2-3 minutes inline — long enough for the dev proxy / any reverse proxy
+        # to reset the connection ("socket hang up" -> 500 Internal Server Error)
+        # even though the LLM extraction itself finished in seconds. The portraits
+        # are NOT part of the response: the client's character schema has no
+        # `avatar` field and strips it on arrival; they exist only on disk to seed
+        # the downstream illustration pipeline via find_existing_avatar(). So kick
+        # them off in the background and return immediately. A strong reference is
+        # held in _avatar_tasks until the task finishes so the loop can't GC it.
+        task = asyncio.create_task(
+            _generate_avatars_bg(characters, req.story_id, req.genre)
+        )
+        _avatar_tasks.add(task)
+        task.add_done_callback(_avatar_tasks.discard)
 
         return characters
     except asyncio.TimeoutError:
@@ -277,5 +305,142 @@ REMINDER: All description / backstory / secret / conflict text MUST be in {langu
     except Exception as e:
         logger.exception("Failed to extract characters")
         raise HTTPException(status_code=500, detail=f"Failed to extract characters: {str(e)}")
+
+
+# --- Story-scoped avatar lookup + regeneration -----------------------------
+#
+# These endpoints deliberately do NOT touch the backend orchestrator store.
+# Library stories are localStorage-only by product design, so the
+# store-dependent /api/images/{id}/profiles + /rebuild endpoints always 404 for
+# them. Avatars, however, live on disk under output/<story-slug>/images/avatars/
+# (written by the extract-story background task) and are addressable purely from
+# (character name + story_id). These routes surface those files to the
+# Characters page so portraits display and "Tạo lại ảnh" works for any story,
+# stored or not.
+
+
+class AvatarLookupRequest(BaseModel):
+    story_id: str | None = Field(default=None, max_length=200)
+    # Character names to look up. Posted (not query params) so Vietnamese names
+    # with diacritics don't need URL encoding and a 6-character story fits one
+    # request.
+    names: list[str] = Field(default_factory=list, max_length=64)
+
+
+class AvatarLookupResponse(BaseModel):
+    # name -> /media URL. Names without an on-disk avatar are simply omitted, so
+    # the client can treat a missing key as "no portrait yet".
+    avatars: dict[str, str] = Field(default_factory=dict)
+
+
+class AvatarRegenerateRequest(BaseModel):
+    character: ForgeCharacter
+    story_id: str | None = Field(default=None, max_length=200)
+    genre: str | None = Field(default=None, max_length=64)
+
+
+class AvatarRegenerateResponse(BaseModel):
+    name: str
+    avatar_url: str | None = None
+
+
+class AvatarBulkGenerateRequest(BaseModel):
+    characters: list[ForgeCharacter] = Field(default_factory=list, max_length=64)
+    story_id: str | None = Field(default=None, max_length=200)
+    genre: str | None = Field(default=None, max_length=64)
+
+
+class AvatarBulkGenerateResponse(BaseModel):
+    # How many portraits were queued. The client polls /avatars/lookup to learn
+    # when each file actually lands; this is just an accept-acknowledgement.
+    accepted: int = 0
+
+
+@router.post("/avatars/lookup", response_model=AvatarLookupResponse)
+async def lookup_character_avatars(req: AvatarLookupRequest) -> AvatarLookupResponse:
+    """Map character names to existing on-disk avatar URLs for a story.
+
+    Pure filesystem lookup — no orchestrator store required, so it works for
+    localStorage-only library stories. Cheap (a couple of ``stat`` calls per
+    name) and read-only, hence no rate-limit dependency.
+    """
+    from services.character_avatar import avatar_url_for
+
+    avatars: dict[str, str] = {}
+    for name in req.names[:64]:
+        url = avatar_url_for(name, req.story_id)
+        if url:
+            avatars[name] = url
+    return AvatarLookupResponse(avatars=avatars)
+
+
+@router.post(
+    "/avatar",
+    response_model=AvatarRegenerateResponse,
+    dependencies=[Depends(_rate_limit_dep)],
+)
+async def regenerate_character_avatar_route(
+    req: AvatarRegenerateRequest,
+) -> AvatarRegenerateResponse:
+    """Regenerate a single character portrait via FlowKit.
+
+    Awaits inline: one portrait is ~25-30s (well under any proxy reset window,
+    unlike the 6-portrait extract that had to be backgrounded), the user clicked
+    a button with a spinner, and they expect the new face when it returns. Rate
+    limited because each call hits the image backend.
+    """
+    from services.character_avatar import avatar_url_for, generate_character_avatar
+
+    try:
+        generated = await asyncio.wait_for(
+            generate_character_avatar(
+                req.character, story_id=req.story_id, genre=req.genre
+            ),
+            timeout=120.0,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("avatar regeneration timeout for %s", req.character.name)
+        raise HTTPException(status_code=504, detail="avatar generation timeout")
+
+    if not generated:
+        # FlowKit disabled / project_id unset / upstream failed. Surface a clear
+        # 502 instead of a 200 with a null URL so the client can toast properly.
+        raise HTTPException(status_code=502, detail="avatar generation unavailable")
+
+    # Re-resolve via avatar_url_for so the response carries the fresh ?v=<mtime>
+    # cache-buster (generate_character_avatar returns the bare path).
+    url = avatar_url_for(req.character.name, req.story_id) or generated
+    return AvatarRegenerateResponse(name=req.character.name, avatar_url=url)
+
+
+@router.post(
+    "/avatars/generate",
+    response_model=AvatarBulkGenerateResponse,
+    dependencies=[Depends(_rate_limit_dep)],
+)
+async def generate_all_character_avatars_route(
+    req: AvatarBulkGenerateRequest,
+) -> AvatarBulkGenerateResponse:
+    """Queue portrait generation for many characters at once (fire-and-forget).
+
+    Same rationale as ``/extract-story``: FlowKit serializes portraits
+    (~25-30s each), so generating N inline would run minutes and trip the dev
+    proxy's reset window ("socket hang up"). So kick the whole batch off the
+    request path via the shared ``_generate_avatars_bg`` helper and return
+    immediately; the client polls ``/avatars/lookup`` until each new file lands.
+    A strong reference is held in ``_avatar_tasks`` so the loop can't GC the task.
+    """
+    chars = req.characters[:64]
+    if not chars:
+        return AvatarBulkGenerateResponse(accepted=0)
+
+    task = asyncio.create_task(
+        _generate_avatars_bg(chars, req.story_id, req.genre)
+    )
+    _avatar_tasks.add(task)
+    task.add_done_callback(_avatar_tasks.discard)
+
+    return AvatarBulkGenerateResponse(accepted=len(chars))
+
 
 __all__ = ["router"]

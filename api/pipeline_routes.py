@@ -540,18 +540,16 @@ def get_checkpoints():
 def get_checkpoint(filename: str):
     """Load a single checkpoint and return formatted data for the reader."""
     import pathlib
-    checkpoint_dir = pathlib.Path(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    ).resolve() / "output" / "checkpoints"
+    from pipeline.orchestrator_checkpoint import find_checkpoint_path
     safe_name = pathlib.Path(filename).name  # strips directory components
     if not safe_name or ".." in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
-    checkpoint_path = (checkpoint_dir / safe_name).resolve()
-    # Verify resolved path is strictly inside checkpoint_dir (defence-in-depth)
-    if not str(checkpoint_path).startswith(str(checkpoint_dir)):
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    if not checkpoint_path.exists():
+    # Checkpoints now live in per-story folders; resolve the bare filename
+    # across all checkpoint dirs (also covers legacy flat files).
+    resolved = find_checkpoint_path(safe_name)
+    if not resolved:
         raise HTTPException(status_code=404, detail="Checkpoint not found")
+    checkpoint_path = pathlib.Path(resolved)
 
     _MAX_CHECKPOINT_BYTES = 50 * 1024 * 1024  # 50 MB
     if checkpoint_path.stat().st_size > _MAX_CHECKPOINT_BYTES:
@@ -576,17 +574,14 @@ def get_checkpoint(filename: str):
 def delete_checkpoint(filename: str):
     """Delete a checkpoint file."""
     import pathlib
-    checkpoint_dir = pathlib.Path(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    ).resolve() / "output" / "checkpoints"
+    from pipeline.orchestrator_checkpoint import find_checkpoint_path
     safe_name = pathlib.Path(filename).name
     if not safe_name or ".." in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
-    checkpoint_path = (checkpoint_dir / safe_name).resolve()
-    if not str(checkpoint_path).startswith(str(checkpoint_dir)):
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    if not checkpoint_path.exists():
+    resolved = find_checkpoint_path(safe_name)
+    if not resolved:
         raise HTTPException(status_code=404, detail="Checkpoint not found")
+    checkpoint_path = pathlib.Path(resolved)
 
     try:
         os.remove(str(checkpoint_path))
@@ -948,23 +943,37 @@ async def run_pipeline(request: Request, body: PipelineRequest):
 
 
 @router.get("/run/{session_id}", dependencies=[_READ_STORIES])
-async def get_run_status(session_id: str):
-    """Poll a pipeline job's current status + final summary.
+async def get_run_status(session_id: str, since: int = 0):
+    """Poll a pipeline job's current status + progress logs + final summary.
 
-    Lets the FE recover the result after a lost SSE stream. The job stays
-    in the registry for `JOB_RETENTION_SECONDS` (default 1h) after it
-    finishes, so a refresh inside that window returns the same payload the
-    SSE `done` event would have sent.
+    Lets the FE recover a run after a lost SSE stream — whether the page was
+    reloaded mid-run or the connection dropped (`ECONNRESET`). The job stays in
+    the registry for `JOB_RETENTION_SECONDS` (default 1h) after it finishes, so
+    a refresh inside that window returns the same payload the SSE `done` event
+    would have sent.
+
+    `since` is a cursor into `job.logs`: the response carries the slice
+    `logs[since:]` plus the total `logs_count`. The FE replays each returned
+    line through the same SSE bridge to rebuild the stepper + author dialogue,
+    then re-polls with `since = logs_count` so each poll only ships the delta.
+    `job.logs` keeps accumulating even after the SSE client disconnects (the
+    worker stops enqueueing to the progress queue but never stops appending),
+    so polling sees the full history regardless of how the stream died.
     """
     job = _jobs.get(session_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Session không tồn tại hoặc đã hết hạn.")
 
+    total = len(job.logs)
+    # Clamp the cursor: a negative or out-of-range `since` replays from 0 rather
+    # than raising — recovery must be forgiving of a stale client cursor.
+    start = since if 0 <= since <= total else 0
     payload: dict[str, Any] = {
         "session_id": job.session_id,
         "status": job.status,
         "kind": job.kind,
-        "logs_count": len(job.logs),
+        "logs": list(job.logs[start:]),
+        "logs_count": total,
         "created_at": job.created_at,
         "completed_at": job.completed_at,
     }
@@ -979,18 +988,11 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
     """Resume pipeline from a checkpoint, streaming progress via SSE."""
     # Resolve checkpoint safely — accept filename only, prevent path traversal
     import pathlib
-    checkpoint_dir = pathlib.Path(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    ).resolve() / "output" / "checkpoints"
+    from pipeline.orchestrator_checkpoint import find_checkpoint_path
     safe_name = pathlib.Path(body.checkpoint).name  # strips any directory components
-    checkpoint_path = (checkpoint_dir / safe_name).resolve() if safe_name else None
-    # Verify resolved path stays inside checkpoint_dir
-    if (
-        not safe_name
-        or checkpoint_path is None
-        or not str(checkpoint_path).startswith(str(checkpoint_dir))
-        or not checkpoint_path.exists()
-    ):
+    resolved = find_checkpoint_path(safe_name) if safe_name else None
+    checkpoint_path = pathlib.Path(resolved) if resolved else None
+    if checkpoint_path is None:
         def _error_stream():
             yield f"data: {json.dumps({'type': 'error', 'data': 'Checkpoint not found.'})}\n\n"
         return StreamingResponse(

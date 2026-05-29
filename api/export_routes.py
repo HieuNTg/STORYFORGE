@@ -72,19 +72,16 @@ def _load_story_from_checkpoint(filename: str) -> Optional["_DBStoryWrapper"]:
     from models.schemas import PipelineOutput
     import json
 
-    checkpoint_dir = (_PROJECT_ROOT / "output" / "checkpoints").resolve()
+    from pipeline.orchestrator_checkpoint import find_checkpoint_path
     safe_name = pathlib.Path(filename).name
-    checkpoint_path = (checkpoint_dir / safe_name).resolve()
-
-    try:
-        checkpoint_path.relative_to(checkpoint_dir)
-    except ValueError:
+    if ".." in filename or safe_name != filename:
         logger.warning(f"Path traversal attempt in checkpoint load: {filename}")
         return None
-
-    if not checkpoint_path.exists():
-        logger.warning(f"Checkpoint file not found: {checkpoint_path}")
+    resolved = find_checkpoint_path(safe_name)
+    if not resolved:
+        logger.warning(f"Checkpoint file not found: {filename}")
         return None
+    checkpoint_path = pathlib.Path(resolved)
 
     try:
         with open(checkpoint_path, "r", encoding="utf-8") as f:
@@ -239,7 +236,12 @@ async def export_epub(session_id: str):
 # (localStorage), converts it to a StoryDraft, and serves the rendered file.
 # ---------------------------------------------------------------------------
 
-_LIBRARY_OUTPUT_DIR = _PROJECT_ROOT / "output" / "library"
+# Library exports now land in the per-story exports folder
+# (``output/<story-slug>/exports``) instead of a shared ``output/library``.
+# The served-file guard validates against the whole output root so any
+# per-story exports dir is acceptable while still blocking path traversal.
+from services.output_paths import OUTPUT_ROOT as _OUTPUT_ROOT, exports_dir as _exports_dir
+_OUTPUT_ROOT_ABS = (_PROJECT_ROOT / _OUTPUT_ROOT).resolve()
 _SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9_\-]+")
 
 
@@ -308,7 +310,7 @@ def _payload_to_story_draft(payload: _LibraryStoryPayload):
 def _serve_library_file(path: str, download_name: str):
     resolved = pathlib.Path(path).resolve()
     try:
-        resolved.relative_to(_LIBRARY_OUTPUT_DIR.resolve())
+        resolved.relative_to(_OUTPUT_ROOT_ABS)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid export path")
     if not resolved.exists():
@@ -321,7 +323,7 @@ async def export_library_story(fmt: str, story: _LibraryStoryPayload = Body(...)
     """Export a frontend-library story (localStorage shape) as docx | pdf | epub.
 
     The story payload travels in the request body; nothing is persisted server-side
-    beyond the generated file in `output/library/`.
+    beyond the generated file in `output/<story-slug>/exports/`.
     """
     fmt_lower = fmt.lower()
     if fmt_lower not in {"docx", "pdf", "epub"}:
@@ -331,9 +333,12 @@ async def export_library_story(fmt: str, story: _LibraryStoryPayload = Body(...)
     if not draft.chapters:
         return JSONResponse({"error": "Truyện chưa có chương để xuất"}, status_code=400)
 
-    _LIBRARY_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    # Prefer the localStorage story id as the scope key (stable across exports
+    # of the same story); fall back to the title.
+    out_dir = pathlib.Path(_exports_dir(draft.title, story_id=story.id or None))
+    out_dir.mkdir(parents=True, exist_ok=True)
     base = f"{_slug(draft.title)}-{uuid.uuid4().hex[:8]}"
-    out_path = str(_LIBRARY_OUTPUT_DIR / f"{base}.{fmt_lower}")
+    out_path = str(out_dir / f"{base}.{fmt_lower}")
     download_name = f"{_slug(draft.title)}.{fmt_lower}"
 
     try:

@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import os
 import shutil
+import tempfile
 import time
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from models.schemas import Chapter, EnhancedStory, PipelineOutput, StoryDraft
 from pipeline.orchestrator_checkpoint import (
@@ -33,14 +34,34 @@ def _build_manager(title: str = "Test Story", chapters: list[Chapter] | None = N
 
 
 class _CleanDirMixin:
+    """Isolate the per-story output tree into a fresh tempdir per test.
+
+    Checkpoints are now written under ``output/<story-slug>/checkpoints`` rather
+    than one flat dir, so a test that only cleaned the legacy flat dir would
+    still see leftover per-story checkpoints from prior runs (and from other
+    tests). Redirecting ``OUTPUT_ROOT`` — read at call time by the resolver — and
+    the ``CHECKPOINT_DIR`` scan root to a tempdir gives each test a clean tree.
+    """
+
     def setUp(self):
+        self._tmp_root = tempfile.mkdtemp(prefix="sf_ckpt_test_")
+        self._patches = [
+            patch("services.output_paths.OUTPUT_ROOT", self._tmp_root),
+            patch(
+                "pipeline.orchestrator_checkpoint.CHECKPOINT_DIR",
+                os.path.join(self._tmp_root, "checkpoints"),
+            ),
+        ]
+        for p in self._patches:
+            p.start()
         self._dir = _chapter_checkpoint_dir()
         if os.path.exists(self._dir):
             shutil.rmtree(self._dir)
 
     def tearDown(self):
-        if os.path.exists(self._dir):
-            shutil.rmtree(self._dir)
+        for p in self._patches:
+            p.stop()
+        shutil.rmtree(self._tmp_root, ignore_errors=True)
 
 
 class TestSaveChapter(_CleanDirMixin, unittest.TestCase):

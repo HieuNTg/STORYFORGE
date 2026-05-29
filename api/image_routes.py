@@ -92,14 +92,20 @@ def _safe_char_name(name: str) -> str:
 
 
 def _reference_url_for(rel_path: str) -> Optional[str]:
-    """Convert a stored reference path into a /media URL if it lives under output/images."""
+    """Convert a stored reference path into a /media URL if it lives under OUTPUT_ROOT.
+
+    The ``/media`` mount now serves the whole output root (per-story layout), so
+    a valid asset path is anything under ``output/`` — the URL is its path
+    relative to that root.
+    """
     if not rel_path:
         return None
+    from services.output_paths import OUTPUT_ROOT
     p = pathlib.Path(rel_path)
-    images_root = (_PROJECT_ROOT / "output" / "images").resolve()
+    output_root = (_PROJECT_ROOT / OUTPUT_ROOT).resolve()
     try:
         resolved = p.resolve() if p.is_absolute() else (_PROJECT_ROOT / p).resolve()
-        rel = resolved.relative_to(images_root)
+        rel = resolved.relative_to(output_root)
     except (ValueError, OSError):
         return None
     return "/media/" + rel.as_posix()
@@ -109,16 +115,15 @@ def _persist_to_checkpoint(session_id: str, output) -> None:
     """If session_id is a checkpoint filename, rewrite the file with updated chapter.images."""
     if not session_id.endswith(".json"):
         return
-    checkpoint_dir = (_PROJECT_ROOT / "output" / "checkpoints").resolve()
+    from pipeline.orchestrator_checkpoint import find_checkpoint_path
     safe_name = pathlib.Path(session_id).name
-    checkpoint_path = (checkpoint_dir / safe_name).resolve()
-    try:
-        checkpoint_path.relative_to(checkpoint_dir)
-    except ValueError:
+    if ".." in session_id or safe_name != session_id:
         logger.warning(f"Refusing to write outside checkpoint dir: {session_id}")
         return
-    if not checkpoint_path.exists():
+    resolved = find_checkpoint_path(safe_name)
+    if not resolved:
         return
+    checkpoint_path = pathlib.Path(resolved)
     try:
         with open(checkpoint_path, "w", encoding="utf-8") as f:
             json.dump(output.model_dump(mode="json"), f, ensure_ascii=False, indent=2)
@@ -205,7 +210,7 @@ async def get_character_profiles(session_id: str):
     characters = list(draft.characters) if draft and draft.characters else []
 
     from services.character_visual_profile import CharacterVisualProfileStore
-    store = CharacterVisualProfileStore()
+    store = CharacterVisualProfileStore(story_title=getattr(draft, "title", None))
 
     profiles: list[CharacterProfile] = []
     for char in characters:
@@ -269,7 +274,7 @@ async def rebuild_character_profile(session_id: str, character_name: str):
         from services.character_visual_profile import CharacterVisualProfileStore
 
         extractor = CharacterVisualExtractor()
-        store = CharacterVisualProfileStore()
+        store = CharacterVisualProfileStore(story_title=getattr(draft, "title", None))
 
         # extract_and_generate is sync + LLM-bound — run off-loop
         attributes, frozen_prompt = await asyncio.to_thread(
@@ -310,9 +315,9 @@ async def upload_character_reference(
 ):
     """Upload a reference image for a character.
 
-    Accepts PNG/JPEG/WEBP up to 8 MB. The file is stored under
-    ``output/images/references/<session>/<character>.<ext>`` so it is reachable
-    via the ``/media`` static mount. The on-disk profile's ``reference_image``
+    Accepts PNG/JPEG/WEBP up to 8 MB. The file is stored under the per-story
+    images dir ``output/<story-slug>/images/references/<session>/<character>.<ext>``
+    so it is reachable via the ``/media`` static mount. The profile's ``reference_image``
     field is updated in place — no LLM extraction runs (use the rebuild route
     for that).
     """
@@ -353,9 +358,13 @@ async def upload_character_reference(
         if target is None:
             raise HTTPException(status_code=404, detail=f"Character '{decoded_name}' not found")
 
-        # Resolve storage path with traversal guard
+        # Resolve storage path with traversal guard. References live under the
+        # per-story images dir: output/<story-slug>/images/references/<session>/
+        from services.output_paths import images_dir as _images_dir
         ext = _REF_ALLOWED_TYPES[content_type]
-        refs_root = (_PROJECT_ROOT / "output" / "images" / "references").resolve()
+        refs_root = (
+            _PROJECT_ROOT / _images_dir(getattr(draft, "title", None)) / "references"
+        ).resolve()
         session_dir = (refs_root / _session_basename(session_id)).resolve()
         try:
             session_dir.relative_to(refs_root)
@@ -381,7 +390,7 @@ async def upload_character_reference(
         # Update the profile's reference_image without re-running the LLM extractor.
         # If no profile exists yet, seed a minimal one so the reference is retained.
         from services.character_visual_profile import CharacterVisualProfileStore
-        store = CharacterVisualProfileStore()
+        store = CharacterVisualProfileStore(story_title=getattr(draft, "title", None))
         rel_path = target_path.relative_to(_PROJECT_ROOT).as_posix()
         if not store.set_reference_image(target.name, rel_path):
             desc = store.build_visual_description(target)

@@ -20,6 +20,9 @@ data/secrets.json
 data/*.db
 data/*.db-shm
 data/*.db-wal
+data/**/*.db
+data/**/*.db-shm
+data/**/*.db-wal
 data/*_cache.json
 data/auth_profiles.json
 data/onboarding_state.json

@@ -144,8 +144,9 @@ def test_auto_builds_visual_profiles_on_first_call(client, tmp_path, monkeypatch
     # Frozen prompt was injected into the prompt generator call
     _, kwargs = prompt_gen.generate_from_chapter.call_args
     assert kwargs.get("visual_profiles") == {"Hero": "FROZEN_PROMPT_HERO"}
-    # Profile was persisted to disk under the cwd-relative default base_dir
-    assert (tmp_path / "output" / "characters" / "Hero" / "profile.json").exists()
+    # Profile persisted under the per-story characters dir (title-scoped to "T").
+    from services.output_paths import characters_dir
+    assert (tmp_path / characters_dir("T") / "Hero" / "profile.json").exists()
 
 
 def test_auto_build_skipped_when_profile_exists(client, tmp_path, monkeypatch):
@@ -156,8 +157,9 @@ def test_auto_build_skipped_when_profile_exists(client, tmp_path, monkeypatch):
     orch = _build_orch(num_chapters=1, characters=[char])
 
     monkeypatch.chdir(tmp_path)
-    # Pre-seed the profile store at the default base_dir
-    store = CharacterVisualProfileStore()
+    # Pre-seed the profile store scoped to the same story title ("T") the
+    # handler reads from, so the cached profile is actually found.
+    store = CharacterVisualProfileStore(story_title="T")
     store.save_enhanced_profile(
         "Hero", "tall", {"hair": {"color": "dark"}}, "CACHED_PROMPT", ""
     )
@@ -269,8 +271,9 @@ def test_rebuild_profile_success(client, tmp_path, monkeypatch):
     assert body["has_reference_image"] is False
     # Extractor invoked exactly once for the requested character
     assert fake_extractor.extract_and_generate.call_count == 1
-    # Profile persisted to disk
-    assert (tmp_path / "output" / "characters" / "Hero" / "profile.json").exists()
+    # Profile persisted under the per-story characters dir (title-scoped to "T").
+    from services.output_paths import characters_dir
+    assert (tmp_path / characters_dir("T") / "Hero" / "profile.json").exists()
 
 
 def test_rebuild_profile_case_insensitive_match(client, tmp_path, monkeypatch):
@@ -417,16 +420,19 @@ def test_upload_reference_success_writes_file_and_updates_profile(
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["name"] == "Hero"
-    assert body["has_reference_image"] is True
-    assert body["reference_url"].startswith("/media/references/sess-u4/Hero")
+    from services.output_paths import characters_dir, images_dir
 
-    # File written to expected path
-    expected = tmp_path / "output" / "images" / "references" / "sess-u4" / "Hero.png"
+    assert body["has_reference_image"] is True
+    # Per-story layout: /media/<story-slug>/images/references/<session>/<char>.
+    assert body["reference_url"].startswith("/media/t/images/references/sess-u4/Hero")
+
+    # File written to expected path under the per-story images dir (title "T").
+    expected = tmp_path / images_dir("T") / "references" / "sess-u4" / "Hero.png"
     assert expected.exists()
     assert expected.read_bytes() == payload
 
     # Profile updated with reference_image (relative path)
-    profile_path = tmp_path / "output" / "characters" / "Hero" / "profile.json"
+    profile_path = tmp_path / characters_dir("T") / "Hero" / "profile.json"
     assert profile_path.exists()
     import json as _json
     profile = _json.loads(profile_path.read_text(encoding="utf-8"))

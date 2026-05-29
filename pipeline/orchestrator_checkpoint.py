@@ -14,16 +14,86 @@ import threading
 from datetime import datetime
 
 from models.schemas import EnhancedStory, PipelineOutput
+from services.output_paths import OUTPUT_ROOT, checkpoints_dir as _story_checkpoints_dir
 from services.quality_scorer import QualityScorer
 
 logger = logging.getLogger(__name__)
 
-CHECKPOINT_DIR = "output/checkpoints"
+# Legacy flat checkpoint dir. Checkpoints are now written per-story under
+# ``output/<story-slug>/checkpoints/`` (see services.output_paths), but this
+# constant is retained as a back-compat *read* location: pre-migration
+# installs and the by-filename API lookups still scan it. New writes go through
+# ``_checkpoint_dir_for_title``.
+# Use a forward slash (not os.path.join) so the public constant keeps its
+# historical "output/checkpoints" form on every OS; Windows accepts forward
+# slashes for all filesystem calls, so the listdir/isdir reads below are happy.
+CHECKPOINT_DIR = f"{OUTPUT_ROOT}/checkpoints"
 CHAPTER_CHECKPOINT_SUBDIR = "per_chapter"
 
 
-def _chapter_checkpoint_dir() -> str:
-    return os.path.join(CHECKPOINT_DIR, CHAPTER_CHECKPOINT_SUBDIR)
+def _checkpoint_dir_for_title(title: str) -> str:
+    """Per-story checkpoint dir for a story title (the new write location)."""
+    return _story_checkpoints_dir(title)
+
+
+def _all_checkpoint_dirs() -> list[str]:
+    """Every directory that may hold layer checkpoints, newest layout first.
+
+    Includes each per-story ``output/<slug>/checkpoints`` plus the legacy flat
+    ``output/checkpoints`` so listings and by-filename lookups keep finding
+    pre-migration files without a forced migration.
+
+    The per-story scan root is derived from ``CHECKPOINT_DIR``'s parent rather
+    than a hard-coded ``OUTPUT_ROOT`` so that tests (and any caller) which patch
+    ``CHECKPOINT_DIR`` to an isolated directory redirect the *entire* scan, not
+    just the legacy leg. In production ``CHECKPOINT_DIR`` is ``OUTPUT_ROOT/checkpoints``
+    so its parent is ``OUTPUT_ROOT`` and behavior is unchanged.
+    """
+    dirs: list[str] = []
+    scan_root = os.path.dirname(CHECKPOINT_DIR) or OUTPUT_ROOT
+    try:
+        for entry in os.listdir(scan_root):
+            cdir = os.path.join(scan_root, entry, "checkpoints")
+            if os.path.isdir(cdir):
+                dirs.append(cdir)
+    except (FileNotFoundError, NotADirectoryError):
+        pass
+    if os.path.isdir(CHECKPOINT_DIR) and CHECKPOINT_DIR not in dirs:
+        dirs.append(CHECKPOINT_DIR)
+    return dirs
+
+
+def _chapter_checkpoint_dir(title: str | None = None) -> str:
+    """Per-chapter checkpoint dir. Falls back to legacy flat dir when no title."""
+    base = _checkpoint_dir_for_title(title) if title else CHECKPOINT_DIR
+    return os.path.join(base, CHAPTER_CHECKPOINT_SUBDIR)
+
+
+def _all_chapter_checkpoint_dirs() -> list[str]:
+    """Every per_chapter dir across stories + the legacy flat per_chapter dir."""
+    return [os.path.join(d, CHAPTER_CHECKPOINT_SUBDIR) for d in _all_checkpoint_dirs()]
+
+
+def find_checkpoint_path(filename: str) -> str | None:
+    """Resolve a bare checkpoint filename to its on-disk path.
+
+    The HTTP API addresses checkpoints by bare filename (the layout is an
+    implementation detail the frontend never sees). Now that checkpoints live
+    in per-story folders, this searches every checkpoint dir (and per_chapter
+    subdirs) and returns the first match, so the bare-filename contract holds
+    across the new layout and legacy flat files alike.
+    """
+    if not filename:
+        return None
+    base = os.path.basename(filename)
+    for d in _all_checkpoint_dirs():
+        cand = os.path.join(d, base)
+        if os.path.isfile(cand):
+            return cand
+        cand_pc = os.path.join(d, CHAPTER_CHECKPOINT_SUBDIR, base)
+        if os.path.isfile(cand_pc):
+            return cand_pc
+    return None
 
 
 _CHAPTER_RE = re.compile(r"(?P<slug>.+)_ch(?P<ch>\d+)_layer(?P<layer>\d+)(?:_[0-9a-f]+)?\.json$")
@@ -93,11 +163,12 @@ class CheckpointManager:
 
     def save(self, layer: int, background: bool = True) -> str:
         """Save pipeline state after layer completion. Non-blocking by default."""
-        os.makedirs(CHECKPOINT_DIR, exist_ok=True)
         raw_title = self.output.story_draft.title if self.output.story_draft else "untitled"
+        out_dir = _checkpoint_dir_for_title(raw_title)
+        os.makedirs(out_dir, exist_ok=True)
         hash_id = hashlib.sha256(raw_title.encode()).hexdigest()[:16]
         slug = re.sub(r"[^\w\-]", "_", raw_title[:30])
-        path = os.path.join(CHECKPOINT_DIR, f"{slug}_layer{layer}_{hash_id}.json")
+        path = os.path.join(out_dir, f"{slug}_layer{layer}_{hash_id}.json")
         data = self.output.model_dump_json(indent=2)
 
         def _write():
@@ -123,9 +194,9 @@ class CheckpointManager:
         After writing, prunes older per-chapter files beyond `keep_last` (caller
         passes this via the manager's state or it defaults to 5).
         """
-        out_dir = _chapter_checkpoint_dir()
-        os.makedirs(out_dir, exist_ok=True)
         raw_title = self.output.story_draft.title if self.output.story_draft else "untitled"
+        out_dir = _chapter_checkpoint_dir(raw_title)
+        os.makedirs(out_dir, exist_ok=True)
         hash_id = hashlib.sha256(raw_title.encode()).hexdigest()[:16]
         slug = re.sub(r"[^\w\-]", "_", raw_title[:30])
         path = os.path.join(out_dir, f"{slug}_ch{chapter_number}_layer{layer}_{hash_id}.json")
@@ -151,33 +222,38 @@ class CheckpointManager:
         """Return per-chapter checkpoint descriptors, newest-first.
 
         Filters by slug and/or layer when provided. Parses `{slug}_ch{N}_layer{L}.json`.
+        Scans every per-story per_chapter dir plus the legacy flat dir.
         """
-        out_dir = _chapter_checkpoint_dir()
-        if not os.path.exists(out_dir):
-            return []
         entries = []
-        for fname in os.listdir(out_dir):
-            m = _CHAPTER_RE.match(fname)
-            if not m:
+        seen: set[str] = set()
+        for out_dir in _all_chapter_checkpoint_dirs():
+            if not os.path.exists(out_dir):
                 continue
-            f_slug = m.group("slug")
-            f_ch = int(m.group("ch"))
-            f_layer = int(m.group("layer"))
-            if slug is not None and f_slug != slug:
-                continue
-            if layer is not None and f_layer != layer:
-                continue
-            path = os.path.join(out_dir, fname)
-            stat = os.stat(path)
-            entries.append({
-                "file": fname,
-                "path": path,
-                "slug": f_slug,
-                "chapter": f_ch,
-                "layer": f_layer,
-                "size_kb": stat.st_size // 1024,
-                "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
-            })
+            for fname in os.listdir(out_dir):
+                m = _CHAPTER_RE.match(fname)
+                if not m:
+                    continue
+                f_slug = m.group("slug")
+                f_ch = int(m.group("ch"))
+                f_layer = int(m.group("layer"))
+                if slug is not None and f_slug != slug:
+                    continue
+                if layer is not None and f_layer != layer:
+                    continue
+                if fname in seen:
+                    continue
+                seen.add(fname)
+                path = os.path.join(out_dir, fname)
+                stat = os.stat(path)
+                entries.append({
+                    "file": fname,
+                    "path": path,
+                    "slug": f_slug,
+                    "chapter": f_ch,
+                    "layer": f_layer,
+                    "size_kb": stat.st_size // 1024,
+                    "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                })
         entries.sort(key=lambda e: (e["layer"], e["chapter"]), reverse=True)
         return entries
 
@@ -211,15 +287,28 @@ class CheckpointManager:
 
     @staticmethod
     def list_checkpoints() -> list:
-        """List available checkpoints sorted newest-first with metadata."""
-        if not os.path.exists(CHECKPOINT_DIR):
-            return []
+        """List available checkpoints sorted newest-first with metadata.
+
+        Scans every per-story ``output/<slug>/checkpoints`` plus the legacy flat
+        ``output/checkpoints``. Files are de-duplicated by basename (the
+        bare-filename API contract assumes basenames are unique).
+        """
         checkpoints = []
-        for f in sorted(os.listdir(CHECKPOINT_DIR), reverse=True):
-            if f.endswith(".usage.json"):
-                continue  # sidecar telemetry, not a story checkpoint
-            if f.endswith(".json"):
-                path = os.path.join(CHECKPOINT_DIR, f)
+        seen: set[str] = set()
+        listing: list[tuple[str, str]] = []
+        for cdir in _all_checkpoint_dirs():
+            try:
+                for f in os.listdir(cdir):
+                    listing.append((f, os.path.join(cdir, f)))
+            except FileNotFoundError:
+                continue
+        for f, path in sorted(listing, key=lambda t: t[0], reverse=True):
+            if f.endswith((".usage.json", ".history.json")):
+                continue  # advisory sidecars co-located with checkpoints, not stories
+            if f.endswith(".json") and not os.path.isdir(path):
+                if f in seen:
+                    continue
+                seen.add(f)
                 stat = os.stat(path)
                 entry = {
                     "file": f,

@@ -15,6 +15,7 @@ export default defineConfig({
       "lib/**/*.test.tsx",
       "stores/**/*.test.ts",
       "components/**/*.test.tsx",
+      "app/**/*.test.tsx",
     ],
   },
 });

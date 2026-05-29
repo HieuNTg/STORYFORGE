@@ -255,11 +255,11 @@ class PipelineOrchestrator:
 
     # ── Export wrappers (delegate to PipelineExporter) ───────────────────────
 
-    def export_output(self, output_dir: str = "output", formats: list[str] | None = None) -> list[str]:
+    def export_output(self, output_dir: str | None = None, formats: list[str] | None = None) -> list[str]:
         self._sync_output()
         return self.exporter.export_output(output_dir, formats)
 
-    def export_zip(self, output_dir: str = "output", formats: list[str] | None = None) -> str:
+    def export_zip(self, output_dir: str | None = None, formats: list[str] | None = None) -> str:
         self._sync_output()
         return self.exporter.export_zip(output_dir, formats)
 

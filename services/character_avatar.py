@@ -127,22 +127,25 @@ def _avatar_dirs(story_id: Optional[str]) -> tuple[str, str]:
     """Return (scoped_dir, scoped_url_prefix) for a given story_id.
 
     Scoping prevents collisions when two stories share a character name
-    (e.g. two unrelated wuxia stories both have a "Tiểu Vũ"). When no
-    story_id is provided (e.g. legacy callers, ad-hoc Forge UI use before
-    a story is saved), we fall back to the legacy unscoped directory so
-    existing data and code paths keep working.
+    (e.g. two unrelated wuxia stories both have a "Tiểu Vũ"). Under the
+    per-story output layout the avatar dir is
+    ``output/<story-slug>/images/avatars`` (one slug for everything a story
+    owns). When no story_id is provided (legacy callers, ad-hoc Forge UI use
+    before a story is saved) we fall back to a global ``avatars`` dir so
+    unscoped data keeps working.
 
     Returns a 2-tuple of:
       - filesystem directory (created on demand)
-      - URL path prefix under ``/media/`` (no leading slash)
+      - URL path prefix under ``/media/`` (no leading slash), relative to the
+        output root that the ``/media`` static mount serves.
     """
+    from services.output_paths import OUTPUT_ROOT, avatars_dir, rel_to_output_root
+
     if story_id:
-        safe_story = safe_character_name(story_id)
-        fs_dir = os.path.join("output", "images", _AVATAR_SUBDIR, safe_story)
-        url_prefix = f"{_AVATAR_SUBDIR}/{safe_story}"
+        fs_dir = avatars_dir(story_id=story_id)
     else:
-        fs_dir = os.path.join("output", "images", _AVATAR_SUBDIR)
-        url_prefix = _AVATAR_SUBDIR
+        fs_dir = os.path.join(OUTPUT_ROOT, _AVATAR_SUBDIR)
+    url_prefix = rel_to_output_root(fs_dir)
     return fs_dir, url_prefix
 
 
@@ -242,22 +245,26 @@ def find_existing_avatar(name: str, story_id: Optional[str] = None) -> Optional[
     image model a corrupt reference.
 
     Lookup order when ``story_id`` is provided:
-      1) ``output/images/avatars/<safe_story_id>/<safe_name>.png`` (scoped)
-      2) ``output/images/avatars/<safe_name>.png`` (legacy unscoped — kept so
-         pre-Batch-3 stories with avatars already on disk keep rendering
-         without needing a migration)
+      1) ``output/<story-slug>/images/avatars/<safe_name>.png`` (current layout)
+      2) ``output/images/avatars/<safe_story_id>/<safe_name>.png`` (legacy scoped)
+      3) ``output/images/avatars/<safe_name>.png`` (legacy unscoped)
+    The legacy paths are kept so pre-migration stories with avatars already on
+    disk keep rendering without needing a forced migration.
     """
     if not (name and name.strip()):
         return None
+    from services.output_paths import OUTPUT_ROOT, avatars_dir
+
     safe = _safe_name(name)
     candidates: list[str] = []
     if story_id:
+        candidates.append(os.path.join(avatars_dir(story_id=story_id), f"{safe}.png"))
         safe_story = safe_character_name(story_id)
         candidates.append(
-            os.path.join("output", "images", _AVATAR_SUBDIR, safe_story, f"{safe}.png")
+            os.path.join(OUTPUT_ROOT, "images", _AVATAR_SUBDIR, safe_story, f"{safe}.png")
         )
     candidates.append(
-        os.path.join("output", "images", _AVATAR_SUBDIR, f"{safe}.png")
+        os.path.join(OUTPUT_ROOT, "images", _AVATAR_SUBDIR, f"{safe}.png")
     )
     for path in candidates:
         try:
@@ -266,6 +273,36 @@ def find_existing_avatar(name: str, story_id: Optional[str] = None) -> Optional[
         except OSError:
             continue
     return None
+
+
+def avatar_url_for(name: str, story_id: Optional[str] = None) -> Optional[str]:
+    """Return the public ``/media`` URL for an existing avatar, or None.
+
+    Bridges the on-disk, story-scoped avatar (written by extract-story's
+    background task) to any UI that only knows the character name + story_id —
+    notably the Characters page for localStorage-only library stories, which
+    never live in the backend orchestrator store and so 404 on the
+    profile/rebuild endpoints. Unlike those endpoints this needs no store: it
+    is a pure filesystem lookup.
+
+    The URL is derived from the file's actual location (so it handles both the
+    new per-story path and the legacy paths returned by
+    ``find_existing_avatar``) relative to the output root that ``/media`` serves,
+    and carries a ``?v=<mtime>`` cache-buster so a regenerated portrait reloads
+    in the browser while an unchanged one keeps a stable URL (avoids needless
+    <img> churn).
+    """
+    path = find_existing_avatar(name, story_id)
+    if not path:
+        return None
+    from services.output_paths import media_url
+
+    url = media_url(path)
+    try:
+        url = f"{url}?v={int(os.path.getmtime(path))}"
+    except OSError:
+        pass
+    return url
 
 
 __all__ = ["generate_character_avatar", "find_existing_avatar"]

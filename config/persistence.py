@@ -160,6 +160,7 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
             "image_provider": pipeline.image_provider,
             "image_api_key": pipeline.image_api_key,
             "image_api_url": pipeline.image_api_url,
+            "panels_per_chapter": getattr(pipeline, "panels_per_chapter", 8),
             "seedream_api_key": pipeline.seedream_api_key,
             "seedream_api_url": pipeline.seedream_api_url,
             "arc_size": pipeline.arc_size,

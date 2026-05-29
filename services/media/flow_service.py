@@ -325,7 +325,7 @@ class FlowService:
         prompt: str,
         char_refs: Optional[List[str]] = None,
         style_ref: Optional[str] = None,
-        output_dir: str = "output/images",
+        output_dir: Optional[str] = None,
         filename: str = "image.png",
         aspect_override: Optional[str] = None,
         seed_override: Optional[int] = None,
@@ -339,6 +339,9 @@ class FlowService:
         a portrait/landscape global default.
         """
         char_refs = char_refs or []
+        if output_dir is None:
+            from services.output_paths import OUTPUT_ROOT
+            output_dir = os.path.join(OUTPUT_ROOT, "images")
         cfg = self._cfg
 
         project_id = (cfg.flowkit_project_id or "").strip()

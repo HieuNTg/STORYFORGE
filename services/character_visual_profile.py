@@ -14,7 +14,32 @@ logger = logging.getLogger(__name__)
 class CharacterVisualProfileStore:
     """Store and retrieve character visual profiles (descriptions + reference images)."""
 
-    def __init__(self, base_dir: str = "output/characters"):
+    def __init__(
+        self,
+        base_dir: Optional[str] = None,
+        *,
+        story_title: Optional[str] = None,
+        story_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ):
+        """Visual-profile store rooted at a per-story characters dir.
+
+        Pass a story handle (``story_title`` / ``story_id`` / ``session_id``) to
+        scope profiles under ``output/<story-slug>/characters`` via the central
+        resolver. An explicit ``base_dir`` overrides the handle (used by tests).
+        When nothing is given we fall back to the legacy global
+        ``output/characters`` so pre-migration data and unscoped callers keep
+        working.
+        """
+        if base_dir is None:
+            if story_title or story_id or session_id:
+                from services.output_paths import characters_dir
+                base_dir = characters_dir(
+                    story_title, story_id=story_id, session_id=session_id
+                )
+            else:
+                from services.output_paths import OUTPUT_ROOT
+                base_dir = os.path.join(OUTPUT_ROOT, "characters")
         self.base_dir = base_dir
         os.makedirs(base_dir, exist_ok=True)
 

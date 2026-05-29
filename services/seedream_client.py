@@ -38,9 +38,14 @@ class SeedreamClient:
         self.base_url = base_url or os.environ.get(
             "SEEDREAM_API_URL", "https://api.aimlapi.com/v2"
         )
-        self.output_dir = "output/images"
+        # Low-level client: callers (ImageGenerator) inject story-scoped paths
+        # via full filenames. These are global fallbacks rooted at OUTPUT_ROOT
+        # for the rare unscoped direct-use case.
+        from services.output_paths import OUTPUT_ROOT
+        self._output_root = OUTPUT_ROOT
+        self.output_dir = os.path.join(OUTPUT_ROOT, "images")
         os.makedirs(self.output_dir, exist_ok=True)
-        os.makedirs("output/characters", exist_ok=True)
+        os.makedirs(os.path.join(OUTPUT_ROOT, "characters"), exist_ok=True)
 
     def is_configured(self) -> bool:
         """Check if API key is set."""
@@ -64,7 +69,7 @@ class SeedreamClient:
 
         safe_name = re.sub(r'[^\w\-.]', '_', name.lower())
         fname = filename or f"{safe_name}_reference.png"
-        output_path = os.path.join("output/characters", fname)
+        output_path = os.path.join(self._output_root, "characters", fname)
 
         return self._text_to_image(prompt, output_path)
 

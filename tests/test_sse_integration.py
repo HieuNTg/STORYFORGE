@@ -274,3 +274,81 @@ async def test_sse_double_newline_format(client):
     for block in lines:
         if block.strip():
             assert block.strip().startswith("data: ")
+
+
+# ── Recovery via GET /api/pipeline/run/{id} ──────────────────────────────────
+# Completes the codebase's stated recovery design: a run survives a lost SSE
+# stream (reload mid-run or ECONNRESET), and the FE rebuilds the stepper +
+# author dialogue by replaying job.logs returned here. See get_run_status.
+
+
+@pytest_asyncio.fixture
+async def _clean_jobs():
+    """Drop any jobs this test created so the module-level registry stays clean."""
+    from api import pipeline_job_registry as _jobs
+    before = set(_jobs.JOBS)
+    yield _jobs
+    for sid in set(_jobs.JOBS) - before:
+        _jobs.JOBS.pop(sid, None)
+
+
+@pytest.mark.asyncio
+async def test_run_status_returns_logs_for_recovery(client, _clean_jobs):
+    """A running job's accumulated logs are returned so the FE can replay them."""
+    job = await _clean_jobs.register("recover-1")
+    job.logs.extend(
+        [
+            "[OUTLINE] Đang lập dàn ý...",
+            "[L1] Đang viết chương 1: Mở đầu...",
+            "[L1] Đang viết chương 2: Biến cố...",
+        ]
+    )
+
+    resp = await client.get("/api/pipeline/run/recover-1")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "running"
+    assert body["logs_count"] == 3
+    # since defaults to 0 → full history, in order.
+    assert body["logs"] == [
+        "[OUTLINE] Đang lập dàn ý...",
+        "[L1] Đang viết chương 1: Mở đầu...",
+        "[L1] Đang viết chương 2: Biến cố...",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_run_status_since_cursor_returns_delta(client, _clean_jobs):
+    """`since` ships only the new lines so each poll is incremental."""
+    job = await _clean_jobs.register("recover-2")
+    job.logs.extend(["line-0", "line-1", "line-2"])
+
+    resp = await client.get("/api/pipeline/run/recover-2", params={"since": 2})
+    body = resp.json()
+    assert body["logs"] == ["line-2"]
+    assert body["logs_count"] == 3
+
+    # Caught up: since == logs_count → empty delta, still reports the total.
+    resp2 = await client.get("/api/pipeline/run/recover-2", params={"since": 3})
+    body2 = resp2.json()
+    assert body2["logs"] == []
+    assert body2["logs_count"] == 3
+
+
+@pytest.mark.asyncio
+async def test_run_status_out_of_range_since_replays_from_start(client, _clean_jobs):
+    """A stale/garbage cursor replays from 0 rather than erroring."""
+    job = await _clean_jobs.register("recover-3")
+    job.logs.extend(["a", "b"])
+
+    for bad in (-5, 99):
+        resp = await client.get("/api/pipeline/run/recover-3", params={"since": bad})
+        assert resp.status_code == 200
+        assert resp.json()["logs"] == ["a", "b"]
+
+
+@pytest.mark.asyncio
+async def test_run_status_unknown_session_404(client):
+    """An expired/unknown session is a clean 404 so the FE can stop polling."""
+    resp = await client.get("/api/pipeline/run/does-not-exist")
+    assert resp.status_code == 404

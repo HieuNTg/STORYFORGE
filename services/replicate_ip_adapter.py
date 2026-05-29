@@ -31,7 +31,9 @@ class ReplicateIPAdapter:
         cfg = ConfigManager().pipeline
         self.api_key = api_key or cfg.replicate_api_key or os.environ.get("REPLICATE_API_KEY", "")
         self.model = model or self.DEFAULT_MODEL
-        self.output_dir = "output/images"
+        # Global fallback; story-scoped callers override output_dir per request.
+        from services.output_paths import OUTPUT_ROOT
+        self.output_dir = os.path.join(OUTPUT_ROOT, "images")
         os.makedirs(self.output_dir, exist_ok=True)
 
     def is_configured(self) -> bool:

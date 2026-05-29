@@ -2,25 +2,12 @@
 
 import logging
 import os
-import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from config import ConfigManager
 from services.media.image_provider import ImageProvider
 from services.safe_name import safe_character_name
 
 logger = logging.getLogger(__name__)
-
-
-def _mentions(name: str, blob: str) -> bool:
-    """Word-boundary check for a character name inside a text blob.
-
-    Substring `name in blob` falsely matches Vietnamese single-syllable names:
-    "An" hits "Anh", "Vũ" hits "Vũ khí". That misroutes refs and anchors the
-    wrong character into the scene prompt. Anchor with `\\w` boundaries instead.
-    """
-    if not name:
-        return False
-    return re.search(rf"(?<!\w){re.escape(name)}(?!\w)", blob) is not None
 
 
 class MediaProducer:
@@ -97,7 +84,13 @@ class MediaProducer:
         if cfg.enable_character_consistency and draft.characters:
             from services.character_visual_profile import CharacterVisualProfileStore
             from services.character_visual_extractor import CharacterVisualExtractor
-            profile_store = CharacterVisualProfileStore()
+            # Scope profiles by story TITLE only (not session) so the read side
+            # — which addresses a story by checkpoint/session that may differ
+            # from the writing session — resolves to the same folder. Title is
+            # the one identity stable across runs of the same story.
+            profile_store = CharacterVisualProfileStore(
+                story_title=getattr(draft, "title", None)
+            )
             extractor = CharacterVisualExtractor()
             for char in draft.characters:
                 profile = profile_store.load_profile(char.name)
@@ -130,151 +123,94 @@ class MediaProducer:
                             char.reference_image = ref
                             result["character_refs"][char.name] = ref
 
-        # Step 2: Scene images from enhanced story chapters (parallel)
+        # Step 2: Comic panels (truyện tranh) — multiple images per chapter.
+        #
+        # Each chapter gets ``panels_per_chapter`` distinct scene panels. We
+        # reuse the same engine as the on-demand reader regen
+        # (ImagePromptGenerator.generate_from_chapter + ImageGenerator.
+        # generate_story_images) so the pipeline and the regen button stay in
+        # lockstep. generate_from_chapter already injects ``visual_profiles``
+        # into the per-character description block (consistency anchors), and
+        # generate_story_images routes each panel's ``characters_in_scene``
+        # through the matching character reference image for img2img-capable
+        # providers. The generated panel paths are written onto ``ch.images``
+        # (relative to OUTPUT_ROOT) — the same chapter objects live in
+        # ``self.output.enhanced_story``, so the caller persists them by
+        # checkpointing after this stage.
         char_refs = result["character_refs"]
         use_consistency = cfg.enable_character_consistency
 
+        # Resolve which provider actually generates panels. With consistency on
+        # we prefer the dedicated consistency provider, falling back to the
+        # generic image provider when seedream isn't configured.
         if use_consistency:
-            consistency_provider = getattr(cfg, "character_consistency_provider", "seedream")
-            if consistency_provider == "seedream" and not provider.is_configured():
-                consistency_provider = cfg.image_provider
+            panel_provider = getattr(cfg, "character_consistency_provider", "seedream")
+            if panel_provider == "seedream" and not provider.is_configured():
+                panel_provider = cfg.image_provider
+        else:
+            panel_provider = cfg.image_provider
+
+        if panel_provider and panel_provider != "none" and enhanced and enhanced.chapters:
             from services.image_generator import ImageGenerator
+            from services.image_prompt_generator import ImagePromptGenerator
+            from services.output_paths import rel_to_output_root
+
+            num_panels = max(1, int(getattr(cfg, "panels_per_chapter", 8)))
+            prompt_gen = ImagePromptGenerator()
             image_gen = ImageGenerator(
-                provider=consistency_provider,
+                provider=panel_provider,
                 session_id=session_id,
                 story_title=getattr(draft, "title", None),
             )
-        else:
-            image_gen = None
+            characters = list(getattr(draft, "characters", None) or [])
 
-        if (use_consistency or provider.is_configured()) and enhanced and enhanced.chapters:
-            from services.image_prompt_generator import ImagePromptGenerator
-            prompt_gen = ImagePromptGenerator()
-
-            # Generate one scene image per chapter
             chapters = enhanced.chapters
-            _log(f"[MEDIA] Tạo {len(chapters)} ảnh cảnh (song song)...")
+            total = len(chapters)
+            _log(f"[MEDIA] Tạo {num_panels} panel/chương cho {total} chương...")
 
-            # Scene-aware ref selection. Detect which characters actually
-            # appear in this chapter's content/summary/title via substring
-            # match against the character name, then prefer those refs over
-            # arbitrary dict-insertion order. The image model only accepts
-            # 2 refs total (FlowKit limit) so picking the wrong two means
-            # the antagonist's face leaks into a chapter that's purely about
-            # the protagonist.
-            def _refs_for_chapter(ch) -> list[str]:
-                if not char_refs:
-                    return []
-                blob = " ".join(
-                    s for s in (
-                        getattr(ch, "content", "") or "",
-                        getattr(ch, "summary", "") or "",
-                        getattr(ch, "title", "") or "",
-                    ) if s
-                )
-                # Order matches `char_refs` (draft.characters order), so
-                # protagonists tend to come first when ties happen — that's
-                # the right default vs. random.
-                mentioned = [
-                    n for n, _ref in char_refs.items() if _mentions(n, blob)
-                ]
-                picked_names = mentioned[:2] if mentioned else list(char_refs.keys())[:2]
-                return [char_refs[n] for n in picked_names if n in char_refs]
-
-            prepared = []
-            for ch in chapters:
+            def _panels_for_chapter(ch):
+                """Generate this chapter's panels; returns (ch, [rel_paths])."""
                 try:
-                    image_prompt = prompt_gen.generate_scene_prompt(ch)
-                except Exception:
-                    image_prompt = ch.summary or ch.title or f"Chapter {ch.chapter_number}"
-                refs = _refs_for_chapter(ch)
-                if use_consistency and visual_profiles:
-                    # When we have image refs to feed FlowKit, the frozen
-                    # English visual description fights the reference image
-                    # (the text prompt re-describes hair/skin/outfit which
-                    # the ref already pins down) and produces drift. With
-                    # refs, only inject the bare name so the model knows
-                    # *who* is in the scene and lets the image ref dominate
-                    # appearance. Without refs, fall back to the full frozen
-                    # description so the model still has appearance anchors.
-                    # Also: scope the injected names to characters who actually
-                    # appear in this chapter (heuristic-driven via the same
-                    # substring match used for refs), so we don't tell the
-                    # model "[Hắc Phong Lão Tổ]" is in a chapter where only
-                    # the protagonist appears.
-                    chapter_blob = " ".join(
-                        s for s in (
-                            getattr(ch, "content", "") or "",
-                            getattr(ch, "summary", "") or "",
-                            getattr(ch, "title", "") or "",
-                        ) if s
+                    prompts = prompt_gen.generate_from_chapter(
+                        ch,
+                        characters=characters or None,
+                        num_images=num_panels,
+                        visual_profiles=visual_profiles or None,
                     )
-                    valid_names = [
-                        n for n in visual_profiles
-                        if n in [getattr(c, 'name', '') for c in (draft.characters or [])]
-                    ]
-                    scene_names = [n for n in valid_names if _mentions(n, chapter_blob)]
-                    if not scene_names:
-                        scene_names = valid_names  # fallback: anchor everyone
-                    if refs:
-                        char_descs = "; ".join(f"[{n}]" for n in scene_names)
-                    else:
-                        char_descs = "; ".join(
-                            f"[{n}: {visual_profiles[n]}]" for n in scene_names
-                        )
-                    if char_descs:
-                        image_prompt = f"{char_descs} {image_prompt}"
-                filename = f"ch{ch.chapter_number:02d}_scene.png"
-                prepared.append((ch, image_prompt, refs, filename))
+                except Exception as e:
+                    logger.warning(
+                        "Panel prompt generation failed for chapter %s: %s",
+                        ch.chapter_number, e,
+                    )
+                    return ch, []
+                if not prompts:
+                    return ch, []
+                paths = image_gen.generate_story_images(
+                    prompts,
+                    chapter_number=ch.chapter_number,
+                    character_references=char_refs or None,
+                )
+                return ch, [rel_to_output_root(p) for p in paths]
 
-            total = len(prepared)
-
-            if use_consistency and image_gen is not None:
-                # ImageGenerator path — use ThreadPoolExecutor directly
-                max_workers = min(5, total)
-                completed = 0
-                with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    futures = {
-                        executor.submit(
-                            image_gen.generate_with_reference if refs else image_gen.generate,
-                            *(
-                                (prompt, refs, filename)
-                                if refs
-                                else (prompt, filename)
-                            ),
-                        ): ch
-                        for ch, prompt, refs, filename in prepared
-                    }
-                    for future in as_completed(futures):
-                        ch = futures[future]
-                        completed += 1
-                        try:
-                            path = future.result()
-                            if path:
-                                result["scene_images"].append(path)
-                        except Exception as e:
-                            logger.warning(
-                                "Image gen failed for chapter %s: %s",
-                                ch.chapter_number, e,
-                            )
-                        if completed % 3 == 0 or completed == total:
-                            _log(f"[MEDIA] Ảnh: {completed}/{total}")
-            else:
-                # Seedream path — use batch_generate() via ImageProvider
-                batch_requests = [
-                    {"scene_prompt": prompt, "reference_images": refs, "filename": filename}
-                    for _ch, prompt, refs, filename in prepared
-                ]
-                batch_results = provider.seedream.batch_generate(batch_requests)
-                for i, img_result in enumerate(batch_results):
-                    if img_result.success and img_result.image_url:
-                        result["scene_images"].append(img_result.image_url)
-                    else:
+            # Parallelize across chapters (panels within a chapter run
+            # sequentially inside generate_story_images). Cap workers so we
+            # don't hammer the image provider with total*num_panels at once.
+            completed = 0
+            with ThreadPoolExecutor(max_workers=min(4, total)) as executor:
+                futures = {executor.submit(_panels_for_chapter, ch): ch for ch in chapters}
+                for future in as_completed(futures):
+                    completed += 1
+                    ch = futures[future]
+                    try:
+                        ch_obj, rel_paths = future.result()
+                        if rel_paths:
+                            ch_obj.images = rel_paths
+                            result["scene_images"].extend(rel_paths)
+                    except Exception as e:
                         logger.warning(
-                            "Image failed for %r: %s", img_result.prompt, img_result.error
+                            "Panel generation failed for chapter %s: %s",
+                            getattr(ch, "chapter_number", "?"), e,
                         )
-                    completed_count = i + 1
-                    if completed_count % 3 == 0 or completed_count == total:
-                        _log(f"[MEDIA] Ảnh: {completed_count}/{total}")
+                    _log(f"[MEDIA] Chương: {completed}/{total}")
 
         return result

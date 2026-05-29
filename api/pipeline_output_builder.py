@@ -3,12 +3,45 @@
 from services.text_utils import sanitize_story_html as _san
 
 
+def _media_url(path: str) -> str:
+    """Convert a stored chapter-image path into a public ``/media`` URL.
+
+    Chapter images are persisted as paths relative to OUTPUT_ROOT (see
+    ``rel_to_output_root`` in services/output_paths.py), e.g.
+    ``my-slug/images/ch01_panel01.png``. The ``/media`` static mount serves
+    OUTPUT_ROOT, so the URL is just ``/media/<rel>``. Already-absolute URLs
+    (http/https) and already-prefixed ``/media/...`` values pass through.
+    """
+    if not path:
+        return path
+    if path.startswith(("http://", "https://", "/media/")):
+        return path
+    return "/media/" + path.lstrip("/")
+
+
+def _chapter_image_urls(ch) -> list:
+    """List of ``/media`` URLs for a chapter's generated panels (may be empty)."""
+    return [_media_url(p) for p in (getattr(ch, "images", None) or []) if p]
+
+
 def build_output_summary(output) -> dict:
     """Convert PipelineOutput to a JSON-friendly dict for the frontend.
 
     All LLM-generated text fields are sanitized with nh3 to prevent XSS.
     """
     result = {"has_draft": False, "has_enhanced": False}
+
+    # Comic panels are generated onto the *enhanced* chapters (pipeline media
+    # stage / on-demand regen both target enhanced_story when it exists). The
+    # reader, however, renders the draft chapter list, so build a
+    # chapter_number → image-urls map from the enhanced story and merge it down
+    # onto the draft chapters below.
+    enhanced_images: dict = {}
+    if getattr(output, "enhanced_story", None):
+        for _ch in output.enhanced_story.chapters:
+            _urls = _chapter_image_urls(_ch)
+            if _urls:
+                enhanced_images[_ch.chapter_number] = _urls
 
     if output.story_draft:
         d = output.story_draft
@@ -28,6 +61,10 @@ def build_output_summary(output) -> dict:
                     "number": ch.chapter_number,
                     "title": _san(ch.title),
                     "content": _san(ch.content),
+                    # Prefer images set directly on the draft chapter; otherwise
+                    # fall back to the enhanced chapter's panels (same number).
+                    "images": _chapter_image_urls(ch)
+                    or enhanced_images.get(ch.chapter_number, []),
                 }
                 for ch in d.chapters
             ],
@@ -58,6 +95,7 @@ def build_output_summary(output) -> dict:
                     "number": ch.chapter_number,
                     "title": _san(ch.title),
                     "content": _san(ch.content),
+                    "images": _chapter_image_urls(ch),
                 }
                 for ch in es.chapters
             ],
