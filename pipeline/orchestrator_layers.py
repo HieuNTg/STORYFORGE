@@ -398,15 +398,12 @@ async def run_full_pipeline(
             self.output.logs.append(msg)
         logger.info(msg)
         if progress_callback:
-            _probe_key = "Layer 1 hoàn tất" in msg
+            # Progress emission is a side-effect: a failing callback (e.g. a
+            # full SSE queue or a sanitizer error) must NEVER abort generation.
             try:
                 progress_callback(msg)
             except Exception as _e:
-                logger.exception("[PROBE-OLOG] _log progress_callback raised: %s", _e)
-                raise
-            else:
-                if _probe_key:
-                    logger.info("[PROBE-OLOG] _log progress_callback returned for: %s", msg[:80])
+                logger.warning("progress_callback raised during _log (ignored): %s", _e)
 
     with self._lock:
         self.output = PipelineOutput(status="running", current_layer=1)

@@ -39,6 +39,49 @@ def _sanitize_summary(summary: dict) -> dict:
                     ch["content"] = sanitize_story_html(ch["content"])
     return summary
 
+
+def _drain_and_coalesce(progress_queue: "_queue.Queue", first):
+    """Collect `first` plus everything currently queued, then collapse runs of
+    consecutive ``stream`` frames down to the latest one in each run.
+
+    ``stream`` payloads are cumulative snapshots of the partial text (see
+    ``on_stream`` -> ``sanitize_story_html(partial_text)``), so an older snapshot
+    is fully superseded by a newer one and can be dropped losslessly. ``log`` and
+    ``error`` frames are ALWAYS preserved in order — the live progress UX (and
+    the chapter/phase counters) ride entirely on ``log`` events, so they must
+    never be discarded during draining.
+    """
+    batch = [first]
+    while True:
+        try:
+            batch.append(progress_queue.get_nowait())
+        except _queue.Empty:
+            break
+    out = []
+    for idx, item in enumerate(batch):
+        # Skip a stream frame only when an immediately-following frame is also a
+        # stream frame (it carries the newer, superseding snapshot).
+        if item[0] == "stream" and idx + 1 < len(batch) and batch[idx + 1][0] == "stream":
+            continue
+        out.append(item)
+    return out
+
+
+def _error_reason_from_logs(logs, fallback: str = "Pipeline thất bại. Vui lòng thử lại.") -> str:
+    """Best-effort extraction of the failure reason an orchestrator logged right
+    before aborting with ``status="error"``.
+
+    The orchestrator records the cause through its progress callback (e.g.
+    ``"Không kết nối được LLM: ..."``) and then returns immediately, so the most
+    recent non-empty log line is the reason in the abort paths. Falls back to a
+    clear generic message when no log is available.
+    """
+    for line in reversed(logs or []):
+        if isinstance(line, str) and line.strip():
+            return line.strip()
+    return fallback
+
+
 # Shared orchestrator instance per session.
 # asyncio.Lock: concurrent SSE requests (different sessions) may interleave
 # within the same event loop when awaiting.
@@ -461,6 +504,10 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                 story_title = f"Truyện {body.genre}"
 
         result: list = [None]
+        # Specific, user-facing error captured by the except arms below so the
+        # finally (and the recovery GET endpoint) can report the real cause
+        # instead of the generic "Pipeline produced no output." fallback.
+        caught_error: list = [None]
 
         async def _run_async():
             try:
@@ -486,20 +533,24 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                 raise
             except (ValueError, TypeError) as e:
                 logger.warning(f"Pipeline input error (session={session_id}): {e}")
-                progress_queue.put_nowait(("error", "Invalid pipeline input. Please check your settings."))
+                caught_error[0] = "Invalid pipeline input. Please check your settings."
+                progress_queue.put_nowait(("error", caught_error[0]))
             except (TimeoutError, ConnectionError) as e:
                 logger.error(f"Pipeline network error (session={session_id}): {e}")
-                progress_queue.put_nowait(("error", "Network error during pipeline. Please try again."))
+                caught_error[0] = "Network error during pipeline. Please try again."
+                progress_queue.put_nowait(("error", caught_error[0]))
             except Exception as e:
                 logger.exception(f"Pipeline error (session={session_id}): {e}")
-                progress_queue.put_nowait(("error", "An unexpected error occurred. Please try again."))
+                caught_error[0] = "An unexpected error occurred. Please try again."
+                progress_queue.put_nowait(("error", caught_error[0]))
             finally:
                 # Persist final state into the registry so FE can recover via
                 # GET /api/pipeline/run/{session_id} even if SSE was lost.
                 final_summary = None
                 final_error = None
                 output = result[0]
-                if output is not None:
+                output_status = getattr(output, "status", None) if output is not None else None
+                if output is not None and output_status != "error":
                     try:
                         from api.pipeline_output_builder import build_output_summary
                         safe_output = output.model_copy(deep=True)
@@ -512,8 +563,18 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                             f"Failed to build final summary (session={session_id}): {exc}"
                         )
                         final_error = "Failed to assemble pipeline result."
+                elif output is not None:
+                    # Orchestrator returned an error-status output (e.g. LLM
+                    # unreachable). Surface the real reason instead of
+                    # masquerading as a successful, empty `done`. The canonical
+                    # cause is appended to output.logs by the orchestrator;
+                    # fall back to job.logs (progress mirror) if absent.
+                    err_logs = getattr(output, "logs", None) or job.logs
+                    final_error = caught_error[0] or _error_reason_from_logs(err_logs)
                 else:
-                    final_error = "Pipeline produced no output."
+                    # No output at all (exception path) — prefer the specific
+                    # message captured by the except arms.
+                    final_error = caught_error[0] or "Pipeline produced no output."
                 await _jobs.mark_done(
                     session_id, summary=final_summary, error=final_error
                 )
@@ -541,21 +602,15 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                     )
                     return
                 try:
-                    msg_type, msg_data = await asyncio.to_thread(progress_queue.get, timeout=0.2)
-                    # Drain queue for latest stream event
-                    while True:
-                        try:
-                            t, d = progress_queue.get_nowait()
-                            if t == "stream":
-                                msg_type, msg_data = t, d
-                            elif t == "error":
-                                msg_type, msg_data = t, d
-                        except _queue.Empty:
-                            break
-                    event = {"type": msg_type, "data": msg_data}
-                    if msg_type == "log":
-                        event["logs_count"] = len(logs)
-                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                    first = await asyncio.to_thread(progress_queue.get, timeout=0.2)
+                    # Drain everything queued, coalescing only consecutive stream
+                    # snapshots; logs/errors are preserved in order (the progress
+                    # UX depends on every log line being delivered).
+                    for msg_type, msg_data in _drain_and_coalesce(progress_queue, first):
+                        event = {"type": msg_type, "data": msg_data}
+                        if msg_type == "log":
+                            event["logs_count"] = len(logs)
+                        yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
                     last_yield = time.monotonic()
                 except _queue.Empty:
                     # Heartbeat: keep proxies + browsers from closing the idle socket
@@ -697,6 +752,10 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
             progress_queue.put_nowait(("log", msg))
 
         result: list = [None]
+        # Specific, user-facing error captured by the except arms below so the
+        # finally (and the recovery GET endpoint) can report the real cause
+        # instead of the generic "Pipeline produced no output." fallback.
+        caught_error: list = [None]
 
         async def _run_async():
             try:
@@ -710,18 +769,22 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
                 raise
             except (ValueError, TypeError) as e:
                 logger.warning(f"Resume input error (session={session_id}): {e}")
-                progress_queue.put_nowait(("error", "Invalid checkpoint data. The file may be corrupted."))
+                caught_error[0] = "Invalid checkpoint data. The file may be corrupted."
+                progress_queue.put_nowait(("error", caught_error[0]))
             except (TimeoutError, ConnectionError) as e:
                 logger.error(f"Resume network error (session={session_id}): {e}")
-                progress_queue.put_nowait(("error", "Network error during resume. Please try again."))
+                caught_error[0] = "Network error during resume. Please try again."
+                progress_queue.put_nowait(("error", caught_error[0]))
             except Exception as e:
                 logger.exception(f"Resume error (session={session_id}): {e}")
-                progress_queue.put_nowait(("error", "An unexpected error occurred. Please try again."))
+                caught_error[0] = "An unexpected error occurred. Please try again."
+                progress_queue.put_nowait(("error", caught_error[0]))
             finally:
                 final_summary = None
                 final_error = None
                 output = result[0]
-                if output is not None:
+                output_status = getattr(output, "status", None) if output is not None else None
+                if output is not None and output_status != "error":
                     try:
                         from api.pipeline_output_builder import build_output_summary
                         safe_output = output.model_copy(deep=True)
@@ -734,8 +797,11 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
                             f"Failed to build final resume summary (session={session_id}): {exc}"
                         )
                         final_error = "Failed to assemble resume result."
+                elif output is not None:
+                    # Resume returned an error-status output — surface the reason.
+                    final_error = caught_error[0] or _error_reason_from_logs(job.logs)
                 else:
-                    final_error = "Resume produced no output."
+                    final_error = caught_error[0] or "Resume produced no output."
                 await _jobs.mark_done(
                     session_id, summary=final_summary, error=final_error
                 )
@@ -759,18 +825,14 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
                     )
                     return
                 try:
-                    msg_type, msg_data = await asyncio.to_thread(progress_queue.get, timeout=0.2)
-                    while True:
-                        try:
-                            t, d = progress_queue.get_nowait()
-                            if t == "error":
-                                msg_type, msg_data = t, d
-                        except _queue.Empty:
-                            break
-                    event = {"type": msg_type, "data": msg_data}
-                    if msg_type == "log":
-                        event["logs_count"] = len(logs)
-                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                    first = await asyncio.to_thread(progress_queue.get, timeout=0.2)
+                    # Same lossless drain as /run: coalesce consecutive stream
+                    # snapshots, never drop log/error frames.
+                    for msg_type, msg_data in _drain_and_coalesce(progress_queue, first):
+                        event = {"type": msg_type, "data": msg_data}
+                        if msg_type == "log":
+                            event["logs_count"] = len(logs)
+                        yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
                     last_yield = time.monotonic()
                 except _queue.Empty:
                     if time.monotonic() - last_yield > 10:
