@@ -49,10 +49,16 @@ class ImageGenerator:
         self.hf_model = cfg.hf_image_model
         self.session_id = session_id
         self.story_title = story_title
+        # Scene panels live under the per-story output layout:
+        #   output/<story-slug>/images
+        # The resolver derives the slug from title (+session) — the same slug
+        # everything else for this story uses. Falls back to a global images
+        # dir when neither identity is known (CLI / standalone use).
+        from services.output_paths import OUTPUT_ROOT, images_dir
         if session_id and story_title:
-            self.output_dir = os.path.join("output/images", slug_session_dir(story_title, session_id))
+            self.output_dir = images_dir(story_title, session_id=session_id)
         else:
-            self.output_dir = "output/images"
+            self.output_dir = os.path.join(OUTPUT_ROOT, "images")
         os.makedirs(self.output_dir, exist_ok=True)
 
     # ── Public API ────────────────────────────────────────────────────────────

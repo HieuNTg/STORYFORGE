@@ -157,7 +157,7 @@ class CharacterExtractRequest(BaseModel):
     # text field on extracted characters. Defaults to Vietnamese.
     language: str = Field(default="vi", max_length=16)
     # Optional story scope. When provided, avatars are written under
-    # output/images/avatars/<story_id>/ so two unrelated stories with the
+    # output/<story-slug>/images/avatars/ so two unrelated stories with the
     # same character name don't collide. Falls back to the legacy unscoped
     # path when omitted, so this is a backward-compatible additive change.
     story_id: str | None = Field(default=None, max_length=200)
@@ -312,7 +312,7 @@ REMINDER: All description / backstory / secret / conflict text MUST be in {langu
 # These endpoints deliberately do NOT touch the backend orchestrator store.
 # Library stories are localStorage-only by product design, so the
 # store-dependent /api/images/{id}/profiles + /rebuild endpoints always 404 for
-# them. Avatars, however, live on disk under output/images/avatars/<story_id>/
+# them. Avatars, however, live on disk under output/<story-slug>/images/avatars/
 # (written by the extract-story background task) and are addressable purely from
 # (character name + story_id). These routes surface those files to the
 # Characters page so portraits display and "Tạo lại ảnh" works for any story,

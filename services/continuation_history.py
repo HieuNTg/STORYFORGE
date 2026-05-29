@@ -33,12 +33,31 @@ def slug_for_title(title: str) -> str:
     return re.sub(r"[^\w\-]", "_", raw)
 
 
-def sidecar_path_for(checkpoint_filename: str) -> pathlib.Path:
-    """Resolve sidecar path for ``<filename>.json`` → ``<filename>.history.json``."""
+def sidecar_path_for(
+    checkpoint_filename: str, title: Optional[str] = None
+) -> pathlib.Path:
+    """Resolve sidecar path for ``<filename>.json`` → ``<filename>.history.json``.
+
+    Checkpoints live in per-story folders (``output/<story-slug>/checkpoints``),
+    so the sidecar must land next to its checkpoint:
+      - if ``title`` is given, use that story's checkpoints dir (write path);
+      - else locate the existing checkpoint by filename across all dirs
+        (read path); falling back to the legacy flat dir when not found.
+    """
     safe = pathlib.Path(checkpoint_filename).name
     if safe.endswith(".json"):
         safe = safe[: -len(".json")]
-    return checkpoint_dir() / f"{safe}.history.json"
+    sidecar_name = f"{safe}.history.json"
+
+    if title:
+        from services.output_paths import checkpoints_dir
+        return pathlib.Path(checkpoints_dir(title)) / sidecar_name
+
+    from pipeline.orchestrator_checkpoint import find_checkpoint_path
+    found = find_checkpoint_path(pathlib.Path(checkpoint_filename).name)
+    if found:
+        return pathlib.Path(found).parent / sidecar_name
+    return checkpoint_dir() / sidecar_name
 
 
 def read_events(checkpoint_filename: str) -> list[dict]:
@@ -79,7 +98,7 @@ def record_continuation(
 
     slug = slug_for_title(title)
     checkpoint_filename = f"{slug}_layer{layer}.json"
-    path = sidecar_path_for(checkpoint_filename)
+    path = sidecar_path_for(checkpoint_filename, title=title)
 
     event = {
         "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

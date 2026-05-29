@@ -3,7 +3,6 @@
 import asyncio
 import json
 import logging
-import os
 import pathlib
 import queue as _queue
 import shutil
@@ -37,11 +36,6 @@ router = APIRouter(
     tags=["continuation"],
     dependencies=[Depends(require_permission_if_enabled(Permission.CREATE_STORIES))],
 )
-
-_CHECKPOINT_DIR = pathlib.Path(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-).resolve() / "output" / "checkpoints"
-
 
 class ContinueRequest(BaseModel):
     """Request body for continuing an existing story."""
@@ -123,18 +117,17 @@ class ConsistencyCheckRequest(BaseModel):
 
 
 def _resolve_checkpoint(filename: str) -> pathlib.Path | None:
-    """Validate and resolve checkpoint path, preventing traversal."""
+    """Validate and resolve checkpoint path, preventing traversal.
+
+    Checkpoints live in per-story folders now, so resolve by basename across
+    all checkpoint dirs (per-story + legacy flat) via ``find_checkpoint_path``.
+    """
     safe_name = pathlib.Path(filename).name
     if not safe_name or ".." in filename:
         return None
-    resolved = (_CHECKPOINT_DIR / safe_name).resolve()
-    try:
-        resolved.relative_to(_CHECKPOINT_DIR)
-    except ValueError:
-        return None
-    if not resolved.exists():
-        return None
-    return resolved
+    from pipeline.orchestrator_checkpoint import find_checkpoint_path
+    found = find_checkpoint_path(safe_name)
+    return pathlib.Path(found) if found else None
 
 
 def _backup_checkpoint(checkpoint_path: pathlib.Path) -> None:
@@ -906,11 +899,8 @@ def get_continuation_history(filename: str) -> dict:
     safe = pathlib.Path(filename).name
     if not safe or ".." in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
-    sidecar = sidecar_path_for(safe)
-    try:
-        sidecar.resolve().relative_to(_CHECKPOINT_DIR)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid filename")
+    # Sidecars co-locate with their per-story checkpoint; the basename guard
+    # above already prevents traversal, so no fixed-root containment check.
     return {"events": read_events(safe)}
 
 

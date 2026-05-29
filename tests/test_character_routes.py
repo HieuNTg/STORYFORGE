@@ -270,13 +270,15 @@ def test_avatar_url_for_builds_media_url_with_cache_buster():
     import os
 
     from services import character_avatar
+    from services.output_paths import avatars_dir, story_slug
     from services.safe_name import safe_character_name
 
     story_id = "story-urltest-1"
     name = "Lý Trầm"
-    safe_story = safe_character_name(story_id)
+    slug = story_slug(story_id=story_id)
     safe = safe_character_name(name)
-    base = os.path.join("output", "images", "avatars", safe_story)
+    # Per-story layout: output/<story-slug>/images/avatars/<name>.png.
+    base = avatars_dir(story_id=story_id)
     os.makedirs(base, exist_ok=True)
     path = os.path.join(base, f"{safe}.png")
     try:
@@ -285,7 +287,7 @@ def test_avatar_url_for_builds_media_url_with_cache_buster():
         url = character_avatar.avatar_url_for(name, story_id)
         assert url is not None
         head, _, query = url.partition("?")
-        assert head == f"/media/avatars/{safe_story}/{safe}.png"
+        assert head == f"/media/{slug}/images/avatars/{safe}.png"
         assert query.startswith("v=")  # mtime cache-buster present
     finally:
         try:

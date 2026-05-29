@@ -33,9 +33,10 @@ export async function extractStoryCharacters(req: {
   language?: string;
   /**
    * Optional library story id. When provided, the backend writes generated
-   * avatars under `output/images/avatars/<story_id>/` so two unrelated
-   * stories with same-named characters don't collide. Falls back to the
-   * legacy unscoped directory when omitted.
+   * avatars under the story's own folder (`output/<story-slug>/images/avatars/`,
+   * resolved via services.output_paths) so two unrelated stories with
+   * same-named characters don't collide. Falls back to the shared `_unsorted`
+   * bucket when omitted.
    */
   story_id?: string;
   /**

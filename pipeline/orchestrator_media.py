@@ -97,7 +97,13 @@ class MediaProducer:
         if cfg.enable_character_consistency and draft.characters:
             from services.character_visual_profile import CharacterVisualProfileStore
             from services.character_visual_extractor import CharacterVisualExtractor
-            profile_store = CharacterVisualProfileStore()
+            # Scope profiles by story TITLE only (not session) so the read side
+            # — which addresses a story by checkpoint/session that may differ
+            # from the writing session — resolves to the same folder. Title is
+            # the one identity stable across runs of the same story.
+            profile_store = CharacterVisualProfileStore(
+                story_title=getattr(draft, "title", None)
+            )
             extractor = CharacterVisualExtractor()
             for char in draft.characters:
                 profile = profile_store.load_profile(char.name)

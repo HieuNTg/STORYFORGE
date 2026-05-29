@@ -16,7 +16,6 @@ show overall + weakest-chapter pills without opening each story.
 
 import json
 import logging
-import os
 import pathlib
 from typing import Optional
 
@@ -29,12 +28,6 @@ from middleware.rbac import Permission, require_permission_if_enabled
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/quality", tags=["quality"])
 _READ_STORIES = Depends(require_permission_if_enabled(Permission.READ_STORIES))
-
-_PROJECT_ROOT = pathlib.Path(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-).resolve()
-_CHECKPOINT_DIR = _PROJECT_ROOT / "output" / "checkpoints"
-
 
 class OverallQuality(BaseModel):
     """Aggregate scores for the highest-layer scoring run available."""
@@ -172,12 +165,28 @@ def get_quality_summaries() -> dict:
     quality scores. The endpoint never 500s on a single bad file.
     """
     summaries: dict[str, Optional[dict]] = {}
-    if not _CHECKPOINT_DIR.exists():
-        return {"summaries": summaries}
 
     from models.schemas import PipelineOutput
+    from pipeline.orchestrator_checkpoint import _all_checkpoint_dirs
 
-    for path in sorted(_CHECKPOINT_DIR.glob("*.json")):
+    # Checkpoints now live in per-story folders; walk them all (plus the legacy
+    # flat dir) and dedup by basename so a single story isn't summarised twice.
+    seen: set[str] = set()
+    candidates: list[pathlib.Path] = []
+    for d in _all_checkpoint_dirs():
+        dpath = pathlib.Path(d)
+        if not dpath.exists():
+            continue
+        for path in sorted(dpath.glob("*.json")):
+            # Skip sidecars (`*.history.json` / `*.usage.json`) — they share the dir.
+            if path.name.endswith((".history.json", ".usage.json")):
+                continue
+            if path.name in seen:
+                continue
+            seen.add(path.name)
+            candidates.append(path)
+
+    for path in candidates:
         name = path.name
         try:
             with open(path, "r", encoding="utf-8") as f:

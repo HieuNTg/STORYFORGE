@@ -279,7 +279,7 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
         character_references: dict[str, str] = {}
         try:
             from services.character_visual_profile import CharacterVisualProfileStore
-            store = CharacterVisualProfileStore()
+            store = CharacterVisualProfileStore(story_title=getattr(draft, "title", None))
             missing = []
             for c in characters:
                 fp = store.get_frozen_prompt(c.name)
@@ -341,10 +341,12 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
                 chapter_number=ch.chapter_number,
                 character_references=character_references or None,
             )
-            ch.images = [
-                os.path.relpath(p, "output/images").replace(os.sep, "/")
-                for p in ch_paths
-            ]
+            # Store paths relative to the output root so the ``/media`` mount
+            # (which serves OUTPUT_ROOT) resolves them as ``/media/<rel>``.
+            # Panels live at ``output/<story-slug>/images/...`` under the
+            # per-story layout.
+            from services.output_paths import rel_to_output_root
+            ch.images = [rel_to_output_root(p) for p in ch_paths]
             all_paths.extend(ch_paths)
 
         msg = t("msg_images_generated") if t else f"Generated {len(all_paths)} image(s)."

@@ -533,7 +533,9 @@ def isolated_image_gen_env(tmp_path, monkeypatch):
 def test_output_dir_per_session(isolated_image_gen_env):
     from services.media.image_generator import ImageGenerator
     gen = ImageGenerator(provider="none", session_id="abc123", story_title="Tiên Hiệp Test!")
-    assert gen.output_dir.replace("\\", "/").endswith("output/images/tien_hiep_test__abc123")
+    # Per-story layout: images live under output/<story-slug>/images, where the
+    # slug is slug_session_dir(title, session_id).
+    assert gen.output_dir.replace("\\", "/").endswith("output/tien_hiep_test__abc123/images")
     assert os.path.isdir(gen.output_dir)
 
 
@@ -783,7 +785,12 @@ def test_flowkit_not_ready_returns_none(isolated_image_gen_env, monkeypatch):
 
 
 def test_handlers_relpath_subdirs(isolated_image_gen_env, monkeypatch):
-    """services.handlers maps absolute paths under output/images/ to subdir-relative names."""
+    """services.handlers maps panel paths to OUTPUT_ROOT-relative /media names.
+
+    Under the per-story layout panels live at ``output/<story-slug>/images/...``;
+    handlers store the path relative to OUTPUT_ROOT so the ``/media`` mount
+    (which serves OUTPUT_ROOT) resolves it as ``/media/<rel>``.
+    """
     import services.handlers as handlers_mod
 
     # Build minimal fake objects to drive handle_generate_images.
@@ -811,7 +818,7 @@ def test_handlers_relpath_subdirs(isolated_image_gen_env, monkeypatch):
         lambda self, *a, **kw: [MagicMock(panel_number=1)],
     )
 
-    sub = tmp_dir = "output/images/t_sid1"
+    sub = tmp_dir = "output/t_sid1/images"
     os.makedirs(sub, exist_ok=True)
     fake_path = os.path.join(sub, "ch01_panel01.png")
 
@@ -822,8 +829,9 @@ def test_handlers_relpath_subdirs(isolated_image_gen_env, monkeypatch):
 
     paths, msg = handlers_mod.handle_generate_images(_Orch(), provider="none")
     assert paths == [fake_path]
-    # Chapter image entries should retain the per-session subdir, not just basename.
-    assert _Orch.output.enhanced_story.chapters[0].images == ["t_sid1/ch01_panel01.png"]
+    # Chapter image entries keep the full OUTPUT_ROOT-relative path (story slug
+    # + images subdir), not just the basename, so /media resolves it.
+    assert _Orch.output.enhanced_story.chapters[0].images == ["t_sid1/images/ch01_panel01.png"]
 
 
 # ---------------------------------------------------------------------------

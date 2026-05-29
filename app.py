@@ -321,10 +321,14 @@ def main():
     if os.path.isdir(locales_dir):
         main_app.mount("/static/locales", GzippedStaticFiles(directory=locales_dir), name="locales")
 
-    # Generated chapter images
-    images_dir = os.path.join(base_dir, "output", "images")
-    os.makedirs(images_dir, exist_ok=True)
-    main_app.mount("/media", StaticFiles(directory=images_dir), name="media")
+    # Generated media (per-story layout: output/<story-slug>/images/...,
+    # .../images/avatars/..., exports, etc.). The /media mount serves the whole
+    # output root so any per-story asset is reachable at /media/<path-rel-to-root>.
+    # See services/output_paths.py for the single source of truth.
+    from services.output_paths import OUTPUT_ROOT
+    media_root = os.path.join(base_dir, OUTPUT_ROOT)
+    os.makedirs(media_root, exist_ok=True)
+    main_app.mount("/media", StaticFiles(directory=media_root), name="media")
 
     # Health check — lightweight with cached DB/Redis probes (30s TTL)
     from fastapi.responses import JSONResponse as _JSONResponse

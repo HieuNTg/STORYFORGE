@@ -41,10 +41,14 @@ export default function TraitRadarChart({
     <div style={{ width: "100%", height: size }} aria-hidden>
       <ResponsiveContainer width="100%" height="100%">
         <RadarChart data={data} cx="50%" cy="50%" outerRadius="75%">
-          <PolarGrid stroke="hsl(var(--border))" strokeOpacity={0.4} />
+          <PolarGrid stroke="var(--border)" strokeOpacity={0.6} />
           <PolarAngleAxis
             dataKey="axis"
-            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+            tick={{
+              fill: "var(--foreground)",
+              fontSize: 12,
+              fontWeight: 600,
+            }}
           />
           <PolarRadiusAxis
             domain={[0, 100]}
@@ -55,9 +59,17 @@ export default function TraitRadarChart({
           <Radar
             name="traits"
             dataKey="value"
-            stroke="hsl(var(--primary))"
-            fill="hsl(var(--primary))"
-            fillOpacity={0.35}
+            stroke="var(--primary)"
+            strokeWidth={2}
+            fill="var(--primary)"
+            fillOpacity={0.55}
+            dot={{
+              r: 3,
+              fill: "var(--primary)",
+              stroke: "var(--background)",
+              strokeWidth: 1,
+            }}
+            style={{ filter: "drop-shadow(0 0 6px var(--ring))" }}
             isAnimationActive={false}
           />
         </RadarChart>

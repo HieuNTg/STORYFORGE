@@ -29,13 +29,28 @@ logger = logging.getLogger(__name__)
 _MAX_EVENTS = 500
 
 
-def usage_sidecar_path_for(checkpoint_filename: str):
-    """Resolve usage sidecar path: ``<filename>.json`` → ``<filename>.usage.json``."""
+def usage_sidecar_path_for(checkpoint_filename: str, title: Optional[str] = None):
+    """Resolve usage sidecar path: ``<filename>.json`` → ``<filename>.usage.json``.
+
+    Co-located with the real checkpoint (per-story folders). When ``title`` is
+    given, target that story's checkpoints dir (write path); otherwise locate
+    the existing checkpoint by filename, falling back to the legacy flat dir.
+    """
     import pathlib
     safe = pathlib.Path(checkpoint_filename).name
     if safe.endswith(".json"):
         safe = safe[: -len(".json")]
-    return checkpoint_dir() / f"{safe}.usage.json"
+    sidecar_name = f"{safe}.usage.json"
+
+    if title:
+        from services.output_paths import checkpoints_dir
+        return pathlib.Path(checkpoints_dir(title)) / sidecar_name
+
+    from pipeline.orchestrator_checkpoint import find_checkpoint_path
+    found = find_checkpoint_path(pathlib.Path(checkpoint_filename).name)
+    if found:
+        return pathlib.Path(found).parent / sidecar_name
+    return checkpoint_dir() / sidecar_name
 
 
 def _empty_totals() -> dict:
@@ -101,7 +116,7 @@ def record_usage(
 
     slug = slug_for_title(title)
     checkpoint_filename = f"{slug}_layer{layer}.json"
-    path = usage_sidecar_path_for(checkpoint_filename)
+    path = usage_sidecar_path_for(checkpoint_filename, title=title)
 
     event = {
         "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

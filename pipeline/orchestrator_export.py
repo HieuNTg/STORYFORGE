@@ -19,8 +19,26 @@ class PipelineExporter:
     def __init__(self, output: PipelineOutput):
         self.output = output
 
-    def export_output(self, output_dir: str = "output", formats: list[str] | None = None) -> list[str]:
-        """Export results to files. Returns list of generated file paths."""
+    def _default_output_dir(self) -> str:
+        """Per-story exports dir derived from the output's title (centralised).
+
+        Replaces the old bare ``output/`` default, which dumped exports at the
+        root. Falls back to the resolver's ``_unsorted`` bucket when there is no
+        title to scope by.
+        """
+        from services.output_paths import exports_dir
+        story = self.output.enhanced_story or self.output.story_draft
+        title = getattr(story, "title", None)
+        return exports_dir(title)
+
+    def export_output(self, output_dir: str | None = None, formats: list[str] | None = None) -> list[str]:
+        """Export results to files. Returns list of generated file paths.
+
+        ``output_dir=None`` resolves to the per-story exports dir (see
+        :meth:`_default_output_dir`); explicit callers (CLI, tests) override it.
+        """
+        if output_dir is None:
+            output_dir = self._default_output_dir()
         if formats is None:
             formats = ["TXT", "Markdown", "JSON", "HTML", "EPUB"]
         os.makedirs(output_dir, exist_ok=True)
@@ -85,8 +103,10 @@ class PipelineExporter:
 
         return files
 
-    def export_zip(self, output_dir: str = "output", formats: list[str] | None = None) -> str:
+    def export_zip(self, output_dir: str | None = None, formats: list[str] | None = None) -> str:
         """Export all files and bundle into a single ZIP. Returns ZIP path or empty string."""
+        if output_dir is None:
+            output_dir = self._default_output_dir()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         files = self.export_output(output_dir, formats)
         if not files:
