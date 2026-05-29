@@ -17,16 +17,19 @@ from pydantic import BaseModel, Field
 from api.pipeline_output_builder import build_output_summary
 from middleware.rbac import Permission, require_permission_if_enabled
 from models.schemas import ArcDirective, ChapterOutline
+from api import pipeline_job_registry as _jobs
 from api.pipeline_routes import (
-    _active_tasks,
     _orchestrators_lock,
     _sanitize_summary,
     _sessions,
     _MAX_SESSIONS_PER_IP,
+    make_progress_callbacks,
+    launch_job_task,
+    finalize_job,
+    stream_job_events,
 )
 from pipeline.orchestrator import PipelineOrchestrator
 from services.continuation_history import read_events, sidecar_path_for
-from services.text_utils import sanitize_story_html
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
@@ -168,22 +171,20 @@ async def continue_story(request: Request, body: ContinueRequest):
 
         orch = PipelineOrchestrator()
         session_id = str(uuid.uuid4())
+        async with _orchestrators_lock:
+            _sessions[session_id] = (orch, time.time(), client_ip)
 
-        logs: list[str] = []
-        progress_queue: _queue.Queue = _queue.Queue()
-        last_stream_time = [0.0]
-
-        def on_progress(msg):
-            logs.append(msg)
-            progress_queue.put_nowait(("log", msg))
-
-        def on_stream(partial_text):
-            now = time.time()
-            if now - last_stream_time[0] > 0.3:
-                progress_queue.put_nowait(("stream", sanitize_story_html(partial_text)))
-                last_stream_time[0] = now
+        # Register a long-lived job so the continuation survives an SSE drop —
+        # asyncio.to_thread workers can't be cancelled, so cancelling on
+        # disconnect silently discarded a ~minutes-long result (C3). The job
+        # keeps running; FE recovers via GET /api/pipeline/run/{session_id}.
+        job = await _jobs.register(session_id, kind="continue")
+        job.orchestrator = orch
+        on_progress, on_stream = make_progress_callbacks(job)
 
         result: list = [None]
+        caught_error: list = [None]
+        was_cancelled: list = [False]
 
         async def _run_async():
             try:
@@ -193,7 +194,8 @@ async def continue_story(request: Request, body: ContinueRequest):
                     orch.load_from_checkpoint, str(checkpoint_path)
                 )
                 if draft is None:
-                    progress_queue.put_nowait(("error", "Failed to load checkpoint data."))
+                    caught_error[0] = "Failed to load checkpoint data."
+                    job.progress_queue.put_nowait(("error", caught_error[0]))
                     return
 
                 on_progress(f"Loaded checkpoint: {checkpoint_path.name}")
@@ -205,7 +207,8 @@ async def continue_story(request: Request, body: ContinueRequest):
                 if target is not None:
                     remaining = max(0, int(target) - written)
                     if remaining <= 0:
-                        progress_queue.put_nowait(("error", f"Truyện đã đạt {target}/{target} chương — không còn dung lượng để viết thêm."))
+                        caught_error[0] = f"Truyện đã đạt {target}/{target} chương — không còn dung lượng để viết thêm."
+                        job.progress_queue.put_nowait(("error", caught_error[0]))
                         return
                     if effective > remaining:
                         on_progress(f"Yêu cầu {effective} chương nhưng chỉ còn {remaining} chương trong tổng {target}; sẽ viết {remaining}.")
@@ -234,92 +237,36 @@ async def continue_story(request: Request, body: ContinueRequest):
                 result[0] = orch.output
             except asyncio.CancelledError:
                 logger.info("Continue task cancelled (session=%s)", session_id)
+                was_cancelled[0] = True
                 raise
             except (ValueError, TypeError) as e:
                 logger.warning("Continue input error (session=%s): %s", session_id, e)
-                progress_queue.put_nowait(("error", f"Invalid data: {e}"))
+                caught_error[0] = f"Invalid data: {e}"
+                job.progress_queue.put_nowait(("error", caught_error[0]))
             except (TimeoutError, ConnectionError) as e:
                 logger.error("Continue network error (session=%s): %s", session_id, e)
-                progress_queue.put_nowait(("error", "Network error. Please try again."))
+                caught_error[0] = "Network error. Please try again."
+                job.progress_queue.put_nowait(("error", caught_error[0]))
             except Exception as e:
                 logger.exception("Continue error (session=%s): %s", session_id, e)
-                progress_queue.put_nowait(("error", "An unexpected error occurred."))
+                caught_error[0] = "An unexpected error occurred."
+                job.progress_queue.put_nowait(("error", caught_error[0]))
+            finally:
+                await finalize_job(
+                    session_id,
+                    job,
+                    result[0],
+                    caught_error=caught_error[0],
+                    was_cancelled=was_cancelled[0],
+                    cancelled_msg="Continuation was cancelled.",
+                )
 
-        # Session registration + task creation + SSE streaming all inside try/finally
-        # so the finally block always cleans up the session.
-        task = None
-        try:
-            async with _orchestrators_lock:
-                _sessions[session_id] = (orch, time.time(), client_ip)
+        launch_job_task(
+            session_id, job, _run_async(), cancelled_msg="Continuation was cancelled."
+        )
 
-            task = asyncio.create_task(_run_async())
-            _active_tasks.add(task)
-            task.add_done_callback(_active_tasks.discard)
-
-            yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
-
-            while not task.done():
-                if await request.is_disconnected():
-                    logger.info("Client disconnected from /continue (session=%s)", session_id)
-                    task.cancel()
-                    return
-                try:
-                    msg_type, msg_data = await asyncio.to_thread(
-                        progress_queue.get, timeout=0.2
-                    )
-                    while True:
-                        try:
-                            t, d = progress_queue.get_nowait()
-                            if t == "stream":
-                                msg_type, msg_data = t, d
-                            elif t == "error":
-                                msg_type, msg_data = t, d
-                        except _queue.Empty:
-                            break
-                    event = {"type": msg_type, "data": msg_data}
-                    if msg_type == "log":
-                        event["logs_count"] = len(logs)
-                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                except _queue.Empty:
-                    continue
-
-            # Drain remaining
-            while True:
-                try:
-                    msg_type, msg_data = progress_queue.get_nowait()
-                    event = {"type": msg_type, "data": msg_data}
-                    if msg_type == "log":
-                        event["logs_count"] = len(logs)
-                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                except _queue.Empty:
-                    break
-
-            output = result[0]
-            if output:
-                safe_output = output.model_copy(deep=True)
-                summary = build_output_summary(safe_output)
-                summary["session_id"] = session_id
-                summary["logs"] = logs
-                _sanitize_summary(summary)
-                yield f"data: {json.dumps({'type': 'done', 'data': summary}, ensure_ascii=False, default=str)}\n\n"
-            else:
-                yield f"data: {json.dumps({'type': 'error', 'data': 'Continuation failed'})}\n\n"
-        except asyncio.CancelledError:
-            logger.info("SSE /continue cancelled (session=%s)", session_id)
-            if task is not None and not task.done():
-                task.cancel()
-        except (ConnectionError, ConnectionResetError):
-            logger.info("SSE /continue connection lost (session=%s)", session_id)
-            if task is not None and not task.done():
-                task.cancel()
-        except Exception:
-            logger.exception("SSE /continue unexpected error (session=%s)", session_id)
-            if task is not None and not task.done():
-                task.cancel()
-            raise
-        finally:
-            async with _orchestrators_lock:
-                _sessions.pop(session_id, None)
+        async for frame in stream_job_events(request, job, label="continue"):
+            yield frame
 
     return StreamingResponse(
         event_generator(),
@@ -352,22 +299,17 @@ async def regenerate_chapter(request: Request, body: RegenerateChapterRequest):
 
         orch = PipelineOrchestrator()
         session_id = str(uuid.uuid4())
+        async with _orchestrators_lock:
+            _sessions[session_id] = (orch, time.time(), client_ip)
 
-        logs: list[str] = []
-        progress_queue: _queue.Queue = _queue.Queue()
-        last_stream_time = [0.0]
-
-        def on_progress(msg):
-            logs.append(msg)
-            progress_queue.put_nowait(("log", msg))
-
-        def on_stream(partial_text):
-            now = time.time()
-            if now - last_stream_time[0] > 0.3:
-                progress_queue.put_nowait(("stream", sanitize_story_html(partial_text)))
-                last_stream_time[0] = now
+        # C3: job-registry so the regeneration survives an SSE drop.
+        job = await _jobs.register(session_id, kind="regenerate")
+        job.orchestrator = orch
+        on_progress, on_stream = make_progress_callbacks(job)
 
         result: list = [None]
+        caught_error: list = [None]
+        was_cancelled: list = [False]
 
         async def _run_async():
             try:
@@ -377,7 +319,8 @@ async def regenerate_chapter(request: Request, body: RegenerateChapterRequest):
                     orch.load_from_checkpoint, str(checkpoint_path)
                 )
                 if draft is None:
-                    progress_queue.put_nowait(("error", "Failed to load checkpoint data."))
+                    caught_error[0] = "Failed to load checkpoint data."
+                    job.progress_queue.put_nowait(("error", caught_error[0]))
                     return
 
                 on_progress(f"Loaded checkpoint: {checkpoint_path.name}")
@@ -397,89 +340,36 @@ async def regenerate_chapter(request: Request, body: RegenerateChapterRequest):
                 result[0] = orch.output
             except asyncio.CancelledError:
                 logger.info("Regenerate task cancelled (session=%s)", session_id)
+                was_cancelled[0] = True
                 raise
             except (ValueError, TypeError) as e:
                 logger.warning("Regenerate input error (session=%s): %s", session_id, e)
-                progress_queue.put_nowait(("error", f"Invalid data: {e}"))
+                caught_error[0] = f"Invalid data: {e}"
+                job.progress_queue.put_nowait(("error", caught_error[0]))
             except (TimeoutError, ConnectionError) as e:
                 logger.error("Regenerate network error (session=%s): %s", session_id, e)
-                progress_queue.put_nowait(("error", "Network error. Please try again."))
+                caught_error[0] = "Network error. Please try again."
+                job.progress_queue.put_nowait(("error", caught_error[0]))
             except Exception as e:
                 logger.exception("Regenerate error (session=%s): %s", session_id, e)
-                progress_queue.put_nowait(("error", "An unexpected error occurred."))
+                caught_error[0] = "An unexpected error occurred."
+                job.progress_queue.put_nowait(("error", caught_error[0]))
+            finally:
+                await finalize_job(
+                    session_id,
+                    job,
+                    result[0],
+                    caught_error=caught_error[0],
+                    was_cancelled=was_cancelled[0],
+                    cancelled_msg="Regeneration was cancelled.",
+                )
 
-        try:
-            async with _orchestrators_lock:
-                _sessions[session_id] = (orch, time.time(), client_ip)
+        launch_job_task(
+            session_id, job, _run_async(), cancelled_msg="Regeneration was cancelled."
+        )
 
-            task = asyncio.create_task(_run_async())
-            _active_tasks.add(task)
-            task.add_done_callback(_active_tasks.discard)
-
-            yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
-
-            while not task.done():
-                if await request.is_disconnected():
-                    logger.info("Client disconnected from /regenerate-chapter (session=%s)", session_id)
-                    task.cancel()
-                    return
-                try:
-                    msg_type, msg_data = await asyncio.to_thread(
-                        progress_queue.get, timeout=0.2
-                    )
-                    while True:
-                        try:
-                            t, d = progress_queue.get_nowait()
-                            if t == "stream":
-                                msg_type, msg_data = t, d
-                            elif t == "error":
-                                msg_type, msg_data = t, d
-                        except _queue.Empty:
-                            break
-                    event = {"type": msg_type, "data": msg_data}
-                    if msg_type == "log":
-                        event["logs_count"] = len(logs)
-                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                except _queue.Empty:
-                    continue
-
-            # Drain remaining
-            while True:
-                try:
-                    msg_type, msg_data = progress_queue.get_nowait()
-                    event = {"type": msg_type, "data": msg_data}
-                    if msg_type == "log":
-                        event["logs_count"] = len(logs)
-                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                except _queue.Empty:
-                    break
-
-            output = result[0]
-            if output:
-                safe_output = output.model_copy(deep=True)
-                summary = build_output_summary(safe_output)
-                summary["session_id"] = session_id
-                summary["logs"] = logs
-                _sanitize_summary(summary)
-                yield f"data: {json.dumps({'type': 'done', 'data': summary}, ensure_ascii=False, default=str)}\n\n"
-            else:
-                yield f"data: {json.dumps({'type': 'error', 'data': 'Regeneration failed'})}\n\n"
-        except asyncio.CancelledError:
-            logger.info("SSE /regenerate-chapter cancelled (session=%s)", session_id)
-            if not task.done():
-                task.cancel()
-        except (ConnectionError, ConnectionResetError):
-            logger.info("SSE /regenerate-chapter connection lost (session=%s)", session_id)
-            if not task.done():
-                task.cancel()
-        except Exception:
-            logger.exception("SSE /regenerate-chapter unexpected error (session=%s)", session_id)
-            if not task.done():
-                task.cancel()
-            raise
-        finally:
-            async with _orchestrators_lock:
-                _sessions.pop(session_id, None)
+        async for frame in stream_job_events(request, job, label="regenerate-chapter"):
+            yield frame
 
     return StreamingResponse(
         event_generator(),
@@ -565,22 +455,17 @@ async def write_from_outlines_endpoint(request: Request, body: OutlineWriteReque
 
         orch = PipelineOrchestrator()
         session_id = str(uuid.uuid4())
+        async with _orchestrators_lock:
+            _sessions[session_id] = (orch, time.time(), client_ip)
 
-        logs: list[str] = []
-        progress_queue: _queue.Queue = _queue.Queue()
-        last_stream_time = [0.0]
-
-        def on_progress(msg):
-            logs.append(msg)
-            progress_queue.put_nowait(("log", msg))
-
-        def on_stream(partial_text):
-            now = time.time()
-            if now - last_stream_time[0] > 0.3:
-                progress_queue.put_nowait(("stream", sanitize_story_html(partial_text)))
-                last_stream_time[0] = now
+        # C3: job-registry so the write survives an SSE drop.
+        job = await _jobs.register(session_id, kind="write-outlines")
+        job.orchestrator = orch
+        on_progress, on_stream = make_progress_callbacks(job)
 
         result: list = [None]
+        caught_error: list = [None]
+        was_cancelled: list = [False]
 
         async def _run_async():
             try:
@@ -590,7 +475,8 @@ async def write_from_outlines_endpoint(request: Request, body: OutlineWriteReque
                     orch.load_from_checkpoint, str(checkpoint_path)
                 )
                 if draft is None:
-                    progress_queue.put_nowait(("error", "Failed to load checkpoint data."))
+                    caught_error[0] = "Failed to load checkpoint data."
+                    job.progress_queue.put_nowait(("error", caught_error[0]))
                     return
 
                 on_progress(f"Loaded checkpoint: {checkpoint_path.name}")
@@ -610,89 +496,37 @@ async def write_from_outlines_endpoint(request: Request, body: OutlineWriteReque
                 result[0] = orch.output
             except asyncio.CancelledError:
                 logger.info("Write task cancelled (session=%s)", session_id)
+                was_cancelled[0] = True
                 raise
             except (ValueError, TypeError) as e:
                 logger.warning("Write input error (session=%s): %s", session_id, e)
-                progress_queue.put_nowait(("error", f"Invalid data: {e}"))
+                caught_error[0] = f"Invalid data: {e}"
+                job.progress_queue.put_nowait(("error", caught_error[0]))
             except (TimeoutError, ConnectionError) as e:
                 logger.error("Write network error (session=%s): %s", session_id, e)
-                progress_queue.put_nowait(("error", "Network error. Please try again."))
+                caught_error[0] = "Network error. Please try again."
+                job.progress_queue.put_nowait(("error", caught_error[0]))
             except Exception as e:
                 logger.exception("Write error (session=%s): %s", session_id, e)
-                progress_queue.put_nowait(("error", "An unexpected error occurred."))
+                caught_error[0] = "An unexpected error occurred."
+                job.progress_queue.put_nowait(("error", caught_error[0]))
+            finally:
+                await finalize_job(
+                    session_id,
+                    job,
+                    result[0],
+                    caught_error=caught_error[0],
+                    was_cancelled=was_cancelled[0],
+                    cancelled_msg="Write from outlines was cancelled.",
+                )
 
-        try:
-            async with _orchestrators_lock:
-                _sessions[session_id] = (orch, time.time(), client_ip)
+        launch_job_task(
+            session_id, job, _run_async(),
+            cancelled_msg="Write from outlines was cancelled.",
+        )
 
-            task = asyncio.create_task(_run_async())
-            _active_tasks.add(task)
-            task.add_done_callback(_active_tasks.discard)
-
-            yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
-
-            while not task.done():
-                if await request.is_disconnected():
-                    logger.info("Client disconnected from /continue/write (session=%s)", session_id)
-                    task.cancel()
-                    return
-                try:
-                    msg_type, msg_data = await asyncio.to_thread(
-                        progress_queue.get, timeout=0.2
-                    )
-                    while True:
-                        try:
-                            t, d = progress_queue.get_nowait()
-                            if t == "stream":
-                                msg_type, msg_data = t, d
-                            elif t == "error":
-                                msg_type, msg_data = t, d
-                        except _queue.Empty:
-                            break
-                    event = {"type": msg_type, "data": msg_data}
-                    if msg_type == "log":
-                        event["logs_count"] = len(logs)
-                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                except _queue.Empty:
-                    continue
-
-            # Drain remaining
-            while True:
-                try:
-                    msg_type, msg_data = progress_queue.get_nowait()
-                    event = {"type": msg_type, "data": msg_data}
-                    if msg_type == "log":
-                        event["logs_count"] = len(logs)
-                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                except _queue.Empty:
-                    break
-
-            output = result[0]
-            if output:
-                safe_output = output.model_copy(deep=True)
-                summary = build_output_summary(safe_output)
-                summary["session_id"] = session_id
-                summary["logs"] = logs
-                _sanitize_summary(summary)
-                yield f"data: {json.dumps({'type': 'done', 'data': summary}, ensure_ascii=False, default=str)}\n\n"
-            else:
-                yield f"data: {json.dumps({'type': 'error', 'data': 'Write from outlines failed'})}\n\n"
-        except asyncio.CancelledError:
-            logger.info("SSE /continue/write cancelled (session=%s)", session_id)
-            if not task.done():
-                task.cancel()
-        except (ConnectionError, ConnectionResetError):
-            logger.info("SSE /continue/write connection lost (session=%s)", session_id)
-            if not task.done():
-                task.cancel()
-        except Exception:
-            logger.exception("SSE /continue/write unexpected error (session=%s)", session_id)
-            if not task.done():
-                task.cancel()
-            raise
-        finally:
-            async with _orchestrators_lock:
-                _sessions.pop(session_id, None)
+        async for frame in stream_job_events(request, job, label="continue/write"):
+            yield frame
 
     return StreamingResponse(
         event_generator(),
@@ -725,22 +559,17 @@ async def insert_chapter(request: Request, body: InsertChapterRequest):
 
         orch = PipelineOrchestrator()
         session_id = str(uuid.uuid4())
+        async with _orchestrators_lock:
+            _sessions[session_id] = (orch, time.time(), client_ip)
 
-        logs: list[str] = []
-        progress_queue: _queue.Queue = _queue.Queue()
-        last_stream_time = [0.0]
-
-        def on_progress(msg):
-            logs.append(msg)
-            progress_queue.put_nowait(("log", msg))
-
-        def on_stream(partial_text):
-            now = time.time()
-            if now - last_stream_time[0] > 0.3:
-                progress_queue.put_nowait(("stream", sanitize_story_html(partial_text)))
-                last_stream_time[0] = now
+        # C3: job-registry so the insert survives an SSE drop.
+        job = await _jobs.register(session_id, kind="insert")
+        job.orchestrator = orch
+        on_progress, on_stream = make_progress_callbacks(job)
 
         result: list = [None]
+        caught_error: list = [None]
+        was_cancelled: list = [False]
 
         async def _run_async():
             try:
@@ -750,7 +579,8 @@ async def insert_chapter(request: Request, body: InsertChapterRequest):
                     orch.load_from_checkpoint, str(checkpoint_path)
                 )
                 if draft is None:
-                    progress_queue.put_nowait(("error", "Failed to load checkpoint data."))
+                    caught_error[0] = "Failed to load checkpoint data."
+                    job.progress_queue.put_nowait(("error", caught_error[0]))
                     return
 
                 on_progress(f"Loaded checkpoint: {checkpoint_path.name}")
@@ -771,89 +601,37 @@ async def insert_chapter(request: Request, body: InsertChapterRequest):
                 result[0] = orch.output
             except asyncio.CancelledError:
                 logger.info("Insert task cancelled (session=%s)", session_id)
+                was_cancelled[0] = True
                 raise
             except (ValueError, TypeError) as e:
                 logger.warning("Insert input error (session=%s): %s", session_id, e)
-                progress_queue.put_nowait(("error", f"Invalid data: {e}"))
+                caught_error[0] = f"Invalid data: {e}"
+                job.progress_queue.put_nowait(("error", caught_error[0]))
             except (TimeoutError, ConnectionError) as e:
                 logger.error("Insert network error (session=%s): %s", session_id, e)
-                progress_queue.put_nowait(("error", "Network error. Please try again."))
+                caught_error[0] = "Network error. Please try again."
+                job.progress_queue.put_nowait(("error", caught_error[0]))
             except Exception as e:
                 logger.exception("Insert error (session=%s): %s", session_id, e)
-                progress_queue.put_nowait(("error", "An unexpected error occurred."))
+                caught_error[0] = "An unexpected error occurred."
+                job.progress_queue.put_nowait(("error", caught_error[0]))
+            finally:
+                await finalize_job(
+                    session_id,
+                    job,
+                    result[0],
+                    caught_error=caught_error[0],
+                    was_cancelled=was_cancelled[0],
+                    cancelled_msg="Chapter insertion was cancelled.",
+                )
 
-        try:
-            async with _orchestrators_lock:
-                _sessions[session_id] = (orch, time.time(), client_ip)
+        launch_job_task(
+            session_id, job, _run_async(),
+            cancelled_msg="Chapter insertion was cancelled.",
+        )
 
-            task = asyncio.create_task(_run_async())
-            _active_tasks.add(task)
-            task.add_done_callback(_active_tasks.discard)
-
-            yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
-
-            while not task.done():
-                if await request.is_disconnected():
-                    logger.info("Client disconnected from /insert-chapter (session=%s)", session_id)
-                    task.cancel()
-                    return
-                try:
-                    msg_type, msg_data = await asyncio.to_thread(
-                        progress_queue.get, timeout=0.2
-                    )
-                    while True:
-                        try:
-                            t, d = progress_queue.get_nowait()
-                            if t == "stream":
-                                msg_type, msg_data = t, d
-                            elif t == "error":
-                                msg_type, msg_data = t, d
-                        except _queue.Empty:
-                            break
-                    event = {"type": msg_type, "data": msg_data}
-                    if msg_type == "log":
-                        event["logs_count"] = len(logs)
-                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                except _queue.Empty:
-                    continue
-
-            # Drain remaining
-            while True:
-                try:
-                    msg_type, msg_data = progress_queue.get_nowait()
-                    event = {"type": msg_type, "data": msg_data}
-                    if msg_type == "log":
-                        event["logs_count"] = len(logs)
-                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-                except _queue.Empty:
-                    break
-
-            output = result[0]
-            if output:
-                safe_output = output.model_copy(deep=True)
-                summary = build_output_summary(safe_output)
-                summary["session_id"] = session_id
-                summary["logs"] = logs
-                _sanitize_summary(summary)
-                yield f"data: {json.dumps({'type': 'done', 'data': summary}, ensure_ascii=False, default=str)}\n\n"
-            else:
-                yield f"data: {json.dumps({'type': 'error', 'data': 'Chapter insertion failed'})}\n\n"
-        except asyncio.CancelledError:
-            logger.info("SSE /insert-chapter cancelled (session=%s)", session_id)
-            if not task.done():
-                task.cancel()
-        except (ConnectionError, ConnectionResetError):
-            logger.info("SSE /insert-chapter connection lost (session=%s)", session_id)
-            if not task.done():
-                task.cancel()
-        except Exception:
-            logger.exception("SSE /insert-chapter unexpected error (session=%s)", session_id)
-            if not task.done():
-                task.cancel()
-            raise
-        finally:
-            async with _orchestrators_lock:
-                _sessions.pop(session_id, None)
+        async for frame in stream_job_events(request, job, label="insert-chapter"):
+            yield frame
 
     return StreamingResponse(
         event_generator(),

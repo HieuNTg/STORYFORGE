@@ -159,7 +159,206 @@ async def shutdown_pipeline_tasks(timeout: int = 30):
     for task in tasks:
         task.cancel()
     if tasks:
-        await asyncio.wait(tasks, timeout=timeout)
+        done, pending = await asyncio.wait(tasks, timeout=timeout)
+        # L1 workers run inside asyncio.to_thread and cannot be hard-cancelled —
+        # the thread keeps running until the blocking LLM call returns. Log what
+        # is still pending after the grace period so operators know the process
+        # exit may drop in-flight work (the job registry lets the FE recover the
+        # result after restart only if the worker persisted before exit).
+        if pending:
+            logger.warning(
+                "Shutdown: %d pipeline task(s) still pending after %ds grace — "
+                "their to_thread workers cannot be force-killed and may be dropped "
+                "on process exit.",
+                len(pending),
+                timeout,
+            )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Shared SSE-over-job-registry helpers
+#
+# The canonical pattern (job registry + heartbeat + drain/coalesce + no cancel
+# on disconnect) was first written inline in `/run`. These helpers extract it so
+# the continuation generators (`/continue`, `/regenerate`, `/insert`,
+# `/write-from-outlines`) converge on the SAME correct behaviour instead of each
+# re-deriving it (and re-introducing the dropped-log / cancel-on-disconnect
+# bugs). `/run` and `/resume` keep their inline loops — they are already shipped
+# and tested; these are a faithful copy for the endpoints being migrated.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def make_progress_callbacks(job: "_jobs.PipelineJob", stream_interval: float = 0.3):
+    """Build `(on_progress, on_stream)` callbacks bound to a job.
+
+    `on_progress` always appends to `job.logs` (so recovery sees every line) but
+    only enqueues onto `job.progress_queue` while the client is connected — once
+    the SSE streamer flips `job.disconnected`, enqueueing stops so an abandoned
+    long-running worker can't grow the queue without bound (H4).
+
+    `on_stream` throttles cumulative-snapshot frames to at most one per
+    `stream_interval` seconds and likewise stops after disconnect.
+    """
+    last_stream_time = [0.0]
+
+    def on_progress(msg: str) -> None:
+        job.logs.append(msg)
+        if not job.disconnected:
+            job.progress_queue.put_nowait(("log", msg))
+
+    def on_stream(partial_text: str) -> None:
+        if job.disconnected:
+            return
+        now = time.time()
+        if now - last_stream_time[0] > stream_interval:
+            job.progress_queue.put_nowait(("stream", sanitize_story_html(partial_text)))
+            last_stream_time[0] = now
+
+    return on_progress, on_stream
+
+
+def launch_job_task(
+    session_id: str,
+    job: "_jobs.PipelineJob",
+    coro,
+    *,
+    cancelled_msg: str = "Run was cancelled.",
+) -> asyncio.Task:
+    """Create the worker task, track it for shutdown, and attach the
+    belt-and-suspenders done-callback that force-marks the job terminal if the
+    worker's own `finally` never ran (H2). No-ops when already terminal, so the
+    normal path (worker finally → mark_done) is unaffected."""
+    task = asyncio.create_task(coro)
+    job.task = task
+    _active_tasks.add(task)
+
+    def _on_task_done(t: asyncio.Task, sid: str = session_id) -> None:
+        _active_tasks.discard(t)
+        if t.cancelled():
+            _jobs.mark_terminal_sync(sid, error=cancelled_msg, status="cancelled")
+        elif t.exception() is not None:
+            _jobs.mark_terminal_sync(sid, error="Worker crashed unexpectedly.")
+        else:
+            _jobs.mark_terminal_sync(sid)
+
+    task.add_done_callback(_on_task_done)
+    return task
+
+
+async def finalize_job(
+    session_id: str,
+    job: "_jobs.PipelineJob",
+    output,
+    *,
+    caught_error: Optional[str],
+    was_cancelled: bool,
+    cancelled_msg: str = "Run was cancelled.",
+) -> None:
+    """Persist a worker's terminal state into the registry. Call from the
+    worker's `finally`. Mirrors `/run`'s finalisation: build a summary from a
+    successful output, surface the real reason for an error-status output, or
+    record the captured exception message — writing `cancelled` when the task
+    was cancelled rather than mislabelling it `error`."""
+    final_summary = None
+    final_error = None
+    output_status = getattr(output, "status", None) if output is not None else None
+    if output is not None and output_status != "error":
+        try:
+            from api.pipeline_output_builder import build_output_summary
+            safe_output = output.model_copy(deep=True)
+            final_summary = build_output_summary(safe_output)
+            final_summary["session_id"] = session_id
+            final_summary["logs"] = list(job.logs)
+            _sanitize_summary(final_summary)
+        except Exception as exc:
+            logger.exception(
+                "Failed to build final summary (session=%s): %s", session_id, exc
+            )
+            final_error = "Failed to assemble pipeline result."
+    elif output is not None:
+        err_logs = getattr(output, "logs", None) or job.logs
+        final_error = caught_error or _error_reason_from_logs(err_logs)
+    else:
+        final_error = caught_error or "Pipeline produced no output."
+
+    if was_cancelled:
+        await _jobs.mark_done(session_id, status="cancelled", error=cancelled_msg)
+    else:
+        await _jobs.mark_done(session_id, summary=final_summary, error=final_error)
+
+
+async def stream_job_events(request: Request, job: "_jobs.PipelineJob", *, label: str):
+    """Canonical SSE generator shared by the continuation endpoints.
+
+    Yields the `session` frame, then drains `job.progress_queue` (coalescing only
+    consecutive `stream` snapshots — logs/errors preserved in order), heartbeats
+    during idle gaps, and finally yields the terminal `done`/`error` frame from
+    the job's persisted summary/error. On client disconnect it flips
+    `job.disconnected` and returns WITHOUT cancelling the worker — the job keeps
+    running and its result stays poll-able via GET /api/pipeline/run/{sid}.
+    """
+    task = job.task
+    session_id = job.session_id
+    try:
+        yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
+
+        last_yield = time.monotonic()
+        while task is not None and not task.done():
+            if await request.is_disconnected():
+                job.disconnected = True
+                logger.info(
+                    "Client disconnected from /%s stream (session=%s) — job continues",
+                    label,
+                    session_id,
+                )
+                return
+            try:
+                first = await asyncio.to_thread(job.progress_queue.get, timeout=0.2)
+                for msg_type, msg_data in _drain_and_coalesce(job.progress_queue, first):
+                    event = {"type": msg_type, "data": msg_data}
+                    if msg_type == "log":
+                        event["logs_count"] = len(job.logs)
+                    yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+                last_yield = time.monotonic()
+            except _queue.Empty:
+                if time.monotonic() - last_yield > 10:
+                    yield ": ping\n\n"
+                    last_yield = time.monotonic()
+                continue
+
+        # Drain anything queued after the task finished.
+        while True:
+            try:
+                msg_type, msg_data = job.progress_queue.get_nowait()
+                event = {"type": msg_type, "data": msg_data}
+                if msg_type == "log":
+                    event["logs_count"] = len(job.logs)
+                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+            except _queue.Empty:
+                break
+
+        if job.summary is not None:
+            yield (
+                "data: "
+                + json.dumps(
+                    {"type": "done", "data": job.summary},
+                    ensure_ascii=False,
+                    default=str,
+                )
+                + "\n\n"
+            )
+        else:
+            err_msg = job.error or "Pipeline thất bại"
+            yield f"data: {json.dumps({'type': 'error', 'data': err_msg})}\n\n"
+    except asyncio.CancelledError:
+        logger.info("SSE /%s stream cancelled (session=%s)", label, session_id)
+    except (ConnectionError, ConnectionResetError):
+        logger.info("SSE /%s client connection lost (session=%s)", label, session_id)
+    except Exception:
+        logger.exception("SSE /%s unexpected error (session=%s)", label, session_id)
+        raise
+    finally:
+        logger.debug("SSE /%s stream closed (session=%s)", label, session_id)
+
 
 i18n = I18n()
 
@@ -453,13 +652,18 @@ async def run_pipeline(request: Request, body: PipelineRequest):
         def on_progress(msg):
             logs.append(msg)
             # put_nowait is safe: called from asyncio.to_thread workers (thread pool)
-            # but the queue itself is asyncio-safe for cross-thread puts.
-            progress_queue.put_nowait(("log", msg))
+            # but the queue itself is asyncio-safe for cross-thread puts. Stop
+            # enqueueing once the client disconnects so an abandoned job can't
+            # grow the queue without bound (H4); `logs` still records every line.
+            if not job.disconnected:
+                progress_queue.put_nowait(("log", msg))
 
         last_stream_time = [0.0]
 
         def on_stream(partial_text):
             stream_text[0] = partial_text
+            if job.disconnected:
+                return
             now = time.time()
             if now - last_stream_time[0] > 0.3:
                 progress_queue.put_nowait(("stream", sanitize_story_html(partial_text)))
@@ -649,6 +853,11 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                         f"Client disconnected from /run stream (session={session_id}) — "
                         f"job continues in background"
                     )
+                    # H4: signal the worker callbacks to stop enqueueing into the
+                    # now-abandoned queue. The job keeps running (~9 min) and keeps
+                    # appending to job.logs for recovery, but the queue no longer
+                    # grows without a consumer to drain it.
+                    job.disconnected = True
                     return
                 try:
                     first = await asyncio.to_thread(progress_queue.get, timeout=0.2)
@@ -798,7 +1007,11 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
 
         def on_progress(msg):
             logs.append(msg)
-            progress_queue.put_nowait(("log", msg))
+            # H4: stop enqueueing once the SSE client disconnects so an abandoned
+            # resume can't grow the queue without bound; `logs` still records
+            # every line for recovery via the poll endpoint.
+            if not job.disconnected:
+                progress_queue.put_nowait(("log", msg))
 
         result: list = [None]
         # Specific, user-facing error captured by the except arms below so the
@@ -894,6 +1107,8 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
                         f"Client disconnected from /resume stream (session={session_id}) — "
                         f"job continues in background"
                     )
+                    # H4: stop the worker callbacks enqueueing into the abandoned queue.
+                    job.disconnected = True
                     return
                 try:
                     first = await asyncio.to_thread(progress_queue.get, timeout=0.2)

@@ -1,9 +1,12 @@
 """Branch reader API — choose-your-own-adventure endpoints."""
 
+import asyncio
 import json
 import logging
+import queue as _queue
 import tempfile
-from fastapi import APIRouter, Depends, HTTPException
+import time
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel, Field
 
@@ -249,7 +252,7 @@ def choose_branch(session_id: str, body: ChooseBody):
 
 
 @router.post("/{session_id}/choose/stream")
-def choose_branch_stream(session_id: str, body: ChooseBody):
+async def choose_branch_stream(request: Request, session_id: str, body: ChooseBody):
     """Select a choice; stream continuation via SSE for real-time UX."""
     try:
         existing = manager.choose_branch(session_id, body.choice_index)
@@ -290,32 +293,81 @@ def choose_branch_stream(session_id: str, body: ChooseBody):
 
     at_depth_limit = current_depth >= MAX_BRANCH_DEPTH - 1
 
-    def event_generator():
-        accumulated_text = ""
+    if at_depth_limit:
+        user_prompt = (
+            f"Story so far:\n{story_text}\n\n"
+            f"The reader chose: {choice_text}\n\n"
+            "Write a satisfying conclusion to this branch (200-300 words). "
+            "Return JSON with 'continuation' (the ending text), 'choices' as an empty list [], "
+            "and 'character_states' for any characters that changed."
+        )
+    else:
+        user_prompt = (
+            f"Story so far:\n{story_text}\n\n"
+            f"The reader chose: {choice_text}\n\nContinue the story."
+        )
+
+    async def event_generator():
+        # C4: run the blocking LLM stream in a worker thread feeding a queue, so
+        # the async generator can (a) emit `: ping` heartbeats during the gaps
+        # before the first token (proxies/browsers close idle SSE sockets after
+        # ~30-100s otherwise) and (b) detect client disconnect via
+        # request.is_disconnected(). Critically, on disconnect we do NOT abandon
+        # the work: the worker thread can't be killed, so we let it finish and
+        # still persist the generated node into the branch tree. A retry then
+        # hits the `existing is not None` cached path instead of regenerating.
+        _DONE = object()
+        chunk_queue: _queue.Queue = _queue.Queue()
+        error_holder: list = [None]
+
+        def _produce():
+            try:
+                for chunk in llm.generate_stream(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    temperature=0.9,
+                ):
+                    chunk_queue.put(("chunk", chunk))
+            except Exception as exc:  # surfaced to the consumer below
+                error_holder[0] = exc
+            finally:
+                chunk_queue.put((_DONE, None))
+
+        producer = asyncio.create_task(asyncio.to_thread(_produce))
+        accumulated_parts: list[str] = []
+        disconnected = False
 
         try:
-            if at_depth_limit:
-                user_prompt = (
-                    f"Story so far:\n{story_text}\n\n"
-                    f"The reader chose: {choice_text}\n\n"
-                    "Write a satisfying conclusion to this branch (200-300 words). "
-                    "Return JSON with 'continuation' (the ending text), 'choices' as an empty list [], "
-                    "and 'character_states' for any characters that changed."
-                )
-            else:
-                user_prompt = (
-                    f"Story so far:\n{story_text}\n\n"
-                    f"The reader chose: {choice_text}\n\nContinue the story."
-                )
+            last_yield = time.monotonic()
+            while True:
+                if not disconnected and await request.is_disconnected():
+                    disconnected = True
+                    logger.info(
+                        "Client disconnected from /choose/stream (session=%s) — "
+                        "finishing generation in background to persist the node",
+                        session_id,
+                    )
+                try:
+                    kind, data = await asyncio.to_thread(chunk_queue.get, timeout=0.2)
+                except _queue.Empty:
+                    # Heartbeat only while a consumer is still listening.
+                    if not disconnected and time.monotonic() - last_yield > 10:
+                        yield ": ping\n\n"
+                        last_yield = time.monotonic()
+                    continue
+                if kind is _DONE:
+                    break
+                accumulated_parts.append(data)
+                if not disconnected:
+                    yield f"data: {json.dumps({'type': 'chunk', 'text': data})}\n\n"
+                    last_yield = time.monotonic()
 
-            # Stream LLM response
-            for chunk in llm.generate_stream(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                temperature=0.9,
-            ):
-                accumulated_text += chunk
-                yield f"data: {json.dumps({'type': 'chunk', 'text': chunk})}\n\n"
+            await producer  # ensure the worker thread fully settled
+
+            if error_holder[0] is not None:
+                raise error_holder[0]
+
+            accumulated_text = "".join(accumulated_parts)
 
             # Parse accumulated JSON
             try:
@@ -349,17 +401,20 @@ def choose_branch_stream(session_id: str, body: ChooseBody):
                 new_states = {}
             merged_states = {**node_states, **new_states}
 
-            # Add node to tree
+            # Add node to tree — persisted even when disconnected so a retry
+            # finds it cached rather than paying for another generation.
             node = manager.add_generated_node(
                 session_id, body.choice_index, continuation, new_choices,
                 character_states=merged_states,
             )
 
-            yield f"data: {json.dumps({'type': 'complete', 'node': node, 'generated': True})}\n\n"
+            if not disconnected:
+                yield f"data: {json.dumps({'type': 'complete', 'node': node, 'generated': True})}\n\n"
 
         except Exception as exc:
             logger.error(f"SSE branch generation failed: {exc}")
-            yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+            if not disconnected:
+                yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
 
     return StreamingResponse(
         event_generator(),

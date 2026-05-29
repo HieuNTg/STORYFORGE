@@ -29,6 +29,31 @@ def _chapter_checkpoint_dir() -> str:
 _CHAPTER_RE = re.compile(r"(?P<slug>.+)_ch(?P<ch>\d+)_layer(?P<layer>\d+)(?:_[0-9a-f]+)?\.json$")
 
 
+def _atomic_write_text(path: str, data: str) -> None:
+    """Write `data` to `path` atomically.
+
+    Writes to a sibling `.tmp` file (same directory, so `os.replace` stays on one
+    filesystem), flushes + fsyncs the bytes to disk, then renames over the final
+    path. `os.replace` is atomic on POSIX and Windows, so a crash/SIGKILL during
+    a checkpoint write can never leave a torn, half-written JSON file at `path`:
+    a reader either sees the previous complete checkpoint or the new complete one.
+    On failure the partial tmp file is best-effort removed so it cannot accumulate.
+    """
+    tmp = f"{path}.{os.getpid()}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def _prune_chapter_checkpoints(out_dir: str, slug: str, layer: int, keep_last: int) -> None:
     """Keep newest `keep_last` files matching {slug}_ch*_layer{layer}.json; delete older."""
     if keep_last <= 0:
@@ -77,8 +102,7 @@ class CheckpointManager:
 
         def _write():
             try:
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(data)
+                _atomic_write_text(path, data)
                 logger.info(f"Checkpoint saved: {path}")
             except Exception as e:
                 logger.error(f"Checkpoint save failed: {e}")
@@ -110,8 +134,7 @@ class CheckpointManager:
 
         def _write():
             try:
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(data)
+                _atomic_write_text(path, data)
                 logger.info(f"Chapter checkpoint saved: {path}")
                 _prune_chapter_checkpoints(out_dir, slug, layer, keep_last)
             except Exception as e:

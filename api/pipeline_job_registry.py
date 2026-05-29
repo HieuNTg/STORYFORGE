@@ -51,6 +51,12 @@ class PipelineJob:
     # 'run' for fresh pipeline, 'resume' for continuation. Lets reaper /
     # observers tell the two apart if needed.
     kind: str = "run"
+    # Set True by the SSE streamer when the client disconnects. The worker's
+    # progress callbacks check it and stop enqueueing into progress_queue so an
+    # abandoned job (which keeps running ~9 min) cannot grow the queue without
+    # bound (H4). `logs` keeps accumulating regardless, so recovery via the poll
+    # endpoint still sees the full progress history.
+    disconnected: bool = False
 
 
 JOBS: dict[str, PipelineJob] = {}
