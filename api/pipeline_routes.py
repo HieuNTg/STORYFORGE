@@ -948,23 +948,37 @@ async def run_pipeline(request: Request, body: PipelineRequest):
 
 
 @router.get("/run/{session_id}", dependencies=[_READ_STORIES])
-async def get_run_status(session_id: str):
-    """Poll a pipeline job's current status + final summary.
+async def get_run_status(session_id: str, since: int = 0):
+    """Poll a pipeline job's current status + progress logs + final summary.
 
-    Lets the FE recover the result after a lost SSE stream. The job stays
-    in the registry for `JOB_RETENTION_SECONDS` (default 1h) after it
-    finishes, so a refresh inside that window returns the same payload the
-    SSE `done` event would have sent.
+    Lets the FE recover a run after a lost SSE stream — whether the page was
+    reloaded mid-run or the connection dropped (`ECONNRESET`). The job stays in
+    the registry for `JOB_RETENTION_SECONDS` (default 1h) after it finishes, so
+    a refresh inside that window returns the same payload the SSE `done` event
+    would have sent.
+
+    `since` is a cursor into `job.logs`: the response carries the slice
+    `logs[since:]` plus the total `logs_count`. The FE replays each returned
+    line through the same SSE bridge to rebuild the stepper + author dialogue,
+    then re-polls with `since = logs_count` so each poll only ships the delta.
+    `job.logs` keeps accumulating even after the SSE client disconnects (the
+    worker stops enqueueing to the progress queue but never stops appending),
+    so polling sees the full history regardless of how the stream died.
     """
     job = _jobs.get(session_id)
     if job is None:
         raise HTTPException(status_code=404, detail="Session không tồn tại hoặc đã hết hạn.")
 
+    total = len(job.logs)
+    # Clamp the cursor: a negative or out-of-range `since` replays from 0 rather
+    # than raising — recovery must be forgiving of a stale client cursor.
+    start = since if 0 <= since <= total else 0
     payload: dict[str, Any] = {
         "session_id": job.session_id,
         "status": job.status,
         "kind": job.kind,
-        "logs_count": len(job.logs),
+        "logs": list(job.logs[start:]),
+        "logs_count": total,
         "created_at": job.created_at,
         "completed_at": job.completed_at,
     }

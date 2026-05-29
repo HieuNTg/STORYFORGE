@@ -25,7 +25,8 @@ import { PipelineForm } from "./PipelineForm";
 import { TheaterPanel } from "./TheaterPanel";
 import { ResultPanel, type ResultStory } from "./ResultPanel";
 import { usePostStream } from "@/lib/sse/usePostStream";
-import { applySseEventToStores } from "@/lib/sse/pipelineBridge";
+import { applySseEventToStores, type BridgeHandlers } from "@/lib/sse/pipelineBridge";
+import { useRunRecovery } from "@/lib/sse/useRunRecovery";
 import { usePipelineStore } from "@/stores/pipeline-store";
 import { useTheaterStore } from "@/stores/theater-store";
 import type { CreateStoryRequest } from "@/lib/api/queries";
@@ -150,24 +151,31 @@ export function PipelineScreen({
     }
   }, [status, sessionId]);
 
+  // Bridge handlers shared by the live SSE stream AND the recovery poller, so a
+  // run finished/advanced via either path lands the same toasts + result panel.
+  const bridgeHandlers = React.useMemo<BridgeHandlers>(
+    () => ({
+      onChapterComplete: (label) => toast.success(`Hoàn tất ${label}`),
+      onDone: (payload) => {
+        const story = buildResultStoryFromDone(payload);
+        if (story) setResultStory(story);
+        // Expose the raw `done.data` for richer consumers (e.g. save-to-library).
+        // PipelineBridge already unwrapped the outer envelope; some backends
+        // double-wrap the payload, so forward whatever we got.
+        onResult?.(payload);
+        toast.success("Sinh truyện hoàn tất");
+      },
+      onError: (msg) => toast.error(msg || "Pipeline thất bại"),
+      onInterrupted: () => toast.warning("Kết nối bị gián đoạn"),
+    }),
+    [onResult],
+  );
+
   const handleMessage = React.useCallback(
     (event: { data: string }) => {
-      applySseEventToStores(event, {
-        onChapterComplete: (label) => toast.success(`Hoàn tất ${label}`),
-        onDone: (payload) => {
-          const story = buildResultStoryFromDone(payload);
-          if (story) setResultStory(story);
-          // Expose the raw `done.data` for richer consumers (e.g. save-to-library).
-          // PipelineBridge already unwrapped the outer envelope; some backends
-          // double-wrap the payload, so forward whatever we got.
-          onResult?.(payload);
-          toast.success("Sinh truyện hoàn tất");
-        },
-        onError: (msg) => toast.error(msg || "Pipeline thất bại"),
-        onInterrupted: () => toast.warning("Kết nối bị gián đoạn"),
-      });
+      applySseEventToStores(event, bridgeHandlers);
     },
-    [onResult]
+    [bridgeHandlers]
   );
 
   const stream = usePostStream({
@@ -219,6 +227,24 @@ export function PipelineScreen({
           "Luồng tiến trình kết thúc nhưng chưa nhận tín hiệu hoàn tất. Tải lại trang để kiểm tra Thư viện.",
         );
       }
+    },
+  });
+
+  // ── Resume on reload / after a dropped stream ─────────────────────────────
+  // `usePostStream` only opens the live stream on a fresh submit (`pendingBody`).
+  // If the page is reloaded mid-run, or the SSE connection drops (ECONNRESET),
+  // the component remounts with no body → no stream → the stepper would sit at
+  // "Outline" and the author dialogue stay empty while the backend keeps going.
+  // When a `?session=` is present and no fresh submit owns the stream, poll the
+  // job registry and replay its logs through the same bridge to rebuild state.
+  useRunRecovery({
+    sessionId: sessionQuery,
+    enabled: !pendingBody && !!sessionQuery,
+    handlers: bridgeHandlers,
+    onExpired: () => {
+      // Session aged out of the registry (or never existed): drop the stale
+      // `?session=` so a fresh run isn't shadowed by a dead recovery attempt.
+      void setSessionQuery(null);
     },
   });
 

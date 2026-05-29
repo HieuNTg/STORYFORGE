@@ -49,37 +49,55 @@ export default function ForgePage() {
     rehydrateLibrary();
   }, []);
 
-  // Resetting saved state when a new run begins is implicit: a new `done`
-  // event clobbers `doneSummary` with a fresh id, so the button re-enables.
-  const handleResult = React.useCallback((raw: unknown) => {
-    if (!raw || typeof raw !== "object") return;
-    // Backend emits `{type:'done', data: <summary>}`; pipelineBridge unwraps
-    // the envelope once but some callers still receive a nested `data` field.
-    const maybeWrapped = raw as { data?: unknown } & Record<string, unknown>;
-    const inner =
-      maybeWrapped && typeof maybeWrapped === "object" && maybeWrapped.data &&
-      typeof maybeWrapped.data === "object"
-        ? (maybeWrapped.data as PipelineDoneSummary)
-        : (raw as PipelineDoneSummary);
-    setDoneSummary(inner);
-    setSavedStoryId(null);
-  }, []);
+  // Single save path shared by auto-save (on `done`) and the manual button, so
+  // both map + persist identically. Idempotent: addStory upserts by story id
+  // (derived from session_id), so re-saving the same run is a no-op overwrite.
+  const commitToLibrary = React.useCallback(
+    (summary: PipelineDoneSummary | null, numChapters: number | null): void => {
+      const story = pipelineSummaryToStory(summary, "", numChapters);
+      if (!story) {
+        toast.error(t("save_failed_empty"));
+        return;
+      }
+      const ok = addStory(story);
+      if (!ok) {
+        toast.error(t("save_failed_full", { max: LIBRARY_MAX_STORIES }));
+        return;
+      }
+      setSavedStoryId(story.id);
+      selectStory(story.id);
+      toast.success(t("save_success"), { description: story.title });
+    },
+    [addStory, selectStory, t],
+  );
+
+  const handleResult = React.useCallback(
+    (raw: unknown) => {
+      if (!raw || typeof raw !== "object") return;
+      // Backend emits `{type:'done', data: <summary>}`; pipelineBridge unwraps
+      // the envelope once but some callers still receive a nested `data` field.
+      const maybeWrapped = raw as { data?: unknown } & Record<string, unknown>;
+      const inner =
+        maybeWrapped && typeof maybeWrapped === "object" && maybeWrapped.data &&
+        typeof maybeWrapped.data === "object"
+          ? (maybeWrapped.data as PipelineDoneSummary)
+          : (raw as PipelineDoneSummary);
+      setDoneSummary(inner);
+      setSavedStoryId(null);
+      // Auto-save the moment a run finishes — CEO decision: "tạo xong" must mean
+      // "đã có trong thư viện". Before this, a finished story lived only in the
+      // in-memory job registry and was lost on reload/restart if the user never
+      // clicked Save. Done in the event handler (not an effect) by design. The
+      // button below stays as a fallback (retry after a full-library error) and
+      // the "Đã lưu" indicator; on failure savedStoryId stays null so it enables.
+      commitToLibrary(inner, requestedNumChapters);
+    },
+    [commitToLibrary, requestedNumChapters],
+  );
 
   const handleSave = React.useCallback(() => {
-    const story = pipelineSummaryToStory(doneSummary, "", requestedNumChapters);
-    if (!story) {
-      toast.error(t("save_failed_empty"));
-      return;
-    }
-    const ok = addStory(story);
-    if (!ok) {
-      toast.error(t("save_failed_full", { max: LIBRARY_MAX_STORIES }));
-      return;
-    }
-    setSavedStoryId(story.id);
-    selectStory(story.id);
-    toast.success(t("save_success"), { description: story.title });
-  }, [doneSummary, addStory, selectStory, requestedNumChapters, t]);
+    commitToLibrary(doneSummary, requestedNumChapters);
+  }, [commitToLibrary, doneSummary, requestedNumChapters]);
 
   const saveButton = (
     <Button

@@ -1,10 +1,12 @@
 """Character endpoint tests — flag gating, rate limit, mocked LLM, parse errors."""
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import sys
-from unittest.mock import MagicMock, patch
+import time
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -168,3 +170,92 @@ def test_character_forces_name_and_role_from_request(client):
     body = resp.json()
     assert body["name"] == "Lý Trầm"
     assert body["role"] == "protagonist"
+
+
+# --- /extract-story --------------------------------------------------------
+
+_SECOND_CHAR = {
+    "name": "Hàn Lập",
+    "role": "antagonist",
+    "traits": {"strength": 50, "wisdom": 90, "agility": 40, "scheme": 95},
+    "description": "Lãnh khốc, mưu sâu.",
+    "backstory": "Trưởng lão tà phái ẩn danh trong chính đạo.",
+    "secret": "Đang nuôi cổ trùng.",
+    "conflict": "Quyền lực hay đạo nghĩa.",
+}
+
+EXTRACT_LLM_PAYLOAD = [VALID_LLM_PAYLOAD, _SECOND_CHAR]
+
+
+def _extract_req():
+    return {
+        "title": "Kiếm Phế",
+        "description": "Một kiếm khách mất hết võ công đi tìm lại chính mình.",
+        "setting": "Giang hồ loạn thế, môn phái tranh đoạt bí kíp.",
+        "text_context": (
+            "Lý Trầm ôm thanh kiếm gãy bước vào tửu quán. Hàn Lập ngồi ở góc "
+            "phòng lặng lẽ quan sát, ánh mắt sắc như dao. Hai người từng là "
+            "sư huynh đệ, nay đứng ở hai đầu chiến tuyến của giang hồ."
+        ),
+        "language": "vi",
+        "story_id": "story-test-extract-1",
+        "genre": "Tiên Hiệp",
+    }
+
+
+def test_extract_story_returns_characters_and_backgrounds_avatars(client):
+    # The fix: avatar generation is fire-and-forget. The response must come
+    # back with the extracted characters and delegate avatars to the background
+    # helper rather than awaiting FlowKit inline (which caused the 500).
+    with patch.object(
+        character_routes, "_get_llm", return_value=_mock_llm(EXTRACT_LLM_PAYLOAD)
+    ), patch.object(
+        character_routes, "_generate_avatars_bg", new=AsyncMock()
+    ) as bg:
+        resp = client.post("/api/characters/extract-story", json=_extract_req())
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert [c["name"] for c in body] == ["Lý Trầm", "Hàn Lập"]
+    # Avatars were handed off to the background task, not awaited inline.
+    bg.assert_called_once()
+
+
+def test_extract_story_does_not_block_response_on_slow_avatar(client):
+    # Regression guard for the actual bug: a slow portrait backend must NOT
+    # stall the HTTP response. Inline generation made this a 2-3 min request
+    # that the proxy reset into a 500; backgrounding it returns immediately.
+    async def _slow_avatar(*_a, **_k):
+        await asyncio.sleep(5)
+        return None
+
+    start = time.monotonic()
+    with patch.object(
+        character_routes, "_get_llm", return_value=_mock_llm(EXTRACT_LLM_PAYLOAD)
+    ), patch(
+        "services.character_avatar.generate_character_avatar", new=_slow_avatar
+    ):
+        resp = client.post("/api/characters/extract-story", json=_extract_req())
+    elapsed = time.monotonic() - start
+
+    assert resp.status_code == 200, resp.text
+    # Inline (old) path would take >=5s; backgrounded path returns in well under.
+    assert elapsed < 2.0, f"response blocked on avatar generation ({elapsed:.1f}s)"
+
+    # Tidy up any avatar task still sleeping so it can't leak into other tests.
+    for tsk in list(character_routes._avatar_tasks):
+        try:
+            tsk.cancel()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def test_extract_story_parses_fenced_json_list(client):
+    fenced = "```json\n" + json.dumps(EXTRACT_LLM_PAYLOAD, ensure_ascii=False) + "\n```"
+    with patch.object(
+        character_routes, "_get_llm", return_value=_mock_llm(fenced)
+    ), patch.object(character_routes, "_generate_avatars_bg", new=AsyncMock()):
+        resp = client.post("/api/characters/extract-story", json=_extract_req())
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body) == 2
+    assert body[0]["name"] == "Lý Trầm"

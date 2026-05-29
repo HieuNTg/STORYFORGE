@@ -17,6 +17,18 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
   images: { unoptimized: true },
   turbopack: { root: path.resolve(__dirname) },
+  // Disable Next's gzip compression in dev. The dev `rewrites()` proxy below
+  // buffers the ENTIRE response body to gzip it whenever the client sends
+  // `Accept-Encoding: gzip` — which every browser always does. That buffering
+  // defeats SSE: `text/event-stream` frames from `/api/pipeline/run` and
+  // `/api/forge/sentence/stream` only flushed to the browser when the stream
+  // closed, so the pipeline UI sat frozen ("stuck at Outline") for the whole
+  // run and then populated all at once on `done`. The FastAPI backend already
+  // excludes `text/event-stream` from its own GZipMiddleware; the proxy was the
+  // sole culprit. curl masked it by not sending `Accept-Encoding` by default.
+  // Prod is a static export served by FastAPI (no Next server, no proxy), so
+  // `compress` has no effect there — gating on dev keeps the switch honest.
+  compress: !isDev,
   // Dev-only proxy to the FastAPI backend on :7860.
   // Note: rewrites() is ignored when `output: 'export'` runs at build time;
   // it remains effective for `next dev`.

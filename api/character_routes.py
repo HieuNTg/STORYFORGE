@@ -166,6 +166,41 @@ class CharacterExtractRequest(BaseModel):
     # back in hanfu. Unknown / empty falls back to a generic anime baseline.
     genre: str | None = Field(default=None, max_length=64)
 
+
+# Strong references to in-flight background avatar tasks. Without this the event
+# loop can garbage-collect a task that nothing awaits, killing avatar generation
+# mid-flight. Tasks remove themselves on completion via add_done_callback.
+_avatar_tasks: set[asyncio.Task] = set()
+
+
+async def _generate_avatars_bg(
+    characters: list[ForgeCharacter],
+    story_id: str | None,
+    genre: str | None,
+) -> None:
+    """Generate character portraits off the request path (see extract route).
+
+    Best-effort: ``generate_character_avatar`` already swallows per-character
+    failures and returns None; ``return_exceptions=True`` plus the outer guard
+    make sure one bad portrait can't take down the rest or surface anywhere.
+    """
+    try:
+        from services.character_avatar import generate_character_avatar
+
+        # No story-level "setting" is passed in — leaking the story setting into
+        # the avatar prompt triggered calligraphy/landscape backgrounds in Nano
+        # Banana for wuxia stories. Avatars must be studio portraits regardless.
+        await asyncio.gather(
+            *(
+                generate_character_avatar(c, story_id=story_id, genre=genre)
+                for c in characters
+            ),
+            return_exceptions=True,
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("background avatar generation failed")
+
+
 @router.post(
     "/extract-story",
     response_model=list[ForgeCharacter],
@@ -247,28 +282,21 @@ REMINDER: All description / backstory / secret / conflict text MUST be in {langu
             char = ForgeCharacter(**item)
             characters.append(char)
 
-        # Fan out avatar generation in parallel. Best-effort: any failure
-        # returns None and leaves char.avatar unset rather than breaking
-        # the extract response.
-        try:
-            from services.character_avatar import generate_character_avatar
-
-            # No story-level "setting" is passed in — leaking the story setting
-            # into the avatar prompt was triggering calligraphy/landscape
-            # backgrounds in Nano Banana for wuxia stories. Avatars must be
-            # studio portraits regardless of story setting.
-            avatars = await asyncio.gather(
-                *(
-                    generate_character_avatar(c, story_id=req.story_id, genre=req.genre)
-                    for c in characters
-                ),
-                return_exceptions=True,
-            )
-            for c, a in zip(characters, avatars):
-                if isinstance(a, str) and a:
-                    c.avatar = a
-        except Exception:  # noqa: BLE001
-            logger.exception("avatar fan-out failed; returning characters without avatars")
+        # Avatar generation is intentionally fire-and-forget. FlowKit serializes
+        # portraits (~25-30s each), so a 6-character extract would otherwise run
+        # 2-3 minutes inline — long enough for the dev proxy / any reverse proxy
+        # to reset the connection ("socket hang up" -> 500 Internal Server Error)
+        # even though the LLM extraction itself finished in seconds. The portraits
+        # are NOT part of the response: the client's character schema has no
+        # `avatar` field and strips it on arrival; they exist only on disk to seed
+        # the downstream illustration pipeline via find_existing_avatar(). So kick
+        # them off in the background and return immediately. A strong reference is
+        # held in _avatar_tasks until the task finishes so the loop can't GC it.
+        task = asyncio.create_task(
+            _generate_avatars_bg(characters, req.story_id, req.genre)
+        )
+        _avatar_tasks.add(task)
+        task.add_done_callback(_avatar_tasks.discard)
 
         return characters
     except asyncio.TimeoutError:
