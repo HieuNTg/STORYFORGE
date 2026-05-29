@@ -109,6 +109,20 @@ export function useBranchSession(sessionId: string | null) {
     startStream();
   }, [startStream]);
 
+  const onClose = useCallback(() => {
+    // Graceful server EOF with no terminal `complete`/`error` frame (backend
+    // restart, dropped connection, lost final frame). On a normal finish the
+    // `complete`/`error` handler clears streamBody first, which aborts the
+    // fetch — and an abort fires NEITHER onclose NOR onerror — so this handler
+    // only runs for the orphaned case. Move the store out of its streaming
+    // limbo instead of leaving streamingText frozen. Same bug class as the
+    // pipeline SSE fix.
+    if (useBranchingStore.getState().streaming) {
+      endStream();
+    }
+    setStreamBody(null);
+  }, [endStream]);
+
   const streamUrl = useMemo(
     () => (sessionId && streamBody ? `/api/branch/${encodeURIComponent(sessionId)}/choose/stream` : null),
     [sessionId, streamBody]
@@ -120,6 +134,7 @@ export function useBranchSession(sessionId: string | null) {
     onMessage,
     onError,
     onOpen,
+    onClose,
   });
 
   const chooseStream = useCallback(

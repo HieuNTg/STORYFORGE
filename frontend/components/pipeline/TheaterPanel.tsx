@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Users, X, Clock } from "lucide-react";
+import { Users, X, Clock, CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,12 @@ export interface TheaterPanelProps {
   etaSeconds?: number;
   /** Set to true while the pipeline is running to show timer + cancel. */
   running?: boolean;
+  /**
+   * Pipeline run status. Drives the terminal-state label shown once `running`
+   * flips to false, so a finished/interrupted/failed run reads clearly instead
+   * of freezing on a stale "còn ~0:00" ETA.
+   */
+  status?: "idle" | "running" | "done" | "error" | "interrupted";
   /** Optional cancel callback; renders the cancel button when provided. */
   onCancel?: () => void;
   className?: string;
@@ -73,6 +79,7 @@ export function TheaterPanel({
   startedAt,
   etaSeconds,
   running,
+  status,
   onCancel,
   className,
 }: TheaterPanelProps) {
@@ -83,6 +90,19 @@ export function TheaterPanel({
     typeof etaSeconds === "number" && elapsed !== null
       ? Math.max(0, etaSeconds - elapsed)
       : null;
+
+  // Terminal-state label, only once the run has stopped. The ETA ("còn ~…") is
+  // a rough heuristic that often underestimates, so it pins to 0:00 near the
+  // end; surfacing it after the run finishes is misleading. Replace it with the
+  // actual outcome instead.
+  const terminal =
+    !running && status === "done"
+      ? { label: "Hoàn tất", Icon: CheckCircle2, cls: "text-emerald-600 dark:text-emerald-400" }
+      : !running && status === "error"
+        ? { label: "Lỗi", Icon: XCircle, cls: "text-destructive" }
+        : !running && status === "interrupted"
+          ? { label: "Gián đoạn", Icon: AlertTriangle, cls: "text-amber-600 dark:text-amber-400" }
+          : null;
 
   // Sticky scroll: anchor to bottom while new bubbles stream in, but let the
   // user scroll up without being fought.
@@ -127,10 +147,18 @@ export function TheaterPanel({
                   <Clock className="size-3.5" aria-hidden />
                   <span aria-live="polite">
                     {elapsed !== null ? `Đã chạy ${formatMmSs(elapsed)}` : "Chuẩn bị…"}
-                    {remaining !== null
+                    {running && remaining !== null
                       ? ` · còn ~${formatMmSs(remaining)}`
                       : ""}
                   </span>
+                  {terminal ? (
+                    <span
+                      className={cn("flex items-center gap-1 font-medium", terminal.cls)}
+                    >
+                      <terminal.Icon className="size-3.5" aria-hidden />
+                      {terminal.label}
+                    </span>
+                  ) : null}
                 </div>
                 {onCancel && running ? (
                   <Button
