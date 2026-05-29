@@ -120,6 +120,13 @@ export function PipelineScreen({
     if (!sid) return;
     const persisted = loadStartedAt(sid);
     if (persisted != null) {
+      // Intentional in-effect setState: `loadStartedAt` reads sessionStorage,
+      // which is unavailable during SSR. Doing this hydration via a lazy
+      // useState initializer or in render would make the server render (null)
+      // disagree with the client (persisted value) and trip a hydration
+      // mismatch. A post-mount effect is the SSR-safe pattern here, and the
+      // `hydratedRef` latch guarantees it fires at most once per mount.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStartedAt(persisted);
     }
     hydratedRef.current = true;
@@ -221,6 +228,11 @@ export function PipelineScreen({
       usePipelineStore.getState().start(null);
       useTheaterStore.getState().reset();
       setResultStory(undefined);
+      // Re-arm the startedAt hydrate lifecycle for this run (H5). Without this,
+      // hydratedRef stays `true` from the previous run, so a second run started
+      // in the same tab (no reload) can never rehydrate its timer baseline — and
+      // the stale `interrupted`/startedAt from the prior run can bleed through.
+      hydratedRef.current = false;
       setStartedAt(Date.now());
       const reqChapters =
         typeof (req as { num_chapters?: number }).num_chapters === "number"
@@ -345,17 +357,11 @@ interface DoneInner {
   };
 }
 
-interface DoneShape extends DoneInner {
-  data?: DoneInner;
-}
-
 function buildResultStoryFromDone(payload: unknown): ResultStory | null {
   if (!payload || typeof payload !== "object") return null;
-  const p = payload as DoneShape;
-  // Backend sometimes wraps result in `{type:'done', data: {...}}`. We've
-  // already unwrapped the outer envelope in the bridge; payload here may be
-  // the inner result *or* the wrapper. Be defensive.
-  const inner: DoneInner = p.data ?? p;
+  // The bridge unwraps the done envelope exactly once and hands us the
+  // canonical inner summary, so no `p.data ?? p` dance is needed here.
+  const inner = payload as DoneInner;
   const chapters = inner.draft?.chapters ?? [];
   if (chapters.length === 0) return null;
   return {

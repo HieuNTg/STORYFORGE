@@ -74,15 +74,19 @@ export function applySseFrame(frame: SseFrame, handlers?: BridgeHandlers): void 
       return;
     }
     case "done": {
-      // The store applies whatever it understands; rest is handed back to caller.
-      theater.applyDone(
-        (frame.data && typeof frame.data === "object"
-          ? { data: (frame.data as Record<string, unknown>).data ?? frame.data }
-          : { data: {} }) as Parameters<typeof theater.applyDone>[0]
-      );
+      // Canonical done payload is the summary object itself. Some producers nest
+      // it one level deeper as `data.data`; unwrap that single envelope HERE so
+      // every downstream consumer (the store AND the caller's onDone) receives
+      // the same inner object and no longer needs its own `p.data ?? p` dance.
+      const raw = frame.data;
+      const inner: Record<string, unknown> =
+        raw && typeof raw === "object"
+          ? (((raw as Record<string, unknown>).data as Record<string, unknown>) ?? (raw as Record<string, unknown>))
+          : {};
+      theater.applyDone({ data: inner } as Parameters<typeof theater.applyDone>[0]);
       pipeline.setStatus("done");
       pipeline.setCurrentPhase(pipeline.phases.length - 1);
-      handlers?.onDone?.(frame.data);
+      handlers?.onDone?.(inner);
       return;
     }
     case "error": {

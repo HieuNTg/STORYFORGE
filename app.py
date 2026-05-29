@@ -272,6 +272,8 @@ def main():
     async def on_shutdown():
         from api.pipeline_routes import shutdown_pipeline_tasks
         await shutdown_pipeline_tasks(timeout=30)
+        from api.pipeline_job_registry import shutdown_job_reaper
+        await shutdown_job_reaper()
 
         try:
             from services.media.flow_service import flow_service

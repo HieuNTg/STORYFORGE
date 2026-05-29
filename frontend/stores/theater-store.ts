@@ -533,22 +533,43 @@ export const useTheaterStore = create<TheaterState>((set) => ({
     }
 
     set((state) => {
+      const prev1 = state.phaseStats[1];
       const prev2 = state.phaseStats[2];
+      let nextPhaseStats = state.phaseStats;
+
+      // Freeze phase-1 (chapters) to 100% on done. Phase-1 `current` is driven
+      // by the highest chapter number seen in the stream; if a per-chapter log
+      // frame was ever lost it would stick below `total` even though the run
+      // finished (H6 — client-side defence; the server-side root cause was the
+      // dropped-log drain bug fixed in PR-1). Mirror the phase-2 freeze.
+      const total1 = prev1?.total;
+      if (total1 && total1 > 0) {
+        nextPhaseStats = {
+          ...nextPhaseStats,
+          1: {
+            ...prev1,
+            current: total1,
+            subLabel: undefined,
+            doneSummary: `Hoàn tất ${total1} chương`,
+          },
+        };
+      }
+
       // Freeze phase-2 summary if any L2 agent progress was observed mid-run
       // so the stepper reads "Hoàn tất Y agents" instead of stale "Đang chạy…".
-      const total = prev2?.total;
-      const nextPhaseStats =
-        total && total > 0
-          ? {
-              ...state.phaseStats,
-              2: {
-                ...prev2,
-                current: total,
-                subLabel: undefined,
-                doneSummary: `Hoàn tất ${total} agents`,
-              },
-            }
-          : state.phaseStats;
+      const total2 = prev2?.total;
+      if (total2 && total2 > 0) {
+        nextPhaseStats = {
+          ...nextPhaseStats,
+          2: {
+            ...prev2,
+            current: total2,
+            subLabel: undefined,
+            doneSummary: `Hoàn tất ${total2} agents`,
+          },
+        };
+      }
+
       return {
         agents: state.agents.map((a) => ({ ...a, status: "done" as AgentStatus })),
         phaseStats: nextPhaseStats,

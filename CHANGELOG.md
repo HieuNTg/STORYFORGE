@@ -35,6 +35,25 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Dashboard uses production CSS build instead of Tailwind CDN
 - CI security scanning now blocks pipeline on CVE findings
 
+### Fixed
+
+**SSE / pipeline reliability sprint** (multi-agent re-review, 2026-05-29)
+
+- **Dropped logs on disconnect (C1)** — SSE drain loop no longer discards queued log events when the client briefly stalls
+- **Errors misreported as `done` (C2/H3)** — failed runs now surface the real error reason instead of a generic message or a false `done`
+- **Cancel-on-disconnect data loss (C3)** — the 4 continuation generators (`/continue`, `/regenerate`, `/insert`, `/write-from-outlines`) now run under the job registry and persist their terminal state, so a disconnected client can recover a minutes-long draft instead of silently losing it
+- **`/choose/stream` abandonment (C4)** — branch generation runs in a worker thread with a heartbeat and disconnect detection, and still persists the generated node on disconnect (a retry hits the cached path)
+- **Duplicate terminal callbacks (C5)** — `onError`/`onClose` no longer fire twice
+- **Unbounded queue after disconnect (H4)** — progress callbacks stop enqueueing once the client is gone while still recording logs for recovery
+- **Reaper / shutdown robustness (H1/H2)** — strong refs prevent the reaper task being GC'd, stuck `running` jobs are evicted, and pending workers are logged on shutdown
+- **Sticky `interrupted` state (H5/H6)** — second runs hydrate correctly and phase-1 progress freezes to total on `done`
+- **Torn checkpoint writes (#15)** — checkpoints write to a temp file then `os.replace` atomically, so a crash mid-write can't leave torn JSON
+- **Double-unwrapped `done` frame (#17)** — `pipelineBridge` unwraps the done envelope exactly once and hands the same canonical summary to both the store and the caller, removing the scattered `p.data ?? p` fallbacks
+- **Chapter-scope clamp + genre override (#18)** — lowering "tổng số chương" now live-clamps "chương phiên này"; a user-edited total is tracked with an explicit touched-flag so a later genre switch never overwrites it
+- **Per-IP session cap TOCTOU (#19)** — the session count and insert now happen under a single lock acquire, so concurrent same-IP requests can't blow past `_MAX_SESSIONS_PER_IP`
+- **Dead `useEventSource` hook (#20)** — removed unused SSE hook (reconnect-storm footgun); `usePostStream` is the only SSE consumer
+- **Misleading sqlite `busy_timeout` (#21)** — dropped the init-only `PRAGMA busy_timeout=5000` that never reached per-op connections; `sqlite3.connect(timeout=30.0)` already installs a uniform 30s busy handler
+
 ---
 
 ## [1.1.0] — 2026-04-17

@@ -32,6 +32,7 @@ import {
   CHAPTER_MAX,
   getChapterDefault,
   getChapterRange,
+  clampSessionToTotal,
 } from "@/lib/library/chapter-defaults";
 
 function Label({
@@ -113,36 +114,37 @@ export function PipelineForm({
     defaultValues: DEFAULTS,
   });
 
-  // Genre-aware num_chapters default: when the user picks a new genre we
-  // bump num_chapters to that genre's recommended value — but only if they
-  // haven't manually edited the field yet. Tracking "manually edited" via
-  // RHF's `isDirty` per-field would require touching every controller, so
-  // we use a simpler heuristic: only auto-update while num_chapters still
-  // matches a known genre default.
+  // Genre-aware num_chapters default: when the user picks a new genre we bump
+  // num_chapters to that genre's recommended value — but only until the user
+  // has manually edited the field. The old value-equality heuristic mistook a
+  // user value that happened to equal a genre default for "untouched" and
+  // silently overwrote it. We now track an explicit "touched" flag set by the
+  // input's own onChange (programmatic setValue never fires it), so a user's
+  // deliberate count is never clobbered by a later genre switch.
+  const numChaptersTouched = React.useRef(false);
   const watchedGenre = form.watch("genre");
   React.useEffect(() => {
-    const current = form.getValues("num_chapters");
-    // If the current value matches *any* known genre default, the user
-    // hasn't customised it — safe to bump to the new genre's default.
-    // Otherwise leave their value alone.
-    const knownDefaults = new Set([
-      getChapterDefault("Tiên Hiệp"),
-      getChapterDefault("Huyền Huyễn"),
-      getChapterDefault("Kiếm Hiệp"),
-      getChapterDefault("Hiện Đại"),
-      getChapterDefault("Đô Thị"),
-      getChapterDefault("Lịch Sử"),
-      getChapterDefault("Khoa Huyễn"),
-      getChapterDefault(""),
-    ]);
-    if (knownDefaults.has(current)) {
-      form.setValue("num_chapters", getChapterDefault(watchedGenre), {
-        shouldDirty: false,
-        shouldValidate: false,
-      });
-    }
+    if (numChaptersTouched.current) return; // user customised — leave it alone
+    form.setValue("num_chapters", getChapterDefault(watchedGenre), {
+      shouldDirty: false,
+      shouldValidate: false,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedGenre]);
+
+  // Live-clamp "chương phiên này" so it can never exceed the story total. When
+  // the user lowers num_chapters below the per-session count, follow it down
+  // (mirrors ContinueStoryScreen's maxBatch clamp) instead of only surfacing a
+  // validation error on submit.
+  const watchedNumChapters = form.watch("num_chapters");
+  React.useEffect(() => {
+    const session = form.getValues("chapters_this_session");
+    const clamped = clampSessionToTotal(session, watchedNumChapters);
+    if (clamped !== session) {
+      form.setValue("chapters_this_session", clamped, { shouldValidate: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedNumChapters]);
 
   const submit = form.handleSubmit((values) => {
     const dramaLabel = DRAMA_TO_LABEL[Math.round(values.drama)] ?? "cao";
@@ -295,7 +297,15 @@ export function PipelineForm({
               min={getChapterRange(watchedGenre).min}
               max={getChapterRange(watchedGenre).max}
               className="w-24 text-center"
-              {...form.register("num_chapters", { valueAsNumber: true })}
+              {...form.register("num_chapters", {
+                valueAsNumber: true,
+                // Mark the field user-touched so a later genre switch never
+                // overwrites a count the user deliberately set. Programmatic
+                // setValue() does NOT fire this onChange.
+                onChange: () => {
+                  numChaptersTouched.current = true;
+                },
+              })}
               aria-label="Tổng số chương"
             />
             <span className="text-xs text-muted-foreground">chương</span>
