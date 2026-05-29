@@ -17,7 +17,7 @@ import { PortraitPanel } from "./PortraitPanel";
 import { TraitRadar } from "./TraitRadar";
 import { NarrativePanels } from "./NarrativePanels";
 import { RoleBadge } from "./RoleBadge";
-import { rebuildCharacterAvatar } from "@/lib/api/illustration";
+import { regenerateCharacterAvatar } from "@/lib/api/characters";
 import type { ForgeCharacter } from "@/types/story";
 
 export interface CharacterDetailProps {
@@ -48,7 +48,7 @@ export function CharacterDetail({
     if (!sessionId || isRegenerating) return;
     setIsRegenerating(true);
     try {
-      await rebuildCharacterAvatar(sessionId, character.name);
+      await regenerateCharacterAvatar(character, sessionId, genre ?? undefined);
       toast.success(t("regenerate_success"));
       onAvatarRegenerated?.();
     } catch (err) {
@@ -58,7 +58,7 @@ export function CharacterDetail({
     } finally {
       setIsRegenerating(false);
     }
-  }, [sessionId, character.name, isRegenerating, onAvatarRegenerated, t]);
+  }, [sessionId, character, genre, isRegenerating, onAvatarRegenerated, t]);
 
   const handleConfirmDelete = React.useCallback(() => {
     onDelete?.(character.name);

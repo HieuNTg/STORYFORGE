@@ -268,4 +268,31 @@ def find_existing_avatar(name: str, story_id: Optional[str] = None) -> Optional[
     return None
 
 
+def avatar_url_for(name: str, story_id: Optional[str] = None) -> Optional[str]:
+    """Return the public ``/media`` URL for an existing avatar, or None.
+
+    Bridges the on-disk, story-scoped avatar (written by extract-story's
+    background task) to any UI that only knows the character name + story_id —
+    notably the Characters page for localStorage-only library stories, which
+    never live in the backend orchestrator store and so 404 on the
+    profile/rebuild endpoints. Unlike those endpoints this needs no store: it
+    is a pure filesystem lookup.
+
+    The URL is derived from the file's actual location (so it handles both the
+    scoped and legacy paths returned by ``find_existing_avatar``) and carries a
+    ``?v=<mtime>`` cache-buster so a regenerated portrait reloads in the browser
+    while an unchanged one keeps a stable URL (avoids needless <img> churn).
+    """
+    path = find_existing_avatar(name, story_id)
+    if not path:
+        return None
+    rel = os.path.relpath(path, os.path.join("output", "images"))
+    url = "/media/" + rel.replace(os.sep, "/")
+    try:
+        url = f"{url}?v={int(os.path.getmtime(path))}"
+    except OSError:
+        pass
+    return url
+
+
 __all__ = ["generate_character_avatar", "find_existing_avatar"]

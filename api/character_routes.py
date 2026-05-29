@@ -306,4 +306,99 @@ REMINDER: All description / backstory / secret / conflict text MUST be in {langu
         logger.exception("Failed to extract characters")
         raise HTTPException(status_code=500, detail=f"Failed to extract characters: {str(e)}")
 
+
+# --- Story-scoped avatar lookup + regeneration -----------------------------
+#
+# These endpoints deliberately do NOT touch the backend orchestrator store.
+# Library stories are localStorage-only by product design, so the
+# store-dependent /api/images/{id}/profiles + /rebuild endpoints always 404 for
+# them. Avatars, however, live on disk under output/images/avatars/<story_id>/
+# (written by the extract-story background task) and are addressable purely from
+# (character name + story_id). These routes surface those files to the
+# Characters page so portraits display and "Tạo lại ảnh" works for any story,
+# stored or not.
+
+
+class AvatarLookupRequest(BaseModel):
+    story_id: str | None = Field(default=None, max_length=200)
+    # Character names to look up. Posted (not query params) so Vietnamese names
+    # with diacritics don't need URL encoding and a 6-character story fits one
+    # request.
+    names: list[str] = Field(default_factory=list, max_length=64)
+
+
+class AvatarLookupResponse(BaseModel):
+    # name -> /media URL. Names without an on-disk avatar are simply omitted, so
+    # the client can treat a missing key as "no portrait yet".
+    avatars: dict[str, str] = Field(default_factory=dict)
+
+
+class AvatarRegenerateRequest(BaseModel):
+    character: ForgeCharacter
+    story_id: str | None = Field(default=None, max_length=200)
+    genre: str | None = Field(default=None, max_length=64)
+
+
+class AvatarRegenerateResponse(BaseModel):
+    name: str
+    avatar_url: str | None = None
+
+
+@router.post("/avatars/lookup", response_model=AvatarLookupResponse)
+async def lookup_character_avatars(req: AvatarLookupRequest) -> AvatarLookupResponse:
+    """Map character names to existing on-disk avatar URLs for a story.
+
+    Pure filesystem lookup — no orchestrator store required, so it works for
+    localStorage-only library stories. Cheap (a couple of ``stat`` calls per
+    name) and read-only, hence no rate-limit dependency.
+    """
+    from services.character_avatar import avatar_url_for
+
+    avatars: dict[str, str] = {}
+    for name in req.names[:64]:
+        url = avatar_url_for(name, req.story_id)
+        if url:
+            avatars[name] = url
+    return AvatarLookupResponse(avatars=avatars)
+
+
+@router.post(
+    "/avatar",
+    response_model=AvatarRegenerateResponse,
+    dependencies=[Depends(_rate_limit_dep)],
+)
+async def regenerate_character_avatar_route(
+    req: AvatarRegenerateRequest,
+) -> AvatarRegenerateResponse:
+    """Regenerate a single character portrait via FlowKit.
+
+    Awaits inline: one portrait is ~25-30s (well under any proxy reset window,
+    unlike the 6-portrait extract that had to be backgrounded), the user clicked
+    a button with a spinner, and they expect the new face when it returns. Rate
+    limited because each call hits the image backend.
+    """
+    from services.character_avatar import avatar_url_for, generate_character_avatar
+
+    try:
+        generated = await asyncio.wait_for(
+            generate_character_avatar(
+                req.character, story_id=req.story_id, genre=req.genre
+            ),
+            timeout=120.0,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("avatar regeneration timeout for %s", req.character.name)
+        raise HTTPException(status_code=504, detail="avatar generation timeout")
+
+    if not generated:
+        # FlowKit disabled / project_id unset / upstream failed. Surface a clear
+        # 502 instead of a 200 with a null URL so the client can toast properly.
+        raise HTTPException(status_code=502, detail="avatar generation unavailable")
+
+    # Re-resolve via avatar_url_for so the response carries the fresh ?v=<mtime>
+    # cache-buster (generate_character_avatar returns the bare path).
+    url = avatar_url_for(req.character.name, req.story_id) or generated
+    return AvatarRegenerateResponse(name=req.character.name, avatar_url=url)
+
+
 __all__ = ["router"]

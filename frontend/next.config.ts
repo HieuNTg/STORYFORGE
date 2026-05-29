@@ -39,6 +39,16 @@ const nextConfig: NextConfig = {
         source: "/api/:path*",
         destination: "http://localhost:7860/api/:path*",
       },
+      // On-disk media (generated portraits, chapter images) is served by the
+      // FastAPI `/media` static mount. Without this rewrite an <img src="/media/…">
+      // resolves against the Next dev origin (:3001) and 404s, so character
+      // avatars and reader reference images never render in dev. In prod the FE
+      // is a static export served BY FastAPI (same origin), so no proxy is
+      // needed there — this block is dev-only (rewrites() returns [] when !isDev).
+      {
+        source: "/media/:path*",
+        destination: "http://localhost:7860/media/:path*",
+      },
     ];
   },
 };

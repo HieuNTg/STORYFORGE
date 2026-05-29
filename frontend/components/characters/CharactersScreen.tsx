@@ -25,6 +25,7 @@ import type { ForgeCharacter, Story } from "@/types/story";
 import { extractStoryCharacters } from "@/lib/api/characters";
 import { displayStoryTitle } from "@/lib/library/display-helpers";
 import { useCharacterProfiles } from "@/hooks/useCharacterProfiles";
+import { useStoryAvatars } from "@/hooks/useStoryAvatars";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Sparkles, Loader2, Plus, Search } from "lucide-react";
@@ -77,16 +78,37 @@ export function CharactersScreen() {
 
   const { profiles } = useCharacterProfiles(storyId);
 
+  const characterNames = React.useMemo(
+    () => (activeStory?.characters ?? []).map((c) => c.name),
+    [activeStory],
+  );
+  // On-disk, story-scoped portraits — the source of truth for localStorage-only
+  // library stories that aren't in the backend store (so `profiles` is empty).
+  const { avatars } = useStoryAvatars(storyId, characterNames);
+
   const profilesByName = React.useMemo(() => {
     const map = new Map<string, CharacterListItemMeta>();
+    // Pipeline-run stories (in the backend store): profile carries the
+    // reference image + frozen-prompt flag.
     profiles.forEach((p, name) => {
       map.set(name, {
         avatarUrl: p.reference_url ?? null,
         hasReferenceImage: !!p.has_reference_image,
       });
     });
+    // Overlay the story-scoped avatar files. For library stories this is the
+    // only source; for stored stories it backfills a portrait when the profile
+    // has none yet.
+    avatars.forEach((url, name) => {
+      const existing = map.get(name);
+      if (existing) {
+        if (!existing.avatarUrl) existing.avatarUrl = url;
+      } else {
+        map.set(name, { avatarUrl: url, hasReferenceImage: false });
+      }
+    });
     return map;
-  }, [profiles]);
+  }, [profiles, avatars]);
 
   const [isExtracting, setIsExtracting] = React.useState(false);
   const [createOpen, setCreateOpen] = React.useState(false);
@@ -182,6 +204,11 @@ export function CharactersScreen() {
     if (!storyId) return;
     void queryClient.invalidateQueries({
       queryKey: ["character-profiles", storyId],
+    });
+    // Refetch the on-disk avatar map too — regeneration changes the file's
+    // mtime, so the lookup returns a new ?v= URL that reloads the <img>.
+    void queryClient.invalidateQueries({
+      queryKey: ["story-avatars", storyId],
     });
   }, [queryClient, storyId]);
 

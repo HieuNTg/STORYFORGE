@@ -51,3 +51,43 @@ export async function extractStoryCharacters(req: {
   });
   return z.array(forgeCharacterSchema).parse(raw);
 }
+
+/**
+ * Look up existing on-disk portraits for a story's characters.
+ *
+ * Backed by the store-independent `character_avatar` system, so it works for
+ * localStorage-only library stories (which 404 on /api/images/{id}/profiles).
+ * Returns a name→/media-URL map; names without a portrait are omitted.
+ */
+export async function lookupCharacterAvatars(
+  storyId: string,
+  names: string[],
+): Promise<Record<string, string>> {
+  const raw = await apiFetch<{ avatars?: Record<string, string> }>(
+    "/api/characters/avatars/lookup",
+    {
+      method: "POST",
+      body: JSON.stringify({ story_id: storyId, names }),
+    },
+  );
+  return raw.avatars ?? {};
+}
+
+/**
+ * Regenerate a single character portrait via FlowKit (story-scoped, no backend
+ * store needed). Returns the fresh, cache-busted `/media` URL. Slow (~25-30s);
+ * the caller shows a spinner.
+ */
+export async function regenerateCharacterAvatar(
+  character: ForgeCharacter,
+  storyId: string,
+  genre?: string,
+): Promise<{ name: string; avatar_url: string | null }> {
+  return apiFetch<{ name: string; avatar_url: string | null }>(
+    "/api/characters/avatar",
+    {
+      method: "POST",
+      body: JSON.stringify({ character, story_id: storyId, genre }),
+    },
+  );
+}

@@ -259,3 +259,102 @@ def test_extract_story_parses_fenced_json_list(client):
     body = resp.json()
     assert len(body) == 2
     assert body[0]["name"] == "Lý Trầm"
+
+
+# --- avatar lookup + regenerate (story-scoped, no orchestrator store) -------
+
+
+def test_avatar_url_for_builds_media_url_with_cache_buster():
+    # Round-trips a real file through the actual safe-name + /media-relpath
+    # logic so the URL the Characters page renders is exercised end to end.
+    import os
+
+    from services import character_avatar
+    from services.safe_name import safe_character_name
+
+    story_id = "story-urltest-1"
+    name = "Lý Trầm"
+    safe_story = safe_character_name(story_id)
+    safe = safe_character_name(name)
+    base = os.path.join("output", "images", "avatars", safe_story)
+    os.makedirs(base, exist_ok=True)
+    path = os.path.join(base, f"{safe}.png")
+    try:
+        with open(path, "wb") as fh:
+            fh.write(b"x" * 2048)  # >1024 so find_existing_avatar accepts it
+        url = character_avatar.avatar_url_for(name, story_id)
+        assert url is not None
+        head, _, query = url.partition("?")
+        assert head == f"/media/avatars/{safe_story}/{safe}.png"
+        assert query.startswith("v=")  # mtime cache-buster present
+    finally:
+        try:
+            os.remove(path)
+            os.rmdir(base)
+        except OSError:
+            pass
+
+
+def test_avatar_url_for_returns_none_when_missing():
+    from services import character_avatar
+
+    assert character_avatar.avatar_url_for("Nobody Here", "story-does-not-exist") is None
+
+
+def test_lookup_avatars_returns_only_existing(client):
+    def _fake_url(name, story_id):  # noqa: ANN001
+        return f"/media/avatars/x/{name}.png?v=1" if name == "Lý Trầm" else None
+
+    with patch("services.character_avatar.avatar_url_for", new=_fake_url):
+        resp = client.post(
+            "/api/characters/avatars/lookup",
+            json={"story_id": "story-x", "names": ["Lý Trầm", "Hàn Lập"]},
+        )
+    assert resp.status_code == 200, resp.text
+    avatars = resp.json()["avatars"]
+    assert "Lý Trầm" in avatars
+    assert "Hàn Lập" not in avatars  # no file on disk -> omitted
+
+
+def test_lookup_avatars_empty_names_ok(client):
+    resp = client.post(
+        "/api/characters/avatars/lookup",
+        json={"story_id": "story-x", "names": []},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["avatars"] == {}
+
+
+def _regen_req():
+    return {
+        "character": VALID_LLM_PAYLOAD,
+        "story_id": "story-regen-1",
+        "genre": "Tiên Hiệp",
+    }
+
+
+def test_regenerate_avatar_returns_fresh_url(client):
+    gen = AsyncMock(return_value="/media/avatars/x/Lý_Trầm.png")
+    with patch(
+        "services.character_avatar.generate_character_avatar", new=gen
+    ), patch(
+        "services.character_avatar.avatar_url_for",
+        new=lambda *_a, **_k: "/media/avatars/x/Lý_Trầm.png?v=99",
+    ):
+        resp = client.post("/api/characters/avatar", json=_regen_req())
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["name"] == "Lý Trầm"
+    assert body["avatar_url"] == "/media/avatars/x/Lý_Trầm.png?v=99"
+    gen.assert_awaited_once()
+
+
+def test_regenerate_avatar_502_when_generation_unavailable(client):
+    # FlowKit disabled / upstream failure -> generate returns None -> 502, not a
+    # 200-with-null that the client would mistake for success.
+    with patch(
+        "services.character_avatar.generate_character_avatar",
+        new=AsyncMock(return_value=None),
+    ):
+        resp = client.post("/api/characters/avatar", json=_regen_req())
+    assert resp.status_code == 502, resp.text
