@@ -326,12 +326,15 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
         else:
             target_chapters = list(story.chapters)
 
+        from config import ConfigManager
+        num_panels = max(1, int(getattr(ConfigManager().pipeline, "panels_per_chapter", 8)))
+
         all_paths: list[str] = []
         for ch in target_chapters:
             prompts = prompt_gen.generate_from_chapter(
                 ch,
                 characters=characters or None,
-                num_images=1,
+                num_images=num_panels,
                 visual_profiles=visual_profiles or None,
             )
             if not prompts:

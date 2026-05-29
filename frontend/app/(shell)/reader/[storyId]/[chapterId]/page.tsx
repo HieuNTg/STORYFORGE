@@ -26,6 +26,7 @@ import {
 import { ReaderControls } from "@/components/reader/ReaderControls";
 import { BookmarkButton } from "@/components/reader/BookmarkButton";
 import { IllustrationBanner } from "@/components/reader/IllustrationBanner";
+import { ComicPanels } from "@/components/reader/ComicPanels";
 import { PipelineOverlay } from "@/components/pipeline/PipelineOverlay";
 import type { PipelineLogLine } from "@/components/pipeline/PipelineLogTerminal";
 import { useStory, useConfig, type StoryChapter } from "@/lib/api/queries";
@@ -38,13 +39,14 @@ import {
 } from "@/stores/reader-store";
 
 interface ChapterWithImages extends StoryChapter {
+  /** Legacy field name kept for back-compat with older payloads. */
   image_paths?: string[];
 }
 
-function pickChapterImage(c?: StoryChapter): string | null {
-  if (!c) return null;
+function pickChapterImages(c?: StoryChapter): string[] {
+  if (!c) return [];
   const withImg = c as ChapterWithImages;
-  return withImg.image_paths?.[0] ?? null;
+  return withImg.images ?? withImg.image_paths ?? [];
 }
 
 function nowTs(): string {
@@ -94,7 +96,7 @@ export default function ReaderPage() {
       ? 0
       : Math.max(0, Math.min(chapterNumber - 1, chapters.length - 1));
   const currentChapter = chapters[safeIdx];
-  const chapterImage = pickChapterImage(currentChapter);
+  const chapterImages = pickChapterImages(currentChapter);
 
   const chapterListItems = React.useMemo(
     () =>
@@ -233,12 +235,21 @@ export default function ReaderPage() {
   const proseNode = (
     <div className="flex flex-col gap-4">
       {illustrationEnabled ? (
-        <IllustrationBanner
-          src={chapterImage ?? undefined}
-          alt={`Minh hoạ chương ${chapterNumber}: ${currentChapter?.title ?? ""}`}
-          loading={regenLoading}
-          onRegenerate={handleRegenerate}
-        />
+        chapterImages.length > 0 ? (
+          <ComicPanels
+            images={chapterImages}
+            alt={`Minh hoạ chương ${chapterNumber}: ${currentChapter?.title ?? ""}`}
+            loading={regenLoading}
+            onRegenerate={handleRegenerate}
+          />
+        ) : (
+          <IllustrationBanner
+            src={undefined}
+            alt={`Minh hoạ chương ${chapterNumber}: ${currentChapter?.title ?? ""}`}
+            loading={regenLoading}
+            onRegenerate={handleRegenerate}
+          />
+        )
       ) : null}
       <ChapterReader
         title={currentChapter?.title}

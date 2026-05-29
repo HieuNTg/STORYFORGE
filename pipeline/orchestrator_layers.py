@@ -1356,6 +1356,14 @@ async def run_full_pipeline(
                 session_id=getattr(self, "session_id", None),
             )
             _log(f"Media hoàn tất trong {time.time() - layer_start:.1f}s")
+            # MediaProducer writes panel paths onto enhanced.chapters[*].images
+            # in place. The layer-2 checkpoint was saved *before* this stage, so
+            # re-save (synchronously) to persist the panels into the file the
+            # reader loads via /api/pipeline/checkpoints/{filename}.
+            try:
+                await asyncio.to_thread(self.checkpoint.save, 2, False)
+            except Exception as _save_err:
+                logger.warning(f"Post-media checkpoint save failed: {_save_err}")
         except Exception as e:
             logger.warning(f"Media production failed: {e}")
             _log(f"Media production lỗi: {e}")

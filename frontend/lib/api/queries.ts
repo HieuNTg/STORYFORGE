@@ -98,6 +98,8 @@ export interface StoryChapter {
   title?: string;
   content?: string;
   word_count?: number;
+  /** Comic panel image URLs (already /media-prefixed by the backend). */
+  images?: string[];
   [k: string]: unknown;
 }
 

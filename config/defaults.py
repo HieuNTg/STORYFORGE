@@ -114,6 +114,10 @@ class PipelineConfig:
     image_provider: str = "none"  # none / dalle / sd-api / seedream / huggingface
     image_api_key: str = ""
     image_api_url: str = ""
+    # Comic panels generated per chapter (truyện tranh). Each chapter gets this
+    # many distinct scene images. Used by both the pipeline media stage and the
+    # on-demand reader regen.
+    panels_per_chapter: int = 8
 
     # HuggingFace Inference API (free tier)
     hf_token: str = ""
