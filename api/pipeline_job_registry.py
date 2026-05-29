@@ -77,16 +77,76 @@ async def mark_done(
     session_id: str,
     summary: Optional[dict] = None,
     error: Optional[str] = None,
+    status: Optional[JobStatus] = None,
 ) -> None:
-    """Flip status to 'done' or 'error' and stash the final summary."""
+    """Persist the final state of a job.
+
+    `status` lets callers set a terminal state explicitly (e.g. "cancelled");
+    when omitted it is inferred from `error` ("error" if present, else "done").
+
+    Field-write order matters: `summary`/`error`/`completed_at` are written
+    BEFORE the `status` flip. `get_run_status` reads job fields without the
+    lock, so a reader must never observe a terminal status while `summary` is
+    still None. Writing status last makes the transition atomic from the
+    reader's point of view (it sees either the old non-terminal state or the
+    fully-populated terminal state — never a torn in-between).
+    """
     async with _JOBS_LOCK:
         job = JOBS.get(session_id)
         if job is None:
             return
-        job.status = "error" if error else "done"
+        resolved: JobStatus = status or ("error" if error else "done")
         job.summary = summary
         job.error = error
         job.completed_at = time.time()
+        job.status = resolved  # flip last — see docstring
+
+
+def mark_terminal_sync(
+    session_id: str,
+    error: Optional[str] = "Worker exited without reporting a result.",
+    status: JobStatus = "error",
+) -> None:
+    """Best-effort sync fallback for a `task.add_done_callback`.
+
+    If a worker task finishes (or is GC'd) without its `finally` ever calling
+    `mark_done`, the job would otherwise stay `running` forever. Done-callbacks
+    run synchronously on the event-loop thread where the async `_JOBS_LOCK`
+    cannot be awaited, so this mutates the record directly. It is a last-resort
+    write on a single field set; it NO-OPS if the job is already terminal — so
+    in the normal path (where `_run_async`'s finally already called mark_done)
+    this does nothing.
+    """
+    job = JOBS.get(session_id)
+    if job is None or job.status in ("done", "error", "cancelled"):
+        return
+    job.error = error
+    job.completed_at = time.time()
+    job.status = status  # flip last (torn-read discipline)
+
+
+def _should_evict(job: "PipelineJob", now: float) -> bool:
+    """Whether the reaper should drop this job (pure predicate — unit-testable).
+
+    Two cases:
+    * Normal retention — a terminal job kept past its polling window.
+    * Stuck-running guard (H2) — a job whose worker exited without ever calling
+      mark_done leaves completed_at=None, so the retention rule never fires and
+      it would leak as `running` forever. Evict once it is older than the
+      retention window AND its task is no longer alive (done, or never attached).
+    """
+    if (
+        job.completed_at is not None
+        and (now - job.completed_at) > JOB_RETENTION_SECONDS
+    ):
+        return True
+    if (
+        job.completed_at is None
+        and (now - job.created_at) > JOB_RETENTION_SECONDS
+        and (job.task is None or job.task.done())
+    ):
+        return True
+    return False
 
 
 async def _job_reaper():
@@ -94,18 +154,38 @@ async def _job_reaper():
         await asyncio.sleep(_JOB_REAPER_INTERVAL)
         now = time.time()
         async with _JOBS_LOCK:
-            expired = [
-                sid
-                for sid, j in JOBS.items()
-                if j.completed_at is not None
-                and (now - j.completed_at) > JOB_RETENTION_SECONDS
-            ]
+            expired = [sid for sid, j in JOBS.items() if _should_evict(j, now)]
             for sid in expired:
                 JOBS.pop(sid, None)
         if expired:
-            logger.debug("Job reaper evicted %d completed job(s)", len(expired))
+            logger.debug("Job reaper evicted %d job(s)", len(expired))
 
 
-def start_job_reaper():
+# Strong reference to the reaper task so it isn't garbage-collected mid-flight
+# (asyncio only holds a weak ref to fire-and-forget tasks — H1).
+_reaper_task: Optional[asyncio.Task] = None
+
+
+def start_job_reaper() -> "asyncio.Task":
     """Launch the retention reaper. Call from app lifespan startup."""
-    asyncio.create_task(_job_reaper())
+    global _reaper_task
+    _reaper_task = asyncio.create_task(_job_reaper())
+    return _reaper_task
+
+
+async def shutdown_job_reaper() -> None:
+    """Cancel and await the reaper task for a clean shutdown (no pending-task
+    warnings). Safe to call when the reaper was never started."""
+    global _reaper_task
+    task = _reaper_task
+    if task is None:
+        return
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    except Exception:
+        logger.exception("Job reaper raised during shutdown (ignored)")
+    finally:
+        _reaper_task = None

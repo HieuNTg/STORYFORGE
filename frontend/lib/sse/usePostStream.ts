@@ -88,6 +88,25 @@ export function usePostStream(opts: UsePostStreamOptions): UsePostStreamResult {
     // 19 disallows in-effect setState. The first transition is reported by
     // the async `onopen` callback below.
 
+    // Terminal-callback dedupe (C5). `fetch-event-source`'s `onerror` fires the
+    // caller's handler and then, because we re-throw to stop auto-retry, the
+    // rejection also reaches the `.catch` below — firing `onError` twice. A
+    // single `settled` latch (scoped to this connection) guarantees exactly one
+    // terminal callback (`onError` OR `onClose`) per stream lifecycle.
+    let settled = false;
+    const settleError = (err: unknown) => {
+      if (settled) return;
+      settled = true;
+      setReadyState("error");
+      onErrorRef.current?.(err);
+    };
+    const settleClose = () => {
+      if (settled) return;
+      settled = true;
+      setReadyState("closed");
+      onCloseRef.current?.();
+    };
+
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
@@ -117,18 +136,18 @@ export function usePostStream(opts: UsePostStreamOptions): UsePostStreamResult {
         onMessageRef.current?.(ev);
       },
       onclose() {
-        setReadyState("closed");
-        onCloseRef.current?.();
+        settleClose();
       },
       onerror(err) {
-        setReadyState("error");
-        onErrorRef.current?.(err);
-        // Throw to stop automatic retry (we'd rather surface to caller).
+        settleError(err);
+        // Throw to stop automatic retry (we'd rather surface to caller). The
+        // rejection reaches `.catch` too, but `settled` makes that a no-op.
         throw err;
       },
     }).catch((err) => {
+      // Intentional aborts (unmount / body change) must stay silent.
       if (controller.signal.aborted) return;
-      onErrorRef.current?.(err);
+      settleError(err);
     });
 
     return () => {

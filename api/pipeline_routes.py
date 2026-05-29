@@ -127,13 +127,34 @@ async def _session_reaper():
             logger.debug(f"Session reaper evicted {len(expired)} expired orchestrator(s)")
 
 
+# Strong reference to the session reaper so asyncio's weak task ref doesn't let
+# it get garbage-collected mid-flight (H1).
+_session_reaper_task: Optional[asyncio.Task] = None
+
+
 def start_session_reaper():
     """Launch the session reaper background task. Call from app lifespan startup."""
-    asyncio.create_task(_session_reaper())
+    global _session_reaper_task
+    _session_reaper_task = asyncio.create_task(_session_reaper())
+    return _session_reaper_task
 
 
 async def shutdown_pipeline_tasks(timeout: int = 30):
     """Cancel and await active pipeline tasks for graceful shutdown."""
+    global _session_reaper_task
+    # Cancel the long-lived session reaper first so it doesn't outlive the app
+    # and emit a "Task was destroyed but it is pending" warning.
+    if _session_reaper_task is not None:
+        _session_reaper_task.cancel()
+        try:
+            await _session_reaper_task
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("Session reaper raised during shutdown (ignored)")
+        finally:
+            _session_reaper_task = None
+
     tasks = list(_active_tasks)
     for task in tasks:
         task.cancel()
@@ -508,6 +529,10 @@ async def run_pipeline(request: Request, body: PipelineRequest):
         # finally (and the recovery GET endpoint) can report the real cause
         # instead of the generic "Pipeline produced no output." fallback.
         caught_error: list = [None]
+        # True if the task was cancelled (shutdown / explicit cancel). Lets the
+        # finally record a `cancelled` terminal status instead of mislabelling
+        # the run as `error`.
+        was_cancelled: list = [False]
 
         async def _run_async():
             try:
@@ -530,6 +555,7 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                 result[0] = await _pipeline_coro if inspect.isawaitable(_pipeline_coro) else _pipeline_coro
             except asyncio.CancelledError:
                 logger.info(f"Pipeline task cancelled (session={session_id})")
+                was_cancelled[0] = True
                 raise
             except (ValueError, TypeError) as e:
                 logger.warning(f"Pipeline input error (session={session_id}): {e}")
@@ -575,14 +601,37 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                     # No output at all (exception path) — prefer the specific
                     # message captured by the except arms.
                     final_error = caught_error[0] or "Pipeline produced no output."
-                await _jobs.mark_done(
-                    session_id, summary=final_summary, error=final_error
-                )
+                if was_cancelled[0]:
+                    # Cancellation is not a failure — record it as such so the FE
+                    # can distinguish "you stopped this" from "it crashed".
+                    await _jobs.mark_done(
+                        session_id,
+                        status="cancelled",
+                        error="Run was cancelled.",
+                    )
+                else:
+                    await _jobs.mark_done(
+                        session_id, summary=final_summary, error=final_error
+                    )
 
         task = asyncio.create_task(_run_async())
         job.task = task
         _active_tasks.add(task)
-        task.add_done_callback(_active_tasks.discard)
+
+        def _on_task_done(t: asyncio.Task, sid: str = session_id) -> None:
+            # Belt-and-suspenders (H2): if _run_async's finally never ran (e.g.
+            # the task was hard-cancelled before reaching it), the job would be
+            # stuck `running`. mark_terminal_sync no-ops when already terminal,
+            # so the normal path is unaffected.
+            _active_tasks.discard(t)
+            if t.cancelled():
+                _jobs.mark_terminal_sync(sid, error="Run was cancelled.", status="cancelled")
+            elif t.exception() is not None:
+                _jobs.mark_terminal_sync(sid, error="Worker crashed unexpectedly.")
+            else:
+                _jobs.mark_terminal_sync(sid)
+
+        task.add_done_callback(_on_task_done)
 
         try:
             # Send session_id first
@@ -756,6 +805,7 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
         # finally (and the recovery GET endpoint) can report the real cause
         # instead of the generic "Pipeline produced no output." fallback.
         caught_error: list = [None]
+        was_cancelled: list = [False]
 
         async def _run_async():
             try:
@@ -766,6 +816,7 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
                 )
             except asyncio.CancelledError:
                 logger.info(f"Resume task cancelled (session={session_id})")
+                was_cancelled[0] = True
                 raise
             except (ValueError, TypeError) as e:
                 logger.warning(f"Resume input error (session={session_id}): {e}")
@@ -799,17 +850,37 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
                         final_error = "Failed to assemble resume result."
                 elif output is not None:
                     # Resume returned an error-status output — surface the reason.
-                    final_error = caught_error[0] or _error_reason_from_logs(job.logs)
+                    err_logs = getattr(output, "logs", None) or job.logs
+                    final_error = caught_error[0] or _error_reason_from_logs(err_logs)
                 else:
                     final_error = caught_error[0] or "Resume produced no output."
-                await _jobs.mark_done(
-                    session_id, summary=final_summary, error=final_error
-                )
+                if was_cancelled[0]:
+                    await _jobs.mark_done(
+                        session_id,
+                        status="cancelled",
+                        error="Resume was cancelled.",
+                    )
+                else:
+                    await _jobs.mark_done(
+                        session_id, summary=final_summary, error=final_error
+                    )
 
         task = asyncio.create_task(_run_async())
         job.task = task
         _active_tasks.add(task)
-        task.add_done_callback(_active_tasks.discard)
+
+        def _on_task_done(t: asyncio.Task, sid: str = session_id) -> None:
+            # Belt-and-suspenders (H2): force a terminal status if _run_async's
+            # finally never ran. No-ops when the job is already terminal.
+            _active_tasks.discard(t)
+            if t.cancelled():
+                _jobs.mark_terminal_sync(sid, error="Resume was cancelled.", status="cancelled")
+            elif t.exception() is not None:
+                _jobs.mark_terminal_sync(sid, error="Worker crashed unexpectedly.")
+            else:
+                _jobs.mark_terminal_sync(sid)
+
+        task.add_done_callback(_on_task_done)
 
         try:
             yield f"data: {json.dumps({'type': 'session', 'session_id': session_id})}\n\n"
