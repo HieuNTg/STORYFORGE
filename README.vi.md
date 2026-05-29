@@ -25,6 +25,25 @@ Hầu hết công cụ viết AI cho ra truyện phẳng. StoryForge biến mỗ
 
 ---
 
+## Ảnh minh hoạ
+
+Do chính pipeline sinh ra — **chân dung nhân vật nhất quán** (cùng một gương mặt xuyên suốt mọi chương) kèm **phông cảnh điện ảnh**, cho một truyện tiên hiệp tiếng Việt. Tất cả render local miễn phí.
+
+<table>
+  <tr>
+    <td align="center" width="33%"><img src="assets/samples/character-trieu-thien-phong.png" width="220" alt="Triệu Thiên Phong" /><br/><sub><b>Triệu Thiên Phong</b> · nam chính</sub></td>
+    <td align="center" width="33%"><img src="assets/samples/character-tieu-vu.png" width="220" alt="Tiểu Vũ" /><br/><sub><b>Tiểu Vũ</b> · nữ chính</sub></td>
+    <td align="center" width="33%"><img src="assets/samples/character-hac-phong-lao-to.png" width="220" alt="Hắc Phong Lão Tổ" /><br/><sub><b>Hắc Phong Lão Tổ</b> · phản diện</sub></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="assets/samples/scene-courtyard-duel.png" width="300" alt="Phông cảnh điện ảnh — quyết đấu giữa sân tại hoàng hôn" /><br/>
+  <sub>Phông cảnh — vẫn các nhân vật đó, giữ nhất quán qua từng chương · <a href="#tạo-hình-ảnh">cách thiết lập ↓</a></sub>
+</p>
+
+---
+
 ## Cài đặt nhanh
 
 ```bash
@@ -51,7 +70,7 @@ Sau đó mở **http://localhost:3001/forge/** → **Cài đặt → Khóa API**
 - **Tiếp tục truyện** — preview đa hướng, outline editor, viết cộng tác, kiểm tra nhất quán, chèn chương giữa truyện, sửa hồi tố
 - **Luồng dựa trên thư viện local** — Đọc truyện, Phân nhánh, Mô phỏng và Nhân vật đều bắt đầu bằng chọn truyện đã lưu trong thư viện; không dùng session giả `demo` hoặc text rời rạc.
 - **Branch reader** — CYOA do LLM sinh, cây SVG + minimap, undo/redo, bookmarks, WebSocket multi-user, xuất EPUB cây
-- **Hình ảnh & Video** — chân dung IP-Adapter nhất quán + phông cảnh điện ảnh; provider [FlowKit](docs/flowkit-integration.md) tuỳ chọn proxy phiên Google Labs local để sinh Imagen 3 + Veo miễn phí qua Chrome MV3 extension (chỉ local, có rủi ro cấm tài khoản — dùng tài khoản Google phụ)
+- **Hình ảnh nhân vật nhất quán** — cùng một gương mặt xuyên suốt mọi chương (consistency bằng ảnh tham chiếu / IP-Adapter) cùng phông cảnh điện ảnh. Sinh local miễn phí qua HuggingFace FLUX hoặc [FlowKit](docs/flowkit-integration.md) (Imagen 3, chỉ local — rủi ro cấm tài khoản, dùng tài khoản Google phụ); trả phí qua DALL·E / Seedream. Xem [Ảnh minh hoạ](#ảnh-minh-hoạ) và [bảng thiết lập bên dưới](#tạo-hình-ảnh).
 - **Provider profile + dropdown model** — Cài đặt có thẻ thêm nhanh cho Gemini, Anthropic, OpenAI, OpenRouter Free, Z.AI và Kyma. Model được chọn bằng dropdown (Gemini/Gemma, OpenRouter free text models, OpenAI/Anthropic, fallback GLM/Qwen/DeepSeek); cheap/L1/L2 cũng chọn từ provider đã cấu hình thay vì nhập tay.
 - **Mọi LLM tương thích OpenAI** — OpenAI, Gemini, Anthropic, OpenRouter, Z.AI, Kyma, Ollama, custom; rate-limit switch chủ động, routing theo latency, định tuyến cheap/premium, cache SQLite
 - **Bảo mật** — CSRF double-submit, body cap 10 MB, middleware chặn prompt injection, mã hoá secrets at-rest
@@ -75,6 +94,20 @@ các trường nhạy cảm trong file này sẽ được mã hoá. Biến môi 
 | `CHROMA_PERSIST_DIR` / `CHROMA_COLLECTION_NAME` | persistence cho RAG |
 
 Override model theo lớp, drama ceiling, batch size, voice-revert anchoring, … nằm trong `config/defaults.py` (`PipelineConfig`) và tab Cài đặt. Prompt tác nhân chỉnh trong `data/prompts/agent_prompts.yaml`.
+
+### Tạo hình ảnh
+
+Ảnh **mặc định tắt** (`image_provider = none` → chỉ văn bản). Chọn provider trong **Cài đặt → Khóa API → Provider hình ảnh**, hoặc đặt trong `data/config.json`:
+
+| Provider | Thiết lập | Chi phí | Ghi chú |
+|----------|-----------|---------|---------|
+| `none` | — | — | Mặc định. Không gọi sinh ảnh. |
+| `huggingface` | Đặt `hf_token` | **Free tier** | `FLUX.1-schnell` qua HF Inference API — đường miễn phí dễ nhất. |
+| `dalle` | Đặt `image_api_key` (+ `image_api_url` tuỳ chọn) | Trả phí | Endpoint ảnh tương thích OpenAI / Azure. |
+| `seedream` | Đặt `seedream_api_key` + `seedream_api_url` | Trả phí | Seedream (ByteDance); cũng là engine consistency mặc định. |
+| `flowkit` | Chrome extension + đăng nhập Google Labs | **Free\*** | Proxy local tới Imagen 3. **\*Rủi ro cấm tài khoản — dùng tài khoản Google phụ.** Hướng dẫn đầy đủ: [FlowKit](docs/flowkit-integration.md). |
+
+**Nhất quán nhân vật** — đặt `enable_character_consistency = true` để dùng chân dung đầu tiên của nhân vật làm ảnh tham chiếu, giữ cùng gương mặt qua mọi chương (`character_consistency_provider`: `seedream` hoặc `replicate`). Phong cách hình do `image_prompt_style` quyết định (mặc định `cinematic`), tỉ lệ chân dung mặc định `9:16`. [Các chân dung mẫu phía trên](#ảnh-minh-hoạ) được tạo theo cách này.
 
 ### Route UI hiện tại
 

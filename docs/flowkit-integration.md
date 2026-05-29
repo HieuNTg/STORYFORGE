@@ -1,6 +1,10 @@
-# FlowKit Integration (Google Labs / Imagen 3 + Veo)
+# FlowKit Integration (Google Labs / Imagen 3)
 
-FlowKit lets StoryForge generate Imagen 3 images and Veo videos through your local Google Labs session via a Chrome MV3 Extension and a WebSocket proxy. **Local-only**; not usable on hosted deploys.
+FlowKit is StoryForge's **free local image** provider: it generates Imagen 3 images through your local Google Labs session via a Chrome MV3 Extension and a WebSocket proxy. **Local-only**; not usable on hosted deploys.
+
+> StoryForge is image-focused (consistent character portraits + scene backgrounds). FlowKit also exposes a Veo video passthrough at the code level, but video is not part of the core product flow — the steps below assume image generation.
+
+> **Prefer no setup?** For the easiest free path with zero extension/account risk, use `image_provider = huggingface` (FLUX.1-schnell) instead — see the [Image generation table in the README](../README.md#image-generation).
 
 ## Account-Ban Risk (Read First)
 
