@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from httpx import AsyncClient, ASGITransport
 
 from api.pipeline_routes import router as pipeline_router
+from models.schemas import PipelineOutput
 
 
 def _make_app() -> FastAPI:
@@ -21,6 +22,23 @@ def _make_app() -> FastAPI:
     api.include_router(pipeline_router)
     app.include_router(api)
     return app
+
+
+@pytest.fixture(autouse=True)
+def _isolate_session_state():
+    """Reset module-level per-IP session state between tests.
+
+    `_sessions` is only evicted by the age-based reaper in production, so within
+    a single test process repeated POST /run calls from the same test-client IP
+    accumulate and trip the `_MAX_SESSIONS_PER_IP` cap — making later tests
+    order-dependent. Clearing it per test keeps the suite deterministic without
+    touching product behaviour.
+    """
+    import api.pipeline_routes as _pr
+
+    _pr._sessions.clear()
+    yield
+    _pr._sessions.clear()
 
 
 @pytest_asyncio.fixture
@@ -88,10 +106,9 @@ async def test_sse_pipeline_session_event():
     """A successful pipeline run should emit session event first, then done."""
     app = _make_app()
 
-    mock_result = {
-        "title": "Test Story",
-        "chapters": [{"number": 1, "content": "Once upon..."}],
-    }
+    # run_full_pipeline returns a PipelineOutput (pydantic model), not a dict —
+    # the route calls output.model_copy()/getattr(output, "status").
+    mock_result = PipelineOutput(status="completed")
 
     with patch("api.pipeline_routes.PipelineOrchestrator") as MockOrch:
         instance = MagicMock()
@@ -147,6 +164,36 @@ async def test_sse_pipeline_error_event():
 
 
 @pytest.mark.asyncio
+async def test_sse_error_status_output_emits_error_not_done():
+    """C2/H3: a run that returns an error-status PipelineOutput must emit an
+    `error` event carrying the real reason — not a silent empty `done`."""
+    app = _make_app()
+
+    reason = "Không kết nối được LLM: connection refused"
+    mock_result = PipelineOutput(status="error", logs=[reason])
+
+    with patch("api.pipeline_routes.PipelineOrchestrator") as MockOrch:
+        instance = MagicMock()
+        instance.run_full_pipeline.return_value = mock_result
+        MockOrch.return_value = instance
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as c:
+            resp = await c.post(
+                "/api/pipeline/run",
+                json={"idea": "A brave warrior travels through time to save the kingdom"},
+            )
+
+        events = _parse_sse_events(resp.text)
+        types = [e["type"] for e in events]
+        # Must NOT report success
+        assert "done" not in types
+        assert types[-1] == "error"
+        # The real reason must be surfaced, not the generic fallback
+        assert reason in events[-1]["data"]
+
+
+@pytest.mark.asyncio
 async def test_sse_resume_missing_checkpoint(client):
     """Resume with nonexistent checkpoint should SSE error."""
     resp = await client.post(
@@ -183,7 +230,7 @@ async def test_sse_event_ordering_with_progress():
             cb("Starting layer 1...")
             cb("Generating characters...")
             cb("Writing chapters...")
-        return {"title": "Story", "chapters": []}
+        return PipelineOutput(status="completed")
 
     with patch("api.pipeline_routes.PipelineOrchestrator") as MockOrch:
         instance = MagicMock()
