@@ -31,6 +31,13 @@ export interface UsePostStreamOptions {
   onError?: (err: unknown) => void;
   /** Optional open callback (fires once on stream open). */
   onOpen?: () => void;
+  /**
+   * Optional close callback (fires when the server closes the stream
+   * gracefully — i.e. NOT on error/abort). Lets callers detect a stream that
+   * ended without a terminal application frame (e.g. backend restart, dropped
+   * connection) so they can move their own state out of a "running" limbo.
+   */
+  onClose?: () => void;
 }
 
 export interface UsePostStreamResult {
@@ -60,12 +67,14 @@ export function usePostStream(opts: UsePostStreamOptions): UsePostStreamResult {
   const onMessageRef = useRef(opts.onMessage);
   const onErrorRef = useRef(opts.onError);
   const onOpenRef = useRef(opts.onOpen);
+  const onCloseRef = useRef(opts.onClose);
   // Sync callback refs in a layout effect — React 19 forbids ref writes
   // during render and useEffect would lag the first paint by a tick.
   useLayoutEffect(() => {
     onMessageRef.current = opts.onMessage;
     onErrorRef.current = opts.onError;
     onOpenRef.current = opts.onOpen;
+    onCloseRef.current = opts.onClose;
   });
 
   useEffect(() => {
@@ -109,6 +118,7 @@ export function usePostStream(opts: UsePostStreamOptions): UsePostStreamResult {
       },
       onclose() {
         setReadyState("closed");
+        onCloseRef.current?.();
       },
       onerror(err) {
         setReadyState("error");

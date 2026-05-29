@@ -169,7 +169,49 @@ export function PipelineScreen({
     onMessage: handleMessage,
     onError: (err) => {
       const msg = err instanceof Error ? err.message : "Stream error";
+      // If the stream dies (network drop, 404/500 on open, mid-stream failure)
+      // before a terminal `done`/`error` frame arrived, the store is still
+      // "running" — which keeps the elapsed timer ticking forever and pins the
+      // ETA to "~0:00". Flip to a terminal state so the timer stops and the UI
+      // surfaces the disconnect instead of counting indefinitely.
+      //
+      // Distinguish two failure shapes by whether a `session` frame already set
+      // sessionId:
+      //   • sessionId present → the run had started; the drop is mid-generation
+      //     and the story may well have finished server-side. Treat as an
+      //     interruption (amber "Gián đoạn"), not a hard error, and point the
+      //     user at the Library.
+      //   • sessionId absent → we failed at/just-after connect (e.g. HTTP
+      //     4xx/5xx in onopen) before the run began. This is a genuine "couldn't
+      //     start" error; do NOT claim the story may exist.
+      const store = usePipelineStore.getState();
+      if (store.status === "running") {
+        if (store.sessionId) {
+          store.pushError(
+            "Mất kết nối với máy chủ khi đang sinh truyện. Tải lại trang để kiểm tra Thư viện — truyện có thể đã sinh xong.",
+          );
+          store.setStatus("interrupted");
+        } else {
+          store.pushError(
+            "Không thể bắt đầu phiên sinh truyện (máy chủ không phản hồi). Hãy thử lại.",
+          );
+          store.setStatus("error");
+        }
+      }
       toast.error(msg);
+    },
+    onClose: () => {
+      // Server closed the stream gracefully but no terminal frame was applied
+      // (e.g. backend restart, or the final `done` frame was lost). On a normal
+      // finish the status is already "done"/"error" here, so the guard below
+      // means this only fires for the orphaned case.
+      const store = usePipelineStore.getState();
+      if (store.status === "running") {
+        store.setStatus("interrupted");
+        toast.warning(
+          "Luồng tiến trình kết thúc nhưng chưa nhận tín hiệu hoàn tất. Tải lại trang để kiểm tra Thư viện.",
+        );
+      }
     },
   });
 
@@ -276,6 +318,7 @@ export function PipelineScreen({
           startedAt={startedAt ?? undefined}
           etaSeconds={etaSeconds}
           running={pending}
+          status={status}
           onCancel={pending ? handleCancel : undefined}
         />
         <ResultPanel
