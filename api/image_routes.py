@@ -15,10 +15,15 @@ import pathlib
 import urllib.parse
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from pydantic import BaseModel
+from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile, File
+from pydantic import BaseModel, Field
 
-from api.export_routes import _PROJECT_ROOT, _get_story_data
+from api.export_routes import (
+    _PROJECT_ROOT,
+    _get_story_data,
+    _LibraryStoryPayload,
+    _payload_to_story_draft,
+)
 from middleware.rbac import Permission, require_permission_if_enabled
 
 # Reference-image upload constraints
@@ -42,7 +47,14 @@ MAX_CHAPTERS_PER_IMAGE_CALL = 10
 
 class GenerateImagesRequest(BaseModel):
     provider: Optional[str] = None
-    chapter: Optional[int] = None  # if set, regenerate only this chapter
+    chapter: Optional[int] = None  # if set, (re)generate only this chapter
+    # Incremental comic generation: when True (and ``chapter`` is None), only
+    # chapters that have NO images yet are generated; chapters that already
+    # have panels are skipped. This is the default Library "Generate comic"
+    # behaviour — running it again after "Continue" produces panels for ONLY
+    # the new chapters, reusing the same consistency anchors. Set False (with
+    # ``chapter`` None) to force a full regenerate of every chapter.
+    only_missing: bool = True
 
 
 class GenerateImagesResponse(BaseModel):
@@ -50,6 +62,50 @@ class GenerateImagesResponse(BaseModel):
     message: str
     count: int
     chapter_images: dict[int, list[str]] = {}
+    # Chapters that were skipped because they already had panels (only_missing).
+    skipped_chapters: list[int] = []
+
+
+class LibraryGenerateImagesRequest(BaseModel):
+    """Payload-based comic generation for localStorage-only Library stories.
+
+    These stories have no backend checkpoint, so they cannot be addressed by the
+    ``/{session_id}/generate`` path. Instead the full localStorage Story travels
+    in the request body (the SAME shape the export endpoint accepts —
+    ``api.export_routes._LibraryStoryPayload``). The engine is reused verbatim;
+    only the in-memory orch is built from the payload instead of a checkpoint.
+
+    Mode semantics mirror :class:`GenerateImagesRequest` exactly:
+
+    * ``chapter=N`` — (re)generate ONLY chapter N.
+    * ``chapter=None, only_missing=True`` (default) — INCREMENTAL: generate
+      panels only for chapters whose ``images`` list is empty in the payload.
+      Idempotent, and the consistency-safe default for "Continue" (new chapters
+      get panels matching the existing ones via the shared profile store).
+    * ``chapter=None, only_missing=False`` — full regenerate (capped at
+      ``MAX_CHAPTERS_PER_IMAGE_CALL``).
+    """
+
+    story: _LibraryStoryPayload = Field(...)
+    provider: Optional[str] = None
+    chapter: Optional[int] = None
+    only_missing: bool = True
+
+
+class ChapterComicStatus(BaseModel):
+    chapter_number: int
+    title: str = ""
+    has_images: bool = False
+    image_count: int = 0
+    image_urls: list[str] = []
+
+
+class ComicStatusResponse(BaseModel):
+    provider: str
+    panels_per_chapter: int
+    total_chapters: int
+    chapters_with_images: int
+    chapters: list[ChapterComicStatus] = []
 
 
 class CharacterProfile(BaseModel):
@@ -131,15 +187,198 @@ def _persist_to_checkpoint(session_id: str, output) -> None:
         logger.warning(f"Failed to persist images into checkpoint {safe_name}: {e}")
 
 
+def _to_media_url(path: str) -> str:
+    """Normalize a stored image path to a ``/media/...`` URL for the client.
+
+    Newly generated panels arrive as OUTPUT_ROOT-relative paths (``handle_generate_images``
+    stores ``rel_to_output_root(p)`` onto ``chapter.images`` — e.g.
+    ``"<story-slug>/images/ch01_panel01.png"``). Since the ``/media`` mount
+    serves OUTPUT_ROOT, the URL is just that path with a ``/media/`` prefix.
+
+    Already-illustrated chapters in the payload carry the URLs a PRIOR response
+    returned — already ``/media/...``-prefixed (or absolute http(s)) — so they
+    are echoed back unchanged.
+    """
+    if not path:
+        return path
+    if path.startswith(("/media/", "http://", "https://")):
+        return path
+    # Absolute filesystem path that happens to live under OUTPUT_ROOT → resolve.
+    if pathlib.Path(path).is_absolute():
+        return _reference_url_for(path) or path
+    # OUTPUT_ROOT-relative panel path (the common case).
+    return "/media/" + path.lstrip("/").replace("\\", "/")
+
+
+class _PayloadOrchWrapper:
+    """Minimal orch_state shim built from a localStorage Story payload.
+
+    Provides the exact attribute surface ``handle_generate_images`` reads:
+
+    * ``.output.story_draft`` — the StoryDraft built from the payload (its
+      ``chapters[].images`` carry whatever panels the payload already had, so
+      the incremental selector can skip them).
+    * ``.output.enhanced_story`` — ``None``; the handler falls back to the draft.
+    * ``.session_id`` — deliberately ``None`` so both the ImageGenerator output
+      folder AND the CharacterVisualProfileStore resolve to ``slug(title)``
+      (no session suffix). This is the SAME slug the checkpoint path lands on
+      (``_DBStoryWrapper`` has no ``session_id``), guaranteeing first-generation
+      and later "Continue" generations share one per-story folder + one frozen
+      profile set → visually consistent chapters.
+    """
+
+    session_id = None
+
+    def __init__(self, output):
+        self.output = output
+
+
+@router.post(
+    "/library/generate",
+    response_model=GenerateImagesResponse,
+    dependencies=[_CREATE_STORIES],
+)
+async def generate_library_images(body: LibraryGenerateImagesRequest = Body(...)):
+    """Generate comic panels for a localStorage-only Library story (payload-based).
+
+    Mirrors ``POST /{session_id}/generate`` but for stories that have no backend
+    checkpoint: the full Story payload (title + characters + chapters incl. each
+    chapter's current ``images``) is sent in the body — the same shape the FE
+    already sends to ``POST /api/export/library/{fmt}``.
+
+    The engine (``services.handlers.handle_generate_images``) and the
+    consistency anchors (``CharacterVisualProfileStore`` keyed by story title,
+    auto-built via ``CharacterVisualExtractor``) are reused verbatim. Nothing is
+    persisted server-side except the generated panels under
+    ``output/<story-slug>/images`` (served via ``/media``). The client persists
+    the returned ``chapter_images`` map back into its localStorage Story.
+
+    Declared BEFORE ``/{session_id}/generate`` so the literal ``library`` path
+    segment is matched first (FastAPI resolves routes in declaration order).
+    """
+    from models.schemas import PipelineOutput
+
+    draft = _payload_to_story_draft(body.story)
+    if not draft.chapters:
+        raise HTTPException(status_code=400, detail="Truyện chưa có chương để tạo truyện tranh")
+
+    # Title is the consistency key (same as the checkpoint path). Guard against
+    # duplicate concurrent generation for the SAME story+chapter scope, mirroring
+    # the 409 behaviour of the session endpoint.
+    title_key = draft.title or "untitled"
+    in_flight_key = (
+        f"library::{title_key}::{body.chapter}"
+        if body.chapter is not None
+        else f"library::{title_key}"
+    )
+    async with _in_flight_lock:
+        if in_flight_key in _in_flight:
+            raise HTTPException(status_code=409, detail="Image generation already in progress for this story")
+        _in_flight.add(in_flight_key)
+
+    try:
+        orch = _PayloadOrchWrapper(PipelineOutput(story_draft=draft, status="complete"))
+        all_chapters = list(draft.chapters)
+
+        # Resolve which chapters this call targets — identical logic to the
+        # session endpoint, but "has images" is read from the payload.
+        skipped_chapters: list[int] = []
+        if body.chapter is not None:
+            target_numbers: Optional[list[int]] = [body.chapter]
+        elif body.only_missing:
+            target_numbers = [
+                ch.chapter_number for ch in all_chapters if not getattr(ch, "images", None)
+            ]
+            skipped_chapters = [
+                ch.chapter_number for ch in all_chapters if getattr(ch, "images", None)
+            ]
+        else:
+            if len(all_chapters) > MAX_CHAPTERS_PER_IMAGE_CALL:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Full regenerate is limited to {MAX_CHAPTERS_PER_IMAGE_CALL} "
+                        f"chapters per call. Use only_missing=true (incremental) or "
+                        f"pass chapter=N to regenerate a single chapter."
+                    ),
+                )
+            target_numbers = None
+
+        provider = body.provider
+        if not provider:
+            try:
+                from config import ConfigManager
+                provider = getattr(ConfigManager().load().pipeline, "image_provider", "none") or "none"
+            except Exception:
+                provider = "none"
+
+        from services.handlers import handle_generate_images
+
+        paths: list[str] = []
+        msg = ""
+        if target_numbers is None:
+            paths, msg = await asyncio.to_thread(
+                handle_generate_images, orch, provider, None, None
+            )
+        else:
+            if not target_numbers:
+                msg = "All chapters already have comic panels — nothing to generate."
+            for ch_num in target_numbers:
+                ch_paths, msg = await asyncio.to_thread(
+                    handle_generate_images, orch, provider, None, ch_num
+                )
+                paths.extend(ch_paths)
+
+        # No checkpoint to persist into — the client owns persistence. Return the
+        # full per-chapter image map as /media URLs so the FE can write them onto
+        # each Chapter.images and re-render.
+        story = orch.output.enhanced_story or orch.output.story_draft
+        chapter_images: dict[int, list[str]] = {}
+        if story and story.chapters:
+            for ch in story.chapters:
+                imgs = getattr(ch, "images", None)
+                if imgs:
+                    chapter_images[ch.chapter_number] = [
+                        _to_media_url(p) for p in imgs
+                    ]
+
+        return GenerateImagesResponse(
+            image_paths=paths,
+            message=msg,
+            count=len(paths),
+            chapter_images=chapter_images,
+            skipped_chapters=skipped_chapters,
+        )
+    finally:
+        async with _in_flight_lock:
+            _in_flight.discard(in_flight_key)
+
+
 @router.post("/{session_id}/generate", response_model=GenerateImagesResponse, dependencies=[_CREATE_STORIES])
 async def generate_images(session_id: str, body: GenerateImagesRequest = GenerateImagesRequest()):
-    """Generate one image per chapter for the given session or checkpoint.
+    """Generate comic panels for the given session or checkpoint — on-demand.
 
     `session_id` may be an active orchestrator session UUID or a checkpoint
     filename (e.g. ``story_<id>.json``). Provider falls back to
     ``config.pipeline.image_provider`` (default ``"none"`` short-circuits).
-    Pass ``chapter`` to regenerate a single chapter only — the in-flight guard
-    is per-(session, chapter) so different chapters can be generated in parallel.
+
+    Three modes:
+
+    * ``chapter=N`` — (re)generate ONLY chapter N (single-chapter regen). The
+      in-flight guard is per-(session, chapter) so different chapters can be
+      generated in parallel.
+    * ``chapter=None, only_missing=True`` (default) — INCREMENTAL: generate
+      panels only for chapters that have no images yet, skipping ones that
+      already do. Idempotent: re-running after "Continue" added chapters
+      produces panels for ONLY the new chapters. This is consistency-safe —
+      every chapter is generated through the same
+      ``CharacterVisualProfileStore`` frozen prompts + reference images, so new
+      chapters match existing ones.
+    * ``chapter=None, only_missing=False`` — full regenerate of every chapter.
+
+    The ``only_missing`` and single-chapter modes have no chapter cap; the
+    full-regenerate bulk mode is still capped at
+    ``MAX_CHAPTERS_PER_IMAGE_CALL`` to bound a single request's cost.
     """
     in_flight_key = f"{session_id}::{body.chapter}" if body.chapter is not None else session_id
     async with _in_flight_lock:
@@ -152,14 +391,33 @@ async def generate_images(session_id: str, body: GenerateImagesRequest = Generat
         if not orch or not orch.output:
             raise HTTPException(status_code=404, detail="Session or checkpoint not found")
 
-        if body.chapter is None:
-            _draft = orch.output.enhanced_story or orch.output.story_draft
-            _chapter_count = len(_draft.chapters) if _draft and _draft.chapters else 0
-            if _chapter_count > MAX_CHAPTERS_PER_IMAGE_CALL:
+        story = orch.output.enhanced_story or orch.output.story_draft
+        all_chapters = list(story.chapters) if story and story.chapters else []
+
+        # Resolve which chapters this call targets.
+        skipped_chapters: list[int] = []
+        if body.chapter is not None:
+            target_numbers: Optional[list[int]] = [body.chapter]
+        elif body.only_missing:
+            # Incremental: only chapters with no panels yet.
+            target_numbers = [
+                ch.chapter_number for ch in all_chapters if not getattr(ch, "images", None)
+            ]
+            skipped_chapters = [
+                ch.chapter_number for ch in all_chapters if getattr(ch, "images", None)
+            ]
+        else:
+            # Full regenerate — keep the cost cap for one request.
+            if len(all_chapters) > MAX_CHAPTERS_PER_IMAGE_CALL:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Pass ?chapter=N — bulk image generation limited to {MAX_CHAPTERS_PER_IMAGE_CALL} chapters at a time",
+                    detail=(
+                        f"Full regenerate is limited to {MAX_CHAPTERS_PER_IMAGE_CALL} "
+                        f"chapters per call. Use only_missing=true (incremental) or "
+                        f"pass chapter=N to regenerate a single chapter."
+                    ),
                 )
+            target_numbers = None  # None == all chapters in handle_generate_images
 
         provider = body.provider
         if not provider:
@@ -170,10 +428,25 @@ async def generate_images(session_id: str, body: GenerateImagesRequest = Generat
                 provider = "none"
 
         from services.handlers import handle_generate_images
-        # handle_generate_images is sync + does N blocking HTTP calls — run off-loop
-        paths, msg = await asyncio.to_thread(
-            handle_generate_images, orch, provider, None, body.chapter
-        )
+
+        # handle_generate_images is sync + does N blocking HTTP calls — run off-loop.
+        # It regenerates either a single chapter (chapter_number set) or all
+        # chapters (None). For incremental mode we loop over only the missing
+        # chapter numbers so already-done chapters are never touched.
+        paths: list[str] = []
+        msg = ""
+        if target_numbers is None:
+            paths, msg = await asyncio.to_thread(
+                handle_generate_images, orch, provider, None, None
+            )
+        else:
+            if not target_numbers:
+                msg = "All chapters already have comic panels — nothing to generate."
+            for ch_num in target_numbers:
+                ch_paths, msg = await asyncio.to_thread(
+                    handle_generate_images, orch, provider, None, ch_num
+                )
+                paths.extend(ch_paths)
 
         _persist_to_checkpoint(session_id, orch.output)
 
@@ -189,10 +462,66 @@ async def generate_images(session_id: str, body: GenerateImagesRequest = Generat
             message=msg,
             count=len(paths),
             chapter_images=chapter_images,
+            skipped_chapters=skipped_chapters,
         )
     finally:
         async with _in_flight_lock:
             _in_flight.discard(in_flight_key)
+
+
+@router.get("/{session_id}/status", response_model=ComicStatusResponse, dependencies=[_READ_STORIES])
+async def get_comic_status(session_id: str):
+    """Per-chapter comic-panel status for a session or checkpoint.
+
+    Lets the Library render which chapters already have comic panels (and how
+    many), which are empty, and how many panels-per-chapter the generator
+    targets. ``session_id`` may be an active session UUID or a checkpoint
+    filename (e.g. ``story_<id>.json``). Read-only — generates nothing.
+
+    A chapter "has images" iff its ``images`` list is non-empty. After
+    "Continue" appends chapters, the new ones report ``has_images=false`` until
+    POST /generate (only_missing) fills them in.
+    """
+    orch = await _get_story_data(session_id)
+    if not orch or not orch.output:
+        raise HTTPException(status_code=404, detail="Session or checkpoint not found")
+
+    try:
+        from config import ConfigManager
+        cfg = ConfigManager().load().pipeline
+        provider = getattr(cfg, "image_provider", "none") or "none"
+        panels_per_chapter = max(1, int(getattr(cfg, "panels_per_chapter", 8)))
+    except Exception:
+        provider = "none"
+        panels_per_chapter = 8
+
+    story = orch.output.enhanced_story or orch.output.story_draft
+    chapters_out: list[ChapterComicStatus] = []
+    with_images = 0
+    if story and story.chapters:
+        for ch in story.chapters:
+            imgs = list(getattr(ch, "images", None) or [])
+            has = bool(imgs)
+            if has:
+                with_images += 1
+            chapters_out.append(
+                ChapterComicStatus(
+                    chapter_number=ch.chapter_number,
+                    title=getattr(ch, "title", "") or "",
+                    has_images=has,
+                    image_count=len(imgs),
+                    image_urls=[_reference_url_for(p) or p for p in imgs],
+                )
+            )
+
+    return ComicStatusResponse(
+        provider=provider,
+        panels_per_chapter=panels_per_chapter,
+        total_chapters=len(chapters_out),
+        chapters_with_images=with_images,
+        chapters=chapters_out,
+    )
+
 
 
 @router.get("/{session_id}/profiles", response_model=CharacterProfilesResponse, dependencies=[_READ_STORIES])

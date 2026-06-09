@@ -48,6 +48,7 @@ import {
 } from "@/lib/library/json-io";
 import type { Story, StoryChapter } from "@/types/story";
 import { displayStoryTitle } from "@/lib/library/display-helpers";
+import { LibraryComicGenerator } from "./LibraryComicGenerator";
 
 export interface StoryWorkspaceProps {
   story: Story;
@@ -231,6 +232,8 @@ export function StoryWorkspace({
           </ScrollArea>
         )}
       </div>
+
+      <LibraryComicGenerator story={story} />
 
       <div className="grid grid-cols-2 gap-2">
         <Button type="button" onClick={handleOpenReader} className="gap-1.5">

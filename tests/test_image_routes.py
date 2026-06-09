@@ -57,9 +57,15 @@ def test_generate_persists_chapter_images(client, tmp_path, monkeypatch):
     orch = _build_orch(3)
 
     def fake_handler(orch_state, provider="none", t=None, chapter_number=None):
-        for i, ch in enumerate(orch_state.output.story_draft.chapters, 1):
+        # Mirror the real handler: when chapter_number is set, only that chapter
+        # is touched (incremental mode loops one call per missing chapter).
+        targets = [
+            ch for ch in orch_state.output.story_draft.chapters
+            if chapter_number is None or ch.chapter_number == chapter_number
+        ]
+        for ch in targets:
             ch.images = [f"ch{ch.chapter_number:02d}_panel01.png"]
-        return [c.images[0] for c in orch_state.output.story_draft.chapters], "ok"
+        return [ch.images[0] for ch in targets], "ok"
 
     with patch("api.image_routes._get_story_data", return_value=orch), \
          patch("services.handlers.handle_generate_images", side_effect=fake_handler):
@@ -473,3 +479,180 @@ def test_generate_single_chapter_in_flight_isolated_from_full(client):
         assert r.status_code == 200
     finally:
         _in_flight.discard("sess-4")
+
+
+# ---------------------------------------------------------------------------
+# POST /images/library/generate — payload-based path for localStorage stories
+# (no backend checkpoint). Mirrors the session endpoint's semantics.
+# ---------------------------------------------------------------------------
+
+
+def _library_payload(num_chapters: int = 2, *, chapters_with_images=None, characters=None):
+    """Build a localStorage-shape Story payload for the library image endpoint.
+
+    ``chapters_with_images`` is a set of 1-based chapter numbers that should
+    arrive already illustrated (so incremental mode skips them).
+    """
+    with_images = chapters_with_images or set()
+    chapters = []
+    for i in range(1, num_chapters + 1):
+        chapters.append(
+            {
+                "title": f"Ch{i}",
+                "content": f"Body {i}",
+                "summary": "",
+                # Already-illustrated chapters carry the /media URLs a prior
+                # response returned (what the client stores + re-sends).
+                "images": ([f"/media/t/images/ch{i:02d}_panel01.png"] if i in with_images else []),
+            }
+        )
+    return {
+        "id": "story-abc",
+        "title": "T",
+        "genre": "g",
+        "setting": "",
+        "tone": "",
+        "description": "s",
+        "characters": list(characters or []),
+        "chapters": chapters,
+    }
+
+
+def test_library_generate_400_when_no_chapters(client):
+    r = client.post(
+        "/images/library/generate",
+        json={"story": _library_payload(0), "provider": "none"},
+    )
+    assert r.status_code == 400
+
+
+def test_library_generate_provider_none_short_circuits(client):
+    with patch("services.handlers.handle_generate_images", return_value=([], "no provider")):
+        r = client.post(
+            "/images/library/generate",
+            json={"story": _library_payload(2), "provider": "none"},
+        )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["count"] == 0
+    assert body["chapter_images"] == {}
+
+
+def test_library_generate_incremental_skips_chapters_with_images(client):
+    """only_missing (default) must generate ONLY chapters the payload shows empty."""
+    called_for = []
+
+    def fake_handler(orch_state, provider="none", t=None, chapter_number=None):
+        called_for.append(chapter_number)
+        for ch in orch_state.output.story_draft.chapters:
+            if ch.chapter_number == chapter_number:
+                ch.images = [f"t/images/ch{ch.chapter_number:02d}_panel01.png"]
+        return [f"t/images/ch{chapter_number:02d}_panel01.png"], "ok"
+
+    # 3 chapters; ch1 already illustrated → only ch2, ch3 should generate.
+    with patch("services.handlers.handle_generate_images", side_effect=fake_handler):
+        r = client.post(
+            "/images/library/generate",
+            json={"story": _library_payload(3, chapters_with_images={1}), "provider": "dalle"},
+        )
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert sorted(called_for) == [2, 3]
+    assert body["skipped_chapters"] == [1]
+    # chapter_images is /media-prefixed and includes the already-present ch1
+    # (echoed unchanged — it was already a /media URL).
+    assert body["chapter_images"]["1"] == ["/media/t/images/ch01_panel01.png"]
+    assert body["chapter_images"]["2"] == ["/media/t/images/ch02_panel01.png"]
+    assert body["chapter_images"]["3"] == ["/media/t/images/ch03_panel01.png"]
+
+
+def test_library_generate_nothing_to_do_when_all_illustrated(client):
+    with patch("services.handlers.handle_generate_images") as handler:
+        r = client.post(
+            "/images/library/generate",
+            json={"story": _library_payload(2, chapters_with_images={1, 2})},
+        )
+    assert r.status_code == 200
+    handler.assert_not_called()
+    body = r.json()
+    assert body["count"] == 0
+    assert body["skipped_chapters"] == [1, 2]
+    assert "nothing to generate" in body["message"].lower()
+
+
+def test_library_generate_single_chapter_scope(client):
+    captured = {}
+
+    def fake_handler(orch_state, provider="none", t=None, chapter_number=None):
+        captured["chapter_number"] = chapter_number
+        for ch in orch_state.output.story_draft.chapters:
+            if ch.chapter_number == chapter_number:
+                ch.images = [f"t/images/ch{ch.chapter_number:02d}_panel01.png"]
+        return ["t/images/ch02_panel01.png"], "ok"
+
+    with patch("services.handlers.handle_generate_images", side_effect=fake_handler):
+        r = client.post(
+            "/images/library/generate",
+            json={"story": _library_payload(3), "chapter": 2, "provider": "dalle"},
+        )
+    assert r.status_code == 200, r.text
+    assert captured["chapter_number"] == 2
+    assert r.json()["chapter_images"] == {"2": ["/media/t/images/ch02_panel01.png"]}
+
+
+def test_library_generate_full_regenerate_cap(client):
+    """only_missing=false beyond MAX_CHAPTERS_PER_IMAGE_CALL → 400."""
+    from api.image_routes import MAX_CHAPTERS_PER_IMAGE_CALL
+
+    r = client.post(
+        "/images/library/generate",
+        json={
+            "story": _library_payload(MAX_CHAPTERS_PER_IMAGE_CALL + 1),
+            "only_missing": False,
+        },
+    )
+    assert r.status_code == 400
+
+
+def test_library_generate_in_flight_guard(client):
+    _in_flight.add("library::T")
+    try:
+        r = client.post(
+            "/images/library/generate",
+            json={"story": _library_payload(1)},
+        )
+        assert r.status_code == 409
+    finally:
+        _in_flight.discard("library::T")
+
+
+def test_library_generate_consistency_profile_scoped_to_title(client, tmp_path, monkeypatch):
+    """The payload path must auto-build profiles under the TITLE-scoped store —
+    the same slug the checkpoint path uses — so Continue chapters stay consistent."""
+    monkeypatch.chdir(tmp_path)
+
+    fake_extractor = MagicMock()
+    fake_extractor.extract_and_generate.return_value = ({"hair": {"color": "dark"}}, "FROZEN_HERO")
+    extractor_cls = MagicMock(return_value=fake_extractor)
+    image_gen = MagicMock()
+    image_gen.generate_story_images.return_value = ["output/t/images/ch01_panel01.png"]
+    prompt_gen = MagicMock()
+    prompt_gen.generate_from_chapter.return_value = ["a prompt"]
+
+    payload = _library_payload(
+        1, characters=[{"name": "Hero", "role": "protagonist", "traits": {"strength": 50, "wisdom": 50, "agility": 50, "scheme": 50}, "description": "brave", "backstory": "", "secret": "", "conflict": ""}]
+    )
+
+    with patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls), \
+         patch("services.image_generator.ImageGenerator", return_value=image_gen), \
+         patch("services.image_prompt_generator.ImagePromptGenerator", return_value=prompt_gen):
+        r = client.post("/images/library/generate", json={"story": payload, "provider": "dalle"})
+
+    assert r.status_code == 200, r.text
+    # Profile persisted under the per-story characters dir, title-scoped to "T" —
+    # identical slug to the checkpoint path (no session suffix).
+    from services.output_paths import characters_dir
+    assert (tmp_path / characters_dir("T") / "Hero" / "profile.json").exists()
+    _, kwargs = prompt_gen.generate_from_chapter.call_args
+    assert kwargs.get("visual_profiles") == {"Hero": "FROZEN_HERO"}

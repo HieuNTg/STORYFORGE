@@ -32,6 +32,7 @@ export function forgeToStory(forge: ForgeResponse): Story {
     summary: forge.firstChapter.summary,
     badge: "ĐK",
     status: "ready",
+    images: [],
     createdAt: now,
   };
   return {
@@ -121,6 +122,7 @@ export function pipelineSummaryToStory(
     summary: "",
     badge: "Ch" as const,
     status,
+    images: [],
     createdAt: now,
   }));
 

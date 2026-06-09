@@ -17,6 +17,7 @@ import { ChapterList } from "@/components/reader/ChapterList";
 import { ChapterReader, type ReaderFontFamily as ReaderFontUi } from "@/components/reader/ChapterReader";
 import { ReaderControls } from "@/components/reader/ReaderControls";
 import { BookmarkButton } from "@/components/reader/BookmarkButton";
+import { ComicGenerator } from "@/components/reader/ComicGenerator";
 import { useStory, type StoryChapter } from "@/lib/api/queries";
 import {
   useReaderStore,
@@ -140,11 +141,14 @@ export default function LibraryDetailPage() {
       theme={theme}
       columnWidth={columnUi}
       chapterList={
-        <ChapterList
-          chapters={chapterListItems}
-          currentChapter={safeIdx}
-          onSelect={(idx) => void setChapterIdx(idx)}
-        />
+        <div className="flex flex-col gap-4">
+          <ChapterList
+            chapters={chapterListItems}
+            currentChapter={safeIdx}
+            onSelect={(idx) => void setChapterIdx(idx)}
+          />
+          <ComicGenerator sessionId={storyId} />
+        </div>
       }
       controls={
         <div className="flex items-center gap-1.5">

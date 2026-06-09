@@ -91,6 +91,13 @@ export const storyChapterSchema = z.object({
   /** "ĐK" = Đặc khu (forge ch1), "Ch" = standard chapter. */
   badge: z.enum(["ĐK", "Ch"]).default("Ch"),
   status: z.enum(["draft", "ready", "enhanced"]).default("ready"),
+  /**
+   * Comic panels generated for this chapter, as `/media/...` URLs returned by
+   * the image endpoints. Empty/absent => no comic yet. The Library sends these
+   * back to `POST /api/images/library/generate` so incremental generation can
+   * skip already-illustrated chapters (and so "Continue" only fills new ones).
+   */
+  images: z.array(z.string()).default([]),
   createdAt: z.string(),
 });
 export type StoryChapter = z.infer<typeof storyChapterSchema>;

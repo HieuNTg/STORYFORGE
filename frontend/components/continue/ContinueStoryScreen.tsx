@@ -137,6 +137,7 @@ export function ContinueStoryScreen() {
           summary: result.firstChapter.summary,
           badge: "Ch",
           status: "ready",
+          images: [],
           createdAt: now,
         };
         appendChapter(story.id, chapter);

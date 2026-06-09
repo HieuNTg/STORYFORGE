@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useConfig, useGenres, type CreateStoryRequest } from "@/lib/api/queries";
+import { useGenres, type CreateStoryRequest } from "@/lib/api/queries";
 import { cn } from "@/lib/utils";
 import {
   CHAPTER_MIN,
@@ -102,12 +102,10 @@ export function PipelineForm({
   pending = false,
 }: PipelineFormProps) {
   const { data: choices } = useGenres();
-  const { data: config } = useConfig();
-  // Image step runs only when a provider is configured in Settings.
-  // The backend gate is `enable_media && image_provider != "none"`,
-  // so we mirror that check here instead of hard-coding `false`.
-  const imageProvider = config?.pipeline?.image_provider ?? "none";
-  const enableMedia = imageProvider !== "none";
+  // Comics are no longer auto-generated when the pipeline finishes — they are
+  // produced on demand, per story, from the Library (POST /api/images/*).
+  // The backend now ignores `enable_media`; we send `false` so the pipeline
+  // never implies comics are created on finish.
 
   const form = useForm<PipelineFormValues>({
     resolver: zodResolver(schema),
@@ -178,7 +176,7 @@ export function PipelineForm({
       smart_revision_threshold: 3.5,
       shots_per_chapter: 8,
       enable_scoring: values.enable_quality_gate,
-      enable_media: enableMedia,
+      enable_media: false,
       lite_mode: false,
     };
     onSubmit(req);

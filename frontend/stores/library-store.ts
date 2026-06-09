@@ -34,6 +34,16 @@ interface LibraryState {
   removeStory: (id: string) => void;
   selectStory: (id: string | null) => void;
   updateStory: (id: string, patch: Partial<Story>) => void;
+  /**
+   * Persist comic panels returned by `POST /api/images/library/generate`.
+   * `chapterImages` keys are 1-based chapter numbers (array order); values are
+   * `/media/...` URLs written onto `chapters[number-1].images`. Chapters not
+   * present in the map keep their existing panels (incremental "Continue" case).
+   */
+  setStoryChapterImages: (
+    storyId: string,
+    chapterImages: Record<string | number, string[]>,
+  ) => void;
   appendChapter: (storyId: string, chapter: StoryChapter) => void;
   upsertCharacter: (storyId: string, character: ForgeCharacter) => void;
   removeCharacter: (storyId: string, name: string) => void;
@@ -87,6 +97,20 @@ export const useLibraryStore = create<LibraryState>()(
               ? storySchema.parse({ ...s, ...patch, id: s.id, updatedAt: nowIso() })
               : s,
           ),
+        });
+      },
+
+      setStoryChapterImages: (storyId, chapterImages) => {
+        const { stories } = get();
+        set({
+          stories: stories.map((s) => {
+            if (s.id !== storyId) return s;
+            const chapters = s.chapters.map((ch, i) => {
+              const next = chapterImages[i + 1] ?? chapterImages[String(i + 1)];
+              return next ? { ...ch, images: next } : ch;
+            });
+            return storySchema.parse({ ...s, chapters, updatedAt: nowIso() });
+          }),
         });
       },
 

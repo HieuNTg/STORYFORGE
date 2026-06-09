@@ -1340,33 +1340,21 @@ async def run_full_pipeline(
     total_time = time.time() - pipeline_start
     _log(f"Tổng kết: {len(enhanced.chapters)} chương, tổng thời gian: {total_time:.0f}s")
 
-    # ── Optional media production (images) ──────────────────────────────────
-    should_run_media = (
-        enable_media
-        and self.config.pipeline.image_provider != "none"
-    )
-    if should_run_media:
-        _log("══════ SẢN XUẤT ẢNH ══════")
-        layer_start = time.time()
-        try:
-            await asyncio.to_thread(
-                self.media_producer.run,
-                draft, enhanced,
-                progress_callback=lambda m: _log(m),
-                session_id=getattr(self, "session_id", None),
-            )
-            _log(f"Media hoàn tất trong {time.time() - layer_start:.1f}s")
-            # MediaProducer writes panel paths onto enhanced.chapters[*].images
-            # in place. The layer-2 checkpoint was saved *before* this stage, so
-            # re-save (synchronously) to persist the panels into the file the
-            # reader loads via /api/pipeline/checkpoints/{filename}.
-            try:
-                await asyncio.to_thread(self.checkpoint.save, 2, False)
-            except Exception as _save_err:
-                logger.warning(f"Post-media checkpoint save failed: {_save_err}")
-        except Exception as e:
-            logger.warning(f"Media production failed: {e}")
-            _log(f"Media production lỗi: {e}")
+    # ── Media production (comic panels) is now decoupled from pipeline `done` ──
+    #
+    # Comic-panel images are NO LONGER auto-generated when the L1 pipeline
+    # reaches `done`. The pipeline writes the story (and character reference
+    # profiles) and stops. Comic generation is on-demand, per story, triggered
+    # from the Library via POST /api/images/{session_id}/generate — which is
+    # incremental (only chapters lacking images) and reuses the same
+    # consistency anchors (CharacterVisualProfileStore frozen prompts +
+    # reference images) so chapters added later via "Continue" stay visually
+    # consistent with chapters that already have panels.
+    #
+    # ``enable_media`` is retained on the signature for backward compatibility
+    # (callers/tests still pass it) but no longer drives auto comic generation.
+    # ``MediaProducer`` remains importable/usable for any explicit caller.
+    _ = enable_media  # noqa: F841 — flag retained for API compat, intentionally unused
 
     # Attach raw progress events to output for API consumers
     self.output.progress_events = [e.__dict__ for e in tracker.events]

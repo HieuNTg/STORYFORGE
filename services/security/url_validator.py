@@ -12,6 +12,8 @@ _ALLOWED_HOSTS = {
     "generativelanguage.googleapis.com",
     "kymaapi.com",
     "api.z.ai",
+    "api.xiaomimimo.com",
+    "token-plan-cn.xiaomimimo.com",
     "localhost",
     "127.0.0.1",
 }

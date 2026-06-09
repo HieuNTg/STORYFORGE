@@ -249,6 +249,11 @@ class _LibraryChapterPayload(BaseModel):
     title: str = ""
     content: str = ""
     summary: str = ""
+    # Comic panels already generated for this chapter, as /media-relative paths
+    # (the same shape the image endpoints return). Carried through so the
+    # payload-based image path can skip chapters that are already illustrated
+    # (incremental / idempotent). Ignored by the document exporters.
+    images: list[str] = Field(default_factory=list)
 
 
 class _LibraryCharacterPayload(BaseModel):
@@ -295,6 +300,7 @@ def _payload_to_story_draft(payload: _LibraryStoryPayload):
             content=ch.content or "",
             word_count=len((ch.content or "").split()),
             summary=ch.summary or "",
+            images=list(ch.images or []),
         )
         for i, ch in enumerate(payload.chapters)
     ]
