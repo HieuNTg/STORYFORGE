@@ -38,7 +38,12 @@ from services._rate_limiter_redis_impl import RedisRateLimiter
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_request(path: str = "/api/stories", client_ip: str = "1.2.3.4", headers: dict | None = None) -> Request:
+def _make_request(
+    path: str = "/api/stories",
+    client_ip: str = "1.2.3.4",
+    headers: dict | None = None,
+    method: str = "POST",
+) -> Request:
     """Build a minimal mock Request."""
     req = MagicMock(spec=Request)
     req.client = MagicMock()
@@ -46,6 +51,7 @@ def _make_request(path: str = "/api/stories", client_ip: str = "1.2.3.4", header
     req.url = MagicMock()
     req.url.path = path
     req.headers = headers or {}
+    req.method = method
     return req
 
 
@@ -134,6 +140,17 @@ class TestGetTier:
     def test_limits_dict_has_correct_values(self):
         assert _LIMITS["expensive"] == 10
         assert _LIMITS["default"] == 60
+
+    def test_get_requests_are_default_even_under_expensive_prefix(self):
+        """Read-only polling/status GETs must NOT count against the expensive
+        budget — e.g. the async comic-job poll fired every ~2.5s."""
+        assert _get_tier("/api/images/library/jobs/abc123", "GET") == "default"
+        assert _get_tier("/api/images/sess/status", "GET") == "default"
+        assert _get_tier("/api/export/pdf", "GET") == "default"
+
+    def test_post_to_image_generation_is_expensive(self):
+        assert _get_tier("/api/images/library/generate", "POST") == "expensive"
+        assert _get_tier("/api/images/sess/generate", "POST") == "expensive"
 
 
 # ---------------------------------------------------------------------------
@@ -368,6 +385,28 @@ class TestRateLimitMiddlewareDispatch:
         body = json.loads(resp.body)
         assert body["error"] == "Too Many Requests"
         assert "Rate limit exceeded" in body["detail"]
+
+    @pytest.mark.asyncio
+    async def test_get_poll_survives_exhausted_expensive_budget(self):
+        """Regression: an async comic-job poll (GET under /api/images/) must NOT
+        be 429'd after the expensive POST budget is spent — it's a cheap read on
+        the default (60/min) tier. This was the root cause of the spurious
+        'Too Many Requests' toast during comic generation."""
+        mw = self._make_middleware()
+        ip = "7.7.7.7"
+        # Spend the entire expensive budget on the generation POST.
+        for _ in range(_LIMITS["expensive"]):
+            _check_rate_limit_memory(ip, "expensive")
+
+        req = _make_request(
+            path="/api/images/library/jobs/abc123", client_ip=ip, method="GET"
+        )
+        call_next = AsyncMock(return_value=MagicMock(status_code=200))
+        resp = await mw.dispatch(req, call_next)
+
+        # Poll passes through (default tier has headroom), not a 429.
+        call_next.assert_awaited_once()
+        assert not isinstance(resp, JSONResponse)
 
     @pytest.mark.asyncio
     async def test_call_next_not_called_when_rate_limited(self):

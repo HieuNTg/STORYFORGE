@@ -67,7 +67,15 @@ def _get_ip(request: Request) -> str:
     return client_ip
 
 
-def _get_tier(path: str) -> str:
+def _get_tier(path: str, method: str = "POST") -> str:
+    # Read-only requests are always cheap, even under an "expensive" prefix.
+    # Heavy work (pipeline run, export build, image/comic generation) is always
+    # POST; GETs are status reads — most importantly the async comic-job poll
+    # (GET /api/images/library/jobs/{id}), which fires every ~2.5s and would
+    # otherwise blow the 10/min expensive budget in seconds, surfacing as a
+    # spurious "Too Many Requests" toast mid-generation.
+    if method.upper() in ("GET", "HEAD", "OPTIONS"):
+        return "default"
     for prefix in _EXPENSIVE_PREFIXES:
         if path.startswith(prefix):
             return "expensive"
@@ -192,7 +200,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         ip = _get_ip(request)
-        tier = _get_tier(path)
+        tier = _get_tier(path, request.method)
 
         # Use Redis if available, otherwise in-memory
         allowed = (
