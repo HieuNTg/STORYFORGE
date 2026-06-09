@@ -154,6 +154,7 @@
     "comic_regenerate_chapter": "Regenerate this chapter",
     "comic_done": "Generated {count} comic panels",
     "comic_nothing_missing": "Every chapter already has panels.",
+    "comic_no_images": "No panels were generated — the image provider (e.g. FlowKit) may not be connected. Please retry.",
     "comic_busy": "This story is already generating panels, please wait…",
     "comic_failed": "Comic generation failed",
     "comic_no_provider": "No image provider configured. Enable an image generation provider in Settings to create comics.",

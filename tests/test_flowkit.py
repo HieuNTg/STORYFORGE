@@ -731,8 +731,8 @@ def test_refine_to_cinematic_prompt_returns_refined(monkeypatch):
     from services.media.image_prompt_generator import ImagePromptGenerator
     gen = ImagePromptGenerator()
     monkeypatch.setattr(
-        gen.llm, "generate_json",
-        MagicMock(return_value={"prompt": "wide shot, golden hour, hero, oil painting"}),
+        gen.llm, "generate",
+        MagicMock(return_value="wide shot, golden hour, hero, oil painting"),
         raising=False,
     )
     out = gen.refine_to_cinematic_prompt("hero stands on cliff")
@@ -743,12 +743,42 @@ def test_refine_to_cinematic_prompt_fallback_on_error(monkeypatch):
     from services.media.image_prompt_generator import ImagePromptGenerator
     gen = ImagePromptGenerator()
     monkeypatch.setattr(
-        gen.llm, "generate_json",
+        gen.llm, "generate",
         MagicMock(side_effect=RuntimeError("llm down")),
         raising=False,
     )
     out = gen.refine_to_cinematic_prompt("hero stands on cliff")
     assert out == "hero stands on cliff"
+
+
+def test_refine_to_cinematic_prompt_rejects_refusal(monkeypatch):
+    """A model refusal must be discarded so the base prompt is used (the real-world bug)."""
+    from services.media.image_prompt_generator import ImagePromptGenerator
+    gen = ImagePromptGenerator()
+    monkeypatch.setattr(
+        gen.llm, "generate",
+        MagicMock(return_value=(
+            "Bạn đã đăng nhập chưa? Tôi không thể tạo bất kỳ hình ảnh nào cho bạn."
+        )),
+        raising=False,
+    )
+    out = gen.refine_to_cinematic_prompt("hero stands on cliff")
+    assert out == "hero stands on cliff"
+
+
+def test_refine_to_cinematic_prompt_unwraps_json(monkeypatch):
+    """A reply fenced as ```json {"prompt": ...}``` is unwrapped, not discarded."""
+    from services.media.image_prompt_generator import ImagePromptGenerator
+    gen = ImagePromptGenerator()
+    monkeypatch.setattr(
+        gen.llm, "generate",
+        MagicMock(return_value=(
+            '```json\n{"prompt": "low angle, neon rim light, lone hero, cyberpunk"}\n```'
+        )),
+        raising=False,
+    )
+    out = gen.refine_to_cinematic_prompt("hero stands on cliff")
+    assert "neon rim light" in out
 
 
 def test_is_configured_requires_ws(isolated_image_gen_env, monkeypatch):

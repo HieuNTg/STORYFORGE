@@ -154,6 +154,7 @@
     "comic_regenerate_chapter": "Tạo lại tranh chương này",
     "comic_done": "Đã tạo {count} ảnh truyện tranh",
     "comic_nothing_missing": "Mọi chương đều đã có tranh.",
+    "comic_no_images": "Không tạo được tranh nào — provider tạo ảnh (ví dụ FlowKit) có thể chưa kết nối. Hãy thử lại.",
     "comic_busy": "Truyện này đang được tạo tranh, vui lòng chờ…",
     "comic_failed": "Tạo truyện tranh thất bại",
     "comic_no_provider": "Chưa cấu hình nhà cung cấp ảnh. Hãy bật một provider tạo ảnh trong phần Cài đặt để tạo truyện tranh.",

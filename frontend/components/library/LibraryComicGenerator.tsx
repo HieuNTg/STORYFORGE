@@ -182,12 +182,13 @@ export function LibraryComicGenerator({
           total: status.total_chapters,
         });
 
-        // No image provider configured: backend produces nothing. Prompt
-        // Settings (also covers a "done with zero output" run).
-        if (
-          status.provider === "none" ||
-          (status.count === 0 && status.state === "done")
-        ) {
+        // Only a genuinely-unconfigured provider (config === "none") locks the
+        // UI: the backend can never produce output, so prompt Settings. A run
+        // that produced zero images *with* a provider configured (e.g. a
+        // transient FlowKit worker drop) must NOT latch this flag — doing so
+        // disables the retry buttons and traps the user until a page reload.
+        // That zero-output case is surfaced as a retryable toast below.
+        if (status.provider === "none") {
           setNoProvider(true);
         }
 
@@ -199,8 +200,15 @@ export function LibraryComicGenerator({
           if (status.state === "done") {
             if (status.count > 0) {
               toast.success(t("comic_done", { count: status.count }));
-            } else {
+            } else if (target === "missing") {
+              // A "fill missing" run that produced nothing => nothing was
+              // actually missing. Informational, not a failure.
               toast.info(t("comic_nothing_missing"));
+            } else {
+              // A regenerate run (all / single chapter) that produced zero
+              // images => generation genuinely failed, commonly because the
+              // FlowKit worker isn't connected. Retryable — buttons stay live.
+              toast.error(t("comic_no_images"));
             }
           } else if (status.state === "error") {
             toast.error(t("comic_failed"), {
