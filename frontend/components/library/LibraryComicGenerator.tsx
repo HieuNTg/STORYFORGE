@@ -5,11 +5,16 @@
  * localStorage-only Library stories.
  *
  * These stories have NO backend checkpoint, so this operates purely on the
- * payload endpoint `POST /api/images/library/generate` (via the
- * `generateLibrary*` wrappers) and persists the returned `chapter_images` back
- * onto `Story.chapters[i].images` through the library store. It is the
- * localStorage counterpart of the checkpoint-based `reader/ComicGenerator.tsx`
- * — DO NOT confuse the two.
+ * async payload job endpoints (`submitLibraryComicJob` → `getLibraryComicJob`)
+ * and persists the polled `chapter_images` back onto `Story.chapters[i].images`
+ * through the library store. It is the localStorage counterpart of the
+ * checkpoint-based `reader/ComicGenerator.tsx` — DO NOT confuse the two.
+ *
+ * Phase B (async): a single whole-story (or single-chapter) job is submitted
+ * once; the backend returns 202 + `job_id` and runs generation off the request
+ * thread. We poll for accreting `chapter_images` and persist each illustrated
+ * chapter incrementally, so the run survives proxy timeouts and renders panels
+ * as they land. See docs/comic-async-generation-phase-b-proposal.md §2.6.
  *
  * Per-chapter state is derived from `Story.chapters[i].images` (non-empty =>
  * already illustrated). The primary button flips label between "tạo mới" and
@@ -28,8 +33,9 @@ import { ComicPanels } from "@/components/reader/ComicPanels";
 import { cn } from "@/lib/utils";
 import { useLibraryStore } from "@/stores/library-store";
 import {
-  generateLibraryChapterImage,
-  type GenerateImagesResponse,
+  submitLibraryComicJob,
+  getLibraryComicJob,
+  type LibraryJobStatus,
 } from "@/lib/api/illustration";
 import { ApiError } from "@/lib/api/client";
 import type { Story } from "@/types/story";
@@ -55,22 +61,25 @@ export function LibraryComicGenerator({
   // in flight. null = idle.
   const [progress, setProgress] = React.useState<{ done: number; total: number } | null>(null);
 
+  // Tracks whether the component is still mounted so we never call setState
+  // after an await resolves post-unmount. Flipped false by the cleanup effect.
+  const mountedRef = React.useRef(true);
+  // Pending poll timer; cleared on unmount so polling stops with the component.
+  const pollTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (pollTimerRef.current !== null) {
+        clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    };
+  }, []);
+
   const total = story.chapters.length;
   const illustrated = React.useMemo(
     () => story.chapters.filter((ch) => (ch.images?.length ?? 0) > 0).length,
-    [story.chapters],
-  );
-  // Chapter numbers (1-based) targeted by the primary / regenerate-all actions.
-  const missingChapterNumbers = React.useMemo(
-    () =>
-      story.chapters
-        .map((ch, i) => ({ n: i + 1, has: (ch.images?.length ?? 0) > 0 }))
-        .filter((c) => !c.has)
-        .map((c) => c.n),
-    [story.chapters],
-  );
-  const allChapterNumbers = React.useMemo(
-    () => story.chapters.map((_, i) => i + 1),
     [story.chapters],
   );
   const hasChapters = total > 0;
@@ -81,89 +90,165 @@ export function LibraryComicGenerator({
     illustrated > 0 ? t("comic_generate_more") : t("comic_generate_new");
 
   const persist = React.useCallback(
-    (res: GenerateImagesResponse) => {
-      // Backend returns the FULL current map (1-based chapter -> URLs).
-      if (res.chapter_images && Object.keys(res.chapter_images).length > 0) {
-        setStoryChapterImages(story.id, res.chapter_images);
+    (chapterImages: LibraryJobStatus["chapter_images"]) => {
+      // Backend accretes the FULL current map (1-based chapter -> URLs). The
+      // store merges, so other chapters are preserved (library-store.ts:103).
+      if (chapterImages && Object.keys(chapterImages).length > 0) {
+        setStoryChapterImages(story.id, chapterImages);
       }
     },
     [setStoryChapterImages, story.id],
   );
 
-  // Drive comic generation ONE chapter per request, sequentially. The backend's
-  // /library/generate can loop over many chapters in a single request, but each
-  // chapter is ~8 sequential image calls, so a whole-story run easily exceeds
-  // the dev-proxy idle timeout → ECONNRESET surfaces as a bogus 500 "Internal
-  // Server Error". Chunking per chapter keeps every request short, renders
-  // panels incrementally as they land, and sidesteps the in-flight 409 (each
-  // chapter has a distinct lock key server-side).
-  const runChapters = React.useCallback(
-    async (chapterNumbers: number[], target: Pending) => {
+  // Submit ONE async job, then poll it to terminal state. Phase B moves the
+  // generation off the request thread: POST returns 202 + job_id in ms, the
+  // backend runs every chapter server-side, and we poll for accreting
+  // `chapter_images`, persisting + rendering each chapter as it lands. This
+  // survives the dev-proxy idle timeout that the Phase A per-chapter chunking
+  // existed to dodge, and the run no longer dies if the request disconnects.
+  //
+  // Poll cadence: 2500ms base; if `chapters_done` is unchanged for 3 polls in a
+  // row, back off (×2, capped 8000ms); reset to 2500ms whenever it advances.
+  const runJob = React.useCallback(
+    async (
+      opts: { chapter?: number; only_missing?: boolean },
+      target: Pending,
+    ) => {
       if (busy) return;
-      if (chapterNumbers.length === 0) {
-        toast.info(t("comic_nothing_missing"));
-        return;
-      }
       setPending(target);
-      setProgress({ done: 0, total: chapterNumbers.length });
-      let totalCount = 0;
+      setProgress(null);
+
+      const finish = () => {
+        if (!mountedRef.current) return;
+        setPending(null);
+        setProgress(null);
+      };
+
+      let jobId: string;
       try {
-        for (let i = 0; i < chapterNumbers.length; i++) {
-          const res: GenerateImagesResponse = await generateLibraryChapterImage(
-            story,
-            chapterNumbers[i],
-          );
-          // provider "none" => the backend generates nothing for a targeted
-          // chapter (count 0). Stop and prompt for Settings.
-          if (res.count === 0) {
-            setNoProvider(true);
-            return;
-          }
-          setNoProvider(false);
-          persist(res); // incremental: panels for this chapter render now
-          totalCount += res.count;
-          setProgress({ done: i + 1, total: chapterNumbers.length });
-        }
-        if (totalCount > 0) {
-          toast.success(t("comic_done", { count: totalCount }));
-        } else {
-          toast.info(t("comic_nothing_missing"));
-        }
+        const accepted = await submitLibraryComicJob(story, opts);
+        // 200 + already_running => an identical-scope job was already in flight;
+        // just attach to it (no toast). 202 => freshly queued. Either way we own
+        // the returned job_id from here.
+        jobId = accepted.job_id;
+        if (mountedRef.current) setNoProvider(false);
       } catch (err) {
         if (err instanceof ApiError) {
           if (err.status === 409) {
             toast.error(t("comic_busy"));
+            finish();
             return;
           }
           if (err.status === 400) {
             toast.error(t("comic_failed"), { description: err.message });
+            finish();
             return;
           }
         }
         toast.error(t("comic_failed"), {
           description: err instanceof Error ? err.message : String(err),
         });
-      } finally {
-        setPending(null);
-        setProgress(null);
+        finish();
+        return;
       }
+
+      const BASE_INTERVAL = 2500;
+      const MAX_INTERVAL = 8000;
+      let interval = BASE_INTERVAL;
+      let lastDone = -1;
+      let stalls = 0;
+
+      const poll = async () => {
+        if (!mountedRef.current) return;
+        let status: LibraryJobStatus;
+        try {
+          status = await getLibraryComicJob(jobId);
+        } catch (err) {
+          if (!mountedRef.current) return;
+          // A 404 (TTL-evicted / restarted server) or transient error ends the
+          // run; completed chapters are already persisted in localStorage.
+          toast.error(t("comic_failed"), {
+            description: err instanceof Error ? err.message : String(err),
+          });
+          finish();
+          return;
+        }
+        if (!mountedRef.current) return;
+
+        // Incremental render: persist whatever chapters have landed so far.
+        persist(status.chapter_images);
+        setProgress({
+          done: status.chapters_done,
+          total: status.total_chapters,
+        });
+
+        // No image provider configured: backend produces nothing. Prompt
+        // Settings (also covers a "done with zero output" run).
+        if (
+          status.provider === "none" ||
+          (status.count === 0 && status.state === "done")
+        ) {
+          setNoProvider(true);
+        }
+
+        if (
+          status.state === "done" ||
+          status.state === "error" ||
+          status.state === "cancelled"
+        ) {
+          if (status.state === "done") {
+            if (status.count > 0) {
+              toast.success(t("comic_done", { count: status.count }));
+            } else {
+              toast.info(t("comic_nothing_missing"));
+            }
+          } else if (status.state === "error") {
+            toast.error(t("comic_failed"), {
+              description: status.error ?? undefined,
+            });
+          } else {
+            // cancelled — reuse the busy/info copy (no dedicated i18n key).
+            toast.info(t("comic_busy"));
+          }
+          finish();
+          return;
+        }
+
+        // Adaptive backoff on a stalled job; reset the moment progress advances.
+        if (status.chapters_done > lastDone) {
+          lastDone = status.chapters_done;
+          stalls = 0;
+          interval = BASE_INTERVAL;
+        } else {
+          stalls += 1;
+          if (stalls >= 3) {
+            interval = Math.min(interval * 2, MAX_INTERVAL);
+            stalls = 0;
+          }
+        }
+        pollTimerRef.current = setTimeout(() => {
+          void poll();
+        }, interval);
+      };
+
+      void poll();
     },
     [busy, persist, story, t],
   );
 
   const handleGenerate = React.useCallback(() => {
-    void runChapters(missingChapterNumbers, "missing");
-  }, [runChapters, missingChapterNumbers]);
+    void runJob({ only_missing: true }, "missing");
+  }, [runJob]);
 
   const handleRegenerateAll = React.useCallback(() => {
-    void runChapters(allChapterNumbers, "all");
-  }, [runChapters, allChapterNumbers]);
+    void runJob({ only_missing: false }, "all");
+  }, [runJob]);
 
   const handleRegenerateChapter = React.useCallback(
     (chapterNumber: number) => {
-      void runChapters([chapterNumber], chapterNumber);
+      void runJob({ chapter: chapterNumber }, chapterNumber);
     },
-    [runChapters],
+    [runJob],
   );
 
   if (!hasChapters) {
