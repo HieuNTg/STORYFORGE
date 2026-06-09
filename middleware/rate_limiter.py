@@ -4,9 +4,17 @@ Supports two backends (auto-selected):
   - Redis: used when REDIS_URL env var is set (production, multi-instance safe)
   - In-memory: fallback when Redis unavailable (development, single-instance)
 
-Policy:
-  - Default API endpoints: 60 requests per minute per IP
-  - Expensive endpoints (pipeline/run, export/*): 10 requests per minute per IP
+Policy (tuned for the single-user open-source local build):
+  - Default API endpoints: 240 requests per minute per IP
+  - Expensive (mutating) endpoints (pipeline/run, export/*, images/*): 60/min per IP
+
+  These ceilings exist only as a runaway-loop / abuse backstop — a human
+  clicking buttons in a single-user local build must never hit them. In dev the
+  Next.js proxy collapses every request to 127.0.0.1, so the WHOLE app shares
+  one per-IP bucket; tight limits there starve legitimate creative actions
+  (e.g. comic generation 429'ing right after a pipeline run). Operators running
+  this publicly can tighten via STORYFORGE_RATE_LIMIT_{EXPENSIVE,DEFAULT} or
+  disable entirely with STORYFORGE_DISABLE_RATE_LIMIT=1.
 
 Security:
   - X-Forwarded-For is only trusted when TRUSTED_PROXY_IPS is set (comma-separated).
@@ -27,8 +35,8 @@ logger = logging.getLogger(__name__)
 # Tier configuration
 # ---------------------------------------------------------------------------
 _LIMITS: dict[str, int] = {
-    "expensive": int(os.environ.get("STORYFORGE_RATE_LIMIT_EXPENSIVE", "10")),
-    "default": int(os.environ.get("STORYFORGE_RATE_LIMIT_DEFAULT", "60")),
+    "expensive": int(os.environ.get("STORYFORGE_RATE_LIMIT_EXPENSIVE", "60")),
+    "default": int(os.environ.get("STORYFORGE_RATE_LIMIT_DEFAULT", "240")),
 }
 
 _EXPENSIVE_PREFIXES = (
@@ -68,13 +76,14 @@ def _get_ip(request: Request) -> str:
 
 
 def _get_tier(path: str, method: str = "POST") -> str:
-    # Read-only requests are always cheap, even under an "expensive" prefix.
-    # Heavy work (pipeline run, export build, image/comic generation) is always
-    # POST; GETs are status reads — most importantly the async comic-job poll
+    # Only mutating requests that kick off heavy work count as expensive. Heavy
+    # work (pipeline run, export build, image/comic generation) is always POST;
+    # GETs are status reads — most importantly the async comic-job poll
     # (GET /api/images/library/jobs/{id}), which fires every ~2.5s and would
-    # otherwise blow the 10/min expensive budget in seconds, surfacing as a
-    # spurious "Too Many Requests" toast mid-generation.
-    if method.upper() in ("GET", "HEAD", "OPTIONS"):
+    # otherwise blow the expensive budget in seconds, surfacing as a spurious
+    # "Too Many Requests" toast mid-generation. DELETE (job cancel) is a cheap
+    # control op, not heavy work, so it is exempt too.
+    if method.upper() in ("GET", "HEAD", "OPTIONS", "DELETE"):
         return "default"
     for prefix in _EXPENSIVE_PREFIXES:
         if path.startswith(prefix):

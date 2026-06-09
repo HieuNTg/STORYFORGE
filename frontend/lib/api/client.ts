@@ -48,15 +48,30 @@ async function normalizeError(res: Response): Promise<ApiError> {
   } catch {
     /* empty */
   }
-  let parsed: Partial<ApiErrorEnvelope> | null = null;
+  let parsed: Record<string, unknown> | null = null;
   try {
-    parsed = bodyText ? (JSON.parse(bodyText) as Partial<ApiErrorEnvelope>) : null;
+    parsed = bodyText ? (JSON.parse(bodyText) as Record<string, unknown>) : null;
   } catch {
     parsed = null;
   }
-  const code = parsed?.error?.code ?? `http_${res.status}`;
-  const message = parsed?.error?.message ?? res.statusText ?? "Request failed";
-  return new ApiError(res.status, code, message, parsed?.error?.details);
+  // The backend speaks two error shapes:
+  //   - app envelope:   { error: { code, message, details } }
+  //   - FastAPI / middleware (e.g. rate limiter):
+  //                     { error: "<string>", detail: "<string>" }
+  // For the latter, prefer the human-readable `detail` ("Rate limit exceeded:
+  // 60 requests per minute.") over the bare reason phrase ("Too Many Requests")
+  // so the toast is actionable instead of opaque.
+  const errObj =
+    parsed && typeof parsed.error === "object" && parsed.error !== null
+      ? (parsed.error as { code?: string; message?: string; details?: unknown })
+      : null;
+  const detail = typeof parsed?.detail === "string" ? parsed.detail : undefined;
+  const errStr = typeof parsed?.error === "string" ? parsed.error : undefined;
+
+  const code = errObj?.code ?? `http_${res.status}`;
+  const message =
+    errObj?.message ?? detail ?? errStr ?? res.statusText ?? "Request failed";
+  return new ApiError(res.status, code, message, errObj?.details);
 }
 
 export async function apiFetch<T = unknown>(path: string, init?: RequestInit): Promise<T> {

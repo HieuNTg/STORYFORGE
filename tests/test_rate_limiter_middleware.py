@@ -138,8 +138,15 @@ class TestGetTier:
         assert _get_tier("/api/pipeline/status") == "default"
 
     def test_limits_dict_has_correct_values(self):
-        assert _LIMITS["expensive"] == 10
-        assert _LIMITS["default"] == 60
+        # Tuned high for the single-user open-source local build (runaway-loop
+        # backstop only); operators tighten via env. See module docstring.
+        assert _LIMITS["expensive"] == 60
+        assert _LIMITS["default"] == 240
+
+    def test_delete_is_cheap_even_under_expensive_prefix(self):
+        # Job cancel (DELETE /api/images/library/jobs/{id}) is a control op, not
+        # heavy work — must not consume the expensive budget.
+        assert _get_tier("/api/images/library/jobs/abc123", "DELETE") == "default"
 
     def test_get_requests_are_default_even_under_expensive_prefix(self):
         """Read-only polling/status GETs must NOT count against the expensive
@@ -390,7 +397,7 @@ class TestRateLimitMiddlewareDispatch:
     async def test_get_poll_survives_exhausted_expensive_budget(self):
         """Regression: an async comic-job poll (GET under /api/images/) must NOT
         be 429'd after the expensive POST budget is spent — it's a cheap read on
-        the default (60/min) tier. This was the root cause of the spurious
+        the roomier default tier. This was the root cause of the spurious
         'Too Many Requests' toast during comic generation."""
         mw = self._make_middleware()
         ip = "7.7.7.7"
