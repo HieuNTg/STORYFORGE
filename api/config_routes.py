@@ -125,6 +125,7 @@ class ConfigUpdate(BaseModel):
     enable_self_review: Optional[bool] = None
     self_review_threshold: Optional[float] = None
     image_provider: Optional[str] = None
+    codex_model: Optional[str] = None
     hf_token: Optional[str] = None
     hf_image_model: Optional[str] = None
     image_prompt_style: Optional[str] = None
@@ -219,6 +220,7 @@ def get_config(response: Response):
             "enable_self_review": cfg.pipeline.enable_self_review,
             "self_review_threshold": cfg.pipeline.self_review_threshold,
             "image_provider": cfg.pipeline.image_provider,
+            "codex_model": getattr(cfg.pipeline, "codex_model", ""),
             "hf_token_masked": masked_hf_token,
             "hf_image_model": cfg.pipeline.hf_image_model,
             "image_prompt_style": cfg.pipeline.image_prompt_style,
@@ -329,6 +331,8 @@ def save_config(body: ConfigUpdate):
         cfg.pipeline.self_review_threshold = body.self_review_threshold
     if body.image_provider is not None:
         cfg.pipeline.image_provider = body.image_provider
+    if body.codex_model is not None:
+        cfg.pipeline.codex_model = body.codex_model
     if body.hf_token is not None:
         cfg.pipeline.hf_token = body.hf_token
     if body.hf_image_model is not None:

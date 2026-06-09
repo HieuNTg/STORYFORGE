@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class ImageGenerator:
     """Generate images from prompts using various AI providers."""
 
-    PROVIDERS = ["dalle", "sd-api", "seedream", "replicate", "huggingface", "flowkit", "none"]
+    PROVIDERS = ["dalle", "sd-api", "seedream", "replicate", "huggingface", "flowkit", "codex", "none"]
 
     def __init__(
         self,
@@ -81,6 +81,8 @@ class ImageGenerator:
             return self._generate_huggingface(prompt, filename)
         if self.provider == "flowkit":
             return self._generate_flowkit(prompt, filename, size)
+        if self.provider == "codex":
+            return self._generate_codex(prompt, filename, size)
 
         logger.warning("Unknown image provider: %s", self.provider)
         return None
@@ -102,6 +104,8 @@ class ImageGenerator:
 
         if self.provider == "flowkit":
             return self._flowkit_with_ref(prompt, reference_paths, filename)
+        if self.provider == "codex":
+            return self._codex_with_ref(prompt, reference_paths, filename, size)
         if self.provider == "seedream":
             return self._seedream_with_ref(prompt, reference_paths, filename)
         if self.provider == "replicate":
@@ -305,6 +309,33 @@ class ImageGenerator:
             logger.warning("Replicate not configured for reference generation")
             return self.generate(prompt, filename)
         return client.generate(prompt, reference_path, filename)
+
+    # ── Codex (ChatGPT Plus image-gen via the user's own Codex login) ─────────
+
+    def _codex_client(self):
+        from services.media.codex_image_client import CodexImageClient
+        cfg = ConfigManager().pipeline
+        return CodexImageClient(model=getattr(cfg, "codex_model", "") or "")
+
+    def _generate_codex(self, prompt: str, filename: str, size: str) -> Optional[str]:
+        """Text-only image generation via ChatGPT (Codex/gpt-image-2-codex)."""
+        client = self._codex_client()
+        if not client.is_configured():
+            logger.error("Codex generation skipped: no ~/.codex login found.")
+            return None
+        filepath = os.path.join(self.output_dir, filename)
+        return client.text_to_image(prompt, filepath, size)
+
+    def _codex_with_ref(
+        self, prompt: str, reference_paths: list, filename: str, size: str
+    ) -> Optional[str]:
+        """Reference-conditioned generation (character consistency) via Codex."""
+        client = self._codex_client()
+        if not client.is_configured():
+            logger.warning("Codex not configured for reference generation")
+            return self.generate(prompt, filename, size)
+        filepath = os.path.join(self.output_dir, filename)
+        return client.image_with_refs(prompt, reference_paths, filepath, size)
 
     # ── FlowKit (Google Labs proxy via Chrome extension WS) ───────────────────
 
