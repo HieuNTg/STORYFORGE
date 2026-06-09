@@ -402,6 +402,7 @@
         "copied": "Copied key to clipboard",
         "quick_provider": "Quick Preset Provider",
         "quick_provider_desc": "Add Gemini, Anthropic, OpenAI, OpenRouter... to fallback providers list.",
+        "loading_providers": "Loading providers…",
         "existing_key_hint": "Current: {masked} — enter a new key to update",
         "saved_preset": "Saved {provider}",
         "save_preset_failed": "Failed to save provider",
