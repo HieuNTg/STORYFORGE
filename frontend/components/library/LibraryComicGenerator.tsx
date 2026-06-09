@@ -28,9 +28,7 @@ import { ComicPanels } from "@/components/reader/ComicPanels";
 import { cn } from "@/lib/utils";
 import { useLibraryStore } from "@/stores/library-store";
 import {
-  generateLibraryMissingImages,
   generateLibraryChapterImage,
-  generateLibraryAllImages,
   type GenerateImagesResponse,
 } from "@/lib/api/illustration";
 import { ApiError } from "@/lib/api/client";
@@ -53,10 +51,26 @@ export function LibraryComicGenerator({
 
   const [pending, setPending] = React.useState<Pending>(null);
   const [noProvider, setNoProvider] = React.useState(false);
+  // Per-chapter loop progress (done/total) shown while a multi-chapter run is
+  // in flight. null = idle.
+  const [progress, setProgress] = React.useState<{ done: number; total: number } | null>(null);
 
   const total = story.chapters.length;
   const illustrated = React.useMemo(
     () => story.chapters.filter((ch) => (ch.images?.length ?? 0) > 0).length,
+    [story.chapters],
+  );
+  // Chapter numbers (1-based) targeted by the primary / regenerate-all actions.
+  const missingChapterNumbers = React.useMemo(
+    () =>
+      story.chapters
+        .map((ch, i) => ({ n: i + 1, has: (ch.images?.length ?? 0) > 0 }))
+        .filter((c) => !c.has)
+        .map((c) => c.n),
+    [story.chapters],
+  );
+  const allChapterNumbers = React.useMemo(
+    () => story.chapters.map((_, i) => i + 1),
     [story.chapters],
   );
   const hasChapters = total > 0;
@@ -76,24 +90,42 @@ export function LibraryComicGenerator({
     [setStoryChapterImages, story.id],
   );
 
-  const run = React.useCallback(
-    async (
-      target: Pending,
-      call: () => Promise<GenerateImagesResponse>,
-    ) => {
+  // Drive comic generation ONE chapter per request, sequentially. The backend's
+  // /library/generate can loop over many chapters in a single request, but each
+  // chapter is ~8 sequential image calls, so a whole-story run easily exceeds
+  // the dev-proxy idle timeout → ECONNRESET surfaces as a bogus 500 "Internal
+  // Server Error". Chunking per chapter keeps every request short, renders
+  // panels incrementally as they land, and sidesteps the in-flight 409 (each
+  // chapter has a distinct lock key server-side).
+  const runChapters = React.useCallback(
+    async (chapterNumbers: number[], target: Pending) => {
       if (busy) return;
+      if (chapterNumbers.length === 0) {
+        toast.info(t("comic_nothing_missing"));
+        return;
+      }
       setPending(target);
+      setProgress({ done: 0, total: chapterNumbers.length });
+      let totalCount = 0;
       try {
-        const res = await call();
-        // provider "none" => count 0, nothing generated.
-        if (res.count === 0 && Object.keys(res.chapter_images ?? {}).length === 0) {
-          setNoProvider(true);
-          return;
+        for (let i = 0; i < chapterNumbers.length; i++) {
+          const res: GenerateImagesResponse = await generateLibraryChapterImage(
+            story,
+            chapterNumbers[i],
+          );
+          // provider "none" => the backend generates nothing for a targeted
+          // chapter (count 0). Stop and prompt for Settings.
+          if (res.count === 0) {
+            setNoProvider(true);
+            return;
+          }
+          setNoProvider(false);
+          persist(res); // incremental: panels for this chapter render now
+          totalCount += res.count;
+          setProgress({ done: i + 1, total: chapterNumbers.length });
         }
-        setNoProvider(false);
-        persist(res);
-        if (res.count > 0) {
-          toast.success(t("comic_done", { count: res.count }));
+        if (totalCount > 0) {
+          toast.success(t("comic_done", { count: totalCount }));
         } else {
           toast.info(t("comic_nothing_missing"));
         }
@@ -113,26 +145,25 @@ export function LibraryComicGenerator({
         });
       } finally {
         setPending(null);
+        setProgress(null);
       }
     },
-    [busy, persist, t],
+    [busy, persist, story, t],
   );
 
   const handleGenerate = React.useCallback(() => {
-    void run("missing", () => generateLibraryMissingImages(story));
-  }, [run, story]);
+    void runChapters(missingChapterNumbers, "missing");
+  }, [runChapters, missingChapterNumbers]);
 
   const handleRegenerateAll = React.useCallback(() => {
-    void run("all", () => generateLibraryAllImages(story));
-  }, [run, story]);
+    void runChapters(allChapterNumbers, "all");
+  }, [runChapters, allChapterNumbers]);
 
   const handleRegenerateChapter = React.useCallback(
     (chapterNumber: number) => {
-      void run(chapterNumber, () =>
-        generateLibraryChapterImage(story, chapterNumber),
-      );
+      void runChapters([chapterNumber], chapterNumber);
     },
-    [run, story],
+    [runChapters],
   );
 
   if (!hasChapters) {
@@ -188,7 +219,11 @@ export function LibraryComicGenerator({
           ) : (
             <ImageIcon className="size-3.5" aria-hidden />
           )}
-          {pending === "missing" ? t("comic_generating") : primaryLabel}
+          {pending === "missing"
+            ? progress
+              ? `${t("comic_generating")} ${progress.done}/${progress.total}`
+              : t("comic_generating")
+            : primaryLabel}
         </Button>
         {illustrated > 0 ? (
           <Button
