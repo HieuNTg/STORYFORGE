@@ -135,6 +135,10 @@ class ImageGenerator:
         """
         paths: list[str] = []
         refs = character_references or {}
+        # A panel sometimes comes back empty (Codex occasionally drops one, a
+        # transient provider hiccup, etc.). Retry it a few times rather than
+        # silently shipping a chapter with a hole in it.
+        _retries = max(0, int(getattr(ConfigManager().pipeline, "panel_retry_attempts", 2)))
         for i, ip in enumerate(image_prompts):
             prompt = ip.dalle_prompt if self.provider == "dalle" else ip.sd_prompt
             if not prompt:
@@ -159,12 +163,26 @@ class ImageGenerator:
                         scene_refs.append(ref)
                         break
 
-            if scene_refs:
-                path = self.generate_with_reference(prompt, scene_refs, filename)
-            else:
-                path = self.generate(prompt, filename)
+            path = None
+            for attempt in range(_retries + 1):
+                if scene_refs:
+                    path = self.generate_with_reference(prompt, scene_refs, filename)
+                else:
+                    path = self.generate(prompt, filename)
+                if path:
+                    break
+                if attempt < _retries:
+                    logger.warning(
+                        "Panel %d (ch%02d) returned no image; retry %d/%d",
+                        i + 1, chapter_number, attempt + 1, _retries,
+                    )
             if path:
                 paths.append(path)
+            else:
+                logger.error(
+                    "Panel %d (ch%02d) failed after %d attempt(s); skipped",
+                    i + 1, chapter_number, _retries + 1,
+                )
         return paths
 
     # ── Private providers ─────────────────────────────────────────────────────

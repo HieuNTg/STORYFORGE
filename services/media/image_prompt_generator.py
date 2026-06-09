@@ -243,9 +243,19 @@ def bake_dialogue_into_prompts(prompts: list, *, language: str = "Vietnamese") -
         base_dalle = _strip_no_text_clauses(ip.dalle_prompt)
         base_sd = _strip_no_text_clauses(ip.sd_prompt)
         if not bubbles:
-            # Silent panel: keep the (stripped) base prompt; no bubbles to draw.
-            ip.dalle_prompt = base_dalle or ip.dalle_prompt
-            ip.sd_prompt = base_sd or ip.sd_prompt
+            # Silent panel: no dialogue to letter. We just stripped the clean
+            # "no text" clause — but if we leave it at that, Codex fills the empty
+            # panel by INVENTING English captions / sound-effects / signs. So we
+            # must explicitly forbid any lettering rather than say nothing.
+            guard = (
+                "\n\nThis is a finished comic panel with NO dialogue in it. Do not "
+                "draw any speech bubbles, thought bubbles, captions, narration "
+                "boxes, sound-effects, signs, labels, subtitles, or written words "
+                "of any kind, in any language — keep the panel completely free of "
+                "lettering."
+            )
+            ip.dalle_prompt = (base_dalle + guard) if base_dalle else guard.strip()
+            ip.sd_prompt = (base_sd + guard) if base_sd else guard.strip()
             continue
         lines = []
         for b in bubbles:
@@ -265,7 +275,10 @@ def bake_dialogue_into_prompts(prompts: list, *, language: str = "Vietnamese") -
             f"character the bubble's tail points to — write ONLY the quoted "
             f"dialogue inside the bubble, never the speaker's name or a label. "
             f"Use clear bold comic lettering, keep bubbles off the characters' "
-            f"faces, and place them in top-to-bottom, left-to-right reading order."
+            f"faces, and place them in top-to-bottom, left-to-right reading order. "
+            f"Draw ONLY the bubbles listed above — do not add any extra captions, "
+            f"narration boxes, sound-effects, signs, subtitles, or invented "
+            f"lettering in any language."
         )
         ip.dalle_prompt = (base_dalle + overlay) if base_dalle else overlay.strip()
         ip.sd_prompt = (base_sd + overlay) if base_sd else overlay.strip()

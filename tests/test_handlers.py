@@ -651,6 +651,81 @@ class TestHandleGenerateImages(unittest.TestCase):
             _, kwargs = MockImgGen.return_value.generate_story_images.call_args
             self.assertIsNone(kwargs.get("character_references"))
 
+    def test_comic_mode_autogenerates_and_links_character_portrait(self):
+        """Comic mode + a reference-capable provider: a character that has a frozen
+        prompt but NO existing reference image gets a portrait generated, linked
+        onto the profile store, and threaded into panel generation. This is the
+        'extract character → make character image → feed into comic' contract."""
+        from services.handlers import handle_generate_images
+        from config import ConfigManager
+        orch = _make_orch_state(
+            story_draft=_make_story_draft(characters=[_make_character("Hero")]),
+            enhanced_story=_make_enhanced_story(),
+        )
+        fake_store = MagicMock()
+        fake_store.get_frozen_prompt.return_value = "FP appearance"
+        fake_store.get_reference_image.return_value = None  # no existing ref → must build
+        fake_shot = MagicMock()
+        fake_shot.extract.return_value.pages = []  # skip shot-list/bake; isolate the portrait stage
+        cfg = ConfigManager().pipeline
+        prev_sl, prev_comp = cfg.comic_shot_list_enabled, cfg.comic_compositor_enabled
+        cfg.comic_shot_list_enabled = True
+        cfg.comic_compositor_enabled = False
+        try:
+            with patch("services.image_generator.ImageGenerator") as MockImgGen, \
+                 patch("services.image_prompt_generator.ImagePromptGenerator") as MockPromptGen, \
+                 patch("services.character_visual_profile.CharacterVisualProfileStore", return_value=fake_store), \
+                 patch("services.shot_list.ShotListExtractor", return_value=fake_shot), \
+                 patch("services.handlers.os.makedirs"), \
+                 patch("services.handlers.os.path.exists", return_value=True):
+                MockImgGen.return_value.output_dir = "out/images"
+                MockImgGen.return_value.generate.return_value = "out/images/avatars/Hero.png"
+                MockPromptGen.return_value.generate_from_chapter.return_value = [MagicMock()]
+                MockImgGen.return_value.generate_story_images.return_value = ["img1.png"]
+                handle_generate_images(orch, provider="seedream", t=_t)
+                # A portrait was rendered for the character...
+                MockImgGen.return_value.generate.assert_called_once()
+                # ...persisted onto the durable profile store...
+                fake_store.set_reference_image.assert_called_once_with(
+                    "Hero", "out/images/avatars/Hero.png"
+                )
+                # ...and threaded into panel generation for visual consistency.
+                _, kwargs = MockImgGen.return_value.generate_story_images.call_args
+                self.assertEqual(
+                    kwargs.get("character_references"), {"Hero": "out/images/avatars/Hero.png"}
+                )
+        finally:
+            cfg.comic_shot_list_enabled = prev_sl
+            cfg.comic_compositor_enabled = prev_comp
+
+    def test_non_comic_mode_skips_portrait_generation(self):
+        """Outside comic mode (shot_list off), the portrait stage must NOT run —
+        plain per-chapter image regen keeps its old behavior."""
+        from services.handlers import handle_generate_images
+        from config import ConfigManager
+        orch = _make_orch_state(
+            story_draft=_make_story_draft(characters=[_make_character("Hero")]),
+            enhanced_story=_make_enhanced_story(),
+        )
+        fake_store = MagicMock()
+        fake_store.get_frozen_prompt.return_value = "FP appearance"
+        fake_store.get_reference_image.return_value = None
+        cfg = ConfigManager().pipeline
+        prev_sl = cfg.comic_shot_list_enabled
+        cfg.comic_shot_list_enabled = False
+        try:
+            with patch("services.image_generator.ImageGenerator") as MockImgGen, \
+                 patch("services.image_prompt_generator.ImagePromptGenerator") as MockPromptGen, \
+                 patch("services.character_visual_profile.CharacterVisualProfileStore", return_value=fake_store):
+                MockImgGen.return_value.output_dir = "out/images"
+                MockPromptGen.return_value.generate_from_chapter.return_value = [MagicMock()]
+                MockImgGen.return_value.generate_story_images.return_value = ["img1.png"]
+                handle_generate_images(orch, provider="seedream", t=_t)
+                MockImgGen.return_value.generate.assert_not_called()
+                fake_store.set_reference_image.assert_not_called()
+        finally:
+            cfg.comic_shot_list_enabled = prev_sl
+
 
 if __name__ == "__main__":
     unittest.main()

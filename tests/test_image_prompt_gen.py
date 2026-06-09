@@ -164,3 +164,38 @@ def test_bake_dialogue_skips_blank_bubble_text():
     assert "Chào cậu." in ip.sd_prompt
     # The blank-text bubble for A contributes no line.
     assert ip.sd_prompt.count("draw ") == 1
+
+
+def test_bake_dialogue_silent_panel_forbids_invented_lettering():
+    """Silent panels must EXPLICITLY forbid lettering — otherwise Codex fills the
+    empty panel by inventing English captions / sound-effects (the bug we saw:
+    'AN ANCIENT BOTTLE', 'THE NORTH REMEMBERS BETRAYAL')."""
+    ip = ImagePrompt(
+        panel_number=4,
+        sd_prompt="wide shot, ancient bottle on an altar, cel shading, no text in image",
+        dialogue=[],
+    )
+    bake_dialogue_into_prompts([ip])
+    low = ip.sd_prompt.lower()
+    # Real content survives, the stripped clean-panel clause is gone...
+    assert "ancient bottle on an altar" in low
+    # ...and replaced by an explicit no-lettering guard naming the usual suspects.
+    assert "captions" in low and "sound-effects" in low
+    assert "free of lettering" in low
+    # Still no instruction to DRAW a bubble on a silent panel.
+    assert "balloon" not in low
+
+
+def test_bake_dialogue_panel_forbids_extra_invented_text():
+    """Dialogue panels must letter ONLY the listed bubbles — no extra invented
+    captions/SFX beyond the verbatim VN lines."""
+    ip = ImagePrompt(
+        panel_number=5,
+        sd_prompt="close-up, hero, cel shading, no text",
+        dialogue=[{"speaker": "Lâm Phàm", "type": "speech", "text": "Ta sẽ trở lại."}],
+    )
+    bake_dialogue_into_prompts([ip])
+    low = ip.sd_prompt.lower()
+    assert "Ta sẽ trở lại." in ip.sd_prompt
+    assert "only the bubbles listed above" in low
+    assert "do not add any extra" in low

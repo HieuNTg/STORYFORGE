@@ -122,8 +122,21 @@ class PipelineConfig:
     codex_model: str = ""
     # Comic panels generated per chapter (truyện tranh). Each chapter gets this
     # many distinct scene images. Used by both the pipeline media stage and the
-    # on-demand reader regen.
+    # on-demand reader regen. Acts as the FIXED count when panels_auto is False,
+    # and as the fallback when a chapter's content length can't be measured.
     panels_per_chapter: int = 8
+    # Dynamic panel count: when True, each chapter's panel count is sized to its
+    # own content length (longer / denser chapter → more panels) instead of a
+    # rigid number, so pacing stays flexible per chapter. Bounded by panels_min..
+    # panels_max; ~1 panel per ``words_per_panel`` words of prose.
+    panels_auto: bool = True
+    panels_min: int = 4
+    panels_max: int = 12
+    words_per_panel: int = 200
+    # Reliability: a panel whose provider returns no image (e.g. Codex
+    # occasionally drops one) is retried up to this many extra times before it is
+    # given up and skipped. 0 = no retry (legacy behavior).
+    panel_retry_attempts: int = 2
 
     # Comic Beat→Shot-list stage (Phase 2). When enabled, an LLM beat extractor
     # runs between chapter prose and image generation, splitting each chapter
