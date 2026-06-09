@@ -328,7 +328,25 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
 
         from config import ConfigManager
         _pipeline_cfg = ConfigManager().pipeline
-        num_panels = max(1, int(getattr(_pipeline_cfg, "panels_per_chapter", 8)))
+        # Per-chapter panel count. With ``panels_auto`` on, each chapter is paneled
+        # to its OWN length — a long chapter gets more panels, a short one fewer —
+        # so the comic breathes with the prose instead of forcing a rigid count
+        # onto every chapter. Bounded by panels_min..panels_max at roughly one
+        # panel per ``words_per_panel`` words; with it off, every chapter uses the
+        # fixed ``panels_per_chapter``. The SAME count feeds both the base-prompt
+        # extractor and the shot-list stage so they stay zip-aligned (see
+        # apply_shot_list_to_prompts).
+        _panels_fixed = max(1, int(getattr(_pipeline_cfg, "panels_per_chapter", 8)))
+        _panels_auto = bool(getattr(_pipeline_cfg, "panels_auto", True))
+        _panels_min = max(1, int(getattr(_pipeline_cfg, "panels_min", 4)))
+        _panels_max = max(_panels_min, int(getattr(_pipeline_cfg, "panels_max", 12)))
+        _words_per_panel = max(1, int(getattr(_pipeline_cfg, "words_per_panel", 200)))
+
+        def _panels_for(chapter) -> int:
+            if not _panels_auto:
+                return _panels_fixed
+            words = len((getattr(chapter, "content", "") or "").split())
+            return max(_panels_min, min(_panels_max, round(words / _words_per_panel)))
         # Comic Phase 2: Beat→Shot-list stage. Gated dark by default so it can be
         # A/B'd and rolled back safely; image generation is unchanged when off.
         _shot_list_enabled = bool(getattr(_pipeline_cfg, "comic_shot_list_enabled", False))
@@ -350,8 +368,77 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
         # degrades to loose panels.
         _compositor_enabled = bool(getattr(_pipeline_cfg, "comic_compositor_enabled", False))
 
+        # Provider branch: Codex/ChatGPT renders in-image Vietnamese text well,
+        # so for that provider we bake the speech bubbles + dialogue INTO each
+        # panel (and skip the vector-bubble compositor below). FlowKit and the
+        # other providers keep clean text-free panels + the compositor overlay.
+        _is_codex = str(provider or "").strip().lower() == "codex"
+
+        # Comic: extract character → MAKE a character reference image → feed it
+        # into panel generation, so faces/outfits stay consistent across panels.
+        # The text profiles were built above; here we render ONE clean portrait
+        # per character from its frozen prompt and link it onto both the profile
+        # store (durable cache) and ``character_references`` (consumed per panel by
+        # generate_story_images). Gated to comic mode + reference-capable providers
+        # and idempotent — characters that already have a usable reference on disk
+        # are skipped, so this costs one portrait/character only on the first run.
+        _REF_CAPABLE = {"flowkit", "codex", "seedream", "replicate"}
+        if _shot_list_enabled and provider in _REF_CAPABLE and characters:
+            import re as _re
+            _portrait_store = None
+            try:
+                from services.character_visual_profile import CharacterVisualProfileStore
+                _portrait_store = CharacterVisualProfileStore(story_title=_story_title)
+            except Exception as _ps_e:
+                logger.debug("Portrait store unavailable: %s", _ps_e)
+            try:
+                os.makedirs(os.path.join(image_gen.output_dir, "avatars"), exist_ok=True)
+            except Exception:
+                pass
+            _made = 0
+            for c in characters:
+                if character_references.get(c.name):
+                    continue  # already conditioned on an existing reference image
+                fp = visual_profiles.get(c.name)
+                if not fp and _portrait_store is not None:
+                    fp = _portrait_store.get_frozen_prompt(c.name)
+                if not fp:
+                    continue  # no visual profile to render a portrait from
+                _safe = _re.sub(r"[^\w\-]+", "_", c.name).strip("_") or "character"
+                portrait_prompt = (
+                    f"{fp}\n\nCharacter reference portrait: a single full-color "
+                    f"portrait of THIS ONE character only, head-and-shoulders, front "
+                    f"three-quarter view, neutral expression, even soft lighting, "
+                    f"plain flat studio background, the whole face clearly visible. "
+                    f"No other characters. Do not draw any speech bubbles, captions, "
+                    f"signs, sound-effects, labels, or written words of any kind, in "
+                    f"any language — keep the image completely free of lettering."
+                )
+                try:
+                    _ref_path = image_gen.generate(
+                        portrait_prompt,
+                        filename=os.path.join("avatars", f"{_safe}.png"),
+                    )
+                except Exception as _ge:
+                    logger.warning("Character portrait gen failed for %s: %s", c.name, _ge)
+                    _ref_path = None
+                if _ref_path and os.path.exists(_ref_path):
+                    character_references[c.name] = _ref_path
+                    _made += 1
+                    if _portrait_store is not None:
+                        try:
+                            _portrait_store.set_reference_image(c.name, _ref_path)
+                        except Exception:
+                            pass
+            if _made or character_references:
+                logger.info(
+                    "Comic: %d character reference portrait(s) ready (%d total refs)",
+                    _made, len(character_references),
+                )
+
         all_paths: list[str] = []
         for ch in target_chapters:
+            num_panels = _panels_for(ch)
             prompts = prompt_gen.generate_from_chapter(
                 ch,
                 characters=characters or None,
@@ -365,7 +452,9 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
             # The shot-list is persisted onto ``ch.shot_list`` (carried alongside
             # the panels for Phase 3's compositor) and its panel metadata
             # (shot_type/dialogue/screen_side) is threaded onto the ImagePrompts.
-            # Image prompt TEXT stays text-free — dialogue is compositor-only.
+            # Image prompt TEXT stays text-free (FlowKit) — dialogue is
+            # compositor-only — UNLESS the provider is Codex, which bakes the
+            # bubbles into the panel itself (see the _is_codex branch below).
             if _shot_extractor is not None:
                 try:
                     from services.shot_list import apply_shot_list_to_prompts
@@ -380,6 +469,14 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
                         apply_shot_list_to_prompts(prompts, shot_list)
                         ch.shot_list = shot_list.model_dump()
                         _chapter_shot_list = shot_list
+                        if _is_codex:
+                            # Codex draws the bubbles itself — rewrite the prompts
+                            # to bake in this panel's dialogue (verbatim VN text)
+                            # instead of the clean text-free panel FlowKit uses.
+                            from services.image_prompt_generator import (
+                                bake_dialogue_into_prompts,
+                            )
+                            bake_dialogue_into_prompts(prompts)
                 except Exception as _sl_e:
                     logger.warning(
                         "Shot-list extraction failed for ch %s, continuing without: %s",
@@ -399,6 +496,7 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
                 and _shot_list_enabled
                 and _chapter_shot_list is not None
                 and ch_paths
+                and not _is_codex  # codex panels already carry baked-in bubbles
             ):
                 try:
                     from services.media.page_compositor import compose_chapter, PageGeometry

@@ -1,6 +1,7 @@
 """Generate AI image prompts from story content."""
 import json
 import logging
+import re
 from models.schemas import ImagePrompt, Chapter
 from services.llm_client import LLMClient
 from config import ConfigManager
@@ -185,3 +186,100 @@ class ImagePromptGenerator:
         except Exception as e:
             logger.warning(f"Image prompt generation failed for ch {chapter.chapter_number}: {e}")
             return []
+
+
+# ── Codex provider: bake speech bubbles + dialogue INTO the panel ─────────────
+# FlowKit (and other img providers) generate clean text-free panels and let the
+# Phase-3 page compositor draw vector speech bubbles. Codex/ChatGPT renders
+# in-image Vietnamese text very well, so for that provider we instead instruct
+# the model to draw the speech bubbles itself with the dialogue baked in — and
+# the caller skips the compositor's vector-bubble overlay for those panels.
+
+_NO_TEXT_FRAGMENT = re.compile(
+    r"(no\s+(text|speech\s*bubbles?|captions?|signs?|letters?|words?|"
+    r"watermarks?|writing|typography|lettering)"
+    r"|text[-\s]?free|without\s+(any\s+)?(text|words|letters|captions))",
+    re.IGNORECASE,
+)
+
+_BUBBLE_SHAPE = {
+    "speech": "an oval speech balloon with a tail pointing to the speaker",
+    "thought": "a cloud-shaped thought bubble with small trailing puffs",
+    "shout": "a jagged spiky burst balloon",
+    "whisper": "a small balloon with a dashed/dotted outline",
+    "offscreen": "a rectangular off-panel speech box at the panel edge",
+}
+
+
+def _strip_no_text_clauses(prompt: str) -> str:
+    """Drop the ``no text / no speech bubbles`` clauses a clean-panel prompt
+    carries, so they don't contradict the bake-in instruction we append for
+    Codex. Splits on commas/semicolons and removes any negative-text fragment.
+    """
+    if not prompt:
+        return prompt
+    parts = re.split(r"\s*[;,]\s*", prompt)
+    kept = [p for p in parts if p and not _NO_TEXT_FRAGMENT.search(p)]
+    return ", ".join(kept).strip(" ,.;")
+
+
+def bake_dialogue_into_prompts(prompts: list, *, language: str = "Vietnamese") -> list:
+    """For text-capable providers (Codex): rewrite each prompt so the image is
+    generated WITH speech bubbles and the panel's exact dialogue baked in,
+    instead of a clean text-free panel. Mutates ``prompts`` in place and returns
+    it.
+
+    Dialogue is taken verbatim from each ``ImagePrompt.dialogue`` (threaded
+    earlier by ``apply_shot_list_to_prompts``); panels with no dialogue are left
+    silent (clean) rather than re-asserting "no text". Only call this when the
+    active provider renders in-image text well — FlowKit keeps clean panels and
+    relies on the Phase-3 vector-bubble compositor instead.
+    """
+    for ip in prompts:
+        bubbles = [
+            b for b in (getattr(ip, "dialogue", None) or [])
+            if (b or {}).get("text", "").strip()
+        ]
+        base_dalle = _strip_no_text_clauses(ip.dalle_prompt)
+        base_sd = _strip_no_text_clauses(ip.sd_prompt)
+        if not bubbles:
+            # Silent panel: no dialogue to letter. We just stripped the clean
+            # "no text" clause — but if we leave it at that, Codex fills the empty
+            # panel by INVENTING English captions / sound-effects / signs. So we
+            # must explicitly forbid any lettering rather than say nothing.
+            guard = (
+                "\n\nThis is a finished comic panel with NO dialogue in it. Do not "
+                "draw any speech bubbles, thought bubbles, captions, narration "
+                "boxes, sound-effects, signs, labels, subtitles, or written words "
+                "of any kind, in any language — keep the panel completely free of "
+                "lettering."
+            )
+            ip.dalle_prompt = (base_dalle + guard) if base_dalle else guard.strip()
+            ip.sd_prompt = (base_sd + guard) if base_sd else guard.strip()
+            continue
+        lines = []
+        for b in bubbles:
+            spk = (b.get("speaker") or "").strip()
+            typ = (b.get("type") or "speech").strip().lower()
+            txt = b.get("text", "").strip()
+            shape = _BUBBLE_SHAPE.get(typ, _BUBBLE_SHAPE["speech"])
+            who = spk or "narrator"
+            lines.append(f'- {who} — draw {shape} containing exactly: "{txt}"')
+        block = "\n".join(lines)
+        overlay = (
+            f"\n\nThis is a finished comic panel. Draw comic-book speech bubbles "
+            f"INSIDE the image, lettered in {language} with correct diacritics, "
+            f"reproducing this dialogue EXACTLY and verbatim — do not translate, "
+            f"rephrase, or drop any accent marks:\n{block}\n"
+            f"The speaker name before each line is only guidance for which "
+            f"character the bubble's tail points to — write ONLY the quoted "
+            f"dialogue inside the bubble, never the speaker's name or a label. "
+            f"Use clear bold comic lettering, keep bubbles off the characters' "
+            f"faces, and place them in top-to-bottom, left-to-right reading order. "
+            f"Draw ONLY the bubbles listed above — do not add any extra captions, "
+            f"narration boxes, sound-effects, signs, subtitles, or invented "
+            f"lettering in any language."
+        )
+        ip.dalle_prompt = (base_dalle + overlay) if base_dalle else overlay.strip()
+        ip.sd_prompt = (base_sd + overlay) if base_sd else overlay.strip()
+    return prompts

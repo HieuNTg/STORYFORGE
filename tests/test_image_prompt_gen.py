@@ -39,12 +39,25 @@ from unittest.mock import MagicMock
 from services.media.image_prompt_generator import _SCENE_EXTRACT_PROMPT
 
 
-def test_default_style_is_comic_not_cinematic():
-    """Phase 1: global default style must be a comic style, not 'cinematic'."""
-    gen = ImagePromptGenerator()
-    low = gen.style.lower()
-    assert "comic" in low
-    assert low != "cinematic"
+def test_default_style_is_comic_family_not_cinematic():
+    """The CODE default art-style must be a comic-family look, never 'cinematic'.
+
+    This checks the art-STYLE direction only. The "it becomes a comic" guarantee
+    is STRUCTURAL — enforced by the comic-panel template, the shot-list stage and
+    the page compositor regardless of the style string — and is covered by
+    ``test_scene_extract_template_asks_for_comic_panel``. So the style string is
+    free to be any comic-family look (manga / manhwa / webtoon / anime / ink),
+    and a short value like "manga" is perfectly valid. We read the code default
+    from ``config/defaults.py`` rather than the gitignored runtime config so the
+    test doesn't depend on a user's local settings.
+    """
+    from config.defaults import PipelineConfig
+    default_style = PipelineConfig().image_prompt_style.lower()
+    assert default_style != "cinematic"
+    assert any(
+        k in default_style
+        for k in ("manga", "manhwa", "comic", "webtoon", "anime", "ink")
+    )
 
 
 def test_scene_extract_template_asks_for_comic_panel():
@@ -75,3 +88,114 @@ def test_refiner_emits_comic_panel_no_text(monkeypatch):
     assert "no text" in sys_low
     # And the refined output itself is a comic-panel prompt, not a cinematic one.
     assert "cel shading" in out.lower()
+
+
+# ---------------------------------------------------------------------------
+# Codex provider: bake speech bubbles + dialogue INTO the panel prompt
+# ---------------------------------------------------------------------------
+
+from models.schemas import ImagePrompt
+from services.media.image_prompt_generator import (
+    bake_dialogue_into_prompts,
+    _strip_no_text_clauses,
+)
+
+
+def test_strip_no_text_clauses_removes_negatives():
+    out = _strip_no_text_clauses(
+        "medium shot, hero on cliff, cel shading, no text in image, "
+        "no speech bubbles, no watermark"
+    )
+    low = out.lower()
+    assert "no text" not in low
+    assert "speech bubble" not in low
+    assert "watermark" not in low
+    # The real content survives.
+    assert "hero on cliff" in low
+    assert "cel shading" in low
+
+
+def test_bake_dialogue_injects_verbatim_vietnamese_and_drops_no_text():
+    ip = ImagePrompt(
+        panel_number=1,
+        sd_prompt="close-up, woman shouting, cel shading, no text in image, no captions",
+        dalle_prompt="close-up, woman shouting, no speech bubbles",
+        dialogue=[{"speaker": "Lan", "type": "shout", "text": "Đừng đi! Tôi cần cậu."}],
+    )
+    bake_dialogue_into_prompts([ip])
+    low = ip.sd_prompt.lower()
+    # The clean-panel "no text" instruction is gone...
+    assert "no text" not in low
+    assert "no speech bubble" not in low
+    # ...replaced by an instruction to DRAW bubbles with the exact VN line.
+    assert "speech bubbles" in low or "balloon" in low
+    assert "Đừng đi! Tôi cần cậu." in ip.sd_prompt  # verbatim, diacritics intact
+    assert "Lan" in ip.sd_prompt
+    # shout → spiky/burst balloon
+    assert "burst" in low or "jagged" in low
+    # dalle_prompt is rewritten the same way.
+    assert "Đừng đi! Tôi cần cậu." in ip.dalle_prompt
+
+
+def test_bake_dialogue_leaves_silent_panels_clean():
+    ip = ImagePrompt(
+        panel_number=2,
+        sd_prompt="wide establishing shot, empty street, cel shading, no text in image",
+        dialogue=[],
+    )
+    bake_dialogue_into_prompts([ip])
+    low = ip.sd_prompt.lower()
+    # No dialogue → no bake-in instruction, and the silent panel isn't forced to
+    # re-assert "no text" either (codex handles an empty panel fine).
+    assert "balloon" not in low
+    assert "empty street" in low
+
+
+def test_bake_dialogue_skips_blank_bubble_text():
+    ip = ImagePrompt(
+        panel_number=3,
+        sd_prompt="medium shot, two figures",
+        dialogue=[
+            {"speaker": "A", "type": "speech", "text": "   "},
+            {"speaker": "B", "type": "speech", "text": "Chào cậu."},
+        ],
+    )
+    bake_dialogue_into_prompts([ip])
+    assert "Chào cậu." in ip.sd_prompt
+    # The blank-text bubble for A contributes no line.
+    assert ip.sd_prompt.count("draw ") == 1
+
+
+def test_bake_dialogue_silent_panel_forbids_invented_lettering():
+    """Silent panels must EXPLICITLY forbid lettering — otherwise Codex fills the
+    empty panel by inventing English captions / sound-effects (the bug we saw:
+    'AN ANCIENT BOTTLE', 'THE NORTH REMEMBERS BETRAYAL')."""
+    ip = ImagePrompt(
+        panel_number=4,
+        sd_prompt="wide shot, ancient bottle on an altar, cel shading, no text in image",
+        dialogue=[],
+    )
+    bake_dialogue_into_prompts([ip])
+    low = ip.sd_prompt.lower()
+    # Real content survives, the stripped clean-panel clause is gone...
+    assert "ancient bottle on an altar" in low
+    # ...and replaced by an explicit no-lettering guard naming the usual suspects.
+    assert "captions" in low and "sound-effects" in low
+    assert "free of lettering" in low
+    # Still no instruction to DRAW a bubble on a silent panel.
+    assert "balloon" not in low
+
+
+def test_bake_dialogue_panel_forbids_extra_invented_text():
+    """Dialogue panels must letter ONLY the listed bubbles — no extra invented
+    captions/SFX beyond the verbatim VN lines."""
+    ip = ImagePrompt(
+        panel_number=5,
+        sd_prompt="close-up, hero, cel shading, no text",
+        dialogue=[{"speaker": "Lâm Phàm", "type": "speech", "text": "Ta sẽ trở lại."}],
+    )
+    bake_dialogue_into_prompts([ip])
+    low = ip.sd_prompt.lower()
+    assert "Ta sẽ trở lại." in ip.sd_prompt
+    assert "only the bubbles listed above" in low
+    assert "do not add any extra" in low
