@@ -108,7 +108,17 @@ async function onWSMessage(ev) {
   }
   if (msg.method === "api_request") return handleApiRequest(msg);
   if (msg.method === "solve_captcha") return handleSolveCaptcha(msg);
+  if (msg.method === "media_urls_refresh") return handleMediaRefresh(msg);
   if (msg.type === "ping") return sendWS({ type: "pong" });
+}
+
+// Backend asks us to refresh expired GCS signed URLs (download_to_local hit 403/410).
+// We can't re-sign a specific expired URL on demand — the injected.js fetch-hook only
+// captures URLs as the Flow page fetches them, and those flow back via the passive
+// "media_url_refreshed" channel. So this is acknowledged (not silently dropped) and
+// best-effort: nudge the Flow tab so any in-page media re-fetch is observed.
+function handleMediaRefresh(_msg) {
+  pushLog({ kind: "media", msg: "refresh requested (best-effort; no on-demand re-sign)" });
 }
 
 async function handleApiRequest(msg) {

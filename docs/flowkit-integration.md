@@ -57,7 +57,7 @@ See `## Key Config Flags` in `CLAUDE.md`. The FlowKit-specific ones live in `Pip
 | `flowkit_workers_ramp_threshold` | `10` | Consecutive successes before +1 worker |
 | `flowkit_veo_poll_interval` | `5.0` | Veo poll cadence (V1 polling-only) |
 | `flowkit_image_input_type_split` | `False` | Enable after sniffing `IMAGE_INPUT_TYPE_STYLE` / `_CHARACTER` enums |
-| `flowkit_callback_hmac_required` | `False` | Enable after Extension echoes `X-Callback-Secret` |
+| `flowkit_callback_hmac_required` | `False` | Verifies an `X-Callback-Signature` (HMAC-SHA256 of the body, keyed by `callback_secret`) on the HTTP `/api/ext/callback` **fallback**. The live extension uses the WebSocket path (no per-frame HMAC), which relies on the server binding to `127.0.0.1` — only local processes can connect. |
 | `flowkit_risk_acknowledged` | `False` | UI-set hard gate; do not edit `config.json` by hand |
 
 ## Troubleshooting
@@ -74,8 +74,8 @@ Tick the risk-ack checkbox in Settings first; same PATCH then succeeds.
 ### CAPTCHA escalation to v2
 Flow surfaces a challenge in the Flow tab. Solve it manually — there is no auto-solver. The Extension shows a red badge until resolved.
 
-### GCS download fails with 403 (after ~1h)
-Signed URLs expire. The backend downloads immediately on callback; if you see this, the callback was delayed. Check `data/flowkit/jobs.db` for the failing job and re-queue.
+### GCS download fails with 403/410 (after ~1h)
+Signed URLs expire. The backend downloads immediately after generation and retries once on a 403/410 — but the extension cannot re-sign a *specific* expired URL on demand (it only passively observes fresh URLs the Flow page fetches, volunteered back over the `media_url_refreshed` channel). A truly expired URL therefore needs a fresh generation rather than a refresh. For video, check `data/flowkit/jobs.db` for the failing job and re-queue.
 
 ### Veo job stuck pending
 Veo polling runs every `flowkit_veo_poll_interval` seconds. Check `/api/flowkit/status` for `poll_running=true`. If false, restart the backend.

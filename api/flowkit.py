@@ -55,14 +55,17 @@ async def _dispatch(msg: Dict[str, Any]) -> None:
     if mtype == "extension_ready":
         logger.info("FlowKit extension ready (manifest=%s)", msg.get("version"))
     elif mtype == "token_captured":
-        _svc().flow_key = msg.get("flowKey") or msg.get("flow_key")
+        # The extension (background.js) sends the captured Bearer token under the
+        # key "token"; older/test frames may use "flowKey"/"flow_key". Accept all.
+        _svc().flow_key = msg.get("token") or msg.get("flowKey") or msg.get("flow_key")
         _svc().flow_key_captured_at = time.time()
         logger.info("FlowKit flow key captured")
     elif mtype == "pong":
         _svc().last_pong_at = time.time()
-    elif mtype == "media_urls_refresh":
-        _svc().last_media_refresh_at = time.time()
-        logger.debug("FlowKit media URLs refreshed")
+    elif mtype == "media_url_refreshed":
+        # Extension volunteers freshly-observed GCS signed URLs (background.js emits
+        # "media_url_refreshed"; the injected fetch-hook sniffs TRPC media URLs).
+        _svc().note_media_url(msg.get("url"), msg.get("ttl"))
     else:
         logger.debug("FlowKit WS unknown frame: %s", _redact(msg))
 
