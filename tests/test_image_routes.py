@@ -1,11 +1,13 @@
 """Tests for /api/images/{session_id}/generate endpoint."""
 
+import time
+
 import pytest
 from unittest.mock import patch, MagicMock
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from api.image_routes import router as image_router, _in_flight
+from api.image_routes import router as image_router, _in_flight, _jobs
 from models.schemas import Chapter, Character, StoryDraft, PipelineOutput
 
 
@@ -32,7 +34,29 @@ def client():
     app = FastAPI()
     app.include_router(image_router)
     _in_flight.clear()
+    _jobs.clear()
     return TestClient(app)
+
+
+@pytest.fixture
+def inline_jobs():
+    """Run the async comic-job worker's ``asyncio.to_thread`` calls inline.
+
+    Phase B generation runs in a detached ``asyncio.Task`` whose per-chapter
+    ``await asyncio.to_thread(handle_generate_images, …)`` is normally driven to
+    completion by the continuously-running uvicorn event loop. Starlette's
+    ``TestClient`` portal, however, parks its loop between requests, so the
+    executor done-callback never wakes the task and the job is stuck at
+    ``running`` forever (a harness artifact — verified the same code resumes on a
+    real running loop). Patching ``asyncio.to_thread`` to run the function inline
+    lets the worker finish within a single loop turn so polling observes a
+    terminal state. Production behaviour is unchanged (it uses the real loop).
+    """
+    async def _inline(fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    with patch("asyncio.to_thread", side_effect=_inline):
+        yield
 
 
 def test_generate_404_when_session_missing(client):
@@ -518,6 +542,26 @@ def _library_payload(num_chapters: int = 2, *, chapters_with_images=None, charac
     }
 
 
+def _poll_library_job(client, job_id: str, timeout: float = 5.0) -> dict:
+    """Drive the async job to a terminal state and return its final status body.
+
+    Phase B: POST returns 202 + job_id immediately; generation runs off the
+    request thread (``asyncio.create_task`` → ``asyncio.to_thread`` for the
+    mocked handler). Polling ``GET .../jobs/{id}`` lets the TestClient portal's
+    event loop make progress between requests until the worker finishes.
+    """
+    deadline = time.time() + timeout
+    last = None
+    while time.time() < deadline:
+        r = client.get(f"/images/library/jobs/{job_id}")
+        assert r.status_code == 200, r.text
+        last = r.json()
+        if last["state"] in ("done", "error", "cancelled"):
+            return last
+        time.sleep(0.02)
+    raise AssertionError(f"job {job_id} did not reach a terminal state: {last}")
+
+
 def test_library_generate_400_when_no_chapters(client):
     r = client.post(
         "/images/library/generate",
@@ -526,19 +570,24 @@ def test_library_generate_400_when_no_chapters(client):
     assert r.status_code == 400
 
 
-def test_library_generate_provider_none_short_circuits(client):
+def test_library_generate_provider_none_completes_with_no_images(client, inline_jobs):
+    """provider=none → job still runs to `done` but produces zero panels."""
     with patch("services.handlers.handle_generate_images", return_value=([], "no provider")):
         r = client.post(
             "/images/library/generate",
             json={"story": _library_payload(2), "provider": "none"},
         )
-    assert r.status_code == 200
-    body = r.json()
-    assert body["count"] == 0
-    assert body["chapter_images"] == {}
+        assert r.status_code == 202, r.text
+        job_id = r.json()["job_id"]
+        final = _poll_library_job(client, job_id)
+
+    assert final["state"] == "done"
+    assert final["count"] == 0
+    # The FE keys "no provider configured" off provider=="none".
+    assert final["provider"] == "none"
 
 
-def test_library_generate_incremental_skips_chapters_with_images(client):
+def test_library_generate_incremental_skips_chapters_with_images(client, inline_jobs):
     """only_missing (default) must generate ONLY chapters the payload shows empty."""
     called_for = []
 
@@ -555,33 +604,47 @@ def test_library_generate_incremental_skips_chapters_with_images(client):
             "/images/library/generate",
             json={"story": _library_payload(3, chapters_with_images={1}), "provider": "dalle"},
         )
+        assert r.status_code == 202, r.text
+        accepted = r.json()
+        # The 202 reports the resolved scope up front.
+        assert accepted["target_chapters"] == [2, 3]
+        assert accepted["total_chapters"] == 3
+        final = _poll_library_job(client, accepted["job_id"])
 
-    assert r.status_code == 200, r.text
-    body = r.json()
+    assert final["state"] == "done"
     assert sorted(called_for) == [2, 3]
-    assert body["skipped_chapters"] == [1]
-    # chapter_images is /media-prefixed and includes the already-present ch1
-    # (echoed unchanged — it was already a /media URL).
-    assert body["chapter_images"]["1"] == ["/media/t/images/ch01_panel01.png"]
-    assert body["chapter_images"]["2"] == ["/media/t/images/ch02_panel01.png"]
-    assert body["chapter_images"]["3"] == ["/media/t/images/ch03_panel01.png"]
+    assert final["skipped_chapters"] == [1]
+    # Only the regenerated chapters accrete into chapter_images; the skipped ch1
+    # is NOT echoed — the FE keeps it from localStorage (skipped_chapters tells
+    # it which to preserve).
+    assert "1" not in final["chapter_images"]
+    assert final["chapter_images"]["2"] == ["/media/t/images/ch02_panel01.png"]
+    assert final["chapter_images"]["3"] == ["/media/t/images/ch03_panel01.png"]
 
 
-def test_library_generate_nothing_to_do_when_all_illustrated(client):
+def test_library_generate_nothing_to_do_when_all_illustrated(client, inline_jobs):
+    """only_missing with every chapter illustrated → empty scope, handler never runs.
+
+    Regression guard: an empty target list must NOT be treated as "all chapters"
+    by the worker (that bug would regenerate the whole story on a no-op call).
+    """
     with patch("services.handlers.handle_generate_images") as handler:
         r = client.post(
             "/images/library/generate",
             json={"story": _library_payload(2, chapters_with_images={1, 2})},
         )
-    assert r.status_code == 200
+        assert r.status_code == 202, r.text
+        accepted = r.json()
+        assert accepted["target_chapters"] == []
+        final = _poll_library_job(client, accepted["job_id"])
+
     handler.assert_not_called()
-    body = r.json()
-    assert body["count"] == 0
-    assert body["skipped_chapters"] == [1, 2]
-    assert "nothing to generate" in body["message"].lower()
+    assert final["state"] == "done"
+    assert final["count"] == 0
+    assert final["skipped_chapters"] == [1, 2]
 
 
-def test_library_generate_single_chapter_scope(client):
+def test_library_generate_single_chapter_scope(client, inline_jobs):
     captured = {}
 
     def fake_handler(orch_state, provider="none", t=None, chapter_number=None):
@@ -596,9 +659,14 @@ def test_library_generate_single_chapter_scope(client):
             "/images/library/generate",
             json={"story": _library_payload(3), "chapter": 2, "provider": "dalle"},
         )
-    assert r.status_code == 200, r.text
+        assert r.status_code == 202, r.text
+        accepted = r.json()
+        assert accepted["target_chapters"] == [2]
+        final = _poll_library_job(client, accepted["job_id"])
+
     assert captured["chapter_number"] == 2
-    assert r.json()["chapter_images"] == {"2": ["/media/t/images/ch02_panel01.png"]}
+    assert final["state"] == "done"
+    assert final["chapter_images"] == {"2": ["/media/t/images/ch02_panel01.png"]}
 
 
 def test_library_generate_full_regenerate_cap(client):
@@ -615,19 +683,45 @@ def test_library_generate_full_regenerate_cap(client):
     assert r.status_code == 400
 
 
-def test_library_generate_in_flight_guard(client):
+def test_library_generate_dedup_returns_existing_and_conflicts(client):
+    """While a whole-story job is active: identical scope → 200 + already_running
+    (reattach to the same job_id); overlapping-but-different scope → 409.
+
+    Inject the active job directly so the dedup/conflict branches are exercised
+    deterministically, without depending on worker scheduling or threading.
+    """
+    from api.image_routes import _LibraryJob
+
+    _jobs["existing-job"] = _LibraryJob(
+        job_id="existing-job",
+        title_key="T",
+        state="running",
+        provider="dalle",
+        panels_per_chapter=8,
+        target_numbers=[1, 2],
+        in_flight_key="library::T",  # whole-story scope
+    )
     _in_flight.add("library::T")
-    try:
-        r = client.post(
-            "/images/library/generate",
-            json={"story": _library_payload(1)},
-        )
-        assert r.status_code == 409
-    finally:
-        _in_flight.discard("library::T")
+
+    # Identical whole-story scope while active → 200, same job, reattached.
+    dup = client.post(
+        "/images/library/generate",
+        json={"story": _library_payload(2), "only_missing": False},
+    )
+    assert dup.status_code == 200, dup.text
+    assert dup.json()["already_running"] is True
+    assert dup.json()["job_id"] == "existing-job"
+    assert dup.json()["target_chapters"] == [1, 2]
+
+    # Single-chapter request while the whole-story job runs → conflict (409).
+    conflict = client.post(
+        "/images/library/generate",
+        json={"story": _library_payload(2), "chapter": 1},
+    )
+    assert conflict.status_code == 409
 
 
-def test_library_generate_consistency_profile_scoped_to_title(client, tmp_path, monkeypatch):
+def test_library_generate_consistency_profile_scoped_to_title(client, tmp_path, monkeypatch, inline_jobs):
     """The payload path must auto-build profiles under the TITLE-scoped store —
     the same slug the checkpoint path uses — so Continue chapters stay consistent."""
     monkeypatch.chdir(tmp_path)
@@ -648,8 +742,10 @@ def test_library_generate_consistency_profile_scoped_to_title(client, tmp_path, 
          patch("services.image_generator.ImageGenerator", return_value=image_gen), \
          patch("services.image_prompt_generator.ImagePromptGenerator", return_value=prompt_gen):
         r = client.post("/images/library/generate", json={"story": payload, "provider": "dalle"})
+        assert r.status_code == 202, r.text
+        final = _poll_library_job(client, r.json()["job_id"])
 
-    assert r.status_code == 200, r.text
+    assert final["state"] == "done"
     # Profile persisted under the per-story characters dir, title-scoped to "T" —
     # identical slug to the checkpoint path (no session suffix).
     from services.output_paths import characters_dir

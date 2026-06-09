@@ -169,8 +169,9 @@ def test_delete_checkpoint_calls_remove(client, tmp_path):
     ckpt_dir = tmp_path / "checkpoints"
     ckpt_path = _write_checkpoint(ckpt_dir, "to_delete.json", _minimal_pipeline_data())
 
-    with patch("api.pipeline_routes.os.path.join", return_value=str(ckpt_path)), \
-         patch("api.pipeline_routes.os.path.exists", return_value=True), \
+    # The route resolves the checkpoint via find_checkpoint_path (not raw
+    # os.path.join/exists), so patch that resolver to point at our temp file.
+    with patch("pipeline.orchestrator_checkpoint.find_checkpoint_path", return_value=str(ckpt_path)), \
          patch("api.pipeline_routes.os.remove") as mock_rm:
         resp = client.delete("/pipeline/checkpoints/to_delete.json")
 

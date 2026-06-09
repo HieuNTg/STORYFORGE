@@ -227,6 +227,18 @@ class TestExportOutput:
 
     def test_export_output_json_format(self):
         """Verify JSON format export works."""
+        # Setup (mirrors the TXT/Markdown tests): JSON export serializes the
+        # story draft, so a draft must be present for a file to be produced.
+        chapter = Chapter(chapter_number=1, title="Chapter 1", content="Test")
+        story = StoryDraft(
+            title="Test",
+            genre="Tiên Hiệp",
+            synopsis="Test",
+            chapters=[chapter],
+            characters=[]
+        )
+        self.orch.output.story_draft = story
+
         result = self.orch.export_output(self.temp_dir, formats=["JSON"])
         json_files = [p for p in result if p.endswith('.json')]
         assert len(json_files) > 0, "Should have JSON files"

@@ -193,61 +193,98 @@ function toLibraryImagePayload(story: Story): LibraryImagePayload["story"] {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Phase B — async background comic generation.
+//
+// `POST /api/images/library/generate` no longer runs generation on the request
+// thread. It accepts the job and returns 202 + `job_id` immediately; the work
+// runs server-side and the client polls `GET .../jobs/{job_id}` until a
+// terminal state, persisting accreting `chapter_images` to localStorage as
+// chapters land. See docs/comic-async-generation-phase-b-proposal.md §2.1–2.6.
+// ---------------------------------------------------------------------------
+
+/** 202 body from POST /api/images/library/generate (LibraryJobAcceptedResponse). */
+export interface LibraryJobAccepted {
+  job_id: string;
+  /** "queued" | "running" (running when reattaching to a live job). */
+  state: string;
+  /** Idempotency key (story title). */
+  title: string;
+  total_chapters: number;
+  /** 1-based chapter numbers this job will generate. */
+  target_chapters: number[];
+  /** true => an identical-scope job was already running; we attached to it. */
+  already_running: boolean;
+}
+
+/** Per-chapter progress inside a library job (LibraryJobChapterStatus). */
+export interface LibraryJobChapterStatus {
+  chapter_number: number;
+  title: string;
+  has_images: boolean;
+  image_count: number;
+  /** Already `/media/...`-prefixed and ready to render. */
+  image_urls: string[];
+  /** "pending" | "running" | "done" | "error". */
+  state: string;
+  error?: string | null;
+}
+
+/** GET /api/images/library/jobs/{job_id} body (LibraryJobStatusResponse). */
+export interface LibraryJobStatus {
+  job_id: string;
+  /** "queued" | "running" | "done" | "error" | "cancelled". */
+  state: string;
+  title: string;
+  /** "none" => image provider not configured in Settings. */
+  provider: string;
+  panels_per_chapter: number;
+  total_chapters: number;
+  chapters_done: number;
+  chapters: LibraryJobChapterStatus[];
+  /** Accreting 1-based chapter -> URLs map; FE persists incrementally. */
+  chapter_images: Record<number, string[]>;
+  error?: string | null;
+  count: number;
+  skipped_chapters: number[];
+}
+
 /**
- * POST /api/images/library/generate (only_missing: true) — INCREMENTAL.
- * Generates comics only for chapters whose `images` is empty in the payload.
- * Idempotent: re-run after "Continue" to illustrate ONLY the new chapters,
- * consistent with the already-generated ones. Persist `chapter_images` back
- * onto each `Chapter.images`.
+ * POST /api/images/library/generate — submit an async whole-story (or
+ * single-chapter) comic job. Returns 202 + `job_id` immediately; poll
+ * `getLibraryComicJob` for progress. Mode is selected via `opts`:
+ *   - { only_missing: true }  → illustrate only chapters lacking panels
+ *   - { only_missing: false } → full regenerate of all chapters
+ *   - { chapter: N }          → regenerate a single chapter
+ * Over-cap / empty-chapter 400s and provider conflicts (409) are raised
+ * synchronously at submit, before the 202.
  */
-export function generateLibraryMissingImages(
+export function submitLibraryComicJob(
   story: Story,
-  provider?: string,
-): Promise<GenerateImagesResponse> {
-  const body: LibraryImagePayload = {
-    story: toLibraryImagePayload(story),
-    only_missing: true,
-  };
-  if (provider) body.provider = provider;
-  return apiFetch<GenerateImagesResponse>(`/api/images/library/generate`, {
+  opts?: { chapter?: number; only_missing?: boolean; provider?: string },
+): Promise<LibraryJobAccepted> {
+  const body: LibraryImagePayload = { story: toLibraryImagePayload(story) };
+  if (opts?.chapter !== undefined) body.chapter = opts.chapter;
+  if (opts?.only_missing !== undefined) body.only_missing = opts.only_missing;
+  if (opts?.provider) body.provider = opts.provider;
+  return apiFetch<LibraryJobAccepted>(`/api/images/library/generate`, {
     method: "POST",
     body: JSON.stringify(body),
   });
 }
 
-/** POST /api/images/library/generate (chapter: N) — regenerate ONE chapter. */
-export function generateLibraryChapterImage(
-  story: Story,
-  chapter: number,
-  provider?: string,
-): Promise<GenerateImagesResponse> {
-  const body: LibraryImagePayload = {
-    story: toLibraryImagePayload(story),
-    chapter,
-  };
-  if (provider) body.provider = provider;
-  return apiFetch<GenerateImagesResponse>(`/api/images/library/generate`, {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+/** GET /api/images/library/jobs/{job_id} — poll job progress (404 if evicted). */
+export function getLibraryComicJob(jobId: string): Promise<LibraryJobStatus> {
+  return apiFetch<LibraryJobStatus>(
+    `/api/images/library/jobs/${encodeURIComponent(jobId)}`,
+    { method: "GET" },
+  );
 }
 
-/**
- * POST /api/images/library/generate (only_missing: false) — full regenerate of
- * ALL chapters (capped at 10/call by the backend → 400 if exceeded). Prefer
- * `generateLibraryMissingImages` for the common case.
- */
-export function generateLibraryAllImages(
-  story: Story,
-  provider?: string,
-): Promise<GenerateImagesResponse> {
-  const body: LibraryImagePayload = {
-    story: toLibraryImagePayload(story),
-    only_missing: false,
-  };
-  if (provider) body.provider = provider;
-  return apiFetch<GenerateImagesResponse>(`/api/images/library/generate`, {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+/** DELETE /api/images/library/jobs/{job_id} — cooperatively cancel a running job. */
+export function cancelLibraryComicJob(jobId: string): Promise<void> {
+  return apiFetch<void>(
+    `/api/images/library/jobs/${encodeURIComponent(jobId)}`,
+    { method: "DELETE" },
+  );
 }

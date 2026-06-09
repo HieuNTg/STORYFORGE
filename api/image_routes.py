@@ -12,10 +12,13 @@ import asyncio
 import json
 import logging
 import pathlib
+import time
 import urllib.parse
+import uuid
+from dataclasses import dataclass, field
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Body, Depends, HTTPException, Response, UploadFile, File
 from pydantic import BaseModel, Field
 
 from api.export_routes import (
@@ -45,6 +48,116 @@ _in_flight_lock = asyncio.Lock()
 MAX_CHAPTERS_PER_IMAGE_CALL = 10
 
 
+# ---------------------------------------------------------------------------
+# Phase B — async background comic-generation job store (§2.3)
+#
+# In-process ``dict`` + ``asyncio.Task`` — correct for a single-process
+# open-source app (single Uvicorn worker, locked §7.4). Generated panels are
+# already durable on disk under ``OUTPUT_ROOT/<story-slug>/images`` (served via
+# ``/media``); the job record holds only transient progress + the URL map.
+# Losing it on restart costs a re-poll, not data.
+# ---------------------------------------------------------------------------
+
+_JOB_TTL_SECONDS = 30 * 60  # lazy-evict finished jobs after this long
+_MAX_JOBS = 100  # hard cap on retained job records (oldest finished evicted first)
+
+
+@dataclass
+class _LibraryJob:
+    job_id: str
+    title_key: str
+    state: str  # queued | running | done | error | cancelled
+    provider: str
+    panels_per_chapter: int
+    target_numbers: list[int]
+    chapters: dict[int, dict] = field(default_factory=dict)  # ch -> {title,state,image_urls,error}
+    chapter_images: dict[int, list[str]] = field(default_factory=dict)
+    skipped_chapters: list[int] = field(default_factory=list)
+    count: int = 0
+    error: Optional[str] = None
+    task: Optional[asyncio.Task] = None
+    cancel: bool = False
+    created_at: float = field(default_factory=time.time)
+    finished_at: Optional[float] = None
+    in_flight_key: Optional[str] = None  # the _in_flight slot this job reserved
+
+
+_jobs: dict[str, _LibraryJob] = {}
+_jobs_lock = asyncio.Lock()  # guards _jobs + _in_flight together
+
+
+def _sweep_jobs() -> None:
+    """Lazy evictor: drop finished jobs past TTL, then enforce the job cap.
+
+    Called (under ``_jobs_lock``) on every submit and poll — no background
+    timer. A job is evictable once it has a ``finished_at`` (terminal state)
+    and that timestamp is older than ``_JOB_TTL_SECONDS``. If still over
+    ``_MAX_JOBS`` afterwards, the oldest *finished* jobs are dropped first;
+    running jobs are never evicted.
+    """
+    now = time.time()
+    expired = [
+        jid
+        for jid, job in _jobs.items()
+        if job.finished_at is not None and (now - job.finished_at) > _JOB_TTL_SECONDS
+    ]
+    for jid in expired:
+        _jobs.pop(jid, None)
+
+    if len(_jobs) <= _MAX_JOBS:
+        return
+    # Over cap: evict oldest finished jobs first (by finished_at).
+    finished = sorted(
+        (job for job in _jobs.values() if job.finished_at is not None),
+        key=lambda j: j.finished_at or 0.0,
+    )
+    overflow = len(_jobs) - _MAX_JOBS
+    for job in finished[:overflow]:
+        _jobs.pop(job.job_id, None)
+
+
+def _resolve_target_chapters(
+    draft, chapter: Optional[int], only_missing: bool
+) -> tuple[Optional[list[int]], list[int]]:
+    """Resolve which chapters a Library generation call targets (§2.1).
+
+    Lifts the mode-selection logic shared by submit-validation and the worker:
+
+    * ``chapter=N`` → ``([N], [])`` — single chapter.
+    * ``only_missing=True`` → chapters with no ``images`` yet; the rest are
+      reported as ``skipped_chapters``.
+    * full regenerate → ``(None, [])`` meaning "all chapters", capped at
+      ``MAX_CHAPTERS_PER_IMAGE_CALL`` (raises 400 over cap).
+
+    Returns ``(target_numbers, skipped_chapters)`` where ``target_numbers`` is
+    ``None`` to mean "all chapters" (the handle_generate_images all-chapters
+    sentinel), or an explicit list. "has images" is read from the payload draft.
+    """
+    all_chapters = list(draft.chapters) if draft and draft.chapters else []
+    skipped_chapters: list[int] = []
+    if chapter is not None:
+        return [chapter], skipped_chapters
+    if only_missing:
+        target_numbers = [
+            ch.chapter_number for ch in all_chapters if not getattr(ch, "images", None)
+        ]
+        skipped_chapters = [
+            ch.chapter_number for ch in all_chapters if getattr(ch, "images", None)
+        ]
+        return target_numbers, skipped_chapters
+    # Full regenerate — keep the cost cap for one job.
+    if len(all_chapters) > MAX_CHAPTERS_PER_IMAGE_CALL:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Full regenerate is limited to {MAX_CHAPTERS_PER_IMAGE_CALL} "
+                f"chapters per call. Use only_missing=true (incremental) or "
+                f"pass chapter=N to regenerate a single chapter."
+            ),
+        )
+    return None, skipped_chapters
+
+
 class GenerateImagesRequest(BaseModel):
     provider: Optional[str] = None
     chapter: Optional[int] = None  # if set, (re)generate only this chapter
@@ -63,6 +176,55 @@ class GenerateImagesResponse(BaseModel):
     count: int
     chapter_images: dict[int, list[str]] = {}
     # Chapters that were skipped because they already had panels (only_missing).
+    skipped_chapters: list[int] = []
+
+
+class LibraryJobAcceptedResponse(BaseModel):
+    """202 response for async Library comic generation (Phase B, §2.1).
+
+    Returned immediately when a background job is accepted (or when an
+    identical-scope job is already active — ``already_running=True``, 200).
+    """
+
+    job_id: str
+    state: str  # "queued" | "running" (if reattached)
+    title: str  # idempotency key
+    total_chapters: int
+    target_chapters: list[int]
+    already_running: bool = False
+
+
+class LibraryJobChapterStatus(BaseModel):
+    """Per-chapter progress within a Library comic job (Phase B, §2.2)."""
+
+    chapter_number: int
+    title: str = ""
+    has_images: bool = False
+    image_count: int = 0
+    image_urls: list[str] = []  # /media/... ready to render
+    state: str = "pending"  # pending | running | done | error
+    error: Optional[str] = None
+
+
+class LibraryJobStatusResponse(BaseModel):
+    """Polling response for a Library comic job (Phase B, §2.2).
+
+    ``chapter_images`` accretes as chapters finish and shares the exact
+    ``dict[int, list[str]]`` shape ``GenerateImagesResponse`` returns, so the
+    FE persistence path (``setStoryChapterImages``) is byte-for-byte compatible.
+    """
+
+    job_id: str
+    state: str  # queued | running | done | error | cancelled
+    title: str
+    provider: str
+    panels_per_chapter: int
+    total_chapters: int
+    chapters_done: int
+    chapters: list[LibraryJobChapterStatus] = []
+    chapter_images: dict[int, list[str]] = {}  # accretes; FE persists incrementally
+    error: Optional[str] = None
+    count: int = 0
     skipped_chapters: list[int] = []
 
 
@@ -233,125 +395,312 @@ class _PayloadOrchWrapper:
         self.output = output
 
 
+def _resolve_provider(provider: Optional[str]) -> str:
+    """Resolve the image provider, falling back to config (default ``none``)."""
+    if provider:
+        return provider
+    try:
+        from config import ConfigManager
+        return getattr(ConfigManager().load().pipeline, "image_provider", "none") or "none"
+    except Exception:
+        return "none"
+
+
+def _resolve_panels_per_chapter() -> int:
+    """Best-effort read of configured panels-per-chapter (for status reporting)."""
+    try:
+        from config import ConfigManager
+        cfg = ConfigManager().load().pipeline
+        return max(1, int(getattr(cfg, "panels_per_chapter", 8)))
+    except Exception:
+        return 8
+
+
+async def _run_library_job(job: _LibraryJob, draft, body: "LibraryGenerateImagesRequest") -> None:
+    """Background worker that drives one whole-story Library comic job (§2.3/§2.5).
+
+    Per target chapter it calls the SAME ``handle_generate_images`` as the sync
+    path (off-loop via ``asyncio.to_thread``), maps results through
+    ``_to_media_url``, and accretes them into ``job.chapter_images`` /
+    ``job.chapters`` so polls deliver incremental progress. A per-chapter
+    exception marks ONLY that chapter ``error`` and the run CONTINUES (partial
+    value > all-or-nothing). ``job.cancel`` is checked at the top of each
+    iteration for cooperative cancellation at chapter boundaries — the in-flight
+    chapter is never force-killed (``to_thread`` workers can't be cancelled).
+    """
+    from models.schemas import PipelineOutput
+    from services.handlers import handle_generate_images
+
+    orch = _PayloadOrchWrapper(PipelineOutput(story_draft=draft, status="complete"))
+    by_number = {ch.chapter_number: ch for ch in (draft.chapters or [])}
+
+    # job.target_numbers is ALWAYS the explicit, already-expanded chapter list:
+    # submit resolves the "all chapters" sentinel (None) to the full list before
+    # the job is created. An empty list therefore legitimately means "nothing to
+    # do" (only_missing with every chapter already illustrated) — it must NOT
+    # fall back to all chapters, or a no-op "generate missing" would regenerate
+    # the whole story.
+    iteration = list(job.target_numbers)
+
+    # Seed per-chapter state as pending.
+    for n in iteration:
+        ch = by_number.get(n)
+        job.chapters[n] = {
+            "title": (getattr(ch, "title", "") or "") if ch else "",
+            "state": "pending",
+            "image_urls": [],
+            "error": None,
+        }
+
+    cancelled = False
+    any_done = False
+    any_error = False
+    try:
+        job.state = "running"
+        for ch_num in iteration:
+            if job.cancel:
+                cancelled = True
+                break
+            entry = job.chapters.setdefault(
+                ch_num, {"title": "", "state": "pending", "image_urls": [], "error": None}
+            )
+            entry["state"] = "running"
+            try:
+                ch_paths, _msg = await asyncio.to_thread(
+                    handle_generate_images, orch, job.provider, None, ch_num
+                )
+                urls = [_to_media_url(p) for p in (ch_paths or [])]
+                job.chapter_images[ch_num] = urls
+                entry["image_urls"] = urls
+                entry["state"] = "done"
+                entry["error"] = None
+                job.count += len(urls)
+                any_done = True
+            except Exception as exc:  # noqa: BLE001 — per-chapter isolation
+                logger.warning(
+                    "Library comic job %s: chapter %s failed: %s",
+                    job.job_id,
+                    ch_num,
+                    exc,
+                )
+                entry["state"] = "error"
+                entry["error"] = str(exc)
+                any_error = True
+                continue
+
+        if cancelled:
+            job.state = "cancelled"
+        elif iteration and not any_done and any_error:
+            # Every targeted chapter failed → terminal error.
+            job.state = "error"
+            job.error = "All targeted chapters failed to generate."
+        else:
+            job.state = "done"
+    except Exception as exc:  # noqa: BLE001 — never strand the job
+        logger.exception("Library comic job %s crashed: %s", job.job_id, exc)
+        job.state = "error"
+        job.error = str(exc)
+    finally:
+        job.finished_at = time.time()
+        if job.in_flight_key is not None:
+            async with _jobs_lock:
+                _in_flight.discard(job.in_flight_key)
+
+
 @router.post(
     "/library/generate",
-    response_model=GenerateImagesResponse,
+    response_model=LibraryJobAcceptedResponse,
+    status_code=202,
     dependencies=[_CREATE_STORIES],
 )
-async def generate_library_images(body: LibraryGenerateImagesRequest = Body(...)):
-    """Generate comic panels for a localStorage-only Library story (payload-based).
+async def generate_library_images(
+    response: Response, body: LibraryGenerateImagesRequest = Body(...)
+):
+    """Submit an async background comic-generation job for a Library story (Phase B).
 
-    Mirrors ``POST /{session_id}/generate`` but for stories that have no backend
-    checkpoint: the full Story payload (title + characters + chapters incl. each
-    chapter's current ``images``) is sent in the body — the same shape the FE
-    already sends to ``POST /api/export/library/{fmt}``.
+    Mirrors the scope semantics of ``POST /{session_id}/generate`` but for
+    localStorage-only stories that have no backend checkpoint: the full Story
+    payload travels in the body (same shape as ``POST /api/export/library/{fmt}``).
 
-    The engine (``services.handlers.handle_generate_images``) and the
-    consistency anchors (``CharacterVisualProfileStore`` keyed by story title,
-    auto-built via ``CharacterVisualExtractor``) are reused verbatim. Nothing is
-    persisted server-side except the generated panels under
-    ``output/<story-slug>/images`` (served via ``/media``). The client persists
-    the returned ``chapter_images`` map back into its localStorage Story.
+    Returns ``202`` with a ``job_id`` immediately; generation runs off the request
+    thread in a detached ``asyncio.Task`` so it survives client disconnect. Poll
+    ``GET /library/jobs/{job_id}`` for per-chapter progress and the accreting
+    ``chapter_images`` map (the client owns persistence into localStorage).
+
+    Empty-chapter (400) and over-cap full-regenerate (400) are raised
+    SYNCHRONOUSLY here, before the 202. Dedup (§2.4): an identical-scope active
+    job returns its existing ``job_id`` with ``already_running=True`` (200); an
+    overlapping-but-different scope returns 409.
 
     Declared BEFORE ``/{session_id}/generate`` so the literal ``library`` path
     segment is matched first (FastAPI resolves routes in declaration order).
     """
-    from models.schemas import PipelineOutput
-
     draft = _payload_to_story_draft(body.story)
     if not draft.chapters:
         raise HTTPException(status_code=400, detail="Truyện chưa có chương để tạo truyện tranh")
 
-    # Title is the consistency key (same as the checkpoint path). Guard against
-    # duplicate concurrent generation for the SAME story+chapter scope, mirroring
-    # the 409 behaviour of the session endpoint.
+    # Resolve scope SYNCHRONOUSLY (raises 400 over-cap) before accepting the job.
+    target_numbers, skipped_chapters = _resolve_target_chapters(
+        draft, body.chapter, body.only_missing
+    )
+
     title_key = draft.title or "untitled"
     in_flight_key = (
         f"library::{title_key}::{body.chapter}"
         if body.chapter is not None
         else f"library::{title_key}"
     )
-    async with _in_flight_lock:
-        if in_flight_key in _in_flight:
-            raise HTTPException(status_code=409, detail="Image generation already in progress for this story")
-        _in_flight.add(in_flight_key)
+    whole_key = f"library::{title_key}"
+    provider = _resolve_provider(body.provider)
 
-    try:
-        orch = _PayloadOrchWrapper(PipelineOutput(story_draft=draft, status="complete"))
-        all_chapters = list(draft.chapters)
+    total_chapters = len(draft.chapters)
+    # The concrete chapter list this job will iterate (None == all chapters).
+    if target_numbers is not None:
+        accepted_targets = list(target_numbers)
+    else:
+        accepted_targets = [ch.chapter_number for ch in draft.chapters]
 
-        # Resolve which chapters this call targets — identical logic to the
-        # session endpoint, but "has images" is read from the payload.
-        skipped_chapters: list[int] = []
-        if body.chapter is not None:
-            target_numbers: Optional[list[int]] = [body.chapter]
-        elif body.only_missing:
-            target_numbers = [
-                ch.chapter_number for ch in all_chapters if not getattr(ch, "images", None)
-            ]
-            skipped_chapters = [
-                ch.chapter_number for ch in all_chapters if getattr(ch, "images", None)
-            ]
-        else:
-            if len(all_chapters) > MAX_CHAPTERS_PER_IMAGE_CALL:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        f"Full regenerate is limited to {MAX_CHAPTERS_PER_IMAGE_CALL} "
-                        f"chapters per call. Use only_missing=true (incremental) or "
-                        f"pass chapter=N to regenerate a single chapter."
-                    ),
+    async with _jobs_lock:
+        _sweep_jobs()
+
+        # Dedup (§2.4): is there an ACTIVE job (queued|running) for this story?
+        for existing in _jobs.values():
+            if existing.title_key != title_key:
+                continue
+            if existing.state not in ("queued", "running"):
+                continue
+            same_scope = existing.in_flight_key == in_flight_key
+            if same_scope:
+                # Identical scope already running → reattach. This is NOT a fresh
+                # accept, so override the route's 202 default with 200 (§2.4).
+                response.status_code = 200
+                return LibraryJobAcceptedResponse(
+                    job_id=existing.job_id,
+                    state=existing.state,
+                    title=title_key,
+                    total_chapters=total_chapters,
+                    target_chapters=list(existing.target_numbers),
+                    already_running=True,
                 )
-            target_numbers = None
-
-        provider = body.provider
-        if not provider:
-            try:
-                from config import ConfigManager
-                provider = getattr(ConfigManager().load().pipeline, "image_provider", "none") or "none"
-            except Exception:
-                provider = "none"
-
-        from services.handlers import handle_generate_images
-
-        paths: list[str] = []
-        msg = ""
-        if target_numbers is None:
-            paths, msg = await asyncio.to_thread(
-                handle_generate_images, orch, provider, None, None
+            # Overlapping-but-different scope (e.g. single-chapter vs whole-story
+            # covering it, or vice versa) → conflict.
+            covers = (
+                # a whole-story job conflicts with any single-chapter request
+                existing.in_flight_key == whole_key
+                or in_flight_key == whole_key
+                or existing.in_flight_key == in_flight_key
             )
-        else:
-            if not target_numbers:
-                msg = "All chapters already have comic panels — nothing to generate."
-            for ch_num in target_numbers:
-                ch_paths, msg = await asyncio.to_thread(
-                    handle_generate_images, orch, provider, None, ch_num
+            if covers:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Image generation already in progress for this story",
                 )
-                paths.extend(ch_paths)
 
-        # No checkpoint to persist into — the client owns persistence. Return the
-        # full per-chapter image map as /media URLs so the FE can write them onto
-        # each Chapter.images and re-render.
-        story = orch.output.enhanced_story or orch.output.story_draft
-        chapter_images: dict[int, list[str]] = {}
-        if story and story.chapters:
-            for ch in story.chapters:
-                imgs = getattr(ch, "images", None)
-                if imgs:
-                    chapter_images[ch.chapter_number] = [
-                        _to_media_url(p) for p in imgs
-                    ]
-
-        return GenerateImagesResponse(
-            image_paths=paths,
-            message=msg,
-            count=len(paths),
-            chapter_images=chapter_images,
+        # No active job → reserve the in-flight slot and create the job.
+        _in_flight.add(in_flight_key)
+        job_id = uuid.uuid4().hex
+        job = _LibraryJob(
+            job_id=job_id,
+            title_key=title_key,
+            state="queued",
+            provider=provider,
+            panels_per_chapter=_resolve_panels_per_chapter(),
+            target_numbers=accepted_targets,
             skipped_chapters=skipped_chapters,
+            in_flight_key=in_flight_key,
         )
-    finally:
-        async with _in_flight_lock:
-            _in_flight.discard(in_flight_key)
+        _jobs[job_id] = job
+        job.task = asyncio.create_task(_run_library_job(job, draft, body))
+
+    return LibraryJobAcceptedResponse(
+        job_id=job_id,
+        state="queued",
+        title=title_key,
+        total_chapters=total_chapters,
+        target_chapters=accepted_targets,
+        already_running=False,
+    )
+
+
+def _job_to_status(job: _LibraryJob) -> LibraryJobStatusResponse:
+    """Project a ``_LibraryJob`` into its public polling shape (§2.2)."""
+    chapters_out: list[LibraryJobChapterStatus] = []
+    chapters_done = 0
+    for ch_num in sorted(job.chapters.keys()):
+        entry = job.chapters[ch_num]
+        urls = list(entry.get("image_urls") or [])
+        state = entry.get("state", "pending")
+        if state == "done":
+            chapters_done += 1
+        chapters_out.append(
+            LibraryJobChapterStatus(
+                chapter_number=ch_num,
+                title=entry.get("title", "") or "",
+                has_images=bool(urls),
+                image_count=len(urls),
+                image_urls=urls,
+                state=state,
+                error=entry.get("error"),
+            )
+        )
+    return LibraryJobStatusResponse(
+        job_id=job.job_id,
+        state=job.state,
+        title=job.title_key,
+        provider=job.provider,
+        panels_per_chapter=job.panels_per_chapter,
+        total_chapters=len(job.target_numbers),
+        chapters_done=chapters_done,
+        chapters=chapters_out,
+        chapter_images={k: list(v) for k, v in job.chapter_images.items()},
+        error=job.error,
+        count=job.count,
+        skipped_chapters=list(job.skipped_chapters),
+    )
+
+
+@router.get(
+    "/library/jobs/{job_id}",
+    response_model=LibraryJobStatusResponse,
+    dependencies=[_READ_STORIES],
+)
+async def get_library_job(job_id: str):
+    """Poll progress for an async Library comic job (Phase B, §2.2).
+
+    Returns the accreting ``chapter_images`` map + per-chapter state. ``404`` if
+    the job is unknown or has been TTL-evicted (the FE then re-derives state from
+    localStorage and re-submits via ``only_missing``). Sweeps expired jobs on
+    every poll.
+    """
+    async with _jobs_lock:
+        _sweep_jobs()
+        job = _jobs.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Job not found or expired")
+        return _job_to_status(job)
+
+
+@router.delete(
+    "/library/jobs/{job_id}",
+    response_model=LibraryJobStatusResponse,
+    dependencies=[_CREATE_STORIES],
+)
+async def cancel_library_job(job_id: str):
+    """Cooperatively cancel a running Library comic job (Phase B, §2.5).
+
+    Sets ``job.cancel=True``; the worker breaks before the NEXT chapter (the
+    in-flight chapter runs to completion — ``to_thread`` workers can't be
+    force-killed). Partial results are kept. ``404`` if the job is unknown or
+    already evicted. Returns the (now ``cancelled``-pending) job status.
+    """
+    async with _jobs_lock:
+        _sweep_jobs()
+        job = _jobs.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Job not found or expired")
+        if job.state in ("queued", "running"):
+            job.cancel = True
+        return _job_to_status(job)
 
 
 @router.post("/{session_id}/generate", response_model=GenerateImagesResponse, dependencies=[_CREATE_STORIES])
