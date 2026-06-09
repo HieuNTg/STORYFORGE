@@ -158,6 +158,7 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
             "share_base_url": pipeline.share_base_url,
             "pdf_font": pipeline.pdf_font,
             "image_provider": pipeline.image_provider,
+            "codex_model": getattr(pipeline, "codex_model", ""),
             "image_api_key": pipeline.image_api_key,
             "image_api_url": pipeline.image_api_url,
             "panels_per_chapter": getattr(pipeline, "panels_per_chapter", 8),

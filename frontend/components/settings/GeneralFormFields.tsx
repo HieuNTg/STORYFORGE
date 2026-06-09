@@ -188,6 +188,7 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
                 <SelectItem value="dalle">DALL·E</SelectItem>
                 <SelectItem value="seedream">Seedream</SelectItem>
                 <SelectItem value="flowkit">Flowkit (Google Labs)</SelectItem>
+                <SelectItem value="codex">ChatGPT (Codex)</SelectItem>
               </SelectContent>
             </Select>
           </Field>

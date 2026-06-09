@@ -111,9 +111,15 @@ class PipelineConfig:
     pdf_font: str = "NotoSansVN"
 
     # Image generation provider
-    image_provider: str = "none"  # none / dalle / sd-api / seedream / huggingface
+    image_provider: str = "none"  # none / dalle / sd-api / seedream / huggingface / flowkit / codex
     image_api_key: str = ""
     image_api_url: str = ""
+    # Codex provider: generate images through the user's own logged-in ChatGPT
+    # Plus session (the official "Sign in with ChatGPT" credentials that Codex CLI
+    # stores in ~/.codex/auth.json). Leave codex_model empty to auto-detect from
+    # ~/.codex/config.toml (falls back to gpt-5.5). No API key needed — it reuses
+    # the Codex login and supports reference images for character consistency.
+    codex_model: str = ""
     # Comic panels generated per chapter (truyện tranh). Each chapter gets this
     # many distinct scene images. Used by both the pipeline media stage and the
     # on-demand reader regen.

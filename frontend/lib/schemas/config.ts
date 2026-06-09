@@ -60,6 +60,7 @@ export const configPipelineSchema = z
     enable_self_review: z.boolean(),
     self_review_threshold: z.number(),
     image_provider: z.string(),
+    codex_model: z.string().default(""),
     hf_token_masked: z.string(),
     hf_image_model: z.string(),
     image_prompt_style: z.string(),
@@ -114,6 +115,7 @@ export const configUpdateSchema = z
     enable_self_review: z.boolean().optional(),
     self_review_threshold: z.number().min(1).max(5).optional(),
     image_provider: z.string().optional(),
+    codex_model: z.string().optional(),
     hf_token: z.string().optional(),
     hf_image_model: z.string().optional(),
     image_prompt_style: z.string().optional(),
@@ -147,6 +149,7 @@ export const IMAGE_PROVIDERS = [
   "huggingface",
   "seedream",
   "flowkit",
+  "codex",
 ] as const;
 
 export const generalFormSchema = z.object({
