@@ -259,6 +259,13 @@ class CodexImageClient:
         biggest = b""
         try:
             for raw in resp.iter_lines(decode_unicode=True):
+                # `decode_unicode=True` is a no-op when the SSE response carries
+                # no charset in its Content-Type (chatgpt.com's text/event-stream
+                # doesn't), so `requests` yields bytes. Normalize to str either
+                # way — otherwise `.startswith("data:")` raises TypeError and the
+                # whole stream is lost (image silently fails to generate).
+                if isinstance(raw, (bytes, bytearray)):
+                    raw = raw.decode("utf-8", "ignore")
                 if not raw or not raw.startswith("data:"):
                     continue
                 payload = raw[5:].strip()

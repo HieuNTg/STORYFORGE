@@ -200,14 +200,19 @@ export function LibraryComicGenerator({
           if (status.state === "done") {
             if (status.count > 0) {
               toast.success(t("comic_done", { count: status.count }));
-            } else if (target === "missing") {
-              // A "fill missing" run that produced nothing => nothing was
-              // actually missing. Informational, not a failure.
+            } else if (target === "missing" && status.total_chapters === 0) {
+              // A "fill missing" run that targeted NO chapters (the backend's
+              // only_missing filter found every chapter already illustrated).
+              // `total_chapters` == the number of chapters the job actually
+              // targeted, so 0 here means genuinely nothing was missing.
+              // Informational, not a failure.
               toast.info(t("comic_nothing_missing"));
             } else {
-              // A regenerate run (all / single chapter) that produced zero
-              // images => generation genuinely failed, commonly because the
-              // FlowKit worker isn't connected. Retryable — buttons stay live.
+              // Chapters WERE targeted but produced zero images => generation
+              // genuinely failed, commonly because the FlowKit worker isn't
+              // connected (or the selected provider returned nothing). This
+              // also covers all / single-chapter regenerates. Retryable —
+              // buttons stay live so the user can fix the provider and retry.
               toast.error(t("comic_no_images"));
             }
           } else if (status.state === "error") {

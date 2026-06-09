@@ -73,15 +73,23 @@ def _write_auth(tmp_path, *, access=None, refresh="refresh-orig", account="acct-
     return str(auth)
 
 
-def _sse_response(events, status=200):
-    """Fake a streaming requests.Response yielding SSE ``data:`` lines."""
+def _sse_response(events, status=200, *, as_bytes=False):
+    """Fake a streaming requests.Response yielding SSE ``data:`` lines.
+
+    ``as_bytes`` reproduces the REAL behavior of ``requests`` on chatgpt.com's
+    SSE: the ``text/event-stream`` response carries no charset, so
+    ``iter_lines(decode_unicode=True)`` is a no-op and yields ``bytes``, not
+    ``str``. The default str mode keeps the rest of the suite readable.
+    """
     resp = MagicMock()
     resp.status_code = status
     lines = []
     for ev in events:
         lines.append("data: " + json.dumps(ev))
         lines.append("")
-    resp.iter_lines.return_value = lines
+    resp.iter_lines.return_value = (
+        [ln.encode("utf-8") for ln in lines] if as_bytes else lines
+    )
     resp.text = "" if status == 200 else "error-body"
     resp.close = MagicMock()
     return resp
@@ -209,6 +217,21 @@ def test_extract_image_ignores_non_png_base64():
     junk = base64.b64encode(b"NOTPNG" * 2000).decode()
     resp = _sse_response([{"type": "x", "partial_image_b64": junk}])
     assert CodexImageClient._extract_image(resp) is None
+
+
+def test_extract_image_handles_bytes_lines_from_real_stream():
+    # Regression: chatgpt.com's text/event-stream has no charset, so
+    # requests' decode_unicode is a no-op and iter_lines yields bytes. The
+    # extractor must decode them itself instead of crashing on
+    # bytes.startswith("data:") and silently losing the image.
+    png = _png_bytes(b"bytes-stream")
+    resp = _sse_response(
+        [{"type": "image_generation_call.partial_image",
+          "partial_image_b64": base64.b64encode(png).decode()},
+         {"type": "response.completed"}],
+        as_bytes=True,
+    )
+    assert CodexImageClient._extract_image(resp) == png
 
 
 def test_extract_image_reads_result_on_output_item():
