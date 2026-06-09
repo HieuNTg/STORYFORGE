@@ -638,7 +638,8 @@
     "illustration_loading": "Đang minh hoạ…",
     "illustration_empty": "Chưa có minh hoạ",
     "illustration_regenerate": "Tạo lại minh hoạ",
-    "illustration_panels": "{count} khung tranh"
+    "illustration_panels": "{count} khung tranh",
+    "illustration_pages": "{count} trang truyện"
   },
   "comic": {
     "title": "Truyện tranh",

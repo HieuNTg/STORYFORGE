@@ -69,8 +69,21 @@ _ASPECT_ENUM_MAP = {
     "9:16": "IMAGE_ASPECT_RATIO_PORTRAIT",
     "16:9": "IMAGE_ASPECT_RATIO_LANDSCAPE",
     "3:4": "IMAGE_ASPECT_RATIO_PORTRAIT_THREE_FOUR",
+    # Comic webtoon panel. Flow/Imagen has no native 4:5 enum, so we map to the
+    # nearest accepted portrait ratio (3:4 ≈ 0.75 vs 4:5 = 0.8) to avoid an
+    # "unknown enum" rejection while still producing a panel-shaped (not 9:16
+    # full-page wallpaper) frame.
+    "4:5": "IMAGE_ASPECT_RATIO_PORTRAIT_THREE_FOUR",
     "4:3": "IMAGE_ASPECT_RATIO_LANDSCAPE_FOUR_THREE",
 }
+
+# Appended to every flowkit positive prompt: the flowMedia:batchGenerateImages
+# schema has no negative-prompt field, so the only way to suppress model-invented
+# text/captions/bubbles is to bake the prohibition into the positive prompt.
+_NO_TEXT_SUFFIX = (
+    "no text, no letters, no watermark, no caption, "
+    "no speech bubble, no signpost, no logo"
+)
 
 
 def _aspect_to_enum(aspect: str) -> str:
@@ -105,6 +118,11 @@ class FlowService:
         self.active_ws = None  # set by api/flowkit.py router
         self.flow_key: Optional[str] = None
         self.callback_secret: str = secrets.token_hex(16)
+        # Last GCS signed URL volunteered by the extension (background.js
+        # "media_url_refreshed"). Captured for observability; signed URLs expire
+        # ~1h so this is a best-effort hint, not a guaranteed-fresh download source.
+        self.last_media_url: Optional[str] = None
+        self.last_media_refresh_at: float = 0.0
 
         cfg = ConfigManager().pipeline
         self._ramp = _RampState(
@@ -308,6 +326,20 @@ class FlowService:
             raise RuntimeError("FlowKit captcha solve returned no token (is labs.google tab open?)")
         return token
 
+    def note_media_url(self, url: Optional[str], ttl: Optional[float] = None) -> None:
+        """Record a fresh GCS signed URL the extension observed and volunteered.
+
+        The extension cannot re-sign a *specific* expired URL on demand (it only
+        passively sniffs URLs the Flow page fetches), so this is observability /
+        best-effort hint only — the download retry in ``download_to_local`` does
+        not yet correlate by mediaId.
+        """
+        if not url:
+            return
+        self.last_media_url = url
+        self.last_media_refresh_at = time.time()
+        logger.debug("FlowKit media URL refreshed (ttl=%s)", ttl)
+
     def resolve_request(self, payload: dict) -> bool:
         req_id = payload.get("id")
         if not req_id:
@@ -371,6 +403,13 @@ class FlowService:
         }
         aspect_enum = _aspect_to_enum(aspect_override or cfg.flowkit_aspect_ratio)
         seed = seed_override if seed_override is not None else random.randint(0, 2_147_483_647)
+        # The LLM-generated negative_prompt never reaches flowkit (schema has no
+        # negative field), so bake a hard no-text suffix into the positive prompt
+        # to stop the model inventing captions/bubbles/signs. Idempotent.
+        prompt_text = (prompt or "").strip()
+        if "no speech bubble" not in prompt_text.lower():
+            sep = "" if (not prompt_text or prompt_text.endswith((",", "."))) else ", "
+            prompt_text = f"{prompt_text}{sep}{_NO_TEXT_SUFFIX}"
         body: Dict[str, Any] = {
             "clientContext": client_ctx,
             "mediaGenerationContext": {"batchId": str(uuid4())},
@@ -380,7 +419,7 @@ class FlowService:
                     "clientContext": client_ctx,
                     "imageModelName": "GEM_PIX_2",
                     "imageAspectRatio": aspect_enum,
-                    "structuredPrompt": {"parts": [{"text": prompt}]},
+                    "structuredPrompt": {"parts": [{"text": prompt_text}]},
                     "seed": seed,
                     "imageInputs": media_inputs,
                 }
@@ -565,7 +604,10 @@ class FlowService:
             for attempt in range(2):
                 resp = await client.get(url)
                 if resp.status_code in (403, 410):
-                    # GCS signed URL expired — ask extension to refresh, then retry once.
+                    # GCS signed URL expired. Signal the extension (handled by
+                    # background.js handleMediaRefresh — best-effort, no on-demand
+                    # re-sign) then retry once. True expiry generally needs a fresh
+                    # generation; this retry only recovers transient propagation 403s.
                     if attempt == 0 and self.active_ws is not None:
                         try:
                             await self.active_ws.send_json({"method": "media_urls_refresh"})

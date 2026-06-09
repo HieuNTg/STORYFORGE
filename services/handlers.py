@@ -327,7 +327,28 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
             target_chapters = list(story.chapters)
 
         from config import ConfigManager
-        num_panels = max(1, int(getattr(ConfigManager().pipeline, "panels_per_chapter", 8)))
+        _pipeline_cfg = ConfigManager().pipeline
+        num_panels = max(1, int(getattr(_pipeline_cfg, "panels_per_chapter", 8)))
+        # Comic Phase 2: Beat→Shot-list stage. Gated dark by default so it can be
+        # A/B'd and rolled back safely; image generation is unchanged when off.
+        _shot_list_enabled = bool(getattr(_pipeline_cfg, "comic_shot_list_enabled", False))
+        _shot_extractor = None
+        if _shot_list_enabled:
+            try:
+                from services.shot_list import ShotListExtractor
+                _shot_extractor = ShotListExtractor()
+            except Exception as _sl_e:
+                logger.warning("Shot-list stage unavailable, skipping: %s", _sl_e)
+                _shot_extractor = None
+
+        # Comic Phase 3: Page Compositor. Only meaningful when the shot-list stage
+        # is also on (it consumes the shot-list's bubbles/captions/screen_side).
+        # When both are enabled, the clean panels are composited into finished comic
+        # PAGE PNGs which then REPLACE the loose panels in ``ch.images`` (and the
+        # returned paths) so the frontend reader surfaces pages with no contract
+        # change. Loose panels stay on disk alongside. Gated dark; any failure
+        # degrades to loose panels.
+        _compositor_enabled = bool(getattr(_pipeline_cfg, "comic_compositor_enabled", False))
 
         all_paths: list[str] = []
         for ch in target_chapters:
@@ -339,11 +360,71 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
             )
             if not prompts:
                 continue
+            _chapter_shot_list = None  # populated below when the shot-list stage runs
+            # Beat→Shot-list: runs between chapter prose and image generation.
+            # The shot-list is persisted onto ``ch.shot_list`` (carried alongside
+            # the panels for Phase 3's compositor) and its panel metadata
+            # (shot_type/dialogue/screen_side) is threaded onto the ImagePrompts.
+            # Image prompt TEXT stays text-free — dialogue is compositor-only.
+            if _shot_extractor is not None:
+                try:
+                    from services.shot_list import apply_shot_list_to_prompts
+                    shot_list = _shot_extractor.extract(
+                        ch,
+                        characters=characters or None,
+                        num_panels=num_panels,
+                        character_references=character_references or None,
+                        visual_profiles=visual_profiles or None,
+                    )
+                    if shot_list.pages:
+                        apply_shot_list_to_prompts(prompts, shot_list)
+                        ch.shot_list = shot_list.model_dump()
+                        _chapter_shot_list = shot_list
+                except Exception as _sl_e:
+                    logger.warning(
+                        "Shot-list extraction failed for ch %s, continuing without: %s",
+                        ch.chapter_number, _sl_e,
+                    )
             ch_paths = image_gen.generate_story_images(
                 prompts,
                 chapter_number=ch.chapter_number,
                 character_references=character_references or None,
             )
+            # Comic Phase 3: composite the clean loose panels into finished comic
+            # PAGE PNGs and surface THOSE through ch.images / the returned paths.
+            # Loose panels remain on disk (ch_paths above); only what the chapter
+            # *exposes* changes. Any failure degrades silently to loose panels.
+            if (
+                _compositor_enabled
+                and _shot_list_enabled
+                and _chapter_shot_list is not None
+                and ch_paths
+            ):
+                try:
+                    from services.media.page_compositor import compose_chapter, PageGeometry
+                    import os as _os
+                    _pages_dir = _os.path.join(image_gen.output_dir, "pages")
+                    _geom = PageGeometry.from_canvas_spec(
+                        getattr(_pipeline_cfg, "comic_page_canvas", None)
+                    )
+                    _font = getattr(_pipeline_cfg, "comic_font", None) or None
+                    _mode = getattr(_pipeline_cfg, "comic_layout_mode", "shot_list")
+                    page_paths = compose_chapter(
+                        _chapter_shot_list,
+                        ch_paths,
+                        _pages_dir,
+                        chapter_number=ch.chapter_number,
+                        geometry=_geom,
+                        font_path=_font,
+                        layout_mode=_mode,
+                    )
+                    if page_paths:
+                        ch_paths = page_paths
+                except Exception as _comp_e:
+                    logger.warning(
+                        "Page compositor failed for ch %s, using loose panels: %s",
+                        ch.chapter_number, _comp_e,
+                    )
             # Store paths relative to the output root so the ``/media`` mount
             # (which serves OUTPUT_ROOT) resolves them as ``/media/<rel>``.
             # Panels live at ``output/<story-slug>/images/...`` under the

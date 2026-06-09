@@ -106,7 +106,7 @@ class PipelineConfig:
 
     # Features: user system, image gen, share, PDF
     user_storage_path: str = "data/users"
-    image_prompt_style: str = "cinematic"
+    image_prompt_style: str = "manhwa comic panel, clean cel shading, bold ink lines"
     share_base_url: str = ""
     pdf_font: str = "NotoSansVN"
 
@@ -118,6 +118,36 @@ class PipelineConfig:
     # many distinct scene images. Used by both the pipeline media stage and the
     # on-demand reader regen.
     panels_per_chapter: int = 8
+
+    # Comic Beat→Shot-list stage (Phase 2). When enabled, an LLM beat extractor
+    # runs between chapter prose and image generation, splitting each chapter
+    # into ordered beats/panels with shot_type, layout/page, dialogue+speaker and
+    # screen_side — the foundation Phase 3's page compositor consumes. Image
+    # prompts still carry NO dialogue text. Ships dark (False) so it can be A/B'd
+    # and rolled back safely; image generation is unchanged when off.
+    comic_shot_list_enabled: bool = False
+
+    # Comic Page Compositor (Phase 3). When enabled (AND comic_shot_list_enabled
+    # is also on), the clean dialogue-free panels produced by image generation are
+    # composited into finished COMIC PAGE PNGs: panels placed in a layout grid with
+    # borders + gutters, vector speech bubbles with tails pointing at the speaker's
+    # screen_side, Vietnamese lettering, and caption boxes. Composed pages replace
+    # the loose panels in what the chapter exposes to the frontend (chapter.images),
+    # while the loose panels are kept on disk alongside. Ships dark (False) so it
+    # can be A/B'd against loose-panel output and rolled back safely; any failure
+    # degrades gracefully to loose panels.
+    comic_compositor_enabled: bool = False
+    # Page canvas geometry (spec §2.1): "<width>x<height>" in px. ISO 1:√2 by
+    # default (1600×2263), suitable for both webtoon scroll and print.
+    comic_page_canvas: str = "1600x2263"
+    # Path to the Vietnamese-capable comic lettering font (.ttf). MUST cover the
+    # full VN diacritic battery (ề ữ ạ ọ ậ ỹ). Defaults to vendored Be Vietnam Pro;
+    # the compositor refuses to silently fall back to a non-VN font.
+    comic_font: str = "assets/fonts/BeVietnamPro-Bold.ttf"
+    # Layout selection mode: "shot_list" honours each Page.layout from the Phase 2
+    # shot-list; "auto" re-derives a layout from the panel count. "shot_list" is the
+    # default so authored pacing (SPLASH for big beats, etc.) is preserved.
+    comic_layout_mode: str = "shot_list"
 
     # HuggingFace Inference API (free tier)
     hf_token: str = ""
@@ -138,10 +168,10 @@ class PipelineConfig:
     flowkit_account_warning_shown: bool = False
     flowkit_risk_acknowledged: bool = True  # hard gate; backend rejects flowkit_enabled=True without this
     flowkit_image_input_type_split: bool = False  # split REFERENCE → CHARACTER/STYLE (requires live enum sniff)
-    flowkit_callback_hmac_required: bool = False  # verify X-Callback-Secret on /api/ext/callback
-    flowkit_use_refiner: bool = True  # legacy; ignored by new flowMedia:batchGenerateImages schema
+    flowkit_callback_hmac_required: bool = False  # verify X-Callback-Signature (HMAC-SHA256 of body) on the HTTP /api/ext/callback fallback; the live WS path relies on 127.0.0.1 trust
+    flowkit_use_refiner: bool = True  # ACTIVE: ImageGenerator._flowkit_refine runs the comic-panel refiner on every prompt before flowMedia:batchGenerateImages
     flowkit_request_timeout: float = 180.0  # seconds; sync-bridge wait when ImageGenerator dispatches to FlowService loop
-    flowkit_aspect_ratio: str = "9:16"  # mapped to IMAGE_ASPECT_RATIO_* enum at send time
+    flowkit_aspect_ratio: str = "4:5"  # webtoon comic panel; mapped to IMAGE_ASPECT_RATIO_* enum at send time
     # Google Labs Flow project UUID. Find in URL at labs.google/fx/tools/flow/project/<UUID>.
     # Required when flowkit_enabled=True — request_image raises if empty.
     flowkit_project_id: str = ""

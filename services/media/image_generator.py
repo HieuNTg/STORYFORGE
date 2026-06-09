@@ -143,6 +143,18 @@ class ImageGenerator:
                 if ref and os.path.exists(ref) and ref not in scene_refs:
                     scene_refs.append(ref)
 
+            if not scene_refs:
+                # Comic consistency fallback: when no character in this panel
+                # name-matches a stored reference, still attach the chapter's
+                # main-character reference (first existing ref in the map) so the
+                # protagonist's face doesn't drift across panels. Only kicks in
+                # when at least one usable reference image actually exists on disk
+                # — with no refs at all we keep the text-only path.
+                for ref in refs.values():
+                    if ref and os.path.exists(ref):
+                        scene_refs.append(ref)
+                        break
+
             if scene_refs:
                 path = self.generate_with_reference(prompt, scene_refs, filename)
             else:

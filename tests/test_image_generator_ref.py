@@ -236,6 +236,31 @@ def test_generate_story_images_skips_missing_files(tmp_path):
     assert paths == ["/text.png"]
 
 
+def test_generate_story_images_falls_back_to_main_char_ref_when_no_name_match(tmp_path):
+    """Phase 1 consistency fallback: a panel whose characters_in_scene match no
+    stored reference still attaches the chapter's main-character reference (the
+    first usable ref in the map) instead of dropping to a text-only render."""
+    gen = ImageGenerator(provider="seedream")
+    gen.output_dir = str(tmp_path)
+    ref_path = tmp_path / "hero.png"
+    ref_path.write_bytes(b"\x89PNG")
+
+    # Panel mentions "Villager" — not in the reference map (only "Hero" is).
+    prompt = _make_prompt(["Villager"])
+    with patch.object(gen, "generate_with_reference", return_value="/scene.png") as gwr, \
+         patch.object(gen, "generate") as g:
+        paths = gen.generate_story_images(
+            [prompt],
+            chapter_number=1,
+            character_references={"Hero": str(ref_path)},
+        )
+    gwr.assert_called_once()
+    # The fallback ref attached must be the main-character image.
+    assert gwr.call_args.args[1] == [str(ref_path)]
+    g.assert_not_called()
+    assert paths == ["/scene.png"]
+
+
 def test_generate_with_reference_unsupported_provider_logs_and_drops(tmp_path, caplog):
     """Unsupported provider logs a single info line and drops refs."""
     import logging

@@ -27,6 +27,7 @@ _alias("services.wattpad_exporter", "services.export.wattpad_exporter")
 # media domain
 _alias("services.image_generator", "services.media.image_generator")
 _alias("services.image_prompt_generator", "services.media.image_prompt_generator")
+_alias("services.shot_list", "services.media.shot_list")
 
 # pipeline domain
 _alias("services.quality_scorer", "services.pipeline.quality_scorer")

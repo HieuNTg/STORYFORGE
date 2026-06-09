@@ -123,7 +123,12 @@ async def test_request_image_payload_shape(isolated_flow_service, tmp_path, monk
     body = captured[0]["params"]["body"]
     # New flowMedia:batchGenerateImages schema nests prompt/model under requests[0].
     req0 = body["requests"][0]
-    assert req0["structuredPrompt"]["parts"][0]["text"] == "a cat"
+    # Phase 1: the positive prompt now carries a hard no-text suffix (flowkit has
+    # no negative-prompt field) — assert the original prompt + suffix are present.
+    text = req0["structuredPrompt"]["parts"][0]["text"]
+    assert text.startswith("a cat")
+    assert "no text" in text
+    assert "no speech bubble" in text
     assert req0["imageModelName"] == "GEM_PIX_2"
     assert req0["imageInputs"] == []
 
@@ -286,6 +291,85 @@ def test_extract_fife_url_nested():
 
 
 # ---------------------------------------------------------------------------
+# Phase 1: comic aspect ratio + no-text suffix in flowkit body
+# ---------------------------------------------------------------------------
+
+
+def test_aspect_enum_map_includes_comic_4_5():
+    """Phase 1: '4:5' must resolve to a valid (accepted) portrait enum, not the
+    PORTRAIT default fallback for an unknown key."""
+    from services.media.flow_service import _ASPECT_ENUM_MAP, _aspect_to_enum
+    assert "4:5" in _ASPECT_ENUM_MAP
+    enum = _aspect_to_enum("4:5")
+    assert enum.startswith("IMAGE_ASPECT_RATIO_")
+    # Must not silently degrade to the unknown-key default (9:16 portrait).
+    assert enum != "IMAGE_ASPECT_RATIO_PORTRAIT"
+
+
+def test_default_aspect_ratio_is_comic_panel():
+    """Config default aspect ratio is the comic webtoon panel, not 9:16 wallpaper."""
+    from config.defaults import PipelineConfig
+    assert PipelineConfig().flowkit_aspect_ratio == "4:5"
+
+
+@pytest.mark.asyncio
+async def test_request_image_appends_no_text_suffix_and_comic_aspect(
+    isolated_flow_service, tmp_path, monkeypatch
+):
+    """The flowkit request body must carry the no-text suffix appended to the
+    positive prompt AND the configured comic aspect enum."""
+    svc = isolated_flow_service
+    from config import ConfigManager
+    cfg = ConfigManager().pipeline
+    monkeypatch.setattr(cfg, "flowkit_project_id", "test-project")
+    monkeypatch.setattr(cfg, "flowkit_aspect_ratio", "4:5")
+    monkeypatch.setattr(svc, "_solve_captcha", AsyncMock(return_value="fake-token"))
+    captured = []
+    svc.set_active_ws(_fake_ws(captured))
+    with patch.object(svc, "download_to_local", AsyncMock(return_value="/tmp/o.png")):
+        task = asyncio.create_task(
+            svc.request_image("a ruined village", char_refs=[], style_ref=None,
+                              output_dir=str(tmp_path / "out"), filename="x.png")
+        )
+        await _resolve_after(svc, 200, {"fifeUrl": "https://storage.googleapis.com/x"})
+        await task
+
+    req0 = captured[0]["params"]["body"]["requests"][0]
+    text = req0["structuredPrompt"]["parts"][0]["text"]
+    assert text.startswith("a ruined village")
+    for token in ("no text", "no watermark", "no caption", "no speech bubble"):
+        assert token in text, token
+    # 4:5 maps to an accepted portrait enum (not the unknown-key 9:16 default).
+    assert req0["imageAspectRatio"].startswith("IMAGE_ASPECT_RATIO_")
+    assert req0["imageAspectRatio"] != "IMAGE_ASPECT_RATIO_PORTRAIT"
+
+
+@pytest.mark.asyncio
+async def test_request_image_no_text_suffix_idempotent(
+    isolated_flow_service, tmp_path, monkeypatch
+):
+    """If the prompt already carries the no-text instruction the suffix is not
+    appended twice."""
+    svc = isolated_flow_service
+    from config import ConfigManager
+    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_project_id", "test-project")
+    monkeypatch.setattr(svc, "_solve_captcha", AsyncMock(return_value="fake-token"))
+    captured = []
+    svc.set_active_ws(_fake_ws(captured))
+    prompt = "medium shot, hero, cel shading, no speech bubble, no text"
+    with patch.object(svc, "download_to_local", AsyncMock(return_value="/tmp/o.png")):
+        task = asyncio.create_task(
+            svc.request_image(prompt, char_refs=[], style_ref=None,
+                              output_dir=str(tmp_path / "out"), filename="x.png")
+        )
+        await _resolve_after(svc, 200, {"fifeUrl": "https://storage.googleapis.com/x"})
+        await task
+
+    text = captured[0]["params"]["body"]["requests"][0]["structuredPrompt"]["parts"][0]["text"]
+    assert text.count("no speech bubble") == 1
+
+
+# ---------------------------------------------------------------------------
 # Phase 04: WS router + HTTP callback + status
 # ---------------------------------------------------------------------------
 
@@ -327,11 +411,42 @@ def test_ws_lifecycle(flowkit_app):
             assert secret_msg["secret"] == svc.callback_secret
             assert svc.active_ws is not None
             ws.send_json({"type": "extension_ready", "version": "1.0.0"})
-            ws.send_json({"type": "token_captured", "flowKey": "AIza-fake"})
+            # Real extension (background.js) sends the captured Bearer token under
+            # the "token" key — the backend must read it (regression: it only read
+            # "flowKey"/"flow_key", so live token capture silently no-op'd).
+            ws.send_json({"type": "token_captured", "token": "AIza-fake"})
         # context exit closes ws → server hits WebSocketDisconnect → clear_active_ws
         # TestClient runs sync, so the disconnect handler completes before we get here.
     assert svc.active_ws is None
     assert svc.flow_key == "AIza-fake"
+
+
+def test_ws_token_captured_accepts_legacy_flowkey(flowkit_app):
+    """Back-compat: the older `flowKey` field is still honored."""
+    app, svc, _ = flowkit_app
+    with TestClient(app) as client:
+        with client.websocket_connect("/api/ws/flowkit") as ws:
+            ws.receive_json()  # callback_secret
+            ws.send_json({"type": "token_captured", "flowKey": "AIza-legacy"})
+    assert svc.flow_key == "AIza-legacy"
+
+
+def test_ws_media_url_refreshed_captured(flowkit_app):
+    """Extension volunteers a fresh GCS URL via `media_url_refreshed`; the backend
+    must capture it (regression: it listened for `media_urls_refresh` and dropped
+    the frame, discarding the URL)."""
+    app, svc, _ = flowkit_app
+    assert svc.last_media_url is None
+    with TestClient(app) as client:
+        with client.websocket_connect("/api/ws/flowkit") as ws:
+            ws.receive_json()  # callback_secret
+            ws.send_json({
+                "type": "media_url_refreshed",
+                "url": "https://storage.googleapis.com/fresh",
+                "ttl": 3600,
+            })
+    assert svc.last_media_url == "https://storage.googleapis.com/fresh"
+    assert svc.last_media_refresh_at > 0
 
 
 def test_ws_response_resolves_future(flowkit_app):

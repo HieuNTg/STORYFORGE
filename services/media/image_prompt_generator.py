@@ -9,7 +9,12 @@ logger = logging.getLogger(__name__)
 
 # Prompt tự chứa — không đặt trong prompts.py
 _SCENE_EXTRACT_PROMPT = """Trích xuất {num_images} cảnh quan trọng nhất từ chương truyện sau.
-Với mỗi cảnh, tạo prompt tiếng Anh cho AI image generation.
+Với mỗi cảnh, tạo prompt tiếng Anh cho MỘT KHUNG TRUYỆN TRANH (one comic panel).
+
+LUẬT KHUNG TRUYỆN TRANH:
+- Each panel MUST specify a distinct shot type (establishing/wide/medium/close-up/over-the-shoulder/reaction) and vary across the sequence — no two adjacent panels share the same shot type.
+- Render NO text inside the image: no speech bubbles, no captions, no signs, no letters, no watermark.
+- Style: comic panel, cel shading, bold ink lines (per STYLE below).
 
 NỘI DUNG:
 {content}
@@ -20,7 +25,7 @@ NHÂN VẬT:
 STYLE: {style}
 
 Trả về JSON:
-{{"scenes": [{{"scene_description": "mô tả cảnh", "dalle_prompt": "English prompt for DALL-E", "sd_prompt": "English prompt for Stable Diffusion", "negative_prompt": "things to avoid", "characters_in_scene": ["char names"]}}]}}"""
+{{"scenes": [{{"scene_description": "mô tả cảnh", "shot_type": "establishing|wide|medium|close-up|over-the-shoulder|reaction", "dalle_prompt": "English comic-panel prompt for DALL-E, NO TEXT in image", "sd_prompt": "English comic-panel prompt for Stable Diffusion, NO TEXT in image", "negative_prompt": "things to avoid (always include: text, letters, watermark, caption, speech bubble)", "characters_in_scene": ["char names"]}}]}}"""
 
 
 class ImagePromptGenerator:
@@ -36,9 +41,12 @@ class ImagePromptGenerator:
         return f"{self.style} style, {summary}"
 
     def refine_to_cinematic_prompt(self, text: str) -> str:
-        """Rewrite a scene description into a cinematic Imagen prompt.
+        """Rewrite a scene description into ONE comic-panel Imagen prompt.
 
-        Structure: [Camera angle] + [Composition/Lighting] + [Character details] + [Art style].
+        Structure: [shot type] + [character action/expression] + [comic art style],
+        explicitly carrying a 'no text in image' instruction. (Method name kept as
+        ``refine_to_cinematic_prompt`` for callsite/test back-compat — it now emits
+        comic-panel prompts, not cinematic hero shots.)
         Returns the refined prompt; on refusal, empty, or error, returns the input
         verbatim — refinement is best-effort and must never block image generation.
 
@@ -49,11 +57,14 @@ class ImagePromptGenerator:
         """
         system = (
             "You are an image-prompt rewriter. Rewrite the user's scene description "
-            "into ONE cinematic image-generation prompt. You only rewrite text — you "
+            "into ONE comic-panel image-generation prompt. You only rewrite text — you "
             "do NOT generate images, log in, or check availability, so never refuse "
             "and never ask questions. "
-            "Structure: [Camera angle] + [Composition/Lighting] + [Character details] "
-            "+ [Art style]. Under 60 words. "
+            "Structure: [shot type: establishing/wide/medium/close-up/"
+            "over-the-shoulder/reaction] + [character action/expression] + "
+            "[comic art style: cel shading, bold ink lines]. "
+            "The image MUST contain NO text — explicitly add 'no text in image, "
+            "no speech bubbles, no captions, no watermark'. Under 60 words. "
             "Output ONLY the rewritten prompt as plain text: no JSON, no quotes, no "
             "labels, no commentary."
         )

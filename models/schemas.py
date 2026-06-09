@@ -126,6 +126,11 @@ class Chapter(BaseModel):
     voice_validation: Optional[dict] = Field(default=None, description="L2 voice contract validation result")
     # Per-chapter generated images, served via /media static mount as basenames
     images: list[str] = Field(default_factory=list, description="Generated image filenames (relative to /media mount)")
+    # Comic Phase 2: Beat→Shot-list for this chapter (spec §4.2), carried alongside
+    # panels so Phase 3's page compositor can consume dialogue/layout/screen_side.
+    # None when the comic shot-list stage is disabled. Stored as a plain dict to
+    # avoid a forward-ref cycle on ShotList.
+    shot_list: Optional[dict] = Field(default=None, description="Comic shot-list JSON (Phase 2)")
     # Sprint 2 P3: semantic findings from foreshadowing_verifier (persisted to chapters.semantic_findings)
     semantic_findings: Optional[dict] = Field(default=None, description="SemanticPayoffMatch results — persisted to DB by orchestrator")
 
@@ -722,6 +727,18 @@ class ImagePrompt(BaseModel):
     sd_prompt: str = ""
     negative_prompt: str = ""
     characters_in_scene: list[str] = Field(default_factory=list)
+    # --- Comic Phase 2: Beat→Shot-list fields (optional; image prompts carry NO
+    # dialogue text — only the Phase 3 compositor consumes ``dialogue``). All
+    # default to empty so existing callsites and the non-comic path are unchanged.
+    shot_type: str = Field(default="", description="EWS/WS/MS/CU/ECU/OTS/insert/reaction")
+    dialogue: list[dict] = Field(
+        default_factory=list,
+        description="Ordered bubbles for this panel: {speaker, type, text}",
+    )
+    screen_side: dict = Field(
+        default_factory=dict,
+        description="180-degree placement, {character_name: left|center|right}",
+    )
 
 
 class UserProfile(BaseModel):

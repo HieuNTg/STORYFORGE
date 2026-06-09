@@ -638,7 +638,8 @@
     "illustration_loading": "Illustrating…",
     "illustration_empty": "No illustration yet",
     "illustration_regenerate": "Regenerate illustration",
-    "illustration_panels": "{count} panels"
+    "illustration_panels": "{count} panels",
+    "illustration_pages": "{count} pages"
   },
   "comic": {
     "title": "Comic",
