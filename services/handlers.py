@@ -350,6 +350,12 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
         # degrades to loose panels.
         _compositor_enabled = bool(getattr(_pipeline_cfg, "comic_compositor_enabled", False))
 
+        # Provider branch: Codex/ChatGPT renders in-image Vietnamese text well,
+        # so for that provider we bake the speech bubbles + dialogue INTO each
+        # panel (and skip the vector-bubble compositor below). FlowKit and the
+        # other providers keep clean text-free panels + the compositor overlay.
+        _is_codex = str(provider or "").strip().lower() == "codex"
+
         all_paths: list[str] = []
         for ch in target_chapters:
             prompts = prompt_gen.generate_from_chapter(
@@ -365,7 +371,9 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
             # The shot-list is persisted onto ``ch.shot_list`` (carried alongside
             # the panels for Phase 3's compositor) and its panel metadata
             # (shot_type/dialogue/screen_side) is threaded onto the ImagePrompts.
-            # Image prompt TEXT stays text-free — dialogue is compositor-only.
+            # Image prompt TEXT stays text-free (FlowKit) — dialogue is
+            # compositor-only — UNLESS the provider is Codex, which bakes the
+            # bubbles into the panel itself (see the _is_codex branch below).
             if _shot_extractor is not None:
                 try:
                     from services.shot_list import apply_shot_list_to_prompts
@@ -380,6 +388,14 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
                         apply_shot_list_to_prompts(prompts, shot_list)
                         ch.shot_list = shot_list.model_dump()
                         _chapter_shot_list = shot_list
+                        if _is_codex:
+                            # Codex draws the bubbles itself — rewrite the prompts
+                            # to bake in this panel's dialogue (verbatim VN text)
+                            # instead of the clean text-free panel FlowKit uses.
+                            from services.image_prompt_generator import (
+                                bake_dialogue_into_prompts,
+                            )
+                            bake_dialogue_into_prompts(prompts)
                 except Exception as _sl_e:
                     logger.warning(
                         "Shot-list extraction failed for ch %s, continuing without: %s",
@@ -399,6 +415,7 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
                 and _shot_list_enabled
                 and _chapter_shot_list is not None
                 and ch_paths
+                and not _is_codex  # codex panels already carry baked-in bubbles
             ):
                 try:
                     from services.media.page_compositor import compose_chapter, PageGeometry
