@@ -277,12 +277,6 @@ class TestConfigRoutesEndpoints:
         data = resp.json()
         assert "presets" in data
 
-    def test_get_model_presets(self):
-        resp = self._client.get("/config/model-presets")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "presets" in data
-
     def test_apply_preset_valid_key(self):
         with patch("api.config_routes.ConfigManager") as MockCM:
             mock_cm = _mock_config_manager()
@@ -292,10 +286,6 @@ class TestConfigRoutesEndpoints:
 
     def test_apply_preset_invalid_key(self):
         resp = self._client.post("/config/presets/nonexistent-preset")
-        assert resp.status_code == 404
-
-    def test_apply_model_preset_invalid_key(self):
-        resp = self._client.post("/config/model-presets/nonexistent-preset")
         assert resp.status_code == 404
 
     def test_detect_provider_anthropic_key(self):

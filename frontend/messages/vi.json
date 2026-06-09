@@ -402,6 +402,7 @@
         "copied": "Đã sao chép khóa",
         "quick_provider": "Provider nhanh",
         "quick_provider_desc": "Thêm Gemini, Anthropic, OpenAI, OpenRouter… vào danh sách nhà cung cấp fallback.",
+        "loading_providers": "Đang tải danh sách provider…",
         "existing_key_hint": "Hiện tại: {masked} — nhập key mới để cập nhật",
         "saved_preset": "Đã lưu {provider}",
         "save_preset_failed": "Lưu provider thất bại",

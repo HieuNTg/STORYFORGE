@@ -417,11 +417,11 @@ class PipelineConfig:
 
 
 # Presets live in config/presets.py — imported here for convenience.
-from .presets import PIPELINE_PRESETS, MODEL_PRESETS  # noqa: E402
+from .presets import PIPELINE_PRESETS, PROVIDER_PRESETS  # noqa: E402
 
 __all__ = [
     "LLMConfig",
     "PipelineConfig",
     "PIPELINE_PRESETS",
-    "MODEL_PRESETS",
+    "PROVIDER_PRESETS",
 ]

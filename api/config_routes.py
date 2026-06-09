@@ -41,7 +41,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from typing import Optional
 
-from config import ConfigManager, PIPELINE_PRESETS, MODEL_PRESETS
+from config import ConfigManager, PIPELINE_PRESETS, PROVIDER_PRESETS
 from middleware.rbac import Permission, require_permission_if_enabled
 from services.i18n import I18n, SUPPORTED_LANGUAGES
 from services.security.url_validator import validate_base_url
@@ -444,29 +444,15 @@ def apply_preset(key: str):
     return {"status": "ok", "label": preset.get("label", key)}
 
 
-@router.get("/model-presets")
-def get_model_presets():
-    """Return available model presets (OpenRouter free tiers, etc.)."""
-    return {"presets": {k: {"label": v["label"]} for k, v in MODEL_PRESETS.items()}}
+@router.get("/provider-presets")
+def get_provider_presets():
+    """Return the "Quick provider" setup cards for the Settings UI.
 
-
-@router.post("/model-presets/{key}", dependencies=[_CONFIGURE_PIPELINE])
-def apply_model_preset(key: str):
-    """Apply a model preset — sets LLM config fields (base_url, model, fallbacks, etc.)."""
-    preset = MODEL_PRESETS.get(key)
-    if not preset:
-        raise HTTPException(status_code=404, detail=f"Model preset '{key}' not found")
-    cfg = ConfigManager()
-    for field_name, value in preset.items():
-        if field_name == "label":
-            continue
-        if hasattr(cfg.llm, field_name):
-            setattr(cfg.llm, field_name, value)
-    cfg.save()
-    # Reset LLM client to pick up new config
-    from services.llm_client import LLMClient
-    LLMClient.reset()
-    return {"status": "ok", "label": preset.get("label", key)}
+    Single source of truth — the frontend renders these instead of a hardcoded
+    list, so adding a provider here makes it appear in the UI with no frontend
+    change. See config/presets.py::PROVIDER_PRESETS.
+    """
+    return {"presets": PROVIDER_PRESETS}
 
 
 @router.post("/profiles/detect", dependencies=[_MANAGE_API_KEYS])

@@ -39,6 +39,18 @@ export interface GenreChoices {
   languages: Array<{ code: string; label: string }>;
 }
 
+// "Quick provider" setup cards — served from the backend (single source of
+// truth) via GET /api/config/provider-presets. Keys are snake_case to match
+// the API; the UI maps `base_url` → `baseUrl` when rendering.
+export interface ProviderPresetDTO {
+  name: string;
+  label: string;
+  base_url: string;
+  model: string;
+  models: Array<{ id: string; label: string }>;
+  placeholder: string;
+}
+
 export interface StorySummary {
   filename: string;
   title: string;
@@ -85,6 +97,20 @@ export function useGenres() {
   return useQuery<GenreChoices>({
     queryKey: ["genres"],
     queryFn: () => apiFetch<GenreChoices>("/api/pipeline/genres"),
+    staleTime: Infinity,
+  });
+}
+
+// Provider setup cards for the Settings UI. Rarely change → cache forever.
+export function useProviderPresets() {
+  return useQuery<ProviderPresetDTO[]>({
+    queryKey: ["provider-presets"],
+    queryFn: async () => {
+      const res = await apiFetch<{ presets: ProviderPresetDTO[] }>(
+        "/api/config/provider-presets",
+      );
+      return res.presets;
+    },
     staleTime: Infinity,
   });
 }

@@ -572,19 +572,28 @@ class TestAdditionalSchemas:
 class TestMorePresets:
     """Additional preset tests."""
 
-    def test_model_presets_exist(self):
-        from config import MODEL_PRESETS
-        assert isinstance(MODEL_PRESETS, dict)
-        assert len(MODEL_PRESETS) > 0
-
     def test_pipeline_presets_exist(self):
         from config import PIPELINE_PRESETS
         assert isinstance(PIPELINE_PRESETS, dict)
 
-    def test_model_presets_structure(self):
-        from config import MODEL_PRESETS
-        for key, preset in MODEL_PRESETS.items():
-            assert "label" in preset, f"Model preset {key} missing label"
+    def test_provider_presets_structure(self):
+        # Single source of truth for the Settings "Quick provider" cards.
+        # The frontend renders these verbatim, so every entry must carry the
+        # full shape (name/label/base_url/model/models[]/placeholder).
+        from config import PROVIDER_PRESETS
+        assert isinstance(PROVIDER_PRESETS, list)
+        assert len(PROVIDER_PRESETS) > 0
+        required = {"name", "label", "base_url", "model", "models", "placeholder"}
+        for preset in PROVIDER_PRESETS:
+            missing = required - preset.keys()
+            assert not missing, f"Provider preset {preset.get('name')} missing {missing}"
+            assert isinstance(preset["models"], list) and preset["models"], (
+                f"Provider preset {preset['name']} has no models"
+            )
+            for m in preset["models"]:
+                assert "id" in m and "label" in m, (
+                    f"Model entry in {preset['name']} missing id/label"
+                )
 
 
 # ============================================================

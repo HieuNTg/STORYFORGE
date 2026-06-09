@@ -167,13 +167,6 @@ class TestConfigRoutes:
         data = resp.json()
         assert isinstance(data, (dict, list))
 
-    def test_get_model_presets_returns_list(self):
-        """GET /config/model-presets returns model presets."""
-        resp = self._client.get("/config/model-presets")
-        assert resp.status_code == 200
-        data = resp.json()
-        assert isinstance(data, (dict, list))
-
     def test_get_languages_returns_list(self):
         """GET /config/languages returns supported languages."""
         resp = self._client.get("/config/languages")

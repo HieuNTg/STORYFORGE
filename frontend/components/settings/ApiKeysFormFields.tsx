@@ -32,7 +32,7 @@ import {
   type ConfigUpdate,
 } from "@/lib/schemas/config";
 import { apiFetch } from "@/lib/api/client";
-import { useUpdateConfig } from "@/lib/api/queries";
+import { useUpdateConfig, useProviderPresets } from "@/lib/api/queries";
 import { pickDirty } from "@/lib/forms/dirty";
 
 function Hint({ children }: { children: React.ReactNode }) {
@@ -48,106 +48,9 @@ interface ProviderPreset {
   placeholder: string;
 }
 
-const PROVIDER_PRESETS: ProviderPreset[] = [
-  {
-    name: "Google Gemini",
-    label: "Gemini",
-    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
-    model: "gemini-3.5-flash",
-    models: [
-      { id: "gemini-3.5-flash", label: "Gemini 3.5 Flash" },
-      { id: "gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite" },
-      { id: "gemini-3.1-flash-lite-preview", label: "Gemini 3.1 Flash Lite Preview" },
-      { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-      { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-      { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
-      { id: "gemma-4-31b-it", label: "Gemma 4 31B" },
-      { id: "gemma-4-26b-a4b-it", label: "Gemma 4 26B A4B" },
-    ],
-    placeholder: "AIza...",
-  },
-  {
-    name: "Anthropic",
-    label: "Anthropic",
-    baseUrl: "https://api.anthropic.com/v1/",
-    model: "claude-sonnet-4-6",
-    models: [
-      { id: "claude-opus-4-7", label: "Claude Opus 4.7" },
-      { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
-      { id: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" },
-      { id: "claude-opus-4-6", label: "Claude Opus 4.6" },
-      { id: "claude-sonnet-4-5-20250929", label: "Claude Sonnet 4.5" },
-    ],
-    placeholder: "sk-ant-...",
-  },
-  {
-    name: "OpenAI",
-    label: "OpenAI",
-    baseUrl: "https://api.openai.com/v1",
-    model: "gpt-5.4-mini",
-    models: [
-      { id: "gpt-5.5", label: "GPT-5.5" },
-      { id: "gpt-5.4-mini", label: "GPT-5.4 Mini" },
-      { id: "gpt-5.4-nano", label: "GPT-5.4 Nano" },
-      { id: "gpt-chat-latest", label: "GPT Chat Latest" },
-      { id: "gpt-4o-mini", label: "GPT-4o Mini" },
-      { id: "gpt-4o", label: "GPT-4o" },
-    ],
-    placeholder: "sk-...",
-  },
-  {
-    name: "OpenRouter",
-    label: "OpenRouter Free",
-    baseUrl: "https://openrouter.ai/api/v1",
-    model: "openrouter/free",
-    models: [
-      { id: "openrouter/free", label: "Free Models Router" },
-      { id: "baidu/cobuddy:free", label: "Baidu CoBuddy (free)" },
-      { id: "openrouter/owl-alpha", label: "Owl Alpha" },
-      { id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", label: "NVIDIA Nemotron 3 Nano Omni (free)" },
-      { id: "poolside/laguna-xs.2:free", label: "Poolside Laguna XS.2 (free)" },
-      { id: "poolside/laguna-m.1:free", label: "Poolside Laguna M.1 (free)" },
-      { id: "deepseek/deepseek-v4-flash:free", label: "DeepSeek V4 Flash (free)" },
-      { id: "z-ai/glm-5.1", label: "Z.AI GLM 5.1 (free)" },
-      { id: "google/gemma-4-26b-a4b-it:free", label: "Google Gemma 4 26B A4B (free)" },
-      { id: "google/gemma-4-31b-it:free", label: "Google Gemma 4 31B (free)" },
-      { id: "arcee-ai/trinity-large-thinking:free", label: "Arcee Trinity Large Thinking (free)" },
-      { id: "nvidia/nemotron-3-super-120b-a12b:free", label: "NVIDIA Nemotron 3 Super (free)" },
-      { id: "minimax/minimax-m2.5:free", label: "MiniMax M2.5 (free)" },
-      { id: "qwen/qwen3-next-80b-a3b-instruct:free", label: "Qwen3 Next 80B A3B Instruct (free)" },
-      { id: "openai/gpt-oss-120b:free", label: "OpenAI GPT OSS 120B (free)" },
-      { id: "openai/gpt-oss-20b:free", label: "OpenAI GPT OSS 20B (free)" },
-      { id: "z-ai/glm-4.5-air:free", label: "Z.AI GLM 4.5 Air (free)" },
-      { id: "qwen/qwen3-coder:free", label: "Qwen3 Coder 480B A35B (free)" },
-      { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B Instruct (free)" },
-    ],
-    placeholder: "sk-or-...",
-  },
-  {
-    name: "Z.AI",
-    label: "Z.AI",
-    baseUrl: "https://api.z.ai/api/paas/v4",
-    model: "glm-4.7-flash",
-    models: [
-      { id: "glm-4.7-flash", label: "GLM 4.7 Flash" },
-      { id: "glm-4.6", label: "GLM 4.6" },
-      { id: "glm-4-flash", label: "GLM 4 Flash" },
-    ],
-    placeholder: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.xxxxx",
-  },
-  {
-    name: "Kyma",
-    label: "Kyma",
-    baseUrl: "https://kymaapi.com/v1",
-    model: "qwen-3.6-plus",
-    models: [
-      { id: "qwen-3.6-plus", label: "Qwen 3.6 Plus" },
-      { id: "qwen-3.6", label: "Qwen 3.6" },
-      { id: "deepseek-v3.2", label: "DeepSeek V3.2" },
-    ],
-    placeholder: "ky-...",
-  },
-];
+// Provider cards are served by the backend (single source of truth) —
+// GET /api/config/provider-presets, see config/presets.py::PROVIDER_PRESETS.
+// The hook returns snake_case DTOs; map `base_url` → `baseUrl` for this view.
 
 export interface ApiKeysFormFieldsProps {
   config: ConfigResponse;
@@ -160,6 +63,22 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
   const [providerKeys, setProviderKeys] = React.useState<Record<string, string>>({});
   const [providerModels, setProviderModels] = React.useState<Record<string, string>>({});
   const [savingProvider, setSavingProvider] = React.useState<string | null>(null);
+
+  // Provider cards come from the backend (single source of truth). Map the
+  // snake_case DTO onto the camelCase shape this component renders with.
+  const providerPresetsQuery = useProviderPresets();
+  const providerPresets = React.useMemo<ProviderPreset[]>(
+    () =>
+      (providerPresetsQuery.data ?? []).map((p) => ({
+        name: p.name,
+        label: p.label,
+        baseUrl: p.base_url,
+        model: p.model,
+        models: p.models,
+        placeholder: p.placeholder,
+      })),
+    [providerPresetsQuery.data],
+  );
 
   // IMPORTANT: defaults start empty for secrets. Showing the masked echo as a
   // value would let the user accidentally "save" the masked string back.
@@ -266,8 +185,11 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
                 {t("form.api.quick_provider_desc")}
               </p>
             </div>
+            {providerPresetsQuery.isLoading && providerPresets.length === 0 ? (
+              <p className="text-xs text-muted-foreground">{t("form.api.loading_providers")}</p>
+            ) : null}
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {PROVIDER_PRESETS.map((preset) => {
+              {providerPresets.map((preset) => {
                 const existing = profileByName.get(preset.name);
                 const busy = savingProvider === preset.name;
                 return (

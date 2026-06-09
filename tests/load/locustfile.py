@@ -52,11 +52,6 @@ class ConfigUser(HttpUser):
 
     @tag("config", "read")
     @task(2)
-    def get_model_presets(self):
-        self.client.get("/api/config/model-presets")
-
-    @tag("config", "read")
-    @task(2)
     def get_languages(self):
         self.client.get("/api/config/languages")
 
