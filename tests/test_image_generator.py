@@ -68,7 +68,25 @@ def test_generate_dalle_returns_none_on_error():
 
 
 def test_generate_dalle_returns_none_without_api_key():
-    gen = ImageGenerator(provider="dalle", api_key="")
+    # Hermetic: with no image key AND no OpenAI-compatible LLM key to fall back
+    # on, the DALL-E path must short-circuit before any HTTP call. We isolate
+    # ConfigManager and the environment so the developer's real configured key
+    # can't leak into the resolution chain (image_api_key → IMAGE_API_KEY env →
+    # llm.api_key when the LLM is OpenAI). See ImageGenerator.__init__.
+    cfg = MagicMock()
+    cfg.pipeline.image_provider = "dalle"
+    cfg.pipeline.image_api_key = ""
+    cfg.pipeline.image_api_url = ""
+    cfg.pipeline.hf_token = ""
+    cfg.pipeline.hf_image_model = ""
+    cfg.llm.api_key = ""
+    cfg.llm.base_url = ""  # not openai.com => no llm-key fallback
+
+    with patch("services.image_generator.ConfigManager", return_value=cfg), \
+         patch.dict(os.environ, {"IMAGE_API_KEY": "", "IMAGE_API_URL": "", "HF_TOKEN": ""}):
+        gen = ImageGenerator(provider="dalle", api_key="")
+
+    assert gen.api_key == ""
     # No HTTP call should be made
     with patch("services.image_generator.requests.post") as mock_post:
         result = gen.generate("prompt")

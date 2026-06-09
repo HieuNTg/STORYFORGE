@@ -12,6 +12,10 @@ class TestMediaProducerErrorRecovery:
         producer = MediaProducer(config)
 
         mock_draft = MagicMock()
+        # A real title: MediaProducer.run derives a filesystem story-id slug from
+        # draft.title. A bare MagicMock title is truthy, defeats the "if title"
+        # guard, and crashes safe_character_name — real StoryDraft.title is a str.
+        mock_draft.title = "Test Story"
         mock_draft.characters = []
         mock_enhanced = MagicMock()
         mock_enhanced.chapters = []
@@ -34,6 +38,10 @@ class TestMediaProducerErrorRecovery:
         producer = MediaProducer(config)
 
         mock_draft = MagicMock()
+        # A real title: MediaProducer.run derives a filesystem story-id slug from
+        # draft.title. A bare MagicMock title is truthy, defeats the "if title"
+        # guard, and crashes safe_character_name — real StoryDraft.title is a str.
+        mock_draft.title = "Test Story"
         mock_draft.characters = []
         mock_enhanced = MagicMock()
         mock_enhanced.chapters = []
@@ -52,6 +60,10 @@ class TestMediaProducerErrorRecovery:
         producer = MediaProducer(config)
 
         mock_draft = MagicMock()
+        # A real title: MediaProducer.run derives a filesystem story-id slug from
+        # draft.title. A bare MagicMock title is truthy, defeats the "if title"
+        # guard, and crashes safe_character_name — real StoryDraft.title is a str.
+        mock_draft.title = "Test Story"
         mock_draft.characters = []
         mock_enhanced = MagicMock()
         mock_enhanced.chapters = []

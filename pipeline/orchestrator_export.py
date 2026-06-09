@@ -75,6 +75,34 @@ class PipelineExporter:
                 files.append(path)
 
         if "JSON" in formats:
+            # Structured JSON of the story itself — the format users reach for to
+            # round-trip a story programmatically. Mirrors the TXT branch: the
+            # draft and (when present) the enhanced version are written as
+            # separate files. Previously JSON export only emitted a simulation
+            # result, so "Export JSON" produced nothing unless a simulation had
+            # been run.
+            if self.output.story_draft:
+                path = os.path.join(output_dir, f"{timestamp}_draft.json")
+                try:
+                    draft_data = plugin_manager.apply_export("json", self.output.story_draft.model_dump())
+                except Exception as _e:
+                    logger.warning(f"Plugin apply_export json (draft) failed: {_e}")
+                    draft_data = self.output.story_draft.model_dump()
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(draft_data, f, ensure_ascii=False, indent=2)
+                files.append(path)
+
+            if self.output.enhanced_story:
+                path = os.path.join(output_dir, f"{timestamp}_enhanced.json")
+                try:
+                    enhanced_data = plugin_manager.apply_export("json", self.output.enhanced_story.model_dump())
+                except Exception as _e:
+                    logger.warning(f"Plugin apply_export json (enhanced) failed: {_e}")
+                    enhanced_data = self.output.enhanced_story.model_dump()
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(enhanced_data, f, ensure_ascii=False, indent=2)
+                files.append(path)
+
             if self.output.simulation_result:
                 path = os.path.join(output_dir, f"{timestamp}_simulation.json")
                 try:
