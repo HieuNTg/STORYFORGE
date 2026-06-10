@@ -225,25 +225,30 @@ def _strip_no_text_clauses(prompt: str) -> str:
 
 def bake_dialogue_into_prompts(prompts: list, *, language: str = "Vietnamese") -> list:
     """For text-capable providers (Codex): rewrite each prompt so the image is
-    generated WITH speech bubbles and the panel's exact dialogue baked in,
-    instead of a clean text-free panel. Mutates ``prompts`` in place and returns
-    it.
+    generated WITH speech bubbles + narration caption boxes and the panel's
+    exact text baked in, instead of a clean text-free panel. Mutates
+    ``prompts`` in place and returns it.
 
-    Dialogue is taken verbatim from each ``ImagePrompt.dialogue`` (threaded
-    earlier by ``apply_shot_list_to_prompts``); panels with no dialogue are left
-    silent (clean) rather than re-asserting "no text". Only call this when the
-    active provider renders in-image text well — FlowKit keeps clean panels and
-    relies on the Phase-3 vector-bubble compositor instead.
+    Dialogue/captions are taken verbatim from each ``ImagePrompt.dialogue`` /
+    ``ImagePrompt.captions`` (threaded earlier by ``apply_shot_list_to_prompts``);
+    panels with neither are left silent (clean) rather than re-asserting
+    "no text". Only call this when the active provider renders in-image text
+    well — FlowKit keeps clean panels and relies on the Phase-3 vector-bubble
+    compositor instead.
     """
     for ip in prompts:
         bubbles = [
             b for b in (getattr(ip, "dialogue", None) or [])
             if (b or {}).get("text", "").strip()
         ]
+        captions = [
+            c for c in (getattr(ip, "captions", None) or [])
+            if (c or {}).get("text", "").strip()
+        ]
         base_dalle = _strip_no_text_clauses(ip.dalle_prompt)
         base_sd = _strip_no_text_clauses(ip.sd_prompt)
-        if not bubbles:
-            # Silent panel: no dialogue to letter. We just stripped the clean
+        if not bubbles and not captions:
+            # Silent panel: nothing to letter. We just stripped the clean
             # "no text" clause — but if we leave it at that, Codex fills the empty
             # panel by INVENTING English captions / sound-effects / signs. So we
             # must explicitly forbid any lettering rather than say nothing.
@@ -258,6 +263,15 @@ def bake_dialogue_into_prompts(prompts: list, *, language: str = "Vietnamese") -
             ip.sd_prompt = (base_sd + guard) if base_sd else guard.strip()
             continue
         lines = []
+        # Narration caption boxes come first: top edge, reading order.
+        for c in captions:
+            txt = c.get("text", "").strip()
+            lines.append(
+                f'- narration — draw a rectangular caption box with a thin border '
+                f'and plain background (NO tail, it is the narrator, not a '
+                f'character) anchored to the top edge of the panel, containing '
+                f'exactly: "{txt}"'
+            )
         for b in bubbles:
             spk = (b.get("speaker") or "").strip()
             typ = (b.get("type") or "speech").strip().lower()
@@ -267,18 +281,21 @@ def bake_dialogue_into_prompts(prompts: list, *, language: str = "Vietnamese") -
             lines.append(f'- {who} — draw {shape} containing exactly: "{txt}"')
         block = "\n".join(lines)
         overlay = (
-            f"\n\nThis is a finished comic panel. Draw comic-book speech bubbles "
-            f"INSIDE the image, lettered in {language} with correct diacritics, "
-            f"reproducing this dialogue EXACTLY and verbatim — do not translate, "
-            f"rephrase, or drop any accent marks:\n{block}\n"
-            f"The speaker name before each line is only guidance for which "
-            f"character the bubble's tail points to — write ONLY the quoted "
-            f"dialogue inside the bubble, never the speaker's name or a label. "
-            f"Use clear bold comic lettering, keep bubbles off the characters' "
-            f"faces, and place them in top-to-bottom, left-to-right reading order. "
-            f"Draw ONLY the bubbles listed above — do not add any extra captions, "
-            f"narration boxes, sound-effects, signs, subtitles, or invented "
-            f"lettering in any language."
+            f"\n\nThis is a finished comic panel. Draw comic-book lettering "
+            f"(narration caption boxes and speech bubbles) INSIDE the image, "
+            f"lettered in {language} with correct diacritics, reproducing each "
+            f"text EXACTLY and verbatim — do not translate, rephrase, or drop "
+            f"any accent marks:\n{block}\n"
+            f"The name before each line is only guidance for which character the "
+            f"bubble's tail points to — write ONLY the quoted text inside the "
+            f"bubble or box, never the speaker's name or a label. Caption boxes "
+            f"are rectangular with no tail; speech bubbles are rounded with a "
+            f"tail. Use clear bold comic lettering, keep all lettering off the "
+            f"characters' faces, and place it in top-to-bottom, left-to-right "
+            f"reading order. Draw ONLY the caption boxes and bubbles listed "
+            f"above — do not add any extra captions, narration boxes, "
+            f"sound-effects, signs, subtitles, or invented lettering in any "
+            f"language."
         )
         ip.dalle_prompt = (base_dalle + overlay) if base_dalle else overlay.strip()
         ip.sd_prompt = (base_sd + overlay) if base_sd else overlay.strip()

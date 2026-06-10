@@ -1,6 +1,7 @@
 """Tests for ui/handlers.py — pure handler functions."""
 
 import unittest
+from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
 def _t(k, **kw):
@@ -603,10 +604,31 @@ class TestHandleGenerateImages(unittest.TestCase):
         paths, msg = handle_generate_images(orch, t=_t)
         self.assertEqual(paths, [])
 
+    @staticmethod
+    @contextmanager
+    def _comic_flags_off():
+        """Pin the comic pipeline OFF for legacy-contract tests. The test
+        sandbox config is seeded from the developer's real config, so the
+        flags are not deterministic otherwise — with them ON, the shot-list +
+        compositor stages rewrite the panel paths and write composed pages
+        under the mocked output_dir (a stray ``MagicMock/`` directory)."""
+        from config import ConfigManager
+        cfg = ConfigManager().pipeline
+        prev = (cfg.comic_shot_list_enabled, cfg.comic_compositor_enabled)
+        cfg.comic_shot_list_enabled = False
+        cfg.comic_compositor_enabled = False
+        try:
+            yield
+        finally:
+            cfg.comic_shot_list_enabled, cfg.comic_compositor_enabled = prev
+
     def test_with_story_calls_generators(self):
+        """Legacy contract: with the comic pipeline OFF, loose panel paths
+        pass through untouched."""
         from services.handlers import handle_generate_images
         orch = _make_orch_state(enhanced_story=_make_enhanced_story())
-        with patch("services.image_generator.ImageGenerator") as MockImgGen, \
+        with self._comic_flags_off(), \
+             patch("services.image_generator.ImageGenerator") as MockImgGen, \
              patch("services.image_prompt_generator.ImagePromptGenerator") as MockPromptGen:
             MockPromptGen.return_value.generate_from_chapter.return_value = [MagicMock()]
             MockImgGen.return_value.generate_story_images.return_value = ["img1.png"]
@@ -623,7 +645,8 @@ class TestHandleGenerateImages(unittest.TestCase):
         fake_store = MagicMock()
         fake_store.get_frozen_prompt.return_value = "FP"
         fake_store.get_reference_image.return_value = "/path/hero.png"
-        with patch("services.image_generator.ImageGenerator") as MockImgGen, \
+        with self._comic_flags_off(), \
+             patch("services.image_generator.ImageGenerator") as MockImgGen, \
              patch("services.image_prompt_generator.ImagePromptGenerator") as MockPromptGen, \
              patch("services.character_visual_profile.CharacterVisualProfileStore", return_value=fake_store):
             MockPromptGen.return_value.generate_from_chapter.return_value = [MagicMock()]
@@ -642,7 +665,8 @@ class TestHandleGenerateImages(unittest.TestCase):
         fake_store = MagicMock()
         fake_store.get_frozen_prompt.return_value = "FP"
         fake_store.get_reference_image.return_value = None
-        with patch("services.image_generator.ImageGenerator") as MockImgGen, \
+        with self._comic_flags_off(), \
+             patch("services.image_generator.ImageGenerator") as MockImgGen, \
              patch("services.image_prompt_generator.ImagePromptGenerator") as MockPromptGen, \
              patch("services.character_visual_profile.CharacterVisualProfileStore", return_value=fake_store):
             MockPromptGen.return_value.generate_from_chapter.return_value = [MagicMock()]
