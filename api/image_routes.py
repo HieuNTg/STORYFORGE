@@ -352,14 +352,20 @@ def _persist_to_checkpoint(session_id: str, output) -> None:
 def _to_media_url(path: str) -> str:
     """Normalize a stored image path to a ``/media/...`` URL for the client.
 
-    Newly generated panels arrive as OUTPUT_ROOT-relative paths (``handle_generate_images``
-    stores ``rel_to_output_root(p)`` onto ``chapter.images`` — e.g.
-    ``"<story-slug>/images/ch01_panel01.png"``). Since the ``/media`` mount
-    serves OUTPUT_ROOT, the URL is just that path with a ``/media/`` prefix.
+    Accepts the three shapes that reach the library pipeline:
 
-    Already-illustrated chapters in the payload carry the URLs a PRIOR response
-    returned — already ``/media/...``-prefixed (or absolute http(s)) — so they
-    are echoed back unchanged.
+    * OUTPUT_ROOT-relative panel paths (``handle_generate_images`` stores
+      ``rel_to_output_root(p)`` onto ``chapter.images`` — e.g.
+      ``"<story-slug>/images/ch01_panel01.png"``). Since the ``/media`` mount
+      serves OUTPUT_ROOT, the URL is just that path with a ``/media/`` prefix.
+    * RAW filesystem paths still carrying the ``output/`` segment — the
+      *return value* of ``handle_generate_images`` is the cwd-relative
+      ``ch_paths`` (e.g. ``"output\\<slug>\\images\\ch01_panel01.png"``).
+      The OUTPUT_ROOT prefix is stripped, otherwise the emitted URL would
+      double the segment (``/media/output/...`` → 404).
+    * Already-illustrated chapters in the payload carry the URLs a PRIOR
+      response returned — already ``/media/...``-prefixed (or absolute
+      http(s)) — so they are echoed back unchanged.
     """
     if not path:
         return path
@@ -368,8 +374,13 @@ def _to_media_url(path: str) -> str:
     # Absolute filesystem path that happens to live under OUTPUT_ROOT → resolve.
     if pathlib.Path(path).is_absolute():
         return _reference_url_for(path) or path
-    # OUTPUT_ROOT-relative panel path (the common case).
-    return "/media/" + path.lstrip("/").replace("\\", "/")
+    from services.output_paths import OUTPUT_ROOT
+
+    norm = path.lstrip("/").replace("\\", "/")
+    root = OUTPUT_ROOT.replace("\\", "/").strip("/")
+    if norm.startswith(root + "/"):
+        norm = norm[len(root) + 1 :]
+    return "/media/" + norm
 
 
 class _PayloadOrchWrapper:
