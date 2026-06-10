@@ -131,7 +131,7 @@ class PipelineConfig:
     # panels_max; ~1 panel per ``words_per_panel`` words of prose.
     panels_auto: bool = True
     panels_min: int = 4
-    panels_max: int = 12
+    panels_max: int = 24
     words_per_panel: int = 200
     # Reliability: a panel whose provider returns no image (e.g. Codex
     # occasionally drops one) is retried up to this many extra times before it is

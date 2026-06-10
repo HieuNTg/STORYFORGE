@@ -456,7 +456,9 @@ class ShotListExtractor:
                     characters=chars_text or "Không có thông tin",
                 ),
                 temperature=0.5,
-                max_tokens=3500,
+                # Scales with the panel target so a high panels_max doesn't
+                # truncate the JSON (8 panels → 3500, capped at 8000).
+                max_tokens=min(8000, 300 * num_panels + 1100),
                 model_tier="cheap",
                 expect="dict",
                 list_key="pages",

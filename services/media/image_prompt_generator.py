@@ -276,7 +276,7 @@ class ImagePromptGenerator:
                     style=self.style,
                 ),
                 temperature=0.6,
-                max_tokens=min(4000, 300 * len(panels) + 500),
+                max_tokens=min(8000, 300 * len(panels) + 500),
                 expect="dict",
                 list_key="prompts",
             )
