@@ -351,11 +351,27 @@ _NO_TEXT_FRAGMENT = re.compile(
 )
 
 _BUBBLE_SHAPE = {
-    "speech": "an oval speech balloon with a tail pointing to the speaker",
-    "thought": "a cloud-shaped thought bubble with small trailing puffs",
-    "shout": "a jagged spiky burst balloon",
-    "whisper": "a small balloon with a dashed/dotted outline",
-    "offscreen": "a rectangular off-panel speech box at the panel edge",
+    "speech": (
+        "a flat pure-white oval speech balloon with a clean smooth black outline "
+        "and a short tapered tail pointing at the speaker's mouth"
+    ),
+    "thought": (
+        "a white cloud-shaped thought bubble with softly scalloped edges and a "
+        "trail of two or three small shrinking circles leading toward the "
+        "thinker's head"
+    ),
+    "shout": (
+        "a jagged spiky burst balloon with sharp irregular points and a heavier "
+        "outline, its lettering larger and bolder than normal dialogue"
+    ),
+    "whisper": (
+        "a small oval balloon with a dashed broken outline and slightly smaller, "
+        "lighter lettering"
+    ),
+    "offscreen": (
+        "an oval speech balloon whose tail butts against the panel edge, "
+        "pointing toward the unseen off-panel speaker"
+    ),
 }
 
 
@@ -415,9 +431,10 @@ def bake_dialogue_into_prompts(prompts: list, *, language: str = "Vietnamese") -
         for c in captions:
             txt = c.get("text", "").strip()
             lines.append(
-                f'- narration — draw a rectangular caption box with a thin border '
-                f'and plain background (NO tail, it is the narrator, not a '
-                f'character) anchored to the top edge of the panel, containing '
+                f'- narration — draw a rectangular caption box with squared '
+                f'corners, a thin black border and a flat pale-yellow cream '
+                f'background (NO tail, it is the narrator, not a character) '
+                f'butted against the top edge of the panel, containing '
                 f'exactly: "{txt}"'
             )
         for b in bubbles:
@@ -429,21 +446,30 @@ def bake_dialogue_into_prompts(prompts: list, *, language: str = "Vietnamese") -
             lines.append(f'- {who} — draw {shape} containing exactly: "{txt}"')
         block = "\n".join(lines)
         overlay = (
-            f"\n\nThis is a finished comic panel. Draw comic-book lettering "
-            f"(narration caption boxes and speech bubbles) INSIDE the image, "
-            f"lettered in {language} with correct diacritics, reproducing each "
-            f"text EXACTLY and verbatim — do not translate, rephrase, or drop "
-            f"any accent marks:\n{block}\n"
-            f"The name before each line is only guidance for which character the "
-            f"bubble's tail points to — write ONLY the quoted text inside the "
-            f"bubble or box, never the speaker's name or a label. Caption boxes "
-            f"are rectangular with no tail; speech bubbles are rounded with a "
-            f"tail. Use clear bold comic lettering, keep all lettering off the "
-            f"characters' faces, and place it in top-to-bottom, left-to-right "
-            f"reading order. Draw ONLY the caption boxes and bubbles listed "
-            f"above — do not add any extra captions, narration boxes, "
-            f"sound-effects, signs, subtitles, or invented lettering in any "
-            f"language."
+            f"\n\nThis is a finished, professionally lettered comic panel. Draw "
+            f"comic-book lettering (narration caption boxes and speech bubbles) "
+            f"INSIDE the image, lettered in {language} with correct diacritics, "
+            f"reproducing each text EXACTLY and verbatim — do not translate, "
+            f"rephrase, or drop any accent marks:\n{block}\n"
+            f"Lettering style: clean rounded comic lettering, black text centered "
+            f"inside each bubble with generous even padding — shape the text "
+            f"block like an oval (widest line in the middle, roughly 3–6 words "
+            f"per line), never a cramped rectangle. Bubbles are flat white with "
+            f"smooth outlines, never gradients, bevels, or drop shadows; bubble "
+            f"outlines are slightly thinner than the panel border. The name "
+            f"before each line is only guidance for which character the bubble's "
+            f"tail points to — write ONLY the quoted text inside the bubble or "
+            f"box, never the speaker's name or a label. Tails are short and "
+            f"tapered, aimed at the speaker's mouth without touching the face, "
+            f"and never cross each other or pass behind another bubble. Caption "
+            f"boxes are rectangular with no tail; speech bubbles are rounded "
+            f"with a tail. Place all lettering in the upper part of the panel or "
+            f"over quiet background areas, never covering faces, eyes, or hands, "
+            f"in strict top-to-bottom, left-to-right reading order — the earlier "
+            f"line sits higher and further left. Draw ONLY the caption boxes and "
+            f"bubbles listed above — do not add any extra captions, narration "
+            f"boxes, sound-effects, signs, subtitles, or invented lettering in "
+            f"any language."
         )
         ip.dalle_prompt = (base_dalle + overlay) if base_dalle else overlay.strip()
         ip.sd_prompt = (base_sd + overlay) if base_sd else overlay.strip()
