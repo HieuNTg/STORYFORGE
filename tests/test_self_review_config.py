@@ -7,7 +7,8 @@ from config import ConfigManager, PipelineConfig
 class TestSelfReviewConfig:
     def test_default_values(self):
         pc = PipelineConfig()
-        assert pc.enable_self_review is False
+        # Self-review ships ON by default (CoT quality check, defaults.py)
+        assert pc.enable_self_review is True
         assert pc.self_review_threshold == 3.0
 
     def test_threshold_range(self):

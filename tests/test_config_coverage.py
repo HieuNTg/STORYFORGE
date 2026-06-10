@@ -189,6 +189,68 @@ class TestConfigPersistence:
                 assert pipeline2.image_api_key == "img-key"
                 assert pipeline2.hf_token == "hf-token"
 
+    def test_save_config_round_trips_comic_and_panel_fields(self):
+        """Regression: save_config's hand-maintained whitelist silently dropped
+        comic_* / panels_* / rag_* keys, so any Settings save rewrote
+        config.json without them and the comic pipeline reverted to legacy
+        defaults on the next restart (no shot list, no dialogue baking, no
+        character refs)."""
+        from config.defaults import LLMConfig, PipelineConfig
+        from config.persistence import save_config, load_config
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = os.path.join(tmpdir, "config.json")
+            with patch("config.persistence.CONFIG_FILE", config_file), \
+                 patch("config.persistence._SECRETS_FILE", os.path.join(tmpdir, "secrets.json")):
+                pipeline = PipelineConfig(
+                    comic_shot_list_enabled=True,
+                    comic_compositor_enabled=True,
+                    comic_page_canvas="1200x1697",
+                    comic_layout_mode="auto",
+                    panels_auto=False,
+                    panels_min=6,
+                    panels_max=10,
+                    words_per_panel=150,
+                    panel_retry_attempts=3,
+                    rag_merge_cap=4,
+                )
+                save_config(LLMConfig(), pipeline)
+                pipeline2 = PipelineConfig()
+                load_config(LLMConfig(), pipeline2)
+                assert pipeline2.comic_shot_list_enabled is True
+                assert pipeline2.comic_compositor_enabled is True
+                assert pipeline2.comic_page_canvas == "1200x1697"
+                assert pipeline2.comic_layout_mode == "auto"
+                assert pipeline2.panels_auto is False
+                assert pipeline2.panels_min == 6
+                assert pipeline2.panels_max == 10
+                assert pipeline2.words_per_panel == 150
+                assert pipeline2.panel_retry_attempts == 3
+                assert pipeline2.rag_merge_cap == 4
+
+    def test_settings_api_fields_survive_save(self):
+        """Bug-class guard: every field the Settings API (ConfigUpdate) can
+        write MUST appear in the JSON emitted by save_config. A field that the
+        UI can set but save_config drops silently reverts to its dataclass
+        default on the next backend restart — exactly the failure mode that
+        disabled the comic pipeline. When this fails, add the field to the
+        save_config dict in config/persistence.py."""
+        from config.defaults import LLMConfig, PipelineConfig
+        from config.persistence import save_config
+        from api.config_routes import ConfigUpdate
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config_file = os.path.join(tmpdir, "config.json")
+            with patch("config.persistence.CONFIG_FILE", config_file), \
+                 patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": ""}, clear=False):
+                save_config(LLMConfig(), PipelineConfig())
+                with open(config_file, encoding="utf-8") as f:
+                    data = json.load(f)
+        saved = set(data["llm"]) | set(data["pipeline"])
+        model_fields = getattr(ConfigUpdate, "model_fields", None) or ConfigUpdate.__fields__
+        # append_api_keys is a PUT verb (merged into api_keys), not a stored field
+        api_fields = set(model_fields) - {"append_api_keys"}
+        missing = api_fields - saved
+        assert not missing, f"Settings-API fields dropped by save_config: {sorted(missing)}"
+
     def test_env_override_api_key(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.persistence import load_config
@@ -287,11 +349,16 @@ class TestConfigManagerSingleton:
         cm = ConfigManager()
         original_key = cm.llm.api_key
         original_fallbacks = cm.llm.fallback_models
-        try:
-            cm.llm.api_key = ""
-            cm.llm.fallback_models = []
-            with pytest.raises((ValueError, Exception)):
-                cm.save()
-        finally:
-            cm.llm.api_key = original_key
-            cm.llm.fallback_models = original_fallbacks
+        # Patch CONFIG_FILE so a regression here (save NOT raising) can never
+        # clobber the developer's real data/config.json with the gutted
+        # singleton state.
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("config.persistence.CONFIG_FILE", os.path.join(tmpdir, "config.json")):
+                try:
+                    cm.llm.api_key = ""
+                    cm.llm.fallback_models = []
+                    with pytest.raises(ValueError):
+                        cm.save()
+                finally:
+                    cm.llm.api_key = original_key
+                    cm.llm.fallback_models = original_fallbacks
