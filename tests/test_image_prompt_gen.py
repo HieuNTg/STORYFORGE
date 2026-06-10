@@ -224,6 +224,116 @@ def test_bake_captions_letters_narration_box_with_bubbles():
     assert "Ba ngày sau, tại Thanh Vân Tông." in ip.dalle_prompt
 
 
+# ---------------------------------------------------------------------------
+# generate_from_shot_list — 1:1 panel-derived prompts (picture matches dialogue)
+# ---------------------------------------------------------------------------
+
+from services.media.shot_list import ShotList, Page, Panel
+
+
+def _two_panel_shot_list():
+    return ShotList(chapter_number=3, pages=[Page(page=1, panels=[
+        Panel(n=1, shot="WS", beat="hoàng hôn ở làng", subject="Kiên",
+              action="đứng giữa quảng trường", setting="ngôi làng", mood="u ám"),
+        Panel(n=2, shot="CU", beat="mở Nghịch Mệnh Nhãn", subject="Kiên",
+              action="mắt phát sáng nhìn sợi chỉ sinh mệnh", setting="ngôi làng",
+              mood="kinh ngạc"),
+    ])])
+
+
+def _shot_chapter():
+    return Chapter(chapter_number=3, title="Tro tàn", content="Nội dung." * 50)
+
+
+def test_generate_from_shot_list_one_prompt_per_panel_mapped_by_n(monkeypatch):
+    """Every panel gets exactly one ImagePrompt, matched by the LLM's n field."""
+    gen = ImagePromptGenerator(style="manhwa")
+
+    def fake_generate_json(*a, **k):
+        return {"prompts": [
+            {"n": 2, "dalle_prompt": "close-up glowing eyes", "sd_prompt": "cu eyes"},
+            {"n": 1, "dalle_prompt": "wide shot village dusk", "sd_prompt": "ws village"},
+        ]}
+
+    monkeypatch.setattr(gen.llm, "generate_json", fake_generate_json, raising=False)
+    prompts = gen.generate_from_shot_list(_two_panel_shot_list(), _shot_chapter())
+
+    assert len(prompts) == 2
+    # Out-of-order LLM output is still mapped to the right panel by n.
+    assert prompts[0].dalle_prompt == "wide shot village dusk"
+    assert prompts[1].dalle_prompt == "close-up glowing eyes"
+    assert prompts[0].panel_number == 1 and prompts[1].panel_number == 2
+    assert prompts[0].chapter_number == 3
+    assert prompts[0].scene_description == "hoàng hôn ở làng"
+
+
+def test_generate_from_shot_list_fallback_for_skipped_panel(monkeypatch):
+    """A panel the LLM skipped gets a deterministic fallback prompt built from
+    its own fields — never a missing/empty prompt (compositor needs 1:1)."""
+    gen = ImagePromptGenerator(style="manhwa")
+
+    def fake_generate_json(*a, **k):
+        return {"prompts": [{"n": 1, "dalle_prompt": "wide shot village", "sd_prompt": "ws"}]}
+
+    monkeypatch.setattr(gen.llm, "generate_json", fake_generate_json, raising=False)
+    prompts = gen.generate_from_shot_list(_two_panel_shot_list(), _shot_chapter())
+
+    assert len(prompts) == 2
+    low = prompts[1].dalle_prompt.lower()
+    assert "close-up" in low                      # shot phrase from CU
+    assert "mắt phát sáng nhìn sợi chỉ sinh mệnh" in prompts[1].dalle_prompt
+    assert "no text in image" in low
+
+
+def test_generate_from_shot_list_llm_failure_yields_all_fallbacks(monkeypatch):
+    """A whole-call LLM failure still returns one fallback prompt per panel."""
+    gen = ImagePromptGenerator(style="manhwa")
+
+    def boom(*a, **k):
+        raise RuntimeError("provider down")
+
+    monkeypatch.setattr(gen.llm, "generate_json", boom, raising=False)
+    prompts = gen.generate_from_shot_list(_two_panel_shot_list(), _shot_chapter())
+
+    assert len(prompts) == 2
+    for p in prompts:
+        assert p.dalle_prompt and p.sd_prompt
+        assert "comic panel" in p.dalle_prompt.lower()
+        assert "manhwa" in p.dalle_prompt.lower()
+
+
+def test_generate_from_shot_list_empty_when_no_panels():
+    """No panels → [] so the handler falls back to the legacy chapter path."""
+    gen = ImagePromptGenerator()
+    empty = ShotList(chapter_number=3, pages=[])
+    assert gen.generate_from_shot_list(empty, _shot_chapter()) == []
+
+
+def test_generate_from_shot_list_uses_visual_profile_in_fallback(monkeypatch):
+    """The frozen visual descriptor (not just the name) lands in fallback
+    prompts so character consistency survives even the no-LLM path."""
+    gen = ImagePromptGenerator(style="manhwa")
+
+    def boom(*a, **k):
+        raise RuntimeError("down")
+
+    monkeypatch.setattr(gen.llm, "generate_json", boom, raising=False)
+    prompts = gen.generate_from_shot_list(
+        _two_panel_shot_list(), _shot_chapter(),
+        visual_profiles={"Kiên": "thiếu niên tóc đen, áo vải xám, mắt đỏ"},
+    )
+    assert "thiếu niên tóc đen, áo vải xám, mắt đỏ" in prompts[0].dalle_prompt
+
+
+def test_panel_prompt_template_demands_positive_constraints():
+    """The panel prompt template must phrase constraints positively and ban
+    in-image lettering (autoregressive image models ignore negative prompts)."""
+    from services.media.image_prompt_generator import _PANEL_PROMPT_GEN
+    low = _PANEL_PROMPT_GEN.lower()
+    assert "no text in image" in low
+    assert "no speech bubbles" in low
+
+
 def test_bake_caption_only_panel_letters_caption_not_silence_guard():
     """A panel with narration but no dialogue is NOT a silent panel — it must
     get the caption box, not the no-lettering guard."""

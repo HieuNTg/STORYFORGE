@@ -1,6 +1,7 @@
 """Tests for /api/images/{session_id}/generate endpoint."""
 
 import time
+from contextlib import contextmanager
 
 import pytest
 from unittest.mock import patch, MagicMock
@@ -9,6 +10,25 @@ from fastapi.testclient import TestClient
 
 from api.image_routes import router as image_router, _in_flight, _jobs
 from models.schemas import Chapter, Character, StoryDraft, PipelineOutput
+
+
+@contextmanager
+def _comic_flags_off():
+    """Pin the comic pipeline OFF for legacy-contract tests. The test sandbox
+    config is seeded from the developer's real config, so the flags are not
+    deterministic otherwise — with them ON, the shot-list stage supplies the
+    image prompts (via ``generate_from_shot_list``) and the legacy
+    ``generate_from_chapter`` these tests assert on is never called (and the
+    real extractor would issue live LLM calls from a unit test)."""
+    from config import ConfigManager
+    cfg = ConfigManager().pipeline
+    prev = (cfg.comic_shot_list_enabled, cfg.comic_compositor_enabled)
+    cfg.comic_shot_list_enabled = False
+    cfg.comic_compositor_enabled = False
+    try:
+        yield
+    finally:
+        cfg.comic_shot_list_enabled, cfg.comic_compositor_enabled = prev
 
 
 def _build_orch(num_chapters: int = 2, characters=None):
@@ -162,7 +182,8 @@ def test_auto_builds_visual_profiles_on_first_call(client, tmp_path, monkeypatch
     prompt_gen = MagicMock()
     prompt_gen.generate_from_chapter.return_value = ["a prompt"]
 
-    with patch("api.image_routes._get_story_data", return_value=orch), \
+    with _comic_flags_off(), \
+         patch("api.image_routes._get_story_data", return_value=orch), \
          patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls), \
          patch("services.image_generator.ImageGenerator", return_value=image_gen), \
          patch("services.image_prompt_generator.ImagePromptGenerator", return_value=prompt_gen):
@@ -201,7 +222,8 @@ def test_auto_build_skipped_when_profile_exists(client, tmp_path, monkeypatch):
     prompt_gen = MagicMock()
     prompt_gen.generate_from_chapter.return_value = ["a prompt"]
 
-    with patch("api.image_routes._get_story_data", return_value=orch), \
+    with _comic_flags_off(), \
+         patch("api.image_routes._get_story_data", return_value=orch), \
          patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls), \
          patch("services.image_generator.ImageGenerator", return_value=image_gen), \
          patch("services.image_prompt_generator.ImagePromptGenerator", return_value=prompt_gen):
@@ -738,7 +760,8 @@ def test_library_generate_consistency_profile_scoped_to_title(client, tmp_path, 
         1, characters=[{"name": "Hero", "role": "protagonist", "traits": {"strength": 50, "wisdom": 50, "agility": 50, "scheme": 50}, "description": "brave", "backstory": "", "secret": "", "conflict": ""}]
     )
 
-    with patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls), \
+    with _comic_flags_off(), \
+         patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls), \
          patch("services.image_generator.ImageGenerator", return_value=image_gen), \
          patch("services.image_prompt_generator.ImagePromptGenerator", return_value=prompt_gen):
         r = client.post("/images/library/generate", json={"story": payload, "provider": "dalle"})

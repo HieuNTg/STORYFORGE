@@ -204,6 +204,8 @@ class TestConfigPersistence:
                 pipeline = PipelineConfig(
                     comic_shot_list_enabled=True,
                     comic_compositor_enabled=True,
+                    # False is the NON-default — proves the flag round-trips.
+                    comic_coverage_check_enabled=False,
                     comic_page_canvas="1200x1697",
                     comic_layout_mode="auto",
                     panels_auto=False,
@@ -218,6 +220,7 @@ class TestConfigPersistence:
                 load_config(LLMConfig(), pipeline2)
                 assert pipeline2.comic_shot_list_enabled is True
                 assert pipeline2.comic_compositor_enabled is True
+                assert pipeline2.comic_coverage_check_enabled is False
                 assert pipeline2.comic_page_canvas == "1200x1697"
                 assert pipeline2.comic_layout_mode == "auto"
                 assert pipeline2.panels_auto is False

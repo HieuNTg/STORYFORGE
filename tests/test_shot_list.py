@@ -272,6 +272,133 @@ def test_apply_shot_list_to_prompts_threads_metadata():
     assert VI_LINE_1 not in prompts[1].sd_prompt
 
 
+# ---------------------------------------------------------------------------
+# Coverage check — second verifier pass inserts dropped beats
+# ---------------------------------------------------------------------------
+def _make_coverage_extractor(monkeypatch, pass1_raw, pass2_raw):
+    """Extractor whose LLM answers pass-1 (pages) and pass-2 (missing) in turn.
+
+    Calls are told apart by ``list_key`` (extract uses "pages", the verifier
+    uses "missing") so the test doesn't depend on call ordering details.
+    ``pass2_raw`` may be an Exception instance to simulate verifier failure.
+    Returns (extractor, calls) where calls records each list_key seen.
+    """
+    extractor = ShotListExtractor()
+    calls = []
+
+    def fake_generate_json(*args, **kwargs):
+        key = kwargs.get("list_key")
+        calls.append(key)
+        if key == "missing":
+            if isinstance(pass2_raw, Exception):
+                raise pass2_raw
+            return pass2_raw
+        return pass1_raw
+
+    monkeypatch.setattr(extractor.llm, "generate_json", fake_generate_json, raising=False)
+    return extractor, calls
+
+
+_PASS1 = None  # built lazily so each test gets fresh dicts
+
+
+def _pass1_three_beats():
+    return _raw_pages([
+        {"n": 1, "shot": "WS", "beat": "hoàng hôn ở làng", "subject": "Kiên",
+         "setting": "ngôi làng", "bubbles": []},
+        {"n": 2, "shot": "MS", "beat": "đối thoại với bà lão", "subject": "Bà lão",
+         "setting": "ngôi làng",
+         "bubbles": [{"speaker": "Bà lão", "type": "speech", "text": VI_LINE_1}]},
+        {"n": 3, "shot": "CU", "beat": "quyết tâm báo thù", "subject": "Kiên",
+         "setting": "ngôi làng", "bubbles": []},
+    ])
+
+
+def test_coverage_check_inserts_missing_beat_after_anchor(monkeypatch):
+    """The verifier's missing beat is inserted right after its anchor panel."""
+    pass2 = {"missing": [
+        {"after_panel": 1, "shot": "INSERT", "beat": "cuốn sổ của cha",
+         "subject": "Kiên", "setting": "ngôi làng",
+         "action": "mở cuốn sổ ghi nợ tuổi thọ", "bubbles": []},
+    ]}
+    extractor, calls = _make_coverage_extractor(monkeypatch, _pass1_three_beats(), pass2)
+    sl = extractor.extract(_chapter(), coverage_check=True)
+
+    assert calls.count("pages") == 1 and calls.count("missing") == 1
+    beats = [p.beat for p in sl.all_panels()]
+    assert "cuốn sổ của cha" in beats
+    # Inserted beat sits after its anchor (#1) and before the old #2.
+    assert beats.index("cuốn sổ của cha") > beats.index("hoàng hôn ở làng")
+    assert beats.index("cuốn sổ của cha") < beats.index("đối thoại với bà lão")
+    assert len(beats) == 4
+
+
+def test_coverage_check_anchor_zero_inserts_before_first(monkeypatch):
+    """after_panel=0 means the missing beat opens the chapter."""
+    pass2 = {"missing": [
+        {"after_panel": 0, "shot": "EWS", "beat": "toàn cảnh thôn trước biến cố",
+         "subject": "Kiên", "setting": "ngôi làng", "bubbles": []},
+    ]}
+    extractor, _ = _make_coverage_extractor(monkeypatch, _pass1_three_beats(), pass2)
+    sl = extractor.extract(_chapter(), coverage_check=True)
+    beats = [p.beat for p in sl.all_panels()]
+    assert beats[0] == "toàn cảnh thôn trước biến cố"
+
+
+def test_coverage_check_off_makes_single_llm_call(monkeypatch):
+    """coverage_check=False (the default) must not call the verifier."""
+    extractor, calls = _make_coverage_extractor(
+        monkeypatch, _pass1_three_beats(), {"missing": []}
+    )
+    sl = extractor.extract(_chapter())
+    assert sl.all_panels()
+    assert calls == ["pages"]
+
+
+def test_coverage_check_no_missing_keeps_panels_unchanged(monkeypatch):
+    """An all-covered verdict leaves the beat list as-is."""
+    extractor, calls = _make_coverage_extractor(
+        monkeypatch, _pass1_three_beats(), {"missing": []}
+    )
+    sl = extractor.extract(_chapter(), coverage_check=True)
+    assert calls.count("missing") == 1
+    assert len(sl.all_panels()) == 3
+
+
+def test_coverage_check_verifier_failure_degrades_to_unverified(monkeypatch):
+    """A verifier crash must NOT lose the pass-1 shot-list."""
+    extractor, _ = _make_coverage_extractor(
+        monkeypatch, _pass1_three_beats(), RuntimeError("verifier down")
+    )
+    sl = extractor.extract(_chapter(), coverage_check=True)
+    assert len(sl.all_panels()) == 3
+
+
+def test_coverage_check_caps_inserts(monkeypatch):
+    """A runaway verifier is capped at MAX_COVERAGE_INSERTS insertions."""
+    from services.media.shot_list import MAX_COVERAGE_INSERTS
+    pass2 = {"missing": [
+        {"after_panel": 1, "shot": "INSERT", "beat": f"thừa {i}",
+         "subject": "Kiên", "setting": "ngôi làng", "bubbles": []}
+        for i in range(MAX_COVERAGE_INSERTS + 5)
+    ]}
+    extractor, _ = _make_coverage_extractor(monkeypatch, _pass1_three_beats(), pass2)
+    sl = extractor.extract(_chapter(), coverage_check=True)
+    assert len(sl.all_panels()) == 3 + MAX_COVERAGE_INSERTS
+
+
+def test_coverage_check_clamps_out_of_range_anchor(monkeypatch):
+    """An anchor beyond the last beat clamps to the end instead of crashing."""
+    pass2 = {"missing": [
+        {"after_panel": 99, "shot": "CU", "beat": "đoạn kết bị sót",
+         "subject": "Kiên", "setting": "ngôi làng", "bubbles": []},
+    ]}
+    extractor, _ = _make_coverage_extractor(monkeypatch, _pass1_three_beats(), pass2)
+    sl = extractor.extract(_chapter(), coverage_check=True)
+    beats = [p.beat for p in sl.all_panels()]
+    assert beats[-1] == "đoạn kết bị sót"
+
+
 def test_apply_shot_list_to_prompts_threads_captions():
     """Narration captions must travel onto the ImagePrompt too — the Codex bake
     step letters them as caption boxes; dropping them here was why comics came

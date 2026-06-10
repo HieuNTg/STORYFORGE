@@ -73,8 +73,12 @@ MAX_CHARS_PER_LINE = 20                # ≤18–22 VN chars/line (§4 step 3)
 # Bubble fills/strokes
 INK = (20, 20, 20)
 PAPER = (255, 255, 255)
+CAPTION_FILL = (255, 243, 198)         # pale cream — classic narration-box color
+CAPTION_FONT_MIN = 26                  # captions auto-shrink down to this
+WHISPER_INK = (96, 96, 96)             # whispers letter lighter
 THOUGHT_PUFF = 7                       # cloud lobes for thought bubbles
-SHOUT_SPIKES = 18                      # spikes for shout bubbles
+SHOUT_SPIKES = 14                      # spikes for shout bubbles (10–16 reads best)
+SUPERSAMPLE = 2                        # lettering overlay drawn at 2× then LANCZOS-downscaled
 
 
 # ---------------------------------------------------------------------------
@@ -334,6 +338,56 @@ def _measure_lines(
     return w, h
 
 
+def _shape_lines(text: str, max_chars: int) -> list[str]:
+    """Wrap like :func:`wrap_vietnamese`, then shape the block like a letterer.
+
+    Professional balloon text is oval/diamond shaped — the middle line is the
+    widest so the block fills an ellipse instead of leaving empty crescents at
+    the top and bottom. Re-wraps with a convex per-line char budget when there
+    are ≥3 lines, then fixes a widow (a lone word on the last line) by pulling
+    the previous line's last word down to join it.
+    """
+    import math
+
+    flat = wrap_vietnamese(text, max_chars)
+    n = len(flat)
+    if n >= 3:
+        words = text.split()
+        # Only shape when every word fits even the tightest (first/last) line
+        # budget — over-long tokens keep the plain greedy wrap + hard cuts.
+        if words and all(len(w) <= int(max_chars * 0.70) for w in words):
+            caps = [
+                max(8, int(max_chars * (0.70 + 0.30 * math.sin(math.pi * (i + 0.5) / n))))
+                for i in range(n)
+            ]
+            shaped: list[str] = []
+            cur = ""
+            li = 0
+            for word in words:
+                cap = caps[li] if li < n else max_chars
+                if not cur:
+                    cur = word
+                elif len(cur) + 1 + len(word) <= cap:
+                    cur += " " + word
+                else:
+                    shaped.append(cur)
+                    li += 1
+                    cur = word
+            if cur:
+                shaped.append(cur)
+            if n <= len(shaped) <= n + 1:
+                flat = shaped
+    # Widow fix: never leave a single word alone on the last line.
+    if len(flat) >= 2 and " " not in flat[-1]:
+        prev_words = flat[-2].split()
+        if len(prev_words) >= 2:
+            moved = prev_words[-1] + " " + flat[-1]
+            if len(moved) <= max_chars:
+                flat[-2] = " ".join(prev_words[:-1])
+                flat[-1] = moved
+    return flat
+
+
 # ---------------------------------------------------------------------------
 # Panel placement
 # ---------------------------------------------------------------------------
@@ -437,25 +491,26 @@ def _bubble_outline_shape(
     draw: ImageDraw.ImageDraw,
     bbox: tuple[int, int, int, int],
     btype: str,
+    ow: int = BUBBLE_OUTLINE,
 ) -> None:
     """Stroke the bubble body according to ``type`` (§5 shapes)."""
     l, t, r, b = bbox
     if btype == "narration":
-        draw.rectangle(bbox, fill=PAPER, outline=INK, width=BUBBLE_OUTLINE)
+        draw.rectangle(bbox, fill=PAPER, outline=INK, width=ow)
         return
     if btype == "whisper":
         # Dashed ellipse outline.
         draw.ellipse(bbox, fill=PAPER)
-        _dashed_ellipse(draw, bbox, INK, BUBBLE_OUTLINE)
+        _dashed_ellipse(draw, bbox, INK, ow)
         return
     if btype == "shout":
-        _spiky(draw, bbox)
+        _spiky(draw, bbox, ow)
         return
     if btype == "thought":
-        _cloud(draw, bbox)
+        _cloud(draw, bbox, ow)
         return
     # speech / offscreen / default: smooth oval.
-    draw.ellipse(bbox, fill=PAPER, outline=INK, width=BUBBLE_OUTLINE)
+    draw.ellipse(bbox, fill=PAPER, outline=INK, width=ow)
 
 
 def _dashed_ellipse(draw, bbox, color, width) -> None:
@@ -463,8 +518,10 @@ def _dashed_ellipse(draw, bbox, color, width) -> None:
     l, t, r, b = bbox
     cx, cy = (l + r) / 2, (t + b) / 2
     rx, ry = (r - l) / 2, (b - t) / 2
-    seg = 12
-    n = 96
+    # Dense, even dash rhythm (dash ≈ gap) reads as "whisper" at page size;
+    # the old sparse 8-dash ring was barely distinguishable from speech.
+    seg = 6
+    n = 120
     for i in range(n):
         if (i // seg) % 2:
             continue
@@ -475,7 +532,7 @@ def _dashed_ellipse(draw, bbox, color, width) -> None:
         draw.line([p0, p1], fill=color, width=width)
 
 
-def _spiky(draw, bbox) -> None:
+def _spiky(draw, bbox, ow: int = BUBBLE_OUTLINE) -> None:
     import math
     l, t, r, b = bbox
     cx, cy = (l + r) / 2, (t + b) / 2
@@ -484,14 +541,19 @@ def _spiky(draw, bbox) -> None:
     n = SHOUT_SPIKES * 2
     for i in range(n):
         ang = 2 * math.pi * i / n
-        rad = 1.0 if i % 2 == 0 else 0.78
+        if i % 2 == 0:
+            # Outer spike tip with deterministic ±8% length jitter — uniform
+            # spikes look mechanical, irregular ones read as a real scream.
+            rad = 1.0 + 0.08 * math.sin(i * 2.39996)
+        else:
+            rad = 0.74
         pts.append((cx + rx * rad * math.cos(ang), cy + ry * rad * math.sin(ang)))
     draw.polygon(pts, fill=PAPER, outline=INK)
     # thicken outline
-    draw.line(pts + [pts[0]], fill=INK, width=BUBBLE_OUTLINE, joint="curve")
+    draw.line(pts + [pts[0]], fill=INK, width=ow, joint="curve")
 
 
-def _cloud(draw, bbox) -> None:
+def _cloud(draw, bbox, ow: int = BUBBLE_OUTLINE) -> None:
     import math
     l, t, r, b = bbox
     cx, cy = (l + r) / 2, (t + b) / 2
@@ -504,12 +566,12 @@ def _cloud(draw, bbox) -> None:
         ang = 2 * math.pi * i / n
         px = cx + (rx - lobe * 0.4) * math.cos(ang)
         py = cy + (ry - lobe * 0.4) * math.sin(ang)
-        draw.ellipse((px - lobe, py - lobe, px + lobe, py + lobe), fill=PAPER, outline=INK, width=BUBBLE_OUTLINE)
+        draw.ellipse((px - lobe, py - lobe, px + lobe, py + lobe), fill=PAPER, outline=INK, width=ow)
     # redraw center to clean interior strokes
     draw.ellipse((l + lobe, t + lobe, r - lobe, b - lobe), fill=PAPER)
 
 
-def _draw_thought_dots(draw, bbox, side) -> None:
+def _draw_thought_dots(draw, bbox, side, ow: int = BUBBLE_OUTLINE, scale: int = 1) -> None:
     """Trailing puffs from a thought bubble toward the speaker."""
     l, t, r, b = bbox
     cx = (l + r) // 2
@@ -520,11 +582,35 @@ def _draw_thought_dots(draw, bbox, side) -> None:
     else:
         x = cx
     y = b
-    rad = 14
+    rad = 14 * scale
     for _ in range(3):
-        draw.ellipse((x - rad, y - rad, x + rad, y + rad), fill=PAPER, outline=INK, width=BUBBLE_OUTLINE)
-        y += rad + 8
-        rad = max(5, rad - 4)
+        draw.ellipse((x - rad, y - rad, x + rad, y + rad), fill=PAPER, outline=INK, width=ow)
+        y += rad + 8 * scale
+        rad = max(5 * scale, rad - 4 * scale)
+
+
+def _tail_curves(
+    base1: tuple[int, int],
+    base2: tuple[int, int],
+    tip: tuple[int, int],
+) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
+    """Two quadratic-Bézier sides turning the straight triangle tail into a
+    tapered, slightly bowed wedge (straight wedges read as clip-art)."""
+    def quad(p0, p1, p2, steps=10):
+        pts = []
+        for s in range(steps + 1):
+            u = s / steps
+            pts.append((
+                (1 - u) ** 2 * p0[0] + 2 * (1 - u) * u * p1[0] + u ** 2 * p2[0],
+                (1 - u) ** 2 * p0[1] + 2 * (1 - u) * u * p1[1] + u ** 2 * p2[1],
+            ))
+        return pts
+
+    mx = (base1[0] + base2[0]) / 2
+    # Control points bow each side toward the tail's centerline.
+    c1 = ((base1[0] + tip[0]) / 2 + (mx - base1[0]) * 0.45, (base1[1] + tip[1]) / 2)
+    c2 = ((base2[0] + tip[0]) / 2 + (mx - base2[0]) * 0.45, (base2[1] + tip[1]) / 2)
+    return quad(base1, c1, tip), quad(tip, c2, base2)
 
 
 def _render_bubble(
@@ -536,38 +622,56 @@ def _render_bubble(
     n_slots: int,
     side: str,
     fonts: _FontCache,
+    scale: int = 1,
+    top_floor: int = 0,
 ) -> None:
     """Render one speech/thought/etc. bubble into ``cell``.
 
     Placement: bubbles occupy the top ~⅓ of the frame (so they don't cover faces),
-    laid out left→right across ``n_slots`` (Z reading order). Text auto-shrinks from
-    FONT_SIZE_MAX down to FONT_SIZE_MIN; only then does the bubble grow.
+    laid out left→right across ``n_slots`` (Z reading order), the later bubble
+    staggered slightly lower (reading order is top-left → bottom-right). Text
+    auto-shrinks from FONT_SIZE_MAX down to FONT_SIZE_MIN; only then does the
+    bubble grow. ``cell`` must already be in overlay coordinates (×``scale``).
     """
     cl, ct, cr, cb = cell
     cw = cr - cl
     ch = cb - ct
     btype = (bubble.type or "speech").lower()
 
+    pad_x = BUBBLE_PAD_X * scale
+    pad_y = BUBBLE_PAD_Y * scale
+    spacing = LINE_SPACING * scale
+    ow = BUBBLE_OUTLINE * scale
+    size_max, size_min = FONT_SIZE_MAX, FONT_SIZE_MIN
+    text_fill = INK
+    if btype == "shout":
+        ow = int(ow * 1.5)        # screams get a heavier stroke…
+        size_max += 6             # …and larger lettering
+    elif btype == "whisper":
+        size_max -= 8             # whispers letter smaller and lighter
+        size_min = max(24, size_min - 6)
+        text_fill = WHISPER_INK
+
     # Horizontal slot for this bubble (LTR).
     slot_w = cw // max(1, n_slots)
     slot_cx = cl + slot_w * slot + slot_w // 2
-    max_text_w = int(slot_w * 0.82) - 2 * BUBBLE_PAD_X
-    max_text_w = max(80, max_text_w)
+    max_text_w = int(slot_w * 0.82) - 2 * pad_x
+    max_text_w = max(80 * scale, max_text_w)
 
     # Auto-shrink font to fit width.
-    size = FONT_SIZE_MAX
+    size = size_max
     lines: list[str] = []
-    while size >= FONT_SIZE_MIN:
-        font = fonts.at(size)
+    while size >= size_min:
+        font = fonts.at(size * scale)
         # char cap scales slightly with font so smaller text packs more.
         cap = MAX_CHARS_PER_LINE if size <= 38 else 18
-        lines = wrap_vietnamese(bubble.text, cap)
-        tw, _th = _measure_lines(draw, lines, font, LINE_SPACING)
+        lines = _shape_lines(bubble.text, cap)
+        tw, _th = _measure_lines(draw, lines, font, spacing)
         if tw <= max_text_w:
             break
         size -= 2
-    font = fonts.at(max(size, FONT_SIZE_MIN))
-    tw, th = _measure_lines(draw, lines, font, LINE_SPACING)
+    font = fonts.at(max(size, size_min) * scale)
+    tw, th = _measure_lines(draw, lines, font, spacing)
 
     # Bubble box. Round/irregular shapes inscribe the text rectangle, so their
     # bbox must be inflated beyond the text+padding or the lettering spills past the
@@ -579,10 +683,17 @@ def _render_bubble(
         infl_x, infl_y = 1.7, 1.7
     else:  # speech / thought / whisper / offscreen — oval/cloud bodies
         infl_x, infl_y = 1.45, 1.5
-    bw = min(int((tw + 2 * BUBBLE_PAD_X) * infl_x), slot_w - 8)
-    bh = int((th + 2 * BUBBLE_PAD_Y) * infl_y)
-    bcx = max(cl + bw // 2 + 4, min(slot_cx, cr - bw // 2 - 4))
-    btop = ct + max(10, int(ch * 0.04))
+    bw = min(int((tw + 2 * pad_x) * infl_x), slot_w - 8 * scale)
+    bh = int((th + 2 * pad_y) * infl_y)
+    bcx = max(cl + bw // 2 + 4 * scale, min(slot_cx, cr - bw // 2 - 4 * scale))
+    btop = ct + max(10 * scale, int(ch * 0.04))
+    if top_floor:
+        # Don't overlap the caption box above us.
+        btop = max(btop, top_floor + 8 * scale)
+    if n_slots > 1:
+        # Stagger later bubbles slightly lower — proximity + diagonal flow makes
+        # the reading order unambiguous.
+        btop += int(ch * 0.05) * slot
     bl = int(bcx - bw / 2)
     br = int(bcx + bw / 2)
     bb_ = btop + bh
@@ -599,19 +710,21 @@ def _render_bubble(
         tip = (cl if edge_side == "left" else cr, tail[2][1])
         tail = [tail[0], tail[1], tip]
         draw.polygon(tail, fill=PAPER, outline=INK)
-        draw.line([tail[0], tail[2], tail[1]], fill=INK, width=BUBBLE_OUTLINE)
+        draw.line([tail[0], tail[2], tail[1]], fill=INK, width=ow)
     elif has_tail:
-        tail = _tail_polygon(bbox, side)
-        draw.polygon(tail, fill=PAPER, outline=INK)
-        draw.line([tail[0], tail[2], tail[1]], fill=INK, width=BUBBLE_OUTLINE)
+        base1, base2, tip = _tail_polygon(bbox, side)
+        side_a, side_b = _tail_curves(base1, base2, tip)
+        draw.polygon(side_a + side_b[1:], fill=PAPER)
+        draw.line(side_a, fill=INK, width=ow, joint="curve")
+        draw.line(side_b, fill=INK, width=ow, joint="curve")
 
-    _bubble_outline_shape(draw, bbox, btype)
+    _bubble_outline_shape(draw, bbox, btype, ow)
     if btype == "thought":
-        _draw_thought_dots(draw, bbox, side)
+        _draw_thought_dots(draw, bbox, side, ow, scale)
 
     # Text — centered (both axes) inside the bubble, black on the white body.
     text_top = btop + (bh - th) // 2
-    _draw_text_block(draw, lines, font, (bl + br) // 2, text_top, LINE_SPACING, fill=INK)
+    _draw_text_block(draw, lines, font, (bl + br) // 2, text_top, spacing, fill=text_fill)
 
 
 def _render_caption(
@@ -620,27 +733,43 @@ def _render_caption(
     caption: Caption,
     cell: Cell,
     fonts: _FontCache,
-) -> None:
-    """Render a narration/transition caption box (rectangle, no tail).
+    scale: int = 1,
+) -> int:
+    """Render a narration/transition caption box (rounded rectangle, no tail).
 
-    Captions sit at the TOP-LEFT of the frame (Z order start) and use a white halo
-    so they remain legible if the box is semi-transparent over dark art.
+    Captions sit at the TOP-LEFT of the frame (Z order start) on the classic
+    pale-cream narration background, so they're instantly distinguishable from
+    white dialogue balloons. The font auto-shrinks down to CAPTION_FONT_MIN so a
+    long transition line doesn't overflow the panel. ``cell`` must already be in
+    overlay coordinates (×``scale``).
+
+    Returns the bottom y of the caption box (overlay coords) so bubbles can be
+    pushed below it instead of overlapping.
     """
     cl, ct, cr, _cb = cell
     cw = cr - cl
-    font = fonts.at(CAPTION_FONT_SIZE)
-    lines = wrap_vietnamese(caption.text, MAX_CHARS_PER_LINE + 6)
+    spacing = LINE_SPACING * scale
+    pad = 16 * scale
+    max_w = cw - 20 * scale
+    size = CAPTION_FONT_SIZE
+    lines: list[str] = []
+    while True:
+        font = fonts.at(size * scale)
+        lines = wrap_vietnamese(caption.text, MAX_CHARS_PER_LINE + 6)
+        tw, th = _measure_lines(draw, lines, font, spacing)
+        if tw + 2 * pad <= max_w or size <= CAPTION_FONT_MIN:
+            break
+        size -= 2
     if not lines:
-        return
-    tw, th = _measure_lines(draw, lines, font, LINE_SPACING)
-    pad = 16
-    bw = min(tw + 2 * pad, cw - 16)
+        return ct
+    bw = min(tw + 2 * pad, max_w)
     bh = th + 2 * pad
-    bl = cl + 10
-    bt = ct + 10
+    bl = cl + 8 * scale
+    bt = ct + 8 * scale
     box = (bl, bt, bl + bw, bt + bh)
-    draw.rectangle(box, fill=PAPER, outline=INK, width=3)
-    _draw_text_block(draw, lines, font, bl + bw // 2, bt + pad, LINE_SPACING, fill=INK)
+    draw.rounded_rectangle(box, radius=6 * scale, fill=CAPTION_FILL, outline=INK, width=3 * scale)
+    _draw_text_block(draw, lines, font, bl + bw // 2, bt + pad, spacing, fill=INK)
+    return bt + bh
 
 
 # ---------------------------------------------------------------------------
@@ -683,6 +812,14 @@ def compose_page(
     canvas = Image.new("RGB", (geom.width, geom.height), PAGE_BG)
     draw = ImageDraw.Draw(canvas)
 
+    # Lettering (bubbles + captions) is drawn on a transparent overlay at
+    # SUPERSAMPLE× resolution, then LANCZOS-downscaled onto the page — Pillow's
+    # shape primitives aren't anti-aliased, and jagged balloon outlines are the
+    # single biggest "programmatic" tell.
+    ss = max(1, int(SUPERSAMPLE))
+    overlay = Image.new("RGBA", (geom.width * ss, geom.height * ss), (0, 0, 0, 0))
+    odraw = ImageDraw.Draw(overlay)
+
     cells = layout_cells(page, geom, layout_mode)
     panels = list(page.panels)
 
@@ -693,10 +830,14 @@ def compose_page(
         img_path = panel_images[idx] if idx < len(panel_images) else ""
         _place_panel(canvas, draw, img_path, cell, geom.border)
 
-        # Captions first (top-left, Z-order start), then bubbles (top third).
+        scell = (cell[0] * ss, cell[1] * ss, cell[2] * ss, cell[3] * ss)
+
+        # Captions first (top-left, Z-order start), then bubbles pushed below
+        # the lowest caption so the two never overlap.
+        cap_bottom = 0
         for cap in (panel.captions or []):
             try:
-                _render_caption(canvas, draw, cap, cell, fonts)
+                cap_bottom = max(cap_bottom, _render_caption(overlay, odraw, cap, scell, fonts, scale=ss))
             except Exception as e:  # one bad caption shouldn't kill the page
                 logger.warning("Caption render skipped: %s", e)
 
@@ -705,12 +846,19 @@ def compose_page(
         for slot, bubble in enumerate(bubbles):
             side = _speaker_side(panel, bubble, char_screen_sides)
             try:
-                _render_bubble(canvas, draw, bubble, cell, slot, n_slots, side, fonts)
+                _render_bubble(
+                    overlay, odraw, bubble, scell, slot, n_slots, side, fonts,
+                    scale=ss, top_floor=cap_bottom,
+                )
             except Exception as e:
                 logger.warning("Bubble render skipped: %s", e)
 
+    if ss > 1:
+        overlay = overlay.resize((geom.width, geom.height), Image.LANCZOS)
+    composed = Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
+
     os.makedirs(os.path.dirname(os.path.abspath(out_path)) or ".", exist_ok=True)
-    canvas.save(out_path, "PNG")
+    composed.save(out_path, "PNG")
     return out_path
 
 

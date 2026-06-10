@@ -131,7 +131,7 @@ class PipelineConfig:
     # panels_max; ~1 panel per ``words_per_panel`` words of prose.
     panels_auto: bool = True
     panels_min: int = 4
-    panels_max: int = 12
+    panels_max: int = 24
     words_per_panel: int = 200
     # Reliability: a panel whose provider returns no image (e.g. Codex
     # occasionally drops one) is retried up to this many extra times before it is
@@ -145,6 +145,14 @@ class PipelineConfig:
     # prompts still carry NO dialogue text. Ships dark (False) so it can be A/B'd
     # and rolled back safely; image generation is unchanged when off.
     comic_shot_list_enabled: bool = False
+    # Coverage verification for the shot-list stage. When on (and the shot-list
+    # stage itself is on), a second cheap-tier LLM pass re-reads the full chapter
+    # against the extracted beats and inserts panels for important details the
+    # extractor dropped (events, reveals, key dialogue, worldbuilding) — the
+    # anti-over-summarization guard. Costs one extra cheap LLM call per chapter;
+    # verifier failure degrades silently to the unverified shot-list. Defaults
+    # ON because it only activates inside the already-gated comic path.
+    comic_coverage_check_enabled: bool = True
 
     # Comic Page Compositor (Phase 3). When enabled (AND comic_shot_list_enabled
     # is also on), the clean dialogue-free panels produced by image generation are
