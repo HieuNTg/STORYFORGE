@@ -91,28 +91,41 @@ def _extract_proper_nouns(text: str) -> set[str]:
     if not text:
         return set()
 
+    # Markdown emphasis/heading glyphs glue onto tokens ("**Thiên Phả Các**")
+    # and mask sentence-end punctuation ("Thần.**"), defeating both noun
+    # matching and the sentence-initial filter. Strip them before tokenizing.
+    text = re.sub(r"[*_`#]+", " ", text)
+
     _SENT_END = ".!?\n…"
     _RUN_BREAK = ".,;:!?\n…—–-"  # any of these end an in-progress proper-noun run
     _STRIP_CHARS = ".,;:!?\"'()[]{}<>«»“”‘’—…–-"
 
-    raw_tokens = re.split(r"\s+", text)
     # Each tokens[i] = (cleaned_word, breaks_run, ends_sentence)
+    # Tokenize line by line: re.split(r"\s+") on the whole text would swallow
+    # newlines, so a token starting a new line would never register as
+    # sentence-initial.
     tokens: list[tuple[str, bool, bool]] = []
-    for t in raw_tokens:
-        if not t:
-            continue
-        breaks = bool(t) and t[-1] in _RUN_BREAK
-        ends_sent = bool(t) and t[-1] in _SENT_END
-        cleaned = t.strip(_STRIP_CHARS)
-        if not cleaned:
-            # Pure-punctuation token (e.g. "."). Carry its break flags onto the
-            # PREVIOUS token so we don't introduce empty slots that produce
-            # double-spaces in joined phrases.
-            if tokens:
-                prev_word, prev_breaks, prev_ends = tokens[-1]
-                tokens[-1] = (prev_word, prev_breaks or breaks, prev_ends or ends_sent)
-            continue
-        tokens.append((cleaned, breaks, ends_sent))
+    line_starts: set[int] = set()
+    for line in text.split("\n"):
+        line_start_pending = True
+        for t in re.split(r"\s+", line):
+            if not t:
+                continue
+            breaks = t[-1] in _RUN_BREAK
+            ends_sent = t[-1] in _SENT_END
+            cleaned = t.strip(_STRIP_CHARS)
+            if not cleaned:
+                # Pure-punctuation token (e.g. "."). Carry its break flags onto the
+                # PREVIOUS token so we don't introduce empty slots that produce
+                # double-spaces in joined phrases.
+                if tokens:
+                    prev_word, prev_breaks, prev_ends = tokens[-1]
+                    tokens[-1] = (prev_word, prev_breaks or breaks, prev_ends or ends_sent)
+                continue
+            if line_start_pending:
+                line_starts.add(len(tokens))
+                line_start_pending = False
+            tokens.append((cleaned, breaks, ends_sent))
 
     def _is_upper(tok: str) -> bool:
         return bool(tok) and tok[0].isupper()
@@ -127,9 +140,9 @@ def _extract_proper_nouns(text: str) -> set[str]:
         return bool(tok) and all(ord(c) < 128 for c in tok)
 
     n = len(tokens)
-    # Track sentence-initial positions: index 0 and any index immediately
+    # Track sentence-initial positions: line starts and any index immediately
     # following a token whose original form ended in sentence-terminating punctuation.
-    sentence_initial: set[int] = {0}
+    sentence_initial: set[int] = {0} | line_starts
     for idx, (_, _, ends_sent) in enumerate(tokens):
         if ends_sent and idx + 1 < n:
             sentence_initial.add(idx + 1)
