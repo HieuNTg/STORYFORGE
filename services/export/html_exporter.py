@@ -76,16 +76,54 @@ def _build_character_cards(characters: list[Character]) -> str:
 </section>'''
 
 
+def _safe_media_urls(images: list) -> list[str]:
+    """Keep only same-origin /media/ URLs (no traversal, no external hosts)."""
+    safe = []
+    for url in images or []:
+        if not isinstance(url, str):
+            continue
+        url = url.strip()
+        if url.startswith("/media/") and ".." not in url:
+            safe.append(url)
+    return safe
+
+
+def _build_comic_pages_html(images: list) -> str:
+    """Stacked comic pages/panels (webtoon reading order) for one chapter."""
+    safe = _safe_media_urls(images)
+    if not safe:
+        return ''
+    imgs = '\n'.join(
+        f'<img src="{html.escape(url)}" alt="Trang truyện tranh" loading="lazy">'
+        for url in safe
+    )
+    return f'<div class="comic-pages">\n{imgs}\n</div>'
+
+
 def _build_chapters_html(chapters: list) -> str:
-    """Generate chapter content HTML."""
+    """Generate chapter content HTML.
+
+    Chapters that carry generated comic pages (`chapter.images`) render them
+    stacked in reading order; the prose then collapses into a <details> block
+    so the comic IS the chapter and the text stays available as a fallback.
+    """
     sections = []
     for ch in chapters:
         title = html.escape(ch.title)
         content = _md_to_html(ch.content) if ch.content else '<p><em>Chưa có nội dung.</em></p>'
+        comic = _build_comic_pages_html(getattr(ch, 'images', None))
+        if comic:
+            body = (
+                f'{comic}\n'
+                f'<details class="prose-fallback"><summary>Đọc bản chữ</summary>\n'
+                f'{content}\n</details>'
+            )
+        else:
+            body = content
         sections.append(
             f'<article id="ch-{ch.chapter_number}" class="chapter">\n'
             f'<h2>Chương {ch.chapter_number}: {title}</h2>\n'
-            f'{content}\n'
+            f'{body}\n'
             f'</article>'
         )
     return '\n'.join(sections)
@@ -150,6 +188,14 @@ header .meta span {{ margin: 0 8px; }}
 .char-card h4 {{ color: var(--accent); margin-bottom: 5px; }}
 .char-role {{ font-size: 13px; opacity: 0.7; margin-bottom: 5px; }}
 .char-card p {{ font-size: 14px; margin-bottom: 5px; }}
+
+/* Comic pages — stacked webtoon-style, full column width */
+.comic-pages {{ display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }}
+.comic-pages img {{ width: 100%; height: auto; border-radius: 6px;
+  box-shadow: 0 2px 10px var(--shadow); background: #fff; }}
+.prose-fallback {{ margin-top: 10px; }}
+.prose-fallback summary {{ cursor: pointer; color: var(--accent);
+  font-size: 14px; margin-bottom: 10px; }}
 
 /* Chapters */
 .chapter {{ margin-bottom: 50px; padding-bottom: 30px; border-bottom: 1px solid var(--border); }}

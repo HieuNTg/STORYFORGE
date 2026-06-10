@@ -71,6 +71,52 @@ export function useGallery(filters: GalleryFilters = {}) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Share a library story (localStorage) into the public gallery
+// ---------------------------------------------------------------------------
+
+import type { Story } from "@/types/story";
+
+export interface LibraryShareResponse {
+  share_id: string;
+  story_title: string;
+  created_at: string;
+  expires_at: string;
+  is_public: boolean;
+  cover_url: string;
+  /** Same-origin share page path, e.g. `/api/share/abc123`. */
+  url: string;
+}
+
+/**
+ * POST /api/share/create-from-library — serialize a library story (chapters,
+ * prose, comic-page `/media/...` URLs) and publish it to the gallery.
+ */
+export function createLibraryShare(story: Story): Promise<LibraryShareResponse> {
+  return apiFetch<LibraryShareResponse>("/api/share/create-from-library", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title: story.title,
+      genre: story.genre,
+      synopsis: story.description,
+      chapters: story.chapters.map((ch) => ({
+        title: ch.title,
+        content: ch.content,
+        summary: ch.summary,
+        images: ch.images,
+      })),
+      characters: story.characters.map((c) => ({
+        name: c.name,
+        role: c.role,
+        personality: c.description,
+        motivation: c.conflict,
+      })),
+      is_public: true,
+    }),
+  });
+}
+
 export function filterGalleryItems(
   items: GalleryItem[],
   filters: GalleryFilters,

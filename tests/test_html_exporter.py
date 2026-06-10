@@ -198,6 +198,56 @@ class TestBuildChaptersHtml:
         result = _build_chapters_html(chapters)
         assert 'class="chapter"' in result
 
+    # --- comic pages (chapter.images) ---
+
+    def test_comic_pages_rendered_stacked(self):
+        ch = Chapter(
+            chapter_number=1, title="Ch1", content="Prose here.",
+            images=["/media/output/s/pages/ch01_page01.png",
+                    "/media/output/s/pages/ch01_page02.png"],
+        )
+        result = _build_chapters_html([ch])
+        assert 'class="comic-pages"' in result
+        assert 'src="/media/output/s/pages/ch01_page01.png"' in result
+        assert 'src="/media/output/s/pages/ch01_page02.png"' in result
+        # Reading order preserved
+        assert result.index("page01") < result.index("page02")
+
+    def test_comic_chapter_prose_collapses_to_details(self):
+        ch = Chapter(
+            chapter_number=1, title="Ch1", content="Prose here.",
+            images=["/media/output/s/pages/p1.png"],
+        )
+        result = _build_chapters_html([ch])
+        assert "<details" in result
+        assert "Đọc bản chữ" in result
+        assert "Prose here." in result
+
+    def test_chapter_without_images_has_no_comic_block(self):
+        result = _build_chapters_html([_make_chapter(1)])
+        assert "comic-pages" not in result
+        assert "<details" not in result
+
+    def test_non_media_and_traversal_urls_dropped(self):
+        ch = Chapter(
+            chapter_number=1, title="Ch1", content="x",
+            images=["https://evil.example/x.png",
+                    "/media/../data/config.json",
+                    "/media/output/s/ok.png"],
+        )
+        result = _build_chapters_html([ch])
+        assert "evil.example" not in result
+        assert "config.json" not in result
+        assert "/media/output/s/ok.png" in result
+
+    def test_image_url_html_escaped(self):
+        ch = Chapter(
+            chapter_number=1, title="Ch1", content="x",
+            images=['/media/a"onerror="alert(1).png'],
+        )
+        result = _build_chapters_html([ch])
+        assert '"onerror="' not in result
+
 
 # ---------------------------------------------------------------------------
 # HTMLExporter.export

@@ -774,6 +774,11 @@ class ShareableStory(BaseModel):
     html_path: str = ""
     expires_at: str = ""
     is_public: bool = False
+    genre: str = ""
+    cover_url: str = Field(
+        default="",
+        description="Gallery cover — first comic page/panel `/media/...` URL",
+    )
 
 
 # === Story Branching ===

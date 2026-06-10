@@ -57,11 +57,22 @@ class ShareManager:
             html_path=html_path,
             expires_at=expires.isoformat(),
             is_public=is_public,
+            genre=getattr(story, "genre", "") or "",
+            cover_url=self._first_media_image(story),
         )
         self.shares.append(share.model_dump())
         self._save_index()
         logger.info(f"Share created: {share_id} for '{story.title}'")
         return share
+
+    @staticmethod
+    def _first_media_image(story) -> str:
+        """First /media/ comic page/panel across chapters — gallery cover."""
+        for ch in getattr(story, "chapters", []) or []:
+            for url in getattr(ch, "images", []) or []:
+                if isinstance(url, str) and url.startswith("/media/") and ".." not in url:
+                    return url
+        return ""
 
     def get_share(self, share_id: str) -> Optional[str]:
         """Lấy đường dẫn HTML theo share_id. Trả None nếu hết hạn hoặc không tồn tại."""
