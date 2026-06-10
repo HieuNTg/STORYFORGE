@@ -152,6 +152,7 @@
     "comic_chapter_has": "Illustrated",
     "comic_chapter_missing": "No panels",
     "comic_regenerate_chapter": "Regenerate this chapter",
+    "comic_read_chapter": "Read this chapter's comic",
     "comic_done": "Generated {count} comic panels",
     "comic_nothing_missing": "Every chapter already has panels.",
     "comic_no_images": "No panels were generated — the image provider (e.g. FlowKit) may not be connected. Please retry.",

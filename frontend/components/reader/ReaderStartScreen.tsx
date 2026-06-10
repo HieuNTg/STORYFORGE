@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { BookOpen } from "lucide-react";
 
 import { ChapterReader } from "@/components/reader/ChapterReader";
+import { ComicPanels } from "@/components/reader/ComicPanels";
 import { ReaderControls } from "@/components/reader/ReaderControls";
 import {
   rehydrateLibrary,
@@ -23,6 +24,7 @@ import { displayStoryTitle } from "@/lib/library/display-helpers";
 export function ReaderStartScreen() {
   const searchParams = useSearchParams();
   const queryId = searchParams?.get("id") ?? null;
+  const queryChapter = searchParams?.get("chapter") ?? null;
   const stories = useLibraryStore((s) => s.stories);
   const selectedId = useLibraryStore((s) => s.selectedId);
   const hydrated = useLibraryStore((s) => s.hydrated);
@@ -55,6 +57,15 @@ export function ReaderStartScreen() {
   React.useEffect(() => {
     setChapterIdx(0);
   }, [selectedStory?.id]);
+
+  // Deep link from the Library's "Có tranh" rows: /reader/?id=...&chapter=N
+  // (1-based). Declared AFTER the reset effect so it wins on story change.
+  React.useEffect(() => {
+    if (!queryChapter || !selectedStory) return;
+    const n = Number(queryChapter);
+    if (!Number.isInteger(n)) return;
+    if (n >= 1 && n <= selectedStory.chapters.length) setChapterIdx(n - 1);
+  }, [queryChapter, selectedStory]);
 
   const chapters = selectedStory?.chapters ?? [];
   const safeIdx = chapters.length === 0 ? 0 : Math.max(0, Math.min(chapterIdx, chapters.length - 1));
@@ -162,6 +173,14 @@ export function ReaderStartScreen() {
               onColumnWidth={(w) => setColumn(columnFromUi(w))}
             />
           </div>
+          {(currentChapter.images?.length ?? 0) > 0 ? (
+            <div className="mb-6">
+              <ComicPanels
+                images={currentChapter.images ?? []}
+                alt={currentChapter.title}
+              />
+            </div>
+          ) : null}
           <ChapterReader
             title={currentChapter.title}
             content={currentChapter.content}

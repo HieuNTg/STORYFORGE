@@ -24,12 +24,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ImageIcon, RefreshCw, AlertTriangle, Settings } from "lucide-react";
+import { ImageIcon, RefreshCw, AlertTriangle, Settings, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ComicPanels } from "@/components/reader/ComicPanels";
 import { cn } from "@/lib/utils";
 import { useLibraryStore } from "@/stores/library-store";
 import {
@@ -358,30 +357,41 @@ export function LibraryComicGenerator({
                   {has ? t("comic_chapter_has") : t("comic_chapter_missing")}
                 </Badge>
                 {has ? (
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => handleRegenerateChapter(n)}
-                    disabled={busy || noProvider}
-                    aria-label={t("comic_regenerate_chapter")}
-                    title={t("comic_regenerate_chapter")}
-                    className="size-7 shrink-0"
-                  >
-                    <RefreshCw
-                      className={cn("size-3.5", rowBusy && "animate-spin")}
-                      aria-hidden
-                    />
-                  </Button>
+                  <>
+                    {/* Reading happens in the Reader (/reader) — the Library
+                        only manages generation; see CEO call 2026-06-10. */}
+                    <Button
+                      asChild
+                      size="icon"
+                      variant="ghost"
+                      aria-label={t("comic_read_chapter")}
+                      title={t("comic_read_chapter")}
+                      className="size-7 shrink-0"
+                    >
+                      <Link
+                        href={`/reader/?id=${encodeURIComponent(story.id)}&chapter=${n}`}
+                      >
+                        <BookOpen className="size-3.5" aria-hidden />
+                      </Link>
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => handleRegenerateChapter(n)}
+                      disabled={busy || noProvider}
+                      aria-label={t("comic_regenerate_chapter")}
+                      title={t("comic_regenerate_chapter")}
+                      className="size-7 shrink-0"
+                    >
+                      <RefreshCw
+                        className={cn("size-3.5", rowBusy && "animate-spin")}
+                        aria-hidden
+                      />
+                    </Button>
+                  </>
                 ) : null}
               </div>
-              {has ? (
-                <ComicPanels
-                  images={ch.images}
-                  alt={`${t("comic_title")} — ${ch.title}`}
-                  loading={rowBusy}
-                />
-              ) : null}
             </li>
           );
         })}
