@@ -51,11 +51,14 @@ class ImageGenerator:
         self.story_title = story_title
         # Scene panels live under the per-story output layout:
         #   output/<story-slug>/images
-        # The resolver derives the slug from title (+session) — the same slug
-        # everything else for this story uses. Falls back to a global images
-        # dir when neither identity is known (CLI / standalone use).
+        # The resolver derives the slug from title (+session when present) —
+        # the same slug everything else for this story uses. Library jobs pass
+        # story_title with session_id=None (localStorage stories have no
+        # session); they MUST still get a per-story folder, or every story's
+        # ``chNN_panelNN.png`` collides in one shared dir. Falls back to a
+        # global images dir only when no title is known (CLI / standalone use).
         from services.output_paths import OUTPUT_ROOT, images_dir
-        if session_id and story_title:
+        if story_title:
             self.output_dir = images_dir(story_title, session_id=session_id)
         else:
             self.output_dir = os.path.join(OUTPUT_ROOT, "images")

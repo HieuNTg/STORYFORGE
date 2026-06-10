@@ -270,3 +270,20 @@ def test_apply_shot_list_to_prompts_threads_metadata():
     # Image prompt strings must remain free of dialogue text.
     assert VI_LINE_1 not in prompts[1].dalle_prompt
     assert VI_LINE_1 not in prompts[1].sd_prompt
+
+
+def test_apply_shot_list_to_prompts_threads_captions():
+    """Narration captions must travel onto the ImagePrompt too — the Codex bake
+    step letters them as caption boxes; dropping them here was why comics came
+    out with zero 'thoại dẫn' (reader couldn't follow the story)."""
+    prompts = [ImagePrompt(panel_number=1, dalle_prompt="P1", sd_prompt="S1")]
+    sl = ShotList(chapter_number=1, pages=[Page(panels=[
+        Panel(n=1, shot="EWS",
+              captions=[Caption(type="narration",
+                                text="Ba ngày sau, tại Thanh Vân Tông.")],
+              bubbles=[]),
+    ])])
+    apply_shot_list_to_prompts(prompts, sl)
+    assert prompts[0].captions == [
+        {"type": "narration", "text": "Ba ngày sau, tại Thanh Vân Tông."}
+    ]

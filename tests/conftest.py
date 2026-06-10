@@ -1,11 +1,44 @@
 """Shared pytest fixtures for StoryForge test suite."""
 import json
 import os
+import tempfile
 import time
 from pathlib import Path
 
 import pytest
 from unittest.mock import MagicMock, patch
+
+# ---------------------------------------------------------------------------
+# Hermetic config: redirect CONFIG_FILE for the WHOLE test session.
+#
+# Several tests exercise ConfigManager().save() / the settings API without
+# patching CONFIG_FILE; each such test used to rewrite the developer's real
+# data/config.json with fixture state (wiping api_key, fallback_models and
+# the comic_*/panels_* flags). CI never saw this because data/config.json is
+# gitignored there, so this redirect also makes local runs behave like CI.
+# Done at import time so it precedes any ConfigManager() instantiation during
+# collection. Tests that patch config.persistence.CONFIG_FILE themselves are
+# unaffected.
+# ---------------------------------------------------------------------------
+from config import persistence as _config_persistence
+
+_TEST_CONFIG_DIR = tempfile.mkdtemp(prefix="storyforge-test-config-")
+_TEST_CONFIG_FILE = os.path.join(_TEST_CONFIG_DIR, "config.json")
+
+# Seed the sandbox with a COPY of the developer's real config so tests see the
+# same effective settings as before this guard existed (e.g. a reachable local
+# LLM base_url — without it, unmocked LLM calls fall into multi-minute retry
+# backoff against the unreachable dataclass-default URL). Reads stay realistic;
+# writes can no longer touch the real file. On CI data/config.json is absent
+# and tests run on pure dataclass defaults, as they always did.
+if os.path.exists(_config_persistence.CONFIG_FILE):
+    import shutil
+
+    shutil.copyfile(_config_persistence.CONFIG_FILE, _TEST_CONFIG_FILE)
+
+_config_persistence.CONFIG_FILE = _TEST_CONFIG_FILE
+_config_persistence._SECRETS_FILE = os.path.join(_TEST_CONFIG_DIR, "secrets.json")
+
 from models.schemas import (
     Character, Chapter, ChapterOutline, WorldSetting,
     StoryDraft, EnhancedStory, PipelineOutput, SimulationResult, SimulationEvent,

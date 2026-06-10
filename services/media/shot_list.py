@@ -69,7 +69,7 @@ Với mỗi panel, gán:
 - subject: tên nhân vật chính trong khung (đúng như NHÂN VẬT bên dưới).
 - camera, action, setting, mood: mô tả ngắn (tiếng Anh).
 - screen_side: vị trí trái/giữa/phải của từng nhân vật trong khung (giữ luật 180°), ví dụ {{"Kiên": "right"}}.
-- captions: hộp narration/chuyển cảnh. Dùng khi đổi địa điểm/thời gian. text giữ NGUYÊN tiếng Việt có dấu.
+- captions: hộp dẫn truyện (narration box) — như truyện tranh chuyển thể từ tiểu thuyết, lời kể dẫn dắt mạch truyện. Panel 1 của chương PHẢI có 1 caption mở đầu giới thiệu bối cảnh/tình huống. Thêm caption khi đổi địa điểm, nhảy thời gian, và ở bất kỳ panel nào mà nếu thiếu lời kể người đọc sẽ mất mạch truyện (cô đọng đoạn văn xuôi tương ứng thành 1-2 câu ngắn). type là "narration" hoặc "transition". text bằng tiếng Việt có dấu. KHÔNG lặp lại nguyên văn câu thoại đã nằm trong bubbles.
 - bubbles: tối đa 2 bong bóng/panel. Mỗi bong bóng {{"speaker": tên, "type": "speech|thought|shout|whisper", "text": lời thoại}}. text giữ NGUYÊN tiếng Việt có dấu, byte-for-byte như trong văn xuôi.
 
 Beat lớn nhất/quan trọng nhất của chương đặt một mình trên một trang layout SPLASH.
@@ -428,10 +428,11 @@ def apply_shot_list_to_prompts(
     """Thread shot-list panel metadata onto matching ImagePrompt objects.
 
     Aligns panels to prompts by reading order (panel n → prompt index) and copies
-    ``shot_type``, ``dialogue`` and ``screen_side`` onto each ImagePrompt so the
-    metadata travels with the prompt into image generation. The image *prompt
-    text* is left untouched — it still carries NO dialogue; only the Phase 3
-    compositor reads ``dialogue``.
+    ``shot_type``, ``dialogue``, ``captions`` and ``screen_side`` onto each
+    ImagePrompt so the metadata travels with the prompt into image generation.
+    The image *prompt text* is left untouched — it still carries NO dialogue;
+    only the Phase 3 compositor (FlowKit path) or bake_dialogue_into_prompts
+    (Codex path) consumes ``dialogue``/``captions``.
 
     Mutates and returns ``prompts`` (in place) for caller convenience.
     """
@@ -439,6 +440,7 @@ def apply_shot_list_to_prompts(
     for ip, panel in zip(prompts, panels):
         ip.shot_type = panel.shot
         ip.dialogue = [b.model_dump() for b in panel.bubbles]
+        ip.captions = [c.model_dump() for c in panel.captions]
         ip.screen_side = dict(panel.screen_side)
     return prompts
 

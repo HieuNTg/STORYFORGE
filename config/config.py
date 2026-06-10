@@ -43,7 +43,10 @@ class ConfigManager:
         """Save config. Returns warnings. Raises ValueError on critical errors."""
         with self._lock:
             warnings = self.validate()
-            critical = [w for w in warnings if "bắt buộc" in w or "phải" in w]
+            critical = [
+                w for w in warnings
+                if "bắt buộc" in w or "phải" in w or "requires" in w
+            ]
             if critical:
                 raise ValueError(f"Config invalid: {'; '.join(critical)}")
             if warnings:

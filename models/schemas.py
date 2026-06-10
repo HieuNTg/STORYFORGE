@@ -735,6 +735,10 @@ class ImagePrompt(BaseModel):
         default_factory=list,
         description="Ordered bubbles for this panel: {speaker, type, text}",
     )
+    captions: list[dict] = Field(
+        default_factory=list,
+        description="Narration caption boxes for this panel: {type, text}",
+    )
     screen_side: dict = Field(
         default_factory=dict,
         description="180-degree placement, {character_name: left|center|right}",
@@ -770,6 +774,11 @@ class ShareableStory(BaseModel):
     html_path: str = ""
     expires_at: str = ""
     is_public: bool = False
+    genre: str = ""
+    cover_url: str = Field(
+        default="",
+        description="Gallery cover — first comic page/panel `/media/...` URL",
+    )
 
 
 # === Story Branching ===

@@ -197,5 +197,47 @@ def test_bake_dialogue_panel_forbids_extra_invented_text():
     bake_dialogue_into_prompts([ip])
     low = ip.sd_prompt.lower()
     assert "Ta sẽ trở lại." in ip.sd_prompt
-    assert "only the bubbles listed above" in low
+    assert "only the caption boxes and bubbles listed above" in low
     assert "do not add any extra" in low
+
+
+def test_bake_captions_letters_narration_box_with_bubbles():
+    """Narration captions (thoại dẫn) must be baked as rectangular caption
+    boxes alongside the bubbles — a comic without narration boxes loses the
+    story thread between panels."""
+    ip = ImagePrompt(
+        panel_number=6,
+        sd_prompt="wide shot, sect gate at dawn, cel shading, no text",
+        captions=[{"type": "narration", "text": "Ba ngày sau, tại Thanh Vân Tông."}],
+        dialogue=[{"speaker": "Kiên", "type": "speech", "text": "Ta đến rồi."}],
+    )
+    bake_dialogue_into_prompts([ip])
+    low = ip.sd_prompt.lower()
+    # Caption text verbatim, lettered as a tail-less rectangular box.
+    assert "Ba ngày sau, tại Thanh Vân Tông." in ip.sd_prompt
+    assert "rectangular caption box" in low
+    assert "no tail" in low
+    # Bubble still lettered too.
+    assert "Ta đến rồi." in ip.sd_prompt
+    assert ip.sd_prompt.count("containing exactly") == 2
+    # dalle_prompt rewritten the same way.
+    assert "Ba ngày sau, tại Thanh Vân Tông." in ip.dalle_prompt
+
+
+def test_bake_caption_only_panel_letters_caption_not_silence_guard():
+    """A panel with narration but no dialogue is NOT a silent panel — it must
+    get the caption box, not the no-lettering guard."""
+    ip = ImagePrompt(
+        panel_number=7,
+        sd_prompt="establishing shot, ruined village, cel shading, no text in image",
+        captions=[{"type": "transition", "text": "Nửa năm trước, làng Đông Hà."}],
+        dialogue=[],
+    )
+    bake_dialogue_into_prompts([ip])
+    low = ip.sd_prompt.lower()
+    assert "Nửa năm trước, làng Đông Hà." in ip.sd_prompt
+    assert "rectangular caption box" in low
+    # The silent-panel guard must NOT appear.
+    assert "free of lettering" not in low
+    # No speech balloon instruction for a dialogue-free panel.
+    assert "balloon" not in low

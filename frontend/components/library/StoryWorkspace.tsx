@@ -13,6 +13,7 @@ import {
   BookOpen,
   ChevronDown,
   Download,
+  Share2,
   Trash2,
   Users,
   FileText,
@@ -48,6 +49,8 @@ import {
 } from "@/lib/library/json-io";
 import type { Story, StoryChapter } from "@/types/story";
 import { displayStoryTitle } from "@/lib/library/display-helpers";
+import { createLibraryShare } from "@/lib/api/gallery";
+import { useLibraryStore } from "@/stores/library-store";
 import { LibraryComicGenerator } from "./LibraryComicGenerator";
 
 export interface StoryWorkspaceProps {
@@ -80,6 +83,30 @@ export function StoryWorkspace({
   const t = useTranslations("library");
   const [confirmOpen, setConfirmOpen] = React.useState(false);
   const [exportingFmt, setExportingFmt] = React.useState<LibraryExportFormat | null>(null);
+  const [sharing, setSharing] = React.useState(false);
+  const updateStory = useLibraryStore((s) => s.updateStory);
+
+  const handleShare = async () => {
+    setSharing(true);
+    try {
+      // Re-sharing replaces the story's existing gallery entry (no duplicates).
+      const res = await createLibraryShare(story, story.galleryShareId || undefined);
+      updateStory(story.id, { galleryShareId: res.share_id });
+      toast.success(t("shared"), {
+        description: t("shared_desc"),
+        action: {
+          label: t("shared_open"),
+          onClick: () => window.open(res.url, "_blank", "noopener"),
+        },
+      });
+    } catch (err) {
+      toast.error(t("share_failed"), {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setSharing(false);
+    }
+  };
 
   const handleExport = () => {
     try {
@@ -279,6 +306,16 @@ export function StoryWorkspace({
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => void handleShare()}
+          disabled={sharing}
+          aria-label={sharing ? t("sharing") : t("share")}
+          title={t("share")}
+        >
+          <Share2 className="size-4" aria-hidden />
+        </Button>
         <Button
           type="button"
           variant="outline"

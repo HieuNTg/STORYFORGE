@@ -25,6 +25,20 @@ import {
 const STORAGE_KEY = "storyforge_library_v1";
 const MAX_STORIES = 50;
 
+/**
+ * Before the backend fix on sprint/fix-comic-media-urls, library comic jobs
+ * emitted panel URLs with a doubled path segment (`/media/output/...` instead
+ * of `/media/...`) — every one of them 404s. The v1→v2 migration rewrites any
+ * persisted URL still carrying the bogus prefix so old stories render again.
+ */
+const LEGACY_MEDIA_PREFIX = "/media/output/";
+
+function fixLegacyMediaUrl(url: string): string {
+  return url.startsWith(LEGACY_MEDIA_PREFIX)
+    ? "/media/" + url.slice(LEGACY_MEDIA_PREFIX.length)
+    : url;
+}
+
 interface LibraryState {
   stories: Story[];
   selectedId: string | null;
@@ -186,14 +200,28 @@ export const useLibraryStore = create<LibraryState>()(
     }),
     {
       name: STORAGE_KEY,
-      version: 1,
+      version: 2,
       skipHydration: true,
       partialize: (s) => ({ stories: s.stories, selectedId: s.selectedId }),
       migrate: (persistedState, version) => {
         if (version < 1) {
           return { stories: [], selectedId: null };
         }
-        return persistedState as { stories: Story[]; selectedId: string | null };
+        const state = persistedState as {
+          stories: Story[];
+          selectedId: string | null;
+        };
+        if (version < 2) {
+          state.stories = state.stories.map((s) => ({
+            ...s,
+            chapters: s.chapters.map((ch) =>
+              ch.images?.some((u) => u.startsWith(LEGACY_MEDIA_PREFIX))
+                ? { ...ch, images: ch.images.map(fixLegacyMediaUrl) }
+                : ch,
+            ),
+          }));
+        }
+        return state;
       },
       onRehydrateStorage: () => (state, error) => {
         if (error) {
