@@ -436,50 +436,76 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
                     _made, len(character_references),
                 )
 
+        _coverage_check = bool(
+            getattr(_pipeline_cfg, "comic_coverage_check_enabled", True)
+        )
         all_paths: list[str] = []
         for ch in target_chapters:
             num_panels = _panels_for(ch)
-            prompts = prompt_gen.generate_from_chapter(
-                ch,
-                characters=characters or None,
-                num_images=num_panels,
-                visual_profiles=visual_profiles or None,
-            )
-            if not prompts:
-                continue
+            prompts = []
             _chapter_shot_list = None  # populated below when the shot-list stage runs
-            # Beat→Shot-list: runs between chapter prose and image generation.
-            # The shot-list is persisted onto ``ch.shot_list`` (carried alongside
-            # the panels for Phase 3's compositor) and its panel metadata
-            # (shot_type/dialogue/screen_side) is threaded onto the ImagePrompts.
-            # Image prompt TEXT stays text-free (FlowKit) — dialogue is
-            # compositor-only — UNLESS the provider is Codex, which bakes the
-            # bubbles into the panel itself (see the _is_codex branch below).
+            # Beat→Shot-list FIRST: when it succeeds, every image prompt is
+            # derived from the SAME panel beats the compositor letters (1:1 in
+            # reading order), so each picture matches the dialogue drawn over it
+            # and panels inserted by the coverage check get images too. The
+            # legacy scene-extraction path below remains the fallback whenever
+            # the stage is off or fails. The shot-list is persisted onto
+            # ``ch.shot_list`` (carried alongside the panels for Phase 3's
+            # compositor) and its panel metadata (shot_type/dialogue/
+            # screen_side) is threaded onto the ImagePrompts. Image prompt TEXT
+            # stays text-free (FlowKit) — dialogue is compositor-only — UNLESS
+            # the provider is Codex, which bakes the bubbles into the panel
+            # itself (see the _is_codex branch below).
             if _shot_extractor is not None:
                 try:
-                    from services.shot_list import apply_shot_list_to_prompts
                     shot_list = _shot_extractor.extract(
                         ch,
                         characters=characters or None,
                         num_panels=num_panels,
                         character_references=character_references or None,
                         visual_profiles=visual_profiles or None,
+                        coverage_check=_coverage_check,
                     )
                     if shot_list.pages:
-                        apply_shot_list_to_prompts(prompts, shot_list)
                         ch.shot_list = shot_list.model_dump()
                         _chapter_shot_list = shot_list
-                        if _is_codex:
-                            # Codex draws the bubbles itself — rewrite the prompts
-                            # to bake in this panel's dialogue (verbatim VN text)
-                            # instead of the clean text-free panel FlowKit uses.
-                            from services.image_prompt_generator import (
-                                bake_dialogue_into_prompts,
-                            )
-                            bake_dialogue_into_prompts(prompts)
+                        prompts = prompt_gen.generate_from_shot_list(
+                            shot_list,
+                            ch,
+                            characters=characters or None,
+                            visual_profiles=visual_profiles or None,
+                        )
                 except Exception as _sl_e:
                     logger.warning(
                         "Shot-list extraction failed for ch %s, continuing without: %s",
+                        ch.chapter_number, _sl_e,
+                    )
+            if not prompts:
+                # Legacy path: scenes extracted from prose, independent of any
+                # shot-list (used when the stage is off, failed, or empty).
+                prompts = prompt_gen.generate_from_chapter(
+                    ch,
+                    characters=characters or None,
+                    num_images=num_panels,
+                    visual_profiles=visual_profiles or None,
+                )
+            if not prompts:
+                continue
+            if _chapter_shot_list is not None:
+                try:
+                    from services.shot_list import apply_shot_list_to_prompts
+                    apply_shot_list_to_prompts(prompts, _chapter_shot_list)
+                    if _is_codex:
+                        # Codex draws the bubbles itself — rewrite the prompts
+                        # to bake in this panel's dialogue (verbatim VN text)
+                        # instead of the clean text-free panel FlowKit uses.
+                        from services.image_prompt_generator import (
+                            bake_dialogue_into_prompts,
+                        )
+                        bake_dialogue_into_prompts(prompts)
+                except Exception as _sl_e:
+                    logger.warning(
+                        "Shot-list threading failed for ch %s, continuing without: %s",
                         ch.chapter_number, _sl_e,
                     )
             ch_paths = image_gen.generate_story_images(

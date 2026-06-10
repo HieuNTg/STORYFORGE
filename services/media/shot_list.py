@@ -58,10 +58,25 @@ _LAYOUT_BY_COUNT = {
 MAX_WORDS_PER_BUBBLE = 20
 MAX_BUBBLES_PER_PANEL = 2
 
-# Prompt is self-contained (mirrors image_prompt_generator._SCENE_EXTRACT_PROMPT).
-_SHOT_LIST_PROMPT = """Bạn là biên kịch truyện tranh (comic storyboard artist). Cắt văn xuôi chương dưới đây thành các BEAT theo thứ tự, mỗi beat ≈ một khung (panel).
+# How much chapter prose the extractor sees. The old 3000-char window truncated
+# typical chapters roughly in half, which was the single biggest source of
+# "missing content" in shot-lists — beats simply never reached the LLM.
+CONTENT_WINDOW = 8000
 
-Một BEAT mới bắt đầu khi: đổi địa điểm / có người nói mới / bước ngoặt cảm xúc / nhảy thời gian / một reveal. Mục tiêu ~{num_panels} panel.
+# Coverage repair never inserts more than this many panels per chapter, so a
+# hallucinating verifier can't balloon the chapter.
+MAX_COVERAGE_INSERTS = 6
+
+# Prompt is self-contained (mirrors image_prompt_generator._SCENE_EXTRACT_PROMPT).
+_SHOT_LIST_PROMPT = """Bạn là biên kịch chuyển thể tiểu thuyết thành truyện tranh (comic storyboard artist). Cắt văn xuôi chương dưới đây thành các BEAT theo thứ tự — TRÍCH XUẤT theo nhịp truyện, KHÔNG tóm tắt. Mỗi beat ≈ một khung (panel).
+
+Một BEAT mới bắt đầu khi: đổi địa điểm / có người nói mới / bước ngoặt cảm xúc / nhảy thời gian / một reveal / một hành động quan trọng. Mục tiêu ~{num_panels} panel.
+
+LUẬT TRÍCH XUẤT (BẮT BUỘC):
+1. KHÔNG tóm tắt quá mức: một đoạn văn có nhiều biến cố phải tách thành nhiều beat, không được gộp.
+2. KHÔNG tự thêm tình tiết không có trong chương.
+3. Phải giữ đủ: nhân vật xuất hiện, sự kiện chính, xung đột, hành động quan trọng, câu thoại quan trọng, cảm xúc nhân vật, chi tiết thế giới quan / hệ thống tu luyện.
+4. Khái niệm trừu tượng (khế ước, tuổi thọ, thiên đạo, linh hồn, công pháp...) phải được chuyển thành hình ảnh VẼ ĐƯỢC, mô tả trong action/setting — ví dụ: sợi chỉ sinh mệnh phát sáng quấn quanh cổ tay rồi sạm đen dần, văn tự cổ rực cháy giữa không trung, vầng mây đen xoáy mang ấn ký vàng. Chọn MỘT ẩn dụ thị giác cho mỗi khái niệm và dùng lại nhất quán ở mọi panel có khái niệm đó.
 
 Với mỗi panel, gán:
 - shot: một trong EWS|WS|MS|CU|ECU|OTS|INSERT|REACTION. KHÔNG để hai panel liền kề trùng shot. Panel đầu của một cảnh MỚI phải là EWS hoặc WS (establishing).
@@ -82,6 +97,31 @@ NHÂN VẬT:
 
 Trả về JSON đúng schema:
 {{"pages": [{{"page": 1, "layout": "THREE_TIER", "panels": [{{"n": 1, "shot": "EWS", "beat": "...", "subject": "...", "camera": "...", "action": "...", "setting": "...", "mood": "...", "screen_side": {{}}, "captions": [{{"type": "narration", "text": "..."}}], "bubbles": [{{"speaker": "...", "type": "speech", "text": "..."}}]}}]}}]}}"""
+
+# Coverage verifier (pass 2). The verifier re-reads the FULL chapter against the
+# extracted beat list and emits ONLY what is missing, as ready-to-insert panel
+# dicts. It must see the chapter itself — a verifier fed only the beat list
+# would inherit the extractor's blind spots and rubber-stamp "covered".
+_COVERAGE_CHECK_PROMPT = """Bạn là biên tập viên kiểm tra ĐỘ PHỦ NỘI DUNG của một storyboard truyện tranh so với chương gốc.
+
+Dưới đây là CHƯƠNG GỐC và DANH SÁCH BEAT đã trích xuất từ nó. Đi lần lượt qua chương gốc. Tìm mọi chi tiết quan trọng KHÔNG được beat nào bao phủ: sự kiện, bước ngoặt, reveal, câu thoại quan trọng, xung đột, chi tiết thế giới quan / hệ thống tu luyện, biến chuyển cảm xúc then chốt.
+
+LUẬT:
+- KHÔNG đánh giá chất lượng. KHÔNG tóm tắt. KHÔNG liệt kê chi tiết đã được bao phủ.
+- Nếu không thiếu gì quan trọng, trả về {{"missing": []}}.
+- Với mỗi chi tiết bị thiếu, tạo MỘT panel mới: "after_panel" là số n của beat đứng ngay TRƯỚC nó theo dòng thời gian truyện (0 = chèn trước beat đầu tiên).
+- Khái niệm trừu tượng phải được mô tả thành hình ảnh VẼ ĐƯỢC trong action/setting.
+- Lời thoại trong bubbles giữ NGUYÊN tiếng Việt có dấu như trong chương gốc.
+- Tối đa {max_inserts} panel bổ sung — ưu tiên những chi tiết quan trọng nhất với mạch truyện.
+
+CHƯƠNG GỐC:
+{content}
+
+DANH SÁCH BEAT:
+{beats}
+
+Trả về JSON đúng schema:
+{{"missing": [{{"after_panel": 3, "shot": "MS", "beat": "...", "subject": "...", "camera": "...", "action": "...", "setting": "...", "mood": "...", "screen_side": {{}}, "captions": [{{"type": "narration", "text": "..."}}], "bubbles": [{{"speaker": "...", "type": "speech", "text": "..."}}]}}]}}"""
 
 
 # ---------------------------------------------------------------------------
@@ -297,6 +337,42 @@ def enforce_rules(
     return ShotList(chapter_number=shot_list.chapter_number, pages=pages)
 
 
+def _parse_panel(panel_raw: dict) -> Panel:
+    """Coerce one raw LLM panel dict into a Panel, tolerant of shape drift."""
+    bubbles = [
+        Bubble(
+            speaker=str(b.get("speaker", "")),
+            type=str(b.get("type", "speech")),
+            text=str(b.get("text", "")),
+        )
+        for b in panel_raw.get("bubbles", []) or []
+        if isinstance(b, dict)
+    ]
+    captions = [
+        Caption(
+            type=str(c.get("type", "narration")),
+            text=str(c.get("text", "")),
+        )
+        for c in panel_raw.get("captions", []) or []
+        if isinstance(c, dict)
+    ]
+    screen_side = panel_raw.get("screen_side")
+    return Panel(
+        n=int(panel_raw.get("n", 0) or 0),
+        shot=str(panel_raw.get("shot", "MS")).upper() or "MS",
+        beat=str(panel_raw.get("beat", "")),
+        subject=str(panel_raw.get("subject", "")),
+        subject_ref=str(panel_raw.get("subject_ref", "")),
+        camera=str(panel_raw.get("camera", "")),
+        action=str(panel_raw.get("action", "")),
+        setting=str(panel_raw.get("setting", "")),
+        mood=str(panel_raw.get("mood", "")),
+        screen_side=screen_side if isinstance(screen_side, dict) else {},
+        captions=captions,
+        bubbles=bubbles,
+    )
+
+
 def _parse_pages(raw: dict, chapter_number: int) -> ShotList:
     """Coerce the raw LLM dict into a ShotList, tolerant of minor shape drift."""
     pages_raw = raw.get("pages")
@@ -310,42 +386,11 @@ def _parse_pages(raw: dict, chapter_number: int) -> ShotList:
     for pi, pg in enumerate(pages_raw, 1):
         if not isinstance(pg, dict):
             continue
-        panels: list[Panel] = []
-        for panel_raw in pg.get("panels", []) or []:
-            if not isinstance(panel_raw, dict):
-                continue
-            bubbles = [
-                Bubble(
-                    speaker=str(b.get("speaker", "")),
-                    type=str(b.get("type", "speech")),
-                    text=str(b.get("text", "")),
-                )
-                for b in panel_raw.get("bubbles", []) or []
-                if isinstance(b, dict)
-            ]
-            captions = [
-                Caption(
-                    type=str(c.get("type", "narration")),
-                    text=str(c.get("text", "")),
-                )
-                for c in panel_raw.get("captions", []) or []
-                if isinstance(c, dict)
-            ]
-            screen_side = panel_raw.get("screen_side")
-            panels.append(Panel(
-                n=int(panel_raw.get("n", 0) or 0),
-                shot=str(panel_raw.get("shot", "MS")).upper() or "MS",
-                beat=str(panel_raw.get("beat", "")),
-                subject=str(panel_raw.get("subject", "")),
-                subject_ref=str(panel_raw.get("subject_ref", "")),
-                camera=str(panel_raw.get("camera", "")),
-                action=str(panel_raw.get("action", "")),
-                setting=str(panel_raw.get("setting", "")),
-                mood=str(panel_raw.get("mood", "")),
-                screen_side=screen_side if isinstance(screen_side, dict) else {},
-                captions=captions,
-                bubbles=bubbles,
-            ))
+        panels: list[Panel] = [
+            _parse_panel(panel_raw)
+            for panel_raw in pg.get("panels", []) or []
+            if isinstance(panel_raw, dict)
+        ]
         pages.append(Page(
             page=int(pg.get("page", pi) or pi),
             layout=str(pg.get("layout", "THREE_TIER")),
@@ -372,6 +417,7 @@ class ShotListExtractor:
         num_panels: int = 8,
         character_references: dict | None = None,
         visual_profiles: dict | None = None,
+        coverage_check: bool = False,
     ) -> ShotList:
         """Extract a chapter into a rule-enforced shot-list.
 
@@ -383,6 +429,10 @@ class ShotListExtractor:
                 ``ImageGenerator.generate_story_images`` consumes. Each subject is
                 resolved to its saved reference here.
             visual_profiles: {name: frozen_visual_description} (roster hints only).
+            coverage_check: when True, a second verifier LLM pass re-reads the
+                full chapter against the extracted beats and inserts panels for
+                any important detail the first pass dropped (anti-summarization
+                guard). Failure of the verifier degrades to the unverified list.
 
         Returns a ``ShotList`` (post-processed); on any failure, an empty
         ``ShotList`` so the pipeline degrades to the legacy image path.
@@ -402,16 +452,24 @@ class ShotListExtractor:
                 system_prompt="Bạn là biên kịch truyện tranh. Trả về JSON.",
                 user_prompt=_SHOT_LIST_PROMPT.format(
                     num_panels=num_panels,
-                    content=chapter.content[:3000],
+                    content=chapter.content[:CONTENT_WINDOW],
                     characters=chars_text or "Không có thông tin",
                 ),
                 temperature=0.5,
-                max_tokens=2500,
+                max_tokens=3500,
                 model_tier="cheap",
                 expect="dict",
                 list_key="pages",
             )
             shot_list = _parse_pages(raw or {}, chapter.chapter_number)
+            if coverage_check and shot_list.pages:
+                try:
+                    shot_list = self._repair_coverage(chapter, shot_list)
+                except Exception as cov_e:
+                    logger.warning(
+                        "Coverage check failed for ch %s, using unverified shot-list: %s",
+                        chapter.chapter_number, cov_e,
+                    )
             return enforce_rules(shot_list, character_references=character_references)
         except Exception as e:
             logger.warning(
@@ -419,6 +477,85 @@ class ShotListExtractor:
                 chapter.chapter_number, e,
             )
             return ShotList(chapter_number=chapter.chapter_number, pages=[])
+
+    def _repair_coverage(self, chapter: Chapter, shot_list: ShotList) -> ShotList:
+        """Verifier pass: find chapter details no beat covers, insert panels.
+
+        The verifier sees the FULL chapter window (not just the beat list) so it
+        does not inherit the extractor's blind spots. Missing details come back
+        as ready-to-insert panel dicts anchored by ``after_panel`` (the n of the
+        beat they chronologically follow; 0 = before the first beat). Insertions
+        are capped at ``MAX_COVERAGE_INSERTS``; the result is re-paged by
+        ``enforce_rules`` later, so panels land in one flat page here.
+        """
+        panels = shot_list.all_panels()
+        if not panels:
+            return shot_list
+        # Renumber sequentially: the verifier anchors on these n values.
+        for i, panel in enumerate(panels, 1):
+            panel.n = i
+
+        beat_lines = []
+        for p in panels:
+            dialogue = "; ".join(f'{b.speaker}: "{b.text}"' for b in p.bubbles if b.text)
+            caption = "; ".join(c.text for c in p.captions if c.text)
+            line = f"#{p.n} [{p.shot}] {p.beat} | action: {p.action} | setting: {p.setting}"
+            if caption:
+                line += f' | caption: "{caption}"'
+            if dialogue:
+                line += f" | thoại: {dialogue}"
+            beat_lines.append(line)
+
+        raw = self.llm.generate_json(
+            system_prompt="Bạn là biên tập viên kiểm tra độ phủ nội dung. Trả về JSON.",
+            user_prompt=_COVERAGE_CHECK_PROMPT.format(
+                max_inserts=MAX_COVERAGE_INSERTS,
+                content=chapter.content[:CONTENT_WINDOW],
+                beats="\n".join(beat_lines),
+            ),
+            temperature=0.3,
+            max_tokens=2000,
+            model_tier="cheap",
+            expect="dict",
+            list_key="missing",
+        )
+        missing_raw = (raw or {}).get("missing")
+        if not isinstance(missing_raw, list) or not missing_raw:
+            logger.info(
+                "Coverage check ch %s: no missing beats", chapter.chapter_number,
+            )
+            return shot_list
+
+        inserts: list[tuple[int, Panel]] = []
+        for item in missing_raw[:MAX_COVERAGE_INSERTS]:
+            if not isinstance(item, dict):
+                continue
+            try:
+                anchor = int(item.get("after_panel", len(panels)) or 0)
+            except (TypeError, ValueError):
+                anchor = len(panels)
+            anchor = max(0, min(anchor, len(panels)))
+            inserts.append((anchor, _parse_panel(item)))
+        if not inserts:
+            return shot_list
+
+        # Stable insert: walk the original panels, appending each insert right
+        # after its anchor (anchor 0 inserts go first, in verifier order).
+        by_anchor: dict[int, list[Panel]] = {}
+        for anchor, panel in inserts:
+            by_anchor.setdefault(anchor, []).append(panel)
+        merged: list[Panel] = list(by_anchor.get(0, []))
+        for p in panels:
+            merged.append(p)
+            merged.extend(by_anchor.get(p.n, []))
+        logger.info(
+            "Coverage check ch %s: inserted %d missing beat(s) (%d → %d panels)",
+            chapter.chapter_number, len(inserts), len(panels), len(merged),
+        )
+        return ShotList(
+            chapter_number=shot_list.chapter_number,
+            pages=[Page(page=1, layout="THREE_TIER", panels=merged)],
+        )
 
 
 def apply_shot_list_to_prompts(
@@ -451,6 +588,7 @@ def extract_shot_list(
     num_panels: int = 8,
     character_references: dict | None = None,
     visual_profiles: dict | None = None,
+    coverage_check: bool = False,
 ) -> ShotList:
     """Module-level convenience wrapper around ``ShotListExtractor.extract``."""
     return ShotListExtractor().extract(
@@ -459,4 +597,5 @@ def extract_shot_list(
         num_panels=num_panels,
         character_references=character_references,
         visual_profiles=visual_profiles,
+        coverage_check=coverage_check,
     )

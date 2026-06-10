@@ -209,6 +209,7 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
             "words_per_panel": getattr(pipeline, "words_per_panel", 200),
             "panel_retry_attempts": getattr(pipeline, "panel_retry_attempts", 2),
             "comic_shot_list_enabled": getattr(pipeline, "comic_shot_list_enabled", False),
+            "comic_coverage_check_enabled": getattr(pipeline, "comic_coverage_check_enabled", True),
             "comic_compositor_enabled": getattr(pipeline, "comic_compositor_enabled", False),
             "comic_page_canvas": getattr(pipeline, "comic_page_canvas", "1600x2263"),
             "comic_font": getattr(pipeline, "comic_font", "assets/fonts/BeVietnamPro-Bold.ttf"),
