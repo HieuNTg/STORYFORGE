@@ -46,6 +46,22 @@ def test_extract_finds_multi_token_names():
     assert "Thiên Sơn" in nouns
 
 
+def test_extract_strips_markdown_emphasis():
+    idea_md = (
+        "Truyện về **Thiên Phả Các** và món **Hỏa Hồng Liên**.\n"
+        "## Bối cảnh\nỞ một **Nghĩa Trang Không Bia**, vị thần.** Một ngày nọ..."
+    )
+    nouns = _extract_proper_nouns(idea_md)
+    assert "Thiên Phả Các" in nouns
+    assert "Hỏa Hồng Liên" in nouns
+    assert "Nghĩa Trang Không Bia" in nouns
+    # No noun should carry markdown glyphs
+    assert not any("*" in n or "#" in n for n in nouns)
+    # "Ở"/"Một" are sentence-initial words unmasked once "**"/".**" are stripped
+    assert "Ở" not in nouns
+    assert "Một" not in nouns
+
+
 def test_fidelity_check_flags_missing_nouns():
     cov, missing = proper_noun_fidelity_check(IDEA, OUTLINES_MISSING)
     assert cov < PROPER_NOUN_COVERAGE_FLOOR
