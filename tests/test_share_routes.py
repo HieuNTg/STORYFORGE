@@ -127,3 +127,26 @@ class TestCreateFromLibrary:
         del payload["title"]
         resp = self.client.post("/share/create-from-library", json=payload)
         assert resp.status_code == 422
+
+    def test_replace_share_id_replaces_old_entry(self):
+        first = self.client.post(
+            "/share/create-from-library", json=_library_payload()
+        ).json()
+        second = self.client.post(
+            "/share/create-from-library",
+            json=_library_payload(replace_share_id=first["share_id"]),
+        ).json()
+        assert second["share_id"] != first["share_id"]
+        # Old share is gone — gallery holds exactly the replacement
+        assert self.mgr.get_share(first["share_id"]) is None
+        items = self.client.get("/share/gallery").json()["items"]
+        assert [it["share_id"] for it in items] == [second["share_id"]]
+
+    def test_bogus_replace_share_id_ignored(self):
+        # Traversal-looking ids fail the strict regex and are silently ignored
+        resp = self.client.post(
+            "/share/create-from-library",
+            json=_library_payload(replace_share_id="../etc/passwd"),
+        )
+        assert resp.status_code == 200
+        assert self.client.get("/share/gallery").json()["total"] == 1

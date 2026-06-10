@@ -91,8 +91,14 @@ export interface LibraryShareResponse {
 /**
  * POST /api/share/create-from-library — serialize a library story (chapters,
  * prose, comic-page `/media/...` URLs) and publish it to the gallery.
+ *
+ * `replaceShareId` (the story's previous gallery share) makes the backend drop
+ * the old entry first, so re-publishing never duplicates the story.
  */
-export function createLibraryShare(story: Story): Promise<LibraryShareResponse> {
+export function createLibraryShare(
+  story: Story,
+  replaceShareId?: string,
+): Promise<LibraryShareResponse> {
   return apiFetch<LibraryShareResponse>("/api/share/create-from-library", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -113,6 +119,7 @@ export function createLibraryShare(story: Story): Promise<LibraryShareResponse> 
         motivation: c.conflict,
       })),
       is_public: true,
+      replace_share_id: replaceShareId ?? "",
     }),
   });
 }

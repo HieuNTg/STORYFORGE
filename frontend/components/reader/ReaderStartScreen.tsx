@@ -6,7 +6,6 @@ import { useTranslations } from "next-intl";
 import { BookOpen } from "lucide-react";
 
 import { ChapterReader } from "@/components/reader/ChapterReader";
-import { ComicPanels } from "@/components/reader/ComicPanels";
 import { ReaderControls } from "@/components/reader/ReaderControls";
 import {
   rehydrateLibrary,
@@ -173,14 +172,8 @@ export function ReaderStartScreen() {
               onColumnWidth={(w) => setColumn(columnFromUi(w))}
             />
           </div>
-          {(currentChapter.images?.length ?? 0) > 0 ? (
-            <div className="mb-6">
-              <ComicPanels
-                images={currentChapter.images ?? []}
-                alt={currentChapter.title}
-              />
-            </div>
-          ) : null}
+          {/* Prose only — comics live in the Gallery (Bộ sưu tập), the Reader
+              is for novels (CEO call 2026-06-10). */}
           <ChapterReader
             title={currentChapter.title}
             content={currentChapter.content}

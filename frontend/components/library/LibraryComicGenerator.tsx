@@ -24,7 +24,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ImageIcon, RefreshCw, AlertTriangle, Settings, BookOpen } from "lucide-react";
+import { ImageIcon, RefreshCw, AlertTriangle, Settings, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ import {
   type LibraryJobStatus,
 } from "@/lib/api/illustration";
 import { ApiError } from "@/lib/api/client";
+import { createLibraryShare } from "@/lib/api/gallery";
 import type { Story } from "@/types/story";
 
 export interface LibraryComicGeneratorProps {
@@ -53,6 +54,7 @@ export function LibraryComicGenerator({
 }: LibraryComicGeneratorProps) {
   const t = useTranslations("library");
   const setStoryChapterImages = useLibraryStore((s) => s.setStoryChapterImages);
+  const updateStory = useLibraryStore((s) => s.updateStory);
 
   const [pending, setPending] = React.useState<Pending>(null);
   const [noProvider, setNoProvider] = React.useState(false);
@@ -98,6 +100,41 @@ export function LibraryComicGenerator({
     },
     [setStoryChapterImages, story.id],
   );
+
+  // Comics live in the Gallery (Bộ sưu tập), not the Reader — the Reader is
+  // prose-only (CEO call 2026-06-10). After a run lands images, (re)publish
+  // the story to the public gallery. The fresh story is pulled from the store
+  // because the `story` prop captured at submit time predates the new images;
+  // `galleryShareId` makes the backend replace the previous share, so each
+  // library story keeps exactly one gallery entry.
+  const publishToGallery = React.useCallback(async () => {
+    const fresh = useLibraryStore
+      .getState()
+      .stories.find((s) => s.id === story.id);
+    if (!fresh || !fresh.chapters.some((ch) => (ch.images?.length ?? 0) > 0)) {
+      return;
+    }
+    try {
+      const res = await createLibraryShare(
+        fresh,
+        fresh.galleryShareId || undefined,
+      );
+      updateStory(story.id, { galleryShareId: res.share_id });
+      if (!mountedRef.current) return;
+      toast.success(t("comic_in_gallery_done"), {
+        description: t("comic_in_gallery_desc"),
+        action: {
+          label: t("comic_open_gallery"),
+          onClick: () => window.open(res.url, "_blank", "noopener"),
+        },
+      });
+    } catch (err) {
+      if (!mountedRef.current) return;
+      toast.error(t("comic_gallery_failed"), {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, [story.id, updateStory, t]);
 
   // Submit ONE async job, then poll it to terminal state. Phase B moves the
   // generation off the request thread: POST returns 202 + job_id in ms, the
@@ -199,6 +236,8 @@ export function LibraryComicGenerator({
           if (status.state === "done") {
             if (status.count > 0) {
               toast.success(t("comic_done", { count: status.count }));
+              // Fire-and-forget: the comic's home is the Gallery, publish now.
+              void publishToGallery();
             } else if (target === "missing" && status.total_chapters === 0) {
               // A "fill missing" run that targeted NO chapters (the backend's
               // only_missing filter found every chapter already illustrated).
@@ -245,7 +284,7 @@ export function LibraryComicGenerator({
 
       void poll();
     },
-    [busy, persist, story, t],
+    [busy, persist, publishToGallery, story, t],
   );
 
   const handleGenerate = React.useCallback(() => {
@@ -341,6 +380,19 @@ export function LibraryComicGenerator({
         ) : null}
       </div>
 
+      {story.galleryShareId ? (
+        <Button asChild size="sm" variant="outline" className="w-full gap-1.5">
+          <a
+            href={`/api/share/${encodeURIComponent(story.galleryShareId)}`}
+            target="_blank"
+            rel="noopener"
+          >
+            <ExternalLink className="size-3.5" aria-hidden />
+            {t("comic_view_in_gallery")}
+          </a>
+        </Button>
+      ) : null}
+
       <ul role="list" className="space-y-1.5">
         {story.chapters.map((ch, i) => {
           const n = i + 1;
@@ -357,39 +409,21 @@ export function LibraryComicGenerator({
                   {has ? t("comic_chapter_has") : t("comic_chapter_missing")}
                 </Badge>
                 {has ? (
-                  <>
-                    {/* Reading happens in the Reader (/reader) — the Library
-                        only manages generation; see CEO call 2026-06-10. */}
-                    <Button
-                      asChild
-                      size="icon"
-                      variant="ghost"
-                      aria-label={t("comic_read_chapter")}
-                      title={t("comic_read_chapter")}
-                      className="size-7 shrink-0"
-                    >
-                      <Link
-                        href={`/reader/?id=${encodeURIComponent(story.id)}&chapter=${n}`}
-                      >
-                        <BookOpen className="size-3.5" aria-hidden />
-                      </Link>
-                    </Button>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => handleRegenerateChapter(n)}
-                      disabled={busy || noProvider}
-                      aria-label={t("comic_regenerate_chapter")}
-                      title={t("comic_regenerate_chapter")}
-                      className="size-7 shrink-0"
-                    >
-                      <RefreshCw
-                        className={cn("size-3.5", rowBusy && "animate-spin")}
-                        aria-hidden
-                      />
-                    </Button>
-                  </>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => handleRegenerateChapter(n)}
+                    disabled={busy || noProvider}
+                    aria-label={t("comic_regenerate_chapter")}
+                    title={t("comic_regenerate_chapter")}
+                    className="size-7 shrink-0"
+                  >
+                    <RefreshCw
+                      className={cn("size-3.5", rowBusy && "animate-spin")}
+                      aria-hidden
+                    />
+                  </Button>
                 ) : null}
               </div>
             </li>

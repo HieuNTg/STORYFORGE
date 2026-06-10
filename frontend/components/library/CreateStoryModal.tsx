@@ -136,6 +136,7 @@ export function CreateStoryModal({
       tone: values.tone,
       description: values.description.trim(),
       coverUrl: null,
+      galleryShareId: "",
       characters: [],
       chapters: [],
       pendingChoices: null,

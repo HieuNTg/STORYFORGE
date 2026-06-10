@@ -167,6 +167,11 @@
     "comic_no_provider": "Chưa cấu hình nhà cung cấp ảnh. Hãy bật một provider tạo ảnh trong phần Cài đặt để tạo truyện tranh.",
     "comic_open_settings": "Mở Cài đặt",
     "comic_no_chapters": "Cần ít nhất một chương để tạo truyện tranh.",
+    "comic_in_gallery_done": "Truyện tranh đã vào Bộ sưu tập",
+    "comic_in_gallery_desc": "Đọc truyện tranh trong Bộ sưu tập — trang Đọc truyện chỉ dành cho bản chữ.",
+    "comic_open_gallery": "Mở truyện tranh",
+    "comic_gallery_failed": "Không đưa được truyện tranh vào Bộ sưu tập",
+    "comic_view_in_gallery": "Xem truyện tranh trong Bộ sưu tập",
     "create_manual_form": {
       "title": "Tạo truyện thủ công",
       "description": "Khởi tạo một khung truyện trống — bạn có thể thêm nhân vật và chương sau.",

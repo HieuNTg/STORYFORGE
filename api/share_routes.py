@@ -69,6 +69,7 @@ class LibraryShareRequest(BaseModel):
     characters: list[LibraryCharacterPayload] = Field(default_factory=list, max_length=50)
     is_public: bool = True
     expires_days: int = Field(default=30, ge=1, le=365)
+    replace_share_id: str = Field(default="", max_length=36)
 
 
 @router.post("/create", dependencies=[_CREATE_STORIES])
@@ -147,6 +148,11 @@ def create_share_from_library(req: LibraryShareRequest):
         ],
         chapters=chapters,
     )
+
+    # Re-publish: one gallery entry per library story — drop the old share
+    # before creating the replacement (id is validated like the GET route).
+    if req.replace_share_id and _SHARE_ID_RE.match(req.replace_share_id):
+        _share_manager.delete_share(req.replace_share_id)
 
     try:
         share = _share_manager.create_share(

@@ -167,6 +167,11 @@
     "comic_no_provider": "No image provider configured. Enable an image generation provider in Settings to create comics.",
     "comic_open_settings": "Open Settings",
     "comic_no_chapters": "At least one chapter is required to generate a comic.",
+    "comic_in_gallery_done": "Comic published to the Gallery",
+    "comic_in_gallery_desc": "Read the comic in the Gallery — the Reader is for prose only.",
+    "comic_open_gallery": "Open comic",
+    "comic_gallery_failed": "Failed to publish the comic to the Gallery",
+    "comic_view_in_gallery": "View comic in the Gallery",
     "create_manual_form": {
       "title": "Create story manually",
       "description": "Initialize an empty story shell — you can add characters and chapters later.",

@@ -50,6 +50,7 @@ import {
 import type { Story, StoryChapter } from "@/types/story";
 import { displayStoryTitle } from "@/lib/library/display-helpers";
 import { createLibraryShare } from "@/lib/api/gallery";
+import { useLibraryStore } from "@/stores/library-store";
 import { LibraryComicGenerator } from "./LibraryComicGenerator";
 
 export interface StoryWorkspaceProps {
@@ -83,11 +84,14 @@ export function StoryWorkspace({
   const [confirmOpen, setConfirmOpen] = React.useState(false);
   const [exportingFmt, setExportingFmt] = React.useState<LibraryExportFormat | null>(null);
   const [sharing, setSharing] = React.useState(false);
+  const updateStory = useLibraryStore((s) => s.updateStory);
 
   const handleShare = async () => {
     setSharing(true);
     try {
-      const res = await createLibraryShare(story);
+      // Re-sharing replaces the story's existing gallery entry (no duplicates).
+      const res = await createLibraryShare(story, story.galleryShareId || undefined);
+      updateStory(story.id, { galleryShareId: res.share_id });
       toast.success(t("shared"), {
         description: t("shared_desc"),
         action: {

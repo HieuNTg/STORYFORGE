@@ -110,6 +110,12 @@ export const storySchema = z.object({
   tone: z.string().default(""),
   description: z.string().default(""),
   coverUrl: z.string().nullable().default(null),
+  /**
+   * Gallery (Bộ sưu tập) share id. Set when the story's comic is published;
+   * re-publishing passes it as `replace_share_id` so each library story keeps
+   * exactly one gallery entry instead of accreting duplicates.
+   */
+  galleryShareId: z.string().default(""),
   characters: z.array(forgeCharacterSchema).default([]),
   chapters: z.array(storyChapterSchema).default([]),
   /** When set, the unconsumed pair of choices from the latest forge call. */
