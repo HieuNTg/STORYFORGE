@@ -1,5 +1,35 @@
 # StoryForge Engineering Loop — Worklog
 
+## Cycle #10 — Lint debt: 137 ruff errors → 37 (2026-06-11)
+
+- **Task ID**: cycle10-ruff-autofix + cycle10-manual-e741-f841-e702
+- **Agent**: Claude (eng-loop, autonomous)
+- **Task**: Cut ruff errors 137 → ≤39 with zero behavior change; leave only E402 (needs case-by-case review).
+
+### Work Log
+
+1. **Autofix pass** — `ruff check --fix`: 74 errors (72 F401 unused imports, 1 E401, 1 F541), almost all in tests.
+2. **E741 `l` → `left`** — `services/media/page_compositor.py`: 7 bubble/layout helpers unpack `l, t, r, b` from a bbox; renamed `l` → `left` everywhere (incl. two `elif side == "right"` branches the first pass missed — caught as F821 by the verify gate). `_bubble_outline_shape` unpacked the bbox and used none of it — unpack deleted. Same rename in `tests/test_page_compositor.py`; `len(l)` → `len(line)` in the wrap test.
+3. **F841 dead assignments** — `outline_metrics.py` (`char_names` set built then never read), `structural_detector.py` (`method =` immediately before `continue`), `gzipped_static_files.py` (orig sibling lookup result never consumed — call kept, binding dropped), plus 3 test-local ones (`raw`, `results`, `tmp_dir` chained assign).
+4. **E702 semicolons** — split 5 one-liners in `test_flowkit.py` + 1 in `scripts/dump_shotlist_ch1.py`.
+5. **F401 manual** — `docx_exporter.py` dropped `Inches` from the guarded python-docx import.
+
+### Stage Summary (verification gate)
+
+- `ruff check .`: **37 errors, all E402** (deferred) — goal ≤39 ✓. F821 clean.
+- Full suite: **4394 passed, 0 failed**, 6 skipped in 195s.
+- Coverage **69.59%** vs baseline 69.60% — −0.01pp is a denominator artifact of deleting 12 dead-but-covered statements; misses went **down** (8404 → 8403). No test coverage lost.
+- `ruff format --check`: 457 dirty before AND after — pre-existing drift, untouched by this cycle.
+- Circular-import smoke ✓. Diff: 44 files, +64/−109. Commit `7e425cf`.
+
+### Backlog (next cycles)
+
+- **P1**: 37 E402 (imports after sys.path/`reconfigure` setup in scripts/tests) — decide per-file: reorder vs `# noqa: E402`.
+- **P1**: 457 files fail `ruff format --check` — mechanical but huge; needs a dedicated format-only commit (CEO heads-up: blows the 500-line cycle cap by design).
+- **P1**: Oversized files, worst `pipeline/layer1_story/batch_generator.py` 1891 lines.
+- **P1**: Coverage 69.59% vs 70% STOP threshold — 0.41pp gap (token_cost_tracker 59% is the best lever).
+- **P2**: provider SDK retry defaults; 1 TODO in `api/v1/router.py`.
+
 ## Cycle #9 — Last 3 failures: behavior drift + two cross-file polluters (2026-06-11)
 
 - **Task ID**: cycle9-401-rotation-contract + cycle9-configmanager-new-polluter + cycle9-sentence-transformers-stub-leak
