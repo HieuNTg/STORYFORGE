@@ -25,6 +25,7 @@ from pipeline.layer1_story.enhancement_injections import (
     build_chapter_enhancement_context,
 )
 from pipeline.layer1_story.context_helpers import get_rag_batch_cache
+from pipeline.layer1_story.chapter_contract_setup import build_contract_for_chapter
 from pipeline.layer1_story.contract_batch_retry import validate_and_retry_threaded
 from pipeline.layer1_story.contract_validation_retry import (
     validate_and_retry_contract,
@@ -386,46 +387,18 @@ class BatchChapterGenerator:
                 )
 
             # Build chapter contract (unified per-chapter requirements)
-            contract_text = ""
-            contract = None
-            if getattr(self.config.pipeline, "enable_chapter_contracts", False):
-                try:
-                    from pipeline.layer1_story.chapter_contract_builder import (
-                        build_contract,
-                        format_contract_for_prompt,
-                    )
-
-                    # Proactive constraints: pass world_rules and character_secrets
-                    contract_world_rules = None
-                    contract_secrets = None
-                    if getattr(
-                        self.config.pipeline, "enable_proactive_constraints", False
-                    ):
-                        contract_world_rules = getattr(draft.world, "rules", None) or []
-                        contract_secrets = {
-                            c.name: getattr(c, "secret", "")
-                            for c in characters
-                            if hasattr(c, "secret") and getattr(c, "secret", "")
-                        }
-                    contract = build_contract(
-                        outline.chapter_number,
-                        outline,
-                        threads=list(story_context.open_threads),
-                        macro_arcs=macro_arcs,
-                        conflicts=conflict_web,
-                        foreshadowing_plan=foreshadowing_plan,
-                        characters=characters,
-                        previous_failures=_contract_failures,
-                        world_rules=contract_world_rules,
-                        character_secrets=contract_secrets,
-                    )
-                    contract_text = format_contract_for_prompt(contract)
-                except Exception as e:
-                    logger.warning(
-                        "Contract build failed for ch%d (non-fatal): %s",
-                        outline.chapter_number,
-                        e,
-                    )
+            contract, contract_text = build_contract_for_chapter(
+                self.config,
+                outline,
+                threads=list(story_context.open_threads),
+                macro_arcs=macro_arcs,
+                conflicts=conflict_web,
+                foreshadowing_plan=foreshadowing_plan,
+                characters=characters,
+                draft=draft,
+                previous_failures=_contract_failures,
+                include_proactive=True,
+            )
 
             # Build enhancement context (theme, voice, scenes, show-don't-tell)
             # plus optional injections (threads, causal, memories, foreshadowing)
@@ -1239,37 +1212,16 @@ class BatchChapterGenerator:
         )
 
         # Contract
-        p_contract = override_contract
-        p_contract_text = ""
-        if p_contract is None and getattr(
-            self.config.pipeline, "enable_chapter_contracts", False
-        ):
-            try:
-                from pipeline.layer1_story.chapter_contract_builder import (
-                    build_contract,
-                    format_contract_for_prompt,
-                )
-
-                p_contract = build_contract(
-                    outline.chapter_number,
-                    outline,
-                    threads=frozen_threads,
-                    macro_arcs=macro_arcs,
-                    conflicts=conflict_web,
-                    foreshadowing_plan=foreshadowing_plan,
-                    characters=characters,
-                )
-                p_contract_text = format_contract_for_prompt(p_contract)
-            except Exception as e:
-                logger.warning(
-                    "Contract build failed for ch%d: %s", outline.chapter_number, e
-                )
-        elif p_contract:
-            from pipeline.layer1_story.chapter_contract_builder import (
-                format_contract_for_prompt,
-            )
-
-            p_contract_text = format_contract_for_prompt(p_contract)
+        p_contract, p_contract_text = build_contract_for_chapter(
+            self.config,
+            outline,
+            threads=frozen_threads,
+            macro_arcs=macro_arcs,
+            conflicts=conflict_web,
+            foreshadowing_plan=foreshadowing_plan,
+            characters=characters,
+            override_contract=override_contract,
+        )
 
         if progress_callback:
             progress_callback(
