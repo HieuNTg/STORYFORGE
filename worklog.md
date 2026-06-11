@@ -1,5 +1,30 @@
 # StoryForge Engineering Loop — Worklog
 
+## Cycle #8 — Stale DB/checkpoint seams in persistence tests (2026-06-11)
+
+- **Task ID**: cycle8-outline-metrics-engine-seam + cycle8-foreshadowing-uuid-dashes + cycle8-checkpoint-write-seam
+- **Agent**: Claude (eng-loop, autonomous)
+- **Task**: Fix 3 of the 6 remaining failures (persistence/checkpoint cluster — all genuine, all test-only fixes; production code verified correct).
+
+### Work Log
+
+1. **test_outline_metrics::test_persist_outline_metrics_orm** — test patched `sqlalchemy.create_engine`, but `_get_sync_engine` (orchestrator_layers.py:35) registers a sqlite `connect` pragma listener on the engine: `event.listens_for(MagicMock)` raises "No such event 'connect'", the persist call degrades to its non-fatal warning path, and the assertion on the mock run never fires. Worse: the exception escapes AFTER `_sync_engine` is assigned, leaving the module-level singleton poisoned with a MagicMock for every later test in the process (suspected contributor to cross-file pollution). All three TestPersistence tests now patch the `_get_sync_engine` seam directly.
+2. **test_foreshadowing_verifier::test_chapter_semantic_findings_sqlite** — test built ids with `uuid4().hex` (dashless) assuming the old `UUID(as_uuid=False)` dash-stripping column; `Chapter.story_id` is now `String(36)` (db_models.py:135) storing dashed `str(uuid4())`, so the ORM query never matched the inserted row. Also: `_get_sync_engine` caches a singleton, so the test's `DATABASE_URL` monkeypatch was a no-op whenever any earlier test had created the engine — now resets `_sync_engine = None` via monkeypatch (auto-restored).
+3. **test_pipeline_core_coverage::test_list_checkpoints_returns_metadata** — `save()` writes via `_checkpoint_dir_for_title` (per-story `output/<slug>/checkpoints` layout) while the test only patched `CHECKPOINT_DIR`, which redirects the *scan* but not the *write*; the checkpoint landed in the real output tree and the scanned tmpdir stayed empty. Test now patches both seams to the same tmpdir.
+
+### Stage Summary (verification gate)
+
+- Full suite run #16: **3 failed, 4391 passed, 6 skipped** in 199s — exactly the 3 fixed; FAILED-set diff vs run #15 shows 3 removals, 0 additions.
+- Coverage **69.59%** (= discovery baseline 69.59% ✓; −0.01pp vs run #15 traced to one missed line in `services/rate_limiter_redis.py` — module untouched by this cycle, timing/order noise).
+- Targeted: 3 target files 193 passed. Ruff + format on all 3 files match HEAD baseline exactly (stash-verified: 21 pre-existing F401/F841, 3 pre-existing would-reformat). Circular-import smoke ✓.
+- Commit `fa9194e` (test-only).
+
+### Backlog (remaining 3 failures, next cycles)
+
+- test_error_paths::test_generate_with_401_does_not_retry_fallbacks — 401 no longer raises; "Provider primary failed, trying next..." at services/llm/client.py:815. Decide: behavior drift (update test) vs genuine bug (auth errors should not burn fallbacks).
+- test_scene_enhancer::test_defaults_are_set — order-dependent, still fails in run #16 (so the outline_metrics singleton poisoning was NOT the polluter, or not the only one); needs a bisect over the preceding suite files.
+- perf/test_sprint2_10ch_bench — perf gate, diagnose separately.
+
 ## Cycle #7 — L2 malformed-response guards + dict emotional_expression (2026-06-11)
 
 - **Task ID**: cycle7-chapter-contract-guards + cycle7-contract-wording + cycle7-voice-guidance-dict
