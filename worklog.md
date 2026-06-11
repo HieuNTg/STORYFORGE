@@ -1,5 +1,32 @@
 # StoryForge Engineering Loop — Worklog
 
+## Cycle #9 — Last 3 failures: behavior drift + two cross-file polluters (2026-06-11)
+
+- **Task ID**: cycle9-401-rotation-contract + cycle9-configmanager-new-polluter + cycle9-sentence-transformers-stub-leak
+- **Agent**: Claude (eng-loop, autonomous)
+- **Task**: Eliminate the final 3 failures (1 stale test, 2 order-dependent pollutions). Suite goes 3 → **0 failed**.
+
+### Work Log
+
+1. **test_error_paths 401 test (stale)** — intentional behavior drift, not a bug: `services/llm/retry.py:146-148` deliberately classifies 401/403 as "not retryable on same key, but should try next provider" and `client.py:780` skips `mark_unhealthy` for auth errors. The old test asserted fail-fast (raise + fallback untouched). Rewritten as `test_generate_with_401_rotates_to_fallback`: 401 on primary → fallback IS called once → its content is returned.
+2. **test_scene_enhancer polluter (order-dependent)** — found at `test_rag_knowledge_base.py:394`: `ConfigManager.__new__(ConfigManager)` returns the SHARED singleton because config/config.py:19-24 implements the singleton inside `__new__`. The test then assigned `mgr.pipeline = MagicMock()` + `mgr._initialized = True` onto the global instance, so every later `ConfigManager()` skipped `__init__` and served MagicMocks — `SceneEnhancer().parallel_enabled` became `MagicMock(l2_parallel_scenes)`. Fixed with `object.__new__(ConfigManager)` (detached instance, singleton untouched); assertions unchanged.
+3. **perf bench zip-strict ValueError (order-dependent)** — `test_embedding_service.py` and `test_embedding_cache.py` injected a module-level `sys.modules["sentence_transformers"] = MagicMock-stub` at import time. pytest imports every test module during *collection* (before any test runs), so in full-suite runs the perf bench's `reset_embedding_service()` was useless — `_load()`'s lazy `from sentence_transformers import SentenceTransformer` resolved to the stub, `encode()` returned a MagicMock, and `embed_batch`'s `zip(..., strict=True)` (embedding_service.py:237) blew up on the row-count mismatch. 2-file repro confirmed (fails in 1.6s — fake model). Fix: try the real import first, only stub on hosts without torch.
+
+### Stage Summary (verification gate)
+
+- Full suite run #17: **4394 passed, 0 failed**, 6 skipped in 187s. FAILED-set diff vs run #16: 3 removals, 0 additions (run #17 has zero FAILED lines).
+- Coverage **69.60%** (≥ discovery baseline 69.59% ✓).
+- Targeted: embedding pair + perf bench together 59 passed; rag + scene_enhancer + error_paths together 67 passed. Ruff + format on all 4 touched files match HEAD exactly (stash-verified: 1 pre-existing F401, 4 pre-existing would-reformat). Circular-import smoke ✓.
+- Commit `465d331` (test-only).
+
+### Backlog (P0 queue now EMPTY — next cycles are P1)
+
+- ~140 repo-wide ruff errors (79 auto-fixable with `ruff check --fix`) — good bounded cycle #10.
+- 457 files fail `ruff format --check`.
+- Oversized files (CONTRIBUTING 200-line rule), worst: batch_generator.py 1713 lines.
+- Coverage 69.60% vs 70% STOP threshold — 0.4pp gap.
+- P2: provider SDK retry defaults overlap with our retry layer.
+
 ## Cycle #8 — Stale DB/checkpoint seams in persistence tests (2026-06-11)
 
 - **Task ID**: cycle8-outline-metrics-engine-seam + cycle8-foreshadowing-uuid-dashes + cycle8-checkpoint-write-seam
