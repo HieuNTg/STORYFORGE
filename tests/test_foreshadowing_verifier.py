@@ -521,24 +521,26 @@ def test_chapter_semantic_findings_sqlite(tmp_path, monkeypatch):
         """))
         conn.commit()
 
-    # UUID(as_uuid=False) strips dashes when querying — insert without dashes to match
-    raw_story_id = uuid.uuid4().hex  # no dashes
-    raw_chapter_id = uuid.uuid4().hex
-    # story_id with dashes (as ORM would return)
-    story_id = str(uuid.UUID(raw_story_id))
+    # Chapter.story_id is String(36) storing str(uuid4()) WITH dashes —
+    # insert and query with the same dashed form the ORM uses.
+    story_id = str(uuid.uuid4())
+    chapter_id = str(uuid.uuid4())
 
     with engine.connect() as conn:
         conn.execute(sa.text(
             "INSERT INTO stories (id, title, genre) VALUES (:id, :title, :genre)"
-        ), {"id": raw_story_id, "title": "Test", "genre": "Fantasy"})
+        ), {"id": story_id, "title": "Test", "genre": "Fantasy"})
         conn.execute(sa.text(
             "INSERT INTO chapters (id, story_id, chapter_number, title, content, word_count)"
             " VALUES (:id, :story_id, :num, :title, :content, :wc)"
-        ), {"id": raw_chapter_id, "story_id": raw_story_id, "num": 3,
+        ), {"id": chapter_id, "story_id": story_id, "num": 3,
             "title": "Ch3", "content": "Content", "wc": 1})
         conn.commit()
 
-    # persist_chapter_semantic_findings uses ORM (UUID strips dashes on query)
+    # _get_sync_engine caches a module-level singleton; reset it so the
+    # DATABASE_URL monkeypatch actually takes effect for this call.
+    import pipeline.orchestrator_layers as _ol
+    monkeypatch.setattr(_ol, "_sync_engine", None)
     monkeypatch.setenv("DATABASE_URL", db_url)
     findings = {"schema_version": "1.0.0", "chapter_num": 3, "payoff_matches": []}
     persist_chapter_semantic_findings(story_id, 3, findings)
@@ -547,7 +549,7 @@ def test_chapter_semantic_findings_sqlite(tmp_path, monkeypatch):
     with engine.connect() as conn:
         row = conn.execute(sa.text(
             "SELECT semantic_findings FROM chapters WHERE story_id=:sid AND chapter_number=3"
-        ), {"sid": raw_story_id}).fetchone()
+        ), {"sid": story_id}).fetchone()
     assert row is not None
     import json as _json
     sf = _json.loads(row[0]) if isinstance(row[0], str) else row[0]

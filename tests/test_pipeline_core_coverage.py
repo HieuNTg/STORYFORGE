@@ -452,7 +452,13 @@ class TestCheckpointManager:
         out = _make_pipeline_output()
         mgr = self._make_manager(out)
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", tmpdir):
+            # save() writes via _checkpoint_dir_for_title (per-story layout),
+            # while list_checkpoints scans dirs derived from CHECKPOINT_DIR —
+            # patch both so the write lands where the scan looks.
+            ckpt_dir = os.path.join(tmpdir, "checkpoints")
+            with patch("pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", ckpt_dir), \
+                 patch("pipeline.orchestrator_checkpoint._checkpoint_dir_for_title",
+                       new=lambda title: ckpt_dir):
                 mgr.save(1, background=False)
                 # brief wait for background thread if any
                 import time

@@ -668,7 +668,11 @@ class TestPersistence:
         mock_session = MagicMock()
         mock_session.query.return_value.filter.return_value.order_by.return_value.first.return_value = mock_run
 
-        with patch("sqlalchemy.create_engine"):
+        # Patch the engine seam, NOT sqlalchemy.create_engine: _get_sync_engine
+        # registers a sqlite "connect" event listener, which blows up on a
+        # MagicMock engine and leaves the module-level singleton poisoned for
+        # every later test in the process.
+        with patch("pipeline.orchestrator_layers._get_sync_engine", return_value=MagicMock()):
             with patch("sqlalchemy.orm.Session") as mock_sess_cls:
                 mock_sess_cls.return_value.__enter__ = MagicMock(return_value=mock_session)
                 mock_sess_cls.return_value.__exit__ = MagicMock(return_value=False)
@@ -682,7 +686,7 @@ class TestPersistence:
         """Session-level exception is swallowed; no raise propagates."""
         from pipeline.orchestrator_layers import persist_outline_metrics
 
-        with patch("sqlalchemy.create_engine"):
+        with patch("pipeline.orchestrator_layers._get_sync_engine", return_value=MagicMock()):
             with patch("sqlalchemy.orm.Session") as mock_sess_cls:
                 mock_sess_cls.return_value.__enter__ = MagicMock(side_effect=Exception("DB down"))
                 mock_sess_cls.return_value.__exit__ = MagicMock(return_value=False)
@@ -695,7 +699,7 @@ class TestPersistence:
         mock_session = MagicMock()
         mock_session.query.return_value.filter.return_value.order_by.return_value.first.return_value = None
 
-        with patch("sqlalchemy.create_engine"):
+        with patch("pipeline.orchestrator_layers._get_sync_engine", return_value=MagicMock()):
             with patch("sqlalchemy.orm.Session") as mock_sess_cls:
                 mock_sess_cls.return_value.__enter__ = MagicMock(return_value=mock_session)
                 mock_sess_cls.return_value.__exit__ = MagicMock(return_value=False)
