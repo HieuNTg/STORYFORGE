@@ -121,6 +121,7 @@ async def test_test_connection(client):
         mock_cls._instance = None
         instance = MagicMock()
         instance.check_connection.return_value = (True, "OK")
+        instance.check_provider.return_value = (True, "OK")
         mock_cls.return_value = instance
         resp = await client.post("/api/config/test-connection")
         assert resp.status_code == 200
