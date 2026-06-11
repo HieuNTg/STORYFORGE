@@ -139,7 +139,7 @@ class TestFormatContract:
             previous_contract_failures=["missed omen", "thread t1 not advanced"],
         )
         text = format_contract_for_prompt(contract)
-        assert "CHƯƠNG TRƯỚC ĐÃ BỎ LỠ" in text
+        assert "LẦN VIẾT TRƯỚC CỦA CHƯƠNG 5 ĐÃ BỎ LỠ" in text
         assert "missed omen" in text
 
     def test_cap_at_800_chars(self):

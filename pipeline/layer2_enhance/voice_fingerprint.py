@@ -439,12 +439,22 @@ Lời thoại sau enhance:
             parts.append(f"hay dùng: {', '.join(profile.speech_quirks[:2])}")
 
         if profile.emotional_expression:
-            expr_guidance = {
-                "reserved": "ít bộc lộ cảm xúc",
-                "moderate": "bộc lộ vừa phải",
-                "expressive": "biểu cảm mạnh mẽ",
-            }
-            parts.append(expr_guidance.get(profile.emotional_expression, ""))
+            expr = profile.emotional_expression
+            if isinstance(expr, dict):
+                # Unified VoiceProfile schema: emotion → how it is expressed
+                rendered = "; ".join(
+                    f"{emo}: {how}" for emo, how in list(expr.items())[:3] if how
+                )
+                if rendered:
+                    parts.append(f"cảm xúc — {rendered}")
+            else:
+                # Legacy serialized profiles (extra="allow") may carry a plain string
+                expr_guidance = {
+                    "reserved": "ít bộc lộ cảm xúc",
+                    "moderate": "bộc lộ vừa phải",
+                    "expressive": "biểu cảm mạnh mẽ",
+                }
+                parts.append(expr_guidance.get(str(expr), ""))
 
         return "; ".join(p for p in parts if p)
 

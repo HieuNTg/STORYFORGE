@@ -162,6 +162,10 @@ def validate_chapter_against_contract(
             reason=f"validation_llm_error: {exc}",
         )
 
+    if not isinstance(raw, dict):
+        logger.warning("Contract validation returned non-dict for ch%d", ch_num)
+        return ContractValidation(chapter_number=ch_num, passed=False, reason="malformed")
+
     drama_actual = _clip(float(raw.get("drama_actual", 0.0) or 0.0), 0.0, 1.0)
     missing_esc = [str(x) for x in (raw.get("missing_escalations") or []) if x]
     missing_sub = [str(x) for x in (raw.get("missing_subtext") or []) if x]
@@ -380,6 +384,12 @@ def validate_chapter_voice(
             chapter_number=contract.chapter_number,
             passed=False,
             reason=f"voice_llm_error: {type(exc).__name__}",
+        )
+
+    if not isinstance(raw, dict):
+        logger.warning("Voice validation returned non-dict for ch%d", contract.chapter_number)
+        return VoiceValidation(
+            chapter_number=contract.chapter_number, passed=False, reason="malformed"
         )
 
     per_char_result = raw.get("per_character", {}) or {}

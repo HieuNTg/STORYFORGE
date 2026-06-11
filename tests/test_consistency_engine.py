@@ -217,7 +217,7 @@ class TestVoiceFingerprintEngine:
             name="An",
             vocabulary_level="simple",
             formality="casual",
-            emotional_expression="expressive",
+            emotional_expression={"default": "expressive"},
             speech_quirks=["hay nói 'thật ra'"],
         )
 
