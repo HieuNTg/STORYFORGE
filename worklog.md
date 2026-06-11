@@ -1,5 +1,27 @@
 # StoryForge Engineering Loop — Worklog
 
+## Cycle #5 — Three 3-failure clusters: schema drift, async orchestrator, singleton mock poisoning (2026-06-11)
+
+- **Task ID**: cycle5-pipeline-coverage + cycle5-integration-pipeline + cycle5-layer2-upgrade
+- **Agent**: Claude (eng-loop, autonomous)
+- **Task**: Fix the three 3-failure clusters (9 of the 23 failures recorded in cycle #4).
+
+### Work Log
+
+1. **test_pipeline_coverage (3F)** — two drifts: (a) `PlotThread` now requires `thread_id` + `planted_chapter` (no `started_chapter`; `status` defaults to "open") — test constructs with the new fields; (b) `pipeline.layer3_video` was removed in the image-focus pivot, so `patch("pipeline.layer3_video.storyboard.LLMClient")` raised AttributeError in both orchestrator-init tests — patch line dropped.
+2. **test_integration_pipeline (3F)** — `run_full_pipeline` became async; sync callers got a coroutine (`'coroutine' object has no attribute 'status'`). All 4 call sites wrapped in `asyncio.run(...)` — this also un-vacuated `test_enable_media_defaults_false`, which "passed" without ever awaiting the coroutine.
+3. **test_layer2_upgrade (3F, order-dependent)** — the deep one. `LLMClient` is a process-wide singleton; `monkeypatch.setattr(instance, "generate_json", fake)` records the restore value via `getattr`, which returns the **bound method from the class** — so the undo writes that bound method into the singleton's `__dict__`, permanently shadowing every later class-level `@patch(...LLMClient.generate_json)` → real LLM calls → swallowed connection errors → `_find_weak_chapters` returns empty → `assert 0 > 0`. Bisected the polluter to test_image_prompt_gen (probe test confirmed the instance-dict shadow). Fix: replace `gen.llm`/`extractor.llm` wholesale with `types.SimpleNamespace` stubs (5 sites in test_image_prompt_gen, 3 in test_shot_list) + standing autouse conftest guard `_unshadow_llm_singleton` that strips leaked method shadows after each test.
+
+### Stage Summary (verification gate)
+
+- Full suite run #12: **14 failed, 4381 passed, 0 errors** in 199s — exactly the 9 fixed, zero regressions.
+- Coverage **69.59%** (baseline 69.55%) ✓. Circular-import smoke ✓. Ruff on touched files: 8 findings, all verified pre-existing at HEAD via stash (E402 section-import style, F401, F841) — 0 new debt; my one new E402 (`import types` mid-file) was relocated to the top import block. Test-only changes (commit `c00c5a2`).
+
+### Backlog (remaining 14 failures, next cycles)
+
+- test_rag_multi_query (2), test_mutation_smoke (2)
+- Singles: voice_contract, scene_enhancer, pipeline_core_coverage, outline_metrics, foreshadowing_verifier, error_paths, consistency_engine, chapter_contracts, chapter_contract, perf/sprint2_10ch_bench
+
 ## Cycle #4 — Three 4-failure clusters: quality routes, structural rewrite, long context (2026-06-11)
 
 - **Task ID**: cycle4-quality-routes + cycle4-structural-rewrite + cycle4-long-context
