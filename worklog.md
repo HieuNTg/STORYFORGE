@@ -1,5 +1,29 @@
 # StoryForge Engineering Loop — Worklog
 
+## Cycle #3 — Injection corpus contract + test-connection mock (2026-06-11)
+
+- **Task ID**: cycle3-injection-corpus + cycle3-test-connection
+- **Agent**: Claude (eng-loop, autonomous)
+- **Task**: Fix the largest remaining failure cluster (test_prompt_injection_corpus, 20F) plus the test_api_async::test_test_connection single.
+
+### Work Log
+
+1. **Injection corpus (20F)** — `sanitize_input()` changed contract: it now **raises** `InjectionBlockedError` on detection when blocking is enabled (default via `STORYFORGE_BLOCK_INJECTION`, read at import time); the corpus test still expected the legacy log-only `SanitizationResult` return. Test now treats the exception as "blocked" and a normal return as "allowed" — exercising the production default instead of patching blocking off. `InjectionBlockedError` also gained a `threats_found` attribute (backward-compatible; existing catchers in `app.py` and `middleware/sanitization.py` are unaffected) so callers can report what triggered the block (commit `3901e7d`).
+2. **test_test_connection (1F)** — `/api/config/test-connection` gained a per-profile `check_provider` fanout; the test only mocked `check_connection`, so unpacking the MagicMock default return raised `ValueError` at `api/config_routes.py:407`. One-line mock added (commit `e2cf6c5`).
+
+### Stage Summary (verification gate)
+
+- Full suite run #10: **35 failed, 4360 passed, 0 errors** in 196s — exactly the 20F+1F fixed, zero regressions.
+- Coverage **69.38%** (baseline 69.35%) ✓. Ruff check clean on all 3 touched files; 2 were already in the pre-existing 457-file `ruff format` backlog (verified at HEAD via stash — no new debt).
+- Sanitizer blast radius checked: all 63 `-k "sanitiz or injection"` tests green.
+
+### Backlog (remaining 35 failures, next cycles)
+
+- test_structural_rewrite_parallel (4), test_quality_routes (4), test_long_context (4 — unmocked LLM calls)
+- test_pipeline_coverage (3), test_layer2_upgrade (3), test_integration_pipeline (3)
+- test_rag_multi_query (2), test_mutation_smoke (2)
+- Singles: voice_contract, scene_enhancer, pipeline_core_coverage, outline_metrics, foreshadowing_verifier, error_paths, consistency_engine, chapter_contracts, chapter_contract, perf/sprint2_10ch_bench
+
 ## Cycle #2 — Triage failure clusters: sidecars + SQLAlchemy reprs (2026-06-11)
 
 - **Task ID**: cycle2-sidecar-isolation + cycle2-db-model-reprs
