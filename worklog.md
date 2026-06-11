@@ -399,3 +399,15 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Phát hiện: con số 1788 dòng ghi nhận trước đó là stale — thực tế file 1640 dòng trước edit (git diff xác nhận 141 del / 39 ins, đúng phạm vi khối).
 - Stage Summary: batch_generator.py 1640 → 1538 dòng. Gate: ruff clean, format clean (516 files), targeted 77 passed, full suite 4434 passed / 6 skipped, coverage 70.60% (baseline 70.59%, +0.01), import smoke OK, module mới 191 < 200. Commit `7ac9e20`.
 - Backlog sau cycle: P1 batch_generator vẫn 1538 dòng (`_write_chapter_parallel` ~230, `_run_batch_async` ~222, `_run_batch_threaded` ~215 là ứng viên kế); P2 api/provider_status_routes.py coverage 19%; 1 TODO trong api/v1/router.py.
+
+## Cycle #18: Extract parallel write-context assembly from batch_generator
+- Task ID: 18-parallel-write-context
+- Agent: Claude (eng-loop)
+- Task: Tách khối assembly đầu vào per-chapter của `_write_chapter_parallel` (~120 dòng: bible/tiered ctx + sibling injection, frozen StoryContext snapshot, narrative ctx, arc ctx, scene decomposition + scene beats) ra module mới `pipeline/layer1_story/parallel_write_context.py`.
+- Work Log:
+  - Serena: `get_symbols_overview` + `find_symbol BatchChapterGenerator depth=1` → map method mới (sau cycle #17: `_run_batch_sequential` còn ~390 dòng); `find_referencing_symbols _write_chapter_parallel` → 4 caller nội bộ (`_run_batch_async/_runner`, `_validate_and_retry_async`, `_run_batch_threaded` ×2), signature không đổi → không ảnh hưởng.
+  - Đánh giá dedupe `_validate_and_retry_async` (121 dòng) với `validate_and_retry_contract` vừa tách: cấu trúc giống nhưng KHÔNG identical (asyncio.to_thread, rewrite qua `_write_chapter_parallel` + override_contract, thao tác trên chapter_map) → behavioral merge, ngoài lane verbatim → bỏ qua, ghi backlog P2.
+  - Seam check: Grep tests không có patch nào qua `batch_generator.` cho các tên trong vùng (generate_scene_beats, decompose, tiered, conflicts/seeds/payoffs/pacing) — toàn lazy imports → không cần repoint test.
+  - Verbatim move với substitutions chuẩn: `self.gen`→`gen`, `self.config`→`config`, `self.llm`→`llm`. Return `ParallelWriteInputs` NamedTuple 8 trường; method giữ lại trace setup, contract build, writer call, causal extraction.
+- Stage Summary: batch_generator.py 1538 → 1458 dòng (git diff 118 del / 28 ins trong file, đúng phạm vi khối). Gate: ruff clean, format clean (517 files), targeted 62 passed, full suite 4434 passed / 6 skipped, coverage 70.61% (baseline 70.60%, +0.01), import smoke OK, module mới 156 < 200. Commit `d920b34`.
+- Backlog sau cycle: P1 batch_generator còn 1458 dòng (`_run_batch_sequential` ~390, `_run_batch_async` ~222, `_run_batch_threaded` ~215 — hai method sau giờ có thể tái dùng assembler nếu trùng khối, cần so verbatim trước); P2 dedupe `_validate_and_retry_async` vs `contract_validation_retry` (behavioral merge, cần test bổ sung); P2 api/provider_status_routes.py coverage 19%; 1 TODO trong api/v1/router.py.
