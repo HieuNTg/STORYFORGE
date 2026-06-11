@@ -1295,62 +1295,49 @@ class TestDBModelsImportAndStructure(unittest.TestCase):
 
     def test_user_repr(self):
         from models.db_models import User
-        u = User.__new__(User)
-        u.id = "test-id-123"
-        u.username = "testuser"
+        u = User(id="test-id-123", username="testuser")
         r = u.__repr__()
         self.assertIn("User", r)
         self.assertIn("testuser", r)
 
     def test_story_repr(self):
         from models.db_models import Story
-        s = Story.__new__(Story)
-        s.id = "story-id"
-        s.title = "My Story"
+        s = Story(id="story-id", title="My Story")
         r = s.__repr__()
         self.assertIn("Story", r)
         self.assertIn("My Story", r)
 
     def test_chapter_repr(self):
         from models.db_models import Chapter
-        c = Chapter.__new__(Chapter)
-        c.story_id = "story-id"
-        c.chapter_number = 3
+        c = Chapter(story_id="story-id", chapter_number=3)
         r = c.__repr__()
         self.assertIn("Chapter", r)
         self.assertIn("3", r)
 
     def test_pipeline_run_repr(self):
         from models.db_models import PipelineRun
-        p = PipelineRun.__new__(PipelineRun)
-        p.id = "run-id"
-        p.status = "completed"
+        p = PipelineRun(id="run-id", status="completed")
         r = p.__repr__()
         self.assertIn("PipelineRun", r)
         self.assertIn("completed", r)
 
     def test_audit_log_repr(self):
         from models.db_models import AuditLog
-        a = AuditLog.__new__(AuditLog)
-        a.action = "login"
-        a.user_id = "u123"
+        a = AuditLog(action="login", user_id="u123")
         r = a.__repr__()
         self.assertIn("AuditLog", r)
         self.assertIn("login", r)
 
     def test_feedback_repr(self):
         from models.db_models import Feedback
-        fb = Feedback.__new__(Feedback)
-        fb.story_id = "s-id"
-        fb.overall_score = 4.5
+        fb = Feedback(story_id="s-id", overall_score=4.5)
         r = fb.__repr__()
         self.assertIn("Feedback", r)
         self.assertIn("4.5", r)
 
     def test_config_repr(self):
         from models.db_models import Config
-        c = Config.__new__(Config)
-        c.key = "theme"
+        c = Config(key="theme")
         r = c.__repr__()
         self.assertIn("Config", r)
         self.assertIn("theme", r)
@@ -1464,10 +1451,10 @@ class TestDBModelsImportAndStructure(unittest.TestCase):
 
     def test_models_share_base(self):
         """All models inherit from same Base."""
+        from sqlalchemy import Table
         from models.db_models import Base, User, Story, Chapter, PipelineRun, AuditLog, Feedback, Config
         for model in (User, Story, Chapter, PipelineRun, AuditLog, Feedback, Config):
-            self.assertIsInstance(model.__table__, Base.metadata.tables.__class__.__bases__[0].__mro__[0]
-                                  .__class__.__mro__[0].__mro__[0].__class__.__mro__[0])  # noqa — just check registry
+            self.assertIsInstance(model.__table__, Table)
             self.assertIn(model.__tablename__, Base.metadata.tables)
 
 
