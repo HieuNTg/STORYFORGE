@@ -506,3 +506,13 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Known accepted delta: progress message drops the "async retry"/threshold wording; callback now fires from the worker thread (already the norm — `_write_chapter_parallel` received it via to_thread before).
   - New tests/test_contract_batch_retry.py: 6 tests (gating x2, compliant no-retry, rebuild+rewrite with failure feedback, retry_max cap, exception keeps original chapter).
 - Stage Summary: Gate green — 4460 + 1 perf passed (EXIT1/2/3/5=0, EXIT4=5 expected), coverage 70.77% >= 70.61% baseline, ruff clean, import smoke OK. Shipped 01ae62d.
+
+## Cycle #23: provider status route coverage
+- Task ID: 23-provider-status-coverage
+- Agent: eng-loop (Claude)
+- Task: Close the api/provider_status_routes.py coverage gap (19%, P2 backlog) without touching the 239-line source file.
+- Work Log:
+  - Existing tests (test_provider_status.py, test_providers_routes.py) only covered the /providers/health route and the underlying service; all other route bodies + _get_api_keys_from_config were uncovered.
+  - New tests/test_provider_status_routes.py: 13 tests — config key detection (openrouter/openai-default base_url, fallback_models setdefault with empty/non-dict entries skipped, env-var fill, ConfigManager failure -> {}), and TestClient route tests with the lazily imported status manager patched at source (/status, /status/{p}, /models/{p}?refresh=true, POST /refresh, /quota-check low+ok, /fallbacks all+filtered-no-key).
+  - Module coverage 19% -> 84% (remaining misses are URL-branch permutations). Source untouched, so the 200-line rule is not triggered.
+- Stage Summary: Gate green — 4473 + 1 perf passed (EXIT1/2/3/5=0, EXIT4=5 expected), coverage 71.03% >= 70.61% baseline, ruff clean. Shipped as test-only commit.
