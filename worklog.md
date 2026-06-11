@@ -549,3 +549,13 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - 20 new tests, all green first run; no source files touched.
   - Remaining for a future cycle: prompt_routes, metrics_routes, account_routes.
 - Stage Summary: Gate green — 4500 + 1 perf passed (EXIT1/2/3/5=0, EXIT4=5 expected), coverage 71.21% >= 70.61% baseline (+0.16 vs #25), ruff clean.
+
+## Cycle #27 — Cover last untested route modules + fix broken preview endpoint
+- **Task ID**: 27-route-tests-final
+- **Agent**: eng-loop (Claude)
+- **Task**: Add route tests for the 3 remaining untested api modules (prompt_routes 136L, metrics_routes 43L, account_routes 37L).
+- **Work Log**:
+  - 20 hermetic tests across 3 new files (FastAPI app + TestClient; patch top-level imports at route-module namespace, lazy imports at source module).
+  - Tests exposed a real bug: `preview_prompt` had `**kwargs` in its signature — FastAPI treats it as a required query param, so `GET /prompts/{name}/preview` always returned 422 (endpoint never worked). Fixed via `Request.query_params` extraction; Serena+Grep confirmed no other callsites.
+  - Gate: EXIT 0/0/0/5(expected)/0, 4521 passed (+20), coverage 71.41% (was 71.21, baseline 70.61). prompt_routes.py 137 lines.
+- **Stage Summary**: All api route modules now have at least one test file. Shipped as 557048b.
