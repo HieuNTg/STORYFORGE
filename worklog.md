@@ -288,3 +288,25 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
 - **P1**: Oversized files (CONTRIBUTING 200-line rule), worst: `services/batch_generator.py` (1713 lines).
 - **P2**: Proper LLM mocking for slow pipeline tests (some take ~30-60s against the dead listener due to attempt counts).
 - **P2**: anthropic_provider / gemini_provider still use SDK-default retries (same multiplication risk as OpenAI had).
+
+## Cycle #12 — Coverage crosses 70%: token_cost_tracker + provider_status (2026-06-11)
+
+- **Task ID:** 12-coverage-70
+- **Agent:** Claude Fable 5 (eng-loop, Serena-first)
+- **Task:** Close the 0.41pp coverage gap to the 70% STOP threshold by testing the two best-lever modules.
+
+### Work Log
+- Discovery: ruff 0 errors (held from #11); baseline run 4394 passed, coverage 69.59%; per-file term-missing identified `services/token_cost_tracker.py` (59%, 51 misses) and `services/llm/provider_status.py` (0%, 243 misses — never imported by any test).
+- Serena: `get_symbols_overview` + `find_symbol include_body` for both modules; `find_referencing_symbols` on `TokenCostTracker` confirmed existing tests in test_additional_coverage.py call nonexistent methods (`record`, `get_stats`) inside try/except — effectively dead tests.
+- New `tests/test_token_cost_tracker.py` (16 tests, 163 lines): singleton reset, track_usage cost math, story/session aggregation, alias+prefix+_default pricing, env override (valid + invalid JSON), JSONL persistence + OSError path. Autouse fixture isolates env + singleton.
+- New `tests/test_provider_status.py` (29 tests, 257 lines): RateLimitStatus pcts/staleness, per-provider header extraction (case-insensitive, ms→s reset), quota-low thresholds, _parse_models_response per provider, model discovery with `_fetch_models`/urlopen monkeypatched (zero network), disk cache load/save, can_use_model exact/partial/missing. `_CACHE_DIR` redirected to tmp_path.
+
+### Stage Summary
+- Verification: ruff 0 ✅ · 4439 passed / 0 failed (297s) ✅ · **coverage 70.56%** (baseline 69.59%, +0.97pp) ✅ · import smoke ✅ · format drift unchanged at 457 ✅
+- token_cost_tracker 59%→100%; provider_status 0%→95%.
+- **STOP conditions now met: zero lint errors AND coverage ≥ 70%.**
+
+### Backlog
+- P1 (needs CEO sign-off): repo-wide `ruff format` — 457 files, exceeds 500-line cycle cap.
+- P1: oversized source files (worst: pipeline/layer1_story/batch_generator.py 1891 lines).
+- P2: dead try/except tests in test_additional_coverage.py TestTokenCostTracker (superseded by dedicated file); api/provider_status_routes.py at 19%; provider SDK retry defaults; 1 TODO in api/v1/router.py.
