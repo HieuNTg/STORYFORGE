@@ -559,3 +559,14 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Tests exposed a real bug: `preview_prompt` had `**kwargs` in its signature — FastAPI treats it as a required query param, so `GET /prompts/{name}/preview` always returned 422 (endpoint never worked). Fixed via `Request.query_params` extraction; Serena+Grep confirmed no other callsites.
   - Gate: EXIT 0/0/0/5(expected)/0, 4521 passed (+20), coverage 71.41% (was 71.21, baseline 70.61). prompt_routes.py 137 lines.
 - **Stage Summary**: All api route modules now have at least one test file. Shipped as 557048b.
+
+## Cycle #28 — Unit tests for three zero-coverage services
+- **Task ID**: 28-service-tests
+- **Agent**: eng-loop (Claude)
+- **Task**: Discovery scan found 13 services/ modules with zero test references; cover the 3 highest-value pure-logic ones.
+- **Work Log**:
+  - `tests/test_naming_conventions.py` (10 tests): locks in product rule — Vietnamese names default, Chinese-style only for tiên hiệp/wuxia-family genres, Western for fantasy/sci-fi; substring + case-insensitivity.
+  - `tests/test_simulation_transcript_extractor.py` (8 tests): AgentPost→TranscriptTurn mapping, dict coercion, malformed-post skipping, narrator fallback, 4000/2000-char caps.
+  - `tests/test_audit_logger.py` (11 tests): covers audit_logger.py (202L) + _audit_store.py (136L) — event normalization, singleton reset fixture with writer thread suppressed, queue enqueue, date-range query delegation, NDJSON roundtrip + retention cleanup on tmp_path.
+  - Test-only change, no source touched. Gate: EXIT 0/0/0/5(expected)/0, 4561 passed (+40), coverage 71.82% (was 71.41, baseline 70.61).
+- **Stage Summary**: Shipped as 95be40e. Backlog: 10 services still untested (gemini_model_discovery 189L, simulation_continue_service 179L, character_service 167L, ...).
