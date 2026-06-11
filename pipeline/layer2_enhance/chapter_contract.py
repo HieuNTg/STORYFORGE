@@ -7,8 +7,12 @@ NegotiatedChapterContract carries all equivalent fields.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from models.handoff_schemas import NegotiatedChapterContract
 
 logger = logging.getLogger(__name__)
 
