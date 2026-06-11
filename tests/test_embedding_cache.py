@@ -34,6 +34,13 @@ from services.embedding_cache import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _allow_patched_model_load(monkeypatch) -> None:
+    """Integration tests exercise _load with a patched SentenceTransformer, so
+    the suite-wide real-model kill switch (tests/conftest.py) must not apply."""
+    monkeypatch.delenv("STORYFORGE_DISABLE_REAL_EMBEDDINGS", raising=False)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

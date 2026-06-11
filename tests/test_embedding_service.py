@@ -41,6 +41,13 @@ def _reset_singleton() -> None:
     es.reset_embedding_service()
 
 
+@pytest.fixture(autouse=True)
+def _allow_patched_model_load(monkeypatch) -> None:
+    """These tests exercise _load with a patched SentenceTransformer, so the
+    suite-wide real-model kill switch (tests/conftest.py) must not apply."""
+    monkeypatch.delenv("STORYFORGE_DISABLE_REAL_EMBEDDINGS", raising=False)
+
+
 def _fake_model_returning(vectors: np.ndarray) -> MagicMock:
     """Build a fake SentenceTransformer that returns the given vectors."""
     model = MagicMock()
@@ -399,3 +406,39 @@ class TestEmbeddingMissError:
         )
         with pytest.raises((es.EmbeddingMissError, ValueError)):
             svc.embed_batch(["text-a", "text-b"])
+
+
+# ---------------------------------------------------------------------------
+# EmbeddingService — _load guards
+# ---------------------------------------------------------------------------
+
+
+class TestLoadGuards:
+    def test_load_early_returns_once_loaded(self) -> None:
+        """A second direct _load() call returns via the unlocked fast path."""
+        fake = _fake_model_returning(np.array([[1.0, 0.0]], dtype=np.float32))
+        with patch("sentence_transformers.SentenceTransformer", return_value=fake):
+            svc = es.EmbeddingService("m")
+            svc._load()
+            svc._load()
+        assert svc.is_available() is True
+
+    def test_load_double_check_inside_lock(self) -> None:
+        """A racing loader that wins the lock first marks the service
+        unavailable; the loser re-checks under the lock and returns without
+        attempting another model load."""
+        svc = es.EmbeddingService("m")
+
+        class _FlippingLock:
+            def __enter__(self_inner):
+                svc._available = False  # simulate the racing winner
+                return self_inner
+
+            def __exit__(self_inner, *exc):
+                return False
+
+        svc._lock = _FlippingLock()
+        with patch("sentence_transformers.SentenceTransformer") as mock_st:
+            svc._load()
+            mock_st.assert_not_called()
+        assert svc._available is False

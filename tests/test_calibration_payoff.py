@@ -50,6 +50,9 @@ def real_embedding_service():
     Skips the test if the model is unavailable (e.g. no network on first
     run, or sentence-transformers not installed).
     """
+    import os
+
+    os.environ.pop("STORYFORGE_DISABLE_REAL_EMBEDDINGS", None)
     reset_embedding_service()
     svc = get_embedding_service()
     if not svc.is_available():

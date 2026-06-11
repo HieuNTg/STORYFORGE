@@ -1105,3 +1105,16 @@ class TestOutlineMetricFloorsDedup:
 
         assert "character_screen_time_balance" in OUTLINE_METRIC_FLOORS
         assert "character_screen_time_balance" in OUTLINE_METRIC_WEIGHTS
+
+
+class TestBeatCoverageStringFallback:
+    def test_reports_uncovered_beats_in_evidence(self):
+        """Uncovered beats are listed in the evidence (string fallback path)."""
+        from pipeline.layer1_story.outline_metrics import _beat_coverage_string
+
+        ratio, evidence = _beat_coverage_string(
+            ["kiếm tổ tiên", "beat không hề xuất hiện trong truyện"],
+            ["Long tìm thấy kiếm tổ tiên trong hang động."],
+        )
+        assert ratio == 0.5
+        assert any("uncovered beats" in e for e in evidence)

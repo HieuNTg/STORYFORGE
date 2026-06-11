@@ -97,6 +97,15 @@ if os.path.exists(_config_persistence.CONFIG_FILE):
 _config_persistence.CONFIG_FILE = _TEST_CONFIG_FILE
 _config_persistence._SECRETS_FILE = os.path.join(_TEST_CONFIG_DIR, "secrets.json")
 
+# Block lazy loads of the real sentence-transformers model during unit tests.
+# An unmocked pipeline path (e.g. outline_critic -> outline_metrics ->
+# get_embedding_service().is_available()) otherwise loads torch inside a
+# ThreadPoolExecutor worker, which intermittently crashes the whole pytest
+# process on Windows (0xC0000409 / 0xC0000005). Tests that genuinely need the
+# real model (tests/perf, calibration) or exercise _load with a patched
+# SentenceTransformer remove this var themselves.
+os.environ.setdefault("STORYFORGE_DISABLE_REAL_EMBEDDINGS", "1")
+
 from models.schemas import (
     Character,
     Chapter,

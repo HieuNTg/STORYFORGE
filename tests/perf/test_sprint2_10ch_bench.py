@@ -104,6 +104,9 @@ def _make_chapter(idx: int) -> Chapter:
 @pytest.fixture(scope="module")
 def real_embedder():
     """Load the real embedder once for the module. Skip if unavailable."""
+    import os
+
+    os.environ.pop("STORYFORGE_DISABLE_REAL_EMBEDDINGS", None)
     reset_embedding_service()
     svc = get_embedding_service()
     if not svc.is_available():

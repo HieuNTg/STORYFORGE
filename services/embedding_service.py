@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import threading
 import unicodedata
 from typing import TYPE_CHECKING, Protocol
@@ -133,6 +134,12 @@ class EmbeddingService:
             return
         with self._lock:
             if self._model is not None or self._available is False:
+                return
+            # Kill switch: torch model loads inside worker threads can crash
+            # the whole process (access violation / fail-fast on Windows).
+            # When set, degrade straight to the keyword fallback.
+            if os.environ.get("STORYFORGE_DISABLE_REAL_EMBEDDINGS") == "1":
+                self._available = False
                 return
             try:
                 # Imported lazily so `import services.embedding_service` is

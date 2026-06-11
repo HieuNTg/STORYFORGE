@@ -655,3 +655,59 @@ class TestEdgeCases:
             if f.finding_type == StructuralFindingType.MISSING_CHARACTER
         ]
         assert missing == []
+
+
+class TestCanonicalNamesPlainStrings:
+    def test_accepts_plain_strings_and_drops_empties(self):
+        """A characters list may hold raw strings; they are NFC-normalised,
+        stripped, and empty entries dropped."""
+        from pipeline.semantic.structural_detector import _canonical_names
+
+        assert _canonical_names(["  Lý Huyền ", ""]) == ["Lý Huyền"]
+
+
+class TestCheckDroppedThreadsGuards:
+    def test_no_threads_returns_empty(self):
+        """No threads to advance -> nothing to check."""
+        from pipeline.semantic.structural_detector import _check_dropped_threads
+
+        assert _check_dropped_threads("nội dung", 1, [], 0.6, None) == []
+
+    def test_empty_chapter_drops_all_threads(self):
+        """An empty chapter yields one MISSING_KEY_EVENT finding per thread."""
+        from pipeline.semantic.structural_detector import _check_dropped_threads
+
+        findings = _check_dropped_threads("", 3, ["Long báo thù"], 0.6, None)
+        assert len(findings) == 1
+        assert findings[0].chapter_num == 3
+        assert "Long báo thù" in findings[0].description
+        assert findings[0].confidence == 1.0
+
+    def test_unavailable_embedder_skips_check(self):
+        """Without an embedder the thread check is skipped entirely."""
+        from pipeline.semantic.structural_detector import _check_dropped_threads
+
+        class _DeadSvc:
+            def is_available(self):
+                return False
+
+        findings = _check_dropped_threads(
+            "Một đoạn văn đủ dài để tách thành span.",
+            1,
+            ["Long báo thù"],
+            0.6,
+            _DeadSvc(),
+        )
+        assert findings == []
+
+
+class TestCheckDanglingReferencesThreadMention:
+    def test_entity_named_in_thread_label_is_not_dangling(self):
+        """A PERSON entity absent from the cast but present in a thread label
+        is not flagged."""
+        from pipeline.semantic.structural_detector import _check_dangling_references
+
+        findings = _check_dangling_references(
+            1, {"Phong"}, ["Lý Huyền"], ["bí mật thân thế của Phong"]
+        )
+        assert findings == []
