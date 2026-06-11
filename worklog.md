@@ -470,3 +470,28 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   coverage 70.66% >= 70.61% baseline (new helper tests raised it), import
   smoke OK. Commit 953b553. batch_generator.py still >200 (standing P1;
   next big block: `_run_batch_sequential` scene-beats/beat-writing section).
+
+## Cycle #21 — extract sequential scene prep (beats / decomposition / beat writing)
+
+- **Task ID**: 21-scene-write-prep
+- **Agent**: eng-loop (Serena-first)
+- **Task**: P1 oversized file: move the ~93-line scene-beats +
+  scene-decomposition + per-beat-writing block out of
+  `_run_batch_sequential` into
+  `pipeline/layer1_story/scene_write_prep.py::prepare_scene_context_and_beat_chapter`.
+- **Work Log**:
+  - Serena overview + prior cycle's reference map: `_run_batch_sequential`
+    only called from `generate_chapters`; signature untouched.
+  - Verbatim move with one equivalent simplification: `use_beat_writing`
+    collapses into the returned `beat_chapter | None` (the flag was only
+    true when a Chapter had been successfully built; failure reset it).
+    Caller: `if _beat_chapter is not None / elif stream_callback / else`.
+  - batch_generator.py 1358 -> 1295 lines; new module 155 lines.
+  - New `tests/test_scene_write_prep.py`: 6 tests (no-beats passthrough,
+    context append, non-fatal decomposition failure, beat-writing success,
+    failure fallback, stream-mode gating).
+- **Stage Summary**: VERIFIED & SHIPPED — ruff 0 errors, format clean,
+  targeted 79 passed, chunked gate 4454+1 passed, coverage 70.70% >=
+  70.61% baseline, import smoke OK. batch_generator.py still >200
+  (standing P1; remaining big methods: `_run_batch_async` ~222,
+  `_run_batch_sequential` now ~300, `generate_chapters` ~152).
