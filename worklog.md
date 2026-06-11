@@ -1,5 +1,33 @@
 # StoryForge Engineering Loop — Worklog
 
+## Cycle #7 — L2 malformed-response guards + dict emotional_expression (2026-06-11)
+
+- **Task ID**: cycle7-chapter-contract-guards + cycle7-contract-wording + cycle7-voice-guidance-dict
+- **Agent**: Claude (eng-loop, autonomous)
+- **Task**: Fix 4 of the 10 remaining failures (all genuine — each fails file-alone).
+
+### Work Log
+
+1. **test_chapter_contract / test_voice_contract malformed-response (2F)** — production gap in `pipeline/layer2_enhance/chapter_contract.py`: both `validate_chapter_against_contract` and `validate_chapter_voice` parsed the LLM response inside try/except but never checked the parsed value's type, so a JSON scalar/list crashed downstream instead of degrading. Added `isinstance(raw, dict)` guards returning the documented malformed path (`passed=False, reason="malformed"`, `drama_actual=0.0`). Callers verified (contract_gate.py:312, enhancer.py llm_error path) — they already consume the degraded object.
+2. **test_chapter_contracts wording (1F)** — assertion drifted from source: `chapter_contract_builder.py:151` now emits `LẦN VIẾT TRƯỚC CỦA CHƯƠNG {n} ĐÃ BỎ LỠ`; test updated to match.
+3. **test_consistency_engine voice guidance (1F, two-layer)** — test passed a legacy string for `emotional_expression`, but the unified `VoiceProfile` (models/schemas.py:151) types it `dict[str, str]`. Fixing the test to a dict exposed the second bug: `voice_fingerprint.py:447` did `expr_guidance.get(profile.emotional_expression)` → `TypeError: unhashable type: 'dict'`. Now branches on type — dict renders `cảm xúc — emo: how; …` (first 3), legacy str keeps the reserved/moderate/expressive map (schema has `extra="allow"`, old serialized stories can still carry strings).
+
+### Stage Summary (verification gate)
+
+- Full suite run #15: **6 failed, 4388 passed, 6 skipped** in 183s — exactly the 4 fixed; FAILED-set diff vs run #14 shows 4 removals, 0 additions.
+- Coverage **69.60%** (baseline 69.59%, +0.01pp) ✓. Circular-import smoke ✓. Targeted suites: 4 target files 71 passed; `-k voice` 175 passed; 5 enhancer files 86 passed.
+- Ruff + format on all 4 touched files match HEAD baseline exactly (stash-verified: 2 F401 in voice_fingerprint.py and 4 would-reformat are pre-existing).
+- Commit `593e43f` (fix: production guards + schema-conformant tests).
+
+### Backlog (remaining 6 failures, next cycles)
+
+- test_error_paths::test_generate_with_401_does_not_retry_fallbacks — 401 no longer raises; "Provider primary failed, trying next..." at services/llm/client.py:815 (behavior drift: fallback now swallows auth errors).
+- test_foreshadowing_verifier::test_chapter_semantic_findings_sqlite — persist finds no chapter row (orchestrator_layers.py:160).
+- test_outline_metrics::test_persist_outline_metrics_orm — MagicMock create_engine rejects `event.listen(engine, 'connect', ...)` (orchestrator_layers.py:210).
+- test_pipeline_core_coverage::test_list_checkpoints_returns_metadata — list_checkpoints returns [], checkpoint-dir seam drift.
+- test_scene_enhancer::test_defaults_are_set — order-dependent, polluter elsewhere in suite (passes alone, with file, and in 9-file group); needs bisect.
+- perf/test_sprint2_10ch_bench — perf gate, diagnose separately.
+
 ## Cycle #6 — RAG batch-cache test pollution + dormant mutmut gating (2026-06-11)
 
 - **Task ID**: cycle6-rag-multi-query + cycle6-mutation-smoke
