@@ -5,7 +5,7 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from api import quality_routes
+import pipeline.orchestrator_checkpoint as orchestrator_checkpoint
 from api.quality_routes import router as quality_router
 from models.schemas import (
     Chapter,
@@ -146,13 +146,13 @@ def _write_checkpoint(path, output: PipelineOutput) -> None:
 
 def test_quality_summary_empty_when_no_checkpoints(client, tmp_path, monkeypatch):
     """Missing or empty checkpoint dir → empty summaries map, never 500."""
-    monkeypatch.setattr(quality_routes, "_CHECKPOINT_DIR", tmp_path / "missing")
+    monkeypatch.setattr(orchestrator_checkpoint, "CHECKPOINT_DIR", str(tmp_path / "missing"))
     r = client.get("/quality")
     assert r.status_code == 200
     assert r.json() == {"summaries": {}}
 
     (tmp_path / "empty").mkdir()
-    monkeypatch.setattr(quality_routes, "_CHECKPOINT_DIR", tmp_path / "empty")
+    monkeypatch.setattr(orchestrator_checkpoint, "CHECKPOINT_DIR", str(tmp_path / "empty"))
     r = client.get("/quality")
     assert r.status_code == 200
     assert r.json() == {"summaries": {}}
@@ -176,7 +176,7 @@ def test_quality_summary_skips_unparseable_files(client, tmp_path, monkeypatch):
     )
     _write_checkpoint(ckpt_dir / "good.json", output)
 
-    monkeypatch.setattr(quality_routes, "_CHECKPOINT_DIR", ckpt_dir)
+    monkeypatch.setattr(orchestrator_checkpoint, "CHECKPOINT_DIR", str(ckpt_dir))
     r = client.get("/quality")
     assert r.status_code == 200
     body = r.json()["summaries"]
@@ -205,7 +205,7 @@ def test_quality_summary_returns_l2_when_both_layers(client, tmp_path, monkeypat
     )
     _write_checkpoint(ckpt_dir / "merged.json", output)
 
-    monkeypatch.setattr(quality_routes, "_CHECKPOINT_DIR", ckpt_dir)
+    monkeypatch.setattr(orchestrator_checkpoint, "CHECKPOINT_DIR", str(ckpt_dir))
     r = client.get("/quality")
     assert r.status_code == 200
     summary = r.json()["summaries"]["merged.json"]
@@ -228,7 +228,7 @@ def test_quality_summary_unscored_returns_null(client, tmp_path, monkeypatch):
     )
     _write_checkpoint(ckpt_dir / "legacy.json", output)
 
-    monkeypatch.setattr(quality_routes, "_CHECKPOINT_DIR", ckpt_dir)
+    monkeypatch.setattr(orchestrator_checkpoint, "CHECKPOINT_DIR", str(ckpt_dir))
     r = client.get("/quality")
     assert r.status_code == 200
     assert r.json()["summaries"]["legacy.json"] is None

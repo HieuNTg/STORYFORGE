@@ -5,7 +5,7 @@ empty input, and pipeline_stats counters.
 """
 import asyncio
 import types
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -32,6 +32,8 @@ def _make_self(chapter_batch_size=2):
     self_ns = types.SimpleNamespace(
         config=cfg,
         story_gen=story_gen,
+        # The duplicate-rewrite guard asserts against enhancer._rewritten_chapters.
+        enhancer=types.SimpleNamespace(_rewritten_chapters=set()),
     )
     return self_ns
 

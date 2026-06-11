@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+import pytest
 
 from config import ConfigManager, PipelineConfig
 from services.token_counter import estimate_tokens, fits_in_context
@@ -12,6 +13,14 @@ from services.token_counter import estimate_tokens, fits_in_context
 # ---------------------------------------------------------------------------
 
 class TestEstimateTokens:
+    """estimate_tokens prefers tiktoken (exact); the heuristic path is pinned
+    by disabling tiktoken so the assertions stay deterministic either way."""
+
+    @pytest.fixture(autouse=True)
+    def _force_heuristic(self, monkeypatch):
+        import services.token_counter as token_counter
+        monkeypatch.setattr(token_counter, "_TIKTOKEN_AVAILABLE", False)
+
     def test_empty_string(self):
         assert estimate_tokens("") == 0
 
@@ -20,14 +29,14 @@ class TestEstimateTokens:
         assert estimate_tokens("") == 0
 
     def test_rough_estimate(self):
-        text = "a" * 350  # 350 chars / 3.5 = 100 tokens
+        text = "a" * 400  # 400 chars / 4.0 = 100 tokens (Latin heuristic)
         assert estimate_tokens(text) == 100
 
     def test_single_char(self):
-        assert estimate_tokens("x") == 0  # int(1/3.5) == 0
+        assert estimate_tokens("x") == 1  # max(1, int(1/4.0)) — never 0 for non-empty
 
     def test_longer_text(self):
-        text = "x" * 3500
+        text = "x" * 4000
         assert estimate_tokens(text) == 1000
 
 
@@ -174,6 +183,10 @@ class TestLongContextIntegration:
             context_window_chapters=5,
             rag_enabled=False,
             enable_self_review=False,
+            # Serial generation: within a parallel batch siblings only see the
+            # frozen chapter texts from PRIOR batches, so with the default
+            # batch size chapter 2 would see no prior text and skip the LC path.
+            chapter_batch_size=1,
         )
 
         # Mock normal LLM client
