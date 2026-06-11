@@ -3,7 +3,19 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from pipeline.layer1_story.context_helpers import build_rag_context
+import pytest
+
+from pipeline.layer1_story.context_helpers import build_rag_context, get_rag_batch_cache
+
+
+@pytest.fixture(autouse=True)
+def _fresh_rag_batch_cache():
+    """RAGBatchCache is a process-wide singleton keyed on (summary, char names,
+    thread ids). Several tests here reuse the same outline summary + "Linh", so
+    without a reset the second test gets the first test's cached block and the
+    fake KB is never queried (order-dependent failures)."""
+    get_rag_batch_cache().reset_batch()
+    yield
 
 
 class _FakeKB:
@@ -109,3 +121,12 @@ class TestBuildRagContext:
     def test_empty_hits_returns_empty_string(self):
         kb = _FakeKB(default_results=[])
         assert build_rag_context(kb, _make_outline()) == ""
+
+    def test_batch_cache_short_circuits_repeat_query(self):
+        kb = _FakeKB(default_results=[_hit(3, 0)])
+        chars = [SimpleNamespace(name="Linh", role="protagonist", motivation="goal")]
+        first = build_rag_context(kb, _make_outline(), characters=chars)
+        calls_after_first = len(kb.calls)
+        second = build_rag_context(kb, _make_outline(), characters=chars)
+        assert second == first
+        assert len(kb.calls) == calls_after_first  # cache hit — KB not re-queried
