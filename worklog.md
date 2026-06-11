@@ -1,5 +1,26 @@
 # StoryForge Engineering Loop — Worklog
 
+## Cycle #6 — RAG batch-cache test pollution + dormant mutmut gating (2026-06-11)
+
+- **Task ID**: cycle6-rag-multi-query + cycle6-mutation-smoke
+- **Agent**: Claude (eng-loop, autonomous)
+- **Task**: Fix the two 2-failure clusters (4 of the 14 failures recorded in cycle #5).
+
+### Work Log
+
+1. **test_rag_multi_query (2F, order-dependent)** — `RAGBatchCache` is a process-wide singleton keyed on (summary[:200], sorted char names, thread ids). Several tests in the file reuse the same outline summary + character "Linh", so the second test with a colliding key got the first test's cached block back and `build_rag_context` returned before touching the fake KB (`"near" not found`, `StopIteration` on `kb.calls`). Autouse `_fresh_rag_batch_cache` fixture now calls `reset_batch()` per test. The cache-hit branch lost its (accidental) coverage, so a new `test_batch_cache_short_circuits_repeat_query` covers it deliberately — first detected as a −0.01pp coverage dip in run #13, recovered in run #14.
+2. **test_mutation_smoke (2F)** — mutation-testing infra is dormant: `mutmut_config.py` was created in 6b6e505 and removed as a dead file in 0c4fede, and mutmut was never in any requirements file. The two environment-asserting smoke tests (`mutmut --version` exits 0; config file exists) now carry `skipif(find_spec("mutmut") is None)` — they gate only environments where mutation CI is actually provisioned, instead of failing every unprovisioned checkout. The module-importability and how-to tests still run everywhere.
+
+### Stage Summary (verification gate)
+
+- Full suite run #14: **10 failed, 4384 passed, 6 skipped, 0 errors** in 214s — exactly the 4 fixed, zero regressions (FAILED set identical to run #13 minus the 4).
+- Coverage **69.59%** (= baseline 69.59%) ✓. Circular-import smoke ✓. Ruff clean on both touched files. Test-only changes (commit `51691a1`).
+- Probe finding for next cycle: `test_scene_enhancer::test_defaults_are_set` passes alone AND with its own file → polluter is in another file (likely shared root cause with several remaining singles).
+
+### Backlog (remaining 10 failures, next cycles)
+
+- Singles, several confirmed order-dependent: scene_enhancer (cross-file pollution, bisect needed), voice_contract, chapter_contract, chapter_contracts, consistency_engine, error_paths, foreshadowing_verifier, outline_metrics, pipeline_core_coverage, perf/sprint2_10ch_bench
+
 ## Cycle #5 — Three 3-failure clusters: schema drift, async orchestrator, singleton mock poisoning (2026-06-11)
 
 - **Task ID**: cycle5-pipeline-coverage + cycle5-integration-pipeline + cycle5-layer2-upgrade
