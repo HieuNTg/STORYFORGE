@@ -495,3 +495,14 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   70.61% baseline, import smoke OK. batch_generator.py still >200
   (standing P1; remaining big methods: `_run_batch_async` ~222,
   `_run_batch_sequential` now ~300, `generate_chapters` ~152).
+
+## Cycle #22: dedupe async contract-validation retry
+- Task ID: 22-async-retry-dedupe
+- Agent: eng-loop (Claude)
+- Task: Remove `_validate_and_retry_async` (~120 duplicated lines) from batch_generator.py by delegating the `_run_batch_async` callsite to the shared `validate_and_retry_threaded` helper via `asyncio.to_thread`; add first unit tests for contract_batch_retry.
+- Work Log:
+  - Serena impact check: single callsite (`_run_batch_async` L882), zero test references; helper's internal gate identical to the caller's gate.
+  - Replaced gated call with unconditional `await asyncio.to_thread(validate_and_retry_threaded, self, ...)`; deleted the method via safe_delete_symbol. batch_generator.py 1414 -> 1293 lines. (Note: prior worklog figure "1295 after #21" was a miscount; HEAD baseline was 1414.)
+  - Known accepted delta: progress message drops the "async retry"/threshold wording; callback now fires from the worker thread (already the norm — `_write_chapter_parallel` received it via to_thread before).
+  - New tests/test_contract_batch_retry.py: 6 tests (gating x2, compliant no-retry, rebuild+rewrite with failure feedback, retry_max cap, exception keeps original chapter).
+- Stage Summary: Gate green — 4460 + 1 perf passed (EXIT1/2/3/5=0, EXIT4=5 expected), coverage 70.77% >= 70.61% baseline, ruff clean, import smoke OK. Shipped 01ae62d.
