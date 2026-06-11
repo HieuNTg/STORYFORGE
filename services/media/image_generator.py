@@ -405,6 +405,9 @@ class ImageGenerator:
         """Text-only image generation via Google Labs Flow (Imagen)."""
         from services.media.flow_service import FlowService
         flow_service = FlowService()
+        if flow_service.active_ws is None:
+            logger.warning("FlowKit not connected (no active WebSocket); skipping generation")
+            return None
         refined = self._flowkit_refine(prompt)
         return self._flowkit_call(
             lambda: flow_service.request_image(
@@ -418,6 +421,9 @@ class ImageGenerator:
         """Reference-conditioned generation. Splits CHARACTER/STYLE refs when split flag set."""
         from services.media.flow_service import FlowService
         flow_service = FlowService()
+        if flow_service.active_ws is None:
+            logger.warning("FlowKit not connected (no active WebSocket); skipping generation")
+            return None
         cfg = ConfigManager().pipeline
         refined = self._flowkit_refine(prompt)
         char_refs = list(reference_paths or [])
