@@ -411,3 +411,37 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Verbatim move với substitutions chuẩn: `self.gen`→`gen`, `self.config`→`config`, `self.llm`→`llm`. Return `ParallelWriteInputs` NamedTuple 8 trường; method giữ lại trace setup, contract build, writer call, causal extraction.
 - Stage Summary: batch_generator.py 1538 → 1458 dòng (git diff 118 del / 28 ins trong file, đúng phạm vi khối). Gate: ruff clean, format clean (517 files), targeted 62 passed, full suite 4434 passed / 6 skipped, coverage 70.61% (baseline 70.60%, +0.01), import smoke OK, module mới 156 < 200. Commit `d920b34`.
 - Backlog sau cycle: P1 batch_generator còn 1458 dòng (`_run_batch_sequential` ~390, `_run_batch_async` ~222, `_run_batch_threaded` ~215 — hai method sau giờ có thể tái dùng assembler nếu trùng khối, cần so verbatim trước); P2 dedupe `_validate_and_retry_async` vs `contract_validation_retry` (behavioral merge, cần test bổ sung); P2 api/provider_status_routes.py coverage 19%; 1 TODO trong api/v1/router.py.
+
+## Cycle #19 — batch_generator threaded contract-retry extraction + suite crash root-cause fix
+
+- **Task ID**: 19-batchgen-threaded-retry, 19-suite-native-crash
+- **Agent**: eng-loop (Serena-first)
+- **Task**: (1) P1 oversized file: extract the inline contract validate-and-retry
+  block from `BatchGenerator._run_batch_threaded` into
+  `pipeline/layer1_story/contract_batch_retry.py::validate_and_retry_threaded`
+  (verbatim move, whole `self` passed as `batch_gen`). (2) P0 discovered during
+  verification: full-suite pytest died natively 4x (EXIT -1073740791/0xC0000409
+  and -1073741819/0xC0000005) at random progress points — no failing test.
+- **Work Log**:
+  - Serena `find_referencing_symbols` on `_run_batch_threaded` before edit; diff
+    25 ins / 89 del; batch_generator.py 1467 -> 1403 lines.
+  - Crash root cause via faulthandler dump: unmocked
+    `generate_full_story -> outline_critic.score_outline -> outline_metrics
+    .compute_beat_coverage_ratio -> get_embedding_service().is_available()`
+    lazily loads SentenceTransformer/torch **inside a ThreadPoolExecutor
+    worker**, intermittently killing the process on Windows. Same model loads
+    fine in a fresh main thread (perf test alone: green).
+  - Fix: `STORYFORGE_DISABLE_REAL_EMBEDDINGS=1` kill switch in
+    `EmbeddingService._load` (keyword fallback); set in tests/conftest.py at
+    import; delenv autouse fixtures in embedding unit/cache tests; env-pop +
+    singleton reset in perf/calibration real-model fixtures.
+  - Gate ran via new `scripts/run_gate_chunks.ps1` (chunked processes,
+    --cov-append): 4434 passed, 0 crashes. Coverage initially 70.57% (in-suite
+    real-model branches no longer execute) — compensated with 8 unit tests
+    (_load guards, _beat_coverage_string fallback, structural_detector guard
+    branches) -> 70.61% = baseline.
+- **Stage Summary**: VERIFIED & SHIPPED — ruff 0 errors, format clean, chunked
+  suite 4434 passed, coverage 70.61% >= 70.61% baseline, import smoke OK.
+  Commits 965f318 (refactor), b8b6b43 (fix(test)). batch_generator.py still
+  >200 lines (standing P1, shrinking incrementally). New P2 noted: document
+  chunked gate runner as the standard full-suite gate on this host.
