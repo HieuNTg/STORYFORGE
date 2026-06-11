@@ -60,7 +60,15 @@ class SanitizationResult:
 
 
 class InjectionBlockedError(ValueError):
-    """Raised when prompt injection is detected and blocking is enabled."""
+    """Raised when prompt injection is detected and blocking is enabled.
+
+    ``threats_found`` lists the detected threat types so callers can report
+    what triggered the block without parsing the message.
+    """
+
+    def __init__(self, message: str, threats_found: list[str] | None = None):
+        super().__init__(message)
+        self.threats_found = threats_found or []
 
 
 def sanitize_input(text: str) -> SanitizationResult:
@@ -80,7 +88,8 @@ def sanitize_input(text: str) -> SanitizationResult:
 
     if threats and _BLOCK_ON_DETECT:
         raise InjectionBlockedError(
-            f"Input blocked: prompt injection detected ({', '.join(threats)})"
+            f"Input blocked: prompt injection detected ({', '.join(threats)})",
+            threats_found=threats,
         )
 
     return SanitizationResult(
