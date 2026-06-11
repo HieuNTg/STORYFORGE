@@ -1,5 +1,28 @@
 # StoryForge Engineering Loop — Worklog
 
+## Cycle #2 — Triage failure clusters: sidecars + SQLAlchemy reprs (2026-06-11)
+
+- **Task ID**: cycle2-sidecar-isolation + cycle2-db-model-reprs
+- **Agent**: Claude (eng-loop, autonomous)
+- **Task**: Fix the three largest pre-existing failure clusters (26 failures + 3 errors of the 79F/3E recorded in cycle #1).
+
+### Work Log
+
+1. **SQLAlchemy repr tests (8F)** — `Model.__new__(Model)` bypasses the instrumented `__init__`, so attribute writes fail on SQLAlchemy 2.0.44 (`'NoneType' object has no attribute 'set'`). Switched to declarative constructors; `test_models_share_base` had a broken MRO-gymnastics assert (`Table` isinstance `type`) — now asserts `sqlalchemy.Table` (commit `0bd8166`).
+2. **usage_history (9F) + continuation_history (6F+3E)** — sidecars moved to per-story folders (`output_paths.checkpoints_dir(title)` for writes, `find_checkpoint_path` for reads) but tests only patched the legacy `checkpoint_dir()` fallback → writes landed in the real `output/` tree while reads looked in tmp_path. Autouse fixtures now patch all three resolution seams. The `client` fixture also patched `continuation_routes._CHECKPOINT_DIR`, which no longer exists → AttributeError errored all 3 endpoint tests; removed (commit `f31cd61`).
+
+### Stage Summary (verification gate)
+
+- Full suite run #9: **56 failed, 4339 passed, 0 errors** in 187s — exactly the 26F+3E fixed, zero regressions.
+- Coverage **69.35%** (baseline 69.27%) ✓. Ruff on touched files: clean. Test-only changes, no architecture impact.
+
+### Backlog (remaining 56 failures, next cycles)
+
+- test_prompt_injection_corpus (20) — biggest cluster, likely shared root cause
+- test_structural_rewrite_parallel (4), test_quality_routes (4), test_long_context (4) — long_context shows live "All LLM providers failed" errors → unmocked LLM calls
+- test_pipeline_coverage (3), test_layer2_upgrade (3), test_integration_pipeline (3), test_rag_multi_query (2), test_mutation_smoke (2)
+- Singles: voice_contract, scene_enhancer, pipeline_core_coverage, outline_metrics, foreshadowing_verifier, error_paths, consistency_engine, chapter_contracts, chapter_contract, api_async (test_test_connection), perf/sprint2_10ch_bench
+
 ## Cycle #1 — Suite completes without hanging + zero F821 (2026-06-11)
 
 - **Task ID**: cycle1-suite-hang + cycle1-f821
