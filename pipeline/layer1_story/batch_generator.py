@@ -25,6 +25,7 @@ from pipeline.layer1_story.enhancement_injections import (
     build_chapter_enhancement_context,
 )
 from pipeline.layer1_story.context_helpers import get_rag_batch_cache
+from pipeline.layer1_story.contract_batch_retry import validate_and_retry_threaded
 from pipeline.layer1_story.contract_validation_retry import (
     validate_and_retry_contract,
 )
@@ -1457,95 +1458,30 @@ class BatchChapterGenerator:
                     raise
 
         # Contract validation with retry (#2 improvement)
-        if contracts and getattr(
-            self.config.pipeline, "enable_contract_validation", False
-        ):
-            from pipeline.layer1_story.chapter_contract_builder import (
-                validate_contract_compliance,
-            )
-
-            outline_map = {o.chapter_number: o for o in batch}
-            chapter_map = {c.chapter_number: c for c in chapters}
-
-            for ch_num, contract in contracts.items():
-                chapter = chapter_map[ch_num]
-                outline = outline_map[ch_num]
-                try:
-                    compliance = validate_contract_compliance(
-                        self.llm,
-                        chapter.content,
-                        contract,
-                        model=self.gen._layer_model,
-                    )
-                    score = compliance.get("compliance_score", 0.0)
-                    failures = compliance.get("failures", [])
-
-                    retry_count = 0
-                    while score < self.retry_threshold and retry_count < self.retry_max:
-                        retry_count += 1
-                        if progress_callback:
-                            progress_callback(
-                                f"⚠️ Ch{ch_num} compliance {score:.0%}, retry {retry_count}/{self.retry_max}..."
-                            )
-
-                        from pipeline.layer1_story.chapter_contract_builder import (
-                            build_contract,
-                        )
-
-                        new_contract = build_contract(
-                            ch_num,
-                            outline,
-                            threads=frozen_threads,
-                            macro_arcs=macro_arcs,
-                            conflicts=conflict_web,
-                            foreshadowing_plan=foreshadowing_plan,
-                            characters=characters,
-                            previous_failures=failures,
-                        )
-
-                        new_chapter, _ = self._write_chapter_parallel(
-                            outline,
-                            frozen,
-                            draft,
-                            story_context,
-                            frozen_threads,
-                            sibling_summaries,
-                            shared_enhancement,
-                            title,
-                            genre,
-                            style,
-                            characters,
-                            world,
-                            word_count,
-                            macro_arcs,
-                            conflict_web,
-                            foreshadowing_plan,
-                            progress_callback,
-                            None,
-                            idea,
-                            idea_summary,
-                            override_contract=new_contract,
-                        )
-                        chapter_map[ch_num] = new_chapter
-
-                        compliance = validate_contract_compliance(
-                            self.llm,
-                            new_chapter.content,
-                            new_contract,
-                            model=self.gen._layer_model,
-                        )
-                        score = compliance.get("compliance_score", 0.0)
-                        failures = compliance.get("failures", [])
-
-                    if progress_callback:
-                        status = f"Ch{ch_num} compliance: {score:.0%}"
-                        if retry_count > 0:
-                            status += f" (sau {retry_count} retry)"
-                        progress_callback(status)
-                except Exception as e:
-                    logger.warning("Contract validation failed for ch%d: %s", ch_num, e)
-
-            chapters = list(chapter_map.values())
+        chapters = validate_and_retry_threaded(
+            self,
+            chapters=chapters,
+            contracts=contracts,
+            batch=batch,
+            frozen=frozen,
+            draft=draft,
+            story_context=story_context,
+            frozen_threads=frozen_threads,
+            sibling_summaries=sibling_summaries,
+            shared_enhancement=shared_enhancement,
+            title=title,
+            genre=genre,
+            style=style,
+            characters=characters,
+            world=world,
+            word_count=word_count,
+            macro_arcs=macro_arcs,
+            conflict_web=conflict_web,
+            foreshadowing_plan=foreshadowing_plan,
+            progress_callback=progress_callback,
+            idea=idea,
+            idea_summary=idea_summary,
+        )
 
         chapters_ordered = sorted(chapters, key=lambda c: c.chapter_number)
 
