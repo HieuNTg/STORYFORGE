@@ -13,10 +13,14 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-# Inject a stub `sentence_transformers` module so `patch(...)` can resolve the
-# attribute even on hosts without the heavy ML dependency installed. The real
-# package is exercised by P7's integration test, not by these unit tests.
-if "sentence_transformers" not in sys.modules:
+# `patch(...)` below needs `sentence_transformers` to be importable. Prefer the
+# real package when installed; only stub on hosts without the heavy ML
+# dependency. A permanent sys.modules stub would poison the whole process:
+# pytest imports every test module at collection time, so the perf bench
+# (tests/perf/, which needs the real model) would silently load a MagicMock.
+try:
+    import sentence_transformers  # noqa: F401
+except ImportError:  # pragma: no cover - hosts without torch
     _stub = types.ModuleType("sentence_transformers")
     _stub.SentenceTransformer = MagicMock(name="SentenceTransformer")  # type: ignore[attr-defined]
     sys.modules["sentence_transformers"] = _stub

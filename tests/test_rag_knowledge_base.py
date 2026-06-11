@@ -387,17 +387,18 @@ class TestConfigRAGFields(unittest.TestCase):
         self.assertEqual(cfg.rag_persist_dir, "data/rag")
 
     def test_config_manager_has_rag_fields(self):
-        import threading
         from config import ConfigManager
-        # Reset singleton for clean test
-        with threading.Lock():
-            mgr = ConfigManager.__new__(ConfigManager)
-            mgr._initialized = False
-            mgr._initialized = True
-            mgr.llm = MagicMock()
-            mgr.pipeline = MagicMock()
-            mgr.pipeline.rag_enabled = False
-            mgr.pipeline.rag_persist_dir = "data/rag"
+        # ConfigManager implements its singleton inside __new__, so
+        # `ConfigManager.__new__(ConfigManager)` returns the SHARED instance —
+        # mutating it here would poison the global config for every later test
+        # (it broke test_scene_enhancer in the full suite). `object.__new__`
+        # builds a detached instance that never touches the singleton.
+        mgr = object.__new__(ConfigManager)
+        mgr._initialized = True
+        mgr.llm = MagicMock()
+        mgr.pipeline = MagicMock()
+        mgr.pipeline.rag_enabled = False
+        mgr.pipeline.rag_persist_dir = "data/rag"
 
         self.assertFalse(mgr.pipeline.rag_enabled)
         self.assertEqual(mgr.pipeline.rag_persist_dir, "data/rag")

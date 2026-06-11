@@ -15,8 +15,13 @@ from unittest.mock import MagicMock, patch, call
 import numpy as np
 import pytest
 
-# Stub sentence_transformers so the import chain works without torch installed.
-if "sentence_transformers" not in sys.modules:
+# `patch(...)` below needs `sentence_transformers` to be importable. Prefer the
+# real package when installed; only stub on hosts without torch. A permanent
+# sys.modules stub poisons the whole pytest process (perf bench loads it
+# instead of the real model — see tests/perf/test_sprint2_10ch_bench.py).
+try:
+    import sentence_transformers  # noqa: F401
+except ImportError:  # pragma: no cover - hosts without torch
     _stub = types.ModuleType("sentence_transformers")
     _stub.SentenceTransformer = MagicMock(name="SentenceTransformer")  # type: ignore[attr-defined]
     sys.modules["sentence_transformers"] = _stub

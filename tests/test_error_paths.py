@@ -292,8 +292,13 @@ class TestPipelineInvalidConfig:
 
     @patch("services.llm_client.ConfigManager")
     @patch("services.llm_client.LLMCache")
-    def test_generate_with_401_does_not_retry_fallbacks(self, MockCache, MockCM):
-        """Non-transient 401 auth error stops immediately without trying fallbacks."""
+    def test_generate_with_401_rotates_to_fallback(self, MockCache, MockCM):
+        """401 auth error on the primary rotates to the next provider.
+
+        Auth errors are not retryable on the same key, but a different
+        provider in the chain may have valid credentials — so the client
+        must try it instead of failing fast (services/llm/retry.py).
+        """
         from services.llm_client import LLMClient
         cfg = _make_llm_config(api_key="bad-key")
         MockCM.return_value = cfg
@@ -305,7 +310,7 @@ class TestPipelineInvalidConfig:
         primary.chat.completions.create.side_effect = Exception("401 unauthorized")
         fallback = MagicMock()
         resp = MagicMock()
-        resp.choices[0].message.content = "Should not reach here"
+        resp.choices[0].message.content = "fallback response"
         fallback.chat.completions.create.return_value = resp
 
         client._build_fallback_chain = MagicMock(return_value=[
@@ -314,7 +319,7 @@ class TestPipelineInvalidConfig:
         ])
 
         with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
-            with pytest.raises(Exception):
-                client.generate("sys", "usr")
+            result = client.generate("sys", "usr")
 
-        fallback.chat.completions.create.assert_not_called()
+        assert result == "fallback response"
+        fallback.chat.completions.create.assert_called_once()
