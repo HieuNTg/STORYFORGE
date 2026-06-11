@@ -516,3 +516,14 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - New tests/test_provider_status_routes.py: 13 tests — config key detection (openrouter/openai-default base_url, fallback_models setdefault with empty/non-dict entries skipped, env-var fill, ConfigManager failure -> {}), and TestClient route tests with the lazily imported status manager patched at source (/status, /status/{p}, /models/{p}?refresh=true, POST /refresh, /quota-check low+ok, /fallbacks all+filtered-no-key).
   - Module coverage 19% -> 84% (remaining misses are URL-branch permutations). Source untouched, so the 200-line rule is not triggered.
 - Stage Summary: Gate green — 4473 + 1 perf passed (EXIT1/2/3/5=0, EXIT4=5 expected), coverage 71.03% >= 70.61% baseline, ruff clean. Shipped as test-only commit.
+
+## Cycle #24: extract sequential write dispatch
+- Task ID: 24-sequential-write-dispatch
+- Agent: eng-loop (Claude)
+- Task: Continue the batch_generator.py split (P1 oversized file) — extract the chapter-write dispatch block from `_run_batch_sequential` into a dedicated module with unit tests.
+- Work Log:
+  - Serena/Grep impact check: write dispatch is inline in `_run_batch_sequential` only; test seams mock `write_chapter_stream` / `_write_chapter_with_long_context` on the `gen` object (10 test files), so a helper that calls `batch_gen.gen.<method>` keeps every existing seam working.
+  - New pipeline/layer1_story/sequential_write_dispatch.py (141 lines): `write_sequential_chapter(batch_gen, *, ...)` — verbatim move of the beat-chapter short-circuit, stream vs long-context writer selection, contract + negotiated-contract attachment (non-fatal on failure), and the >=80% token-budget warning. batch_generator.py 1293 -> 1243 lines; dropped the now-unused `estimate_tokens` import.
+  - New tests/test_sequential_write_dispatch.py: 7 tests (path selection x3, contract attachment + writer kwargs forwarding, non-fatal attach failure, token-budget warning on/off).
+  - Backlog note: api/v1/router.py L14 TODO assessed as an intentional design note ("freeze v1 when v2 lands") — dropped from backlog, not actionable.
+- Stage Summary: Gate green — 4480 + 1 perf passed (EXIT1/2/3/5=0, EXIT4=5 expected), coverage 71.05% >= 70.61% baseline, ruff clean, import smoke OK. Shipped 1cc72fb.
