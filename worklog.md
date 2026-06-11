@@ -445,3 +445,28 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   Commits 965f318 (refactor), b8b6b43 (fix(test)). batch_generator.py still
   >200 lines (standing P1, shrinking incrementally). New P2 noted: document
   chunked gate runner as the standard full-suite gate on this host.
+
+## Cycle #20 — dedupe contract building (sequential + parallel write paths)
+
+- **Task ID**: 20-contract-build-dedupe
+- **Agent**: eng-loop (Serena-first)
+- **Task**: P1 oversized file + P2 dedupe: `_run_batch_sequential` and
+  `_write_chapter_parallel` each carried a near-identical inline block that
+  builds a ChapterContract + prompt text. Extract one shared helper.
+- **Work Log**:
+  - Serena `find_referencing_symbols` on both methods (all refs internal to
+    batch_generator.py + contract_batch_retry.py via parameter — signatures
+    untouched, only inner blocks replaced).
+  - Checked `build_contract` signature: all optional params default to None,
+    so a single helper with `include_proactive` / `override_contract` /
+    `previous_failures` knobs reproduces both variants exactly.
+  - New `pipeline/layer1_story/chapter_contract_setup.py` (110 lines):
+    `build_contract_for_chapter()` — best-effort, returns (contract, text).
+  - batch_generator.py 1403 -> 1358 lines.
+  - New `tests/test_chapter_contract_setup.py`: 7 tests (flag gating,
+    proactive constraints, override skip-build + format, failure logging).
+- **Stage Summary**: VERIFIED & SHIPPED — ruff 0 errors, format clean,
+  targeted contract/batch suites 135 passed, chunked gate 4448+1 passed,
+  coverage 70.66% >= 70.61% baseline (new helper tests raised it), import
+  smoke OK. Commit 953b553. batch_generator.py still >200 (standing P1;
+  next big block: `_run_batch_sequential` scene-beats/beat-writing section).
