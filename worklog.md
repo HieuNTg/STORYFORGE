@@ -353,3 +353,21 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
 - Scope note: 524+/453− diff exceeds the 500-line guideline — pure verbatim move of one cohesive block; splitting across two cycles would double the 9-minute verification cost without lowering risk.
 
 **Stage Summary:** Shipped as `f96ef1e`. batch_generator down 408 lines but still 2099 (P1 remains open — next extraction candidates: the `_run_batch_sequential` monolith at ~810 lines, `_run_batch_threaded`, `_run_batch_async`). Backlog unchanged otherwise: P2 dead TestTokenCostTracker tests, api/provider_status_routes.py 19% coverage, 1 TODO in api/v1/router.py.
+
+## Cycle #15: Extract self-critique + enhancement-context blocks from _run_batch_sequential
+- Task ID: 15-batchgen-split-2
+- Agent: eng-loop (Claude Fable 5)
+- Task: Continue the P1 oversized-file split of pipeline/layer1_story/batch_generator.py (2099 lines post-#14) by extracting the two most cohesive blocks of the 814-line _run_batch_sequential method.
+- Work Log:
+  - Serena get_symbols_overview + find_symbol mapped the post-#14 method layout; find_referencing_symbols confirmed _run_batch_sequential has exactly one caller (generate_chapters, internal).
+  - Seam check: only test patch target on batch_generator is `_index_chapter_into_rag` (unaffected); both extracted blocks use lazy imports exclusively, so no @patch repointing needed (cycle #14 lesson applied proactively).
+  - Item 1: self-critique block (old lines 837-952) -> chapter_critique_runner.py (140 lines), run_chapter_self_critique(pipeline_config, llm, *, chapter, outline, characters, genre, pacing, macro_arcs, story_context, draft, layer_model, progress_callback).
+  - Item 2: enhancement-context assembly (old lines 511-649) -> enhancement_injections.py (165 lines), build_chapter_enhancement_context(...) -> str. Scene-beats block (651-672) deliberately left in batch_generator because scene_beats_list is consumed locally by the beat-writing path.
+  - Substitutions only: self.config->config / self.config.pipeline->pipeline_config, self.llm->llm, self.gen._layer_model->layer_model; bodies otherwise verbatim, all lazy imports preserved to avoid import-time cycles.
+- Stage Summary (verification evidence):
+  - ruff check: All checks passed; ruff format: clean.
+  - Targeted suites (test_batch_generator, test_batch_generator_behavior, test_batch_continuity, test_chapter_writer_rag, test_pipeline_agents_zero_coverage): 218 passed.
+  - Full suite: 4439 passed, 6 skipped; coverage 70.58% >= 70.57% baseline (new baseline: 70.58%).
+  - Import smoke OK; new files 140/165 lines (<200); batch_generator.py 2099 -> 1880.
+  - Commit: 768e5a2.
+- Backlog: batch_generator.py still 1880 lines (P1) — _run_batch_sequential now ~580 lines; next candidates: contract-validation retry loop (~142 lines, entangled with writer calls), context assembly block (~114 lines), then _write_chapter_parallel (~230) / _run_batch_async (~222) / _run_batch_threaded (~215). P2 carry-over: dead TestTokenCostTracker tests, api/provider_status_routes.py 19% coverage, TODO in api/v1/router.py.
