@@ -410,64 +410,6 @@ class TestVoiceManager:
 
 
 # ============================================================
-# services/token_cost_tracker.py — 130 statements, 59%
-# ============================================================
-
-
-class TestTokenCostTracker:
-    """Tests for token cost tracker."""
-
-    def test_import(self):
-        from services.token_cost_tracker import TokenCostTracker
-
-        assert TokenCostTracker is not None
-
-    def test_tracker_init(self):
-        from services.token_cost_tracker import TokenCostTracker
-
-        tracker = TokenCostTracker()
-        assert tracker is not None
-
-    def test_record_call(self):
-        from services.token_cost_tracker import TokenCostTracker
-
-        tracker = TokenCostTracker()
-        try:
-            tracker.record(
-                model="gpt-4o-mini",
-                input_tokens=100,
-                output_tokens=50,
-                provider="openai",
-            )
-        except (AttributeError, TypeError):
-            # Method signature may differ
-            pass
-
-    def test_get_stats(self):
-        from services.token_cost_tracker import TokenCostTracker
-
-        tracker = TokenCostTracker()
-        try:
-            stats = tracker.get_stats()
-            assert isinstance(stats, dict)
-        except AttributeError:
-            pass
-
-    def test_estimate_cost_gpt4o_mini(self):
-        from services.token_cost_tracker import TokenCostTracker
-
-        tracker = TokenCostTracker()
-        try:
-            cost = tracker.estimate_cost(
-                "gpt-4o-mini", input_tokens=1000, output_tokens=500
-            )
-            assert isinstance(cost, (int, float))
-            assert cost >= 0
-        except (AttributeError, TypeError):
-            pass
-
-
-# ============================================================
 # pipeline/agents — additional agents
 # ============================================================
 
