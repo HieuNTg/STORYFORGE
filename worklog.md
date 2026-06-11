@@ -310,3 +310,24 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
 - P1 (needs CEO sign-off): repo-wide `ruff format` — 457 files, exceeds 500-line cycle cap.
 - P1: oversized source files (worst: pipeline/layer1_story/batch_generator.py 1891 lines).
 - P2: dead try/except tests in test_additional_coverage.py TestTokenCostTracker (superseded by dedicated file); api/provider_status_routes.py at 19%; provider SDK retry defaults; 1 TODO in api/v1/router.py.
+
+---
+
+## Cycle #13 — Repo-wide ruff format (format gate fully clean)
+
+**Task ID:** 13-format-repo
+**Agent:** Claude Fable 5 (eng-loop)
+**Task:** Run `ruff format .` across the whole repo to clear the 457-file format drift carried since ruff config landed; zero behavior change; coverage must hold at 70.56%.
+
+**Work Log:**
+- DISCOVERY (carried from cycle #12 backlog): `ruff format --check .` reported 457 files would be reformatted. CEO approved by re-invoking the loop after the STOP report.
+- EXECUTION: `ruff format .` → 457 files reformatted (455 in final diff, +23223/−7932). Serena symbol tools not applicable — mechanical formatter run, no semantic edits.
+- Regression caught & fixed: formatter split the one-line `from services.llm.retry import (...)  # noqa: F401` in `services/llm_client.py` into a parenthesized multi-line import, leaving the trailing noqa covering only the closing paren → 5 new F401. Fix: `# noqa: F401` per name line.
+- VERIFICATION (all green):
+  - `ruff check .` → All checks passed! (0 errors)
+  - `ruff format --check .` → 509 files already formatted (first time fully clean)
+  - Full suite: 4439 passed, 6 skipped, 1 deselected in 553s — 0 failures
+  - Coverage: 70.56% — exactly equal to baseline (zero behavior change confirmed)
+  - Circular-import smoke: OK
+
+**Stage Summary:** Format gate clean repo-wide for the first time; future cycles no longer need per-file format workarounds. Shipped as `b4fb32b` (style:). Backlog unchanged: P1 oversized source files (worst: pipeline/layer1_story/batch_generator.py 1891 lines — needs Serena find_referencing_symbols impact list before split); P2 dead TestTokenCostTracker tests in test_additional_coverage.py, api/provider_status_routes.py at 19% coverage, 1 TODO in api/v1/router.py.
