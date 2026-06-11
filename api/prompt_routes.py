@@ -1,6 +1,6 @@
 """Prompt management API routes — list, preview, A/B test prompts."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from middleware.rbac import Permission, require_permission_if_enabled
@@ -96,12 +96,13 @@ def get_prompt(name: str):
 
 
 @router.get("/{name}/preview", summary="Preview formatted prompt with sample vars")
-def preview_prompt(name: str, genre: str = "Tiên Hiệp", **kwargs):
+def preview_prompt(name: str, request: Request, genre: str = "Tiên Hiệp"):
     """Return formatted prompt using provided query params as template variables."""
     try:
         from services.prompt_manager import prompt_manager  # noqa: PLC0415
 
-        formatted = prompt_manager.get(name, genre=genre, **kwargs)
+        extra = {k: v for k, v in request.query_params.items() if k != "genre"}
+        formatted = prompt_manager.get(name, genre=genre, **extra)
         return {"name": name, "genre": genre, "preview": formatted}
     except ImportError:
         raise HTTPException(status_code=503, detail="PromptManager not available yet")
