@@ -527,3 +527,14 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - New tests/test_sequential_write_dispatch.py: 7 tests (path selection x3, contract attachment + writer kwargs forwarding, non-fatal attach failure, token-budget warning on/off).
   - Backlog note: api/v1/router.py L14 TODO assessed as an intentional design note ("freeze v1 when v2 lands") — dropped from backlog, not actionable.
 - Stage Summary: Gate green — 4480 + 1 perf passed (EXIT1/2/3/5=0, EXIT4=5 expected), coverage 71.05% >= 70.61% baseline, ruff clean, import smoke OK. Shipped 1cc72fb.
+
+## Cycle #25: provider key detection out of route module
+- Task ID: 25-provider-config-keys-split
+- Agent: eng-loop (Claude)
+- Task: Clear the api/provider_status_routes.py >200-line P2 item by moving the _get_api_keys_from_config business logic into services/ (api -> services direction, route handlers stay thin).
+- Work Log:
+  - Assessed batch_generator._run_batch_sequential post-#24: now a pure orchestration loop (every step delegates to an extracted helper; remaining bulk is kwargs plumbing) — further extraction there is churn, deprioritized.
+  - Serena impact check: 6 callsites, all inside the same route module; tests import the helper directly and patch `api.provider_status_routes._get_api_keys_from_config`.
+  - New services/llm/provider_config_keys.py (70 lines): get_api_keys_from_config, verbatim move (lazy `from config import ConfigManager` preserved so the `config.ConfigManager` patch seam still works). Route module re-imports it as `_get_api_keys_from_config`, keeping both test seams and all callsites unchanged.
+  - api/provider_status_routes.py 239 -> 182 lines.
+- Stage Summary: Gate green — 4480 + 1 perf passed (EXIT1/2/3/5=0, EXIT4=5 expected), coverage 71.05% >= 70.61% baseline (flat vs #24), ruff clean, import smoke OK, 52 provider tests pass.
