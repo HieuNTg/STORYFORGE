@@ -36,15 +36,24 @@ from services.usage_history import (
 
 @pytest.fixture(autouse=True)
 def _isolated_checkpoint_dir(tmp_path, monkeypatch):
-    """Redirect checkpoint_dir() so sidecars land in a tmp folder.
+    """Redirect the whole sidecar path resolution into a tmp folder.
 
-    ``usage_history`` imports ``checkpoint_dir`` directly from
-    ``continuation_history``, so we must rebind the symbol on the
-    importing module too — patching only the source module leaves the
-    bound reference in usage_history pointing at the original.
+    Sidecars co-locate with per-story checkpoints now: writes resolve via
+    ``services.output_paths.checkpoints_dir(title)``, reads via
+    ``pipeline.orchestrator_checkpoint.find_checkpoint_path``, with the
+    legacy flat ``checkpoint_dir()`` only as last fallback. All three must
+    point at tmp_path or the writer and reader disagree on location.
+    ``usage_history`` also imports ``checkpoint_dir`` directly from
+    ``continuation_history``, so rebind the symbol on the importing module
+    too.
     """
+    import pipeline.orchestrator_checkpoint as orchestrator_checkpoint
+    import services.output_paths as output_paths
+
     monkeypatch.setattr(continuation_history, "checkpoint_dir", lambda: tmp_path)
     monkeypatch.setattr(usage_history, "checkpoint_dir", lambda: tmp_path)
+    monkeypatch.setattr(output_paths, "checkpoints_dir", lambda *a, **kw: str(tmp_path))
+    monkeypatch.setattr(orchestrator_checkpoint, "find_checkpoint_path", lambda _f: None)
     yield tmp_path
 
 

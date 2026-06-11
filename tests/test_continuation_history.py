@@ -30,8 +30,20 @@ from services.continuation_history import (
 
 @pytest.fixture(autouse=True)
 def _isolated_checkpoint_dir(tmp_path, monkeypatch):
-    """Redirect checkpoint_dir() to a tmp folder for the duration of the test."""
+    """Redirect the whole sidecar path resolution into a tmp folder.
+
+    Sidecars co-locate with per-story checkpoints now: writes resolve via
+    ``services.output_paths.checkpoints_dir(title)``, reads via
+    ``pipeline.orchestrator_checkpoint.find_checkpoint_path``, with the
+    legacy flat ``checkpoint_dir()`` only as last fallback. All three must
+    point at tmp_path or the writer and reader disagree on location.
+    """
+    import pipeline.orchestrator_checkpoint as orchestrator_checkpoint
+    import services.output_paths as output_paths
+
     monkeypatch.setattr(continuation_history, "checkpoint_dir", lambda: tmp_path)
+    monkeypatch.setattr(output_paths, "checkpoints_dir", lambda *a, **kw: str(tmp_path))
+    monkeypatch.setattr(orchestrator_checkpoint, "find_checkpoint_path", lambda _f: None)
     yield tmp_path
 
 
@@ -133,12 +145,14 @@ def test_continue_story_hook_swallows_sidecar_failure(tmp_path):
 
 
 @pytest.fixture
-def client(monkeypatch, tmp_path):
-    """Mount continuation_routes in isolation; redirect _CHECKPOINT_DIR to tmp."""
-    from api import continuation_routes
+def client(tmp_path):
+    """Mount continuation_routes in isolation.
 
-    monkeypatch.setattr(continuation_routes, "_CHECKPOINT_DIR", tmp_path.resolve())
-    monkeypatch.setattr(continuation_history, "checkpoint_dir", lambda: tmp_path)
+    Path isolation comes from the autouse ``_isolated_checkpoint_dir``
+    fixture; the old ``_CHECKPOINT_DIR`` module attribute no longer exists
+    (routes resolve checkpoints via ``find_checkpoint_path`` now).
+    """
+    from api import continuation_routes
 
     app = FastAPI()
     app.include_router(continuation_routes.router)
