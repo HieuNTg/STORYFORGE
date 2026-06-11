@@ -371,3 +371,18 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Import smoke OK; new files 140/165 lines (<200); batch_generator.py 2099 -> 1880.
   - Commit: 768e5a2.
 - Backlog: batch_generator.py still 1880 lines (P1) — _run_batch_sequential now ~580 lines; next candidates: contract-validation retry loop (~142 lines, entangled with writer calls), context assembly block (~114 lines), then _write_chapter_parallel (~230) / _run_batch_async (~222) / _run_batch_threaded (~215). P2 carry-over: dead TestTokenCostTracker tests, api/provider_status_routes.py 19% coverage, TODO in api/v1/router.py.
+
+## Cycle #16: Extract write-context assembly + remove dead token-tracker tests
+- Task ID: 16-batchgen-split-3 / 16-dead-tests
+- Agent: eng-loop (Claude Fable 5)
+- Task: Third step of the batch_generator.py P1 split plus one P2 test-debt cleanup.
+- Work Log:
+  - Item 1: bible/tiered-context + narrative-resolution + arc-context block (114 lines) -> chapter_context_assembler.py (157 lines); assemble_chapter_write_context returns ChapterWriteContext NamedTuple unpacked at the call site. Lazy imports preserved; no monkeypatch seams moved (tests only patch batch_generator._index_chapter_into_rag).
+  - Item 2: deleted TestTokenCostTracker from tests/test_additional_coverage.py — verified record/get_stats/estimate_cost do not exist on TokenCostTracker (real API: track_usage/get_session_summary/get_story_cost), so 3 of 5 tests only exercised their except-and-pass branches; dedicated tests/test_token_cost_tracker.py covers the real API.
+- Stage Summary (verification evidence):
+  - ruff check: All checks passed; ruff format: clean; import smoke OK.
+  - Targeted suites (batch_generator x3, test_additional_coverage, test_token_cost_tracker): 143 passed.
+  - Full suite: 4434 passed (-5 = deleted dead tests), 6 skipped; coverage 70.59% >= 70.58% baseline (new baseline: 70.59%).
+  - batch_generator.py 1880 -> 1788 lines; new module 157 (<200).
+  - Commits: f70d469, b8c6978.
+- Backlog: batch_generator.py still 1788 (P1) — _run_batch_sequential ~470 lines; remaining candidates: contract build block (~41), contract-validation retry loop (~142, entangled with writer calls), then _write_chapter_parallel (~230) / _run_batch_async (~222) / _run_batch_threaded (~215). P2 carry-over: api/provider_status_routes.py 19% coverage, TODO in api/v1/router.py.
