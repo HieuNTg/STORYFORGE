@@ -25,6 +25,9 @@ from pipeline.layer1_story.enhancement_injections import (
     build_chapter_enhancement_context,
 )
 from pipeline.layer1_story.context_helpers import get_rag_batch_cache
+from pipeline.layer1_story.contract_validation_retry import (
+    validate_and_retry_contract,
+)
 from services.token_counter import estimate_tokens
 
 logger = logging.getLogger(__name__)
@@ -662,147 +665,42 @@ class BatchChapterGenerator:
             )
 
             # Post-write contract validation with retry (#2 improvement)
-            if contract is not None and getattr(
-                self.config.pipeline, "enable_contract_validation", False
-            ):
-                try:
-                    from pipeline.layer1_story.chapter_contract_builder import (
-                        validate_contract_compliance,
-                    )
-
-                    compliance = validate_contract_compliance(
-                        self.llm,
-                        chapter.content,
-                        contract,
-                        model=self.gen._layer_model,
-                    )
-                    _contract_failures = compliance.get("failures", [])
-                    score = compliance.get("compliance_score", 0.0)
-
-                    # Retry logic: if score below threshold, rewrite chapter
-                    retry_count = 0
-                    while score < self.retry_threshold and retry_count < self.retry_max:
-                        retry_count += 1
-                        if progress_callback:
-                            progress_callback(
-                                f"⚠️ Ch{outline.chapter_number} compliance {score:.0%} < {self.retry_threshold:.0%}, retry {retry_count}/{self.retry_max}..."
-                            )
-                        logger.info(
-                            "Ch%d retry %d: compliance %.0f%% < %.0f%%, failures: %s",
-                            outline.chapter_number,
-                            retry_count,
-                            score * 100,
-                            self.retry_threshold * 100,
-                            _contract_failures,
-                        )
-
-                        # Rebuild contract with failure feedback
-                        try:
-                            from pipeline.layer1_story.chapter_contract_builder import (
-                                build_contract,
-                                format_contract_for_prompt,
-                            )
-
-                            contract = build_contract(
-                                outline.chapter_number,
-                                outline,
-                                threads=list(story_context.open_threads),
-                                macro_arcs=macro_arcs,
-                                conflicts=conflict_web,
-                                foreshadowing_plan=foreshadowing_plan,
-                                characters=characters,
-                                previous_failures=_contract_failures,
-                            )
-                            contract_text = format_contract_for_prompt(contract)
-                        except Exception as e:
-                            logger.warning(
-                                "Contract rebuild failed for ch%d retry: %s",
-                                outline.chapter_number,
-                                e,
-                            )
-
-                        # Rewrite chapter with updated contract
-                        if stream_callback:
-                            chapter = self.gen.write_chapter_stream(
-                                title,
-                                genre,
-                                style,
-                                characters,
-                                world,
-                                outline,
-                                word_count=word_count,
-                                context=story_context,
-                                stream_callback=stream_callback,
-                                open_threads=list(story_context.open_threads),
-                                active_conflicts=active_conflicts,
-                                foreshadowing_to_plant=seeds,
-                                foreshadowing_to_payoff=payoffs,
-                                pacing_type=pacing,
-                                enhancement_context=enhancement_context,
-                                current_arc_context=arc_context,
-                                chapter_contract=contract_text,
-                                scenes=chapter_scenes,
-                                idea=idea,
-                                idea_summary=idea_summary,
-                            )
-                        else:
-                            chapter = self.gen._write_chapter_with_long_context(
-                                title,
-                                genre,
-                                style,
-                                characters,
-                                world,
-                                outline,
-                                word_count,
-                                story_context,
-                                all_chapter_texts,
-                                bible_ctx,
-                                open_threads=list(story_context.open_threads),
-                                active_conflicts=active_conflicts,
-                                foreshadowing_to_plant=seeds,
-                                foreshadowing_to_payoff=payoffs,
-                                pacing_type=pacing,
-                                enhancement_context=enhancement_context,
-                                current_arc_context=arc_context,
-                                chapter_contract=contract_text,
-                                scenes=chapter_scenes,
-                                idea=idea,
-                                idea_summary=idea_summary,
-                            )
-
-                        # Update in chapters list
-                        chapters[-1] = chapter
-                        all_chapter_texts[-1] = chapter.content
-
-                        # Re-validate
-                        compliance = validate_contract_compliance(
-                            self.llm,
-                            chapter.content,
-                            contract,
-                            model=self.gen._layer_model,
-                        )
-                        _contract_failures = compliance.get("failures", [])
-                        score = compliance.get("compliance_score", 0.0)
-
-                    if score < 0.7:
-                        logger.warning(
-                            "Ch%d final compliance %.0f%% — failures: %s",
-                            outline.chapter_number,
-                            score * 100,
-                            _contract_failures,
-                        )
-                    elif progress_callback:
-                        progress_callback(
-                            f"Chương {outline.chapter_number} hợp đồng: {score:.0%}"
-                            + (f" (sau {retry_count} retry)" if retry_count > 0 else "")
-                        )
-                except Exception as e:
-                    logger.warning(
-                        "Contract validation failed for ch%d (non-fatal): %s",
-                        outline.chapter_number,
-                        e,
-                    )
-                    _contract_failures = []
+            _contract_failures = validate_and_retry_contract(
+                self.gen,
+                self.config.pipeline,
+                self.llm,
+                retry_max=self.retry_max,
+                retry_threshold=self.retry_threshold,
+                chapter=chapter,
+                outline=outline,
+                contract=contract,
+                contract_text=contract_text,
+                chapters=chapters,
+                all_chapter_texts=all_chapter_texts,
+                story_context=story_context,
+                bible_ctx=bible_ctx,
+                active_conflicts=active_conflicts,
+                seeds=seeds,
+                payoffs=payoffs,
+                pacing=pacing,
+                enhancement_context=enhancement_context,
+                arc_context=arc_context,
+                chapter_scenes=chapter_scenes,
+                stream_callback=stream_callback,
+                title=title,
+                genre=genre,
+                style=style,
+                characters=characters,
+                world=world,
+                word_count=word_count,
+                macro_arcs=macro_arcs,
+                conflict_web=conflict_web,
+                foreshadowing_plan=foreshadowing_plan,
+                previous_failures=_contract_failures,
+                progress_callback=progress_callback,
+                idea=idea,
+                idea_summary=idea_summary,
+            )
 
         return chapters
 
