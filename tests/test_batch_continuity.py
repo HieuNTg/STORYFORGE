@@ -84,7 +84,7 @@ def _captured_anchors_for(strict: bool) -> dict[int, list[str]]:
     outlines = [_make_outline(i) for i in range(1, 4)]  # single batch of 3
     ctx = StoryContext(total_chapters=3)
 
-    with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+    with patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"):
         bg.generate_chapters(
             draft=draft,
             outlines=outlines,

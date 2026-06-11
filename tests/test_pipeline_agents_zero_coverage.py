@@ -759,7 +759,9 @@ class TestBatchChapterGenerator:
         chapters = [self._make_chapter(i) for i in range(1, 4)]
         bg.gen._write_chapter_with_long_context.side_effect = chapters
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             result = bg.generate_chapters(
                 draft, outlines, ctx, "Title", "fantasy", "style", [], None
             )
@@ -773,7 +775,9 @@ class TestBatchChapterGenerator:
         bg.gen._write_chapter_with_long_context.return_value = self._make_chapter(1)
         msgs = []
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             bg.generate_chapters(
                 draft,
                 outlines,
@@ -795,7 +799,9 @@ class TestBatchChapterGenerator:
         chapter = self._make_chapter(3)
         bg.gen._write_chapter_with_long_context.return_value = chapter
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             result = bg.generate_chapters(
                 draft,
                 outlines,
@@ -821,7 +827,9 @@ class TestBatchChapterGenerator:
         ]
         checkpoint_calls = []
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             bg.generate_chapters(
                 draft,
                 outlines,
@@ -848,7 +856,9 @@ class TestBatchChapterGenerator:
         def bad_callback(idx, total):
             raise RuntimeError("checkpoint boom")
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             # Should not propagate the exception
             result = bg.generate_chapters(
                 draft,
@@ -872,7 +882,9 @@ class TestBatchChapterGenerator:
         ctx = StoryContext(total_chapters=1)
         bg.gen.write_chapter_stream.return_value = self._make_chapter(1)
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             result = bg.generate_chapters(
                 draft,
                 outlines,
@@ -898,7 +910,9 @@ class TestBatchChapterGenerator:
         chapter.content = "x" * 400  # 100 estimated tokens >> budget of 10
         bg.gen._write_chapter_with_long_context.return_value = chapter
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             result = bg.generate_chapters(draft, outlines, ctx, "T", "g", "s", [], None)
         assert len(result) == 1
 
@@ -915,7 +929,9 @@ class TestBatchChapterGenerator:
             self._make_chapter(1),
             self._make_chapter(2),
         ]
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             with ThreadPoolExecutor(max_workers=3) as ex:
                 chapters = bg._run_batch_parallel(
                     outlines,
@@ -951,7 +967,9 @@ class TestBatchChapterGenerator:
             "write failed"
         )
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             with ThreadPoolExecutor(max_workers=3) as ex:
                 with pytest.raises(RuntimeError, match="write failed"):
                     bg._run_batch_parallel(

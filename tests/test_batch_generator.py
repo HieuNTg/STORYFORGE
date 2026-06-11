@@ -107,7 +107,7 @@ class TestSplitBatches:
 
 
 class TestBatchChapterGenerator:
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_generates_all_chapters(self, mock_post_write):
         gen = _mock_generator(batch_size=3)
         chapters_created = []
@@ -158,7 +158,7 @@ class TestBatchChapterGenerator:
         assert len(draft.chapters) == 5
         assert mock_post_write.call_count == 5
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_batch_boundaries(self, mock_post_write):
         gen = _mock_generator(batch_size=2)
         call_order = []
@@ -220,7 +220,7 @@ class TestBatchChapterGenerator:
         bg = BatchChapterGenerator(gen)
         assert bg.parallel_enabled is True
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_progress_callback_called(self, mock_post_write):
         gen = _mock_generator(batch_size=5)
         gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
@@ -256,7 +256,7 @@ class TestBatchChapterGenerator:
 
 
 class TestParallelBatch:
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_parallel_generates_all_chapters(self, mock_post_write):
         gen = _mock_generator(batch_size=3, parallel=True)
 
@@ -294,7 +294,7 @@ class TestParallelBatch:
         nums = [ch.chapter_number for ch in draft.chapters]
         assert nums == [1, 2, 3, 4, 5]
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_parallel_post_processing_sequential(self, mock_post_write):
         gen = _mock_generator(batch_size=3, parallel=True)
         post_order = []
@@ -336,7 +336,7 @@ class TestParallelBatch:
 
         assert post_order == [1, 2, 3]
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_parallel_falls_back_to_sequential_with_stream(self, mock_post_write):
         gen = _mock_generator(batch_size=3, parallel=True)
         gen.write_chapter_stream.side_effect = lambda *a, **kw: _make_chapter(
@@ -389,7 +389,7 @@ class TestSiblingContext:
 
 
 class TestBatchCheckpointAndResume:
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_checkpoint_callback_called_per_batch(self, mock_post_write):
         gen = _mock_generator(batch_size=2)
         gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
@@ -426,7 +426,7 @@ class TestBatchCheckpointAndResume:
         checkpoint_cb.assert_any_call(2, 3)
         checkpoint_cb.assert_any_call(3, 3)
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_resume_from_batch_skips_earlier(self, mock_post_write):
         gen = _mock_generator(batch_size=2)
         written_chapters = []
@@ -465,7 +465,7 @@ class TestBatchCheckpointAndResume:
         assert written_chapters == [5, 6]
         assert len(draft.chapters) == 2
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_checkpoint_callback_failure_does_not_stop_generation(
         self, mock_post_write
     ):
@@ -637,7 +637,7 @@ class TestAsyncBatch:
 class TestDramaContractPassthrough:
     """Smoke tests: negotiated_contract is passed to write calls (Sprint 3 P2)."""
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_negotiated_contract_passed_when_contract_built(self, mock_post_write):
         """When a contract is built, to_negotiated() result is passed to write call."""
         gen = _mock_generator(batch_size=5)
@@ -710,7 +710,7 @@ class TestDramaContractPassthrough:
         assert len(write_calls) == 1
         assert write_calls[0] is fake_negotiated
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_negotiated_contract_none_when_no_contract(self, mock_post_write):
         """When contracts disabled, negotiated_contract=None is passed."""
         gen = _mock_generator(batch_size=5)

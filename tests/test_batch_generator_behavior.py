@@ -200,7 +200,7 @@ class TestSplitBatches:
 
 
 class TestSequentialGeneration:
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_all_chapters_produced(self, mock_post):
         gen = _mock_generator(batch_size=5)
         gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
@@ -221,7 +221,7 @@ class TestSequentialGeneration:
         assert len(draft.chapters) == 5
         assert [ch.chapter_number for ch in draft.chapters] == [1, 2, 3, 4, 5]
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_order_preserved_across_batches(self, mock_post):
         """Chapter N+1 call happens after chapter N's post_write — i.e. live context updates."""
         gen = _mock_generator(batch_size=2)
@@ -263,7 +263,7 @@ class TestSequentialGeneration:
             ("post", 4),
         ]
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_chapter_content_accumulated_in_all_chapter_texts(self, mock_post):
         """Each chapter's content is appended so later chapters see prior content."""
         gen = _mock_generator(batch_size=5)
@@ -304,7 +304,7 @@ class TestSequentialGeneration:
         assert len(seen_texts[1]) == 1
         assert len(seen_texts[2]) == 2
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_write_error_propagates(self, mock_post):
         gen = _mock_generator(batch_size=5)
         gen._write_chapter_with_long_context.side_effect = RuntimeError(
@@ -325,7 +325,7 @@ class TestSequentialGeneration:
                 world=_WORLD,
             )
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_checkpoint_callback_receives_batch_index(self, mock_post):
         gen = _mock_generator(batch_size=2)
         gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
@@ -350,7 +350,7 @@ class TestSequentialGeneration:
         checkpoint_cb.assert_any_call(1, 2)
         checkpoint_cb.assert_any_call(2, 2)
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_checkpoint_failure_does_not_abort_generation(self, mock_post):
         gen = _mock_generator(batch_size=5)
         gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
@@ -376,7 +376,7 @@ class TestSequentialGeneration:
         )
         assert len(draft.chapters) == 2
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_returns_draft_chapters_list(self, mock_post):
         gen = _mock_generator(batch_size=5)
         gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
@@ -447,7 +447,7 @@ class TestP03PartialFailureFix:
             return 1
 
         with (
-            patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"),
+            patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"),
             patch(
                 "pipeline.layer1_story.batch_generator._index_chapter_into_rag"
             ) as mock_rag,
@@ -484,7 +484,9 @@ class TestP03PartialFailureFix:
         gen = _mock_generator(batch_size=2, parallel=True, use_asyncio=True)
         gen._write_chapter_with_long_context.side_effect = RuntimeError("all fail")
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             bg = BatchChapterGenerator(gen)
             draft = _make_draft()
 
@@ -514,7 +516,9 @@ class TestP03PartialFailureFix:
 
         gen._write_chapter_with_long_context.side_effect = fake_write
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             bg = BatchChapterGenerator(gen)
             draft = _make_draft()
 
@@ -537,7 +541,7 @@ class TestP03PartialFailureFix:
 
 
 class TestParallelOrderPreservation:
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_chapters_sorted_by_number(self, mock_post):
         gen = _mock_generator(batch_size=4, parallel=True)
 
@@ -562,7 +566,7 @@ class TestParallelOrderPreservation:
         nums = [ch.chapter_number for ch in draft.chapters]
         assert nums == sorted(nums)
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_post_processing_sequential_in_order(self, mock_post):
         gen = _mock_generator(batch_size=3, parallel=True)
         post_order = []
@@ -598,7 +602,7 @@ class TestParallelOrderPreservation:
 
 
 class TestThreadedParallelMode:
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_threaded_all_chapters_produced(self, mock_post):
         gen = _mock_generator(batch_size=3, parallel=True, use_asyncio=False)
         gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
@@ -618,7 +622,7 @@ class TestThreadedParallelMode:
         )
         assert len(draft.chapters) == 3
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_threaded_error_propagates(self, mock_post):
         gen = _mock_generator(batch_size=2, parallel=True, use_asyncio=False)
         gen._write_chapter_with_long_context.side_effect = RuntimeError("thread crash")
@@ -644,7 +648,7 @@ class TestThreadedParallelMode:
 
 
 class TestCausalSync:
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_causal_events_synced_to_context(self, mock_post):
         """When a chapter contains a causal keyword, _sync_causal_events is called."""
         gen = _mock_generator(batch_size=2, parallel=True)
@@ -682,7 +686,7 @@ class TestCausalSync:
 
         assert len(synced_events) >= 1
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_causal_sync_disabled(self, mock_post):
         """When parallel_causal_sync=False, no events are synced."""
         gen = _mock_generator(batch_size=2, parallel=True)
@@ -748,7 +752,7 @@ class TestBuildSiblingContext:
 
 
 class TestStreamCallbackForcesSequential:
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_stream_uses_write_chapter_stream(self, mock_post):
         gen = _mock_generator(batch_size=2, parallel=True)
         gen.write_chapter_stream.side_effect = lambda *a, **kw: _make_chapter(
@@ -783,7 +787,9 @@ class TestCancelledErrorHandling:
         gen = _mock_generator(batch_size=1, parallel=True)
         gen._write_chapter_with_long_context.side_effect = asyncio.CancelledError()
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             bg = BatchChapterGenerator(gen)
             draft = _make_draft()
             with pytest.raises((asyncio.CancelledError, Exception)):
@@ -805,7 +811,7 @@ class TestCancelledErrorHandling:
 
 
 class TestBatchSizeConfig:
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_batch_size_1_writes_all_chapters(self, mock_post):
         gen = _mock_generator(batch_size=1)
         gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
@@ -825,7 +831,7 @@ class TestBatchSizeConfig:
         )
         assert len(draft.chapters) == 3
 
-    @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
+    @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_batch_size_larger_than_total_chapters(self, mock_post):
         gen = _mock_generator(batch_size=100)
         gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
