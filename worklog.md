@@ -538,3 +538,14 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - New services/llm/provider_config_keys.py (70 lines): get_api_keys_from_config, verbatim move (lazy `from config import ConfigManager` preserved so the `config.ConfigManager` patch seam still works). Route module re-imports it as `_get_api_keys_from_config`, keeping both test seams and all callsites unchanged.
   - api/provider_status_routes.py 239 -> 182 lines.
 - Stage Summary: Gate green — 4480 + 1 perf passed (EXIT1/2/3/5=0, EXIT4=5 expected), coverage 71.05% >= 70.61% baseline (flat vs #24), ruff clean, import smoke OK, 52 provider tests pass.
+
+## Cycle #26: ab/eval/feedback route coverage
+- Task ID: 26-small-routes-coverage
+- Agent: eng-loop (Claude)
+- Task: Add first tests for untested api route modules (P1 coverage), test-only.
+- Work Log:
+  - Discovery: 6 route modules had zero test references — prompt (136), feedback (99), eval (77), ab (72), metrics (43), account (37 lines).
+  - Covered the three mid-sized ones with hermetic TestClient apps: ab_routes (patch api.ab_routes.manager; auth via dependency_overrides on get_current_user, plus a real-401 test), eval_routes (patch api.eval_routes._pipeline; safe-id 400 branch + pydantic score validator 422s), feedback_routes (autouse fixture clears module _store; pagination slice vs whole-store average asserted).
+  - 20 new tests, all green first run; no source files touched.
+  - Remaining for a future cycle: prompt_routes, metrics_routes, account_routes.
+- Stage Summary: Gate green — 4500 + 1 perf passed (EXIT1/2/3/5=0, EXIT4=5 expected), coverage 71.21% >= 70.61% baseline (+0.16 vs #25), ruff clean.
