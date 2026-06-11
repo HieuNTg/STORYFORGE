@@ -331,3 +331,25 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Circular-import smoke: OK
 
 **Stage Summary:** Format gate clean repo-wide for the first time; future cycles no longer need per-file format workarounds. Shipped as `b4fb32b` (style:). Backlog unchanged: P1 oversized source files (worst: pipeline/layer1_story/batch_generator.py 1891 lines — needs Serena find_referencing_symbols impact list before split); P2 dead TestTokenCostTracker tests in test_additional_coverage.py, api/provider_status_routes.py at 19% coverage, 1 TODO in api/v1/router.py.
+
+---
+
+## Cycle #14 — Extract chapter finalization from batch_generator (P1 split, step 1)
+
+**Task ID:** 14-split-batchgen-finalize
+**Agent:** Claude Fable 5 (eng-loop)
+**Task:** Begin breaking up the largest 200-line-rule violator (`pipeline/layer1_story/batch_generator.py`, 2507 lines post-format) by extracting the 5 module-level post-write functions into modules that each respect the rule.
+
+**Work Log:**
+- DISCOVERY: lint/format/import smoke all clean (carried baseline coverage 70.56%). Target chosen from standing P1 backlog.
+- Serena-first: `get_symbols_overview` for file shape; `find_symbol` for body locations (lines 72–480 = 5 cohesive functions); `find_referencing_symbols` on all 5 → impact list: 3 rewrite helpers called only by `finalize_chapter`; `finalize_chapter` called only by 3 internal batch methods; `_index_chapter_into_rag` called internally + by tests through the `batch_generator` namespace.
+- EXECUTION: created `chapter_rewrites.py` (186 ln), `chapter_payoff_rewrite.py` (96 ln), `chapter_finalizer.py` (173 ln) — verbatim moves. `batch_generator.py` imports `finalize_chapter` + `_index_chapter_into_rag` (keeps internal calls and test monkeypatch points working); 2507 → 2099 lines.
+- ITERATION 1: 31 test failures — tests patched `batch_generator.process_chapter_post_write`, which moved with `finalize_chapter`. Fix: repointed 43 patch targets across 4 test files to `chapter_finalizer.process_chapter_post_write` (sed), then `ruff format` the 2 files the sed left over line length. Targeted suites: 218 passed.
+- VERIFICATION (all green):
+  - `ruff check .` → 0 errors; `ruff format --check .` → 512 files clean
+  - Full suite: 4439 passed, 6 skipped, 1 deselected in 562s — 0 failures
+  - Coverage: 70.57% ≥ baseline 70.56%
+  - Circular-import smoke: OK; all 3 new files < 200 lines
+- Scope note: 524+/453− diff exceeds the 500-line guideline — pure verbatim move of one cohesive block; splitting across two cycles would double the 9-minute verification cost without lowering risk.
+
+**Stage Summary:** Shipped as `f96ef1e`. batch_generator down 408 lines but still 2099 (P1 remains open — next extraction candidates: the `_run_batch_sequential` monolith at ~810 lines, `_run_batch_threaded`, `_run_batch_async`). Backlog unchanged otherwise: P2 dead TestTokenCostTracker tests, api/provider_status_routes.py 19% coverage, 1 TODO in api/v1/router.py.
