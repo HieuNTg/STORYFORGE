@@ -1,4 +1,6 @@
 """Test ImagePromptGenerator service."""
+import types
+
 from models.schemas import Chapter
 from services.image_prompt_generator import ImagePromptGenerator
 
@@ -37,6 +39,17 @@ def test_default_style():
 from unittest.mock import MagicMock
 
 from services.media.image_prompt_generator import _SCENE_EXTRACT_PROMPT
+
+
+def _stub_llm(monkeypatch, gen, **methods):
+    """Replace ``gen.llm`` wholesale instead of setattr-ing methods onto it.
+
+    ``gen.llm`` is the process-wide LLMClient singleton: monkeypatching a
+    method directly on it makes the undo write the old *bound method* into
+    the instance ``__dict__``, permanently shadowing class-level patches in
+    every later test (order-dependent failures).
+    """
+    monkeypatch.setattr(gen, "llm", types.SimpleNamespace(**methods))
 
 
 def test_default_style_is_comic_family_not_cinematic():
@@ -79,7 +92,7 @@ def test_refiner_emits_comic_panel_no_text(monkeypatch):
         captured["system"] = system_prompt
         return "medium shot, hero reacting, cel shading, no text in image"
 
-    monkeypatch.setattr(gen.llm, "generate", fake_generate, raising=False)
+    _stub_llm(monkeypatch, gen, generate=fake_generate)
     out = gen.refine_to_cinematic_prompt("hero stands on cliff")
 
     sys_low = captured["system"].lower()
@@ -255,7 +268,7 @@ def test_generate_from_shot_list_one_prompt_per_panel_mapped_by_n(monkeypatch):
             {"n": 1, "dalle_prompt": "wide shot village dusk", "sd_prompt": "ws village"},
         ]}
 
-    monkeypatch.setattr(gen.llm, "generate_json", fake_generate_json, raising=False)
+    _stub_llm(monkeypatch, gen, generate_json=fake_generate_json)
     prompts = gen.generate_from_shot_list(_two_panel_shot_list(), _shot_chapter())
 
     assert len(prompts) == 2
@@ -275,7 +288,7 @@ def test_generate_from_shot_list_fallback_for_skipped_panel(monkeypatch):
     def fake_generate_json(*a, **k):
         return {"prompts": [{"n": 1, "dalle_prompt": "wide shot village", "sd_prompt": "ws"}]}
 
-    monkeypatch.setattr(gen.llm, "generate_json", fake_generate_json, raising=False)
+    _stub_llm(monkeypatch, gen, generate_json=fake_generate_json)
     prompts = gen.generate_from_shot_list(_two_panel_shot_list(), _shot_chapter())
 
     assert len(prompts) == 2
@@ -292,7 +305,7 @@ def test_generate_from_shot_list_llm_failure_yields_all_fallbacks(monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("provider down")
 
-    monkeypatch.setattr(gen.llm, "generate_json", boom, raising=False)
+    _stub_llm(monkeypatch, gen, generate_json=boom)
     prompts = gen.generate_from_shot_list(_two_panel_shot_list(), _shot_chapter())
 
     assert len(prompts) == 2
@@ -317,7 +330,7 @@ def test_generate_from_shot_list_uses_visual_profile_in_fallback(monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("down")
 
-    monkeypatch.setattr(gen.llm, "generate_json", boom, raising=False)
+    _stub_llm(monkeypatch, gen, generate_json=boom)
     prompts = gen.generate_from_shot_list(
         _two_panel_shot_list(), _shot_chapter(),
         visual_profiles={"Kiên": "thiếu niên tóc đen, áo vải xám, mắt đỏ"},

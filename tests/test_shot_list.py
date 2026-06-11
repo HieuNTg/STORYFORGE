@@ -7,9 +7,13 @@ Asserts the deterministic post-processing rules on top of (mocked) LLM output:
   - the largest beat is assigned its own SPLASH page
   - Vietnamese dialogue round-trips byte-for-byte (diacritics preserved)
 
-The LLM is mocked (no real provider) following the existing convention of
-monkeypatching ``<obj>.llm`` (see tests/test_image_prompt_gen.py).
+The LLM is mocked (no real provider) by replacing ``<obj>.llm`` wholesale —
+``<obj>.llm`` is the process-wide LLMClient singleton, so setattr-ing methods
+onto it leaks bound-method shadows into its ``__dict__`` on monkeypatch undo
+(see tests/test_image_prompt_gen.py).
 """
+import types
+
 from models.schemas import Chapter, ImagePrompt
 from services.media.shot_list import (
     ShotListExtractor,
@@ -42,7 +46,7 @@ def _make_extractor(monkeypatch, raw_response):
     def fake_generate_json(*args, **kwargs):
         return raw_response
 
-    monkeypatch.setattr(extractor.llm, "generate_json", fake_generate_json, raising=False)
+    monkeypatch.setattr(extractor, "llm", types.SimpleNamespace(generate_json=fake_generate_json))
     return extractor
 
 
@@ -224,7 +228,7 @@ def test_extractor_returns_empty_on_llm_failure(monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("provider down")
 
-    monkeypatch.setattr(extractor.llm, "generate_json", boom, raising=False)
+    monkeypatch.setattr(extractor, "llm", types.SimpleNamespace(generate_json=boom))
     sl = extractor.extract(_chapter())
     assert sl.pages == []
 
@@ -295,7 +299,7 @@ def _make_coverage_extractor(monkeypatch, pass1_raw, pass2_raw):
             return pass2_raw
         return pass1_raw
 
-    monkeypatch.setattr(extractor.llm, "generate_json", fake_generate_json, raising=False)
+    monkeypatch.setattr(extractor, "llm", types.SimpleNamespace(generate_json=fake_generate_json))
     return extractor, calls
 
 

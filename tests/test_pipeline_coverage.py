@@ -80,8 +80,12 @@ class TestSchemaModels:
 
     def test_plot_thread_model(self):
         from models.schemas import PlotThread
-        thread = PlotThread(description="The hero's revenge arc", started_chapter=1)
-        assert thread.status == "active"
+        thread = PlotThread(
+            thread_id="t1",
+            description="The hero's revenge arc",
+            planted_chapter=1,
+        )
+        assert thread.status == "open"
 
     def test_enhanced_story_model(self):
         from models.schemas import EnhancedStory
@@ -118,8 +122,7 @@ class TestOrchestratorInit:
         with patch("pipeline.layer1_story.generator.LLMClient"), \
              patch("pipeline.layer2_enhance.analyzer.LLMClient"), \
              patch("pipeline.layer2_enhance.simulator.LLMClient"), \
-             patch("pipeline.layer2_enhance.enhancer.LLMClient"), \
-             patch("pipeline.layer3_video.storyboard.LLMClient"):
+             patch("pipeline.layer2_enhance.enhancer.LLMClient"):
             from pipeline.orchestrator import PipelineOrchestrator
             orch = PipelineOrchestrator()
             assert orch.output is not None
@@ -132,8 +135,7 @@ class TestOrchestratorInit:
         with patch("pipeline.layer1_story.generator.LLMClient"), \
              patch("pipeline.layer2_enhance.analyzer.LLMClient"), \
              patch("pipeline.layer2_enhance.simulator.LLMClient"), \
-             patch("pipeline.layer2_enhance.enhancer.LLMClient"), \
-             patch("pipeline.layer3_video.storyboard.LLMClient"):
+             patch("pipeline.layer2_enhance.enhancer.LLMClient"):
             from pipeline.orchestrator import PipelineOrchestrator
             from models.schemas import PipelineOutput
             orch = PipelineOrchestrator()

@@ -164,6 +164,28 @@ def _restore_llm_config():
             pass
 
 
+# LLMClient is a process-wide singleton. A test that monkeypatches a method
+# directly on an instance (e.g. `monkeypatch.setattr(gen.llm, "generate_json",
+# fake)`) gets the old *bound method* recorded as the restore value, so the
+# undo writes that bound method into the singleton's __dict__ — permanently
+# shadowing class-level patches for every later test (order-dependent
+# failures). Strip such shadows after each test.
+_LLM_METHOD_NAMES = (
+    "generate", "generate_json", "generate_stream",
+    "check_connection", "check_provider",
+)
+
+
+@pytest.fixture(autouse=True)
+def _unshadow_llm_singleton():
+    yield
+    from services.llm.client import LLMClient
+    inst = LLMClient._instance
+    if inst is not None:
+        for name in _LLM_METHOD_NAMES:
+            inst.__dict__.pop(name, None)
+
+
 # Reset orchestrator_layers' module-level sync engine before each test so
 # fixtures that patch DATABASE_URL don't inherit a prior test's engine
 # (which would silently write to the wrong DB). Dispose the pool to avoid

@@ -1,4 +1,5 @@
 """Integration tests for pipeline layer transitions."""
+import asyncio
 from unittest.mock import MagicMock, patch
 from models.schemas import (
     StoryDraft, EnhancedStory, Chapter, Character,
@@ -30,10 +31,10 @@ class TestLayerTransitions:
             mock_gen.return_value = StoryDraft(
                 title="Empty", genre="test", chapters=[]
             )
-            result = orch.run_full_pipeline(
+            result = asyncio.run(orch.run_full_pipeline(
                 title="Test", genre="test", idea="test",
                 enable_agents=False, enable_scoring=False,
-            )
+            ))
             assert result.status == "error"
 
     def test_layer2_fallback_preserves_chapters(self):
@@ -45,10 +46,10 @@ class TestLayerTransitions:
         with patch('services.llm_client.LLMClient.check_connection', return_value=(True, "ok")), \
              patch.object(orch.story_gen, 'generate_full_story', return_value=draft), \
              patch.object(orch.analyzer, 'analyze', side_effect=Exception("Analysis failed")):
-            result = orch.run_full_pipeline(
+            result = asyncio.run(orch.run_full_pipeline(
                 title="Test", genre="test", idea="test",
                 enable_agents=False, enable_scoring=False,
-            )
+            ))
             assert result.enhanced_story is not None
             assert len(result.enhanced_story.chapters) == 2
             assert result.status == "partial"
@@ -62,10 +63,10 @@ class TestLayerTransitions:
         with patch('services.llm_client.LLMClient.check_connection', return_value=(True, "ok")), \
              patch.object(orch.story_gen, 'generate_full_story', return_value=draft), \
              patch.object(orch.analyzer, 'analyze', side_effect=Exception("Test error")):
-            result = orch.run_full_pipeline(
+            result = asyncio.run(orch.run_full_pipeline(
                 title="Test", genre="test", idea="test",
                 enable_agents=False, enable_scoring=False,
-            )
+            ))
             notes = result.enhanced_story.enhancement_notes
             assert any("Layer 2 skipped" in n for n in notes)
 
@@ -85,8 +86,8 @@ class TestLayerTransitions:
              patch.object(orch.simulator, 'run_simulation', return_value=MagicMock()), \
              patch.object(orch.enhancer, 'enhance_with_feedback', return_value=enhanced), \
              patch.object(orch.media_producer, 'run') as mock_media:
-            orch.run_full_pipeline(
+            asyncio.run(orch.run_full_pipeline(
                 title="Test", genre="test", idea="test",
                 enable_agents=False, enable_scoring=False,
-            )
+            ))
             mock_media.assert_not_called()
