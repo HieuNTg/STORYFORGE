@@ -29,6 +29,7 @@ from pipeline.layer1_story.chapter_contract_setup import build_contract_for_chap
 from pipeline.layer1_story.scene_write_prep import (
     prepare_scene_context_and_beat_chapter,
 )
+from pipeline.layer1_story.sequential_write_dispatch import write_sequential_chapter
 from pipeline.layer1_story.contract_batch_retry import validate_and_retry_threaded
 from pipeline.layer1_story.contract_validation_retry import (
     validate_and_retry_contract,
@@ -36,7 +37,6 @@ from pipeline.layer1_story.contract_validation_retry import (
 from pipeline.layer1_story.parallel_write_context import (
     assemble_parallel_write_inputs,
 )
-from services.token_counter import estimate_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -440,82 +440,32 @@ class BatchChapterGenerator:
                 )
             )
 
-            _negotiated_contract = (
-                contract.to_negotiated() if contract is not None else None
+            chapter = write_sequential_chapter(
+                self,
+                outline=outline,
+                contract=contract,
+                contract_text=contract_text,
+                beat_chapter=_beat_chapter,
+                stream_callback=stream_callback,
+                title=title,
+                genre=genre,
+                style=style,
+                characters=characters,
+                world=world,
+                word_count=word_count,
+                story_context=story_context,
+                all_chapter_texts=all_chapter_texts,
+                bible_ctx=bible_ctx,
+                active_conflicts=active_conflicts,
+                seeds=seeds,
+                payoffs=payoffs,
+                pacing=pacing,
+                enhancement_context=enhancement_context,
+                arc_context=arc_context,
+                chapter_scenes=chapter_scenes,
+                idea=idea,
+                idea_summary=idea_summary,
             )
-            if _beat_chapter is not None:
-                chapter = _beat_chapter
-            elif stream_callback:
-                chapter = self.gen.write_chapter_stream(
-                    title,
-                    genre,
-                    style,
-                    characters,
-                    world,
-                    outline,
-                    word_count=word_count,
-                    context=story_context,
-                    stream_callback=stream_callback,
-                    open_threads=list(story_context.open_threads),
-                    active_conflicts=active_conflicts,
-                    foreshadowing_to_plant=seeds,
-                    foreshadowing_to_payoff=payoffs,
-                    pacing_type=pacing,
-                    enhancement_context=enhancement_context,
-                    current_arc_context=arc_context,
-                    chapter_contract=contract_text,
-                    scenes=chapter_scenes,
-                    negotiated_contract=_negotiated_contract,
-                    idea=idea,
-                    idea_summary=idea_summary,
-                )
-            else:
-                chapter = self.gen._write_chapter_with_long_context(
-                    title,
-                    genre,
-                    style,
-                    characters,
-                    world,
-                    outline,
-                    word_count,
-                    story_context,
-                    all_chapter_texts,
-                    bible_ctx,
-                    open_threads=list(story_context.open_threads),
-                    active_conflicts=active_conflicts,
-                    foreshadowing_to_plant=seeds,
-                    foreshadowing_to_payoff=payoffs,
-                    pacing_type=pacing,
-                    enhancement_context=enhancement_context,
-                    current_arc_context=arc_context,
-                    chapter_contract=contract_text,
-                    scenes=chapter_scenes,
-                    negotiated_contract=_negotiated_contract,
-                    idea=idea,
-                    idea_summary=idea_summary,
-                )
-
-            if contract is not None:
-                try:
-                    chapter.contract = contract
-                    # Sprint 1 P5: stash unified NegotiatedChapterContract on the
-                    # chapter as an in-memory attribute (DB column lands in P6).
-                    object.__setattr__(
-                        chapter, "negotiated_contract", contract.to_negotiated()
-                    )
-                except Exception as e:
-                    logger.debug("Attach contract to chapter failed: %s", e)
-
-            chapter_tokens_used = estimate_tokens(chapter.content)
-            usage_pct = (chapter_tokens_used / self.gen.token_budget_per_chapter) * 100
-            if usage_pct >= 80:
-                logger.warning(
-                    "Chapter %d at %d%% of token budget (%d/%d estimated tokens)",
-                    outline.chapter_number,
-                    int(usage_pct),
-                    chapter_tokens_used,
-                    self.gen.token_budget_per_chapter,
-                )
 
             chapters.append(chapter)
             all_chapter_texts.append(chapter.content)
