@@ -36,6 +36,7 @@ Superadmin bootstrap
 Set ``STORYFORGE_SUPERADMIN_ID`` env var to a user_id that should always be
 treated as SUPERADMIN regardless of stored role.
 """
+
 from __future__ import annotations
 
 import logging
@@ -54,8 +55,10 @@ logger = logging.getLogger(__name__)
 # Enums
 # ---------------------------------------------------------------------------
 
+
 class Role(str, Enum):
     """User roles in ascending privilege order."""
+
     VIEWER = "viewer"
     CREATOR = "creator"
     ADMIN = "admin"
@@ -64,6 +67,7 @@ class Role(str, Enum):
 
 class Permission(str, Enum):
     """Granular permissions.  See docs/rbac-matrix.md for the full matrix."""
+
     READ_STORIES = "read_stories"
     CREATE_STORIES = "create_stories"
     DELETE_OWN_STORIES = "delete_own_stories"
@@ -80,34 +84,42 @@ class Permission(str, Enum):
 # ---------------------------------------------------------------------------
 
 ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
-    Role.VIEWER: frozenset({
-        Permission.READ_STORIES,
-    }),
-    Role.CREATOR: frozenset({
-        Permission.READ_STORIES,
-        Permission.CREATE_STORIES,
-        Permission.DELETE_OWN_STORIES,
-    }),
-    Role.ADMIN: frozenset({
-        Permission.READ_STORIES,
-        Permission.CREATE_STORIES,
-        Permission.DELETE_OWN_STORIES,
-        Permission.DELETE_ANY_STORIES,
-        Permission.MANAGE_USERS,
-        Permission.ACCESS_ANALYTICS,
-        Permission.CONFIGURE_PIPELINE,
-    }),
-    Role.SUPERADMIN: frozenset({
-        Permission.READ_STORIES,
-        Permission.CREATE_STORIES,
-        Permission.DELETE_OWN_STORIES,
-        Permission.DELETE_ANY_STORIES,
-        Permission.MANAGE_USERS,
-        Permission.ACCESS_ANALYTICS,
-        Permission.CONFIGURE_PIPELINE,
-        Permission.MANAGE_API_KEYS,
-        Permission.VIEW_AUDIT_LOGS,
-    }),
+    Role.VIEWER: frozenset(
+        {
+            Permission.READ_STORIES,
+        }
+    ),
+    Role.CREATOR: frozenset(
+        {
+            Permission.READ_STORIES,
+            Permission.CREATE_STORIES,
+            Permission.DELETE_OWN_STORIES,
+        }
+    ),
+    Role.ADMIN: frozenset(
+        {
+            Permission.READ_STORIES,
+            Permission.CREATE_STORIES,
+            Permission.DELETE_OWN_STORIES,
+            Permission.DELETE_ANY_STORIES,
+            Permission.MANAGE_USERS,
+            Permission.ACCESS_ANALYTICS,
+            Permission.CONFIGURE_PIPELINE,
+        }
+    ),
+    Role.SUPERADMIN: frozenset(
+        {
+            Permission.READ_STORIES,
+            Permission.CREATE_STORIES,
+            Permission.DELETE_OWN_STORIES,
+            Permission.DELETE_ANY_STORIES,
+            Permission.MANAGE_USERS,
+            Permission.ACCESS_ANALYTICS,
+            Permission.CONFIGURE_PIPELINE,
+            Permission.MANAGE_API_KEYS,
+            Permission.VIEW_AUDIT_LOGS,
+        }
+    ),
 }
 
 # Ordered list used by require_role() for hierarchy checks.
@@ -117,6 +129,7 @@ _ROLE_ORDER: list[Role] = [Role.VIEWER, Role.CREATOR, Role.ADMIN, Role.SUPERADMI
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _resolve_role(user: dict) -> Role:
     """Return the effective Role for a user dict.
@@ -132,7 +145,11 @@ def _resolve_role(user: dict) -> Role:
     try:
         return Role(raw)
     except ValueError:
-        logger.warning("Unknown role %r for user %r — defaulting to VIEWER", raw, user.get("user_id"))
+        logger.warning(
+            "Unknown role %r for user %r — defaulting to VIEWER",
+            raw,
+            user.get("user_id"),
+        )
         return Role.VIEWER
 
 
@@ -149,6 +166,7 @@ def get_current_user_role(request: Request) -> Role:
 # Public dependencies
 # ---------------------------------------------------------------------------
 
+
 def require_permission(permission: Permission):
     """Return a FastAPI dependency that enforces a single Permission.
 
@@ -158,13 +176,16 @@ def require_permission(permission: Permission):
         401 — missing / invalid token (from get_current_user)
         403 — authenticated but insufficient permission
     """
+
     def _dep(request: Request) -> dict:
         user = get_current_user(request)
         role = _resolve_role(user)
         if permission not in ROLE_PERMISSIONS.get(role, frozenset()):
             logger.info(
                 "Permission denied: user=%r role=%r required=%r",
-                user.get("user_id"), role, permission,
+                user.get("user_id"),
+                role,
+                permission,
             )
             raise HTTPException(
                 status_code=403,
@@ -179,7 +200,12 @@ def require_permission(permission: Permission):
 
 def auth_required() -> bool:
     """Return True when production auth/RBAC enforcement is enabled."""
-    return os.environ.get("STORYFORGE_AUTH_REQUIRED", "").lower() in ("1", "true", "yes", "on")
+    return os.environ.get("STORYFORGE_AUTH_REQUIRED", "").lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
 
 
 def require_permission_if_enabled(permission: Permission):
@@ -218,7 +244,9 @@ def require_role(min_role: Role):
         if _ROLE_ORDER.index(role) < min_index:
             logger.info(
                 "Role check failed: user=%r role=%r required_min=%r",
-                user.get("user_id"), role, min_role,
+                user.get("user_id"),
+                role,
+                min_role,
             )
             raise HTTPException(
                 status_code=403,

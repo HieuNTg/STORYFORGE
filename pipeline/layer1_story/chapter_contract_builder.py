@@ -12,8 +12,12 @@ from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from models.schemas import (
-        Character, ChapterOutline, ConflictEntry,
-        ForeshadowingEntry, MacroArc, PlotThread,
+        Character,
+        ChapterOutline,
+        ConflictEntry,
+        ForeshadowingEntry,
+        MacroArc,
+        PlotThread,
     )
 
 from models.narrative_schemas import ChapterContract
@@ -98,15 +102,22 @@ def build_contract(
     must_advance = must_advance[:5]  # cap to avoid prompt bloat
 
     # --- Foreshadowing seeds to plant / payoffs due ---
-    must_plant = [f.hint for f in foreshadowing_plan
-                  if f.plant_chapter == chapter_num and not f.planted]
-    must_payoff = [f.hint for f in foreshadowing_plan
-                   if f.payoff_chapter == chapter_num and f.planted and not f.paid_off]
+    must_plant = [
+        f.hint
+        for f in foreshadowing_plan
+        if f.plant_chapter == chapter_num and not f.planted
+    ]
+    must_payoff = [
+        f.hint
+        for f in foreshadowing_plan
+        if f.payoff_chapter == chapter_num and f.planted and not f.paid_off
+    ]
 
     # --- Character arc targets ---
     arc_targets: dict[str, str] = {}
     try:
         from pipeline.layer1_story.arc_waypoint_generator import get_expected_stage
+
         for c in characters:
             wp = get_expected_stage(c, chapter_num)
             if wp:
@@ -148,35 +159,44 @@ def format_contract_for_prompt(contract: ChapterContract) -> str:
     parts = []
 
     if contract.previous_contract_failures:
-        parts.append(f"## 🔴 LẦN VIẾT TRƯỚC CỦA CHƯƠNG {contract.chapter_number} ĐÃ BỎ LỠ — BẮT BUỘC SỬA NGAY LẦN NÀY:")
+        parts.append(
+            f"## 🔴 LẦN VIẾT TRƯỚC CỦA CHƯƠNG {contract.chapter_number} ĐÃ BỎ LỠ — BẮT BUỘC SỬA NGAY LẦN NÀY:"
+        )
         for f in contract.previous_contract_failures[:8]:
             parts.append(f"  ❗ {f}")
-        parts.append("→ Viết lại chương đảm bảo KHẮC PHỤC TẤT CẢ các điểm trên. Không được lặp lại lỗi cũ.\n")
+        parts.append(
+            "→ Viết lại chương đảm bảo KHẮC PHỤC TẤT CẢ các điểm trên. Không được lặp lại lỗi cũ.\n"
+        )
 
     parts.append(f"## HỢP ĐỒNG CHƯƠNG {contract.chapter_number}")
     parts.append("Chương này BẮT BUỘC phải hoàn thành:")
 
     if contract.must_advance_threads:
-        parts.append(f"• Đẩy tiến tuyến: {', '.join(contract.must_advance_threads[:3])}")
+        parts.append(
+            f"• Đẩy tiến tuyến: {', '.join(contract.must_advance_threads[:3])}"
+        )
     if contract.must_plant_seeds:
         parts.append(f"• Gieo mầm: {', '.join(contract.must_plant_seeds[:3])}")
     if contract.must_payoff:
         parts.append(f"• Thu hoạch: {', '.join(contract.must_payoff[:3])}")
     if contract.character_arc_targets:
-        arc_lines = [f"  - {name}: {stage}" for name, stage in list(contract.character_arc_targets.items())[:4]]
+        arc_lines = [
+            f"  - {name}: {stage}"
+            for name, stage in list(contract.character_arc_targets.items())[:4]
+        ]
         parts.append("• Arc nhân vật:\n" + "\n".join(arc_lines))
     if contract.pacing_type:
         parts.append(f"• Nhịp: {contract.pacing_type}")
     if contract.emotional_endpoint:
         parts.append(f"• Cảm xúc cuối chương: {contract.emotional_endpoint}")
     if contract.must_mention_characters:
-        parts.append(f"• Nhân vật PHẢI xuất hiện: {', '.join(contract.must_mention_characters[:5])}")
+        parts.append(
+            f"• Nhân vật PHẢI xuất hiện: {', '.join(contract.must_mention_characters[:5])}"
+        )
 
     # Proactive constraint section
     has_constraints = (
-        contract.forbidden_actions
-        or contract.must_maintain
-        or contract.world_rules
+        contract.forbidden_actions or contract.must_maintain or contract.world_rules
     )
     if has_constraints:
         parts.append("## RÀNG BUỘC")

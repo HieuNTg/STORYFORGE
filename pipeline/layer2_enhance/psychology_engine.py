@@ -1,15 +1,28 @@
 """Psychology Engine — trích xuất tâm lý sâu của nhân vật và tính toán kịch tính."""
 
 import logging
-from models.schemas import Character, CharacterPsychology, GoalHierarchy, VulnerabilityEntry
+from models.schemas import (
+    Character,
+    CharacterPsychology,
+    GoalHierarchy,
+    VulnerabilityEntry,
+)
 from services.llm_client import LLMClient
 from services.prompts.layer2_enhanced_prompts import EXTRACT_PSYCHOLOGY
 
 logger = logging.getLogger(__name__)
 
 _WOUND_KEYWORDS = {
-    "phản_bội", "bỏ rơi", "mất mát", "thất bại", "sỉ nhục",
-    "xấu hổ", "bị lừa", "tổn thương", "cô đơn", "chối bỏ",
+    "phản_bội",
+    "bỏ rơi",
+    "mất mát",
+    "thất bại",
+    "sỉ nhục",
+    "xấu hổ",
+    "bị lừa",
+    "tổn thương",
+    "cô đơn",
+    "chối bỏ",
 }
 
 
@@ -28,9 +41,10 @@ class PsychologyEngine:
 
         Trả về CharacterPsychology rỗng nếu LLM thất bại (non-fatal).
         """
-        other_names = ", ".join(
-            c.name for c in all_characters if c.name != character.name
-        ) or "không có"
+        other_names = (
+            ", ".join(c.name for c in all_characters if c.name != character.name)
+            or "không có"
+        )
 
         try:
             result = self.llm.generate_json(
@@ -63,11 +77,13 @@ class PsychologyEngine:
             vulnerabilities: list[VulnerabilityEntry] = []
             for v in result.get("vulnerabilities", []):
                 try:
-                    vulnerabilities.append(VulnerabilityEntry(
-                        wound=v.get("wound", ""),
-                        exploiters=v.get("exploiters", []),
-                        drama_multiplier=float(v.get("drama_multiplier", 1.5)),
-                    ))
+                    vulnerabilities.append(
+                        VulnerabilityEntry(
+                            wound=v.get("wound", ""),
+                            exploiters=v.get("exploiters", []),
+                            drama_multiplier=float(v.get("drama_multiplier", 1.5)),
+                        )
+                    )
                 except Exception as ve:
                     logger.debug(f"Bỏ qua vulnerability lỗi cho {character.name}: {ve}")
 
@@ -163,7 +179,9 @@ class PsychologyEngine:
             if urgency < 4:
                 continue
             # Convention: fall back to planted_chapter when never mentioned (0-default)
-            last_ch = getattr(t, "last_mentioned_chapter", 0) or getattr(t, "planted_chapter", current_chapter)
+            last_ch = getattr(t, "last_mentioned_chapter", 0) or getattr(
+                t, "planted_chapter", current_chapter
+            )
             if current_chapter - last_ch < 2:
                 continue
             bump = 0.15

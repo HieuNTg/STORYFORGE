@@ -31,6 +31,7 @@ from pipeline.layer1_story.theme_premise_generator import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 def _make_llm(return_value: dict) -> MagicMock:
     llm = MagicMock()
     llm.generate_json.return_value = return_value
@@ -172,7 +173,12 @@ class TestDecomposeChapterScenes:
     def test_model_param_passed_to_llm(self):
         llm = _make_llm(_VALID_SCENES)
         decompose_chapter_scenes(
-            llm, _make_outline(), _make_characters(), _make_world(), "võ hiệp", model="gpt-4o"
+            llm,
+            _make_outline(),
+            _make_characters(),
+            _make_world(),
+            "võ hiệp",
+            model="gpt-4o",
         )
         _, kwargs = llm.generate_json.call_args
         assert kwargs.get("model") == "gpt-4o"
@@ -180,7 +186,9 @@ class TestDecomposeChapterScenes:
     def test_outline_with_no_key_events(self):
         outline = _make_outline(key_events=[])
         llm = _make_llm(_VALID_SCENES)
-        scenes = decompose_chapter_scenes(llm, outline, _make_characters(), _make_world(), "lãng mạn")
+        scenes = decompose_chapter_scenes(
+            llm, outline, _make_characters(), _make_world(), "lãng mạn"
+        )
         assert len(scenes) == 2
 
     def test_world_without_locations_or_era(self):
@@ -214,7 +222,14 @@ class TestFormatScenesForPrompt:
         assert "phức tạp hóa" in output
 
     def test_scene_without_optional_fields(self):
-        minimal = [{"scene_number": 1, "location": "Hang động", "pov_character": "Minh", "goal": "Thoát ra"}]
+        minimal = [
+            {
+                "scene_number": 1,
+                "location": "Hang động",
+                "pov_character": "Minh",
+                "goal": "Thoát ra",
+            }
+        ]
         output = format_scenes_for_prompt(minimal)
         assert "Hang động" in output
         assert "Thoát ra" in output
@@ -332,8 +347,19 @@ class TestGenerateSceneBeats:
     def test_invalid_scene_in_list_is_skipped(self):
         mixed = {
             "scenes": [
-                {"scene_num": 1, "characters": ["Minh"], "setting": "A", "action": "B", "tension_level": 0.5, "pov": "Minh", "emotional_goal": "OK"},
-                {"scene_num": "not_an_int_but_valid_coercion", "tension_level": 9999},  # tension out of range — skipped
+                {
+                    "scene_num": 1,
+                    "characters": ["Minh"],
+                    "setting": "A",
+                    "action": "B",
+                    "tension_level": 0.5,
+                    "pov": "Minh",
+                    "emotional_goal": "OK",
+                },
+                {
+                    "scene_num": "not_an_int_but_valid_coercion",
+                    "tension_level": 9999,
+                },  # tension out of range — skipped
             ]
         }
         llm = _make_llm(mixed)
@@ -347,8 +373,11 @@ class TestGenerateSceneBeats:
     def test_pacing_type_override(self):
         llm = _make_llm(_VALID_BEATS_RESPONSE)
         generate_scene_beats(
-            llm, _make_outline(pacing_type="climax"),
-            _make_characters(), _make_world(), "tiên hiệp",
+            llm,
+            _make_outline(pacing_type="climax"),
+            _make_characters(),
+            _make_world(),
+            "tiên hiệp",
             pacing_type="",
         )
         call_kwargs = llm.generate_json.call_args[1]
@@ -358,8 +387,11 @@ class TestGenerateSceneBeats:
     def test_pacing_type_included_in_prompt_when_set(self):
         llm = _make_llm(_VALID_BEATS_RESPONSE)
         generate_scene_beats(
-            llm, _make_outline(pacing_type="climax"),
-            _make_characters(), _make_world(), "tiên hiệp",
+            llm,
+            _make_outline(pacing_type="climax"),
+            _make_characters(),
+            _make_world(),
+            "tiên hiệp",
         )
         call_kwargs = llm.generate_json.call_args[1]
         assert "climax" in call_kwargs["user_prompt"]
@@ -370,9 +402,7 @@ class TestGenerateSceneBeats:
             for i in range(8)
         ]
         llm = _make_llm(_VALID_BEATS_RESPONSE)
-        generate_scene_beats(
-            llm, _make_outline(), many_chars, _make_world(), "kinh dị"
-        )
+        generate_scene_beats(llm, _make_outline(), many_chars, _make_world(), "kinh dị")
         call_kwargs = llm.generate_json.call_args[1]
         # Only first 5 names in prompt
         for i in range(5):
@@ -417,7 +447,9 @@ class TestFormatBeatsForPrompt:
         assert "Viết đúng theo cấu trúc" in output
 
     def test_no_pov_omits_pov_tag(self):
-        beats = [SceneBeat(scene_num=1, setting="Rừng", action="Đi bộ", tension_level=0.3)]
+        beats = [
+            SceneBeat(scene_num=1, setting="Rừng", action="Đi bộ", tension_level=0.3)
+        ]
         output = format_beats_for_prompt(beats)
         assert "POV" not in output
 
@@ -430,7 +462,9 @@ class TestFormatBeatsForPrompt:
 class TestGeneratePremise:
     def test_happy_path_returns_all_keys(self):
         llm = _make_llm(_VALID_PREMISE)
-        result = generate_premise(llm, "Ngọn lửa chiến tranh", "lịch sử", "Câu chuyện về chiến tranh Việt Nam")
+        result = generate_premise(
+            llm, "Ngọn lửa chiến tranh", "lịch sử", "Câu chuyện về chiến tranh Việt Nam"
+        )
         assert result["premise_statement"] == _VALID_PREMISE["premise_statement"]
         assert result["thematic_core"] == _VALID_PREMISE["thematic_core"]
         assert isinstance(result["thematic_keywords"], list)
@@ -482,7 +516,12 @@ class TestGeneratePremise:
         llm = _make_llm(extra)
         result = generate_premise(llm, "T", "g", "i")
         assert "extra_field" not in result
-        assert set(result.keys()) == {"premise_statement", "thematic_core", "thematic_keywords", "moral_dilemma"}
+        assert set(result.keys()) == {
+            "premise_statement",
+            "thematic_core",
+            "thematic_keywords",
+            "moral_dilemma",
+        }
 
 
 class TestFormatPremiseForPrompt:
@@ -498,7 +537,12 @@ class TestFormatPremiseForPrompt:
         assert "danh dự" in output
 
     def test_missing_all_content_returns_empty(self):
-        empty_premise = {"premise_statement": "", "thematic_core": "", "thematic_keywords": [], "moral_dilemma": ""}
+        empty_premise = {
+            "premise_statement": "",
+            "thematic_core": "",
+            "thematic_keywords": [],
+            "moral_dilemma": "",
+        }
         assert format_premise_for_prompt(empty_premise) == ""
 
     def test_keywords_list_joined_with_comma(self):

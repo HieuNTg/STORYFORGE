@@ -86,9 +86,7 @@ class StructuralFinding(BaseModel):
     severity: float = Field(ge=0.0, le=1.0)
     description: str
     fix_hint: str
-    detection_method: Literal[
-        "embedding", "ner", "ner_fallback_substring", "keyword"
-    ]
+    detection_method: Literal["embedding", "ner", "ner_fallback_substring", "keyword"]
     evidence: tuple[str, ...] = Field(default_factory=tuple)
     """Spans/entities supporting the finding. Tuple for hashability under frozen."""
 

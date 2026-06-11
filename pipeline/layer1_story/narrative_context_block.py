@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class NarrativeContextBlock:
     """Ordered container for non-core prompt context. Higher priority = rendered first."""
+
     chapter_contract: str = ""
     scenes_text: str = ""
     enhancement_context: str = ""
@@ -40,7 +41,9 @@ class NarrativeContextBlock:
             parts.append(self.scenes_text.strip())
         if self.enhancement_context:
             parts.append(self.enhancement_context.strip())
-        if self.dialogue_context and "PHONG CÁCH NÓI CHUYỆN" not in (self.enhancement_context or ""):
+        if self.dialogue_context and "PHONG CÁCH NÓI CHUYỆN" not in (
+            self.enhancement_context or ""
+        ):
             parts.append(self.dialogue_context.strip())
         if self.arc_stage_text:
             parts.append(self.arc_stage_text.strip())
@@ -71,20 +74,32 @@ def build_narrative_block(
     if scenes:
         try:
             from pipeline.layer1_story.scene_decomposer import format_scenes_for_prompt
+
             block.scenes_text = format_scenes_for_prompt(scenes) or ""
         except Exception as e:
             logger.debug("scene format failed: %s", e)
     try:
         from pipeline.layer1_story.arc_waypoint_generator import (
-            format_arc_stages_for_prompt, format_arc_progression_for_prompt,
+            format_arc_stages_for_prompt,
+            format_arc_progression_for_prompt,
         )
-        block.arc_stage_text = format_arc_stages_for_prompt(
-            characters, outline.chapter_number,
-        ) or ""
+
+        block.arc_stage_text = (
+            format_arc_stages_for_prompt(
+                characters,
+                outline.chapter_number,
+            )
+            or ""
+        )
         if context is not None and getattr(context, "arc_progression_cache", None):
-            block.arc_progression_text = format_arc_progression_for_prompt(
-                context.arc_progression_cache, characters, outline.chapter_number,
-            ) or ""
+            block.arc_progression_text = (
+                format_arc_progression_for_prompt(
+                    context.arc_progression_cache,
+                    characters,
+                    outline.chapter_number,
+                )
+                or ""
+            )
     except Exception as e:
         logger.debug("arc format failed: %s", e)
     return block

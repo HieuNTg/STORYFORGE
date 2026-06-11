@@ -17,19 +17,17 @@ logger = logging.getLogger(__name__)
 # Vietnamese dialogue patterns
 DIALOGUE_PATTERN = re.compile(r'[""「『]([^""」』]+)[""」』]')
 ATTRIBUTION_PATTERN = re.compile(
-    r'(\w+)\s*(?:nói|hỏi|đáp|thì thầm|gào|la|cười|trả lời|thốt|kêu|rên|rít)',
-    re.IGNORECASE
+    r"(\w+)\s*(?:nói|hỏi|đáp|thì thầm|gào|la|cười|trả lời|thốt|kêu|rên|rít)",
+    re.IGNORECASE,
 )
 # Trailing attribution: "..." - Tên nói
-TRAILING_ATTR = re.compile(
-    r'[""」』]\s*[-–—]\s*(\w+)',
-    re.IGNORECASE
-)
+TRAILING_ATTR = re.compile(r'[""」』]\s*[-–—]\s*(\w+)', re.IGNORECASE)
 
 
 @dataclass
 class DialogueLine:
     """A parsed dialogue line."""
+
     text: str
     speaker: str = ""
     attribution_type: str = ""  # 'prefix' | 'suffix' | 'context' | 'unclear'
@@ -39,7 +37,7 @@ class DialogueLine:
 
 def extract_dialogue_lines(content: str) -> list[DialogueLine]:
     """Extract dialogue lines with basic attribution detection."""
-    lines = content.split('\n')
+    lines = content.split("\n")
     dialogues = []
 
     for i, line in enumerate(lines):
@@ -57,7 +55,9 @@ def extract_dialogue_lines(content: str) -> list[DialogueLine]:
             )
 
             # Check for prefix attribution
-            prefix_match = ATTRIBUTION_PATTERN.search(line.split(dialogue_text)[0] if dialogue_text in line else "")
+            prefix_match = ATTRIBUTION_PATTERN.search(
+                line.split(dialogue_text)[0] if dialogue_text in line else ""
+            )
             if prefix_match:
                 dl.speaker = prefix_match.group(1)
                 dl.attribution_type = "prefix"
@@ -128,8 +128,7 @@ def validate_dialogue_attribution(
         if unclear[:3]:
             char_names = [c.name for c in characters[:10]]
             unclear_text = "\n".join(
-                f"- Line {d.line_number}: \"{d.text[:50]}...\""
-                for d in unclear[:3]
+                f'- Line {d.line_number}: "{d.text[:50]}..."' for d in unclear[:3]
             )
 
             try:
@@ -138,7 +137,7 @@ def validate_dialogue_attribution(
                     user_prompt=f"""Các câu thoại không rõ người nói:
 {unclear_text}
 
-Nhân vật: {', '.join(char_names)}
+Nhân vật: {", ".join(char_names)}
 
 Đoán ai nói dựa trên ngữ cảnh/giọng điệu:
 {{"attributions": [{{"line": số, "likely_speaker": "tên", "reason": "lý do"}}]}}""",
@@ -175,7 +174,7 @@ def detect_rapid_exchange(content: str, threshold: int = 4) -> list[dict]:
 
     Returns list of segments with rapid back-and-forth.
     """
-    lines = content.split('\n')
+    lines = content.split("\n")
     rapid_exchanges = []
     consecutive_dialogue = 0
     start_line = 0
@@ -187,20 +186,24 @@ def detect_rapid_exchange(content: str, threshold: int = 4) -> list[dict]:
             consecutive_dialogue += 1
         else:
             if consecutive_dialogue >= threshold:
-                rapid_exchanges.append({
-                    "start_line": start_line + 1,
-                    "end_line": i,
-                    "dialogue_count": consecutive_dialogue,
-                })
+                rapid_exchanges.append(
+                    {
+                        "start_line": start_line + 1,
+                        "end_line": i,
+                        "dialogue_count": consecutive_dialogue,
+                    }
+                )
             consecutive_dialogue = 0
 
     # Check final segment
     if consecutive_dialogue >= threshold:
-        rapid_exchanges.append({
-            "start_line": start_line + 1,
-            "end_line": len(lines),
-            "dialogue_count": consecutive_dialogue,
-        })
+        rapid_exchanges.append(
+            {
+                "start_line": start_line + 1,
+                "end_line": len(lines),
+                "dialogue_count": consecutive_dialogue,
+            }
+        )
 
     return rapid_exchanges
 
@@ -219,7 +222,7 @@ def format_attribution_warning(validation_result: dict) -> str:
     for s in validation_result.get("suggestions", [])[:3]:
         lines.append(f"- {s}")
 
-    lines.append("Thêm tag người nói: \"Nội dung\" - Tên nói.")
+    lines.append('Thêm tag người nói: "Nội dung" - Tên nói.')
     return "\n".join(lines)
 
 
@@ -234,12 +237,14 @@ def get_attribution_enforcement_prompt(
     lines = ["## 💬 YÊU CẦU DIALOGUE:"]
 
     if rapid_exchanges:
-        lines.append(f"- {len(rapid_exchanges)} đoạn thoại nhanh cần thêm tag người nói")
+        lines.append(
+            f"- {len(rapid_exchanges)} đoạn thoại nhanh cần thêm tag người nói"
+        )
 
     if unclear_count >= 3:
         lines.append(f"- {unclear_count} câu thoại trước đó không rõ ai nói")
 
     lines.append("- Mỗi 2-3 câu thoại PHẢI có attribution rõ ràng")
-    lines.append("- Format: \"Nội dung\" - Tên nói/hỏi/đáp")
+    lines.append('- Format: "Nội dung" - Tên nói/hỏi/đáp')
 
     return "\n".join(lines)

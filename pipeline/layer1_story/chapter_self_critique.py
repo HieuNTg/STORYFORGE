@@ -102,9 +102,11 @@ def critique_chapter(
 
     Returns critique dict on success, empty dict on failure (non-fatal).
     """
-    char_names = ", ".join(
-        c.name if hasattr(c, "name") else str(c) for c in characters
-    ) if characters else "không xác định"
+    char_names = (
+        ", ".join(c.name if hasattr(c, "name") else str(c) for c in characters)
+        if characters
+        else "không xác định"
+    )
 
     system_prompt = "Bạn là biên tập viên văn học. Trả về JSON hợp lệ, không markdown."
     user_prompt = CRITIQUE_CHAPTER.format(
@@ -146,9 +148,16 @@ def rewrite_weak_sections(
         return content
 
     from services.text_utils import build_idea_header
+
     idea_header = build_idea_header(idea, idea_summary) if idea else ""
 
-    DIMS = ("voice_consistency", "pacing_match", "plot_advancement", "sensory_richness", "cliffhanger_quality")
+    DIMS = (
+        "voice_consistency",
+        "pacing_match",
+        "plot_advancement",
+        "sensory_richness",
+        "cliffhanger_quality",
+    )
     scored = []
     for dim in DIMS:
         e = critique.get(dim, {})
@@ -157,8 +166,14 @@ def rewrite_weak_sections(
                 scored.append((float(e["score"]), dim, e))
             except (TypeError, ValueError):
                 pass
-    weak_sections = critique.get("weak_sections", []) if isinstance(critique.get("weak_sections"), list) else []
-    to_rewrite = sorted([s for s in scored if s[0] < 2.5], key=lambda x: x[0])[:max_rewrites]
+    weak_sections = (
+        critique.get("weak_sections", [])
+        if isinstance(critique.get("weak_sections"), list)
+        else []
+    )
+    to_rewrite = sorted([s for s in scored if s[0] < 2.5], key=lambda x: x[0])[
+        :max_rewrites
+    ]
     if not to_rewrite:
         return content
 
@@ -194,13 +209,18 @@ def rewrite_weak_sections(
             if isinstance(rewritten, str) and len(rewritten) > 100:
                 current_content = strip_llm_preamble(rewritten)
                 rewrites_done += 1
-                logger.debug("rewrite_weak_sections: rewrote '%s' (score %.1f)", dim, score)
+                logger.debug(
+                    "rewrite_weak_sections: rewrote '%s' (score %.1f)", dim, score
+                )
             else:
                 logger.warning(
-                    "rewrite_weak_sections: short/empty response for '%s', skipping", dim
+                    "rewrite_weak_sections: short/empty response for '%s', skipping",
+                    dim,
                 )
         except Exception as exc:
-            logger.warning("rewrite_weak_sections failed for '%s' (non-fatal): %s", dim, exc)
+            logger.warning(
+                "rewrite_weak_sections failed for '%s' (non-fatal): %s", dim, exc
+            )
 
     return current_content
 
@@ -244,6 +264,7 @@ def rewrite_for_consistency(
         return content
 
     from services.text_utils import build_idea_header
+
     idea_header = build_idea_header(idea, idea_summary) if idea else ""
 
     user_prompt = REWRITE_FOR_CONSISTENCY.format(
@@ -258,7 +279,9 @@ def rewrite_for_consistency(
             model=model,
             max_tokens=8192,
         )
-        if isinstance(rewritten, str) and len(rewritten) > max(100, int(len(content) * 0.5)):
+        if isinstance(rewritten, str) and len(rewritten) > max(
+            100, int(len(content) * 0.5)
+        ):
             return strip_llm_preamble(rewritten)
         logger.warning(
             "rewrite_for_consistency: response too short (%d chars), keeping original",
@@ -306,6 +329,7 @@ def rewrite_for_missing_payoffs(
         return content
 
     from services.text_utils import build_idea_header
+
     idea_header = build_idea_header(idea, idea_summary) if idea else ""
 
     payoffs_list = "\n".join(
@@ -325,7 +349,9 @@ def rewrite_for_missing_payoffs(
             model=model,
             max_tokens=8192,
         )
-        if isinstance(rewritten, str) and len(rewritten) > max(100, int(len(content) * 0.5)):
+        if isinstance(rewritten, str) and len(rewritten) > max(
+            100, int(len(content) * 0.5)
+        ):
             return strip_llm_preamble(rewritten)
         logger.warning(
             "rewrite_for_missing_payoffs: response too short (%d chars), keeping original",
@@ -356,7 +382,11 @@ def should_critique(
         return True
     if pacing_type in ("climax", "twist"):
         return True
-    if every_n_chapters and every_n_chapters > 0 and chapter_number % every_n_chapters == 0:
+    if (
+        every_n_chapters
+        and every_n_chapters > 0
+        and chapter_number % every_n_chapters == 0
+    ):
         return True
     if macro_arcs:
         for arc in macro_arcs:
@@ -373,7 +403,13 @@ def aggregate_critique_score(critique: dict) -> float:
     """Average score across the 5 critique dimensions. Returns 0.0 if no scores."""
     if not isinstance(critique, dict):
         return 0.0
-    dims = ("voice_consistency", "pacing_match", "plot_advancement", "sensory_richness", "cliffhanger_quality")
+    dims = (
+        "voice_consistency",
+        "pacing_match",
+        "plot_advancement",
+        "sensory_richness",
+        "cliffhanger_quality",
+    )
     scores: list[float] = []
     for d in dims:
         e = critique.get(d, {})

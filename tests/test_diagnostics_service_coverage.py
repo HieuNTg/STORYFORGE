@@ -36,14 +36,19 @@ def _seed_story_only(engine, sid: str, with_run=False, env=None, health=None):
     with Session(engine) as s:
         s.add(Story(id=sid, title="T", genre="g", synopsis="syn", status="ok"))
         if with_run:
-            s.add(PipelineRun(
-                id="ffffffff-eeee-dddd-cccc-bbbbbbbbbbbb",
-                story_id=sid,
-                genre="g", status="ok", layer_reached=2, token_usage=0,
-                handoff_envelope=env,
-                handoff_health=health,
-                handoff_signals_version="1.0.0" if env else None,
-            ))
+            s.add(
+                PipelineRun(
+                    id="ffffffff-eeee-dddd-cccc-bbbbbbbbbbbb",
+                    story_id=sid,
+                    genre="g",
+                    status="ok",
+                    layer_reached=2,
+                    token_usage=0,
+                    handoff_envelope=env,
+                    handoff_health=health,
+                    handoff_signals_version="1.0.0" if env else None,
+                )
+            )
         s.commit()
 
 
@@ -150,9 +155,31 @@ def test_per_chapter_skips_non_dict_contract(monkeypatch):
     """Covers line 124-125: contract is not a dict → continue."""
     env = {"story_id": "x", "signals_version": "1.0.0", "signal_health": {}}
     chapter_rows = [
-        _FakeRow((1, {"chapter_num": 1, "pacing_type": "setup", "drama_target": 0.3, "reconciled": True}, [])),
+        _FakeRow(
+            (
+                1,
+                {
+                    "chapter_num": 1,
+                    "pacing_type": "setup",
+                    "drama_target": 0.3,
+                    "reconciled": True,
+                },
+                [],
+            )
+        ),
         _FakeRow((2, None, None)),  # non-dict contract → skipped
-        _FakeRow((3, {"chapter_num": 3, "pacing_type": "climax", "drama_target": 0.78, "reconciled": True}, ["w"])),
+        _FakeRow(
+            (
+                3,
+                {
+                    "chapter_num": 3,
+                    "pacing_type": "climax",
+                    "drama_target": 0.78,
+                    "reconciled": True,
+                },
+                ["w"],
+            )
+        ),
     ]
     eng = _build_fake_engine(
         story_row=_FakeRow(("x",)),
@@ -173,11 +200,19 @@ def test_per_chapter_warnings_fallback_to_contract_field(monkeypatch):
     """When the warnings column is not a list, falls back to contract dict's field."""
     env = {"story_id": "x", "signals_version": "1.0.0", "signal_health": {}}
     chapter_rows = [
-        _FakeRow((1, {
-            "chapter_num": 1, "pacing_type": "setup",
-            "drama_target": 0.3, "reconciled": True,
-            "reconciliation_warnings": ["from-contract"],
-        }, "not-a-list")),
+        _FakeRow(
+            (
+                1,
+                {
+                    "chapter_num": 1,
+                    "pacing_type": "setup",
+                    "drama_target": 0.3,
+                    "reconciled": True,
+                    "reconciliation_warnings": ["from-contract"],
+                },
+                "not-a-list",
+            )
+        ),
     ]
     eng = _build_fake_engine(
         story_row=_FakeRow(("x",)),
@@ -186,7 +221,9 @@ def test_per_chapter_warnings_fallback_to_contract_field(monkeypatch):
     )
     monkeypatch.setattr(diagnostics_service, "_sync_engine", lambda: eng)
     out = diagnostics_service.build_handoff_diagnostics("x")
-    assert out["per_chapter_contracts"][0]["reconciliation_warnings"] == ["from-contract"]
+    assert out["per_chapter_contracts"][0]["reconciliation_warnings"] == [
+        "from-contract"
+    ]
 
 
 def test_exception_path_returns_none(monkeypatch):

@@ -34,9 +34,7 @@ from services.embedding_service import (
 )
 
 
-FIXTURE_PATH = (
-    Path(__file__).parent / "fixtures" / "sprint2_vi_calibration.json"
-)
+FIXTURE_PATH = Path(__file__).parent / "fixtures" / "sprint2_vi_calibration.json"
 
 
 @pytest.fixture(scope="module")
@@ -75,12 +73,7 @@ def _make_seed(pair: dict, payoff_chapter: int) -> ForeshadowingSeed:
 def _make_chapter(pair: dict, chapter_num: int) -> Chapter:
     # Repeat the span to comfortably exceed the 10-char minimum span filter
     # and provide multiple candidate sentences (helps the verifier pick a max).
-    content = (
-        pair["chapter_span"]
-        + ". "
-        + pair["chapter_span"]
-        + "."
-    )
+    content = pair["chapter_span"] + ". " + pair["chapter_span"] + "."
     return Chapter(
         chapter_number=chapter_num,
         title=f"Ch{chapter_num}",
@@ -154,9 +147,7 @@ def test_payoff_verifier_calibration(
     n_binary_correct = 0
     n_pos = 0  # expected matched (paraphrase)
     n_neg = 0  # expected not-matched (near-miss + negative)
-    binary_confusion = {
-        "tp": 0, "fp": 0, "tn": 0, "fn": 0
-    }
+    binary_confusion = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
 
     rows: list[tuple[str, str, str, str, float]] = []  # id, cat, exp, pred, conf
     for pair in calibration_pairs:
@@ -169,8 +160,8 @@ def test_payoff_verifier_calibration(
         rows.append((pid, category_per_id[pid], exp, pred, conf))
 
         # Binary product KPI
-        should_match = (exp == "matched")
-        actually_matched = (pred == "matched")
+        should_match = exp == "matched"
+        actually_matched = pred == "matched"
         if should_match:
             n_pos += 1
             if actually_matched:
@@ -207,12 +198,15 @@ def test_payoff_verifier_calibration(
     binary_recall = tp / (tp + fn) if (tp + fn) else 0.0
     binary_f1 = (
         2 * binary_precision * binary_recall / (binary_precision + binary_recall)
-        if (binary_precision + binary_recall) else 0.0
+        if (binary_precision + binary_recall)
+        else 0.0
     )
 
     # ---- Print report ------------------------------------------------------
     print("\n=== Sprint 2 P7 — Calibration report ===")
-    print(f"Pairs: {n_total}, threshold={threshold}, model={real_embedding_service.model_id}")
+    print(
+        f"Pairs: {n_total}, threshold={threshold}, model={real_embedding_service.model_id}"
+    )
     print(
         f"\nBinary accuracy (paid_off=True correctness): "
         f"{accuracy_binary:.2%} ({n_binary_correct}/{n_total})"
@@ -239,7 +233,9 @@ def test_payoff_verifier_calibration(
         print(f"  {exp:8s}    {row}")
 
     print("\nPer-pair detail:")
-    print(f"  {'id':<10s}  {'category':<11s}  {'expected':<8s}  {'predicted':<10s}  conf")
+    print(
+        f"  {'id':<10s}  {'category':<11s}  {'expected':<8s}  {'predicted':<10s}  conf"
+    )
     for pid, cat, exp, pred, conf in rows:
         marker = "" if exp == pred else "  <-- MISMATCH"
         print(f"  {pid:<10s}  {cat:<11s}  {exp:<8s}  {pred:<10s}  {conf:.3f}{marker}")

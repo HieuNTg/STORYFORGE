@@ -37,13 +37,16 @@ from pipeline.layer1_story.character_voice_profiler import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_llm(return_value):
     llm = MagicMock()
     llm.generate_json.return_value = return_value
     return llm
 
 
-def _char(name="Nguyễn Minh Tuấn", role="chính", personality="can đảm, thẳng thắn", **kw):
+def _char(
+    name="Nguyễn Minh Tuấn", role="chính", personality="can đảm, thẳng thắn", **kw
+):
     return Character(name=name, role=role, personality=personality, **kw)
 
 
@@ -51,21 +54,29 @@ def _char(name="Nguyễn Minh Tuấn", role="chính", personality="can đảm, t
 # character_generator — generate_characters
 # ---------------------------------------------------------------------------
 
+
 class TestGenerateCharacters:
     def test_happy_path_returns_character_list(self):
         from pipeline.layer1_story.character_generator import generate_characters
 
-        llm = _make_llm({
-            "characters": [
-                {
-                    "name": "Trần Văn Lực",
-                    "role": "chính",
-                    "personality": "dũng cảm, trung thành",
-                    "relationships": ["Lý Hoa: bạn thân"],
-                }
-            ]
-        })
-        result = generate_characters(llm, title="Kiếm Hiệp", genre="tiên hiệp", idea="Một chàng trai nghèo luyện đạo")
+        llm = _make_llm(
+            {
+                "characters": [
+                    {
+                        "name": "Trần Văn Lực",
+                        "role": "chính",
+                        "personality": "dũng cảm, trung thành",
+                        "relationships": ["Lý Hoa: bạn thân"],
+                    }
+                ]
+            }
+        )
+        result = generate_characters(
+            llm,
+            title="Kiếm Hiệp",
+            genre="tiên hiệp",
+            idea="Một chàng trai nghèo luyện đạo",
+        )
         assert len(result) == 1
         assert result[0].name == "Trần Văn Lực"
         assert result[0].role == "chính"
@@ -74,35 +85,42 @@ class TestGenerateCharacters:
     def test_relationship_normalization_string(self):
         from pipeline.layer1_story.character_generator import generate_characters
 
-        llm = _make_llm({
-            "characters": [
-                {
-                    "name": "Lý Hoa",
-                    "role": "phụ",
-                    "personality": "dịu dàng",
-                    "relationships": "Minh: tình nhân, Tuấn: kẻ thù",
-                }
-            ]
-        })
+        llm = _make_llm(
+            {
+                "characters": [
+                    {
+                        "name": "Lý Hoa",
+                        "role": "phụ",
+                        "personality": "dịu dàng",
+                        "relationships": "Minh: tình nhân, Tuấn: kẻ thù",
+                    }
+                ]
+            }
+        )
         result = generate_characters(llm, title="T", genre="ngôn tình", idea="I")
         assert len(result[0].relationships) == 2
 
     def test_relationship_normalization_list_of_dicts(self):
         from pipeline.layer1_story.character_generator import generate_characters
 
-        llm = _make_llm({
-            "characters": [
-                {
-                    "name": "Vũ Khắc Hào",
-                    "role": "phản diện",
-                    "personality": "tàn nhẫn",
-                    "relationships": [
-                        {"character": "Minh", "description": "kẻ thù không đội trời chung"},
-                        {"character": "Lan", "relation": "tình cũ"},
-                    ],
-                }
-            ]
-        })
+        llm = _make_llm(
+            {
+                "characters": [
+                    {
+                        "name": "Vũ Khắc Hào",
+                        "role": "phản diện",
+                        "personality": "tàn nhẫn",
+                        "relationships": [
+                            {
+                                "character": "Minh",
+                                "description": "kẻ thù không đội trời chung",
+                            },
+                            {"character": "Lan", "relation": "tình cũ"},
+                        ],
+                    }
+                ]
+            }
+        )
         result = generate_characters(llm, title="T", genre="hành động", idea="I")
         rels = result[0].relationships
         assert len(rels) == 2
@@ -111,11 +129,18 @@ class TestGenerateCharacters:
     def test_relationship_normalization_none(self):
         from pipeline.layer1_story.character_generator import generate_characters
 
-        llm = _make_llm({
-            "characters": [
-                {"name": "Cô Đơn", "role": "phụ", "personality": "lặng lẽ", "relationships": None}
-            ]
-        })
+        llm = _make_llm(
+            {
+                "characters": [
+                    {
+                        "name": "Cô Đơn",
+                        "role": "phụ",
+                        "personality": "lặng lẽ",
+                        "relationships": None,
+                    }
+                ]
+            }
+        )
         result = generate_characters(llm, title="T", genre="drama", idea="I")
         assert result[0].relationships == []
 
@@ -123,12 +148,14 @@ class TestGenerateCharacters:
         """Characters missing required 'name' field should be skipped without crash."""
         from pipeline.layer1_story.character_generator import generate_characters
 
-        llm = _make_llm({
-            "characters": [
-                {"role": "phụ", "personality": "ok"},   # missing name
-                {"name": "Nguyễn An", "role": "chính", "personality": "tốt bụng"},
-            ]
-        })
+        llm = _make_llm(
+            {
+                "characters": [
+                    {"role": "phụ", "personality": "ok"},  # missing name
+                    {"name": "Nguyễn An", "role": "chính", "personality": "tốt bụng"},
+                ]
+            }
+        )
         result = generate_characters(llm, title="T", genre="drama", idea="I")
         assert len(result) == 1
         assert result[0].name == "Nguyễn An"
@@ -137,7 +164,9 @@ class TestGenerateCharacters:
         """Integer entries (not str, not dict) are skipped without crash."""
         from pipeline.layer1_story.character_generator import generate_characters
 
-        llm = _make_llm({"characters": [42, {"name": "Valid", "role": "chính", "personality": "x"}]})
+        llm = _make_llm(
+            {"characters": [42, {"name": "Valid", "role": "chính", "personality": "x"}]}
+        )
         result = generate_characters(llm, title="T", genre="drama", idea="I")
         assert len(result) == 1
         assert result[0].name == "Valid"
@@ -170,11 +199,13 @@ class TestGenerateCharacters:
     def test_personality_fallback_from_traits(self):
         from pipeline.layer1_story.character_generator import generate_characters
 
-        llm = _make_llm({
-            "characters": [
-                {"name": "Bí Ẩn", "role": "phụ", "traits": "lạnh lùng, thần bí"}
-            ]
-        })
+        llm = _make_llm(
+            {
+                "characters": [
+                    {"name": "Bí Ẩn", "role": "phụ", "traits": "lạnh lùng, thần bí"}
+                ]
+            }
+        )
         result = generate_characters(llm, title="T", genre="kinh dị", idea="I")
         assert result[0].personality == "lạnh lùng, thần bí"
 
@@ -183,7 +214,9 @@ class TestGenerateCharacters:
         from pipeline.layer1_story.character_generator import generate_characters
 
         llm = _make_llm({"characters": []})
-        generate_characters(llm, title="Cô Gái Rồng Lửa", genre="fantasy", idea="Idea here")
+        generate_characters(
+            llm, title="Cô Gái Rồng Lửa", genre="fantasy", idea="Idea here"
+        )
         call_kwargs = llm.generate_json.call_args
         prompt_text = call_kwargs[1].get("user_prompt") or call_kwargs[0][1]
         assert "<user_input>" in prompt_text
@@ -194,17 +227,22 @@ class TestGenerateCharacters:
 # character_generator — extract_character_states
 # ---------------------------------------------------------------------------
 
+
 class TestExtractCharacterStates:
     def test_happy_path_returns_states(self):
         from pipeline.layer1_story.character_generator import extract_character_states
 
-        llm = _make_llm({
-            "character_states": [
-                {"name": "Minh", "mood": "tức giận", "arc_position": "crisis"},
-            ]
-        })
+        llm = _make_llm(
+            {
+                "character_states": [
+                    {"name": "Minh", "mood": "tức giận", "arc_position": "crisis"},
+                ]
+            }
+        )
         chars = [_char(name="Minh")]
-        result = extract_character_states(llm, content="Minh đánh Tuấn.", characters=chars)
+        result = extract_character_states(
+            llm, content="Minh đánh Tuấn.", characters=chars
+        )
         assert len(result) == 1
         assert result[0].name == "Minh"
         assert result[0].mood == "tức giận"
@@ -212,13 +250,17 @@ class TestExtractCharacterStates:
     def test_malformed_state_skipped(self):
         from pipeline.layer1_story.character_generator import extract_character_states
 
-        llm = _make_llm({
-            "character_states": [
-                {"mood": "buồn"},  # missing 'name'
-                {"name": "Lan", "mood": "vui"},
-            ]
-        })
-        result = extract_character_states(llm, content="...", characters=[_char(name="Lan")])
+        llm = _make_llm(
+            {
+                "character_states": [
+                    {"mood": "buồn"},  # missing 'name'
+                    {"name": "Lan", "mood": "vui"},
+                ]
+            }
+        )
+        result = extract_character_states(
+            llm, content="...", characters=[_char(name="Lan")]
+        )
         assert len(result) == 1
         assert result[0].name == "Lan"
 
@@ -234,29 +276,34 @@ class TestExtractCharacterStates:
 # character_memory_bank — extract_emotional_memories
 # ---------------------------------------------------------------------------
 
+
 class TestExtractEmotionalMemories:
     @patch("services.text_utils.excerpt_text", side_effect=lambda t, **kw: t)
     def test_happy_path_returns_banks(self, _mock_excerpt):
-        llm = _make_llm({
-            "characters": [
-                {
-                    "character_name": "Phương Linh",
-                    "emotional_memories": [
-                        {
-                            "chapter": 3,
-                            "trigger_event": "bị phản bội",
-                            "emotion": "đau lòng",
-                            "intensity": 0.9,
-                            "target_character": "Hùng",
-                            "resolved": False,
-                        }
-                    ],
-                    "persistent_mood_modifiers": ["mất niềm tin"],
-                    "relationship_emotions": {"Hùng": "thù hận"},
-                }
-            ]
-        })
-        result = extract_emotional_memories(llm, "Phương Linh bị phản bội.", ["Phương Linh"], chapter_num=3)
+        llm = _make_llm(
+            {
+                "characters": [
+                    {
+                        "character_name": "Phương Linh",
+                        "emotional_memories": [
+                            {
+                                "chapter": 3,
+                                "trigger_event": "bị phản bội",
+                                "emotion": "đau lòng",
+                                "intensity": 0.9,
+                                "target_character": "Hùng",
+                                "resolved": False,
+                            }
+                        ],
+                        "persistent_mood_modifiers": ["mất niềm tin"],
+                        "relationship_emotions": {"Hùng": "thù hận"},
+                    }
+                ]
+            }
+        )
+        result = extract_emotional_memories(
+            llm, "Phương Linh bị phản bội.", ["Phương Linh"], chapter_num=3
+        )
         assert "Phương Linh" in result
         bank = result["Phương Linh"]
         assert len(bank.emotional_memories) == 1
@@ -266,9 +313,18 @@ class TestExtractEmotionalMemories:
 
     @patch("services.text_utils.excerpt_text", side_effect=lambda t, **kw: t)
     def test_accepts_character_objects(self, _):
-        llm = _make_llm({"characters": [
-            {"character_name": "Minh", "emotional_memories": [], "persistent_mood_modifiers": [], "relationship_emotions": {}}
-        ]})
+        llm = _make_llm(
+            {
+                "characters": [
+                    {
+                        "character_name": "Minh",
+                        "emotional_memories": [],
+                        "persistent_mood_modifiers": [],
+                        "relationship_emotions": {},
+                    }
+                ]
+            }
+        )
         char = _char(name="Minh")
         result = extract_emotional_memories(llm, "text", [char], chapter_num=1)
         assert "Minh" in result
@@ -282,38 +338,55 @@ class TestExtractEmotionalMemories:
     @patch("services.text_utils.excerpt_text", side_effect=lambda t, **kw: t)
     def test_llm_returns_list_directly(self, _):
         """LLM may return a list instead of {characters: [...]}."""
-        llm = _make_llm([
-            {
-                "character_name": "Hùng",
-                "emotional_memories": [],
-                "persistent_mood_modifiers": [],
-                "relationship_emotions": {},
-            }
-        ])
+        llm = _make_llm(
+            [
+                {
+                    "character_name": "Hùng",
+                    "emotional_memories": [],
+                    "persistent_mood_modifiers": [],
+                    "relationship_emotions": {},
+                }
+            ]
+        )
         result = extract_emotional_memories(llm, "text", ["Hùng"], chapter_num=2)
         assert "Hùng" in result
 
     @patch("services.text_utils.excerpt_text", side_effect=lambda t, **kw: t)
     def test_malformed_memory_entry_skips_whole_character(self, _):
         """When ANY memory in a bank is malformed, the entire character bank is skipped."""
-        llm = _make_llm({"characters": [
+        llm = _make_llm(
             {
-                "character_name": "Lan",
-                "emotional_memories": [
-                    {"trigger_event": "x", "emotion": "y", "intensity": 2.5},  # intensity out of range
-                ],
-                "persistent_mood_modifiers": [],
-                "relationship_emotions": {},
-            },
-            {
-                "character_name": "Minh",
-                "emotional_memories": [
-                    {"chapter": 1, "trigger_event": "ok", "emotion": "vui", "intensity": 0.5, "target_character": "", "resolved": False},
-                ],
-                "persistent_mood_modifiers": [],
-                "relationship_emotions": {},
-            },
-        ]})
+                "characters": [
+                    {
+                        "character_name": "Lan",
+                        "emotional_memories": [
+                            {
+                                "trigger_event": "x",
+                                "emotion": "y",
+                                "intensity": 2.5,
+                            },  # intensity out of range
+                        ],
+                        "persistent_mood_modifiers": [],
+                        "relationship_emotions": {},
+                    },
+                    {
+                        "character_name": "Minh",
+                        "emotional_memories": [
+                            {
+                                "chapter": 1,
+                                "trigger_event": "ok",
+                                "emotion": "vui",
+                                "intensity": 0.5,
+                                "target_character": "",
+                                "resolved": False,
+                            },
+                        ],
+                        "persistent_mood_modifiers": [],
+                        "relationship_emotions": {},
+                    },
+                ]
+            }
+        )
         result = extract_emotional_memories(llm, "text", ["Lan", "Minh"], chapter_num=1)
         # Valid character should still be present
         assert "Minh" in result
@@ -326,6 +399,7 @@ class TestExtractEmotionalMemories:
 # character_memory_bank — format_memories_for_prompt
 # ---------------------------------------------------------------------------
 
+
 class TestFormatMemoriesForPrompt:
     def test_empty_banks_returns_fallback(self):
         out = format_memories_for_prompt({})
@@ -335,7 +409,13 @@ class TestFormatMemoriesForPrompt:
         bank = CharacterMemoryBank(
             character_name="Tuấn",
             emotional_memories=[
-                EmotionalMemory(chapter=2, trigger_event="gặp kẻ thù", emotion="lo sợ", intensity=0.7, target_character="Ác Nhân")
+                EmotionalMemory(
+                    chapter=2,
+                    trigger_event="gặp kẻ thù",
+                    emotion="lo sợ",
+                    intensity=0.7,
+                    target_character="Ác Nhân",
+                )
             ],
         )
         out = format_memories_for_prompt({"Tuấn": bank})
@@ -354,7 +434,9 @@ class TestFormatMemoriesForPrompt:
 
     def test_last_n_limits_memories(self):
         memories = [
-            EmotionalMemory(chapter=i, trigger_event=f"e{i}", emotion="buồn", intensity=0.5)
+            EmotionalMemory(
+                chapter=i, trigger_event=f"e{i}", emotion="buồn", intensity=0.5
+            )
             for i in range(1, 6)
         ]
         bank = CharacterMemoryBank(character_name="Long", emotional_memories=memories)
@@ -369,6 +451,7 @@ class TestFormatMemoriesForPrompt:
 # character_memory_bank — merge_memory_banks
 # ---------------------------------------------------------------------------
 
+
 class TestMergeMemoryBanks:
     def _bank(self, name, emotions=None, mods=None, rel=None):
         return CharacterMemoryBank(
@@ -379,7 +462,9 @@ class TestMergeMemoryBanks:
         )
 
     def _mem(self, ch=1):
-        return EmotionalMemory(chapter=ch, trigger_event="t", emotion="e", intensity=0.5)
+        return EmotionalMemory(
+            chapter=ch, trigger_event="t", emotion="e", intensity=0.5
+        )
 
     def test_new_character_added(self):
         existing = {}
@@ -411,6 +496,7 @@ class TestMergeMemoryBanks:
 # ---------------------------------------------------------------------------
 # character_secret_tracker — SecretRegistry
 # ---------------------------------------------------------------------------
+
 
 class TestSecretRegistry:
     def test_add_and_get_unrevealed(self):
@@ -463,6 +549,7 @@ class TestSecretRegistry:
 # character_secret_tracker — initialize_secrets
 # ---------------------------------------------------------------------------
 
+
 class TestInitializeSecrets:
     def test_secret_extracted_from_character(self):
         char = _char(name="Hào", secret="Hào là điệp viên (reveal ch 7)")
@@ -495,6 +582,7 @@ class TestInitializeSecrets:
 # character_secret_tracker — check_secret_reveal
 # ---------------------------------------------------------------------------
 
+
 class TestCheckSecretReveal:
     def _registry_with_secret(self, char="Tuấn", reveal_chapter=None):
         reg = SecretRegistry()
@@ -510,21 +598,30 @@ class TestCheckSecretReveal:
 
     def test_reveal_updates_registry(self):
         reg = self._registry_with_secret("Lan")
-        llm = _make_llm({"reveals": [{"character": "Lan", "revealed_to": ["Minh"]}], "hints": []})
+        llm = _make_llm(
+            {"reveals": [{"character": "Lan", "revealed_to": ["Minh"]}], "hints": []}
+        )
         result = check_secret_reveal(llm, "Lan tiết lộ bí mật.", 3, reg)
         assert len(result["reveals"]) == 1
         assert reg.secrets[0].actual_reveal == 3
 
     def test_premature_reveal_detected(self):
         reg = self._registry_with_secret("Hùng", reveal_chapter=10)
-        llm = _make_llm({"reveals": [{"character": "Hùng", "revealed_to": []}], "hints": []})
+        llm = _make_llm(
+            {"reveals": [{"character": "Hùng", "revealed_to": []}], "hints": []}
+        )
         result = check_secret_reveal(llm, "Hùng lỡ miệng.", 4, reg)
         assert len(result["premature"]) == 1
         assert result["premature"][0]["planned_chapter"] == 10
 
     def test_hints_recorded(self):
         reg = self._registry_with_secret("Mai")
-        llm = _make_llm({"reveals": [], "hints": [{"character": "Mai", "hint": "một dấu hiệu bí ẩn"}]})
+        llm = _make_llm(
+            {
+                "reveals": [],
+                "hints": [{"character": "Mai", "hint": "một dấu hiệu bí ẩn"}],
+            }
+        )
         result = check_secret_reveal(llm, "text", 2, reg)
         assert len(result["hints"]) == 1
         assert reg.secrets[0].partial_hints[0]["hint"] == "một dấu hiệu bí ẩn"
@@ -545,6 +642,7 @@ class TestCheckSecretReveal:
 # ---------------------------------------------------------------------------
 # character_secret_tracker — audit_secrets & format helpers
 # ---------------------------------------------------------------------------
+
 
 class TestAuditAndFormat:
     def test_audit_counts_correctly(self):
@@ -567,7 +665,9 @@ class TestAuditAndFormat:
 
     def test_format_secret_warning_premature(self):
         check_result = {
-            "premature": [{"character": "X", "actual_chapter": 2, "planned_chapter": 8}],
+            "premature": [
+                {"character": "X", "actual_chapter": 2, "planned_chapter": 8}
+            ],
             "reveals": [],
             "hints": [],
         }
@@ -592,6 +692,7 @@ class TestAuditAndFormat:
 # character_voice_profiler — generate_voice_profiles
 # ---------------------------------------------------------------------------
 
+
 class TestGenerateVoiceProfiles:
     def _profile(self, name="Minh"):
         return {
@@ -599,7 +700,11 @@ class TestGenerateVoiceProfiles:
             "vocabulary_level": "formal",
             "sentence_style": "long_flowing",
             "verbal_tics": ["hay nói 'thật ra là...'"],
-            "emotional_expression": {"anger": "lạnh lùng im lặng", "joy": "mỉm cười nhẹ", "sadness": "cúi mặt"},
+            "emotional_expression": {
+                "anger": "lạnh lùng im lặng",
+                "joy": "mỉm cười nhẹ",
+                "sadness": "cúi mặt",
+            },
             "dialogue_examples": ["Thật ra là, chúng ta không có lựa chọn nào khác."],
         }
 
@@ -679,6 +784,7 @@ class TestGenerateVoiceProfiles:
 # character_voice_profiler — format_voice_profiles_for_prompt
 # ---------------------------------------------------------------------------
 
+
 class TestFormatVoiceProfilesForPrompt:
     def test_empty_returns_empty_string(self):
         assert format_voice_profiles_for_prompt([]) == ""
@@ -715,6 +821,7 @@ class TestFormatVoiceProfilesForPrompt:
 # character_voice_profiler — update_character_speech_patterns
 # ---------------------------------------------------------------------------
 
+
 class TestUpdateCharacterSpeechPatterns:
     def test_speech_pattern_updated_on_match(self):
         char = _char(name="Đức")
@@ -734,8 +841,16 @@ class TestUpdateCharacterSpeechPatterns:
 
     def test_case_insensitive_name_match(self):
         char = _char(name="nguyễn hoa")
-        profiles = [{"name": "Nguyễn Hoa", "vocabulary_level": "casual", "sentence_style": "short_punchy",
-                     "verbal_tics": [], "emotional_expression": {}, "dialogue_examples": []}]
+        profiles = [
+            {
+                "name": "Nguyễn Hoa",
+                "vocabulary_level": "casual",
+                "sentence_style": "short_punchy",
+                "verbal_tics": [],
+                "emotional_expression": {},
+                "dialogue_examples": [],
+            }
+        ]
         update_character_speech_patterns([char], profiles)
         assert "casual" in char.speech_pattern
 
@@ -748,10 +863,22 @@ class TestUpdateCharacterSpeechPatterns:
     def test_multiple_characters_updated(self):
         chars = [_char(name="A"), _char(name="B")]
         profiles = [
-            {"name": "A", "vocabulary_level": "formal", "sentence_style": "poetic",
-             "verbal_tics": [], "emotional_expression": {}, "dialogue_examples": []},
-            {"name": "B", "vocabulary_level": "casual", "sentence_style": "fragmented",
-             "verbal_tics": [], "emotional_expression": {}, "dialogue_examples": []},
+            {
+                "name": "A",
+                "vocabulary_level": "formal",
+                "sentence_style": "poetic",
+                "verbal_tics": [],
+                "emotional_expression": {},
+                "dialogue_examples": [],
+            },
+            {
+                "name": "B",
+                "vocabulary_level": "casual",
+                "sentence_style": "fragmented",
+                "verbal_tics": [],
+                "emotional_expression": {},
+                "dialogue_examples": [],
+            },
         ]
         update_character_speech_patterns(chars, profiles)
         assert "formal" in chars[0].speech_pattern

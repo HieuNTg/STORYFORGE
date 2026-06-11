@@ -3,14 +3,22 @@
 from unittest.mock import MagicMock, patch
 
 from pipeline.layer1_story.batch_generator import BatchChapterGenerator, FrozenContext
-from models.schemas import StoryContext, StoryDraft, ChapterOutline, Chapter, WorldSetting
+from models.schemas import (
+    StoryContext,
+    StoryDraft,
+    ChapterOutline,
+    Chapter,
+    WorldSetting,
+)
 
 
 _WORLD = WorldSetting(name="TestWorld", description="A test world")
 
 
 def _make_outline(num: int) -> ChapterOutline:
-    return ChapterOutline(chapter_number=num, title=f"Chapter {num}", summary=f"Summary {num}")
+    return ChapterOutline(
+        chapter_number=num, title=f"Chapter {num}", summary=f"Summary {num}"
+    )
 
 
 def _make_chapter(num: int) -> Chapter:
@@ -104,8 +112,19 @@ class TestBatchChapterGenerator:
         gen = _mock_generator(batch_size=3)
         chapters_created = []
 
-        def fake_write(title, genre, style, characters, world, outline,
-                       word_count, story_context, all_chapter_texts, bible_ctx="", **kwargs):
+        def fake_write(
+            title,
+            genre,
+            style,
+            characters,
+            world,
+            outline,
+            word_count,
+            story_context,
+            all_chapter_texts,
+            bible_ctx="",
+            **kwargs,
+        ):
             ch = _make_chapter(outline.chapter_number)
             chapters_created.append(ch)
             return ch
@@ -114,16 +133,26 @@ class TestBatchChapterGenerator:
 
         bg = BatchChapterGenerator(gen)
         draft = StoryDraft(
-            title="Test", genre="Fantasy", synopsis="Test story",
-            characters=[], world=_WORLD, outlines=[],
+            title="Test",
+            genre="Fantasy",
+            synopsis="Test story",
+            characters=[],
+            world=_WORLD,
+            outlines=[],
         )
         outlines = [_make_outline(i) for i in range(1, 6)]
         ctx = StoryContext(total_chapters=5)
 
         bg.generate_chapters(
-            draft=draft, outlines=outlines, story_context=ctx,
-            title="Test", genre="Fantasy", style="Detailed",
-            characters=[], world=_WORLD, word_count=2000,
+            draft=draft,
+            outlines=outlines,
+            story_context=ctx,
+            title="Test",
+            genre="Fantasy",
+            style="Detailed",
+            characters=[],
+            world=_WORLD,
+            word_count=2000,
         )
 
         assert len(draft.chapters) == 5
@@ -149,21 +178,36 @@ class TestBatchChapterGenerator:
 
         bg = BatchChapterGenerator(gen)
         draft = StoryDraft(
-            title="T", genre="G", synopsis="S",
-            characters=[], world=_WORLD, outlines=[],
+            title="T",
+            genre="G",
+            synopsis="S",
+            characters=[],
+            world=_WORLD,
+            outlines=[],
         )
         outlines = [_make_outline(i) for i in range(1, 5)]
         ctx = StoryContext(total_chapters=4)
 
         bg.generate_chapters(
-            draft=draft, outlines=outlines, story_context=ctx,
-            title="T", genre="G", style="S",
-            characters=[], world=_WORLD,
+            draft=draft,
+            outlines=outlines,
+            story_context=ctx,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
         )
 
         assert call_order == [
-            "write_1", "post_1", "write_2", "post_2",
-            "write_3", "post_3", "write_4", "post_4",
+            "write_1",
+            "post_1",
+            "write_2",
+            "post_2",
+            "write_3",
+            "post_3",
+            "write_4",
+            "post_4",
         ]
 
     def test_reads_config_batch_size(self):
@@ -179,23 +223,32 @@ class TestBatchChapterGenerator:
     @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
     def test_progress_callback_called(self, mock_post_write):
         gen = _mock_generator(batch_size=5)
-        gen._write_chapter_with_long_context.side_effect = (
-            lambda *a, **kw: _make_chapter(a[5].chapter_number)
+        gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
+            _make_chapter(a[5].chapter_number)
         )
 
         bg = BatchChapterGenerator(gen)
         draft = StoryDraft(
-            title="T", genre="G", synopsis="S",
-            characters=[], world=_WORLD, outlines=[],
+            title="T",
+            genre="G",
+            synopsis="S",
+            characters=[],
+            world=_WORLD,
+            outlines=[],
         )
         outlines = [_make_outline(1)]
         ctx = StoryContext(total_chapters=1)
         progress = MagicMock()
 
         bg.generate_chapters(
-            draft=draft, outlines=outlines, story_context=ctx,
-            title="T", genre="G", style="S",
-            characters=[], world=_WORLD,
+            draft=draft,
+            outlines=outlines,
+            story_context=ctx,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
             progress_callback=progress,
         )
 
@@ -215,16 +268,25 @@ class TestParallelBatch:
 
         bg = BatchChapterGenerator(gen)
         draft = StoryDraft(
-            title="T", genre="G", synopsis="S",
-            characters=[], world=_WORLD, outlines=[],
+            title="T",
+            genre="G",
+            synopsis="S",
+            characters=[],
+            world=_WORLD,
+            outlines=[],
         )
         outlines = [_make_outline(i) for i in range(1, 6)]
         ctx = StoryContext(total_chapters=5)
 
         bg.generate_chapters(
-            draft=draft, outlines=outlines, story_context=ctx,
-            title="T", genre="G", style="S",
-            characters=[], world=_WORLD,
+            draft=draft,
+            outlines=outlines,
+            story_context=ctx,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
         )
 
         assert len(draft.chapters) == 5
@@ -251,16 +313,25 @@ class TestParallelBatch:
 
         bg = BatchChapterGenerator(gen)
         draft = StoryDraft(
-            title="T", genre="G", synopsis="S",
-            characters=[], world=_WORLD, outlines=[],
+            title="T",
+            genre="G",
+            synopsis="S",
+            characters=[],
+            world=_WORLD,
+            outlines=[],
         )
         outlines = [_make_outline(i) for i in range(1, 4)]
         ctx = StoryContext(total_chapters=3)
 
         bg.generate_chapters(
-            draft=draft, outlines=outlines, story_context=ctx,
-            title="T", genre="G", style="S",
-            characters=[], world=_WORLD,
+            draft=draft,
+            outlines=outlines,
+            story_context=ctx,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
         )
 
         assert post_order == [1, 2, 3]
@@ -268,20 +339,31 @@ class TestParallelBatch:
     @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
     def test_parallel_falls_back_to_sequential_with_stream(self, mock_post_write):
         gen = _mock_generator(batch_size=3, parallel=True)
-        gen.write_chapter_stream.side_effect = lambda *a, **kw: _make_chapter(a[5].chapter_number)
+        gen.write_chapter_stream.side_effect = lambda *a, **kw: _make_chapter(
+            a[5].chapter_number
+        )
 
         bg = BatchChapterGenerator(gen)
         draft = StoryDraft(
-            title="T", genre="G", synopsis="S",
-            characters=[], world=_WORLD, outlines=[],
+            title="T",
+            genre="G",
+            synopsis="S",
+            characters=[],
+            world=_WORLD,
+            outlines=[],
         )
         outlines = [_make_outline(1)]
         ctx = StoryContext(total_chapters=1)
 
         bg.generate_chapters(
-            draft=draft, outlines=outlines, story_context=ctx,
-            title="T", genre="G", style="S",
-            characters=[], world=_WORLD,
+            draft=draft,
+            outlines=outlines,
+            story_context=ctx,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
             stream_callback=MagicMock(),
         )
 
@@ -310,23 +392,32 @@ class TestBatchCheckpointAndResume:
     @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
     def test_checkpoint_callback_called_per_batch(self, mock_post_write):
         gen = _mock_generator(batch_size=2)
-        gen._write_chapter_with_long_context.side_effect = (
-            lambda *a, **kw: _make_chapter(a[5].chapter_number)
+        gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
+            _make_chapter(a[5].chapter_number)
         )
 
         bg = BatchChapterGenerator(gen)
         draft = StoryDraft(
-            title="T", genre="G", synopsis="S",
-            characters=[], world=_WORLD, outlines=[],
+            title="T",
+            genre="G",
+            synopsis="S",
+            characters=[],
+            world=_WORLD,
+            outlines=[],
         )
         outlines = [_make_outline(i) for i in range(1, 6)]
         ctx = StoryContext(total_chapters=5)
         checkpoint_cb = MagicMock()
 
         bg.generate_chapters(
-            draft=draft, outlines=outlines, story_context=ctx,
-            title="T", genre="G", style="S",
-            characters=[], world=_WORLD,
+            draft=draft,
+            outlines=outlines,
+            story_context=ctx,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
             batch_checkpoint_callback=checkpoint_cb,
         )
 
@@ -349,16 +440,25 @@ class TestBatchCheckpointAndResume:
 
         bg = BatchChapterGenerator(gen)
         draft = StoryDraft(
-            title="T", genre="G", synopsis="S",
-            characters=[], world=_WORLD, outlines=[],
+            title="T",
+            genre="G",
+            synopsis="S",
+            characters=[],
+            world=_WORLD,
+            outlines=[],
         )
         outlines = [_make_outline(i) for i in range(1, 7)]
         ctx = StoryContext(total_chapters=6)
 
         bg.generate_chapters(
-            draft=draft, outlines=outlines, story_context=ctx,
-            title="T", genre="G", style="S",
-            characters=[], world=_WORLD,
+            draft=draft,
+            outlines=outlines,
+            story_context=ctx,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
             resume_from_batch=2,
         )
 
@@ -366,10 +466,12 @@ class TestBatchCheckpointAndResume:
         assert len(draft.chapters) == 2
 
     @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
-    def test_checkpoint_callback_failure_does_not_stop_generation(self, mock_post_write):
+    def test_checkpoint_callback_failure_does_not_stop_generation(
+        self, mock_post_write
+    ):
         gen = _mock_generator(batch_size=5)
-        gen._write_chapter_with_long_context.side_effect = (
-            lambda *a, **kw: _make_chapter(a[5].chapter_number)
+        gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
+            _make_chapter(a[5].chapter_number)
         )
 
         def bad_checkpoint(*args):
@@ -377,16 +479,25 @@ class TestBatchCheckpointAndResume:
 
         bg = BatchChapterGenerator(gen)
         draft = StoryDraft(
-            title="T", genre="G", synopsis="S",
-            characters=[], world=_WORLD, outlines=[],
+            title="T",
+            genre="G",
+            synopsis="S",
+            characters=[],
+            world=_WORLD,
+            outlines=[],
         )
         outlines = [_make_outline(i) for i in range(1, 4)]
         ctx = StoryContext(total_chapters=3)
 
         bg.generate_chapters(
-            draft=draft, outlines=outlines, story_context=ctx,
-            title="T", genre="G", style="S",
-            characters=[], world=_WORLD,
+            draft=draft,
+            outlines=outlines,
+            story_context=ctx,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
             batch_checkpoint_callback=bad_checkpoint,
         )
 
@@ -398,6 +509,7 @@ class TestCausalAccumulator:
 
     def test_add_and_get_events(self):
         from pipeline.layer1_story.batch_generator import CausalAccumulator
+
         acc = CausalAccumulator()
         acc.add_event(2, "plot", "Event 2")
         acc.add_event(1, "causal", "Event 1")
@@ -411,6 +523,7 @@ class TestCausalAccumulator:
 
     def test_clear(self):
         from pipeline.layer1_story.batch_generator import CausalAccumulator
+
         acc = CausalAccumulator()
         acc.add_event(1, "test", "desc")
         acc.clear()
@@ -419,13 +532,16 @@ class TestCausalAccumulator:
     def test_thread_safe(self):
         from pipeline.layer1_story.batch_generator import CausalAccumulator
         import threading
+
         acc = CausalAccumulator()
 
         def add_events(start):
             for i in range(10):
                 acc.add_event(start + i, "test", f"event {start + i}")
 
-        threads = [threading.Thread(target=add_events, args=(i * 10,)) for i in range(5)]
+        threads = [
+            threading.Thread(target=add_events, args=(i * 10,)) for i in range(5)
+        ]
         for t in threads:
             t.start()
         for t in threads:
@@ -454,6 +570,7 @@ class TestNewConfigFlags:
 
     def test_defaults_when_not_set(self):
         from config.defaults import PipelineConfig
+
         gen = _mock_generator()
         # Use real PipelineConfig to verify defaults
         gen.config.pipeline = PipelineConfig()
@@ -486,8 +603,12 @@ class TestAsyncBatch:
 
         frozen = FrozenContext(StoryContext(total_chapters=1), [])
         draft = StoryDraft(
-            title="T", genre="G", synopsis="S",
-            characters=[], world=_WORLD, outlines=[],
+            title="T",
+            genre="G",
+            synopsis="S",
+            characters=[],
+            world=_WORLD,
+            outlines=[],
         )
 
         bg._run_batch_parallel(
@@ -496,10 +617,15 @@ class TestAsyncBatch:
             draft=draft,
             story_context=StoryContext(total_chapters=1),
             all_chapter_texts=[],
-            title="T", genre="G", style="S",
-            characters=[], world=_WORLD,
-            word_count=2000, context_window=5,
-            executor=MagicMock(), self_reviewer=None,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
+            word_count=2000,
+            context_window=5,
+            executor=MagicMock(),
+            self_reviewer=None,
             progress_callback=None,
         )
 
@@ -539,31 +665,46 @@ class TestDramaContractPassthrough:
         from models.handoff_schemas import NegotiatedChapterContract
 
         fake_negotiated = NegotiatedChapterContract(
-            chapter_num=1, pacing_type="rising",
-            drama_target=0.7, drama_tolerance=0.15, drama_ceiling=0.85,
+            chapter_num=1,
+            pacing_type="rising",
+            drama_target=0.7,
+            drama_tolerance=0.15,
+            drama_ceiling=0.85,
         )
         fake_contract = MagicMock()
         fake_contract.to_negotiated.return_value = fake_negotiated
 
         bg = BatchChapterGenerator(gen)
         draft = StoryDraft(
-            title="T", genre="G", synopsis="S",
-            characters=[], world=_WORLD, outlines=[],
+            title="T",
+            genre="G",
+            synopsis="S",
+            characters=[],
+            world=_WORLD,
+            outlines=[],
         )
         outlines = [_make_outline(1)]
         ctx = StoryContext(total_chapters=1)
 
-        with patch(
-            "pipeline.layer1_story.chapter_contract_builder.build_contract",
-            return_value=fake_contract,
-        ), patch(
-            "pipeline.layer1_story.chapter_contract_builder.format_contract_for_prompt",
-            return_value="contract text",
+        with (
+            patch(
+                "pipeline.layer1_story.chapter_contract_builder.build_contract",
+                return_value=fake_contract,
+            ),
+            patch(
+                "pipeline.layer1_story.chapter_contract_builder.format_contract_for_prompt",
+                return_value="contract text",
+            ),
         ):
             bg.generate_chapters(
-                draft=draft, outlines=outlines, story_context=ctx,
-                title="T", genre="G", style="S",
-                characters=[], world=_WORLD,
+                draft=draft,
+                outlines=outlines,
+                story_context=ctx,
+                title="T",
+                genre="G",
+                style="S",
+                characters=[],
+                world=_WORLD,
             )
 
         assert len(write_calls) == 1
@@ -595,16 +736,25 @@ class TestDramaContractPassthrough:
 
         bg = BatchChapterGenerator(gen)
         draft = StoryDraft(
-            title="T", genre="G", synopsis="S",
-            characters=[], world=_WORLD, outlines=[],
+            title="T",
+            genre="G",
+            synopsis="S",
+            characters=[],
+            world=_WORLD,
+            outlines=[],
         )
         outlines = [_make_outline(1)]
         ctx = StoryContext(total_chapters=1)
 
         bg.generate_chapters(
-            draft=draft, outlines=outlines, story_context=ctx,
-            title="T", genre="G", style="S",
-            characters=[], world=_WORLD,
+            draft=draft,
+            outlines=outlines,
+            story_context=ctx,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
         )
 
         assert len(write_calls) == 1

@@ -3,6 +3,7 @@
 Uses a fake collection to avoid requiring chromadb at test-time. The tests
 exercise metadata shaping and the structured-query post-filter logic.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -132,7 +133,9 @@ class TestQueryStructured:
     def test_where_filter_passed_through(self, kb_with_fake):
         kb_with_fake.index_chapter(1, "Câu A.")
         kb_with_fake.query_structured(
-            "câu", n_results=3, where={"characters": {"$contains": "Linh"}},
+            "câu",
+            n_results=3,
+            where={"characters": {"$contains": "Linh"}},
         )
         assert kb_with_fake._collection.last_query_kwargs["where"] == {
             "characters": {"$contains": "Linh"}
@@ -142,7 +145,9 @@ class TestQueryStructured:
         kb_with_fake.index_chapter(1, "Câu A.")
         kb_with_fake._collection.raise_on_where = True
         results = kb_with_fake.query_structured(
-            "câu", n_results=3, where={"characters": {"$contains": "Linh"}},
+            "câu",
+            n_results=3,
+            where={"characters": {"$contains": "Linh"}},
         )
         # Should still return items via fallback (no where)
         assert results

@@ -13,6 +13,7 @@ from services.pipeline.branch_narrative import BranchManager
 # Unit Tests: Schema
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestMergeSchemas:
     """Unit tests for merge-related schemas."""
 
@@ -51,6 +52,7 @@ class TestMergeSchemas:
 # Unit Tests: BranchManager.merge_branches
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestBranchManagerMerge:
     """Tests for BranchManager.merge_branches method."""
 
@@ -69,7 +71,9 @@ class TestBranchManagerMerge:
         node_b_id = mgr.get_current_node(session_id)["id"]
 
         # Merge
-        result = mgr.merge_branches(session_id, node_a_id, node_b_id, strategy="prefer_a")
+        result = mgr.merge_branches(
+            session_id, node_a_id, node_b_id, strategy="prefer_a"
+        )
 
         assert "merged_node" in result
         assert result["merged_node"]["text"] == "Branch A content"
@@ -87,7 +91,9 @@ class TestBranchManagerMerge:
         mgr.add_generated_node(session_id, 1, "Content B", ["B1"])
         node_b_id = mgr.get_current_node(session_id)["id"]
 
-        result = mgr.merge_branches(session_id, node_a_id, node_b_id, strategy="prefer_b")
+        result = mgr.merge_branches(
+            session_id, node_a_id, node_b_id, strategy="prefer_b"
+        )
 
         assert result["merged_node"]["text"] == "Content B"
 
@@ -97,14 +103,20 @@ class TestBranchManagerMerge:
         session = mgr.start_session("Root", ["A", "B"])
         session_id = session["session_id"]
 
-        mgr.add_generated_node(session_id, 0, "A", ["A1"], character_states={"Hero": {"mood": "happy"}})
+        mgr.add_generated_node(
+            session_id, 0, "A", ["A1"], character_states={"Hero": {"mood": "happy"}}
+        )
         node_a_id = mgr.get_current_node(session_id)["id"]
 
         mgr.go_back(session_id)
-        mgr.add_generated_node(session_id, 1, "B", ["B1"], character_states={"Hero": {"mood": "sad"}})
+        mgr.add_generated_node(
+            session_id, 1, "B", ["B1"], character_states={"Hero": {"mood": "sad"}}
+        )
         node_b_id = mgr.get_current_node(session_id)["id"]
 
-        result = mgr.merge_branches(session_id, node_a_id, node_b_id, strategy="prefer_a")
+        result = mgr.merge_branches(
+            session_id, node_a_id, node_b_id, strategy="prefer_a"
+        )
 
         # Should have resolved conflicts
         assert len(result["conflicts_resolved"]) > 0
@@ -156,7 +168,9 @@ class TestBranchManagerMerge:
         mgr.add_generated_node(session_id, 1, "Text B", ["B1"])
         node_b_id = mgr.get_current_node(session_id)["id"]
 
-        result = mgr.merge_branches(session_id, node_a_id, node_b_id, strategy="auto", llm=None)
+        result = mgr.merge_branches(
+            session_id, node_a_id, node_b_id, strategy="auto", llm=None
+        )
 
         # Should concatenate when no LLM
         assert "Text A" in result["merged_node"]["text"]
@@ -167,9 +181,11 @@ class TestBranchManagerMerge:
 # API Tests
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def _make_app() -> FastAPI:
     from fastapi import APIRouter
     from api.branch_routes import router as branch_router
+
     app = FastAPI()
     api = APIRouter(prefix="/api")
     api.include_router(branch_router)

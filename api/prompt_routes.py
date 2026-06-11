@@ -13,12 +13,15 @@ from services.prompt_registry import (
 from services.prompt_ab_bridge import bridge
 
 router = APIRouter(prefix="/prompts", tags=["prompts"])
-_CONFIGURE_PIPELINE = Depends(require_permission_if_enabled(Permission.CONFIGURE_PIPELINE))
+_CONFIGURE_PIPELINE = Depends(
+    require_permission_if_enabled(Permission.CONFIGURE_PIPELINE)
+)
 
 
 # ---------------------------------------------------------------------------
 # Existing prompt-registry routes
 # ---------------------------------------------------------------------------
+
 
 @router.get("/version", summary="Get current prompt version")
 def current_version():
@@ -49,11 +52,13 @@ def diff_versions(a: str, b: str):
 # PromptManager routes (requires services/prompt_manager.py from Feature-2 P1)
 # ---------------------------------------------------------------------------
 
+
 @router.get("", summary="List all prompts with metadata")
 def list_prompts():
     """Return all registered prompts with version metadata."""
     try:
         from services.prompt_manager import prompt_manager  # noqa: PLC0415
+
         return {"prompts": prompt_manager.list_prompts()}
     except ImportError:
         raise HTTPException(status_code=503, detail="PromptManager not available yet")
@@ -65,7 +70,9 @@ def list_experiments():
     return {"experiments": bridge.list_active_experiments()}
 
 
-@router.get("/experiments/{prompt_name}/results", summary="Get A/B results for a prompt")
+@router.get(
+    "/experiments/{prompt_name}/results", summary="Get A/B results for a prompt"
+)
 def experiment_results(prompt_name: str):
     """Return per-variant aggregated results for a prompt's A/B experiment."""
     try:
@@ -79,6 +86,7 @@ def get_prompt(name: str):
     """Return prompt metadata and raw (unformatted) template."""
     try:
         from services.prompt_manager import prompt_manager  # noqa: PLC0415
+
         raw = prompt_manager.get_raw(name)
         return {"name": name, "template": raw}
     except ImportError:
@@ -92,6 +100,7 @@ def preview_prompt(name: str, genre: str = "Tiên Hiệp", **kwargs):
     """Return formatted prompt using provided query params as template variables."""
     try:
         from services.prompt_manager import prompt_manager  # noqa: PLC0415
+
         formatted = prompt_manager.get(name, genre=genre, **kwargs)
         return {"name": name, "genre": genre, "preview": formatted}
     except ImportError:
@@ -105,6 +114,7 @@ def preview_prompt(name: str, genre: str = "Tiên Hiệp", **kwargs):
 # ---------------------------------------------------------------------------
 # A/B experiment management
 # ---------------------------------------------------------------------------
+
 
 class CreateExperimentBody(BaseModel):
     prompt_name: str = Field(..., min_length=1, max_length=128)

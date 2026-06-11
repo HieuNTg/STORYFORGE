@@ -27,10 +27,23 @@ from models.schemas import (
 # Helpers / fixtures
 # ---------------------------------------------------------------------------
 
+
 def _make_characters() -> list[Character]:
     return [
-        Character(name="Lan", role="main", personality="brave", background="orphan", motivation="revenge"),
-        Character(name="Hung", role="support", personality="wise", background="scholar", motivation="peace"),
+        Character(
+            name="Lan",
+            role="main",
+            personality="brave",
+            background="orphan",
+            motivation="revenge",
+        ),
+        Character(
+            name="Hung",
+            role="support",
+            personality="wise",
+            background="scholar",
+            motivation="peace",
+        ),
     ]
 
 
@@ -52,16 +65,21 @@ def _make_output() -> PipelineOutput:
 
 
 def _stub_run_simulation_result() -> SimulationResult:
-    return SimulationResult(events=[], updated_relationships=[], drama_suggestions=[], actual_rounds=1)
+    return SimulationResult(
+        events=[], updated_relationships=[], drama_suggestions=[], actual_rounds=1
+    )
 
 
 def _stub_agent_review() -> AgentReview:
-    return AgentReview(agent_role="test", agent_name="stub_agent", score=0.9, approved=True)
+    return AgentReview(
+        agent_role="test", agent_name="stub_agent", score=0.9, approved=True
+    )
 
 
 # ---------------------------------------------------------------------------
 # 1. run_simulation_async works inside asyncio test
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_run_simulation_async_returns_result():
@@ -69,21 +87,33 @@ async def test_run_simulation_async_returns_result():
     chars = _make_characters()
     rels = _make_relationships(chars)
 
-    with patch(
-        "pipeline.layer2_enhance.simulator.DramaSimulator.setup_agents"
-    ), patch(
-        "pipeline.layer2_enhance.simulator.DramaSimulator.simulate_round_async",
-        new_callable=AsyncMock,
-        return_value=[],
-    ), patch(
-        "pipeline.layer2_enhance.simulator.DramaSimulator.evaluate_drama",
-        return_value={"overall_drama_score": 0.7, "events": [], "relationship_changes": []},
-    ), patch(
-        "pipeline.layer2_enhance.simulator.DramaSimulator._generate_suggestions",
-        return_value={"suggestions": [], "character_arcs": {}, "tension_points": {}},
-    ), patch(
-        "pipeline.layer2_enhance.simulator._ADAPTIVE_AVAILABLE",
-        False,
+    with (
+        patch("pipeline.layer2_enhance.simulator.DramaSimulator.setup_agents"),
+        patch(
+            "pipeline.layer2_enhance.simulator.DramaSimulator.simulate_round_async",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "pipeline.layer2_enhance.simulator.DramaSimulator.evaluate_drama",
+            return_value={
+                "overall_drama_score": 0.7,
+                "events": [],
+                "relationship_changes": [],
+            },
+        ),
+        patch(
+            "pipeline.layer2_enhance.simulator.DramaSimulator._generate_suggestions",
+            return_value={
+                "suggestions": [],
+                "character_arcs": {},
+                "tension_points": {},
+            },
+        ),
+        patch(
+            "pipeline.layer2_enhance.simulator._ADAPTIVE_AVAILABLE",
+            False,
+        ),
     ):
         from pipeline.layer2_enhance.simulator import DramaSimulator
 
@@ -97,7 +127,12 @@ async def test_run_simulation_async_returns_result():
         sim.foreshadowing_plan = []
         sim.trust_network = {}
         sim._psychology_engine = None
-        sim._intensity = {"temperature": 0.9, "escalation_scale": 1.0, "max_escalations": 2, "reaction_depth": 1}
+        sim._intensity = {
+            "temperature": 0.9,
+            "escalation_scale": 1.0,
+            "max_escalations": 2,
+            "reaction_depth": 1,
+        }
         sim.conflict_web = []
         sim.threads = []
 
@@ -114,6 +149,7 @@ async def test_run_simulation_async_returns_result():
 # ---------------------------------------------------------------------------
 # 2. run_simulation (sync) works in a plain (non-async) test
 # ---------------------------------------------------------------------------
+
 
 def test_run_simulation_sync_works_outside_loop():
     """Sync run_simulation completes without error when no event loop is running."""
@@ -144,6 +180,7 @@ def test_run_simulation_sync_works_outside_loop():
 # 3. Calling sync run_simulation from inside a running loop raises RuntimeError
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_run_simulation_sync_raises_inside_loop():
     """Sync run_simulation raises RuntimeError with correct message when loop is running."""
@@ -155,12 +192,15 @@ async def test_run_simulation_sync_raises_inside_loop():
     sim = DramaSimulator.__new__(DramaSimulator)
 
     with pytest.raises(RuntimeError, match="run_simulation_async"):
-        sim.run_simulation(characters=chars, relationships=rels, genre="romance", num_rounds=1)
+        sim.run_simulation(
+            characters=chars, relationships=rels, genre="romance", num_rounds=1
+        )
 
 
 # ---------------------------------------------------------------------------
 # 4. run_review_cycle_async works inside asyncio test
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_run_review_cycle_async_returns_reviews():
@@ -183,15 +223,18 @@ async def test_run_review_cycle_async_returns_reviews():
 
     output = _make_output()
 
-    with patch(
-        "pipeline.agents.agent_registry.AgentRegistry._run_tier_parallel_async",
-        new_callable=AsyncMock,
-        return_value=[stub_review],
-    ), patch(
-        "pipeline.agents.agent_registry.ConfigManager"
-    ) as mock_cfg:
+    with (
+        patch(
+            "pipeline.agents.agent_registry.AgentRegistry._run_tier_parallel_async",
+            new_callable=AsyncMock,
+            return_value=[stub_review],
+        ),
+        patch("pipeline.agents.agent_registry.ConfigManager") as mock_cfg,
+    ):
         mock_cfg.return_value.pipeline.enable_agent_debate = False
-        reviews = await registry.run_review_cycle_async(output, layer=1, max_iterations=1)
+        reviews = await registry.run_review_cycle_async(
+            output, layer=1, max_iterations=1
+        )
 
     assert len(reviews) == 1
     assert reviews[0].approved is True
@@ -203,6 +246,7 @@ async def test_run_review_cycle_async_returns_reviews():
 # ---------------------------------------------------------------------------
 # 5. run_review_cycle (sync) works in a plain test
 # ---------------------------------------------------------------------------
+
 
 def test_run_review_cycle_sync_works_outside_loop():
     """Sync run_review_cycle completes without error when no event loop is running."""
@@ -223,6 +267,7 @@ def test_run_review_cycle_sync_works_outside_loop():
 # ---------------------------------------------------------------------------
 # 6. Calling sync run_review_cycle from inside a running loop raises RuntimeError
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_run_review_cycle_sync_raises_inside_loop():

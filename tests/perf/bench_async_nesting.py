@@ -11,6 +11,7 @@ Assertion:
   On Windows sub-100ms granularity the assertion is softened to new <= 1.20x old.
   We bump asyncio.sleep to 0.2s and use 5 trials to reduce clock noise.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -27,8 +28,8 @@ import pytest
 
 _N_CHAPTERS = 5
 _N_TRIALS = 5
-_STUB_SLEEP = 0.2   # seconds; longer sleep beats Windows clock granularity
-_SEM_LIMIT = 2       # matches P6 default chapter_batch_size
+_STUB_SLEEP = 0.2  # seconds; longer sleep beats Windows clock granularity
+_SEM_LIMIT = 2  # matches P6 default chapter_batch_size
 _RATIO_LIMIT = 1.20  # softened for Windows; proves no regression, not speedup
 
 
@@ -36,9 +37,11 @@ _RATIO_LIMIT = 1.20  # softened for Windows; proves no regression, not speedup
 # Stub helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_sim():
     """Create a DramaSimulator whose async path stubs out LLM I/O."""
     from pipeline.layer2_enhance.simulator import DramaSimulator
+
     sim = DramaSimulator.__new__(DramaSimulator)
     sim.llm = MagicMock()
     sim.agents = {}
@@ -53,6 +56,7 @@ async def _stub_run_simulation_async(sim, **kwargs):
     """Replace run_simulation_async with a fixed-latency stub."""
     await asyncio.sleep(_STUB_SLEEP)
     from models.schemas import SimulationResult
+
     return SimulationResult(events=[], drama_score=0.5, relationships=[])
 
 
@@ -60,6 +64,7 @@ def _stub_run_simulation_sync(sim, **kwargs):
     """Replace run_simulation (sync) with a stub that blocks for _STUB_SLEEP."""
     time.sleep(_STUB_SLEEP)
     from models.schemas import SimulationResult
+
     return SimulationResult(events=[], drama_score=0.5, relationships=[])
 
 
@@ -67,12 +72,14 @@ def _stub_run_simulation_sync(sim, **kwargs):
 # Path implementations
 # ---------------------------------------------------------------------------
 
+
 def _old_path_wall_clock(sim) -> float:
     """Old pattern: dispatch N sync calls through a ThreadPoolExecutor.
 
     max_workers=_SEM_LIMIT mirrors the Semaphore bound used by the new path,
     so both paths operate under the same concurrency constraint.
     """
+
     def _one(_):
         return _stub_run_simulation_sync(sim)
 
@@ -105,6 +112,7 @@ def _new_path_wall_clock(sim) -> float:
 # Benchmark test
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.bench
 def test_async_nesting_perf(capsys):
     """Async-nesting perf bench: new path wall-clock must not regress vs old path.
@@ -127,7 +135,9 @@ def test_async_nesting_perf(capsys):
 
     with capsys.disabled():
         print("\n=== Sprint 3 P8 — async-nesting perf bench ===")
-        print(f"Chapters: {_N_CHAPTERS}  |  Trials: {_N_TRIALS}  |  Stub sleep: {_STUB_SLEEP}s")
+        print(
+            f"Chapters: {_N_CHAPTERS}  |  Trials: {_N_TRIALS}  |  Stub sleep: {_STUB_SLEEP}s"
+        )
         print(f"Old path (ThreadPoolExecutor) median: {old_median:.3f}s")
         print(f"New path (asyncio.gather+Semaphore) median: {new_median:.3f}s")
         print(f"Ratio new/old: {ratio:.3f} (assert <= {_RATIO_LIMIT})")

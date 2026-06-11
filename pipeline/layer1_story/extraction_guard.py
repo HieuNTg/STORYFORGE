@@ -5,6 +5,7 @@ records success/failure + duration into `story_context.extraction_health`
 so the orchestrator circuit-breaker can halt the pipeline when corruption
 crosses threshold, instead of silently continuing on empty fallback state.
 """
+
 from __future__ import annotations
 
 import logging
@@ -60,4 +61,6 @@ def tracked_extraction(
         record.duration_ms = int((time.time() - start) * 1000)
         story_context.extraction_health.append(record)
         if len(story_context.extraction_health) > _HEALTH_CAP:
-            story_context.extraction_health = story_context.extraction_health[-_HEALTH_CAP:]
+            story_context.extraction_health = story_context.extraction_health[
+                -_HEALTH_CAP:
+            ]

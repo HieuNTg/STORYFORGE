@@ -38,6 +38,7 @@ def _clean_jobs():
 
 # --- H4: progress callbacks stop enqueueing after disconnect ----------------
 
+
 def test_on_progress_enqueues_while_connected():
     from api.pipeline_routes import make_progress_callbacks
 
@@ -88,6 +89,7 @@ def test_on_stream_stops_after_disconnect():
 
 # --- C3: finalize_job persists the terminal state for recovery --------------
 
+
 @pytest.mark.asyncio
 async def test_finalize_job_success_records_done_with_summary(monkeypatch):
     """A completed continuation must land as `done` with a recoverable summary
@@ -107,9 +109,7 @@ async def test_finalize_job_success_records_done_with_summary(monkeypatch):
     job.logs = ["[OUTLINE] done", "[CHAPTER 1] done"]
     reg.JOBS["s"] = job
 
-    await finalize_job(
-        "s", job, _FakeOutput(), caught_error=None, was_cancelled=False
-    )
+    await finalize_job("s", job, _FakeOutput(), caught_error=None, was_cancelled=False)
 
     assert job.status == "done"
     assert job.summary["session_id"] == "s"
@@ -125,7 +125,11 @@ async def test_finalize_job_cancelled_records_cancelled():
     reg.JOBS["s"] = job
 
     await finalize_job(
-        "s", job, None, caught_error=None, was_cancelled=True,
+        "s",
+        job,
+        None,
+        caught_error=None,
+        was_cancelled=True,
         cancelled_msg="Continuation was cancelled.",
     )
 
@@ -141,7 +145,10 @@ async def test_finalize_job_no_output_records_error():
     reg.JOBS["s"] = job
 
     await finalize_job(
-        "s", job, None, caught_error="Network error. Please try again.",
+        "s",
+        job,
+        None,
+        caught_error="Network error. Please try again.",
         was_cancelled=False,
     )
 
@@ -162,15 +169,14 @@ async def test_finalize_job_error_output_surfaces_real_reason():
     job = PipelineJob(session_id="s", status="running")
     reg.JOBS["s"] = job
 
-    await finalize_job(
-        "s", job, _ErrOutput(), caught_error=None, was_cancelled=False
-    )
+    await finalize_job("s", job, _ErrOutput(), caught_error=None, was_cancelled=False)
 
     assert job.status == "error"
     assert job.error == "LLM hết hạn mức: quota exceeded"
 
 
 # --- #15: atomic checkpoint write -------------------------------------------
+
 
 def test_atomic_write_creates_complete_file_and_no_tmp(tmp_path):
     from pipeline.orchestrator_checkpoint import _atomic_write_text
@@ -238,6 +244,7 @@ def test_checkpoint_save_writes_atomically(tmp_path, monkeypatch):
 
 
 # --- C4: /choose/stream threaded producer + disconnect-persist --------------
+
 
 class _FakeRequest:
     def __init__(self, disconnected: bool = False):

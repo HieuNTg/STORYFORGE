@@ -1,4 +1,5 @@
 """Base protocol for LLM providers."""
+
 from typing import Iterator, Protocol
 
 

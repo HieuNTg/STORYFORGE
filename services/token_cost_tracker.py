@@ -26,43 +26,46 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 DEFAULT_PRICING: dict[str, dict[str, float]] = {
     # OpenAI
-    "gpt-4o-mini":         {"prompt": 0.000150, "completion": 0.000600},
-    "gpt-4o":              {"prompt": 0.002500, "completion": 0.010000},
-    "gpt-4-turbo":         {"prompt": 0.010000, "completion": 0.030000},
+    "gpt-4o-mini": {"prompt": 0.000150, "completion": 0.000600},
+    "gpt-4o": {"prompt": 0.002500, "completion": 0.010000},
+    "gpt-4-turbo": {"prompt": 0.010000, "completion": 0.030000},
     # Google
-    "gemini-1.5-flash":    {"prompt": 0.000075, "completion": 0.000300},
-    "gemini-1.5-pro":      {"prompt": 0.001250, "completion": 0.005000},
-    "gemini-2.0-flash":    {"prompt": 0.000100, "completion": 0.000400},
+    "gemini-1.5-flash": {"prompt": 0.000075, "completion": 0.000300},
+    "gemini-1.5-pro": {"prompt": 0.001250, "completion": 0.005000},
+    "gemini-2.0-flash": {"prompt": 0.000100, "completion": 0.000400},
     # Anthropic
-    "claude-3-haiku":      {"prompt": 0.000250, "completion": 0.001250},
-    "claude-3-5-sonnet":   {"prompt": 0.003000, "completion": 0.015000},
-    "claude-3-5-haiku":    {"prompt": 0.000800, "completion": 0.004000},
+    "claude-3-haiku": {"prompt": 0.000250, "completion": 0.001250},
+    "claude-3-5-sonnet": {"prompt": 0.003000, "completion": 0.015000},
+    "claude-3-5-haiku": {"prompt": 0.000800, "completion": 0.004000},
     # DeepSeek
-    "deepseek-chat":       {"prompt": 0.000140, "completion": 0.000280},
-    "deepseek-reasoner":   {"prompt": 0.000550, "completion": 0.002190},
+    "deepseek-chat": {"prompt": 0.000140, "completion": 0.000280},
+    "deepseek-reasoner": {"prompt": 0.000550, "completion": 0.002190},
     # Fallback for unknown models (very rough average)
-    "_default":            {"prompt": 0.001000, "completion": 0.002000},
+    "_default": {"prompt": 0.001000, "completion": 0.002000},
 }
 
 # Legacy aliases so callers using old model names still get sensible pricing
 _MODEL_ALIASES: dict[str, str] = {
     "claude-3.5-sonnet": "claude-3-5-sonnet",
-    "claude-3.5-haiku":  "claude-3-5-haiku",
+    "claude-3.5-haiku": "claude-3-5-haiku",
 }
 
 
 @dataclass
 class UsageRecord:
     """Single LLM call record."""
+
     story_id: str
-    layer: int          # 1 = story gen, 2 = drama/enhance
+    layer: int  # 1 = story gen, 2 = drama/enhance
     agent_name: str
     model_name: str
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
     cost_usd: float
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    timestamp: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
 
 
 @dataclass
@@ -72,9 +75,9 @@ class StoryCostSummary:
     total_completion_tokens: int = 0
     total_tokens: int = 0
     total_cost_usd: float = 0.0
-    by_layer: dict = field(default_factory=dict)   # layer -> {tokens, cost}
-    by_agent: dict = field(default_factory=dict)   # agent_name -> {tokens, cost}
-    by_model: dict = field(default_factory=dict)   # model_name -> {tokens, cost}
+    by_layer: dict = field(default_factory=dict)  # layer -> {tokens, cost}
+    by_agent: dict = field(default_factory=dict)  # agent_name -> {tokens, cost}
+    by_model: dict = field(default_factory=dict)  # model_name -> {tokens, cost}
     call_count: int = 0
 
 
@@ -119,9 +122,14 @@ class TokenCostTracker:
             try:
                 overrides = json.loads(env_pricing)
                 self._pricing.update(overrides)
-                logger.info("TokenCostTracker: loaded custom pricing from env (%d models)", len(overrides))
+                logger.info(
+                    "TokenCostTracker: loaded custom pricing from env (%d models)",
+                    len(overrides),
+                )
             except json.JSONDecodeError as exc:
-                logger.warning("TokenCostTracker: invalid STORYFORGE_TOKEN_PRICING JSON — %s", exc)
+                logger.warning(
+                    "TokenCostTracker: invalid STORYFORGE_TOKEN_PRICING JSON — %s", exc
+                )
 
         # Optional persistence path
         self._persist_path: Optional[str] = os.environ.get("STORYFORGE_COST_LOG")
@@ -173,7 +181,12 @@ class TokenCostTracker:
         logger.debug(
             "TokenCostTracker: story=%s layer=%d agent=%s model=%s "
             "tokens=%d cost=$%.6f",
-            story_id, layer, agent, model, total, cost,
+            story_id,
+            layer,
+            agent,
+            model,
+            total,
+            cost,
         )
         return record
 
@@ -250,7 +263,9 @@ class TokenCostTracker:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _compute_cost(self, model: str, prompt_tokens: int, completion_tokens: int) -> float:
+    def _compute_cost(
+        self, model: str, prompt_tokens: int, completion_tokens: int
+    ) -> float:
         """Return estimated cost in USD for a single call."""
         # Resolve alias (e.g. "claude-3.5-sonnet" -> "claude-3-5-sonnet")
         canonical = _MODEL_ALIASES.get(model, model)
@@ -264,9 +279,13 @@ class TokenCostTracker:
                     break
         if rates is None:
             rates = self._pricing["_default"]
-            logger.debug("TokenCostTracker: unknown model '%s', using _default pricing", model)
+            logger.debug(
+                "TokenCostTracker: unknown model '%s', using _default pricing", model
+            )
 
-        cost = (prompt_tokens * rates["prompt"] + completion_tokens * rates["completion"]) / 1000.0
+        cost = (
+            prompt_tokens * rates["prompt"] + completion_tokens * rates["completion"]
+        ) / 1000.0
         return round(cost, 8)
 
     def _append_to_file(self, record: UsageRecord) -> None:
@@ -282,6 +301,7 @@ class TokenCostTracker:
 # ---------------------------------------------------------------------------
 # Module-level convenience helpers
 # ---------------------------------------------------------------------------
+
 
 def _accum(mapping: dict, key: str, tokens: int, cost: float) -> None:
     """Accumulate tokens and cost into a dict bucket."""

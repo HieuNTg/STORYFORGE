@@ -84,16 +84,24 @@ class SanitizationMiddleware(BaseHTTPMiddleware):
                 except InjectionBlockedError:
                     # Log the matched string (truncated) before re-raising
                     preview = text[:120].replace("\n", " ")
-                    logger.warning("Sanitization blocked string — path=%s preview=%r", path, preview)
+                    logger.warning(
+                        "Sanitization blocked string — path=%s preview=%r",
+                        path,
+                        preview,
+                    )
                     raise
 
         except InjectionBlockedError as exc:
-            logger.warning("Sanitization middleware blocked request: %s — path=%s", exc, path)
+            logger.warning(
+                "Sanitization middleware blocked request: %s — path=%s", exc, path
+            )
             return JSONResponse(
                 status_code=422,
                 content={"detail": str(exc)},
             )
         except Exception:
-            logger.exception("Unexpected error in sanitization middleware — passing through")
+            logger.exception(
+                "Unexpected error in sanitization middleware — passing through"
+            )
 
         return await call_next(request)

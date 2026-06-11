@@ -7,6 +7,7 @@ Usage:
 
     # Otherwise, try common defaults / blank — the script reports what it finds.
 """
+
 from __future__ import annotations
 
 import os
@@ -34,7 +35,11 @@ def main() -> int:
     print("Recovered fields:")
     for section, fields in data.items():
         for k, v in (fields or {}).items():
-            mask = (str(v)[:6] + "***" + str(v)[-4:]) if isinstance(v, str) and len(str(v)) > 10 else "<value>"
+            mask = (
+                (str(v)[:6] + "***" + str(v)[-4:])
+                if isinstance(v, str) and len(str(v)) > 10
+                else "<value>"
+            )
             if isinstance(v, list):
                 mask = f"<list len={len(v)}>"
             print(f"  {section}.{k} = {mask}")
@@ -47,7 +52,9 @@ def main() -> int:
             setattr(cfg.pipeline, k, v)
     cfg.save()
     os.rename(SECRETS_FILE, SECRETS_FILE + ".migrated")
-    print(f"\nMerged into data/config.json. Archived legacy file as {SECRETS_FILE}.migrated")
+    print(
+        f"\nMerged into data/config.json. Archived legacy file as {SECRETS_FILE}.migrated"
+    )
     return 0
 
 

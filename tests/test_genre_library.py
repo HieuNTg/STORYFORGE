@@ -1,5 +1,11 @@
 """Tests for genre library service."""
-from services.genre_library import get_genre, get_genre_by_name, list_genres, GENRE_LIBRARY
+
+from services.genre_library import (
+    get_genre,
+    get_genre_by_name,
+    list_genres,
+    GENRE_LIBRARY,
+)
 
 
 class TestGetGenre:
@@ -138,8 +144,13 @@ class TestListGenres:
 class TestGenreLibraryStructure:
     def test_all_genres_have_required_fields(self):
         required = {
-            "name", "description", "vocab", "tropes",
-            "arc_template", "typical_chapters", "words_per_chapter",
+            "name",
+            "description",
+            "vocab",
+            "tropes",
+            "arc_template",
+            "typical_chapters",
+            "words_per_chapter",
         }
         for key, genre in GENRE_LIBRARY.items():
             missing = required - set(genre.keys())
@@ -147,11 +158,15 @@ class TestGenreLibraryStructure:
 
     def test_all_typical_chapters_positive(self):
         for key, genre in GENRE_LIBRARY.items():
-            assert genre["typical_chapters"] > 0, f"Genre '{key}' has non-positive typical_chapters"
+            assert genre["typical_chapters"] > 0, (
+                f"Genre '{key}' has non-positive typical_chapters"
+            )
 
     def test_all_words_per_chapter_positive(self):
         for key, genre in GENRE_LIBRARY.items():
-            assert genre["words_per_chapter"] > 0, f"Genre '{key}' has non-positive words_per_chapter"
+            assert genre["words_per_chapter"] > 0, (
+                f"Genre '{key}' has non-positive words_per_chapter"
+            )
 
     def test_all_vocab_lists_non_empty(self):
         for key, genre in GENRE_LIBRARY.items():
@@ -159,4 +174,6 @@ class TestGenreLibraryStructure:
 
     def test_all_arc_templates_non_empty(self):
         for key, genre in GENRE_LIBRARY.items():
-            assert len(genre["arc_template"]) > 0, f"Genre '{key}' has empty arc_template"
+            assert len(genre["arc_template"]) > 0, (
+                f"Genre '{key}' has empty arc_template"
+            )

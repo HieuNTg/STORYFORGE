@@ -78,7 +78,9 @@ class BranchEPUBExporter:
 <p style="color:#888;">{_html_escape(author)}</p>
 <p style="color:#aaa;font-size:0.9em;">{len(all_paths)} unique paths</p>
 </div></body></html>"""
-        cover_page = epub.EpubHtml(title="Cover", file_name="cover.xhtml", lang=language)
+        cover_page = epub.EpubHtml(
+            title="Cover", file_name="cover.xhtml", lang=language
+        )
         cover_page.content = cover_html.encode("utf-8")
         cover_page.add_item(style)
         book.add_item(cover_page)
@@ -109,7 +111,7 @@ class BranchEPUBExporter:
                 if choice_made:
                     content_parts.append(
                         f'<div class="choice-made">'
-                        f'<em>Choice: {_html_escape(choice_made)}</em></div>'
+                        f"<em>Choice: {_html_escape(choice_made)}</em></div>"
                     )
                 content_parts.append(
                     f'<div class="story-section">{_html_escape(text)}</div>'
@@ -119,15 +121,17 @@ class BranchEPUBExporter:
                 if j == len(path) - 1:
                     choices = node.get("choices", [])
                     if choices:
-                        content_parts.append('<div class="choices"><p><strong>Available choices:</strong></p><ul>')
+                        content_parts.append(
+                            '<div class="choices"><p><strong>Available choices:</strong></p><ul>'
+                        )
                         for choice in choices:
-                            content_parts.append(f'<li>{_html_escape(choice)}</li>')
-                        content_parts.append('</ul></div>')
+                            content_parts.append(f"<li>{_html_escape(choice)}</li>")
+                        content_parts.append("</ul></div>")
 
             chapter_html = f"""<html><body>
 <h1 class="chapter-title">{_html_escape(path_title)}</h1>
 <p class="path-info">Depth: {len(path)} nodes</p>
-{''.join(content_parts)}
+{"".join(content_parts)}
 </body></html>"""
 
             chapter = epub.EpubHtml(
@@ -167,10 +171,12 @@ class BranchEPUBExporter:
             if not node:
                 return
 
-            current_path.append({
-                "node_id": node_id,
-                "choice_made": choice_made,
-            })
+            current_path.append(
+                {
+                    "node_id": node_id,
+                    "choice_made": choice_made,
+                }
+            )
 
             children = node.get("children", {})
             if not children:
@@ -182,7 +188,9 @@ class BranchEPUBExporter:
                 for child_key, child_id in children.items():
                     try:
                         choice_idx = int(child_key)
-                        choice_text = choices[choice_idx] if choice_idx < len(choices) else ""
+                        choice_text = (
+                            choices[choice_idx] if choice_idx < len(choices) else ""
+                        )
                     except (ValueError, IndexError):
                         choice_text = child_key
                     dfs(child_id, current_path, choice_text)

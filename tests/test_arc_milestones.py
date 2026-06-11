@@ -9,6 +9,7 @@ Covers:
 - Config flag enable_arc_milestones defaults false
 - StoryDraft has arc_milestones + arc_milestone_audit fields
 """
+
 from __future__ import annotations
 
 import unittest
@@ -25,16 +26,22 @@ from pipeline.layer1_story.arc_milestone_manager import (
 
 def _arc(num=1, start=1, end=5):
     return MacroArc(
-        arc_number=num, name=f"Arc{num}",
-        chapter_start=start, chapter_end=end,
-        central_conflict="power", character_focus=["Linh"],
+        arc_number=num,
+        name=f"Arc{num}",
+        chapter_start=start,
+        chapter_end=end,
+        central_conflict="power",
+        character_focus=["Linh"],
     )
 
 
 def _milestone(mid="m1_a1", arc=1, chapter=3, keywords=("thất bại", "sụp đổ")):
     return ArcMilestone(
-        milestone_id=mid, arc_number=arc, description="First defeat",
-        required_by_chapter=chapter, keywords=list(keywords),
+        milestone_id=mid,
+        arc_number=arc,
+        description="First defeat",
+        required_by_chapter=chapter,
+        keywords=list(keywords),
         characters_involved=["Linh"],
     )
 
@@ -46,7 +53,9 @@ def _chapter(num, content):
 class TestArcMilestoneSchema(unittest.TestCase):
     def test_defaults(self):
         m = ArcMilestone(
-            milestone_id="x", arc_number=1, description="d",
+            milestone_id="x",
+            arc_number=1,
+            description="d",
             required_by_chapter=1,
         )
         self.assertEqual(m.status, "pending")
@@ -66,9 +75,13 @@ class TestGenerate(unittest.TestCase):
         llm = MagicMock()
         llm.generate_json.return_value = {
             "milestones": [
-                {"milestone_id": "m1_a1", "arc_number": 1,
-                 "description": "x", "required_by_chapter": 99,
-                 "keywords": ["kw"]},
+                {
+                    "milestone_id": "m1_a1",
+                    "arc_number": 1,
+                    "description": "x",
+                    "required_by_chapter": 99,
+                    "keywords": ["kw"],
+                },
             ],
         }
         result = generate_arc_milestones(llm, [_arc(1, 1, 5)], "s", "g")
@@ -80,9 +93,13 @@ class TestGenerate(unittest.TestCase):
         llm.generate_json.return_value = {
             "milestones": [
                 {"missing_required_fields": True},
-                {"milestone_id": "m1_a1", "arc_number": 1,
-                 "description": "ok", "required_by_chapter": 3,
-                 "keywords": ["a"]},
+                {
+                    "milestone_id": "m1_a1",
+                    "arc_number": 1,
+                    "description": "ok",
+                    "required_by_chapter": 3,
+                    "keywords": ["a"],
+                },
             ],
         }
         result = generate_arc_milestones(llm, [_arc()], "s", "g")
@@ -184,15 +201,28 @@ class TestAudit(unittest.TestCase):
 
 class TestFormatWarnings(unittest.TestCase):
     def test_all_hit_emits_success(self):
-        audit = {"total": 2, "hit": 2, "missed": 0, "pending": 0,
-                 "hit_rate": 1.0, "drift_rate": 0.0, "by_arc": {}}
+        audit = {
+            "total": 2,
+            "hit": 2,
+            "missed": 0,
+            "pending": 0,
+            "hit_rate": 1.0,
+            "drift_rate": 0.0,
+            "by_arc": {},
+        }
         warns = format_milestone_warnings(audit)
         self.assertTrue(any("✅" in w for w in warns))
 
     def test_missed_emits_warning(self):
-        audit = {"total": 3, "hit": 1, "missed": 2, "pending": 0,
-                 "hit_rate": 0.33, "drift_rate": 0.67,
-                 "by_arc": {1: {"total": 3, "hit": 1, "missed": 2, "pending": 0}}}
+        audit = {
+            "total": 3,
+            "hit": 1,
+            "missed": 2,
+            "pending": 0,
+            "hit_rate": 0.33,
+            "drift_rate": 0.67,
+            "by_arc": {1: {"total": 3, "hit": 1, "missed": 2, "pending": 0}},
+        }
         warns = format_milestone_warnings(audit)
         self.assertTrue(any("⚠️" in w for w in warns))
         self.assertTrue(any("Arc 1" in w for w in warns))
@@ -211,6 +241,7 @@ class TestSchemaAndConfig(unittest.TestCase):
 
     def test_config_flag_default_false(self):
         from config.defaults import PipelineConfig
+
         cfg = PipelineConfig()
         self.assertFalse(cfg.enable_arc_milestones)
 

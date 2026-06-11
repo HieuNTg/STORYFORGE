@@ -1,4 +1,5 @@
 """Integration: enhancer voice-contract validation + graduated revert path."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -38,10 +39,18 @@ class TestVoiceValidationPath:
         orig = _chapter(1, "original")
         enhanced = _chapter(1, "enhanced")
         result = enhancer._apply_voice_validation(
-            enhanced_chapter=enhanced, original=orig, sim_result=sim,
-            genre="", draft=None, subtext_guidance="", thematic_guidance="",
-            chapter_summary=None, thread_state=None, arc_context="",
-            pacing_directive="", consistency_constraints="",
+            enhanced_chapter=enhanced,
+            original=orig,
+            sim_result=sim,
+            genre="",
+            draft=None,
+            subtext_guidance="",
+            thematic_guidance="",
+            chapter_summary=None,
+            thread_state=None,
+            arc_context="",
+            pacing_directive="",
+            consistency_constraints="",
         )
         assert result is enhanced
         assert result.voice_validation is None
@@ -50,15 +59,27 @@ class TestVoiceValidationPath:
         sim = SimulationResult(voice_contracts={1: _voice_contract_dict(1)})
         enhancer.llm.generate_json.return_value = {
             "per_character": {
-                "Linh": {"compliance_score": 0.9, "missing_tics": [], "tone_mismatch": ""},
+                "Linh": {
+                    "compliance_score": 0.9,
+                    "missing_tics": [],
+                    "tone_mismatch": "",
+                },
             },
             "reason": "ok",
         }
         result = enhancer._apply_voice_validation(
-            enhanced_chapter=_chapter(1, "x"), original=_chapter(1, "o"),
-            sim_result=sim, genre="", draft=None, subtext_guidance="",
-            thematic_guidance="", chapter_summary=None, thread_state=None,
-            arc_context="", pacing_directive="", consistency_constraints="",
+            enhanced_chapter=_chapter(1, "x"),
+            original=_chapter(1, "o"),
+            sim_result=sim,
+            genre="",
+            draft=None,
+            subtext_guidance="",
+            thematic_guidance="",
+            chapter_summary=None,
+            thread_state=None,
+            arc_context="",
+            pacing_directive="",
+            consistency_constraints="",
         )
         assert result.voice_validation is not None
         assert result.voice_validation["passed"] is True
@@ -70,13 +91,21 @@ class TestVoiceValidationPath:
         enhancer.llm.generate_json.side_effect = [
             {
                 "per_character": {
-                    "Linh": {"compliance_score": 0.4, "missing_tics": ["ừ", "vậy đó"], "tone_mismatch": "quá trịnh trọng"},
+                    "Linh": {
+                        "compliance_score": 0.4,
+                        "missing_tics": ["ừ", "vậy đó"],
+                        "tone_mismatch": "quá trịnh trọng",
+                    },
                 },
                 "reason": "drift",
             },
             {
                 "per_character": {
-                    "Linh": {"compliance_score": 0.85, "missing_tics": [], "tone_mismatch": ""},
+                    "Linh": {
+                        "compliance_score": 0.85,
+                        "missing_tics": [],
+                        "tone_mismatch": "",
+                    },
                 },
                 "reason": "fixed",
             },
@@ -88,10 +117,18 @@ class TestVoiceValidationPath:
             instance.enhance_chapter_by_scenes.return_value = refined_chapter
 
             result = enhancer._apply_voice_validation(
-                enhanced_chapter=_chapter(1, "drifted"), original=_chapter(1, "o"),
-                sim_result=sim, genre="", draft=None, subtext_guidance="base",
-                thematic_guidance="", chapter_summary=None, thread_state=None,
-                arc_context="", pacing_directive="", consistency_constraints="",
+                enhanced_chapter=_chapter(1, "drifted"),
+                original=_chapter(1, "o"),
+                sim_result=sim,
+                genre="",
+                draft=None,
+                subtext_guidance="base",
+                thematic_guidance="",
+                chapter_summary=None,
+                thread_state=None,
+                arc_context="",
+                pacing_directive="",
+                consistency_constraints="",
             )
 
         assert enhancer.llm.generate_json.call_count == 2
@@ -108,25 +145,43 @@ class TestVoiceValidationPath:
         enhancer.llm.generate_json.side_effect = [
             {
                 "per_character": {
-                    "Linh": {"compliance_score": 0.6, "missing_tics": ["ừ"], "tone_mismatch": ""},
+                    "Linh": {
+                        "compliance_score": 0.6,
+                        "missing_tics": ["ừ"],
+                        "tone_mismatch": "",
+                    },
                 },
                 "reason": "partial",
             },
             {
                 "per_character": {
-                    "Linh": {"compliance_score": 0.55, "missing_tics": ["ừ", "vậy đó"], "tone_mismatch": "xa lạ"},
+                    "Linh": {
+                        "compliance_score": 0.55,
+                        "missing_tics": ["ừ", "vậy đó"],
+                        "tone_mismatch": "xa lạ",
+                    },
                 },
                 "reason": "worse",
             },
         ]
         with patch("pipeline.layer2_enhance.scene_enhancer.SceneEnhancer") as MockSE:
-            MockSE.return_value.enhance_chapter_by_scenes.return_value = _chapter(1, "worse")
+            MockSE.return_value.enhance_chapter_by_scenes.return_value = _chapter(
+                1, "worse"
+            )
             first_enhanced = _chapter(1, "first")
             result = enhancer._apply_voice_validation(
-                enhanced_chapter=first_enhanced, original=_chapter(1, "o"),
-                sim_result=sim, genre="", draft=None, subtext_guidance="",
-                thematic_guidance="", chapter_summary=None, thread_state=None,
-                arc_context="", pacing_directive="", consistency_constraints="",
+                enhanced_chapter=first_enhanced,
+                original=_chapter(1, "o"),
+                sim_result=sim,
+                genre="",
+                draft=None,
+                subtext_guidance="",
+                thematic_guidance="",
+                chapter_summary=None,
+                thread_state=None,
+                arc_context="",
+                pacing_directive="",
+                consistency_constraints="",
             )
         assert result.content == "first"
 
@@ -136,13 +191,21 @@ class TestVoiceValidationPath:
         enhancer.llm.generate_json.side_effect = [
             {
                 "per_character": {
-                    "Linh": {"compliance_score": 0.2, "missing_tics": ["ừ", "vậy đó"], "tone_mismatch": "hoàn toàn khác"},
+                    "Linh": {
+                        "compliance_score": 0.2,
+                        "missing_tics": ["ừ", "vậy đó"],
+                        "tone_mismatch": "hoàn toàn khác",
+                    },
                 },
                 "reason": "catastrophic",
             },
             {
                 "per_character": {
-                    "Linh": {"compliance_score": 0.15, "missing_tics": ["ừ", "vậy đó"], "tone_mismatch": "tệ hơn"},
+                    "Linh": {
+                        "compliance_score": 0.15,
+                        "missing_tics": ["ừ", "vậy đó"],
+                        "tone_mismatch": "tệ hơn",
+                    },
                 },
                 "reason": "worse",
             },
@@ -157,10 +220,18 @@ class TestVoiceValidationPath:
         draft.voice_profiles = []
 
         # Mock SceneEnhancer for refine
-        with patch("pipeline.layer2_enhance.scene_enhancer.SceneEnhancer") as MockSE, \
-             patch("pipeline.layer2_enhance.voice_fingerprint.VoiceFingerprintEngine") as MockEngine, \
-             patch("pipeline.layer2_enhance.voice_fingerprint.enforce_voice_preservation") as mock_enforce:
-            MockSE.return_value.enhance_chapter_by_scenes.return_value = _chapter(1, "still bad")
+        with (
+            patch("pipeline.layer2_enhance.scene_enhancer.SceneEnhancer") as MockSE,
+            patch(
+                "pipeline.layer2_enhance.voice_fingerprint.VoiceFingerprintEngine"
+            ) as MockEngine,
+            patch(
+                "pipeline.layer2_enhance.voice_fingerprint.enforce_voice_preservation"
+            ) as mock_enforce,
+        ):
+            MockSE.return_value.enhance_chapter_by_scenes.return_value = _chapter(
+                1, "still bad"
+            )
 
             vp_result = MagicMock()
             vp_result.reverted_count = 2
@@ -170,10 +241,18 @@ class TestVoiceValidationPath:
             engine_instance.build_from_draft.return_value = engine_instance
 
             result = enhancer._apply_voice_validation(
-                enhanced_chapter=_chapter(1, "drifted"), original=_chapter(1, "original"),
-                sim_result=sim, genre="", draft=draft, subtext_guidance="",
-                thematic_guidance="", chapter_summary=None, thread_state=None,
-                arc_context="", pacing_directive="", consistency_constraints="",
+                enhanced_chapter=_chapter(1, "drifted"),
+                original=_chapter(1, "original"),
+                sim_result=sim,
+                genre="",
+                draft=draft,
+                subtext_guidance="",
+                thematic_guidance="",
+                chapter_summary=None,
+                thread_state=None,
+                arc_context="",
+                pacing_directive="",
+                consistency_constraints="",
             )
 
         assert result.voice_validation["binary_reverted"] is True

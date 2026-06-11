@@ -17,9 +17,11 @@ def get_genre_threshold(genre: str, fallback: float = DEFAULT_THRESHOLD) -> floa
     """
     try:
         from config import ConfigManager
+
         return ConfigManager().get_review_threshold(genre)
     except Exception:
         return fallback
+
 
 CRITIC_PROMPT = """Bạn là nhà phê bình văn học nghiêm khắc. Đánh giá chương truyện sau:
 
@@ -79,8 +81,7 @@ class SelfReviewer:
         self.llm = LLMClient()
         self.threshold = threshold  # override; 0.0 means "use genre-aware lookup"
 
-    def review(self, content: str, chapter_number: int,
-               title: str, genre: str) -> dict:
+    def review(self, content: str, chapter_number: int, title: str, genre: str) -> dict:
         """Critique a chapter. Returns scores dict with weaknesses."""
         try:
             result = self.llm.generate_json(
@@ -96,7 +97,12 @@ class SelfReviewer:
                 expect="dict",
             )
             # Ensure overall is computed from subscores
-            score_keys = ["coherence", "character_consistency", "pacing", "writing_quality"]
+            score_keys = [
+                "coherence",
+                "character_consistency",
+                "pacing",
+                "writing_quality",
+            ]
             vals = [float(result.get(s, 3.0)) for s in score_keys]
             result["overall"] = sum(vals) / len(vals)
             return result
@@ -104,9 +110,14 @@ class SelfReviewer:
             logger.warning(f"Self-review failed for ch {chapter_number}: {e}")
             return {"overall": 5.0, "weaknesses": [], "strengths": []}
 
-    def revise(self, content: str, weaknesses: list,
-               word_count: int = 2000,
-               idea: str = "", idea_summary: str = "") -> str:
+    def revise(
+        self,
+        content: str,
+        weaknesses: list,
+        word_count: int = 2000,
+        idea: str = "",
+        idea_summary: str = "",
+    ) -> str:
         """Revise chapter based on critique. Returns revised content.
 
         Idea injection prevents the revision LLM from drifting proper nouns /
@@ -114,6 +125,7 @@ class SelfReviewer:
         """
         weakness_text = "\n".join(f"- {w}" for w in weaknesses)
         from services.text_utils import build_idea_header
+
         idea_header = build_idea_header(idea, idea_summary) if idea else ""
         try:
             revised = self.llm.generate(
@@ -130,15 +142,22 @@ class SelfReviewer:
             # since revisions re-run the LLM and can re-introduce meta-prefaces even
             # when the original content was clean.
             from pipeline.layer1_story.chapter_writer import strip_llm_preamble
+
             return strip_llm_preamble(revised.strip())
         except Exception as e:
             logger.warning(f"Self-review revision failed: {e}")
             return content  # return original on failure
 
-    def review_and_revise(self, content: str, chapter_number: int,
-                          title: str, genre: str,
-                          word_count: int = 2000,
-                          idea: str = "", idea_summary: str = "") -> tuple[str, dict]:
+    def review_and_revise(
+        self,
+        content: str,
+        chapter_number: int,
+        title: str,
+        genre: str,
+        word_count: int = 2000,
+        idea: str = "",
+        idea_summary: str = "",
+    ) -> tuple[str, dict]:
         """Full review+revise cycle. Returns (final_content, review_scores).
 
         The pass/fail threshold is resolved from the genre so action/thriller
@@ -159,6 +178,7 @@ class SelfReviewer:
             f"Ch {chapter_number} below threshold ({scores['overall']:.1f} < "
             f"{effective_threshold:.1f} for genre '{genre}'), revising..."
         )
-        revised = self.revise(content, weaknesses, word_count,
-                              idea=idea, idea_summary=idea_summary)
+        revised = self.revise(
+            content, weaknesses, word_count, idea=idea, idea_summary=idea_summary
+        )
         return revised, scores

@@ -1,4 +1,5 @@
 """Sprint 2 Task 2 — L1↔L2 voice dedup: reuse L1 profiles, skip LLM extraction."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -134,7 +135,11 @@ class TestVoiceDedup:
             draft.chapters = []
             draft.voice_profiles = [
                 _l1_profile_dict(),
-                {"name": "An", "vocabulary_level": "formal", "verbal_tics": ["kính thưa"]},
+                {
+                    "name": "An",
+                    "vocabulary_level": "formal",
+                    "verbal_tics": ["kính thưa"],
+                },
             ]
 
             engine.build_from_draft(draft, dedup_l1=True)

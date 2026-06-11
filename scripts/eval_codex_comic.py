@@ -2,6 +2,7 @@
 story checkpoint, chapter 1, and report the panel paths. Faithful production
 path: _payload_to_story_draft -> _PayloadOrchWrapper -> handle_generate_images.
 """
+
 import json
 import os
 import sys
@@ -41,7 +42,10 @@ payload = _LibraryStoryPayload(
         _LibraryCharacterPayload(
             name=c.get("name", ""),
             role=c.get("role", "") or "",
-            description=c.get("appearance") or c.get("personality") or c.get("description", "") or "",
+            description=c.get("appearance")
+            or c.get("personality")
+            or c.get("description", "")
+            or "",
             backstory=c.get("backstory", "") or "",
         )
         for c in chars
@@ -64,9 +68,12 @@ orch = _PayloadOrchWrapper(PipelineOutput(story_draft=draft, status="complete"))
 cfg = ConfigManager().pipeline
 cfg.comic_shot_list_enabled = True
 cfg.image_provider = "codex"
-print(f"provider={cfg.image_provider} shot_list={cfg.comic_shot_list_enabled} "
-      f"panels={cfg.panels_per_chapter} chars={len(draft.characters)} "
-      f"chapters={len(draft.chapters)}", flush=True)
+print(
+    f"provider={cfg.image_provider} shot_list={cfg.comic_shot_list_enabled} "
+    f"panels={cfg.panels_per_chapter} chars={len(draft.characters)} "
+    f"chapters={len(draft.chapters)}",
+    flush=True,
+)
 
 paths, msg = handle_generate_images(orch, provider="codex", t=None, chapter_number=1)
 print("\nMSG:", msg, flush=True)

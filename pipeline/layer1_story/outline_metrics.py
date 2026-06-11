@@ -72,6 +72,7 @@ VALID_PACING_TYPES = frozenset(PACING_TARGET.keys())
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _gini(values: list[float]) -> float:
     """Gini coefficient.  O(n log n).  Returns 0 for a single value.
 
@@ -113,6 +114,7 @@ def _shannon_entropy(counts: dict[str, int]) -> float:
 # ---------------------------------------------------------------------------
 # Component metric functions — each returns (value: float, evidence: list[str])
 # ---------------------------------------------------------------------------
+
 
 def compute_conflict_web_density(
     conflict_web: list[ConflictEntry],
@@ -257,7 +259,9 @@ def compute_beat_coverage_ratio(
         if svc.is_available():
             return _beat_coverage_embedding(unique_beats, chapter_texts, svc)
     except Exception as exc:
-        logger.warning("beat_coverage embedding failed, falling back to string match: %s", exc)
+        logger.warning(
+            "beat_coverage embedding failed, falling back to string match: %s", exc
+        )
 
     # String-match fallback
     return _beat_coverage_string(unique_beats, chapter_texts)
@@ -297,9 +301,7 @@ def _beat_coverage_embedding(
         "method=embedding",
     ]
     if uncovered:
-        evidence.append(
-            f"uncovered beats: {[b[:60] for b in uncovered[:5]]}"
-        )
+        evidence.append(f"uncovered beats: {[b[:60] for b in uncovered[:5]]}")
     return ratio, evidence
 
 
@@ -360,6 +362,7 @@ def compute_character_screen_time_gini(
 # Public composite function
 # ---------------------------------------------------------------------------
 
+
 def compute_outline_metrics(
     outlines: list[ChapterOutline],
     conflict_web: list[ConflictEntry],
@@ -413,10 +416,13 @@ def compute_outline_metrics(
         "beat_coverage_ratio": beat_cov,
         "character_screen_time_balance": screen_time_balance,
     }
-    floors_violated = [k for k, floor in OUTLINE_METRIC_FLOORS.items() if _vals[k] < floor]
+    floors_violated = [
+        k for k, floor in OUTLINE_METRIC_FLOORS.items() if _vals[k] < floor
+    ]
     logger.info(
         "outline_metrics_built composite=%.2f floors_violated=%s",
-        overall, floors_violated,
+        overall,
+        floors_violated,
     )
 
     return OutlineMetrics(

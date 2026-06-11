@@ -21,6 +21,7 @@ from errors.handlers import storyforge_error_handler
 def _make_app() -> FastAPI:
     """Create minimal FastAPI app with all API routes."""
     from fastapi import APIRouter
+
     app = FastAPI()
     app.add_exception_handler(StoryForgeError, storyforge_error_handler)
     api = APIRouter(prefix="/api")
@@ -41,6 +42,7 @@ async def client():
     app = _make_app()
     # Provide a dummy api_key so validation passes
     from config import ConfigManager
+
     cfg = ConfigManager()
     cfg.llm.api_key = "test-key"
     transport = ASGITransport(app=app)
@@ -49,6 +51,7 @@ async def client():
 
 
 # ── Health endpoint ──
+
 
 @pytest.mark.asyncio
 async def test_health_endpoint(client):
@@ -60,6 +63,7 @@ async def test_health_endpoint(client):
 
 
 # ── Config endpoints ──
+
 
 @pytest.mark.asyncio
 async def test_get_config(client):
@@ -141,6 +145,7 @@ async def test_clear_cache(client):
 
 # ── Pipeline endpoints ──
 
+
 @pytest.mark.asyncio
 async def test_get_genres(client):
     resp = await client.get("/api/pipeline/genres")
@@ -217,6 +222,7 @@ async def test_resume_pipeline_path_traversal(client):
 
 # ── Export endpoints ──
 
+
 @pytest.mark.asyncio
 async def test_export_no_session(client):
     """Export without valid session should fail gracefully."""
@@ -230,6 +236,7 @@ async def test_export_no_session(client):
 
 # ── Error handler ──
 
+
 @pytest.mark.asyncio
 async def test_storyforge_error_handler():
     """StoryForge typed exceptions produce structured JSON error responses."""
@@ -239,6 +246,7 @@ async def test_storyforge_error_handler():
     @app.get("/test-error")
     async def raise_error():
         from errors.exceptions import ConfigError
+
         raise ConfigError("Test config error")
 
     transport = ASGITransport(app=app)
@@ -258,6 +266,7 @@ async def test_pipeline_error_handler():
     @app.get("/test-pipeline-error")
     async def raise_error():
         from errors.exceptions import PipelineError
+
         raise PipelineError("Pipeline failed")
 
     transport = ASGITransport(app=app)
@@ -269,6 +278,7 @@ async def test_pipeline_error_handler():
 
 
 # ── Config validation edge cases ──
+
 
 @pytest.mark.asyncio
 async def test_save_config_invalid_temperature_type(client):
@@ -307,10 +317,12 @@ async def test_apply_preset_pro(client):
 
 # ── Multiple rapid requests ──
 
+
 @pytest.mark.asyncio
 async def test_rapid_genre_requests(client):
     """Multiple concurrent requests to genres endpoint should all succeed."""
     import asyncio
+
     tasks = [client.get("/api/pipeline/genres") for _ in range(10)]
     results = await asyncio.gather(*tasks)
     for r in results:
@@ -321,6 +333,7 @@ async def test_rapid_genre_requests(client):
 @pytest.mark.asyncio
 async def test_rapid_config_reads(client):
     import asyncio
+
     tasks = [client.get("/api/config") for _ in range(10)]
     results = await asyncio.gather(*tasks)
     for r in results:

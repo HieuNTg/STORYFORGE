@@ -5,13 +5,16 @@ Covers:
   - conflict_web omitted when story_draft has empty/absent conflict_web
   - conflict_web omitted when no story_draft
 """
+
 from unittest.mock import MagicMock
 
 
 from api.pipeline_output_builder import build_output_summary
 
 
-def _make_conflict(cid="c1", ctype="external", chars=None, desc="Test conflict", arc="1-3"):
+def _make_conflict(
+    cid="c1", ctype="external", chars=None, desc="Test conflict", arc="1-3"
+):
     c = MagicMock()
     c.conflict_id = cid
     c.conflict_type = ctype
@@ -32,7 +35,9 @@ def _make_draft(conflict_web=None):
     return draft
 
 
-def _make_output(draft=None, enhanced=None, simulation=None, quality=None, handoff=None):
+def _make_output(
+    draft=None, enhanced=None, simulation=None, quality=None, handoff=None
+):
     out = MagicMock()
     out.story_draft = draft
     out.enhanced_story = enhanced
@@ -46,7 +51,9 @@ def _make_output(draft=None, enhanced=None, simulation=None, quality=None, hando
 
 
 def test_conflict_web_surfaced_when_present():
-    conflict = _make_conflict(cid="c1", ctype="external", chars=["Alice", "Bob"], desc="Power struggle")
+    conflict = _make_conflict(
+        cid="c1", ctype="external", chars=["Alice", "Bob"], desc="Power struggle"
+    )
     draft = _make_draft(conflict_web=[conflict])
     output = _make_output(draft=draft)
 

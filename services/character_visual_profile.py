@@ -1,4 +1,5 @@
 """Persistent character visual profile store for consistent image generation."""
+
 import os
 import json
 import logging
@@ -34,11 +35,13 @@ class CharacterVisualProfileStore:
         if base_dir is None:
             if story_title or story_id or session_id:
                 from services.output_paths import characters_dir
+
                 base_dir = characters_dir(
                     story_title, story_id=story_id, session_id=session_id
                 )
             else:
                 from services.output_paths import OUTPUT_ROOT
+
                 base_dir = os.path.join(OUTPUT_ROOT, "characters")
         self.base_dir = base_dir
         os.makedirs(base_dir, exist_ok=True)
@@ -63,7 +66,9 @@ class CharacterVisualProfileStore:
     def has_profile(self, name: str) -> bool:
         return os.path.exists(self._profile_path(name))
 
-    def save_profile(self, name: str, appearance_desc: str, reference_image_path: str = "") -> None:
+    def save_profile(
+        self, name: str, appearance_desc: str, reference_image_path: str = ""
+    ) -> None:
         """Save character visual profile."""
         pdir = self._profile_dir(name)
         os.makedirs(pdir, exist_ok=True)
@@ -107,7 +112,11 @@ class CharacterVisualProfileStore:
         # Preserve existing prompt_version if profile already exists
         existing = self.load_profile(name)
         prompt_version = 1
-        if existing and existing.get("frozen_prompt") and existing.get("frozen_prompt") != frozen_prompt:
+        if (
+            existing
+            and existing.get("frozen_prompt")
+            and existing.get("frozen_prompt") != frozen_prompt
+        ):
             prompt_version = existing.get("prompt_version", 1) + 1
         elif existing and existing.get("prompt_version"):
             prompt_version = existing["prompt_version"]
@@ -119,12 +128,18 @@ class CharacterVisualProfileStore:
             "structured_attributes": structured_attributes,
             "frozen_prompt": frozen_prompt,
             "prompt_version": prompt_version,
-            "created_at": existing.get("created_at", datetime.now().isoformat()) if existing else datetime.now().isoformat(),
+            "created_at": existing.get("created_at", datetime.now().isoformat())
+            if existing
+            else datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
         }
         with open(self._profile_path(name), "w", encoding="utf-8") as f:
             json.dump(profile, f, ensure_ascii=False, indent=2)
-        logger.info("Saved enhanced visual profile for: %s (prompt_version=%d)", name, prompt_version)
+        logger.info(
+            "Saved enhanced visual profile for: %s (prompt_version=%d)",
+            name,
+            prompt_version,
+        )
 
     def load_profile(self, name: str) -> Optional[dict]:
         """Load character visual profile. Returns None if not found."""
@@ -195,7 +210,9 @@ class CharacterVisualProfileStore:
         if hasattr(character, "personality") and character.personality:
             parts.append(character.personality)
         if not parts:
-            parts.append(character.name if hasattr(character, "name") else str(character))
+            parts.append(
+                character.name if hasattr(character, "name") else str(character)
+            )
         return ". ".join(parts)
 
     def list_profiles(self) -> list:

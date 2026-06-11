@@ -37,6 +37,7 @@ class SmartRevisionService:
 
         Returns dict with revised_count, total_weak, score_deltas.
         """
+
         def _log(msg):
             if progress_callback:
                 progress_callback(msg)
@@ -53,22 +54,29 @@ class SmartRevisionService:
 
         # Find weak chapters by quality score
         weak_scores = [
-            cs for cs in latest_scores.chapter_scores
-            if cs.overall < self.threshold
+            cs for cs in latest_scores.chapter_scores if cs.overall < self.threshold
         ]
 
         # Also find chapters with significant agent issues (even if quality score is OK)
-        chapters_with_issues = self._find_chapters_with_agent_issues(reviews, min_issues=3)
+        chapters_with_issues = self._find_chapters_with_agent_issues(
+            reviews, min_issues=3
+        )
         weak_chapter_nums = {cs.chapter_number for cs in weak_scores}
 
         # Add chapters with agent issues that aren't already in weak list
         for ch_num in chapters_with_issues:
             if ch_num not in weak_chapter_nums:
                 # Find the chapter score, or create a placeholder
-                matching = [cs for cs in latest_scores.chapter_scores if cs.chapter_number == ch_num]
+                matching = [
+                    cs
+                    for cs in latest_scores.chapter_scores
+                    if cs.chapter_number == ch_num
+                ]
                 if matching:
                     weak_scores.append(matching[0])
-                    _log(f"Chương {ch_num} có nhiều vấn đề từ agents, thêm vào danh sách sửa")
+                    _log(
+                        f"Chương {ch_num} có nhiều vấn đề từ agents, thêm vào danh sách sửa"
+                    )
 
         if not weak_scores:
             _log("Tất cả chương đạt chuẩn, không cần sửa.")
@@ -87,23 +95,32 @@ class SmartRevisionService:
             if not chapter:
                 continue
 
-            issues, suggestions = self._aggregate_review_guidance(cs.chapter_number, reviews)
+            issues, suggestions = self._aggregate_review_guidance(
+                cs.chapter_number, reviews
+            )
             old_score = cs.overall
 
             revised = False
             for pass_num in range(1, self.max_passes + 1):
-                _log(f"Chương {cs.chapter_number}: lần thứ {pass_num}/{self.max_passes} (điểm hiện tại: {old_score:.1f})")
+                _log(
+                    f"Chương {cs.chapter_number}: lần thứ {pass_num}/{self.max_passes} (điểm hiện tại: {old_score:.1f})"
+                )
 
                 # Build revision prompt — inject idea so revision keeps proper nouns
                 from services.text_utils import build_idea_header
+
                 idea_header = build_idea_header(idea, idea_summary) if idea else ""
                 prompt = prompts.SMART_REVISE_CHAPTER.format(
                     user_story_idea_header=idea_header,
                     chapter_number=chapter.chapter_number,
                     title=chapter.title,
                     content=chapter.content,
-                    issues="\n".join(f"- {i}" for i in issues) if issues else "Không có vấn đề cụ thể.",
-                    suggestions="\n".join(f"- {s}" for s in suggestions) if suggestions else "Không có gợi ý cụ thể.",
+                    issues="\n".join(f"- {i}" for i in issues)
+                    if issues
+                    else "Không có vấn đề cụ thể.",
+                    suggestions="\n".join(f"- {s}" for s in suggestions)
+                    if suggestions
+                    else "Không có gợi ý cụ thể.",
                     genre=genre or "Chưa xác định",
                     word_count=chapter.word_count or len(chapter.content.split()),
                 )
@@ -115,11 +132,15 @@ class SmartRevisionService:
                         temperature=0.7,
                     )
                 except Exception as e:
-                    logger.warning(f"LLM revision failed for chapter {cs.chapter_number}: {e}")
+                    logger.warning(
+                        f"LLM revision failed for chapter {cs.chapter_number}: {e}"
+                    )
                     break
 
                 if not revised_content or len(revised_content.strip()) < 50:
-                    logger.warning(f"Revision too short for chapter {cs.chapter_number}, skipping")
+                    logger.warning(
+                        f"Revision too short for chapter {cs.chapter_number}, skipping"
+                    )
                     break
 
                 # Re-score the revised chapter
@@ -133,27 +154,35 @@ class SmartRevisionService:
                     new_score_obj = self.scorer.score_chapter(temp_chapter)
                     new_score = new_score_obj.overall
                 except Exception as e:
-                    logger.warning(f"Re-scoring failed for chapter {cs.chapter_number}: {e}")
+                    logger.warning(
+                        f"Re-scoring failed for chapter {cs.chapter_number}: {e}"
+                    )
                     break
 
                 delta = new_score - old_score
-                _log(f"Chương {cs.chapter_number}: điểm mới {new_score:.1f} (delta: {delta:+.1f})")
+                _log(
+                    f"Chương {cs.chapter_number}: điểm mới {new_score:.1f} (delta: {delta:+.1f})"
+                )
 
                 if delta >= MIN_IMPROVEMENT_DELTA:
                     # Accept revision
                     chapter.content = revised_content
                     chapter.word_count = len(revised_content.split())
-                    score_deltas.append({
-                        "chapter": cs.chapter_number,
-                        "old_score": round(old_score, 2),
-                        "new_score": round(new_score, 2),
-                        "delta": round(delta, 2),
-                        "passes": pass_num,
-                    })
+                    score_deltas.append(
+                        {
+                            "chapter": cs.chapter_number,
+                            "old_score": round(old_score, 2),
+                            "new_score": round(new_score, 2),
+                            "delta": round(delta, 2),
+                            "passes": pass_num,
+                        }
+                    )
                     revised = True
                     break
                 else:
-                    _log(f"Chương {cs.chapter_number}: lần {pass_num} cải thiện không đủ ({delta:+.1f} < +{MIN_IMPROVEMENT_DELTA}), thử lại...")
+                    _log(
+                        f"Chương {cs.chapter_number}: lần {pass_num} cải thiện không đủ ({delta:+.1f} < +{MIN_IMPROVEMENT_DELTA}), thử lại..."
+                    )
 
             if revised:
                 revised_count += 1
@@ -175,9 +204,7 @@ class SmartRevisionService:
         issues = []
         suggestions = []
         # Word-boundary regex to avoid false positives (e.g. "1" matching "chương 10")
-        ch_pattern = re.compile(
-            rf'\bch(?:ương\s*)?{chapter_number}\b', re.IGNORECASE
-        )
+        ch_pattern = re.compile(rf"\bch(?:ương\s*)?{chapter_number}\b", re.IGNORECASE)
 
         def _mentions_chapter(text: str) -> bool:
             return bool(ch_pattern.search(text))
@@ -215,7 +242,7 @@ class SmartRevisionService:
         Returns set of chapter numbers with >= min_issues total issues.
         """
         chapter_issue_count: dict[int, int] = {}
-        ch_pattern = re.compile(r'\bch(?:ương\s*)?(\d+)\b', re.IGNORECASE)
+        ch_pattern = re.compile(r"\bch(?:ương\s*)?(\d+)\b", re.IGNORECASE)
 
         for review in reviews:
             # Count issues per chapter

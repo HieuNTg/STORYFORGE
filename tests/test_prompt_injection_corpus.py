@@ -63,9 +63,7 @@ def test_corpus_entry(entry):
             f"  Payload: {payload!r}\n"
             f"  Threats found: {threats}"
         )
-        assert len(threats) > 0, (
-            f"[{entry_id}] blocked but threats_found is empty"
-        )
+        assert len(threats) > 0, f"[{entry_id}] blocked but threats_found is empty"
     else:
         assert not blocked, (
             f"[{entry_id}] Expected ALLOWED but was BLOCKED.\n"
@@ -76,6 +74,7 @@ def test_corpus_entry(entry):
         if is_gap:
             # Log known gap entries so they're visible in CI output
             import warnings
+
             warnings.warn(
                 f"[{entry_id}] Known detection gap — sanitizer does not yet detect: {description}",
                 UserWarning,
@@ -117,6 +116,11 @@ def test_corpus_has_safe_entries():
 def test_corpus_categories_coverage():
     """Corpus should cover all major attack categories."""
     categories = {e["category"] for e in _CORPUS}
-    required = {"jailbreak", "role_play_escape", "delimiter_attack", "indirect_injection"}
+    required = {
+        "jailbreak",
+        "role_play_escape",
+        "delimiter_attack",
+        "indirect_injection",
+    }
     missing = required - categories
     assert not missing, f"Missing categories in corpus: {missing}"

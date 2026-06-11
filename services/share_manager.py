@@ -1,4 +1,5 @@
 """Manage shareable story links with UUID-based HTML exports."""
+
 import html
 import json
 import logging
@@ -70,7 +71,11 @@ class ShareManager:
         """First /media/ comic page/panel across chapters — gallery cover."""
         for ch in getattr(story, "chapters", []) or []:
             for url in getattr(ch, "images", []) or []:
-                if isinstance(url, str) and url.startswith("/media/") and ".." not in url:
+                if (
+                    isinstance(url, str)
+                    and url.startswith("/media/")
+                    and ".." not in url
+                ):
                     return url
         return ""
 

@@ -23,8 +23,10 @@ from pydantic import BaseModel, Field
 # Pydantic schemas
 # ---------------------------------------------------------------------------
 
+
 class RatingScores(BaseModel):
     """Per-dimension scores 1–5, mirroring quality scorer dimensions."""
+
     coherence: float = Field(..., ge=1, le=5)
     character: float = Field(..., ge=1, le=5)
     drama: float = Field(..., ge=1, le=5)
@@ -33,6 +35,7 @@ class RatingScores(BaseModel):
 
 class FeedbackEntry(BaseModel):
     """A single user rating record persisted to disk."""
+
     feedback_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     story_id: str
     chapter_index: int
@@ -48,6 +51,7 @@ class FeedbackEntry(BaseModel):
 # ---------------------------------------------------------------------------
 # File helpers
 # ---------------------------------------------------------------------------
+
 
 def _story_file(data_dir: Path, story_id: str) -> Path:
     safe = story_id.replace("/", "_").replace("\\", "_")[:64]
@@ -136,9 +140,12 @@ class FeedbackCollector:
 
         if not all_entries:
             return {
-                "total_ratings": 0, "avg_overall": 0.0,
-                "avg_coherence": 0.0, "avg_character": 0.0,
-                "avg_drama": 0.0, "avg_writing": 0.0,
+                "total_ratings": 0,
+                "avg_overall": 0.0,
+                "avg_coherence": 0.0,
+                "avg_character": 0.0,
+                "avg_drama": 0.0,
+                "avg_writing": 0.0,
                 "score_distribution": {str(i): 0 for i in range(1, 6)},
                 "per_story_count": {},
             }
@@ -173,21 +180,23 @@ class FeedbackCollector:
                 records = _load(fp)
             for r in records:
                 e = FeedbackEntry(**r)
-                results.append({
-                    "id": e.feedback_id,
-                    "story_id": e.story_id,
-                    "chapter_index": e.chapter_index,
-                    "user_id": e.user_id,
-                    "human_scores": {
-                        "coherence": e.scores.coherence,
-                        "character_depth": e.scores.character,
-                        "drama_intensity": e.scores.drama,
-                        "writing_quality": e.scores.writing,
-                    },
-                    "human_overall": e.overall,
-                    "comment": e.comment,
-                    "timestamp": e.timestamp,
-                })
+                results.append(
+                    {
+                        "id": e.feedback_id,
+                        "story_id": e.story_id,
+                        "chapter_index": e.chapter_index,
+                        "user_id": e.user_id,
+                        "human_scores": {
+                            "coherence": e.scores.coherence,
+                            "character_depth": e.scores.character,
+                            "drama_intensity": e.scores.drama,
+                            "writing_quality": e.scores.writing,
+                        },
+                        "human_overall": e.overall,
+                        "comment": e.comment,
+                        "timestamp": e.timestamp,
+                    }
+                )
         return results
 
 

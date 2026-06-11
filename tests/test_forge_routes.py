@@ -1,4 +1,5 @@
 """Forge endpoint tests — flag gating, rate limit, mocked LLM, parse errors."""
+
 from __future__ import annotations
 
 import json
@@ -81,14 +82,18 @@ def _mock_llm(payload):
         llm.generate.side_effect = payload
     else:
         llm.generate.return_value = (
-            payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False)
+            payload
+            if isinstance(payload, str)
+            else json.dumps(payload, ensure_ascii=False)
         )
     return llm
 
 
 def test_forge_sync_happy_path(client):
     """200 + valid ForgeResponse when LLM returns clean JSON."""
-    with patch.object(forge_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)):
+    with patch.object(
+        forge_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)
+    ):
         resp = client.post(
             "/api/forge/sentence",
             json={"sentenceIdea": "Một kiếm khách bị phế võ công đi tìm sư phụ."},
@@ -114,23 +119,27 @@ def test_forge_returns_404_when_flag_off(client):
 
 def test_forge_rejects_short_sentence(client):
     """Pydantic rejects sentence < 10 chars with 422."""
-    with patch.object(forge_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)):
+    with patch.object(
+        forge_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)
+    ):
         resp = client.post("/api/forge/sentence", json={"sentenceIdea": "ngắn"})
     assert resp.status_code == 422
 
 
 def test_forge_rejects_long_sentence(client):
     """Pydantic rejects sentence > 500 chars with 422."""
-    with patch.object(forge_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)):
-        resp = client.post(
-            "/api/forge/sentence", json={"sentenceIdea": "x" * 501}
-        )
+    with patch.object(
+        forge_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)
+    ):
+        resp = client.post("/api/forge/sentence", json={"sentenceIdea": "x" * 501})
     assert resp.status_code == 422
 
 
 def test_forge_rate_limit_429(client):
     """5/min/IP — 6th request in same window returns 429."""
-    with patch.object(forge_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)):
+    with patch.object(
+        forge_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)
+    ):
         sentence = "Một kiếm khách đi tìm sư phụ đã chết."
         for _ in range(forge_routes.FORGE_LIMIT_PER_MIN):
             r = client.post("/api/forge/sentence", json={"sentenceIdea": sentence})
@@ -187,6 +196,7 @@ def test_forge_returns_502_when_both_attempts_fail(client):
 def test_resilient_json_loads_trailing_comma():
     """Direct unit test on parser — trailing commas repaired."""
     from services.forge_service import _resilient_json_loads
+
     raw = '{"a": 1, "b": [1, 2, 3,],}'
     parsed = _resilient_json_loads(raw)
     assert parsed == {"a": 1, "b": [1, 2, 3]}
@@ -195,6 +205,7 @@ def test_resilient_json_loads_trailing_comma():
 def test_resilient_json_loads_prose_wrapped():
     """Extracts first {...} block from prose-wrapped LLM output."""
     from services.forge_service import _resilient_json_loads
+
     raw = 'Sure, here you go:\n{"a": 1}\nLet me know if you need more.'
     parsed = _resilient_json_loads(raw)
     assert parsed == {"a": 1}

@@ -65,7 +65,9 @@ class ABTestManager:
                 }
             )
             if len(self._results[experiment_id]) > MAX_RESULTS:
-                self._results[experiment_id] = self._results[experiment_id][-MAX_RESULTS:]
+                self._results[experiment_id] = self._results[experiment_id][
+                    -MAX_RESULTS:
+                ]
 
     def get_results(self, experiment_id: str) -> Dict:
         """Return per-variant aggregation {variant: {count, metric_sum, metric_avg}}."""

@@ -7,7 +7,9 @@ ghi log và có thể tự động sửa.
 
 import logging
 from models.schemas import EnhancedStory, StoryDraft, Chapter, count_words
-from pipeline.layer2_enhance._envelope_access import conflict_web as _envelope_conflict_web
+from pipeline.layer2_enhance._envelope_access import (
+    conflict_web as _envelope_conflict_web,
+)
 from services.llm_client import LLMClient
 from services import prompts
 
@@ -26,14 +28,12 @@ def validate_coherence(
     """
     # Tóm tắt từng chương để LLM phân tích
     chapter_summaries = "\n".join(
-        f"Chương {ch.chapter_number} ({ch.title}): "
-        f"{ch.summary or ch.content[:200]}"
+        f"Chương {ch.chapter_number} ({ch.title}): {ch.summary or ch.content[:200]}"
         for ch in enhanced.chapters
     )
 
     characters_text = "\n".join(
-        f"- {c.name} ({c.role}): {c.personality}"
-        for c in draft.characters
+        f"- {c.name} ({c.role}): {c.personality}" for c in draft.characters
     )
 
     relationships_text = ""
@@ -84,6 +84,7 @@ def fix_coherence_issues(
         return 0
 
     from services.text_utils import build_idea_header
+
     idea_header = build_idea_header(idea, idea_summary) if idea else ""
 
     fixed = 0

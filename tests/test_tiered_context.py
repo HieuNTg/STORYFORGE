@@ -1,7 +1,11 @@
 """Tests for Phase 4: Tiered Context Builder — 4-tier system + priority promotion."""
 
 from models.schemas import (
-    Chapter, ChapterOutline, PlotThread, StoryBible, StructuredSummary,
+    Chapter,
+    ChapterOutline,
+    PlotThread,
+    StoryBible,
+    StructuredSummary,
 )
 from pipeline.layer1_story.tiered_context_builder import (
     build_tiered_context,
@@ -12,22 +16,30 @@ from pipeline.layer1_story.tiered_context_builder import (
 
 def _chapter(num, summary="", content="", structured=None):
     return Chapter(
-        chapter_number=num, title=f"Ch{num}", content=content,
-        summary=summary, structured_summary=structured,
+        chapter_number=num,
+        title=f"Ch{num}",
+        content=content,
+        summary=summary,
+        structured_summary=structured,
     )
 
 
 def _outline(num, chars=None):
     return ChapterOutline(
-        chapter_number=num, title=f"Outline {num}", summary=f"Outline summary {num}",
+        chapter_number=num,
+        title=f"Outline {num}",
+        summary=f"Outline summary {num}",
         characters_involved=chars or [],
     )
 
 
 def _thread(tid="t1", status="open", last=1):
     return PlotThread(
-        thread_id=tid, description=f"Thread {tid}",
-        planted_chapter=1, status=status, last_mentioned_chapter=last,
+        thread_id=tid,
+        description=f"Thread {tid}",
+        planted_chapter=1,
+        status=status,
+        last_mentioned_chapter=last,
     )
 
 
@@ -55,14 +67,18 @@ class TestBuildTieredContext:
     def test_tier1_caps_text_at_2000(self):
         long_text = "x" * 5000
         chapters = [_chapter(1)]
-        result = build_tiered_context(2, chapters, _outline(2), all_chapter_texts=[long_text])
+        result = build_tiered_context(
+            2, chapters, _outline(2), all_chapter_texts=[long_text]
+        )
         tier1_section = result.split("TIER 1")[1] if "TIER 1" in result else ""
         assert len(tier1_section) < 3000
 
     def test_tier2_detailed_summaries(self):
         chapters = []
         for i in range(1, 11):
-            ss = _structured(events=[f"event_{i}"], chars=[f"dev_{i}"], emotional="tense")
+            ss = _structured(
+                events=[f"event_{i}"], chars=[f"dev_{i}"], emotional="tense"
+            )
             chapters.append(_chapter(i, summary=f"Summary ch{i}", structured=ss))
         result = build_tiered_context(
             10, chapters, _outline(10), all_chapter_texts=["t"] * 9
@@ -141,7 +157,10 @@ class TestPromotedChapters:
         assert len(promoted) <= 3
 
     def test_no_promote_current_or_future(self):
-        chapters = {10: _chapter(10, summary="Alice"), 11: _chapter(11, summary="Alice")}
+        chapters = {
+            10: _chapter(10, summary="Alice"),
+            11: _chapter(11, summary="Alice"),
+        }
         outline = _outline(10, chars=["Alice"])
         promoted = _get_promoted_chapters(10, outline, chapters, [], 5)
         assert 10 not in promoted
@@ -150,7 +169,9 @@ class TestPromotedChapters:
 
 class TestDetailedSummary:
     def test_structured_summary_used(self):
-        ss = _structured(events=["battle"], chars=["growth"], emotional="intense", hook="cliffhanger")
+        ss = _structured(
+            events=["battle"], chars=["growth"], emotional="intense", hook="cliffhanger"
+        )
         ch = _chapter(1, structured=ss)
         result = _get_detailed_summary(ch)
         assert "battle" in result

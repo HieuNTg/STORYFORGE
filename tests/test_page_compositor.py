@@ -16,6 +16,7 @@ We assert on a downsampled average-hash + ink/paper pixel statistics, which are
 robust to harmless font-rendering jitter across platforms while still catching a
 layout regression (a moved/missing panel changes the hash decisively).
 """
+
 import os
 import tempfile
 
@@ -48,6 +49,7 @@ FONT_PATH = _resolve_font_path(None)  # vendored Be Vietnam Pro
 # Fixtures / helpers
 # --------------------------------------------------------------------------- #
 
+
 def _solid_panel(tmpdir, name, color, size=(800, 1000)):
     p = os.path.join(tmpdir, name)
     Image.new("RGB", size, color).save(p)
@@ -60,17 +62,23 @@ def _three_tier_page():
         layout="THREE_TIER",
         panels=[
             Panel(
-                n=1, shot="EWS", subject="Kiên",
+                n=1,
+                shot="EWS",
+                subject="Kiên",
                 screen_side={"Kiên": "center"},
                 captions=[Caption(type="narration", text=VI_CAPTION)],
             ),
             Panel(
-                n=2, shot="MS", subject="Bà lão",
+                n=2,
+                shot="MS",
+                subject="Bà lão",
                 screen_side={"Bà lão": "left", "Kiên": "right"},
                 bubbles=[Bubble(speaker="Bà lão", type="speech", text=VI_LINE_OLD)],
             ),
             Panel(
-                n=3, shot="CU", subject="Kiên",
+                n=3,
+                shot="CU",
+                subject="Kiên",
                 screen_side={"Kiên": "right"},
                 bubbles=[Bubble(speaker="Kiên", type="speech", text=VI_LINE_KIEN)],
             ),
@@ -94,6 +102,7 @@ def _hamming(a, b):
 # Layout library coverage (§2.2)
 # --------------------------------------------------------------------------- #
 
+
 @pytest.mark.parametrize(
     "name,count",
     [
@@ -112,7 +121,7 @@ def test_layout_library_cell_counts(name, count):
     assert len(cells) == count
     # Every cell is inside the safe margin and non-degenerate.
     l0, t0, r0, b0 = geom.content_box
-    for (left, t, r, b) in cells:
+    for left, t, r, b in cells:
         assert left >= l0 - 1 and t >= t0 - 1 and r <= r0 + 1 and b <= b0 + 1
         assert r > left and b > t
 
@@ -120,7 +129,12 @@ def test_layout_library_cell_counts(name, count):
 def test_layout_library_covers_spec():
     # All six spec §2.2 layouts present.
     assert set(LAYOUT_LIBRARY) == {
-        "SPLASH", "TWO_TIER", "THREE_TIER", "GRID_2x2", "BIG_PLUS_TWO", "SIX_GRID",
+        "SPLASH",
+        "TWO_TIER",
+        "THREE_TIER",
+        "GRID_2x2",
+        "BIG_PLUS_TWO",
+        "SIX_GRID",
     }
 
 
@@ -137,14 +151,15 @@ def test_cells_are_reading_order_z_ltr():
     page = Page(page=1, layout="GRID_2x2", panels=[Panel(n=i) for i in range(4)])
     c = layout_cells(page, geom, "shot_list")
     # cell0 above cell2; cell0 left of cell1
-    assert c[0][1] < c[2][1]      # top row above bottom row
-    assert c[0][0] < c[1][0]      # left col before right col (LTR, not manga RTL)
+    assert c[0][1] < c[2][1]  # top row above bottom row
+    assert c[0][0] < c[1][0]  # left col before right col (LTR, not manga RTL)
     assert c[2][0] < c[3][0]
 
 
 # --------------------------------------------------------------------------- #
 # Vietnamese text wrap (diacritics preserved)
 # --------------------------------------------------------------------------- #
+
 
 def test_wrap_preserves_vietnamese_diacritics():
     lines = wrap_vietnamese(VI_LINE_KIEN, 20)
@@ -173,6 +188,7 @@ def test_wrap_hard_cuts_overlong_token():
 # Font golden — VN diacritics render to non-blank glyph boxes (§4 font)
 # --------------------------------------------------------------------------- #
 
+
 def test_vn_font_renders_diacritics_nonblank():
     font = ImageFont.truetype(FONT_PATH, 64)
     img = Image.new("L", (900, 160), 0)
@@ -192,6 +208,7 @@ def test_missing_font_is_refused_no_silent_fallback():
 # --------------------------------------------------------------------------- #
 # Bubble tail direction (§4 — tail points at speaker's screen_side)
 # --------------------------------------------------------------------------- #
+
 
 def test_tail_polygon_points_left_for_left_speaker():
     bbox = (700, 100, 1100, 300)  # centered-ish bubble
@@ -222,16 +239,22 @@ def test_speaker_side_resolution_prefers_panel_then_override():
 # Text contrast on a DARK panel (§4 — white bubble + halo so text reads)
 # --------------------------------------------------------------------------- #
 
+
 def test_bubble_is_high_contrast_over_dark_panel():
     with tempfile.TemporaryDirectory() as d:
         # near-black panel everywhere
         dark = _solid_panel(d, "dark.png", (8, 8, 10))
         page = Page(
-            page=1, layout="SPLASH",
-            panels=[Panel(
-                n=1, subject="Kiên", screen_side={"Kiên": "center"},
-                bubbles=[Bubble(speaker="Kiên", type="speech", text=VI_LINE_KIEN)],
-            )],
+            page=1,
+            layout="SPLASH",
+            panels=[
+                Panel(
+                    n=1,
+                    subject="Kiên",
+                    screen_side={"Kiên": "center"},
+                    bubbles=[Bubble(speaker="Kiên", type="speech", text=VI_LINE_KIEN)],
+                )
+            ],
         )
         out = os.path.join(d, "dark_page.png")
         compose_page(page, [dark], out, font_path=FONT_PATH)
@@ -245,6 +268,7 @@ def test_bubble_is_high_contrast_over_dark_panel():
 # --------------------------------------------------------------------------- #
 # Golden / perceptual-hash stability of a fixed layout + fixed inputs (§7)
 # --------------------------------------------------------------------------- #
+
 
 def test_compose_page_is_deterministic_perceptual_hash():
     with tempfile.TemporaryDirectory() as d:
@@ -276,12 +300,18 @@ def test_compose_page_is_deterministic_perceptual_hash():
 def test_compose_chapter_returns_pages_in_reading_order():
     with tempfile.TemporaryDirectory() as d:
         # 2 pages: page1 THREE_TIER (3 panels), page2 SPLASH (1 panel) = 4 panels.
-        panels = [_solid_panel(d, f"p{i}.png", (50 + i * 40, 80, 160)) for i in range(4)]
+        panels = [
+            _solid_panel(d, f"p{i}.png", (50 + i * 40, 80, 160)) for i in range(4)
+        ]
         sl = ShotList(
             chapter_number=3,
             pages=[
                 _three_tier_page(),
-                Page(page=2, layout="SPLASH", panels=[Panel(n=4, shot="EWS", subject="Kiên")]),
+                Page(
+                    page=2,
+                    layout="SPLASH",
+                    panels=[Panel(n=4, shot="EWS", subject="Kiên")],
+                ),
             ],
         )
         out = compose_chapter(sl, panels, d, chapter_number=3, font_path=FONT_PATH)

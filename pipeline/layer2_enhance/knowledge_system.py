@@ -44,7 +44,9 @@ class KnowledgeRegistry:
             is_secret=True,
             dramatic_irony=True,  # Reader sees all
         )
-        item.reveal_log.append(RevealEntry(char=character.name, round=0, source="initial"))
+        item.reveal_log.append(
+            RevealEntry(char=character.name, round=0, source="initial")
+        )
         self.items[fact_id] = item
         logger.debug(f"Đã đăng ký bí mật cho '{character.name}': {secret[:50]}")
 
@@ -85,18 +87,25 @@ class KnowledgeRegistry:
         if char_name not in item.known_by:
             item.known_by.append(char_name)
             item.revealed_round = round_num
-            logger.debug(f"Bí mật '{fact_id}' được tiết lộ cho '{char_name}' ở vòng {round_num}")
-        entry = RevealEntry(char=char_name, round=round_num, source=source, event_id=event_id)
+            logger.debug(
+                f"Bí mật '{fact_id}' được tiết lộ cho '{char_name}' ở vòng {round_num}"
+            )
+        entry = RevealEntry(
+            char=char_name, round=round_num, source=source, event_id=event_id
+        )
         item.reveal_log.append(entry)
         return entry
 
-    def get_visible_posts(self, char_name: str, all_posts: list, limit: int = 5) -> list:
+    def get_visible_posts(
+        self, char_name: str, all_posts: list, limit: int = 5
+    ) -> list:
         """Lọc posts: loại bỏ những post trực tiếp tiết lộ bí mật mà nhân vật chưa biết.
 
         Chiến lược bảo thủ: chỉ lọc posts có từ khóa bí mật rõ ràng.
         """
         secret_items = [
-            item for item in self.items.values()
+            item
+            for item in self.items.values()
             if item.is_secret and char_name not in item.known_by
         ]
         if not secret_items:
@@ -122,9 +131,12 @@ class KnowledgeRegistry:
                 poster_knows = any(
                     post.agent_name in item.known_by
                     for item in secret_items
-                    if any(kw.lower() in content_lower for kw in [
-                        w.strip(".,!?") for w in item.content.split() if len(w) > 4
-                    ][:3])
+                    if any(
+                        kw.lower() in content_lower
+                        for kw in [
+                            w.strip(".,!?") for w in item.content.split() if len(w) > 4
+                        ][:3]
+                    )
                 )
                 if poster_knows:
                     continue  # Lọc bỏ post này
@@ -135,8 +147,7 @@ class KnowledgeRegistry:
     def get_knowledge_context(self, char_name: str) -> str:
         """Định dạng những gì nhân vật biết để đưa vào prompt."""
         known_facts = [
-            item for item in self.items.values()
-            if char_name in item.known_by
+            item for item in self.items.values() if char_name in item.known_by
         ]
         if not known_facts:
             return "Không có thông tin đặc biệt."
@@ -176,20 +187,26 @@ class KnowledgeRegistry:
         for post in posts:
             content_lower = post.content.lower()
             for item in secret_items:
-                keywords = [w.strip(".,!?").lower() for w in item.content.split() if len(w) >= 4]
+                keywords = [
+                    w.strip(".,!?").lower() for w in item.content.split() if len(w) >= 4
+                ]
                 if not keywords:
                     continue
                 match_count = sum(1 for kw in keywords[:5] if kw in content_lower)
                 if match_count < 2:
                     continue
                 if post.target and post.target not in item.known_by:
-                    self.reveal_to(item.fact_id, post.target, round_num, source="revealed")
-                    revelations.append({
-                        "fact_id": item.fact_id,
-                        "revealed_to": post.target,
-                        "round": round_num,
-                        "by": post.agent_name,
-                    })
+                    self.reveal_to(
+                        item.fact_id, post.target, round_num, source="revealed"
+                    )
+                    revelations.append(
+                        {
+                            "fact_id": item.fact_id,
+                            "revealed_to": post.target,
+                            "round": round_num,
+                            "by": post.agent_name,
+                        }
+                    )
                     logger.info(
                         f"Tiết lộ bí mật '{item.fact_id}': "
                         f"{post.agent_name} → {post.target} (vòng {round_num})"
@@ -202,7 +219,9 @@ class KnowledgeRegistry:
                                 if added >= 3:
                                     break
                                 if w and w not in seen and w not in item.known_by:
-                                    self.reveal_to(item.fact_id, w, round_num, source="witness")
+                                    self.reveal_to(
+                                        item.fact_id, w, round_num, source="witness"
+                                    )
                                     seen.add(w)
                                     added += 1
                             if added >= 3:

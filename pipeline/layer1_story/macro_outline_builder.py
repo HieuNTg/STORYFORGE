@@ -31,7 +31,9 @@ def generate_macro_arcs(
     # Scale arc_size to fit num_chapters (ensure 2-4 arcs, min 5 chapters/arc)
     effective_arc_size = min(arc_size, max(num_chapters // 2, 5))
     if effective_arc_size != arc_size:
-        logger.info(f"Scaled arc_size: {arc_size} → {effective_arc_size} for {num_chapters} chapters")
+        logger.info(
+            f"Scaled arc_size: {arc_size} → {effective_arc_size} for {num_chapters} chapters"
+        )
 
     chars_text = "\n".join(
         f"- {c.name} ({c.role}): {c.personality}, Động lực: {c.motivation}"
@@ -40,9 +42,13 @@ def generate_macro_arcs(
     result = llm.generate_json(
         system_prompt="Bạn là kiến trúc sư cốt truyện cao cấp. BẮT BUỘC viết bằng tiếng Việt. Trả về JSON.",
         user_prompt=prompts.GENERATE_MACRO_OUTLINE.format(
-            genre=genre, title=title, characters=chars_text,
+            genre=genre,
+            title=title,
+            characters=chars_text,
             world=f"{world.name}: {world.description}",
-            idea=idea, num_chapters=num_chapters, arc_size=effective_arc_size,
+            idea=idea,
+            num_chapters=num_chapters,
+            arc_size=effective_arc_size,
         ),
         temperature=0.85,
         model=model,
@@ -65,15 +71,22 @@ def generate_macro_arcs(
                 logger.warning("Skipping malformed macro arc: %s", e)
     if not arcs:
         # Fallback: single arc covering all chapters
-        arcs.append(MacroArc(
-            arc_number=1, name="Toàn bộ truyện",
-            chapter_start=1, chapter_end=num_chapters,
-            central_conflict=idea, character_focus=[c.name for c in characters[:3]],
-        ))
+        arcs.append(
+            MacroArc(
+                arc_number=1,
+                name="Toàn bộ truyện",
+                chapter_start=1,
+                chapter_end=num_chapters,
+                central_conflict=idea,
+                character_focus=[c.name for c in characters[:3]],
+            )
+        )
     return arcs
 
 
-def get_arc_for_chapter(arcs: list[MacroArc], chapter_number: int) -> Optional[MacroArc]:
+def get_arc_for_chapter(
+    arcs: list[MacroArc], chapter_number: int
+) -> Optional[MacroArc]:
     """Find which macro arc a chapter belongs to."""
     for arc in arcs:
         if arc.chapter_start <= chapter_number <= arc.chapter_end:

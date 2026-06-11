@@ -35,7 +35,10 @@ async def test_concurrent_same_ip_requests_never_exceed_cap():
     granted = sum(1 for r in results if r)
     assert granted == pr._MAX_SESSIONS_PER_IP
     # And the registry holds exactly the cap — no extra slot slipped through.
-    assert sum(1 for (_, _, _ip) in pr._sessions.values() if _ip == ip) == pr._MAX_SESSIONS_PER_IP
+    assert (
+        sum(1 for (_, _, _ip) in pr._sessions.values() if _ip == ip)
+        == pr._MAX_SESSIONS_PER_IP
+    )
 
 
 @pytest.mark.asyncio

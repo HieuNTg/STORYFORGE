@@ -14,9 +14,12 @@ class PromptABBridge:
     def _get_prompt_manager(self):
         """Lazy import to avoid circular dependency and support parallel agent build."""
         from services.prompt_manager import prompt_manager  # noqa: PLC0415
+
         return prompt_manager
 
-    def create_prompt_experiment(self, prompt_name: str, variant_versions: list[str]) -> str:
+    def create_prompt_experiment(
+        self, prompt_name: str, variant_versions: list[str]
+    ) -> str:
         """Create an A/B experiment for a prompt, using version strings as variants.
 
         Args:
@@ -67,7 +70,9 @@ class PromptABBridge:
         experiment_id = self._prompt_experiments.get(prompt_name)
         if experiment_id is None:
             return
-        ab_manager.record_result(experiment_id, session_id, metric="quality", value=score)
+        ab_manager.record_result(
+            experiment_id, session_id, metric="quality", value=score
+        )
 
     def get_experiment_results(self, prompt_name: str) -> dict:
         """Return per-variant aggregated results for a prompt's experiment.

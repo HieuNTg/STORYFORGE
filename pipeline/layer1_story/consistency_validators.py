@@ -8,29 +8,58 @@ logger = logging.getLogger(__name__)
 # --- Arc stage mapping for drift detection ---
 
 _ARC_STAGES = {
-    "setup": 0.0, "rising": 0.2, "testing": 0.4,
-    "crisis": 0.6, "climax": 0.8, "resolution": 1.0,
+    "setup": 0.0,
+    "rising": 0.2,
+    "testing": 0.4,
+    "crisis": 0.6,
+    "climax": 0.8,
+    "resolution": 1.0,
 }
 
 _ARC_STAGE_ALIASES = {
-    "giới thiệu": "setup", "bắt đầu": "setup", "khởi đầu": "setup",
-    "phát triển": "rising", "tăng dần": "rising", "leo thang": "rising",
-    "thử thách": "testing", "đối mặt": "testing", "xung đột": "testing",
-    "khủng hoảng": "crisis", "sụp đổ": "crisis", "tuyệt vọng": "crisis",
-    "cao trào": "climax", "đỉnh điểm": "climax", "bùng nổ": "climax",
-    "giải quyết": "resolution", "kết thúc": "resolution", "hồi phục": "resolution",
+    "giới thiệu": "setup",
+    "bắt đầu": "setup",
+    "khởi đầu": "setup",
+    "phát triển": "rising",
+    "tăng dần": "rising",
+    "leo thang": "rising",
+    "thử thách": "testing",
+    "đối mặt": "testing",
+    "xung đột": "testing",
+    "khủng hoảng": "crisis",
+    "sụp đổ": "crisis",
+    "tuyệt vọng": "crisis",
+    "cao trào": "climax",
+    "đỉnh điểm": "climax",
+    "bùng nổ": "climax",
+    "giải quyết": "resolution",
+    "kết thúc": "resolution",
+    "hồi phục": "resolution",
 }
 
 
-def extract_timeline_and_locations(llm, chapter_content: str, chapter_number: int,
-                                   prev_timeline: dict, prev_locations: dict) -> tuple[dict, dict]:
+def extract_timeline_and_locations(
+    llm,
+    chapter_content: str,
+    chapter_number: int,
+    prev_timeline: dict,
+    prev_locations: dict,
+) -> tuple[dict, dict]:
     """Extract timeline positions (per POV) and character locations from chapter.
 
     Returns (timeline_positions, character_locations) dicts.
     Uses cheap LLM tier — single call for both.
     """
-    prev_tl_str = ", ".join(f"{k}: {v}" for k, v in prev_timeline.items()) if prev_timeline else "Chưa xác định"
-    prev_loc_str = ", ".join(f"{k}: {v}" for k, v in prev_locations.items()) if prev_locations else "Chưa xác định"
+    prev_tl_str = (
+        ", ".join(f"{k}: {v}" for k, v in prev_timeline.items())
+        if prev_timeline
+        else "Chưa xác định"
+    )
+    prev_loc_str = (
+        ", ".join(f"{k}: {v}" for k, v in prev_locations.items())
+        if prev_locations
+        else "Chưa xác định"
+    )
     try:
         result = llm.generate_json(
             system_prompt="Trích xuất thời gian và vị trí. Trả về JSON.",
@@ -54,7 +83,9 @@ def extract_timeline_and_locations(llm, chapter_content: str, chapter_number: in
         new_locations = result.get("character_locations", {})
         # Merge with previous (update, not replace)
         merged_tl = {**prev_timeline, **new_timeline} if new_timeline else prev_timeline
-        merged_loc = {**prev_locations, **new_locations} if new_locations else prev_locations
+        merged_loc = (
+            {**prev_locations, **new_locations} if new_locations else prev_locations
+        )
         return merged_tl, merged_loc
     except Exception as e:
         logger.warning(f"Timeline/location extraction failed ch{chapter_number}: {e}")
@@ -84,7 +115,7 @@ def validate_character_names(content: str, characters: list) -> list[str]:
             valid_forms.add(f"{parts[0]} {parts[-1]}")
 
     # Group consecutive capitalized words (Unicode-safe via .isupper())
-    all_words = re.findall(r'[^\W\d_]+', content, re.UNICODE)
+    all_words = re.findall(r"[^\W\d_]+", content, re.UNICODE)
     groups = []
     current_group: list[str] = []
     for word in all_words:
@@ -140,12 +171,32 @@ def _edit_distance(s1: str, s2: str) -> int:
 
 
 _TRAVEL_KEYWORDS = (
-    "di chuyển", "đi đến", "bay đến", "đến nơi", "hành trình",
-    "rời khỏi", "xuất phát", "trên đường", "travel", "journey",
-    "lên đường", "quay về", "trở lại", "đáp xuống", "cưỡi",
-    "dịch chuyển", "teleport", "xuyên không", "vượt qua",
-    "ngày sau", "tuần sau", "tháng sau", "năm sau",
-    "sáng hôm sau", "chiều hôm sau", "đêm hôm sau",
+    "di chuyển",
+    "đi đến",
+    "bay đến",
+    "đến nơi",
+    "hành trình",
+    "rời khỏi",
+    "xuất phát",
+    "trên đường",
+    "travel",
+    "journey",
+    "lên đường",
+    "quay về",
+    "trở lại",
+    "đáp xuống",
+    "cưỡi",
+    "dịch chuyển",
+    "teleport",
+    "xuyên không",
+    "vượt qua",
+    "ngày sau",
+    "tuần sau",
+    "tháng sau",
+    "năm sau",
+    "sáng hôm sau",
+    "chiều hôm sau",
+    "đêm hôm sau",
 )
 
 
@@ -179,8 +230,9 @@ def validate_location_transitions(
     return warnings
 
 
-def detect_arc_drift(character_states: list, characters: list,
-                     chapter_number: int, total_chapters: int) -> list[str]:
+def detect_arc_drift(
+    character_states: list, characters: list, chapter_number: int, total_chapters: int
+) -> list[str]:
     """Detect characters whose arc_position contradicts expected trajectory progress.
 
     Returns list of warning strings. Zero LLM cost — pure heuristic.
@@ -193,7 +245,7 @@ def detect_arc_drift(character_states: list, characters: list,
 
     for state in character_states:
         char = char_map.get(state.name)
-        if not char or not getattr(char, 'arc_trajectory', ''):
+        if not char or not getattr(char, "arc_trajectory", ""):
             continue
         pos = state.arc_position.lower().strip()
         pos_normalized = _ARC_STAGE_ALIASES.get(pos, pos)

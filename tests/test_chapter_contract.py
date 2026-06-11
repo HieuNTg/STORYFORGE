@@ -1,4 +1,5 @@
 """Sprint 1 Task 3 — NegotiatedChapterContract, validator, retry flow unit tests."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -33,14 +34,20 @@ class TestBuildChapterContracts:
         sr = SimulationResult(
             events=[
                 SimulationEvent(
-                    round_number=1, event_type="xung_đột",
-                    characters_involved=["A"], description="Big fight",
-                    drama_score=0.9, suggested_insertion="ch_2",
+                    round_number=1,
+                    event_type="xung_đột",
+                    characters_involved=["A"],
+                    description="Big fight",
+                    drama_score=0.9,
+                    suggested_insertion="ch_2",
                 ),
                 SimulationEvent(
-                    round_number=1, event_type="tiết_lộ",
-                    characters_involved=["B"], description="Secret reveal",
-                    drama_score=0.7, suggested_insertion="ch_2",
+                    round_number=1,
+                    event_type="tiết_lộ",
+                    characters_involved=["B"],
+                    description="Secret reveal",
+                    drama_score=0.7,
+                    suggested_insertion="ch_2",
                 ),
             ],
         )
@@ -68,18 +75,27 @@ class TestValidator:
         llm.generate_json.return_value = response
         return llm
 
-    def _contract(self, chapter_num: int = 1, drama_target: float = 0.7, **kwargs) -> NegotiatedChapterContract:
-        return NegotiatedChapterContract(chapter_num=chapter_num, pacing_type="rising", drama_target=drama_target, **kwargs)
+    def _contract(
+        self, chapter_num: int = 1, drama_target: float = 0.7, **kwargs
+    ) -> NegotiatedChapterContract:
+        return NegotiatedChapterContract(
+            chapter_num=chapter_num,
+            pacing_type="rising",
+            drama_target=drama_target,
+            **kwargs,
+        )
 
     def test_passes_when_contract_met(self):
-        llm = self._llm({
-            "drama_actual": 0.75,
-            "missing_escalations": [],
-            "missing_subtext": [],
-            "missing_causal_refs": [],
-            "violated_patterns": [],
-            "reason": "ok",
-        })
+        llm = self._llm(
+            {
+                "drama_actual": 0.75,
+                "missing_escalations": [],
+                "missing_subtext": [],
+                "missing_causal_refs": [],
+                "violated_patterns": [],
+                "reason": "ok",
+            }
+        )
         c = self._contract(1, 0.7, escalation_events=["fight"])
         v = validate_chapter_against_contract(llm, "content", c)
         assert v.passed is True
@@ -87,28 +103,32 @@ class TestValidator:
         assert abs(v.drama_delta - 0.05) < 1e-6
 
     def test_fails_on_missing_escalation(self):
-        llm = self._llm({
-            "drama_actual": 0.7,
-            "missing_escalations": ["confrontation"],
-            "missing_subtext": [],
-            "missing_causal_refs": [],
-            "violated_patterns": [],
-            "reason": "missing",
-        })
+        llm = self._llm(
+            {
+                "drama_actual": 0.7,
+                "missing_escalations": ["confrontation"],
+                "missing_subtext": [],
+                "missing_causal_refs": [],
+                "violated_patterns": [],
+                "reason": "missing",
+            }
+        )
         c = self._contract(1, 0.7, escalation_events=["confrontation"])
         v = validate_chapter_against_contract(llm, "content", c)
         assert v.passed is False
         assert "confrontation" in v.missing_escalations
 
     def test_fails_on_drama_outside_tolerance(self):
-        llm = self._llm({
-            "drama_actual": 0.3,  # target 0.8, delta -0.5 > tolerance 0.15
-            "missing_escalations": [],
-            "missing_subtext": [],
-            "missing_causal_refs": [],
-            "violated_patterns": [],
-            "reason": "weak",
-        })
+        llm = self._llm(
+            {
+                "drama_actual": 0.3,  # target 0.8, delta -0.5 > tolerance 0.15
+                "missing_escalations": [],
+                "missing_subtext": [],
+                "missing_causal_refs": [],
+                "violated_patterns": [],
+                "reason": "weak",
+            }
+        )
         c = self._contract(1, 0.8)
         v = validate_chapter_against_contract(llm, "content", c)
         assert v.passed is False
@@ -145,13 +165,15 @@ class TestRetryHint:
 
     def test_missing_escalations_listed(self):
         v = ContractValidation(
-            chapter_number=1, missing_escalations=["fight", "reveal"],
+            chapter_number=1,
+            missing_escalations=["fight", "reveal"],
         )
         assert "fight" in build_retry_hint(v)
 
     def test_violations_emphasized(self):
         v = ContractValidation(
-            chapter_number=1, violated_patterns=["hero dies"],
+            chapter_number=1,
+            violated_patterns=["hero dies"],
         )
         assert "LOẠI BỎ" in build_retry_hint(v)
 
@@ -163,7 +185,12 @@ class TestAggregateStats:
     def test_counts(self):
         validations = [
             ContractValidation(chapter_number=1, passed=True, compliance_score=1.0),
-            ContractValidation(chapter_number=2, passed=True, retry_attempted=True, compliance_score=0.8),
+            ContractValidation(
+                chapter_number=2,
+                passed=True,
+                retry_attempted=True,
+                compliance_score=0.8,
+            ),
             ContractValidation(chapter_number=3, passed=False, compliance_score=0.4),
         ]
         s = aggregate_contract_stats(validations)

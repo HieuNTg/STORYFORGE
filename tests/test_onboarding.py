@@ -10,6 +10,7 @@ from services.onboarding import OnboardingManager, STEPS
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_manager(tmp_path) -> OnboardingManager:
     """Return a fresh OnboardingManager backed by a temp file."""
     state_file = str(tmp_path / "onboarding_state.json")
@@ -20,6 +21,7 @@ def _make_manager(tmp_path) -> OnboardingManager:
 # ---------------------------------------------------------------------------
 # STEPS structure
 # ---------------------------------------------------------------------------
+
 
 class TestStepsStructure:
     def test_steps_not_empty(self):
@@ -44,6 +46,7 @@ class TestStepsStructure:
 # ---------------------------------------------------------------------------
 # OnboardingManager — load / save
 # ---------------------------------------------------------------------------
+
 
 class TestOnboardingManagerLoadSave:
     def test_fresh_state_defaults(self, tmp_path):
@@ -79,6 +82,7 @@ class TestOnboardingManagerLoadSave:
 # ---------------------------------------------------------------------------
 # advance
 # ---------------------------------------------------------------------------
+
 
 class TestAdvance:
     def test_advance_increments_step(self, tmp_path):
@@ -120,6 +124,7 @@ class TestAdvance:
 # skip
 # ---------------------------------------------------------------------------
 
+
 class TestSkip:
     def test_skip_marks_completed(self, tmp_path):
         mgr = _make_manager(tmp_path)
@@ -142,6 +147,7 @@ class TestSkip:
 # ---------------------------------------------------------------------------
 # reset
 # ---------------------------------------------------------------------------
+
 
 class TestReset:
     def test_reset_clears_completed(self, tmp_path):
@@ -170,6 +176,7 @@ class TestReset:
 # ---------------------------------------------------------------------------
 # current_step bounds
 # ---------------------------------------------------------------------------
+
 
 class TestCurrentStepBounds:
     def test_get_current_step_info_within_bounds(self, tmp_path):

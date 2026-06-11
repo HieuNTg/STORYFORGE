@@ -72,9 +72,17 @@ def generate_premise(
         logger.warning("generate_premise: LLM call failed: %s", e)
         return {}
 
-    required_keys = {"premise_statement", "thematic_core", "thematic_keywords", "moral_dilemma"}
+    required_keys = {
+        "premise_statement",
+        "thematic_core",
+        "thematic_keywords",
+        "moral_dilemma",
+    }
     if not isinstance(result, dict) or not required_keys.issubset(result.keys()):
-        logger.warning("generate_premise: incomplete result, missing keys. Got: %s", list(result.keys()) if isinstance(result, dict) else type(result).__name__)
+        logger.warning(
+            "generate_premise: incomplete result, missing keys. Got: %s",
+            list(result.keys()) if isinstance(result, dict) else type(result).__name__,
+        )
         return {}
 
     keywords = result.get("thematic_keywords", [])
@@ -117,7 +125,9 @@ def build_idea_summary_for_chapters(
     if not idea or not idea.strip():
         return ""
 
-    cheap_model = model or getattr(getattr(llm, "config", None), "cheap_model", "") or None
+    cheap_model = (
+        model or getattr(getattr(llm, "config", None), "cheap_model", "") or None
+    )
     try:
         result = llm.generate_json(
             system_prompt=(

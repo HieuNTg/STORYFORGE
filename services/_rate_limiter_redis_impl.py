@@ -43,6 +43,7 @@ class RedisRateLimiter(RateLimiterBase):
 
     def __init__(self, redis_url: str) -> None:
         from services._rate_limiter_inmemory import InMemoryRateLimiter
+
         self._redis_url = redis_url
         self._client: Optional[object] = None
         self._script_sha: Optional[str] = None
@@ -57,6 +58,7 @@ class RedisRateLimiter(RateLimiterBase):
     def _connect(self) -> None:
         try:
             import redis  # type: ignore[import]
+
             client = redis.from_url(
                 self._redis_url,
                 socket_connect_timeout=2,
@@ -81,8 +83,7 @@ class RedisRateLimiter(RateLimiterBase):
         try:
             now_ms = int(time.time() * 1000)
             count = self._client.evalsha(  # type: ignore[attr-defined]
-                self._script_sha, 1, key,
-                now_ms, window_seconds * 1000, limit
+                self._script_sha, 1, key, now_ms, window_seconds * 1000, limit
             )
             return int(count)
         except Exception as exc:

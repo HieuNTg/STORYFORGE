@@ -14,7 +14,9 @@ from services.share_manager import ShareManager
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/share", tags=["share"])
 _CREATE_STORIES = Depends(require_permission_if_enabled(Permission.CREATE_STORIES))
-_DELETE_ANY_STORIES = Depends(require_permission_if_enabled(Permission.DELETE_ANY_STORIES))
+_DELETE_ANY_STORIES = Depends(
+    require_permission_if_enabled(Permission.DELETE_ANY_STORIES)
+)
 
 _share_manager = ShareManager()
 
@@ -66,7 +68,9 @@ class LibraryShareRequest(BaseModel):
     genre: str = Field(default="", max_length=200)
     synopsis: str = Field(default="", max_length=10_000)
     chapters: list[LibraryChapterPayload] = Field(min_length=1, max_length=500)
-    characters: list[LibraryCharacterPayload] = Field(default_factory=list, max_length=50)
+    characters: list[LibraryCharacterPayload] = Field(
+        default_factory=list, max_length=50
+    )
     is_public: bool = True
     expires_days: int = Field(default=30, ge=1, le=365)
     replace_share_id: str = Field(default="", max_length=36)
@@ -80,7 +84,9 @@ def create_share(req: CreateShareRequest):
 
     orch = _orchestrators.get(req.session_id)
     if not orch or not orch.output:
-        return JSONResponse({"error": "No story output found for session"}, status_code=404)
+        return JSONResponse(
+            {"error": "No story output found for session"}, status_code=404
+        )
 
     story = orch.output
     characters = getattr(orch, "characters", None)
@@ -120,7 +126,8 @@ def create_share_from_library(req: LibraryShareRequest):
         # Only same-origin /media/ URLs survive — anything else is dropped so
         # shared HTML can never embed external or traversal image sources.
         safe_images = [
-            u.strip() for u in ch.images
+            u.strip()
+            for u in ch.images
             if isinstance(u, str) and u.strip().startswith("/media/") and ".." not in u
         ]
         chapters.append(
@@ -184,7 +191,7 @@ def gallery(
     """List active public shares with pagination (no auth required)."""
     all_shares = _share_manager.list_public_shares()
     total = len(all_shares)
-    page = all_shares[offset: offset + limit]
+    page = all_shares[offset : offset + limit]
     return {
         "items": [
             {

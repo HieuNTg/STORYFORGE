@@ -26,6 +26,7 @@ def _drain(items):
 
 # --- C1: drain must not drop log frames -------------------------------------
 
+
 def test_drain_preserves_all_log_frames_in_order():
     items = [("log", "a"), ("log", "b"), ("log", "c")]
     assert _drain(items) == items
@@ -70,6 +71,7 @@ def test_drain_trailing_consecutive_streams_keep_last():
 
 
 # --- H3: error reason recovery ----------------------------------------------
+
 
 def test_error_reason_returns_last_nonempty_log():
     logs = ["[OUTLINE] ...", "Không kết nối được LLM: timeout"]

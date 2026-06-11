@@ -9,8 +9,15 @@ from fastapi import FastAPI
 from httpx import AsyncClient, ASGITransport
 
 from models.schemas import (
-    StoryDraft, Character, WorldSetting, ChapterOutline, Chapter,
-    CharacterState, PlotEvent, StoryContext, PipelineOutput,
+    StoryDraft,
+    Character,
+    WorldSetting,
+    ChapterOutline,
+    Chapter,
+    CharacterState,
+    PlotEvent,
+    StoryContext,
+    PipelineOutput,
 )
 from pipeline.layer1_story.story_continuation import regenerate_chapter_impl
 
@@ -19,29 +26,57 @@ from pipeline.layer1_story.story_continuation import regenerate_chapter_impl
 # Helper Fixtures
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def _make_draft(num_chapters: int = 3) -> StoryDraft:
     """Create a test StoryDraft with specified number of chapters."""
     return StoryDraft(
         title="Test Story",
         genre="fantasy",
         characters=[
-            Character(name="Hero", role="protagonist", personality="brave", motivation="save world"),
-            Character(name="Villain", role="antagonist", personality="cunning", motivation="domination"),
+            Character(
+                name="Hero",
+                role="protagonist",
+                personality="brave",
+                motivation="save world",
+            ),
+            Character(
+                name="Villain",
+                role="antagonist",
+                personality="cunning",
+                motivation="domination",
+            ),
         ],
         world=WorldSetting(name="TestWorld", description="A fantasy realm"),
         outlines=[
-            ChapterOutline(chapter_number=i + 1, title=f"Chapter {i + 1}", summary=f"Summary {i + 1}", key_events=[])
+            ChapterOutline(
+                chapter_number=i + 1,
+                title=f"Chapter {i + 1}",
+                summary=f"Summary {i + 1}",
+                key_events=[],
+            )
             for i in range(num_chapters)
         ],
         chapters=[
-            Chapter(chapter_number=i + 1, title=f"Chapter {i + 1}", content=f"Content {i + 1}", word_count=1000, summary=f"Summary {i + 1}")
+            Chapter(
+                chapter_number=i + 1,
+                title=f"Chapter {i + 1}",
+                content=f"Content {i + 1}",
+                word_count=1000,
+                summary=f"Summary {i + 1}",
+            )
             for i in range(num_chapters)
         ],
         character_states=[
-            CharacterState(name="Hero", mood="determined", arc_position="rising", last_action="trained"),
+            CharacterState(
+                name="Hero",
+                mood="determined",
+                arc_position="rising",
+                last_action="trained",
+            ),
         ],
         plot_events=[
-            PlotEvent(chapter_number=i + 1, event=f"Event {i + 1}") for i in range(num_chapters)
+            PlotEvent(chapter_number=i + 1, event=f"Event {i + 1}")
+            for i in range(num_chapters)
         ],
     )
 
@@ -62,6 +97,7 @@ def _make_generator():
 # Unit Tests: regenerate_chapter_impl
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestRegenerateChapterImpl:
     """Unit tests for regenerate_chapter_impl function."""
 
@@ -80,7 +116,10 @@ class TestRegenerateChapterImpl:
         draft = _make_draft(num_chapters=3)
 
         new_chapter = Chapter(
-            chapter_number=2, title="Chapter 2", content="New regenerated content", word_count=1500
+            chapter_number=2,
+            title="Chapter 2",
+            content="New regenerated content",
+            word_count=1500,
         )
         gen._write_chapter_with_long_context.return_value = new_chapter
         mock_post_write.return_value = (new_chapter, "summary", [], [])
@@ -115,7 +154,9 @@ class TestRegenerateChapterImpl:
         gen = _make_generator()
         draft = _make_draft(num_chapters=5)
 
-        new_chapter = Chapter(chapter_number=3, title="Ch3", content="new", word_count=1000)
+        new_chapter = Chapter(
+            chapter_number=3, title="Ch3", content="new", word_count=1000
+        )
         gen._write_chapter_with_long_context.return_value = new_chapter
         mock_post_write.return_value = (new_chapter, "s", [], [])
 
@@ -133,7 +174,9 @@ class TestRegenerateChapterImpl:
         draft = _make_draft(num_chapters=3)
         stream_cb = MagicMock()
 
-        new_chapter = Chapter(chapter_number=2, title="Ch2", content="streamed", word_count=1000)
+        new_chapter = Chapter(
+            chapter_number=2, title="Ch2", content="streamed", word_count=1000
+        )
         gen.write_chapter_stream.return_value = new_chapter
         mock_post_write.return_value = (new_chapter, "s", [], [])
 
@@ -149,11 +192,15 @@ class TestRegenerateChapterImpl:
         draft = _make_draft(num_chapters=3)
         progress_msgs = []
 
-        new_chapter = Chapter(chapter_number=2, title="Ch2", content="new", word_count=1000)
+        new_chapter = Chapter(
+            chapter_number=2, title="Ch2", content="new", word_count=1000
+        )
         gen._write_chapter_with_long_context.return_value = new_chapter
         mock_post_write.return_value = (new_chapter, "s", [], [])
 
-        regenerate_chapter_impl(gen, draft, chapter_number=2, progress_callback=progress_msgs.append)
+        regenerate_chapter_impl(
+            gen, draft, chapter_number=2, progress_callback=progress_msgs.append
+        )
 
         assert any("Regenerating chapter 2" in msg for msg in progress_msgs)
         assert any("regenerated successfully" in msg for msg in progress_msgs)
@@ -163,6 +210,7 @@ class TestRegenerateChapterImpl:
 # Unit Tests: StoryContinuation.regenerate_chapter
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestStoryContinuationRegenerateChapter:
     """Tests for StoryContinuation.regenerate_chapter method."""
 
@@ -171,7 +219,9 @@ class TestStoryContinuationRegenerateChapter:
         from pipeline.orchestrator_continuation import StoryContinuation
 
         output = PipelineOutput()
-        cont = StoryContinuation(output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+        cont = StoryContinuation(
+            output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
 
         with pytest.raises(ValueError, match="No story draft loaded"):
             cont.regenerate_chapter(chapter_number=1)
@@ -181,7 +231,9 @@ class TestStoryContinuationRegenerateChapter:
         from pipeline.orchestrator_continuation import StoryContinuation
 
         output = PipelineOutput(story_draft=_make_draft(num_chapters=3))
-        cont = StoryContinuation(output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+        cont = StoryContinuation(
+            output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
 
         with pytest.raises(ValueError, match="Invalid chapter_number"):
             cont.regenerate_chapter(chapter_number=0)
@@ -198,7 +250,9 @@ class TestStoryContinuationRegenerateChapter:
         output = PipelineOutput(story_draft=draft)
         checkpoint_mgr = MagicMock()
 
-        cont = StoryContinuation(output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), checkpoint_mgr)
+        cont = StoryContinuation(
+            output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), checkpoint_mgr
+        )
         mock_impl.return_value = draft
 
         cont.regenerate_chapter(chapter_number=2, word_count=1500)
@@ -216,7 +270,9 @@ class TestStoryContinuationRegenerateChapter:
         enhanced = EnhancedStory(title="Test", genre="fantasy", chapters=[])
         output = PipelineOutput(story_draft=draft, enhanced_story=enhanced)
 
-        cont = StoryContinuation(output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+        cont = StoryContinuation(
+            output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
         mock_impl.return_value = draft
 
         cont.regenerate_chapter(chapter_number=2)
@@ -228,9 +284,11 @@ class TestStoryContinuationRegenerateChapter:
 # API Tests: POST /pipeline/regenerate-chapter
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def _make_app() -> FastAPI:
     from fastapi import APIRouter
     from api.continuation_routes import router as continuation_router
+
     app = FastAPI()
     api = APIRouter(prefix="/api")
     api.include_router(continuation_router)
@@ -314,6 +372,7 @@ class TestRegenerateChapterAPI:
 # Edge Case Tests
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestRegenerateEdgeCases:
     """Edge case and boundary tests."""
 
@@ -323,7 +382,9 @@ class TestRegenerateEdgeCases:
         gen = _make_generator()
         draft = _make_draft(num_chapters=3)
 
-        new_chapter = Chapter(chapter_number=1, title="Ch1", content="new first", word_count=1000)
+        new_chapter = Chapter(
+            chapter_number=1, title="Ch1", content="new first", word_count=1000
+        )
         gen._write_chapter_with_long_context.return_value = new_chapter
         mock_post_write.return_value = (new_chapter, "s", [], [])
 
@@ -337,7 +398,9 @@ class TestRegenerateEdgeCases:
         gen = _make_generator()
         draft = _make_draft(num_chapters=3)
 
-        new_chapter = Chapter(chapter_number=3, title="Ch3", content="new last", word_count=1000)
+        new_chapter = Chapter(
+            chapter_number=3, title="Ch3", content="new last", word_count=1000
+        )
         gen._write_chapter_with_long_context.return_value = new_chapter
         mock_post_write.return_value = (new_chapter, "s", [], [])
 
@@ -353,7 +416,9 @@ class TestRegenerateEdgeCases:
         gen = _make_generator()
         draft = _make_draft(num_chapters=3)
 
-        new_chapter = Chapter(chapter_number=2, title="Ch2", content="styled", word_count=1000)
+        new_chapter = Chapter(
+            chapter_number=2, title="Ch2", content="styled", word_count=1000
+        )
         gen._write_chapter_with_long_context.return_value = new_chapter
         mock_post_write.return_value = (new_chapter, "s", [], [])
 

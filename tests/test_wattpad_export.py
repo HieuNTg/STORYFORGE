@@ -1,4 +1,5 @@
 """Tests for Wattpad export ZIP bundle, character appendix, and reading time."""
+
 import os
 import zipfile
 from models.schemas import StoryDraft, Chapter, Character, WorldSetting, ChapterOutline
@@ -8,13 +9,29 @@ from services.wattpad_exporter import PlatformExporter
 class TestWattpadExport:
     def _make_story(self, title="Test Story", with_characters=True):
         chapters = [
-            Chapter(chapter_number=1, title="Ch1", content="Hello world " * 100, word_count=200),
-            Chapter(chapter_number=2, title="Ch2", content="Second chapter " * 50, word_count=100),
+            Chapter(
+                chapter_number=1,
+                title="Ch1",
+                content="Hello world " * 100,
+                word_count=200,
+            ),
+            Chapter(
+                chapter_number=2,
+                title="Ch2",
+                content="Second chapter " * 50,
+                word_count=100,
+            ),
         ]
         characters = []
         if with_characters:
             characters = [
-                Character(name="Alice", role="main", personality="brave", background="hero", motivation="save world"),
+                Character(
+                    name="Alice",
+                    role="main",
+                    personality="brave",
+                    background="hero",
+                    motivation="save world",
+                ),
             ]
         return StoryDraft(
             title=title,

@@ -1,4 +1,5 @@
 """Unit tests for services.trace_context + services.llm_pricing (Sprint 1 Task 2)."""
+
 from __future__ import annotations
 
 import asyncio
@@ -82,8 +83,13 @@ class TestPipelineTrace:
         t.add_call(_make_call(module="l1", chapter=1))
         s = t.summary()
         assert set(s) == {
-            "trace_id", "total_calls", "total_tokens",
-            "total_cost_usd", "cost_by_module", "cost_by_chapter", "rag",
+            "trace_id",
+            "total_calls",
+            "total_tokens",
+            "total_cost_usd",
+            "cost_by_module",
+            "cost_by_chapter",
+            "rag",
         }
         assert s["total_calls"] == 1
 

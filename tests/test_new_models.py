@@ -1,9 +1,13 @@
 """Test new Pydantic models added in Phase 1."""
+
 import pytest
 from pydantic import ValidationError
 from models.schemas import (
-    EscalationPattern, ImagePrompt, UserProfile,
-    ReadingStats, ShareableStory,
+    EscalationPattern,
+    ImagePrompt,
+    UserProfile,
+    ReadingStats,
+    ShareableStory,
 )
 
 

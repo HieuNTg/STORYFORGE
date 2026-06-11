@@ -25,6 +25,7 @@ output is run through deterministic post-processing (``enforce_rules``) that:
 Vietnamese dialogue must round-trip byte-for-byte (diacritics preserved); none of
 the post-processing mutates bubble/caption text.
 """
+
 from __future__ import annotations
 
 import logging
@@ -129,6 +130,7 @@ Trả về JSON đúng schema:
 # ---------------------------------------------------------------------------
 class Bubble(BaseModel):
     """A single dialogue bubble. ``text`` is Vietnamese, preserved verbatim."""
+
     speaker: str = ""
     type: str = "speech"  # speech|thought|shout|whisper|offscreen
     text: str = ""
@@ -136,12 +138,14 @@ class Bubble(BaseModel):
 
 class Caption(BaseModel):
     """A narration / scene-transition caption box (no tail)."""
+
     type: str = "narration"  # narration|transition
     text: str = ""
 
 
 class Panel(BaseModel):
     """One comic panel ≈ one beat."""
+
     n: int = 0
     shot: str = "MS"
     beat: str = ""
@@ -158,6 +162,7 @@ class Panel(BaseModel):
 
 class Page(BaseModel):
     """A page = a layout + its ordered panels."""
+
     page: int = 1
     layout: str = "THREE_TIER"
     panels: list[Panel] = Field(default_factory=list)
@@ -165,6 +170,7 @@ class Page(BaseModel):
 
 class ShotList(BaseModel):
     """The full shot-list for one chapter."""
+
     chapter_number: int = 0
     pages: list[Page] = Field(default_factory=list)
 
@@ -223,8 +229,11 @@ def enforce_rules(
         bubbles = list(panel.bubbles)
         # Find an over-long bubble (> MAX_WORDS_PER_BUBBLE Vietnamese words).
         first_long_idx = next(
-            (i for i, b in enumerate(bubbles)
-             if _word_count_vi(b.text) > MAX_WORDS_PER_BUBBLE),
+            (
+                i
+                for i, b in enumerate(bubbles)
+                if _word_count_vi(b.text) > MAX_WORDS_PER_BUBBLE
+            ),
             None,
         )
         if first_long_idx is not None and first_long_idx > 0:
@@ -240,7 +249,7 @@ def enforce_rules(
             # Chunk overflow bubbles into additional panels of ≤2 each.
             for start in range(0, len(bubbles), MAX_BUBBLES_PER_PANEL):
                 chunk = panel.model_copy(deep=True)
-                chunk.bubbles = bubbles[start:start + MAX_BUBBLES_PER_PANEL]
+                chunk.bubbles = bubbles[start : start + MAX_BUBBLES_PER_PANEL]
                 # Only the first chunk keeps captions to avoid duplicate narration.
                 if start > 0:
                     chunk.captions = []
@@ -271,8 +280,7 @@ def enforce_rules(
         if cur == prev:
             # Pick the first rotation shot that differs from BOTH neighbours,
             # without demoting an establishing shot that a new scene requires.
-            nxt = (panels[idx + 1].shot.upper()
-                   if idx + 1 < len(panels) else "")
+            nxt = panels[idx + 1].shot.upper() if idx + 1 < len(panels) else ""
             replacement = next(
                 (s for s in _SHOT_ROTATION if s != prev and s != nxt),
                 "MS",
@@ -290,8 +298,11 @@ def enforce_rules(
     for i, panel in enumerate(panels, 1):
         panel.n = i
 
-    splash_idx = (max(range(len(panels)), key=lambda i: _beat_weight(panels[i]))
-                  if panels else None)
+    splash_idx = (
+        max(range(len(panels)), key=lambda i: _beat_weight(panels[i]))
+        if panels
+        else None
+    )
 
     # --- Re-page: SPLASH beat solo; everything else in 3-panel THREE_TIER pages. ---
     pages: list[Page] = []
@@ -305,16 +316,22 @@ def enforce_rules(
         # A lone leftover panel must NOT become an incidental SPLASH (SPLASH is
         # reserved for the biggest beat). Fold it into the previous regular page
         # (max 4 → GRID_2x2); only stand alone as a last resort.
-        if len(buf) == 1 and pages and pages[-1].layout != "SPLASH" \
-                and len(pages[-1].panels) < 4:
+        if (
+            len(buf) == 1
+            and pages
+            and pages[-1].layout != "SPLASH"
+            and len(pages[-1].panels) < 4
+        ):
             pages[-1].panels.extend(buf)
             pages[-1].layout = _layout_for(len(pages[-1].panels))
             return
-        pages.append(Page(
-            page=page_num,
-            layout=_layout_for(len(buf)) if len(buf) > 1 else "TWO_TIER",
-            panels=list(buf),
-        ))
+        pages.append(
+            Page(
+                page=page_num,
+                layout=_layout_for(len(buf)) if len(buf) > 1 else "TWO_TIER",
+                panels=list(buf),
+            )
+        )
         page_num += 1
 
     for i, panel in enumerate(panels):
@@ -391,11 +408,13 @@ def _parse_pages(raw: dict, chapter_number: int) -> ShotList:
             for panel_raw in pg.get("panels", []) or []
             if isinstance(panel_raw, dict)
         ]
-        pages.append(Page(
-            page=int(pg.get("page", pi) or pi),
-            layout=str(pg.get("layout", "THREE_TIER")),
-            panels=panels,
-        ))
+        pages.append(
+            Page(
+                page=int(pg.get("page", pi) or pi),
+                layout=str(pg.get("layout", "THREE_TIER")),
+                panels=panels,
+            )
+        )
     return ShotList(chapter_number=chapter_number, pages=pages)
 
 
@@ -470,13 +489,15 @@ class ShotListExtractor:
                 except Exception as cov_e:
                     logger.warning(
                         "Coverage check failed for ch %s, using unverified shot-list: %s",
-                        chapter.chapter_number, cov_e,
+                        chapter.chapter_number,
+                        cov_e,
                     )
             return enforce_rules(shot_list, character_references=character_references)
         except Exception as e:
             logger.warning(
                 "Shot-list extraction failed for ch %s: %s",
-                chapter.chapter_number, e,
+                chapter.chapter_number,
+                e,
             )
             return ShotList(chapter_number=chapter.chapter_number, pages=[])
 
@@ -499,7 +520,9 @@ class ShotListExtractor:
 
         beat_lines = []
         for p in panels:
-            dialogue = "; ".join(f'{b.speaker}: "{b.text}"' for b in p.bubbles if b.text)
+            dialogue = "; ".join(
+                f'{b.speaker}: "{b.text}"' for b in p.bubbles if b.text
+            )
             caption = "; ".join(c.text for c in p.captions if c.text)
             line = f"#{p.n} [{p.shot}] {p.beat} | action: {p.action} | setting: {p.setting}"
             if caption:
@@ -524,7 +547,8 @@ class ShotListExtractor:
         missing_raw = (raw or {}).get("missing")
         if not isinstance(missing_raw, list) or not missing_raw:
             logger.info(
-                "Coverage check ch %s: no missing beats", chapter.chapter_number,
+                "Coverage check ch %s: no missing beats",
+                chapter.chapter_number,
             )
             return shot_list
 
@@ -552,7 +576,10 @@ class ShotListExtractor:
             merged.extend(by_anchor.get(p.n, []))
         logger.info(
             "Coverage check ch %s: inserted %d missing beat(s) (%d → %d panels)",
-            chapter.chapter_number, len(inserts), len(panels), len(merged),
+            chapter.chapter_number,
+            len(inserts),
+            len(panels),
+            len(merged),
         )
         return ShotList(
             chapter_number=shot_list.chapter_number,

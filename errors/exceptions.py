@@ -1,14 +1,21 @@
 """Typed exceptions for StoryForge."""
 
 __all__ = [
-    "StoryForgeError", "ConfigError", "LLMError", "LLMQuotaExhausted",
-    "LLMModelNotFound", "PipelineError", "InputSanitizationError",
-    "ExportError", "StorageError",
+    "StoryForgeError",
+    "ConfigError",
+    "LLMError",
+    "LLMQuotaExhausted",
+    "LLMModelNotFound",
+    "PipelineError",
+    "InputSanitizationError",
+    "ExportError",
+    "StorageError",
 ]
 
 
 class StoryForgeError(Exception):
     """Base exception. All custom exceptions inherit from this."""
+
     def __init__(self, message: str, code: str = "INTERNAL_ERROR"):
         self.message = message
         self.code = code

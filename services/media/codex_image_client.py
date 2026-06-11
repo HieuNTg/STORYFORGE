@@ -58,9 +58,7 @@ class CodexImageClient:
         self.auth_path = auth_path or os.path.join(
             os.path.expanduser("~"), ".codex", "auth.json"
         )
-        self.config_path = os.path.join(
-            os.path.dirname(self.auth_path), "config.toml"
-        )
+        self.config_path = os.path.join(os.path.dirname(self.auth_path), "config.toml")
         self.model = model or self._read_config_model() or _DEFAULT_MODEL
         self.request_timeout = request_timeout
         self._access: Optional[str] = None  # cached access token (in-memory)
@@ -84,6 +82,7 @@ class CodexImageClient:
             with open(self.config_path, "rb") as f:
                 try:
                     import tomllib  # py3.11+
+
                     cfg = tomllib.load(f)
                     val = cfg.get("model")
                     return val if isinstance(val, str) else ""
@@ -289,7 +288,9 @@ class CodexImageClient:
                             data = base64.b64decode(c)
                         except (ValueError, base64.binascii.Error):
                             continue
-                        if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) > len(biggest):
+                        if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) > len(
+                            biggest
+                        ):
                             biggest = data
         finally:
             resp.close()

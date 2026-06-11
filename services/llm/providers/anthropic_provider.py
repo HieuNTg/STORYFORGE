@@ -1,4 +1,5 @@
 """Native Anthropic provider."""
+
 import logging
 from typing import Iterator
 
@@ -11,6 +12,7 @@ class AnthropicProvider:
     def __init__(self, api_key: str, base_url: str = ""):
         try:
             from anthropic import Anthropic
+
             kwargs: dict = {"api_key": api_key}
             if base_url:
                 kwargs["base_url"] = base_url
@@ -18,9 +20,7 @@ class AnthropicProvider:
             self._base_url = base_url
             self._api_key = api_key
         except ImportError:
-            raise ImportError(
-                "Anthropic SDK not installed. Run: pip install anthropic"
-            )
+            raise ImportError("Anthropic SDK not installed. Run: pip install anthropic")
 
     @property
     def base_url(self):
@@ -33,10 +33,13 @@ class AnthropicProvider:
             raw_response = getattr(response, "_response", None)
             if not raw_response:
                 return
-            headers = dict(raw_response.headers) if hasattr(raw_response, "headers") else {}
+            headers = (
+                dict(raw_response.headers) if hasattr(raw_response, "headers") else {}
+            )
             if not headers:
                 return
             from services.llm.provider_status import get_provider_status_manager
+
             mgr = get_provider_status_manager()
             mgr.extract_rate_limits("anthropic", self._api_key, headers)
         except Exception as e:
@@ -53,8 +56,14 @@ class AnthropicProvider:
                 user_messages.append(m)
         return system_msg, user_messages
 
-    def complete(self, messages: list[dict], model: str, temperature: float,
-                 max_tokens: int, json_mode: bool = False) -> str:
+    def complete(
+        self,
+        messages: list[dict],
+        model: str,
+        temperature: float,
+        max_tokens: int,
+        json_mode: bool = False,
+    ) -> str:
         system_msg, user_messages = self._split_messages(messages)
         kwargs: dict = {
             "model": model,
@@ -71,8 +80,9 @@ class AnthropicProvider:
             raise RuntimeError(f"LLM returned empty content (model={model})")
         return content
 
-    def stream(self, messages: list[dict], model: str, temperature: float,
-               max_tokens: int) -> Iterator[str]:
+    def stream(
+        self, messages: list[dict], model: str, temperature: float, max_tokens: int
+    ) -> Iterator[str]:
         system_msg, user_messages = self._split_messages(messages)
         kwargs: dict = {
             "model": model,

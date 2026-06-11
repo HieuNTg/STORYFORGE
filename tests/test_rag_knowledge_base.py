@@ -17,8 +17,8 @@ from services.rag_knowledge_base import _chunk_text, _read_file, RAGKnowledgeBas
 # _chunk_text tests
 # ---------------------------------------------------------------------------
 
-class TestChunkText(unittest.TestCase):
 
+class TestChunkText(unittest.TestCase):
     def test_empty_string_returns_empty(self):
         self.assertEqual(_chunk_text(""), [])
 
@@ -65,11 +65,12 @@ class TestChunkText(unittest.TestCase):
 # _read_file tests
 # ---------------------------------------------------------------------------
 
-class TestReadFile(unittest.TestCase):
 
+class TestReadFile(unittest.TestCase):
     def test_read_txt_file(self):
-        with tempfile.NamedTemporaryFile(suffix=".txt", mode="w",
-                                        encoding="utf-8", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            suffix=".txt", mode="w", encoding="utf-8", delete=False
+        ) as f:
             f.write("Xin chào thế giới.")
             tmp_path = f.name
         try:
@@ -79,8 +80,9 @@ class TestReadFile(unittest.TestCase):
             os.unlink(tmp_path)
 
     def test_read_md_file(self):
-        with tempfile.NamedTemporaryFile(suffix=".md", mode="w",
-                                        encoding="utf-8", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            suffix=".md", mode="w", encoding="utf-8", delete=False
+        ) as f:
             f.write("# Tiêu đề\nNội dung markdown.")
             tmp_path = f.name
         try:
@@ -104,6 +106,7 @@ class TestReadFile(unittest.TestCase):
 
     def test_file_too_large_raises(self):
         from services.rag_knowledge_base import MAX_FILE_SIZE_BYTES
+
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
             f.write(b"x" * (MAX_FILE_SIZE_BYTES + 1))
             tmp_path = f.name
@@ -117,6 +120,7 @@ class TestReadFile(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # RAGKnowledgeBase tests (with mocked ChromaDB)
 # ---------------------------------------------------------------------------
+
 
 def _make_mock_collection(doc_count=0):
     """Return a mock ChromaDB collection."""
@@ -133,7 +137,6 @@ def _make_mock_client(collection):
 
 
 class TestRAGKnowledgeBase(unittest.TestCase):
-
     def _make_kb_with_mocks(self, doc_count=3):
         """Create RAGKnowledgeBase with mocked ChromaDB internals."""
         with patch("services.rag_knowledge_base._RAG_AVAILABLE", True):
@@ -185,8 +188,9 @@ class TestRAGKnowledgeBase(unittest.TestCase):
 
     def test_add_file_txt(self):
         kb = self._make_kb_with_mocks()
-        with tempfile.NamedTemporaryFile(suffix=".txt", mode="w",
-                                        encoding="utf-8", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            suffix=".txt", mode="w", encoding="utf-8", delete=False
+        ) as f:
             f.write("Câu một. Câu hai. Câu ba. " * 10)
             tmp_path = f.name
         try:
@@ -205,8 +209,8 @@ class TestRAGKnowledgeBase(unittest.TestCase):
 # Graceful degradation when ChromaDB not installed
 # ---------------------------------------------------------------------------
 
-class TestGracefulDegradation(unittest.TestCase):
 
+class TestGracefulDegradation(unittest.TestCase):
     def test_kb_unavailable_when_chromadb_missing(self):
         with patch("services.rag_knowledge_base._RAG_AVAILABLE", False):
             kb = RAGKnowledgeBase.__new__(RAGKnowledgeBase)
@@ -234,18 +238,30 @@ class TestGracefulDegradation(unittest.TestCase):
 # Generator RAG integration tests
 # ---------------------------------------------------------------------------
 
-class TestGeneratorRAGIntegration(unittest.TestCase):
 
+class TestGeneratorRAGIntegration(unittest.TestCase):
     def _make_minimal_objects(self):
         """Create minimal Character/WorldSetting/ChapterOutline for generator tests."""
         from models.schemas import Character, WorldSetting, ChapterOutline
-        chars = [Character(name="Lý Thần", role="chính", personality="dũng cảm",
-                           background="", motivation="", appearance="")]
+
+        chars = [
+            Character(
+                name="Lý Thần",
+                role="chính",
+                personality="dũng cảm",
+                background="",
+                motivation="",
+                appearance="",
+            )
+        ]
         world = WorldSetting(name="Tiên Giới", description="thế giới tu tiên")
-        outline = ChapterOutline(chapter_number=1, title="Khởi đầu",
-                                 summary="Nhân vật xuất hiện",
-                                 key_events=["sự kiện A"],
-                                 emotional_arc="tò mò")
+        outline = ChapterOutline(
+            chapter_number=1,
+            title="Khởi đầu",
+            summary="Nhân vật xuất hiện",
+            key_events=["sự kiện A"],
+            emotional_arc="tò mò",
+        )
         return chars, world, outline
 
     @patch("pipeline.layer1_story.generator._get_rag_kb")
@@ -256,20 +272,34 @@ class TestGeneratorRAGIntegration(unittest.TestCase):
 
         mock_rag = MagicMock()
         mock_rag.is_available = True
-        mock_rag.query.return_value = ["Triều đại nhà Trần nổi tiếng về sức mạnh quân sự."]
+        mock_rag.query.return_value = [
+            "Triều đại nhà Trần nổi tiếng về sức mạnh quân sự."
+        ]
         mock_get_rag_kb.return_value = mock_rag
 
         generator = StoryGenerator.__new__(StoryGenerator)
         generator.llm = MagicMock()
         generator.llm.generate_json.return_value = {
-            "name": "Tiên Giới", "description": "mô tả", "rules": [], "locations": [], "era": ""
+            "name": "Tiên Giới",
+            "description": "mô tả",
+            "rules": [],
+            "locations": [],
+            "era": "",
         }
         generator.config = MagicMock()
         generator.config.pipeline.rag_enabled = True
         generator.config.pipeline.rag_persist_dir = "data/rag"
 
-        chars = [Character(name="A", role="chính", personality="x",
-                           background="", motivation="", appearance="")]
+        chars = [
+            Character(
+                name="A",
+                role="chính",
+                personality="x",
+                background="",
+                motivation="",
+                appearance="",
+            )
+        ]
         generator.generate_world("Tiêu đề", "Tiên Hiệp", chars)
 
         call_args = generator.llm.generate_json.call_args
@@ -285,13 +315,25 @@ class TestGeneratorRAGIntegration(unittest.TestCase):
         generator = StoryGenerator.__new__(StoryGenerator)
         generator.llm = MagicMock()
         generator.llm.generate_json.return_value = {
-            "name": "Tiên Giới", "description": "mô tả", "rules": [], "locations": [], "era": ""
+            "name": "Tiên Giới",
+            "description": "mô tả",
+            "rules": [],
+            "locations": [],
+            "era": "",
         }
         generator.config = MagicMock()
         generator.config.pipeline.rag_enabled = False
 
-        chars = [Character(name="A", role="chính", personality="x",
-                           background="", motivation="", appearance="")]
+        chars = [
+            Character(
+                name="A",
+                role="chính",
+                personality="x",
+                background="",
+                motivation="",
+                appearance="",
+            )
+        ]
         generator.generate_world("Tiêu đề", "Tiên Hiệp", chars)
 
         mock_get_rag_kb.assert_not_called()
@@ -361,14 +403,16 @@ class TestGeneratorRAGIntegration(unittest.TestCase):
 # RAG_CONTEXT_SECTION prompt template
 # ---------------------------------------------------------------------------
 
-class TestRAGContextSectionTemplate(unittest.TestCase):
 
+class TestRAGContextSectionTemplate(unittest.TestCase):
     def test_template_contains_placeholder(self):
         from services.prompts import RAG_CONTEXT_SECTION
+
         self.assertIn("{rag_context}", RAG_CONTEXT_SECTION)
 
     def test_template_formats_correctly(self):
         from services.prompts import RAG_CONTEXT_SECTION
+
         formatted = RAG_CONTEXT_SECTION.format(rag_context="Sample text")
         self.assertIn("Sample text", formatted)
         self.assertIn("Tài liệu tham khảo", formatted)
@@ -378,16 +422,18 @@ class TestRAGContextSectionTemplate(unittest.TestCase):
 # Config RAG fields
 # ---------------------------------------------------------------------------
 
-class TestConfigRAGFields(unittest.TestCase):
 
+class TestConfigRAGFields(unittest.TestCase):
     def test_pipeline_config_defaults(self):
         from config import PipelineConfig
+
         cfg = PipelineConfig()
         self.assertFalse(cfg.rag_enabled)
         self.assertEqual(cfg.rag_persist_dir, "data/rag")
 
     def test_config_manager_has_rag_fields(self):
         from config import ConfigManager
+
         # ConfigManager implements its singleton inside __new__, so
         # `ConfigManager.__new__(ConfigManager)` returns the SHARED instance —
         # mutating it here would poison the global config for every later test

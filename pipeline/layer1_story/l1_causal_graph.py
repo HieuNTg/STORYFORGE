@@ -42,7 +42,8 @@ class CausalGraph(BaseModel):
         An event is 'old enough' when (current_chapter - event.chapter) >= min_age.
         """
         return [
-            e for e in self.events
+            e
+            for e in self.events
             if not e.resolved and (current_chapter - e.chapter) >= min_age
         ]
 
@@ -142,6 +143,7 @@ def extract_causal_events(
 # Keyword-based validation (no LLM)
 # ---------------------------------------------------------------------------
 
+
 def validate_causal_references(
     chapter_text: str,
     required_events: list[CausalEvent],
@@ -171,6 +173,7 @@ def validate_causal_references(
 # ---------------------------------------------------------------------------
 # Prompt formatting
 # ---------------------------------------------------------------------------
+
 
 def format_causal_dependencies_for_prompt(events: list[CausalEvent]) -> str:
     """Format events as MUST ACKNOWLEDGE block for prompt injection."""

@@ -23,21 +23,21 @@ def _md_to_html(text: str) -> str:
     """
     escaped = html.escape(text)
     # Bold
-    escaped = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', escaped)
+    escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
     # Italic
-    escaped = re.sub(r'\*(.+?)\*', r'<em>\1</em>', escaped)
+    escaped = re.sub(r"\*(.+?)\*", r"<em>\1</em>", escaped)
     # Horizontal rule
-    escaped = re.sub(r'^---+$', '<hr>', escaped, flags=re.MULTILINE)
+    escaped = re.sub(r"^---+$", "<hr>", escaped, flags=re.MULTILINE)
     # Paragraphs (double newline)
-    paragraphs = re.split(r'\n\n+', escaped)
+    paragraphs = re.split(r"\n\n+", escaped)
     result = []
     for p in paragraphs:
         p = p.strip()
-        if p and p != '<hr>':
-            result.append(f'<p>{p.replace(chr(10), "<br>")}</p>')
-        elif p == '<hr>':
-            result.append('<hr>')
-    return '\n'.join(result)
+        if p and p != "<hr>":
+            result.append(f"<p>{p.replace(chr(10), '<br>')}</p>")
+        elif p == "<hr>":
+            result.append("<hr>")
+    return "\n".join(result)
 
 
 def _build_chapter_nav(chapters: list) -> str:
@@ -47,33 +47,33 @@ def _build_chapter_nav(chapters: list) -> str:
         title = html.escape(ch.title)
         items.append(
             f'<a href="#ch-{ch.chapter_number}" class="nav-item">'
-            f'Ch.{ch.chapter_number}: {title}</a>'
+            f"Ch.{ch.chapter_number}: {title}</a>"
         )
-    return '\n'.join(items)
+    return "\n".join(items)
 
 
 def _build_character_cards(characters: list[Character]) -> str:
     """Generate character info cards HTML."""
     if not characters:
-        return ''
+        return ""
     cards = []
     for c in characters:
         name = html.escape(c.name)
-        role = html.escape(c.role) if c.role else ''
-        personality = html.escape(c.personality) if c.personality else ''
-        motivation = html.escape(c.motivation) if c.motivation else ''
+        role = html.escape(c.role) if c.role else ""
+        personality = html.escape(c.personality) if c.personality else ""
+        motivation = html.escape(c.motivation) if c.motivation else ""
 
-        card = f'''<div class="char-card">
+        card = f"""<div class="char-card">
 <h4>{name}</h4>
-{f'<p class="char-role">{role}</p>' if role else ''}
-{f'<p><strong>Tính cách:</strong> {personality}</p>' if personality else ''}
-{f'<p><strong>Động lực:</strong> {motivation}</p>' if motivation else ''}
-</div>'''
+{f'<p class="char-role">{role}</p>' if role else ""}
+{f"<p><strong>Tính cách:</strong> {personality}</p>" if personality else ""}
+{f"<p><strong>Động lực:</strong> {motivation}</p>" if motivation else ""}
+</div>"""
         cards.append(card)
-    return f'''<section class="characters" id="characters">
+    return f"""<section class="characters" id="characters">
 <h2>Nhân vật</h2>
 <div class="char-grid">{"".join(cards)}</div>
-</section>'''
+</section>"""
 
 
 def _safe_media_urls(images: list) -> list[str]:
@@ -92,8 +92,8 @@ def _build_comic_pages_html(images: list) -> str:
     """Stacked comic pages/panels (webtoon reading order) for one chapter."""
     safe = _safe_media_urls(images)
     if not safe:
-        return ''
-    imgs = '\n'.join(
+        return ""
+    imgs = "\n".join(
         f'<img src="{html.escape(url)}" alt="Trang truyện tranh" loading="lazy">'
         for url in safe
     )
@@ -110,27 +110,31 @@ def _build_chapters_html(chapters: list) -> str:
     sections = []
     for ch in chapters:
         title = html.escape(ch.title)
-        content = _md_to_html(ch.content) if ch.content else '<p><em>Chưa có nội dung.</em></p>'
-        comic = _build_comic_pages_html(getattr(ch, 'images', None))
+        content = (
+            _md_to_html(ch.content)
+            if ch.content
+            else "<p><em>Chưa có nội dung.</em></p>"
+        )
+        comic = _build_comic_pages_html(getattr(ch, "images", None))
         if comic:
             body = (
-                f'{comic}\n'
+                f"{comic}\n"
                 f'<details class="prose-fallback"><summary>Đọc bản chữ</summary>\n'
-                f'{content}\n</details>'
+                f"{content}\n</details>"
             )
         else:
             body = content
         sections.append(
             f'<article id="ch-{ch.chapter_number}" class="chapter">\n'
-            f'<h2>Chương {ch.chapter_number}: {title}</h2>\n'
-            f'{body}\n'
-            f'</article>'
+            f"<h2>Chương {ch.chapter_number}: {title}</h2>\n"
+            f"{body}\n"
+            f"</article>"
         )
-    return '\n'.join(sections)
+    return "\n".join(sections)
 
 
 # Self-contained HTML template — all CSS/JS inlined
-HTML_TEMPLATE = '''<!DOCTYPE html>
+HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -251,7 +255,7 @@ window.addEventListener('scroll',function(){{
 document.getElementById('backTop').style.display=window.scrollY>300?'block':'none'}});
 </script>
 </body>
-</html>'''
+</html>"""
 
 
 class HTMLExporter:
@@ -275,23 +279,25 @@ class HTMLExporter:
             Path to generated HTML file
         """
         title = story.title
-        genre = story.genre if story.genre else ''
-        synopsis = story.synopsis if hasattr(story, 'synopsis') and story.synopsis else ''
+        genre = story.genre if story.genre else ""
+        synopsis = (
+            story.synopsis if hasattr(story, "synopsis") and story.synopsis else ""
+        )
 
         # Drama badge for enhanced stories
-        drama_badge = ''
+        drama_badge = ""
         if isinstance(story, EnhancedStory) and story.drama_score > 0:
             score_str = html.escape(f"{story.drama_score:.1f}")
             drama_badge = f'<span class="badge">Kịch tính: {score_str}/1.0</span>'
 
         # Synopsis
-        synopsis_html = ''
+        synopsis_html = ""
         if synopsis:
             synopsis_html = f'<p class="synopsis">{html.escape(synopsis)}</p>'
 
         # Characters
         chars = characters or []
-        if not chars and hasattr(story, 'characters'):
+        if not chars and hasattr(story, "characters"):
             chars = story.characters
 
         # All template variables MUST be pre-escaped before interpolation.
@@ -311,14 +317,15 @@ class HTMLExporter:
         # Inject share metadata if share_id provided
         if share_id:
             from datetime import datetime
+
             share_meta = (
                 f'\n<meta name="storyforge-share" content="{html.escape(share_id)}">'
                 f'\n<meta name="storyforge-created" content="{datetime.now().isoformat()}">'
             )
-            rendered = rendered.replace('</head>', f'{share_meta}\n</head>', 1)
+            rendered = rendered.replace("</head>", f"{share_meta}\n</head>", 1)
 
-        os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
-        with open(output_path, 'w', encoding='utf-8') as f:
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write(rendered)
 
         logger.info(f"HTML exported to {output_path}")

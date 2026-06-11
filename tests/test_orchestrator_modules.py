@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_character(name="Alice"):
     c = MagicMock()
     c.name = name
@@ -32,7 +33,9 @@ def _make_chapter(num=1, content="Some content", summary="", title=""):
     return ch
 
 
-def _make_story_draft(title="Story", characters=None, chapters=None, genre="Fantasy", synopsis="syn"):
+def _make_story_draft(
+    title="Story", characters=None, chapters=None, genre="Fantasy", synopsis="syn"
+):
     d = MagicMock()
     d.title = title
     d.genre = genre
@@ -61,8 +64,13 @@ def _make_panel(num=1, ch=1, characters_in_frame=None, image_prompt="img"):
     return p
 
 
-def _make_pipeline_output(story_draft=None, enhanced_story=None,
-                           current_layer=0, logs=None, quality_scores=None):
+def _make_pipeline_output(
+    story_draft=None,
+    enhanced_story=None,
+    current_layer=0,
+    logs=None,
+    quality_scores=None,
+):
     out = MagicMock()
     out.story_draft = story_draft
     out.enhanced_story = enhanced_story
@@ -79,8 +87,8 @@ def _make_pipeline_output(story_draft=None, enhanced_story=None,
 # Tests: orchestrator_media.py — MediaProducer
 # ===========================================================================
 
-class TestMediaProducerRun(unittest.TestCase):
 
+class TestMediaProducerRun(unittest.TestCase):
     def _make_config(self, seedream_key="", seedream_url=""):
         cfg = MagicMock()
         cfg.pipeline.seedream_api_key = seedream_key
@@ -92,6 +100,7 @@ class TestMediaProducerRun(unittest.TestCase):
     @patch("pipeline.orchestrator_media.ImageProvider")
     def test_run_returns_dict_structure(self, MockIP, _mock_avatar):
         from pipeline.orchestrator_media import MediaProducer
+
         # MediaProducer now consumes ImageProvider (which wraps seedream + other
         # providers) instead of instantiating SeedreamClient directly. Patch the
         # provider façade so .is_configured() drives whether we even try to gen.
@@ -110,6 +119,7 @@ class TestMediaProducerRun(unittest.TestCase):
     @patch("pipeline.orchestrator_media.ImageProvider")
     def test_run_with_seedream_generates_char_refs(self, MockIP, _mock_avatar):
         from pipeline.orchestrator_media import MediaProducer
+
         provider = MockIP.return_value
         provider.is_configured.return_value = True
         provider.generate_character_reference.return_value = "ref/alice.png"
@@ -125,10 +135,11 @@ class TestMediaProducerRun(unittest.TestCase):
 # Tests: orchestrator_checkpoint.py — CheckpointManager
 # ===========================================================================
 
-class TestCheckpointManagerSave(unittest.TestCase):
 
+class TestCheckpointManagerSave(unittest.TestCase):
     def test_save_creates_file(self):
         from pipeline.orchestrator_checkpoint import CheckpointManager
+
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", tmpdir):
                 output = MagicMock()
@@ -141,6 +152,7 @@ class TestCheckpointManagerSave(unittest.TestCase):
 
     def test_save_uses_sanitized_title(self):
         from pipeline.orchestrator_checkpoint import CheckpointManager
+
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", tmpdir):
                 output = MagicMock()
@@ -153,6 +165,7 @@ class TestCheckpointManagerSave(unittest.TestCase):
 
     def test_save_no_draft_uses_untitled(self):
         from pipeline.orchestrator_checkpoint import CheckpointManager
+
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", tmpdir):
                 output = MagicMock()
@@ -164,15 +177,18 @@ class TestCheckpointManagerSave(unittest.TestCase):
 
 
 class TestCheckpointManagerListCheckpoints(unittest.TestCase):
-
     def test_list_returns_empty_when_dir_missing(self):
         from pipeline.orchestrator_checkpoint import CheckpointManager
-        with patch("pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", "/nonexistent/path"):
+
+        with patch(
+            "pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", "/nonexistent/path"
+        ):
             result = CheckpointManager.list_checkpoints()
             self.assertEqual(result, [])
 
     def test_list_returns_checkpoints_sorted_newest_first(self):
         from pipeline.orchestrator_checkpoint import CheckpointManager
+
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", tmpdir):
                 # Create two checkpoint files
@@ -188,6 +204,7 @@ class TestCheckpointManagerListCheckpoints(unittest.TestCase):
 
     def test_list_ignores_non_json_files(self):
         from pipeline.orchestrator_checkpoint import CheckpointManager
+
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", tmpdir):
                 # Create a non-JSON file
@@ -200,7 +217,6 @@ class TestCheckpointManagerListCheckpoints(unittest.TestCase):
 
 
 class TestCheckpointManagerResume(unittest.TestCase):
-
     def _write_checkpoint(self, tmpdir, data):
         p = os.path.join(tmpdir, "checkpoint.json")
         with open(p, "w") as f:
@@ -210,6 +226,7 @@ class TestCheckpointManagerResume(unittest.TestCase):
     @patch("pipeline.orchestrator_checkpoint.PipelineOutput")
     def test_resume_loads_output(self, MockPO):
         from pipeline.orchestrator_checkpoint import CheckpointManager
+
         with tempfile.TemporaryDirectory() as tmpdir:
             path = self._write_checkpoint(tmpdir, {"current_layer": 3})
             po = MagicMock()
@@ -227,6 +244,7 @@ class TestCheckpointManagerResume(unittest.TestCase):
     @patch("pipeline.orchestrator_checkpoint.PipelineOutput")
     def test_resume_layer3_skips_layers(self, MockPO):
         from pipeline.orchestrator_checkpoint import CheckpointManager
+
         with tempfile.TemporaryDirectory() as tmpdir:
             path = self._write_checkpoint(tmpdir, {"current_layer": 3})
             po = MagicMock()
@@ -245,6 +263,7 @@ class TestCheckpointManagerResume(unittest.TestCase):
     @patch("pipeline.orchestrator_checkpoint.PipelineOutput")
     def test_resume_layer1_runs_layer2(self, MockPO):
         from pipeline.orchestrator_checkpoint import CheckpointManager
+
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", tmpdir):
                 path = self._write_checkpoint(tmpdir, {"current_layer": 1})
@@ -268,7 +287,9 @@ class TestCheckpointManagerResume(unittest.TestCase):
                 enhancer.enhance_story.return_value = enhanced
 
                 # Mock the save method to avoid file I/O
-                with patch.object(CheckpointManager, "save", return_value="path/ckpt.json"):
+                with patch.object(
+                    CheckpointManager, "save", return_value="path/ckpt.json"
+                ):
                     mgr = CheckpointManager(po, analyzer, simulator, enhancer)
                     mgr.resume(path, enable_agents=False, enable_scoring=False)
                     analyzer.analyze.assert_called_once()
@@ -279,47 +300,65 @@ class TestCheckpointManagerResume(unittest.TestCase):
 # Tests: orchestrator_continuation.py — StoryContinuation
 # ===========================================================================
 
-class TestStoryContinuationLoadCheckpoint(unittest.TestCase):
 
+class TestStoryContinuationLoadCheckpoint(unittest.TestCase):
     def test_load_valid_checkpoint(self):
         from pipeline.orchestrator_continuation import StoryContinuation
+
         with tempfile.TemporaryDirectory() as tmpdir:
             p = os.path.join(tmpdir, "ckpt.json")
             with open(p, "w") as f:
-                json.dump({"current_layer": 1, "logs": [], "status": "pending",
-                           "progress": 0.0, "reviews": [], "quality_scores": []}, f)
+                json.dump(
+                    {
+                        "current_layer": 1,
+                        "logs": [],
+                        "status": "pending",
+                        "progress": 0.0,
+                        "reviews": [],
+                        "quality_scores": [],
+                    },
+                    f,
+                )
 
             with patch("pipeline.orchestrator_continuation.PipelineOutput") as MockPO:
                 po = MagicMock()
                 po.story_draft = _make_story_draft()
                 MockPO.return_value = po
                 cm = MagicMock()
-                sc = StoryContinuation(po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), cm)
+                sc = StoryContinuation(
+                    po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), cm
+                )
                 draft = sc.load_from_checkpoint(p)
                 self.assertIsNotNone(draft)
                 self.assertEqual(cm.output, po)
 
     def test_load_invalid_path_returns_none(self):
         from pipeline.orchestrator_continuation import StoryContinuation
+
         po = MagicMock()
         cm = MagicMock()
-        sc = StoryContinuation(po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), cm)
+        sc = StoryContinuation(
+            po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), cm
+        )
         result = sc.load_from_checkpoint("/nonexistent/file.json")
         self.assertIsNone(result)
 
 
 class TestStoryContinuationContinueStory(unittest.TestCase):
-
     def test_no_draft_raises(self):
         from pipeline.orchestrator_continuation import StoryContinuation
+
         po = MagicMock()
         po.story_draft = None
-        sc = StoryContinuation(po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+        sc = StoryContinuation(
+            po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
         with self.assertRaises(ValueError):
             sc.continue_story()
 
     def test_continue_story_calls_generator(self):
         from pipeline.orchestrator_continuation import StoryContinuation
+
         po = MagicMock()
         po.story_draft = _make_story_draft()
         story_gen = MagicMock()
@@ -335,6 +374,7 @@ class TestStoryContinuationContinueStory(unittest.TestCase):
 
     def test_continue_story_passes_params(self):
         from pipeline.orchestrator_continuation import StoryContinuation
+
         po = MagicMock()
         po.story_draft = _make_story_draft()
         story_gen = MagicMock()
@@ -343,28 +383,40 @@ class TestStoryContinuationContinueStory(unittest.TestCase):
         sc = StoryContinuation(po, story_gen, MagicMock(), MagicMock(), MagicMock(), cm)
         sc.continue_story(additional_chapters=5, word_count=3000, style="dramatic")
         call_kwargs = story_gen.continue_story.call_args
-        self.assertEqual(call_kwargs.kwargs.get("additional_chapters") or call_kwargs[1].get("additional_chapters", None) or call_kwargs[0][1] if call_kwargs[0] else None or 5, 5)
+        self.assertEqual(
+            call_kwargs.kwargs.get("additional_chapters")
+            or call_kwargs[1].get("additional_chapters", None)
+            or call_kwargs[0][1]
+            if call_kwargs[0]
+            else None or 5,
+            5,
+        )
 
 
 class TestStoryContinuationRemoveChapters(unittest.TestCase):
-
     def test_no_draft_raises(self):
         from pipeline.orchestrator_continuation import StoryContinuation
+
         po = MagicMock()
         po.story_draft = None
-        sc = StoryContinuation(po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+        sc = StoryContinuation(
+            po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
         with self.assertRaises(ValueError):
             sc.remove_chapters(3)
 
     @patch("pipeline.orchestrator_continuation.StoryGenerator")
     def test_remove_chapters_clears_enhanced_and_video(self, MockSG):
         from pipeline.orchestrator_continuation import StoryContinuation
+
         po = MagicMock()
         po.story_draft = _make_story_draft()
         new_draft = _make_story_draft()
         MockSG.remove_chapters.return_value = new_draft
         cm = MagicMock()
-        sc = StoryContinuation(po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), cm)
+        sc = StoryContinuation(
+            po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), cm
+        )
         sc.remove_chapters(5)
         self.assertIsNone(po.enhanced_story)
         cm.save.assert_called_with(1)
@@ -372,6 +424,7 @@ class TestStoryContinuationRemoveChapters(unittest.TestCase):
     @patch("pipeline.orchestrator_continuation.StoryGenerator")
     def test_remove_chapters_calls_progress(self, MockSG):
         from pipeline.orchestrator_continuation import StoryContinuation
+
         po = MagicMock()
         po.story_draft = _make_story_draft()
         new_draft = _make_story_draft()
@@ -379,23 +432,28 @@ class TestStoryContinuationRemoveChapters(unittest.TestCase):
         MockSG.remove_chapters.return_value = new_draft
         cm = MagicMock()
         logs = []
-        sc = StoryContinuation(po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), cm)
+        sc = StoryContinuation(
+            po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), cm
+        )
         sc.remove_chapters(5, progress_callback=lambda m: logs.append(m))
         self.assertTrue(len(logs) > 0)
 
 
 class TestStoryContinuationUpdateCharacter(unittest.TestCase):
-
     def test_no_draft_raises(self):
         from pipeline.orchestrator_continuation import StoryContinuation
+
         po = MagicMock()
         po.story_draft = None
-        sc = StoryContinuation(po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+        sc = StoryContinuation(
+            po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
         with self.assertRaises(ValueError):
             sc.update_character("Alice", {})
 
     def test_update_existing_character(self):
         from pipeline.orchestrator_continuation import StoryContinuation
+
         char = MagicMock()
         char.name = "Alice"
         char.personality = "shy"
@@ -403,25 +461,31 @@ class TestStoryContinuationUpdateCharacter(unittest.TestCase):
         po = MagicMock()
         po.story_draft = draft
         cm = MagicMock()
-        sc = StoryContinuation(po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), cm)
+        sc = StoryContinuation(
+            po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), cm
+        )
         sc.update_character("Alice", {"personality": "brave"})
         self.assertEqual(char.personality, "brave")
         cm.save.assert_called_with(1)
 
     def test_update_nonexistent_character_returns_draft(self):
         from pipeline.orchestrator_continuation import StoryContinuation
+
         char = MagicMock()
         char.name = "Bob"
         draft = _make_story_draft(characters=[char])
         po = MagicMock()
         po.story_draft = draft
         cm = MagicMock()
-        sc = StoryContinuation(po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), cm)
+        sc = StoryContinuation(
+            po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), cm
+        )
         result = sc.update_character("Alice", {"personality": "brave"})
         self.assertIsNotNone(result)
 
     def test_update_calls_progress_callback(self):
         from pipeline.orchestrator_continuation import StoryContinuation
+
         char = MagicMock()
         char.name = "Alice"
         draft = _make_story_draft(characters=[char])
@@ -429,23 +493,32 @@ class TestStoryContinuationUpdateCharacter(unittest.TestCase):
         po.story_draft = draft
         cm = MagicMock()
         logs = []
-        sc = StoryContinuation(po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), cm)
-        sc.update_character("Alice", {"personality": "brave"}, progress_callback=lambda m: logs.append(m))
+        sc = StoryContinuation(
+            po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), cm
+        )
+        sc.update_character(
+            "Alice",
+            {"personality": "brave"},
+            progress_callback=lambda m: logs.append(m),
+        )
         self.assertTrue(any("Alice" in m for m in logs))
 
 
 class TestStoryContinuationEnhanceChapters(unittest.TestCase):
-
     def test_no_draft_raises(self):
         from pipeline.orchestrator_continuation import StoryContinuation
+
         po = MagicMock()
         po.story_draft = None
-        sc = StoryContinuation(po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+        sc = StoryContinuation(
+            po, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
         with self.assertRaises(ValueError):
             sc.enhance_chapters()
 
     def test_enhance_calls_all_steps(self):
         from pipeline.orchestrator_continuation import StoryContinuation
+
         draft = _make_story_draft()
         po = MagicMock()
         po.story_draft = draft
@@ -474,6 +547,7 @@ class TestStoryContinuationEnhanceChapters(unittest.TestCase):
         # swallowing them and returning None. Assert the surfacing contract
         # — silent None on internal failure was the bug being fixed.
         from pipeline.orchestrator_continuation import StoryContinuation
+
         po = MagicMock()
         po.story_draft = _make_story_draft()
         analyzer = MagicMock()
@@ -486,6 +560,7 @@ class TestStoryContinuationEnhanceChapters(unittest.TestCase):
 
     def test_enhance_calls_progress_callback(self):
         from pipeline.orchestrator_continuation import StoryContinuation
+
         po = MagicMock()
         po.story_draft = _make_story_draft()
         analyzer = MagicMock()

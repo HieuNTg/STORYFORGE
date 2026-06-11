@@ -33,8 +33,8 @@ from services._rate_limiter_base import RateLimiterBase  # noqa: E402
 # Implementations
 # ---------------------------------------------------------------------------
 
-from services._rate_limiter_inmemory import InMemoryRateLimiter      # noqa: E402
-from services._rate_limiter_redis_impl import RedisRateLimiter        # noqa: E402
+from services._rate_limiter_inmemory import InMemoryRateLimiter  # noqa: E402
+from services._rate_limiter_redis_impl import RedisRateLimiter  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -68,4 +68,9 @@ def get_rate_limiter() -> RateLimiterBase:
     return _instance
 
 
-__all__ = ["RateLimiterBase", "InMemoryRateLimiter", "RedisRateLimiter", "get_rate_limiter"]
+__all__ = [
+    "RateLimiterBase",
+    "InMemoryRateLimiter",
+    "RedisRateLimiter",
+    "get_rate_limiter",
+]

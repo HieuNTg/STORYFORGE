@@ -14,7 +14,15 @@ logger = logging.getLogger(__name__)
 class StoryContinuation:
     """Handles loading checkpoints and continuing/editing existing stories."""
 
-    def __init__(self, output: PipelineOutput, story_gen, analyzer, simulator, enhancer, checkpoint_manager):
+    def __init__(
+        self,
+        output: PipelineOutput,
+        story_gen,
+        analyzer,
+        simulator,
+        enhancer,
+        checkpoint_manager,
+    ):
         self.output = output
         self.story_gen = story_gen
         self.analyzer = analyzer
@@ -50,6 +58,7 @@ class StoryContinuation:
         # Trace so usage_history can attribute the new chapters' LLM cost
         # back to the same checkpoint sidecar. No-op if a trace is already set.
         from services.trace_context import PipelineTrace, get_trace, set_trace
+
         if get_trace() is None:
             set_trace(PipelineTrace(title=self.output.story_draft.title or "", layer=1))
         draft = self.story_gen.continue_story(
@@ -67,6 +76,7 @@ class StoryContinuation:
         # Advisory sidecar — never fail the continuation if this breaks.
         try:
             from services.continuation_history import record_continuation
+
             record_continuation(
                 title=draft.title,
                 previous_chapter_count=previous_count,
@@ -106,9 +116,12 @@ class StoryContinuation:
             raise ValueError("No story draft loaded.")
         draft = self.output.story_draft
         if chapter_number < 1 or chapter_number > len(draft.chapters):
-            raise ValueError(f"Invalid chapter_number {chapter_number}. Story has {len(draft.chapters)} chapters.")
+            raise ValueError(
+                f"Invalid chapter_number {chapter_number}. Story has {len(draft.chapters)} chapters."
+            )
 
         from pipeline.layer1_story.story_continuation import regenerate_chapter_impl
+
         draft = regenerate_chapter_impl(
             generator=self.story_gen,
             draft=draft,
@@ -139,7 +152,10 @@ class StoryContinuation:
         if not self.output.story_draft:
             raise ValueError("No story draft loaded.")
 
-        from pipeline.layer1_story.story_continuation import generate_continuation_outlines
+        from pipeline.layer1_story.story_continuation import (
+            generate_continuation_outlines,
+        )
+
         outlines = generate_continuation_outlines(
             generator=self.story_gen,
             draft=self.output.story_draft,
@@ -170,6 +186,7 @@ class StoryContinuation:
 
         previous_count = len(self.output.story_draft.chapters)
         from pipeline.layer1_story.story_continuation import write_from_outlines
+
         draft = write_from_outlines(
             generator=self.story_gen,
             draft=self.output.story_draft,
@@ -185,6 +202,7 @@ class StoryContinuation:
         self.checkpoint_manager.save(1)
         try:
             from services.continuation_history import record_continuation
+
             record_continuation(
                 title=draft.title,
                 previous_chapter_count=previous_count,
@@ -211,6 +229,7 @@ class StoryContinuation:
             raise ValueError("No story draft loaded.")
 
         from pipeline.layer1_story.story_continuation import generate_continuation_paths
+
         paths = generate_continuation_paths(
             generator=self.story_gen,
             draft=self.output.story_draft,
@@ -246,6 +265,7 @@ class StoryContinuation:
             raise ValueError("No story draft loaded.")
 
         from pipeline.layer1_story.story_continuation import insert_chapter_impl
+
         draft = insert_chapter_impl(
             generator=self.story_gen,
             draft=self.output.story_draft,
@@ -320,10 +340,15 @@ class StoryContinuation:
             # waiting for the full enhancement pass. Mirrors L1 per-chapter
             # checkpoint flow gated by enable_chapter_checkpoint.
             from config import ConfigManager
+
             _incremental_publish = False
             try:
                 _incremental_publish = bool(
-                    getattr(ConfigManager().load().pipeline, "enable_incremental_publish", False)
+                    getattr(
+                        ConfigManager().load().pipeline,
+                        "enable_incremental_publish",
+                        False,
+                    )
                 )
             except Exception:
                 pass
@@ -334,21 +359,29 @@ class StoryContinuation:
                 try:
                     if self.output.enhanced_story is None:
                         self.output.enhanced_story = EnhancedStory(
-                            title=draft.title, genre=draft.genre, chapters=[],
+                            title=draft.title,
+                            genre=draft.genre,
+                            chapters=[],
                         )
                     self.output.enhanced_story.chapters = [
-                        c for c in self.output.enhanced_story.chapters
+                        c
+                        for c in self.output.enhanced_story.chapters
                         if c.chapter_number != ch.chapter_number
                     ] + [ch]
-                    self.output.enhanced_story.chapters.sort(key=lambda c: c.chapter_number)
+                    self.output.enhanced_story.chapters.sort(
+                        key=lambda c: c.chapter_number
+                    )
                     self.checkpoint_manager.output = self.output
                     self.checkpoint_manager.save_chapter(ch.chapter_number, layer=2)
                 except Exception as _pub_e:
-                    logger.debug(f"Incremental publish (ch {ch.chapter_number}) skipped: {_pub_e}")
+                    logger.debug(
+                        f"Incremental publish (ch {ch.chapter_number}) skipped: {_pub_e}"
+                    )
 
             _log("Enhancing story with dramatic elements...")
             enhanced = self.enhancer.enhance_with_feedback(
-                draft=draft, sim_result=sim_result,
+                draft=draft,
+                sim_result=sim_result,
                 word_count=word_count,
                 progress_callback=lambda m: _log(f"[L2] {m}"),
                 chapter_done_callback=_on_chapter_done,
@@ -357,12 +390,17 @@ class StoryContinuation:
             # P-A: L3 Sensory Polish (optional post-L2 enhancement)
             try:
                 from config import ConfigManager
+
                 cfg = ConfigManager().load().pipeline
                 if getattr(cfg, "enable_sensory_polish", False):
-                    from pipeline.layer2_enhance.sensory_polish import apply_sensory_polish
+                    from pipeline.layer2_enhance.sensory_polish import (
+                        apply_sensory_polish,
+                    )
+
                     _log("Applying sensory polish (L3)...")
                     enhanced = apply_sensory_polish(
-                        enhanced, enabled=True,
+                        enhanced,
+                        enabled=True,
                         progress_callback=lambda m: _log(m),
                         draft=draft,
                     )
@@ -372,16 +410,23 @@ class StoryContinuation:
             # P-B: Reader Simulation (optional quality feedback)
             try:
                 from config import ConfigManager
+
                 cfg = ConfigManager().load().pipeline
                 if getattr(cfg, "enable_reader_simulation", False):
                     from pipeline.agents.reader_simulator import run_reader_simulation
+
                     _log("Running reader simulation...")
                     feedbacks = run_reader_simulation(
-                        enhanced, enabled=True,
+                        enhanced,
+                        enabled=True,
                         progress_callback=lambda m: _log(m),
                     )
                     if feedbacks:
-                        weak = [f.chapter_number for f in feedbacks if f.engagement_score < 0.5]
+                        weak = [
+                            f.chapter_number
+                            for f in feedbacks
+                            if f.engagement_score < 0.5
+                        ]
                         if weak:
                             _log(f"Reader flagged weak chapters: {weak}")
                         enhanced._reader_feedbacks = feedbacks
@@ -419,6 +464,7 @@ class StoryContinuation:
             raise ValueError("No story draft loaded.")
 
         from pipeline.layer1_story.story_continuation import polish_chapter_impl
+
         draft = polish_chapter_impl(
             generator=self.story_gen,
             draft=self.output.story_draft,

@@ -1,4 +1,5 @@
 """Multi-agent debate orchestrator for Layer 2 enhancement."""
+
 import logging
 from models.schemas import DebateResult, DebateStance
 
@@ -12,9 +13,9 @@ _LITE_MODE_AGENTS = {"editor_in_chief", "drama_critic", "continuity_checker"}
 # Budget cap configuration for agent debate
 # These defaults can be overridden via constructor kwargs or subclassing.
 # ---------------------------------------------------------------------------
-MAX_DEBATE_TOKENS_PER_ROUND: int = 4_000    # token budget per debate round
-MAX_DEBATE_TOTAL_TOKENS: int = 30_000       # cumulative token cap for the whole debate
-MAX_DEBATE_COST_USD: float = 0.50           # cumulative USD cap for the whole debate
+MAX_DEBATE_TOKENS_PER_ROUND: int = 4_000  # token budget per debate round
+MAX_DEBATE_TOTAL_TOKENS: int = 30_000  # cumulative token cap for the whole debate
+MAX_DEBATE_COST_USD: float = 0.50  # cumulative USD cap for the whole debate
 # Action when a budget limit is exceeded:
 #   "warn"  — log a warning and continue (default)
 #   "skip"  — skip remaining rounds, use best result collected so far
@@ -52,7 +53,9 @@ class DebateOrchestrator:
         self._session_tokens: int = 0
         self._session_cost_usd: float = 0.0
 
-    def run_debate(self, agents, story_draft, layer, round1_reviews, progress_callback=None):
+    def run_debate(
+        self, agents, story_draft, layer, round1_reviews, progress_callback=None
+    ):
         """Run debate protocol on top of existing Round 1 reviews.
 
         Lite mode: restricts participants to _LITE_MODE_AGENTS and caps at 1 round,
@@ -74,6 +77,7 @@ class DebateOrchestrator:
         # Import tracker lazily to avoid circular imports; silently skip on failure
         try:
             from services.token_cost_tracker import TokenCostTracker
+
             _tracker = TokenCostTracker()
         except Exception:
             _tracker = None
@@ -99,7 +103,9 @@ class DebateOrchestrator:
         # ------------------------------------------------------------------
         # Round 2: Each agent responds to all reviews
         # ------------------------------------------------------------------
-        if self._budget_exceeded(round_label="Round 2", progress_callback=progress_callback):
+        if self._budget_exceeded(
+            round_label="Round 2", progress_callback=progress_callback
+        ):
             return DebateResult(
                 rounds=[[], []],
                 final_reviews=round1_reviews,
@@ -124,15 +130,21 @@ class DebateOrchestrator:
                 )
                 if self._budget_action == "abort":
                     raise BudgetExceededError(msg)
-                logger.info("[DEBATE] Budget exhausted, skipping remaining Round 2 agents")
+                logger.info(
+                    "[DEBATE] Budget exhausted, skipping remaining Round 2 agents"
+                )
                 if progress_callback:
                     progress_callback(msg)
                 break
             if self._session_tokens + estimated > self._max_total_tokens:
-                logger.info("[DEBATE] Total budget exhausted, skipping remaining Round 2 agents")
+                logger.info(
+                    "[DEBATE] Total budget exhausted, skipping remaining Round 2 agents"
+                )
                 break
 
-            entries = agent.debate_response(story_draft, layer, own_review, round1_reviews)
+            entries = agent.debate_response(
+                story_draft, layer, own_review, round1_reviews
+            )
             round2_entries.extend(entries)
 
             # Post-call: update actual token counts (prefer exact if available, else estimate)
@@ -179,7 +191,9 @@ class DebateOrchestrator:
         if self.debate_mode == "lite":
             final_reviews = _merge_debate_into_reviews(round1_reviews, round2_entries)
             consensus = (
-                sum(r.score for r in final_reviews) / len(final_reviews) if final_reviews else 0.0
+                sum(r.score for r in final_reviews) / len(final_reviews)
+                if final_reviews
+                else 0.0
             )
             if progress_callback:
                 progress_callback(
@@ -197,11 +211,15 @@ class DebateOrchestrator:
         # ------------------------------------------------------------------
         # Round 3: Challenged agents rebut (full mode only)
         # ------------------------------------------------------------------
-        if self._budget_exceeded(round_label="Round 3", progress_callback=progress_callback):
+        if self._budget_exceeded(
+            round_label="Round 3", progress_callback=progress_callback
+        ):
             # Graceful early stop: use what we have from Round 2
             final_reviews = _merge_debate_into_reviews(round1_reviews, round2_entries)
             consensus = (
-                sum(r.score for r in final_reviews) / len(final_reviews) if final_reviews else 0.0
+                sum(r.score for r in final_reviews) / len(final_reviews)
+                if final_reviews
+                else 0.0
             )
             return DebateResult(
                 rounds=[[], round2_entries, []],
@@ -231,17 +249,24 @@ class DebateOrchestrator:
                 )
                 if self._budget_action == "abort":
                     raise BudgetExceededError(msg)
-                logger.info("[DEBATE] Budget exhausted, skipping remaining Round 3 agents")
+                logger.info(
+                    "[DEBATE] Budget exhausted, skipping remaining Round 3 agents"
+                )
                 if progress_callback:
                     progress_callback(msg)
                 break
             if self._session_tokens + estimated > self._max_total_tokens:
-                logger.info("[DEBATE] Total budget exhausted, skipping remaining Round 3 agents")
+                logger.info(
+                    "[DEBATE] Total budget exhausted, skipping remaining Round 3 agents"
+                )
                 break
 
             # P0-6: Pass round 2 entries so agents can rebut their challengers
             entries = agent.debate_response(
-                story_draft, layer, own_review, round1_reviews,
+                story_draft,
+                layer,
+                own_review,
+                round1_reviews,
                 round2_entries=round2_entries,
             )
             for entry in entries:
@@ -277,7 +302,9 @@ class DebateOrchestrator:
             round1_reviews, round2_entries + round3_entries
         )
         consensus = (
-            sum(r.score for r in final_reviews) / len(final_reviews) if final_reviews else 0.0
+            sum(r.score for r in final_reviews) / len(final_reviews)
+            if final_reviews
+            else 0.0
         )
 
         if progress_callback:
@@ -342,10 +369,12 @@ class DebateOrchestrator:
 # Private utility functions
 # ---------------------------------------------------------------------------
 
+
 def _get_agent_model(agent) -> str:
     """Return the model name used by an agent (best-effort)."""
     try:
         from config import ConfigManager
+
         config = ConfigManager()
         return config.llm.model or "unknown"
     except Exception:
@@ -374,6 +403,7 @@ def _estimate_agent_cost(tokens: int, agent) -> float:
     """Estimate USD cost for given token count using the agent's model pricing."""
     try:
         from services.token_cost_tracker import TokenCostTracker
+
         model = _get_agent_model(agent)
         # TokenCostTracker is a singleton — use its pricing table
         tracker = TokenCostTracker()

@@ -116,9 +116,7 @@ def upgrade() -> None:
     # ------------------------------------------------------------------
     # 6. pipeline_runs: add index on story_id
     # ------------------------------------------------------------------
-    op.create_index(
-        "ix_pipeline_runs_story_id", "pipeline_runs", ["story_id"]
-    )
+    op.create_index("ix_pipeline_runs_story_id", "pipeline_runs", ["story_id"])
 
 
 def downgrade() -> None:

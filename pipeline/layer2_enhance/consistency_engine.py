@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 class ConsistencyViolation(BaseModel):
     """Một vi phạm nhất quán."""
+
     type: str  # character_state | setting | thread | voice
     subtype: str = ""
     chapter: int = 0
@@ -28,6 +29,7 @@ class ConsistencyViolation(BaseModel):
 
 class ConsistencyReport(BaseModel):
     """Báo cáo tổng hợp nhất quán."""
+
     total_violations: int = 0
     critical_count: int = 0
     warning_count: int = 0
@@ -105,12 +107,16 @@ class ConsistencyEngine:
         sections = []
 
         # A. Character states
-        char_constraints = self.state_registry.format_constraints_for_chapter(chapter_number)
+        char_constraints = self.state_registry.format_constraints_for_chapter(
+            chapter_number
+        )
         if char_constraints:
             sections.append(char_constraints)
 
         # B. Setting continuity
-        setting_constraints = self.setting_graph.format_constraints_for_chapter(chapter_number)
+        setting_constraints = self.setting_graph.format_constraints_for_chapter(
+            chapter_number
+        )
         if setting_constraints:
             sections.append(setting_constraints)
 
@@ -154,13 +160,15 @@ Vi phạm sẽ gây mâu thuẫn trong truyện.
                 enhanced_content, chapter_number, self.character_names
             )
             for v in state_violations:
-                violations.append(ConsistencyViolation(
-                    type="character_state",
-                    subtype=v.get("type", ""),
-                    chapter=chapter_number,
-                    severity=v.get("severity", "warning"),
-                    description=v.get("description", ""),
-                ))
+                violations.append(
+                    ConsistencyViolation(
+                        type="character_state",
+                        subtype=v.get("type", ""),
+                        chapter=chapter_number,
+                        severity=v.get("severity", "warning"),
+                        description=v.get("description", ""),
+                    )
+                )
         except Exception as e:
             logger.debug(f"State validation error ch{chapter_number}: {e}")
 
@@ -177,13 +185,15 @@ Vi phạm sẽ gây mâu thuẫn trong truyện.
                 enhanced_content, chapter_number, prev_locs
             )
             for v in setting_violations:
-                violations.append(ConsistencyViolation(
-                    type="setting",
-                    subtype=v.get("type", ""),
-                    chapter=chapter_number,
-                    severity=v.get("severity", "warning"),
-                    description=v.get("description", ""),
-                ))
+                violations.append(
+                    ConsistencyViolation(
+                        type="setting",
+                        subtype=v.get("type", ""),
+                        chapter=chapter_number,
+                        severity=v.get("severity", "warning"),
+                        description=v.get("description", ""),
+                    )
+                )
         except Exception as e:
             logger.debug(f"Setting validation error ch{chapter_number}: {e}")
 
@@ -193,13 +203,15 @@ Vi phạm sẽ gây mâu thuẫn trong truyện.
                 enhanced_content, chapter_number, self.total_chapters
             )
             for v in thread_violations:
-                violations.append(ConsistencyViolation(
-                    type="thread",
-                    subtype=v.get("type", ""),
-                    chapter=chapter_number,
-                    severity=v.get("severity", "warning"),
-                    description=v.get("description", ""),
-                ))
+                violations.append(
+                    ConsistencyViolation(
+                        type="thread",
+                        subtype=v.get("type", ""),
+                        chapter=chapter_number,
+                        severity=v.get("severity", "warning"),
+                        description=v.get("description", ""),
+                    )
+                )
 
             # Also update thread status
             self.thread_watchdog.check_chapter(enhanced_content, chapter_number)
@@ -216,15 +228,19 @@ Vi phạm sẽ gây mâu thuẫn trong truyện.
                 if not result.get("consistent", True):
                     voice_drift_chars.append(name)
                     for issue in result.get("issues", []):
-                        violations.append(ConsistencyViolation(
-                            type="voice",
-                            subtype="voice_drift",
-                            chapter=chapter_number,
-                            severity="warning",
-                            description=f"{name}: {issue}",
-                        ))
+                        violations.append(
+                            ConsistencyViolation(
+                                type="voice",
+                                subtype="voice_drift",
+                                chapter=chapter_number,
+                                severity="warning",
+                                description=f"{name}: {issue}",
+                            )
+                        )
             except Exception as e:
-                logger.debug(f"Voice validation error for {name} ch{chapter_number}: {e}")
+                logger.debug(
+                    f"Voice validation error for {name} ch{chapter_number}: {e}"
+                )
 
         # Update state registry with enhanced content
         try:
@@ -328,7 +344,9 @@ Vi phạm sẽ gây mâu thuẫn trong truyện.
 
     def get_open_threads_summary(self, chapter: int) -> str:
         """Helper: tóm tắt threads đang mở."""
-        threads = self.thread_watchdog.get_threads_for_chapter(chapter, self.total_chapters)
+        threads = self.thread_watchdog.get_threads_for_chapter(
+            chapter, self.total_chapters
+        )
         if not threads:
             return ""
         return "\n".join(f"- {t.description}" for t in threads[:5])

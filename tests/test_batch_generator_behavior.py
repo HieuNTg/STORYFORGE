@@ -50,7 +50,9 @@ def _make_chapter(num: int, content: str | None = None) -> Chapter:
     )
 
 
-def _mock_generator(batch_size: int = 5, parallel: bool = False, use_asyncio: bool = True):
+def _mock_generator(
+    batch_size: int = 5, parallel: bool = False, use_asyncio: bool = True
+):
     """Return a MagicMock StoryGenerator with realistic pipeline config."""
     gen = MagicMock()
     gen.config.pipeline.chapter_batch_size = batch_size
@@ -85,7 +87,9 @@ def _mock_generator(batch_size: int = 5, parallel: bool = False, use_asyncio: bo
 
 
 def _make_draft() -> StoryDraft:
-    return StoryDraft(title="Test", genre="Fantasy", synopsis="S", characters=[], world=_WORLD)
+    return StoryDraft(
+        title="Test", genre="Fantasy", synopsis="S", characters=[], world=_WORLD
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -199,8 +203,8 @@ class TestSequentialGeneration:
     @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
     def test_all_chapters_produced(self, mock_post):
         gen = _mock_generator(batch_size=5)
-        gen._write_chapter_with_long_context.side_effect = (
-            lambda *a, **kw: _make_chapter(a[5].chapter_number)
+        gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
+            _make_chapter(a[5].chapter_number)
         )
         bg = BatchChapterGenerator(gen)
         draft = _make_draft()
@@ -208,7 +212,11 @@ class TestSequentialGeneration:
             draft=draft,
             outlines=[_make_outline(i) for i in range(1, 6)],
             story_context=StoryContext(total_chapters=5),
-            title="T", genre="G", style="S", characters=[], world=_WORLD,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
         )
         assert len(draft.chapters) == 5
         assert [ch.chapter_number for ch in draft.chapters] == [1, 2, 3, 4, 5]
@@ -236,15 +244,23 @@ class TestSequentialGeneration:
             draft=draft,
             outlines=[_make_outline(i) for i in range(1, 5)],
             story_context=StoryContext(total_chapters=4),
-            title="T", genre="G", style="S", characters=[], world=_WORLD,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
         )
 
         # Sequential: write then post within each batch, strictly ordered
         assert call_log == [
-            ("write", 1), ("post", 1),
-            ("write", 2), ("post", 2),
-            ("write", 3), ("post", 3),
-            ("write", 4), ("post", 4),
+            ("write", 1),
+            ("post", 1),
+            ("write", 2),
+            ("post", 2),
+            ("write", 3),
+            ("post", 3),
+            ("write", 4),
+            ("post", 4),
         ]
 
     @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
@@ -253,8 +269,19 @@ class TestSequentialGeneration:
         gen = _mock_generator(batch_size=5)
         seen_texts: list[list[str]] = []
 
-        def fake_write(title, genre, style, characters, world, outline,
-                       word_count, story_context, all_chapter_texts, *a, **kw):
+        def fake_write(
+            title,
+            genre,
+            style,
+            characters,
+            world,
+            outline,
+            word_count,
+            story_context,
+            all_chapter_texts,
+            *a,
+            **kw,
+        ):
             seen_texts.append(list(all_chapter_texts))
             return _make_chapter(outline.chapter_number)
 
@@ -265,7 +292,11 @@ class TestSequentialGeneration:
             draft=draft,
             outlines=[_make_outline(i) for i in range(1, 4)],
             story_context=StoryContext(total_chapters=3),
-            title="T", genre="G", style="S", characters=[], world=_WORLD,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
         )
 
         # chapter 1 sees empty list, chapter 2 sees 1 entry, chapter 3 sees 2 entries
@@ -276,7 +307,9 @@ class TestSequentialGeneration:
     @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
     def test_write_error_propagates(self, mock_post):
         gen = _mock_generator(batch_size=5)
-        gen._write_chapter_with_long_context.side_effect = RuntimeError("LLM unavailable")
+        gen._write_chapter_with_long_context.side_effect = RuntimeError(
+            "LLM unavailable"
+        )
 
         bg = BatchChapterGenerator(gen)
         draft = _make_draft()
@@ -285,14 +318,18 @@ class TestSequentialGeneration:
                 draft=draft,
                 outlines=[_make_outline(1)],
                 story_context=StoryContext(total_chapters=1),
-                title="T", genre="G", style="S", characters=[], world=_WORLD,
+                title="T",
+                genre="G",
+                style="S",
+                characters=[],
+                world=_WORLD,
             )
 
     @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
     def test_checkpoint_callback_receives_batch_index(self, mock_post):
         gen = _mock_generator(batch_size=2)
-        gen._write_chapter_with_long_context.side_effect = (
-            lambda *a, **kw: _make_chapter(a[5].chapter_number)
+        gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
+            _make_chapter(a[5].chapter_number)
         )
         checkpoint_cb = MagicMock()
         bg = BatchChapterGenerator(gen)
@@ -301,7 +338,11 @@ class TestSequentialGeneration:
             draft=draft,
             outlines=[_make_outline(i) for i in range(1, 5)],
             story_context=StoryContext(total_chapters=4),
-            title="T", genre="G", style="S", characters=[], world=_WORLD,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
             batch_checkpoint_callback=checkpoint_cb,
         )
         # 2 batches: [1,2] and [3,4] → calls (1,2) and (2,2)
@@ -312,8 +353,8 @@ class TestSequentialGeneration:
     @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
     def test_checkpoint_failure_does_not_abort_generation(self, mock_post):
         gen = _mock_generator(batch_size=5)
-        gen._write_chapter_with_long_context.side_effect = (
-            lambda *a, **kw: _make_chapter(a[5].chapter_number)
+        gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
+            _make_chapter(a[5].chapter_number)
         )
 
         def bad_ckpt(*args):
@@ -326,7 +367,11 @@ class TestSequentialGeneration:
             draft=draft,
             outlines=[_make_outline(i) for i in range(1, 3)],
             story_context=StoryContext(total_chapters=2),
-            title="T", genre="G", style="S", characters=[], world=_WORLD,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
             batch_checkpoint_callback=bad_ckpt,
         )
         assert len(draft.chapters) == 2
@@ -334,8 +379,8 @@ class TestSequentialGeneration:
     @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
     def test_returns_draft_chapters_list(self, mock_post):
         gen = _mock_generator(batch_size=5)
-        gen._write_chapter_with_long_context.side_effect = (
-            lambda *a, **kw: _make_chapter(a[5].chapter_number)
+        gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
+            _make_chapter(a[5].chapter_number)
         )
         bg = BatchChapterGenerator(gen)
         draft = _make_draft()
@@ -343,7 +388,11 @@ class TestSequentialGeneration:
             draft=draft,
             outlines=[_make_outline(i) for i in range(1, 4)],
             story_context=StoryContext(total_chapters=3),
-            title="T", genre="G", style="S", characters=[], world=_WORLD,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
         )
         assert result == list(draft.chapters)
         assert len(result) == 3
@@ -373,8 +422,19 @@ class TestP03PartialFailureFix:
         gen.config.pipeline.rag_enabled = True
         gen.config.pipeline.rag_index_chapters = True
 
-        def fake_write(title, genre, style, characters, world, outline,
-                       word_count, story_context, all_chapter_texts, *a, **kw):
+        def fake_write(
+            title,
+            genre,
+            style,
+            characters,
+            world,
+            outline,
+            word_count,
+            story_context,
+            all_chapter_texts,
+            *a,
+            **kw,
+        ):
             if outline.chapter_number == 2:
                 raise ValueError("chapter 2 failed")
             return _make_chapter(outline.chapter_number)
@@ -386,8 +446,12 @@ class TestP03PartialFailureFix:
             indexed_chapters.append(chapter_number)
             return 1
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"), \
-             patch("pipeline.layer1_story.batch_generator._index_chapter_into_rag") as mock_rag:
+        with (
+            patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"),
+            patch(
+                "pipeline.layer1_story.batch_generator._index_chapter_into_rag"
+            ) as mock_rag,
+        ):
             mock_rag.return_value = 0
 
             bg = BatchChapterGenerator(gen)
@@ -398,13 +462,19 @@ class TestP03PartialFailureFix:
                     draft=draft,
                     outlines=[_make_outline(i) for i in range(1, 4)],
                     story_context=StoryContext(total_chapters=3),
-                    title="T", genre="G", style="S", characters=[], world=_WORLD,
+                    title="T",
+                    genre="G",
+                    style="S",
+                    characters=[],
+                    world=_WORLD,
                 )
 
             # _index_chapter_into_rag must be called for the 2 successful chapters
             # before the exception propagates (P0-3 fix at lines 1175-1192)
             assert mock_rag.call_count >= 2
-            rag_chapter_nums = [c.args[1].chapter_number for c in mock_rag.call_args_list]
+            rag_chapter_nums = [
+                c.args[1].chapter_number for c in mock_rag.call_args_list
+            ]
             assert 1 in rag_chapter_nums
             assert 3 in rag_chapter_nums
 
@@ -423,7 +493,11 @@ class TestP03PartialFailureFix:
                     draft=draft,
                     outlines=[_make_outline(i) for i in range(1, 3)],
                     story_context=StoryContext(total_chapters=2),
-                    title="T", genre="G", style="S", characters=[], world=_WORLD,
+                    title="T",
+                    genre="G",
+                    style="S",
+                    characters=[],
+                    world=_WORLD,
                 )
 
             assert draft.chapters == []
@@ -449,7 +523,11 @@ class TestP03PartialFailureFix:
                     draft=draft,
                     outlines=[_make_outline(1), _make_outline(2)],
                     story_context=StoryContext(total_chapters=2),
-                    title="T", genre="G", style="S", characters=[], world=_WORLD,
+                    title="T",
+                    genre="G",
+                    style="S",
+                    characters=[],
+                    world=_WORLD,
                 )
 
 
@@ -474,7 +552,11 @@ class TestParallelOrderPreservation:
             draft=draft,
             outlines=[_make_outline(i) for i in range(1, 5)],
             story_context=StoryContext(total_chapters=4),
-            title="T", genre="G", style="S", characters=[], world=_WORLD,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
         )
 
         nums = [ch.chapter_number for ch in draft.chapters]
@@ -485,8 +567,8 @@ class TestParallelOrderPreservation:
         gen = _mock_generator(batch_size=3, parallel=True)
         post_order = []
 
-        gen._write_chapter_with_long_context.side_effect = (
-            lambda *a, **kw: _make_chapter(a[5].chapter_number)
+        gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
+            _make_chapter(a[5].chapter_number)
         )
 
         def fake_post(chapter, *a, **kw):
@@ -500,7 +582,11 @@ class TestParallelOrderPreservation:
             draft=draft,
             outlines=[_make_outline(i) for i in range(1, 4)],
             story_context=StoryContext(total_chapters=3),
-            title="T", genre="G", style="S", characters=[], world=_WORLD,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
         )
 
         assert post_order == [1, 2, 3]
@@ -515,8 +601,8 @@ class TestThreadedParallelMode:
     @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
     def test_threaded_all_chapters_produced(self, mock_post):
         gen = _mock_generator(batch_size=3, parallel=True, use_asyncio=False)
-        gen._write_chapter_with_long_context.side_effect = (
-            lambda *a, **kw: _make_chapter(a[5].chapter_number)
+        gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
+            _make_chapter(a[5].chapter_number)
         )
         bg = BatchChapterGenerator(gen)
         draft = _make_draft()
@@ -524,7 +610,11 @@ class TestThreadedParallelMode:
             draft=draft,
             outlines=[_make_outline(i) for i in range(1, 4)],
             story_context=StoryContext(total_chapters=3),
-            title="T", genre="G", style="S", characters=[], world=_WORLD,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
         )
         assert len(draft.chapters) == 3
 
@@ -540,7 +630,11 @@ class TestThreadedParallelMode:
                 draft=draft,
                 outlines=[_make_outline(1), _make_outline(2)],
                 story_context=StoryContext(total_chapters=2),
-                title="T", genre="G", style="S", characters=[], world=_WORLD,
+                title="T",
+                genre="G",
+                style="S",
+                characters=[],
+                world=_WORLD,
             )
 
 
@@ -558,7 +652,9 @@ class TestCausalSync:
 
         def fake_write(title, genre, style, characters, world, outline, *a, **kw):
             # content contains Vietnamese causal keyword → triggers extraction
-            return _make_chapter(outline.chapter_number, content="vì thế điều này xảy ra " * 30)
+            return _make_chapter(
+                outline.chapter_number, content="vì thế điều này xảy ra " * 30
+            )
 
         gen._write_chapter_with_long_context.side_effect = fake_write
 
@@ -577,7 +673,11 @@ class TestCausalSync:
             draft=draft,
             outlines=[_make_outline(1), _make_outline(2)],
             story_context=story_ctx,
-            title="T", genre="G", style="S", characters=[], world=_WORLD,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
         )
 
         assert len(synced_events) >= 1
@@ -587,8 +687,8 @@ class TestCausalSync:
         """When parallel_causal_sync=False, no events are synced."""
         gen = _mock_generator(batch_size=2, parallel=True)
         gen.config.pipeline.parallel_causal_sync = False
-        gen._write_chapter_with_long_context.side_effect = (
-            lambda *a, **kw: _make_chapter(a[5].chapter_number, content="vì thế xảy ra " * 30)
+        gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
+            _make_chapter(a[5].chapter_number, content="vì thế xảy ra " * 30)
         )
         story_ctx = StoryContext(total_chapters=2)
         events_synced = []
@@ -606,7 +706,11 @@ class TestCausalSync:
             draft=draft,
             outlines=[_make_outline(1), _make_outline(2)],
             story_context=story_ctx,
-            title="T", genre="G", style="S", characters=[], world=_WORLD,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
         )
         assert events_synced == []
 
@@ -647,8 +751,8 @@ class TestStreamCallbackForcesSequential:
     @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
     def test_stream_uses_write_chapter_stream(self, mock_post):
         gen = _mock_generator(batch_size=2, parallel=True)
-        gen.write_chapter_stream.side_effect = (
-            lambda *a, **kw: _make_chapter(a[5].chapter_number)
+        gen.write_chapter_stream.side_effect = lambda *a, **kw: _make_chapter(
+            a[5].chapter_number
         )
         bg = BatchChapterGenerator(gen)
         draft = _make_draft()
@@ -656,7 +760,11 @@ class TestStreamCallbackForcesSequential:
             draft=draft,
             outlines=[_make_outline(1)],
             story_context=StoryContext(total_chapters=1),
-            title="T", genre="G", style="S", characters=[], world=_WORLD,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
             stream_callback=MagicMock(),
         )
         gen.write_chapter_stream.assert_called_once()
@@ -683,7 +791,11 @@ class TestCancelledErrorHandling:
                     draft=draft,
                     outlines=[_make_outline(1)],
                     story_context=StoryContext(total_chapters=1),
-                    title="T", genre="G", style="S", characters=[], world=_WORLD,
+                    title="T",
+                    genre="G",
+                    style="S",
+                    characters=[],
+                    world=_WORLD,
                 )
 
 
@@ -696,8 +808,8 @@ class TestBatchSizeConfig:
     @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
     def test_batch_size_1_writes_all_chapters(self, mock_post):
         gen = _mock_generator(batch_size=1)
-        gen._write_chapter_with_long_context.side_effect = (
-            lambda *a, **kw: _make_chapter(a[5].chapter_number)
+        gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
+            _make_chapter(a[5].chapter_number)
         )
         bg = BatchChapterGenerator(gen)
         draft = _make_draft()
@@ -705,15 +817,19 @@ class TestBatchSizeConfig:
             draft=draft,
             outlines=[_make_outline(i) for i in range(1, 4)],
             story_context=StoryContext(total_chapters=3),
-            title="T", genre="G", style="S", characters=[], world=_WORLD,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
         )
         assert len(draft.chapters) == 3
 
     @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
     def test_batch_size_larger_than_total_chapters(self, mock_post):
         gen = _mock_generator(batch_size=100)
-        gen._write_chapter_with_long_context.side_effect = (
-            lambda *a, **kw: _make_chapter(a[5].chapter_number)
+        gen._write_chapter_with_long_context.side_effect = lambda *a, **kw: (
+            _make_chapter(a[5].chapter_number)
         )
         bg = BatchChapterGenerator(gen)
         draft = _make_draft()
@@ -721,7 +837,11 @@ class TestBatchSizeConfig:
             draft=draft,
             outlines=[_make_outline(i) for i in range(1, 4)],
             story_context=StoryContext(total_chapters=3),
-            title="T", genre="G", style="S", characters=[], world=_WORLD,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
         )
         assert len(draft.chapters) == 3
 

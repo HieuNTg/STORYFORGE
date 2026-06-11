@@ -99,6 +99,7 @@ def get_rag_kb(persist_dir: str):
     if _rag_kb is None:
         try:
             from services.rag_knowledge_base import RAGKnowledgeBase
+
             _rag_kb = RAGKnowledgeBase(persist_dir=persist_dir)
         except Exception as e:
             logger.warning(f"RAG init failed: {e}")
@@ -118,7 +119,9 @@ def _rank_focus_characters(characters: list, max_n: int) -> list:
     if not characters:
         return []
     priority_roles = {"protagonist", "antagonist", "main"}
-    primary = [c for c in characters if getattr(c, "role", "").lower() in priority_roles]
+    primary = [
+        c for c in characters if getattr(c, "role", "").lower() in priority_roles
+    ]
     if len(primary) >= max_n:
         return primary[:max_n]
     # Pad from remaining in original order, skipping duplicates
@@ -156,7 +159,9 @@ def build_rag_context(
         return ""
 
     # Bug #4: Check batch cache first
-    char_names = [getattr(c, "name", "") for c in (characters or []) if getattr(c, "name", "")]
+    char_names = [
+        getattr(c, "name", "") for c in (characters or []) if getattr(c, "name", "")
+    ]
     thread_ids = [
         getattr(t, "thread_id", "") or getattr(t, "title", "")
         for t in (open_threads or [])
@@ -255,7 +260,10 @@ def write_chapter_with_long_context(
 ) -> Chapter:
     """Try long-context generation; fall back to standard if disabled/overflow."""
     # Lazy import for mock compat
-    from pipeline.layer1_story.chapter_writer import build_chapter_prompt, strip_llm_preamble
+    from pipeline.layer1_story.chapter_writer import (
+        build_chapter_prompt,
+        strip_llm_preamble,
+    )
 
     use_lc = False
     window_size = getattr(config.pipeline, "context_window_chapters", 5)
@@ -266,6 +274,7 @@ def write_chapter_with_long_context(
         and long_context_client.is_configured
     ):
         from services.token_counter import fits_in_context
+
         if fits_in_context(windowed_texts, long_context_client.max_context):
             use_lc = True
         else:
@@ -280,10 +289,22 @@ def write_chapter_with_long_context(
         words = (all_chapter_texts[-1] or "").split()
         prev_tail = " ".join(words[-300:]) if words else ""
 
-    rag_kb = get_rag_kb(config.pipeline.rag_persist_dir) if config.pipeline.rag_enabled else None
+    rag_kb = (
+        get_rag_kb(config.pipeline.rag_persist_dir)
+        if config.pipeline.rag_enabled
+        else None
+    )
     sys_prompt, user_prompt = build_chapter_prompt(
-        config, title, genre, style, characters, world, outline,
-        word_count, story_context, bible_context=bible_ctx,
+        config,
+        title,
+        genre,
+        style,
+        characters,
+        world,
+        outline,
+        word_count,
+        story_context,
+        bible_context=bible_ctx,
         full_chapter_texts=windowed_texts if use_lc else None,
         rag_kb=rag_kb,
         enhancement_context=enhancement_context,
@@ -294,11 +315,15 @@ def write_chapter_with_long_context(
     )
     if use_lc:
         content = long_context_client.generate(
-            system_prompt=sys_prompt, user_prompt=user_prompt, max_tokens=8192,
+            system_prompt=sys_prompt,
+            user_prompt=user_prompt,
+            max_tokens=8192,
         )
     else:
         content = llm.generate(
-            system_prompt=sys_prompt, user_prompt=user_prompt, max_tokens=8192,
+            system_prompt=sys_prompt,
+            user_prompt=user_prompt,
+            max_tokens=8192,
             model=layer_model,
         )
     content = strip_llm_preamble(content)

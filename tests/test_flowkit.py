@@ -44,7 +44,9 @@ def isolated_flow_service(tmp_path, monkeypatch):
     import services.media.flow_service as fs_mod
 
     monkeypatch.setattr(fs_mod, "_DB_DIR", str(tmp_path / "data" / "flowkit"))
-    monkeypatch.setattr(fs_mod, "_DB_PATH", str(tmp_path / "data" / "flowkit" / "jobs.db"))
+    monkeypatch.setattr(
+        fs_mod, "_DB_PATH", str(tmp_path / "data" / "flowkit" / "jobs.db")
+    )
 
     fs_mod.FlowService._instance = None
     svc = fs_mod.FlowService()
@@ -57,7 +59,9 @@ def isolated_flow_service(tmp_path, monkeypatch):
 def _fake_ws(send_capture=None):
     ws = MagicMock()
     if send_capture is not None:
-        ws.send_json = AsyncMock(side_effect=lambda payload: send_capture.append(payload))
+        ws.send_json = AsyncMock(
+            side_effect=lambda payload: send_capture.append(payload)
+        )
     else:
         ws.send_json = AsyncMock()
     return ws
@@ -101,21 +105,29 @@ async def test_send_without_ws_raises(isolated_flow_service):
 
 
 @pytest.mark.asyncio
-async def test_request_image_payload_shape(isolated_flow_service, tmp_path, monkeypatch):
+async def test_request_image_payload_shape(
+    isolated_flow_service, tmp_path, monkeypatch
+):
     svc = isolated_flow_service
     # request_image short-circuits when flowkit_project_id is empty (real
     # contract: Google Labs Flow needs a project UUID). Inject a fake one so
     # the request actually hits the WS layer. Captcha is solved out-of-band
     # via _solve_captcha — bypass it to keep the test focused on body shape.
     from config import ConfigManager
+
     monkeypatch.setattr(ConfigManager().pipeline, "flowkit_project_id", "test-project")
     monkeypatch.setattr(svc, "_solve_captcha", AsyncMock(return_value="fake-token"))
     captured = []
     svc.set_active_ws(_fake_ws(captured))
     with patch.object(svc, "download_to_local", AsyncMock(return_value="/tmp/o.png")):
         task = asyncio.create_task(
-            svc.request_image("a cat", char_refs=[], style_ref=None,
-                              output_dir=str(tmp_path / "out"), filename="x.png")
+            svc.request_image(
+                "a cat",
+                char_refs=[],
+                style_ref=None,
+                output_dir=str(tmp_path / "out"),
+                filename="x.png",
+            )
         )
         await _resolve_after(svc, 200, {"fifeUrl": "https://storage.googleapis.com/x"})
         await task
@@ -134,10 +146,15 @@ async def test_request_image_payload_shape(isolated_flow_service, tmp_path, monk
 
 
 @pytest.mark.asyncio
-async def test_request_image_payload_split_enabled(isolated_flow_service, tmp_path, monkeypatch):
+async def test_request_image_payload_split_enabled(
+    isolated_flow_service, tmp_path, monkeypatch
+):
     svc = isolated_flow_service
     from config import ConfigManager
-    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_image_input_type_split", True)
+
+    monkeypatch.setattr(
+        ConfigManager().pipeline, "flowkit_image_input_type_split", True
+    )
     monkeypatch.setattr(ConfigManager().pipeline, "flowkit_project_id", "test-project")
     monkeypatch.setattr(svc, "_solve_captcha", AsyncMock(return_value="fake-token"))
 
@@ -151,8 +168,13 @@ async def test_request_image_payload_split_enabled(isolated_flow_service, tmp_pa
     s.write_bytes(b"y")
     with patch.object(svc, "download_to_local", AsyncMock(return_value="/tmp/o.png")):
         task = asyncio.create_task(
-            svc.request_image("x", char_refs=[str(c)], style_ref=str(s),
-                              output_dir=str(tmp_path / "out"), filename="x.png")
+            svc.request_image(
+                "x",
+                char_refs=[str(c)],
+                style_ref=str(s),
+                output_dir=str(tmp_path / "out"),
+                filename="x.png",
+            )
         )
         await _resolve_after(svc, 200, {"fifeUrl": "https://storage.googleapis.com/x"})
         await task
@@ -169,6 +191,7 @@ async def test_request_image_payload_split_enabled(isolated_flow_service, tmp_pa
 async def test_video_job_lifecycle(isolated_flow_service, tmp_path, monkeypatch):
     svc = isolated_flow_service
     from config import ConfigManager
+
     monkeypatch.setattr(ConfigManager().pipeline, "flowkit_project_id", "test-project")
     svc.set_active_ws(_fake_ws([]))
     monkeypatch.setattr(svc, "_upload_image", AsyncMock(return_value="mid-start"))
@@ -197,15 +220,24 @@ async def test_download_to_local_retries_on_expired(isolated_flow_service, tmp_p
     ]
 
     class _Client:
-        def __init__(self, *a, **kw): pass
-        async def __aenter__(self): return self
-        async def __aexit__(self, *a): return False
-        async def get(self, url): return fake_responses.pop(0)
+        def __init__(self, *a, **kw):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def get(self, url):
+            return fake_responses.pop(0)
 
     dest = tmp_path / "out" / "f.png"
     with patch("services.media.flow_service.httpx") as hx:
         hx.AsyncClient = _Client
-        result = await svc.download_to_local("https://storage.googleapis.com/x", str(dest))
+        result = await svc.download_to_local(
+            "https://storage.googleapis.com/x", str(dest)
+        )
     assert os.path.isfile(result)
     ws.send_json.assert_awaited()
 
@@ -289,8 +321,11 @@ async def test_clear_active_ws_fails_pending(isolated_flow_service):
 
 def test_extract_fife_url_nested():
     from services.media.flow_service import FlowService
+
     payload = {"items": [{"meta": {"fifeUrl": "https://storage.googleapis.com/foo"}}]}
-    assert FlowService._extract_fife_url(payload) == "https://storage.googleapis.com/foo"
+    assert (
+        FlowService._extract_fife_url(payload) == "https://storage.googleapis.com/foo"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -302,6 +337,7 @@ def test_aspect_enum_map_includes_comic_4_5():
     """Phase 1: '4:5' must resolve to a valid (accepted) portrait enum, not the
     PORTRAIT default fallback for an unknown key."""
     from services.media.flow_service import _ASPECT_ENUM_MAP, _aspect_to_enum
+
     assert "4:5" in _ASPECT_ENUM_MAP
     enum = _aspect_to_enum("4:5")
     assert enum.startswith("IMAGE_ASPECT_RATIO_")
@@ -312,6 +348,7 @@ def test_aspect_enum_map_includes_comic_4_5():
 def test_default_aspect_ratio_is_comic_panel():
     """Config default aspect ratio is the comic webtoon panel, not 9:16 wallpaper."""
     from config.defaults import PipelineConfig
+
     assert PipelineConfig().flowkit_aspect_ratio == "4:5"
 
 
@@ -323,6 +360,7 @@ async def test_request_image_appends_no_text_suffix_and_comic_aspect(
     positive prompt AND the configured comic aspect enum."""
     svc = isolated_flow_service
     from config import ConfigManager
+
     cfg = ConfigManager().pipeline
     monkeypatch.setattr(cfg, "flowkit_project_id", "test-project")
     monkeypatch.setattr(cfg, "flowkit_aspect_ratio", "4:5")
@@ -331,8 +369,13 @@ async def test_request_image_appends_no_text_suffix_and_comic_aspect(
     svc.set_active_ws(_fake_ws(captured))
     with patch.object(svc, "download_to_local", AsyncMock(return_value="/tmp/o.png")):
         task = asyncio.create_task(
-            svc.request_image("a ruined village", char_refs=[], style_ref=None,
-                              output_dir=str(tmp_path / "out"), filename="x.png")
+            svc.request_image(
+                "a ruined village",
+                char_refs=[],
+                style_ref=None,
+                output_dir=str(tmp_path / "out"),
+                filename="x.png",
+            )
         )
         await _resolve_after(svc, 200, {"fifeUrl": "https://storage.googleapis.com/x"})
         await task
@@ -355,6 +398,7 @@ async def test_request_image_no_text_suffix_idempotent(
     appended twice."""
     svc = isolated_flow_service
     from config import ConfigManager
+
     monkeypatch.setattr(ConfigManager().pipeline, "flowkit_project_id", "test-project")
     monkeypatch.setattr(svc, "_solve_captcha", AsyncMock(return_value="fake-token"))
     captured = []
@@ -362,13 +406,20 @@ async def test_request_image_no_text_suffix_idempotent(
     prompt = "medium shot, hero, cel shading, no speech bubble, no text"
     with patch.object(svc, "download_to_local", AsyncMock(return_value="/tmp/o.png")):
         task = asyncio.create_task(
-            svc.request_image(prompt, char_refs=[], style_ref=None,
-                              output_dir=str(tmp_path / "out"), filename="x.png")
+            svc.request_image(
+                prompt,
+                char_refs=[],
+                style_ref=None,
+                output_dir=str(tmp_path / "out"),
+                filename="x.png",
+            )
         )
         await _resolve_after(svc, 200, {"fifeUrl": "https://storage.googleapis.com/x"})
         await task
 
-    text = captured[0]["params"]["body"]["requests"][0]["structuredPrompt"]["parts"][0]["text"]
+    text = captured[0]["params"]["body"]["requests"][0]["structuredPrompt"]["parts"][0][
+        "text"
+    ]
     assert text.count("no speech bubble") == 1
 
 
@@ -391,7 +442,9 @@ def flowkit_app(tmp_path, monkeypatch):
     import services.media.flow_service as fs_mod
 
     monkeypatch.setattr(fs_mod, "_DB_DIR", str(tmp_path / "data" / "flowkit"))
-    monkeypatch.setattr(fs_mod, "_DB_PATH", str(tmp_path / "data" / "flowkit" / "jobs.db"))
+    monkeypatch.setattr(
+        fs_mod, "_DB_PATH", str(tmp_path / "data" / "flowkit" / "jobs.db")
+    )
     fs_mod.FlowService._instance = None
     svc = fs_mod.FlowService()
 
@@ -443,11 +496,13 @@ def test_ws_media_url_refreshed_captured(flowkit_app):
     with TestClient(app) as client:
         with client.websocket_connect("/api/ws/flowkit") as ws:
             ws.receive_json()  # callback_secret
-            ws.send_json({
-                "type": "media_url_refreshed",
-                "url": "https://storage.googleapis.com/fresh",
-                "ttl": 3600,
-            })
+            ws.send_json(
+                {
+                    "type": "media_url_refreshed",
+                    "url": "https://storage.googleapis.com/fresh",
+                    "ttl": 3600,
+                }
+            )
     assert svc.last_media_url == "https://storage.googleapis.com/fresh"
     assert svc.last_media_refresh_at > 0
 
@@ -468,11 +523,16 @@ def test_ws_response_resolves_future(flowkit_app):
                 # — TestClient is synchronous so by the time send_json returns the server
                 # task has been scheduled. A small wait lets it run.
                 import time as _t
+
                 deadline = _t.time() + 2.0
                 while not fut.done() and _t.time() < deadline:
                     _t.sleep(0.01)
                 assert fut.done(), "future not resolved by WS response"
-                assert fut.result() == {"id": "req-xyz", "status": 200, "data": {"ok": True}}
+                assert fut.result() == {
+                    "id": "req-xyz",
+                    "status": 200,
+                    "data": {"ok": True},
+                }
             finally:
                 loop.close()
 
@@ -480,7 +540,10 @@ def test_ws_response_resolves_future(flowkit_app):
 def test_ext_callback_hmac_disabled_accepts_plaintext(flowkit_app, monkeypatch):
     app, svc, _ = flowkit_app
     from config import ConfigManager
-    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_callback_hmac_required", False)
+
+    monkeypatch.setattr(
+        ConfigManager().pipeline, "flowkit_callback_hmac_required", False
+    )
 
     loop = asyncio.new_event_loop()
     try:
@@ -500,14 +563,20 @@ def test_ext_callback_hmac_disabled_accepts_plaintext(flowkit_app, monkeypatch):
 def test_ext_callback_hmac_invalid_401(flowkit_app, monkeypatch):
     app, svc, _ = flowkit_app
     from config import ConfigManager
-    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_callback_hmac_required", True)
+
+    monkeypatch.setattr(
+        ConfigManager().pipeline, "flowkit_callback_hmac_required", True
+    )
 
     body = b'{"id":"req-bad","status":200,"data":{}}'
     with TestClient(app) as client:
         r = client.post(
             "/api/ext/callback",
             content=body,
-            headers={"X-Callback-Signature": "deadbeef", "Content-Type": "application/json"},
+            headers={
+                "X-Callback-Signature": "deadbeef",
+                "Content-Type": "application/json",
+            },
         )
     assert r.status_code == 401
 
@@ -515,19 +584,27 @@ def test_ext_callback_hmac_invalid_401(flowkit_app, monkeypatch):
 def test_ext_callback_hmac_valid_resolves(flowkit_app, monkeypatch):
     app, svc, _ = flowkit_app
     from config import ConfigManager
-    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_callback_hmac_required", True)
+
+    monkeypatch.setattr(
+        ConfigManager().pipeline, "flowkit_callback_hmac_required", True
+    )
 
     loop = asyncio.new_event_loop()
     try:
         fut = loop.create_future()
         svc.pending_requests["req-good"] = fut
-        body = _json.dumps({"id": "req-good", "status": 200, "data": {"ok": True}}).encode()
+        body = _json.dumps(
+            {"id": "req-good", "status": 200, "data": {"ok": True}}
+        ).encode()
         sig = hmac.new(svc.callback_secret.encode(), body, hashlib.sha256).hexdigest()
         with TestClient(app) as client:
             r = client.post(
                 "/api/ext/callback",
                 content=body,
-                headers={"X-Callback-Signature": sig, "Content-Type": "application/json"},
+                headers={
+                    "X-Callback-Signature": sig,
+                    "Content-Type": "application/json",
+                },
             )
         assert r.status_code == 200
         assert fut.done() and fut.result()["data"] == {"ok": True}
@@ -560,7 +637,10 @@ def test_flowkit_status_connected(flowkit_app):
 def test_ext_callback_rejects_invalid_json(flowkit_app, monkeypatch):
     app, _, _ = flowkit_app
     from config import ConfigManager
-    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_callback_hmac_required", False)
+
+    monkeypatch.setattr(
+        ConfigManager().pipeline, "flowkit_callback_hmac_required", False
+    )
     with TestClient(app) as client:
         r = client.post(
             "/api/ext/callback",
@@ -572,7 +652,10 @@ def test_ext_callback_rejects_invalid_json(flowkit_app, monkeypatch):
 
 def test_redact_strips_sensitive_keys():
     from api.flowkit import _redact
-    out = _redact({"flowKey": "secret", "nested": {"Authorization": "Bearer x", "ok": 1}})
+
+    out = _redact(
+        {"flowKey": "secret", "nested": {"Authorization": "Bearer x", "ok": 1}}
+    )
     assert out["flowKey"] == "<redacted>"
     assert out["nested"]["Authorization"] == "<redacted>"
     assert out["nested"]["ok"] == 1
@@ -604,7 +687,9 @@ async def test_no_overshoot_on_ramp_down_mid_flight(isolated_flow_service):
                 seen.add(rid)
                 state["active"] += 1
                 if state["reset_done"]:
-                    state["peak_after_reset"] = max(state["peak_after_reset"], state["active"])
+                    state["peak_after_reset"] = max(
+                        state["peak_after_reset"], state["active"]
+                    )
                 await asyncio.sleep(0.02)
                 svc.resolve_request({"id": rid, "status": 200, "data": {}})
                 state["active"] -= 1
@@ -628,7 +713,9 @@ async def test_no_overshoot_on_ramp_down_mid_flight(isolated_flow_service):
         pass
     # After reset, no NEW caller may enter while the active count >= 1.
     # Peak observed under the new cap must be <= 1 (current).
-    assert state["peak_after_reset"] <= 1, f"overshoot after ramp-down: {state['peak_after_reset']}"
+    assert state["peak_after_reset"] <= 1, (
+        f"overshoot after ramp-down: {state['peak_after_reset']}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -641,8 +728,11 @@ def isolated_image_gen_env(tmp_path, monkeypatch):
     """Run image-gen tests in a tmp cwd so output/ writes don't pollute the repo."""
     monkeypatch.chdir(tmp_path)
     import services.media.flow_service as fs_mod
+
     monkeypatch.setattr(fs_mod, "_DB_DIR", str(tmp_path / "data" / "flowkit"))
-    monkeypatch.setattr(fs_mod, "_DB_PATH", str(tmp_path / "data" / "flowkit" / "jobs.db"))
+    monkeypatch.setattr(
+        fs_mod, "_DB_PATH", str(tmp_path / "data" / "flowkit" / "jobs.db")
+    )
     fs_mod.FlowService._instance = None
     yield tmp_path
     fs_mod.FlowService._instance = None
@@ -650,21 +740,28 @@ def isolated_image_gen_env(tmp_path, monkeypatch):
 
 def test_output_dir_per_session(isolated_image_gen_env):
     from services.media.image_generator import ImageGenerator
-    gen = ImageGenerator(provider="none", session_id="abc123", story_title="Tiên Hiệp Test!")
+
+    gen = ImageGenerator(
+        provider="none", session_id="abc123", story_title="Tiên Hiệp Test!"
+    )
     # Per-story layout: images live under output/<story-slug>/images, where the
     # slug is slug_session_dir(title, session_id).
-    assert gen.output_dir.replace("\\", "/").endswith("output/tien_hiep_test__abc123/images")
+    assert gen.output_dir.replace("\\", "/").endswith(
+        "output/tien_hiep_test__abc123/images"
+    )
     assert os.path.isdir(gen.output_dir)
 
 
 def test_output_dir_fallback(isolated_image_gen_env):
     from services.media.image_generator import ImageGenerator
+
     gen = ImageGenerator(provider="none")
     assert gen.output_dir.replace("\\", "/") == "output/images"
 
 
 def test_slug_session_dir_helper():
     from services.media._util import slug_session_dir
+
     assert slug_session_dir("Hello World!", "sid1") == "hello_world__sid1"
     assert slug_session_dir("", "x") == "story_x"
     assert slug_session_dir("a" * 100, "s") == "a" * 60 + "_s"
@@ -674,11 +771,13 @@ def test_slug_session_dir_helper():
 async def test_generate_with_ref_flowkit_branch(isolated_image_gen_env, monkeypatch):
     """Patch flow_service.request_image; assert _flowkit_with_ref routes correctly."""
     from config import ConfigManager
+
     monkeypatch.setattr(ConfigManager().pipeline, "image_provider", "flowkit")
     monkeypatch.setattr(ConfigManager().pipeline, "flowkit_enabled", True)
     monkeypatch.setattr(ConfigManager().pipeline, "flowkit_use_refiner", False)
 
     import services.media.flow_service as fs_mod
+
     fs_mod.FlowService._instance = None
     svc = fs_mod.FlowService()
     svc.active_ws = MagicMock()  # truthy
@@ -688,14 +787,18 @@ async def test_generate_with_ref_flowkit_branch(isolated_image_gen_env, monkeypa
 
     async def fake_request_image(prompt, char_refs, style_ref, output_dir, filename):
         captured.update(
-            prompt=prompt, char_refs=list(char_refs),
-            style_ref=style_ref, output_dir=output_dir, filename=filename,
+            prompt=prompt,
+            char_refs=list(char_refs),
+            style_ref=style_ref,
+            output_dir=output_dir,
+            filename=filename,
         )
         return os.path.join(output_dir, filename)
 
     monkeypatch.setattr(svc, "request_image", fake_request_image)
 
     from services.media.image_generator import ImageGenerator
+
     gen = ImageGenerator(provider="flowkit", session_id="s1", story_title="Story")
 
     result = await asyncio.to_thread(
@@ -709,8 +812,11 @@ async def test_generate_with_ref_flowkit_branch(isolated_image_gen_env, monkeypa
 
 
 @pytest.mark.asyncio
-async def test_flowkit_image_input_type_split_off_no_style(isolated_image_gen_env, monkeypatch, tmp_path):
+async def test_flowkit_image_input_type_split_off_no_style(
+    isolated_image_gen_env, monkeypatch, tmp_path
+):
     from config import ConfigManager
+
     cfg = ConfigManager().pipeline
     monkeypatch.setattr(cfg, "flowkit_enabled", True)
     monkeypatch.setattr(cfg, "flowkit_use_refiner", False)
@@ -720,6 +826,7 @@ async def test_flowkit_image_input_type_split_off_no_style(isolated_image_gen_en
     monkeypatch.setattr(cfg, "flowkit_style_reference_path", str(style_path))
 
     import services.media.flow_service as fs_mod
+
     fs_mod.FlowService._instance = None
     svc = fs_mod.FlowService()
     svc.active_ws = MagicMock()
@@ -734,6 +841,7 @@ async def test_flowkit_image_input_type_split_off_no_style(isolated_image_gen_en
     monkeypatch.setattr(svc, "request_image", fake_request_image)
 
     from services.media.image_generator import ImageGenerator
+
     gen = ImageGenerator(provider="flowkit")
     await asyncio.to_thread(gen.generate_with_reference, "p", ["/tmp/c.png"], "f.png")
     # Split flag off: style_ref must be None even if path is configured.
@@ -741,8 +849,11 @@ async def test_flowkit_image_input_type_split_off_no_style(isolated_image_gen_en
 
 
 @pytest.mark.asyncio
-async def test_flowkit_image_input_type_split_on_passes_style(isolated_image_gen_env, monkeypatch, tmp_path):
+async def test_flowkit_image_input_type_split_on_passes_style(
+    isolated_image_gen_env, monkeypatch, tmp_path
+):
     from config import ConfigManager
+
     cfg = ConfigManager().pipeline
     monkeypatch.setattr(cfg, "flowkit_enabled", True)
     monkeypatch.setattr(cfg, "flowkit_use_refiner", False)
@@ -752,6 +863,7 @@ async def test_flowkit_image_input_type_split_on_passes_style(isolated_image_gen
     monkeypatch.setattr(cfg, "flowkit_style_reference_path", str(style_path))
 
     import services.media.flow_service as fs_mod
+
     fs_mod.FlowService._instance = None
     svc = fs_mod.FlowService()
     svc.active_ws = MagicMock()
@@ -766,6 +878,7 @@ async def test_flowkit_image_input_type_split_on_passes_style(isolated_image_gen
     monkeypatch.setattr(svc, "request_image", fake_request_image)
 
     from services.media.image_generator import ImageGenerator
+
     gen = ImageGenerator(provider="flowkit")
     await asyncio.to_thread(gen.generate_with_reference, "p", ["/tmp/c.png"], "f.png")
     assert captured["style_ref"] == str(style_path)
@@ -774,10 +887,12 @@ async def test_flowkit_image_input_type_split_on_passes_style(isolated_image_gen
 @pytest.mark.asyncio
 async def test_refiner_called_when_enabled(isolated_image_gen_env, monkeypatch):
     from config import ConfigManager
+
     monkeypatch.setattr(ConfigManager().pipeline, "flowkit_enabled", True)
     monkeypatch.setattr(ConfigManager().pipeline, "flowkit_use_refiner", True)
 
     import services.media.flow_service as fs_mod
+
     fs_mod.FlowService._instance = None
     svc = fs_mod.FlowService()
     svc.active_ws = MagicMock()
@@ -798,11 +913,13 @@ async def test_refiner_called_when_enabled(isolated_image_gen_env, monkeypatch):
         return f"CINEMATIC: {text}"
 
     from services.media.image_prompt_generator import ImagePromptGenerator
+
     monkeypatch.setattr(
         ImagePromptGenerator, "refine_to_cinematic_prompt", fake_refine, raising=True
     )
 
     from services.media.image_generator import ImageGenerator
+
     gen = ImageGenerator(provider="flowkit")
     await asyncio.to_thread(gen.generate, "raw scene", "f.png")
     assert refine_calls["n"] == 1
@@ -812,10 +929,12 @@ async def test_refiner_called_when_enabled(isolated_image_gen_env, monkeypatch):
 @pytest.mark.asyncio
 async def test_refiner_skipped_when_disabled(isolated_image_gen_env, monkeypatch):
     from config import ConfigManager
+
     monkeypatch.setattr(ConfigManager().pipeline, "flowkit_enabled", True)
     monkeypatch.setattr(ConfigManager().pipeline, "flowkit_use_refiner", False)
 
     import services.media.flow_service as fs_mod
+
     fs_mod.FlowService._instance = None
     svc = fs_mod.FlowService()
     svc.active_ws = MagicMock()
@@ -836,11 +955,13 @@ async def test_refiner_skipped_when_disabled(isolated_image_gen_env, monkeypatch
         return f"CINEMATIC: {text}"
 
     from services.media.image_prompt_generator import ImagePromptGenerator
+
     monkeypatch.setattr(
         ImagePromptGenerator, "refine_to_cinematic_prompt", fake_refine, raising=True
     )
 
     from services.media.image_generator import ImageGenerator
+
     gen = ImageGenerator(provider="flowkit")
     await asyncio.to_thread(gen.generate, "raw scene", "f.png")
     assert refine_calls["n"] == 0
@@ -849,9 +970,11 @@ async def test_refiner_skipped_when_disabled(isolated_image_gen_env, monkeypatch
 
 def test_refine_to_cinematic_prompt_returns_refined(monkeypatch):
     from services.media.image_prompt_generator import ImagePromptGenerator
+
     gen = ImagePromptGenerator()
     monkeypatch.setattr(
-        gen.llm, "generate",
+        gen.llm,
+        "generate",
         MagicMock(return_value="wide shot, golden hour, hero, oil painting"),
         raising=False,
     )
@@ -861,9 +984,11 @@ def test_refine_to_cinematic_prompt_returns_refined(monkeypatch):
 
 def test_refine_to_cinematic_prompt_fallback_on_error(monkeypatch):
     from services.media.image_prompt_generator import ImagePromptGenerator
+
     gen = ImagePromptGenerator()
     monkeypatch.setattr(
-        gen.llm, "generate",
+        gen.llm,
+        "generate",
         MagicMock(side_effect=RuntimeError("llm down")),
         raising=False,
     )
@@ -874,12 +999,16 @@ def test_refine_to_cinematic_prompt_fallback_on_error(monkeypatch):
 def test_refine_to_cinematic_prompt_rejects_refusal(monkeypatch):
     """A model refusal must be discarded so the base prompt is used (the real-world bug)."""
     from services.media.image_prompt_generator import ImagePromptGenerator
+
     gen = ImagePromptGenerator()
     monkeypatch.setattr(
-        gen.llm, "generate",
-        MagicMock(return_value=(
-            "Bạn đã đăng nhập chưa? Tôi không thể tạo bất kỳ hình ảnh nào cho bạn."
-        )),
+        gen.llm,
+        "generate",
+        MagicMock(
+            return_value=(
+                "Bạn đã đăng nhập chưa? Tôi không thể tạo bất kỳ hình ảnh nào cho bạn."
+            )
+        ),
         raising=False,
     )
     out = gen.refine_to_cinematic_prompt("hero stands on cliff")
@@ -889,12 +1018,16 @@ def test_refine_to_cinematic_prompt_rejects_refusal(monkeypatch):
 def test_refine_to_cinematic_prompt_unwraps_json(monkeypatch):
     """A reply fenced as ```json {"prompt": ...}``` is unwrapped, not discarded."""
     from services.media.image_prompt_generator import ImagePromptGenerator
+
     gen = ImagePromptGenerator()
     monkeypatch.setattr(
-        gen.llm, "generate",
-        MagicMock(return_value=(
-            '```json\n{"prompt": "low angle, neon rim light, lone hero, cyberpunk"}\n```'
-        )),
+        gen.llm,
+        "generate",
+        MagicMock(
+            return_value=(
+                '```json\n{"prompt": "low angle, neon rim light, lone hero, cyberpunk"}\n```'
+            )
+        ),
         raising=False,
     )
     out = gen.refine_to_cinematic_prompt("hero stands on cliff")
@@ -903,15 +1036,18 @@ def test_refine_to_cinematic_prompt_unwraps_json(monkeypatch):
 
 def test_is_configured_requires_ws(isolated_image_gen_env, monkeypatch):
     from config import ConfigManager
+
     monkeypatch.setattr(ConfigManager().pipeline, "image_provider", "flowkit")
     monkeypatch.setattr(ConfigManager().pipeline, "flowkit_enabled", True)
 
     import services.media.flow_service as fs_mod
+
     fs_mod.FlowService._instance = None
     svc = fs_mod.FlowService()
     svc.active_ws = None
 
     from services.media.image_provider import ImageProvider
+
     p = ImageProvider()
     assert p.is_configured() is False
 
@@ -922,14 +1058,17 @@ def test_is_configured_requires_ws(isolated_image_gen_env, monkeypatch):
 def test_flowkit_not_ready_returns_none(isolated_image_gen_env, monkeypatch):
     """No WS connected → _generate_flowkit returns None, no crash."""
     from config import ConfigManager
+
     monkeypatch.setattr(ConfigManager().pipeline, "flowkit_enabled", True)
 
     import services.media.flow_service as fs_mod
+
     fs_mod.FlowService._instance = None
     svc = fs_mod.FlowService()
     svc.active_ws = None
 
     from services.media.image_generator import ImageGenerator
+
     gen = ImageGenerator(provider="flowkit")
     assert gen.generate("scene", "f.png") is None
 
@@ -970,8 +1109,12 @@ def test_handlers_relpath_subdirs(isolated_image_gen_env, monkeypatch):
     # Force the legacy scene-extraction path regardless of the local
     # comic_shot_list_enabled flag — the shot-list path calls the real LLM.
     from config import ConfigManager
+
     monkeypatch.setattr(
-        ConfigManager().pipeline, "comic_shot_list_enabled", False, raising=False,
+        ConfigManager().pipeline,
+        "comic_shot_list_enabled",
+        False,
+        raising=False,
     )
 
     sub = "output/t_sid1/images"
@@ -987,7 +1130,9 @@ def test_handlers_relpath_subdirs(isolated_image_gen_env, monkeypatch):
     assert paths == [fake_path]
     # Chapter image entries keep the full OUTPUT_ROOT-relative path (story slug
     # + images subdir), not just the basename, so /media resolves it.
-    assert _Orch.output.enhanced_story.chapters[0].images == ["t_sid1/images/ch01_panel01.png"]
+    assert _Orch.output.enhanced_story.chapters[0].images == [
+        "t_sid1/images/ch01_panel01.png"
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -1109,12 +1254,19 @@ def test_config_get_returns_all_flowkit_fields(config_app, monkeypatch):
         assert resp.status_code == 200
         pipeline = resp.json()["pipeline"]
         for key in (
-            "flowkit_enabled", "flowkit_port", "flowkit_style_reference_path",
-            "flowkit_concurrent_workers", "flowkit_concurrent_workers_max",
-            "flowkit_workers_ramp_threshold", "flowkit_veo_poll_interval",
-            "flowkit_account_warning_shown", "flowkit_risk_acknowledged",
-            "flowkit_image_input_type_split", "flowkit_callback_hmac_required",
-            "flowkit_use_refiner", "flowkit_request_timeout",
+            "flowkit_enabled",
+            "flowkit_port",
+            "flowkit_style_reference_path",
+            "flowkit_concurrent_workers",
+            "flowkit_concurrent_workers_max",
+            "flowkit_workers_ramp_threshold",
+            "flowkit_veo_poll_interval",
+            "flowkit_account_warning_shown",
+            "flowkit_risk_acknowledged",
+            "flowkit_image_input_type_split",
+            "flowkit_callback_hmac_required",
+            "flowkit_use_refiner",
+            "flowkit_request_timeout",
         ):
             assert key in pipeline, key
         assert pipeline["flowkit_enabled"] is True

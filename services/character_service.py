@@ -149,9 +149,7 @@ def generate_character(
             return ForgeCharacter.model_validate(data)
         except Exception as e:  # noqa: BLE001
             last_error = e
-            logger.warning(
-                "generate_character attempt %d failed: %s", attempt + 1, e
-            )
+            logger.warning("generate_character attempt %d failed: %s", attempt + 1, e)
             if attempt == 0:
                 extra = (
                     f"{extra}\n\n[QUAN TRỌNG: Trả lời lần trước SAI schema. "

@@ -1,4 +1,5 @@
 """Agent Nhà Phê Bình Kịch Tính - đánh giá arc căng thẳng và độ hấp dẫn."""
+
 import json
 import logging
 
@@ -14,9 +15,15 @@ class DramaCriticAgent(BaseAgent):
     role = "drama_critic"
     goal = "Đánh giá tension arc, cliffhanger, đa dạng cảm xúc và tích hợp sự kiện kịch tính"
     layers = [2]
-    depends_on: list[str] = ["Kiểm Soát Viên", "Chuyên Gia Đối Thoại", "Kiểm Tra Văn Phong"]
+    depends_on: list[str] = [
+        "Kiểm Soát Viên",
+        "Chuyên Gia Đối Thoại",
+        "Kiểm Tra Văn Phong",
+    ]
 
-    def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
+    def review(
+        self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None
+    ) -> AgentReview:
         enhanced_chapters, simulation_events = self._extract_data(output)
 
         prompt = agent_prompts.DRAMA_REVIEW.format(
@@ -32,10 +39,14 @@ class DramaCriticAgent(BaseAgent):
         )
         return self._parse_review_json(result, layer, iteration)
 
-    def debate_response(self, story_draft, layer, own_review, all_reviews, round2_entries=None):
+    def debate_response(
+        self, story_draft, layer, own_review, all_reviews, round2_entries=None
+    ):
         """Challenge reviews that undervalue drama. LLM-backed with rule-based fallback."""
         try:
-            return self._llm_debate(story_draft, own_review, all_reviews, round2_entries=round2_entries)
+            return self._llm_debate(
+                story_draft, own_review, all_reviews, round2_entries=round2_entries
+            )
         except Exception as e:
             logger.warning(f"LLM debate failed, using rule-based fallback: {e}")
             return self._rule_based_debate(story_draft, all_reviews)
@@ -43,9 +54,14 @@ class DramaCriticAgent(BaseAgent):
     def _llm_debate(self, story_draft, own_review, all_reviews, round2_entries=None):
         """LLM-powered debate analysis."""
         other_reviews = [
-            {"agent_name": r.agent_name, "score": r.score,
-             "issues": r.issues, "suggestions": [str(s) for s in r.suggestions]}
-            for r in all_reviews if r.agent_name != self.name
+            {
+                "agent_name": r.agent_name,
+                "score": r.score,
+                "issues": r.issues,
+                "suggestions": [str(s) for s in r.suggestions],
+            }
+            for r in all_reviews
+            if r.agent_name != self.name
         ]
         if not other_reviews:
             return []
@@ -58,7 +74,9 @@ class DramaCriticAgent(BaseAgent):
         prompt = agent_prompts.DRAMA_DEBATE.format(
             own_score=own_review.score,
             own_issues=json.dumps(own_review.issues, ensure_ascii=False),
-            own_suggestions=json.dumps([str(s) for s in own_review.suggestions], ensure_ascii=False),
+            own_suggestions=json.dumps(
+                [str(s) for s in own_review.suggestions], ensure_ascii=False
+            ),
             other_reviews_json=json.dumps(other_reviews, ensure_ascii=False, indent=2),
             chapter_excerpt=chapter_excerpt,
         )
@@ -84,13 +102,16 @@ class DramaCriticAgent(BaseAgent):
             for suggestion in review.suggestions:
                 sug_text = str(suggestion)
                 if any(kw in sug_text.lower() for kw in low_drama_keywords):
-                    entries.append(DebateEntry(
-                        agent_name=self.name, round_number=2,
-                        stance=DebateStance.CHALLENGE,
-                        target_agent=review.agent_name,
-                        target_issue=sug_text[:100],
-                        reasoning="Drama reduction would harm story tension.",
-                    ))
+                    entries.append(
+                        DebateEntry(
+                            agent_name=self.name,
+                            round_number=2,
+                            stance=DebateStance.CHALLENGE,
+                            target_agent=review.agent_name,
+                            target_issue=sug_text[:100],
+                            reasoning="Drama reduction would harm story tension.",
+                        )
+                    )
         return entries
 
     def _extract_data(self, output: PipelineOutput) -> tuple[str, str]:

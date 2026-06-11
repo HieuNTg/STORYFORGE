@@ -65,7 +65,9 @@ class TestExtractTimeMarkers:
         assert "flashback" in result["relative_markers"]
 
     def test_no_markers_returns_empty(self):
-        result = extract_time_markers("Một câu văn hoàn toàn không có dấu hiệu thời gian.")
+        result = extract_time_markers(
+            "Một câu văn hoàn toàn không có dấu hiệu thời gian."
+        )
         assert result["time_of_day"] == ""
         assert result["relative_markers"] == []
 
@@ -101,7 +103,9 @@ class TestTimelineState:
     def test_add_event_increments_day_on_next_day(self):
         state = create_timeline_state()
         assert state.current_day == 1
-        event = TimelineEvent(chapter=2, relative_marker="next_day", time_of_day="morning")
+        event = TimelineEvent(
+            chapter=2, relative_marker="next_day", time_of_day="morning"
+        )
         state.add_event(event)
         assert state.current_day == 2
 
@@ -190,21 +194,24 @@ class TestFormatTimelineWarning:
         assert result == ""
 
     def test_contradiction_in_output(self):
-        result = format_timeline_warning({
-            "valid": False,
-            "contradictions": ["Thời gian lùi: evening → morning"],
-            "warnings": [],
-        })
+        result = format_timeline_warning(
+            {
+                "valid": False,
+                "contradictions": ["Thời gian lùi: evening → morning"],
+                "warnings": [],
+            }
+        )
         assert "evening" in result or "MÂU THUẪN" in result
 
     def test_warning_only_in_output(self):
-        result = format_timeline_warning({
-            "valid": True,
-            "contradictions": [],
-            "warnings": ["Chương 3: không có marker thời gian rõ ràng"],
-        })
+        result = format_timeline_warning(
+            {
+                "valid": True,
+                "contradictions": [],
+                "warnings": ["Chương 3: không có marker thời gian rõ ràng"],
+            }
+        )
         assert "Chương 3" in result
-
 
 
 # ---------------------------------------------------------------------------
@@ -300,7 +307,6 @@ class TestRewriteForPacing:
         assert result == original
 
 
-
 # ---------------------------------------------------------------------------
 # thematic_resonance_tracker
 # ---------------------------------------------------------------------------
@@ -309,7 +315,9 @@ class TestRewriteForPacing:
 class TestThematicState:
     def test_add_presence_updates_history(self):
         state = ThematicState(core_themes=["tình yêu", "phản bội"])
-        pres = ThemePresence(chapter=1, theme="tình yêu", strength=0.8, symbols=["hoa hồng"])
+        pres = ThemePresence(
+            chapter=1, theme="tình yêu", strength=0.8, symbols=["hoa hồng"]
+        )
         state.add_presence(pres)
         assert len(state.theme_history) == 1
         assert "hoa hồng" in state.symbol_registry
@@ -338,13 +346,17 @@ class TestThematicState:
     def test_theme_strength_trend_ascending(self):
         state = ThematicState(core_themes=["phản bội"])
         for ch, strength in enumerate([0.2, 0.4, 0.6, 0.8], start=1):
-            state.add_presence(ThemePresence(chapter=ch, theme="phản bội", strength=strength))
+            state.add_presence(
+                ThemePresence(chapter=ch, theme="phản bội", strength=strength)
+            )
         assert state.get_theme_strength_trend("phản bội") == "ascending"
 
     def test_theme_strength_trend_descending(self):
         state = ThematicState(core_themes=["hận thù"])
         for ch, strength in enumerate([0.9, 0.7, 0.5, 0.3], start=1):
-            state.add_presence(ThemePresence(chapter=ch, theme="hận thù", strength=strength))
+            state.add_presence(
+                ThemePresence(chapter=ch, theme="hận thù", strength=strength)
+            )
         assert state.get_theme_strength_trend("hận thù") == "descending"
 
     def test_theme_strength_trend_absent(self):
@@ -353,8 +365,12 @@ class TestThematicState:
 
     def test_symbol_registry_multi_chapter(self):
         state = ThematicState(core_themes=["tự do"])
-        state.add_presence(ThemePresence(chapter=1, theme="tự do", strength=0.5, symbols=["cánh chim"]))
-        state.add_presence(ThemePresence(chapter=5, theme="tự do", strength=0.6, symbols=["cánh chim"]))
+        state.add_presence(
+            ThemePresence(chapter=1, theme="tự do", strength=0.5, symbols=["cánh chim"])
+        )
+        state.add_presence(
+            ThemePresence(chapter=5, theme="tự do", strength=0.6, symbols=["cánh chim"])
+        )
         assert state.symbol_registry["cánh chim"] == [1, 5]
 
 
@@ -388,7 +404,9 @@ class TestDetectThematicDrift:
         state = ThematicState(core_themes=["tình yêu", "phản bội"])
         # tình yêu present in ch 1–5
         for ch in range(1, 6):
-            state.add_presence(ThemePresence(chapter=ch, theme="tình yêu", strength=0.7))
+            state.add_presence(
+                ThemePresence(chapter=ch, theme="tình yêu", strength=0.7)
+            )
         # phản bội absent
         return state
 
@@ -401,7 +419,9 @@ class TestDetectThematicDrift:
     def test_no_drift_when_themes_present(self):
         state = ThematicState(core_themes=["tình yêu"])
         for ch in range(1, 6):
-            state.add_presence(ThemePresence(chapter=ch, theme="tình yêu", strength=0.6))
+            state.add_presence(
+                ThemePresence(chapter=ch, theme="tình yêu", strength=0.6)
+            )
         result = detect_thematic_drift(state, current_chapter=5, total_chapters=10)
         assert result["drifting"] is False
         assert result["dominant_theme"] == "tình yêu"
@@ -418,7 +438,9 @@ class TestAuditThematicResonance:
     def test_well_covered_theme(self):
         state = ThematicState(core_themes=["tình yêu"])
         for ch in range(1, 11):
-            state.add_presence(ThemePresence(chapter=ch, theme="tình yêu", strength=0.6))
+            state.add_presence(
+                ThemePresence(chapter=ch, theme="tình yêu", strength=0.6)
+            )
         result = audit_thematic_resonance(state, final_chapter=10)
         assert "tình yêu" in result["well_covered"]
         assert result["theme_coverage"]["tình yêu"]["percentage"] == 100.0
@@ -433,7 +455,11 @@ class TestAuditThematicResonance:
 
     def test_symbol_usage_tracked(self):
         state = ThematicState(core_themes=["tình yêu"])
-        state.add_presence(ThemePresence(chapter=1, theme="tình yêu", strength=0.5, symbols=["trái tim"]))
+        state.add_presence(
+            ThemePresence(
+                chapter=1, theme="tình yêu", strength=0.5, symbols=["trái tim"]
+            )
+        )
         result = audit_thematic_resonance(state, final_chapter=5)
         assert "trái tim" in result["symbol_usage"]
         assert result["total_symbols"] == 1
@@ -444,7 +470,12 @@ class TestAnalyzeThemePresence:
         llm = MagicMock()
         llm.generate_json.return_value = {
             "themes": [
-                {"theme": "tình yêu", "strength": 0.8, "manifestation": "đối thoại", "symbols": ["hoa"]},
+                {
+                    "theme": "tình yêu",
+                    "strength": 0.8,
+                    "manifestation": "đối thoại",
+                    "symbols": ["hoa"],
+                },
             ]
         }
         result = analyze_theme_presence(llm, "nội dung chương", 1, ["tình yêu"])
@@ -466,7 +497,12 @@ class TestAnalyzeThemePresence:
         llm = MagicMock()
         llm.generate_json.return_value = {
             "themes": [
-                {"theme": "tình yêu", "strength": 0.6, "manifestation": "ánh mắt", "symbols": ["hoa hồng"]},
+                {
+                    "theme": "tình yêu",
+                    "strength": 0.6,
+                    "manifestation": "ánh mắt",
+                    "symbols": ["hoa hồng"],
+                },
             ]
         }
         result = analyze_theme_presence(llm, "nội dung chương", 2, ["tình yêu"])
@@ -475,13 +511,14 @@ class TestAnalyzeThemePresence:
         assert result[0].strength == 0.6
 
 
-
 # ---------------------------------------------------------------------------
 # enhancement_context_builder
 # ---------------------------------------------------------------------------
 
 
-def _make_config(theme_premise=True, voice_profiles=True, scene_decomp=False, show_dont_tell=False):
+def _make_config(
+    theme_premise=True, voice_profiles=True, scene_decomp=False, show_dont_tell=False
+):
     pipeline = MagicMock()
     pipeline.enable_theme_premise = theme_premise
     pipeline.enable_voice_profiles = voice_profiles
@@ -513,18 +550,24 @@ class TestBuildEnhancementContext:
         llm = MagicMock()
         # Minimal voice profile dicts
         voice_profiles = [{"name": "Minh", "tone": "trầm lắng"}]
-        result = build_enhancement_context(config, llm, "romance", voice_profiles=voice_profiles)
+        result = build_enhancement_context(
+            config, llm, "romance", voice_profiles=voice_profiles
+        )
         assert isinstance(result, str)
 
     def test_no_scene_decomp_without_outline(self):
-        config = _make_config(theme_premise=False, voice_profiles=False, scene_decomp=True)
+        config = _make_config(
+            theme_premise=False, voice_profiles=False, scene_decomp=True
+        )
         result = build_enhancement_context(config, MagicMock(), "fantasy")
         assert result == ""
 
     def test_returns_str_on_partial_failure(self):
         # Even if sub-imports fail, function is non-fatal
         config = _make_config(theme_premise=True, voice_profiles=True)
-        result = build_enhancement_context(config, MagicMock(), "fantasy", premise={"themes": []})
+        result = build_enhancement_context(
+            config, MagicMock(), "fantasy", premise={"themes": []}
+        )
         assert isinstance(result, str)
 
 
@@ -547,7 +590,6 @@ class TestBuildSharedEnhancementContext:
         assert isinstance(result, str)
 
 
-
 # ---------------------------------------------------------------------------
 # l1_causal_graph
 # ---------------------------------------------------------------------------
@@ -556,7 +598,9 @@ class TestBuildSharedEnhancementContext:
 class TestCausalGraph:
     def test_add_event_no_duplicate(self):
         graph = CausalGraph()
-        event = CausalEvent(event_id="01-1", chapter=1, description="Minh tìm thấy bức thư")
+        event = CausalEvent(
+            event_id="01-1", chapter=1, description="Minh tìm thấy bức thư"
+        )
         graph.add_event(event)
         graph.add_event(event)  # duplicate
         assert len(graph.events) == 1
@@ -572,7 +616,9 @@ class TestCausalGraph:
 
     def test_get_dependencies_excludes_resolved(self):
         graph = CausalGraph()
-        e1 = CausalEvent(event_id="01-1", chapter=1, description="Sự kiện A", resolved=True)
+        e1 = CausalEvent(
+            event_id="01-1", chapter=1, description="Sự kiện A", resolved=True
+        )
         graph.add_event(e1)
         deps = graph.get_dependencies(chapter=3)
         assert len(deps) == 0
@@ -597,7 +643,9 @@ class TestCausalGraph:
 
     def test_mark_resolved(self):
         graph = CausalGraph()
-        e1 = CausalEvent(event_id="01-1", chapter=1, description="Khám phá căn phòng bí ẩn")
+        e1 = CausalEvent(
+            event_id="01-1", chapter=1, description="Khám phá căn phòng bí ẩn"
+        )
         graph.add_event(e1)
         graph.mark_resolved("01-1", resolved_chapter=3)
         assert graph.events[0].resolved is True
@@ -609,7 +657,12 @@ class TestCausalGraph:
 
     def test_serialise_roundtrip(self):
         graph = CausalGraph()
-        e1 = CausalEvent(event_id="01-1", chapter=1, description="Sự kiện quan trọng", characters=["Minh"])
+        e1 = CausalEvent(
+            event_id="01-1",
+            chapter=1,
+            description="Sự kiện quan trọng",
+            characters=["Minh"],
+        )
         graph.add_event(e1)
         serialised = graph.to_dict()
         restored = CausalGraph.from_dict(serialised)
@@ -618,7 +671,12 @@ class TestCausalGraph:
         assert restored.events[0].characters == ["Minh"]
 
     def test_from_dict_skips_malformed(self):
-        data = {"events": [{"event_id": "01-1", "chapter": 1, "description": "ok"}, {"bad": True}]}
+        data = {
+            "events": [
+                {"event_id": "01-1", "chapter": 1, "description": "ok"},
+                {"bad": True},
+            ]
+        }
         graph = CausalGraph.from_dict(data)
         assert len(graph.events) == 1
 
@@ -628,7 +686,11 @@ class TestExtractCausalEvents:
         llm = MagicMock()
         llm.generate_json.return_value = {
             "events": [
-                {"description": "Minh tìm ra sự thật", "characters": ["Minh"], "event_type": "reveal"},
+                {
+                    "description": "Minh tìm ra sự thật",
+                    "characters": ["Minh"],
+                    "event_type": "reveal",
+                },
             ]
         }
         events = extract_causal_events(llm, "nội dung chương dài " * 50, chapter_num=3)
@@ -657,14 +719,18 @@ class TestExtractCausalEvents:
 
 class TestValidateCausalReferences:
     def test_referenced_event_not_in_unacknowledged(self):
-        event = CausalEvent(event_id="01-1", chapter=1, description="Minh tìm thấy chìa khóa")
+        event = CausalEvent(
+            event_id="01-1", chapter=1, description="Minh tìm thấy chìa khóa"
+        )
         # Chapter text contains key words from description
         chapter_text = "Minh đã tìm thấy chiếc chìa khóa trong căn phòng tối."
         unacked = validate_causal_references(chapter_text, [event])
         assert event.description not in unacked
 
     def test_unreferenced_event_in_unacknowledged(self):
-        event = CausalEvent(event_id="01-1", chapter=1, description="Bức thư bí ẩn xuất hiện")
+        event = CausalEvent(
+            event_id="01-1", chapter=1, description="Bức thư bí ẩn xuất hiện"
+        )
         chapter_text = "Hôm nay trời đẹp, Linh đi dạo trong vườn hoa."
         unacked = validate_causal_references(chapter_text, [event])
         assert event.description in unacked
@@ -687,8 +753,18 @@ class TestFormatCausalDependenciesForPrompt:
 
     def test_linear_chain_formatted(self):
         events = [
-            CausalEvent(event_id="01-1", chapter=1, description="Minh phát hiện phản bội", characters=["Minh"]),
-            CausalEvent(event_id="02-1", chapter=2, description="Linh bỏ trốn", characters=["Linh"]),
+            CausalEvent(
+                event_id="01-1",
+                chapter=1,
+                description="Minh phát hiện phản bội",
+                characters=["Minh"],
+            ),
+            CausalEvent(
+                event_id="02-1",
+                chapter=2,
+                description="Linh bỏ trốn",
+                characters=["Linh"],
+            ),
         ]
         result = format_causal_dependencies_for_prompt(events)
         assert "01-1" in result
@@ -697,6 +773,8 @@ class TestFormatCausalDependenciesForPrompt:
         assert "02-1" in result
 
     def test_includes_must_acknowledge_instruction(self):
-        events = [CausalEvent(event_id="01-1", chapter=1, description="Sự kiện quan trọng")]
+        events = [
+            CausalEvent(event_id="01-1", chapter=1, description="Sự kiện quan trọng")
+        ]
         result = format_causal_dependencies_for_prompt(events)
         assert "nhắc đến" in result or "SỰ KIỆN" in result

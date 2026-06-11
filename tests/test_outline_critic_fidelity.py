@@ -3,6 +3,7 @@
 Literal mode: if outline coverage of idea proper nouns < floor, trigger one
 LLM-driven revision pass. Thematic mode: skip the guard entirely.
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -18,23 +19,39 @@ from pipeline.layer1_story.outline_critic import (
 
 IDEA = "Lý Phong và Tô Vân tới Lạc Dương tu luyện ở Thiên Sơn."
 
-CHARS = [Character(name="Hùng", role="protagonist", personality="brave", background="hero")]
+CHARS = [
+    Character(name="Hùng", role="protagonist", personality="brave", background="hero")
+]
 WORLD = WorldSetting(name="W", description="d")
 
 OUTLINES_MISSING = [
-    ChapterOutline(chapter_number=1, title="Khởi đầu",
-                   summary="Một người trẻ bắt đầu hành trình",
-                   characters_involved=["Hùng"], pacing_type="setup", arc_id=1),
-    ChapterOutline(chapter_number=2, title="Chuyến đi",
-                   summary="Họ đi xa",
-                   characters_involved=["Hùng"], pacing_type="rising", arc_id=1),
+    ChapterOutline(
+        chapter_number=1,
+        title="Khởi đầu",
+        summary="Một người trẻ bắt đầu hành trình",
+        characters_involved=["Hùng"],
+        pacing_type="setup",
+        arc_id=1,
+    ),
+    ChapterOutline(
+        chapter_number=2,
+        title="Chuyến đi",
+        summary="Họ đi xa",
+        characters_involved=["Hùng"],
+        pacing_type="rising",
+        arc_id=1,
+    ),
 ]
 
 OUTLINES_FULL = [
-    ChapterOutline(chapter_number=1, title="Lý Phong tới Lạc Dương",
-                   summary="Tô Vân đợi tại Thiên Sơn để gặp Lý Phong",
-                   characters_involved=["Lý Phong", "Tô Vân"],
-                   pacing_type="setup", arc_id=1),
+    ChapterOutline(
+        chapter_number=1,
+        title="Lý Phong tới Lạc Dương",
+        summary="Tô Vân đợi tại Thiên Sơn để gặp Lý Phong",
+        characters_involved=["Lý Phong", "Tô Vân"],
+        pacing_type="setup",
+        arc_id=1,
+    ),
 ]
 
 
@@ -102,10 +119,17 @@ def test_literal_mode_triggers_reroll_when_coverage_below_floor():
     }
     llm.generate_json.return_value = revised_payload
 
-    with patch("pipeline.layer1_story.outline_critic.score_outline",
-               return_value=(MagicMock(model_dump=lambda: {}, overall_score=1.0), False, [])):
+    with patch(
+        "pipeline.layer1_story.outline_critic.score_outline",
+        return_value=(MagicMock(model_dump=lambda: {}, overall_score=1.0), False, []),
+    ):
         outlines, critique = critique_and_revise(
-            llm, OUTLINES_MISSING, CHARS, WORLD, "synopsis", "fantasy",
+            llm,
+            OUTLINES_MISSING,
+            CHARS,
+            WORLD,
+            "synopsis",
+            "fantasy",
             max_rounds=1,
             enable_llm_critic=False,
             idea=IDEA,
@@ -122,10 +146,17 @@ def test_literal_mode_triggers_reroll_when_coverage_below_floor():
 
 def test_thematic_mode_skips_fidelity_guard():
     llm = MagicMock()
-    with patch("pipeline.layer1_story.outline_critic.score_outline",
-               return_value=(MagicMock(model_dump=lambda: {}, overall_score=1.0), False, [])):
+    with patch(
+        "pipeline.layer1_story.outline_critic.score_outline",
+        return_value=(MagicMock(model_dump=lambda: {}, overall_score=1.0), False, []),
+    ):
         _, critique = critique_and_revise(
-            llm, OUTLINES_MISSING, CHARS, WORLD, "synopsis", "fantasy",
+            llm,
+            OUTLINES_MISSING,
+            CHARS,
+            WORLD,
+            "synopsis",
+            "fantasy",
             max_rounds=1,
             enable_llm_critic=False,
             idea=IDEA,

@@ -1,4 +1,5 @@
 """Shared pytest fixtures for StoryForge test suite."""
+
 import json
 import os
 import tempfile
@@ -63,6 +64,7 @@ if os.path.exists(_config_persistence.CONFIG_FILE):
         target=_dead_llm_accept_loop, daemon=True, name="dead-llm-listener"
     ).start()
     _DEAD_LLM_URL = f"http://127.0.0.1:{_dead_srv.getsockname()[1]}/v1"
+
     def _rewrite_base_urls(_node):
         """Point every *base_url key (LLM endpoints at any nesting level —
         llm.base_url, cheap/layer1/layer2/long_context overrides,
@@ -96,8 +98,15 @@ _config_persistence.CONFIG_FILE = _TEST_CONFIG_FILE
 _config_persistence._SECRETS_FILE = os.path.join(_TEST_CONFIG_DIR, "secrets.json")
 
 from models.schemas import (
-    Character, Chapter, ChapterOutline, WorldSetting,
-    StoryDraft, EnhancedStory, PipelineOutput, SimulationResult, SimulationEvent,
+    Character,
+    Chapter,
+    ChapterOutline,
+    WorldSetting,
+    StoryDraft,
+    EnhancedStory,
+    PipelineOutput,
+    SimulationResult,
+    SimulationEvent,
 )
 
 
@@ -117,6 +126,7 @@ def _default_strict_handoff(monkeypatch):
 @pytest.fixture(autouse=True)
 def _no_llm_retry_backoff(monkeypatch):
     import services.llm.client as _llm_client
+
     monkeypatch.setattr(_llm_client, "_retry_sleep", lambda *_a, **_k: None)
     yield
 
@@ -171,8 +181,11 @@ def _restore_llm_config():
 # shadowing class-level patches for every later test (order-dependent
 # failures). Strip such shadows after each test.
 _LLM_METHOD_NAMES = (
-    "generate", "generate_json", "generate_stream",
-    "check_connection", "check_provider",
+    "generate",
+    "generate_json",
+    "generate_stream",
+    "check_connection",
+    "check_provider",
 )
 
 
@@ -180,6 +193,7 @@ _LLM_METHOD_NAMES = (
 def _unshadow_llm_singleton():
     yield
     from services.llm.client import LLMClient
+
     inst = LLMClient._instance
     if inst is not None:
         for name in _LLM_METHOD_NAMES:
@@ -193,6 +207,7 @@ def _unshadow_llm_singleton():
 @pytest.fixture(autouse=True)
 def _reset_orchestrator_sync_engine():
     from pipeline import orchestrator_layers as _ol
+
     if _ol._sync_engine is not None:
         try:
             _ol._sync_engine.dispose()
@@ -288,21 +303,21 @@ def sample_chapters():
             chapter_number=1,
             title="Khởi đầu",
             content="Lý Huyền bước vào tông môn với ánh mắt kiên định. "
-                    "Anh biết con đường phía trước đầy gian nan, nhưng quyết tâm không lui bước.",
+            "Anh biết con đường phía trước đầy gian nan, nhưng quyết tâm không lui bước.",
             summary="Lý Huyền gia nhập tông môn",
         ),
         Chapter(
             chapter_number=2,
             title="Thử thách đầu tiên",
             content="Trận đấu đầu tiên của Lý Huyền tại tông môn. "
-                    "Đối thủ là Hoàng Yến, kẻ có sức mạnh vượt trội.",
+            "Đối thủ là Hoàng Yến, kẻ có sức mạnh vượt trội.",
             summary="Lý Huyền đối đầu Hoàng Yến",
         ),
         Chapter(
             chapter_number=3,
             title="Bí mật phát lộ",
             content="Nguyễn Minh phát hiện bí mật của tông môn. "
-                    "Một âm mưu đang hình thành trong bóng tối.",
+            "Một âm mưu đang hình thành trong bóng tối.",
             summary="Phát hiện âm mưu trong tông môn",
         ),
     ]
@@ -324,14 +339,20 @@ def sample_world():
 def sample_outlines():
     """Create sample chapter outlines."""
     return [
-        ChapterOutline(chapter_number=1, title="Khởi đầu", summary="MC gia nhập tông môn"),
-        ChapterOutline(chapter_number=2, title="Thử thách", summary="MC đối đầu kẻ thù"),
+        ChapterOutline(
+            chapter_number=1, title="Khởi đầu", summary="MC gia nhập tông môn"
+        ),
+        ChapterOutline(
+            chapter_number=2, title="Thử thách", summary="MC đối đầu kẻ thù"
+        ),
         ChapterOutline(chapter_number=3, title="Bí mật", summary="Phát hiện âm mưu"),
     ]
 
 
 @pytest.fixture
-def sample_story_draft(sample_characters, sample_chapters, sample_world, sample_outlines):
+def sample_story_draft(
+    sample_characters, sample_chapters, sample_world, sample_outlines
+):
     """Create a complete story draft."""
     return StoryDraft(
         title="Thanh Vân Kiếm Khách",

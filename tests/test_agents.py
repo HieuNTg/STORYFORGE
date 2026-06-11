@@ -1,4 +1,5 @@
 """Tests for pipeline agent system — all 5 agent types + registry."""
+
 from unittest.mock import patch, MagicMock
 from pipeline.agents.base_agent import BaseAgent
 from pipeline.agents.agent_registry import AgentRegistry
@@ -13,6 +14,7 @@ from models.schemas import AgentReview
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_dummy_agent_cls(name="Test", role="test", layers=None):
     """Create a concrete BaseAgent subclass for testing abstract class behaviour."""
@@ -31,6 +33,7 @@ def _make_dummy_agent_cls(name="Test", role="test", layers=None):
 # ---------------------------------------------------------------------------
 # BaseAgent
 # ---------------------------------------------------------------------------
+
 
 class TestBaseAgent:
     def test_parse_review_json_approved(self):
@@ -77,7 +80,11 @@ class TestBaseAgent:
         cls = _make_dummy_agent_cls()
         with patch("pipeline.agents.base_agent.LLMClient"):
             agent = cls()
-        result = {"score": 0.7, "issues": [], "suggestions": ["add more drama", "fix pacing"]}
+        result = {
+            "score": 0.7,
+            "issues": [],
+            "suggestions": ["add more drama", "fix pacing"],
+        }
         review = agent._parse_review_json(result, layer=1, iteration=1)
         assert review.suggestions == ["add more drama", "fix pacing"]
 
@@ -101,6 +108,7 @@ class TestBaseAgent:
 # ---------------------------------------------------------------------------
 # AgentRegistry
 # ---------------------------------------------------------------------------
+
 
 class TestAgentRegistry:
     def setup_method(self):
@@ -211,7 +219,9 @@ class TestAgentRegistry:
 
         messages = []
         registry.run_review_cycle(
-            MagicMock(), layer=1, max_iterations=1,
+            MagicMock(),
+            layer=1,
+            max_iterations=1,
             progress_callback=messages.append,
         )
         assert len(messages) > 0
@@ -221,6 +231,7 @@ class TestAgentRegistry:
 # CharacterSpecialistAgent
 # ---------------------------------------------------------------------------
 
+
 class TestCharacterSpecialist:
     def _make_agent(self):
         with patch("pipeline.agents.base_agent.LLMClient"):
@@ -228,20 +239,25 @@ class TestCharacterSpecialist:
 
     def test_extract_data_with_story_draft(self, sample_pipeline_output):
         agent = self._make_agent()
-        chars_info, chapters_content = agent._extract_data(sample_pipeline_output, layer=1)
+        chars_info, chapters_content = agent._extract_data(
+            sample_pipeline_output, layer=1
+        )
         assert "Lý Huyền" in chars_info
         assert chars_info != "Không có thông tin nhân vật."
 
     def test_extract_data_no_story_draft_returns_defaults(self):
         agent = self._make_agent()
         from models.schemas import PipelineOutput
+
         output = PipelineOutput()
         chars_info, chapters_content = agent._extract_data(output, layer=1)
         assert chars_info == "Không có thông tin nhân vật."
 
     def test_extract_data_layer2_uses_enhanced_chapters(self, sample_pipeline_output):
         agent = self._make_agent()
-        chars_info, chapters_content = agent._extract_data(sample_pipeline_output, layer=2)
+        chars_info, chapters_content = agent._extract_data(
+            sample_pipeline_output, layer=2
+        )
         # Should still get character info from story_draft
         assert "Lý Huyền" in chars_info
 
@@ -254,6 +270,7 @@ class TestCharacterSpecialist:
     def test_extract_consistency_context_no_draft(self):
         agent = self._make_agent()
         from models.schemas import PipelineOutput
+
         output = PipelineOutput()
         context = agent.extract_consistency_context(output)
         assert context == ""
@@ -261,7 +278,11 @@ class TestCharacterSpecialist:
     def test_review_calls_llm(self, sample_pipeline_output):
         agent = self._make_agent()
         agent.llm = MagicMock()
-        agent.llm.generate_json.return_value = {"score": 0.8, "issues": [], "suggestions": []}
+        agent.llm.generate_json.return_value = {
+            "score": 0.8,
+            "issues": [],
+            "suggestions": [],
+        }
         review = agent.review(sample_pipeline_output, layer=1, iteration=1)
         assert agent.llm.generate_json.called
         assert review.score == 0.8
@@ -270,6 +291,7 @@ class TestCharacterSpecialist:
 # ---------------------------------------------------------------------------
 # ContinuityCheckerAgent
 # ---------------------------------------------------------------------------
+
 
 class TestContinuityChecker:
     def _make_agent(self):
@@ -284,6 +306,7 @@ class TestContinuityChecker:
     def test_extract_data_no_world_uses_default(self, sample_story_draft):
         agent = self._make_agent()
         from models.schemas import PipelineOutput
+
         sample_story_draft.world = None
         output = PipelineOutput(story_draft=sample_story_draft)
         world_info, _ = agent._extract_data(output, layer=1)
@@ -302,6 +325,7 @@ class TestContinuityChecker:
     def test_extract_data_no_draft_returns_empty_chapters(self):
         agent = self._make_agent()
         from models.schemas import PipelineOutput
+
         output = PipelineOutput()
         _, chapters = agent._extract_data(output, layer=1)
         assert chapters == "Không có nội dung chương."
@@ -309,7 +333,11 @@ class TestContinuityChecker:
     def test_review_calls_llm(self, sample_pipeline_output):
         agent = self._make_agent()
         agent.llm = MagicMock()
-        agent.llm.generate_json.return_value = {"score": 0.75, "issues": [], "suggestions": []}
+        agent.llm.generate_json.return_value = {
+            "score": 0.75,
+            "issues": [],
+            "suggestions": [],
+        }
         review = agent.review(sample_pipeline_output, layer=1, iteration=1)
         assert agent.llm.generate_json.called
         assert review.score == 0.75
@@ -318,6 +346,7 @@ class TestContinuityChecker:
 # ---------------------------------------------------------------------------
 # DialogueExpertAgent
 # ---------------------------------------------------------------------------
+
 
 class TestDialogueExpert:
     def _make_agent(self):
@@ -339,6 +368,7 @@ class TestDialogueExpert:
     def test_extract_chapters_no_data_returns_default(self):
         agent = self._make_agent()
         from models.schemas import PipelineOutput
+
         output = PipelineOutput()
         content = agent._extract_chapters(output, layer=2)
         assert content == "Không có nội dung để đánh giá đối thoại."
@@ -346,6 +376,7 @@ class TestDialogueExpert:
     def test_extract_chapters_layer2_fallback_to_draft(self, sample_story_draft):
         agent = self._make_agent()
         from models.schemas import PipelineOutput
+
         output = PipelineOutput(story_draft=sample_story_draft)
         content = agent._extract_chapters(output, layer=2)
         assert "Khởi đầu" in content or len(content) > 0
@@ -353,7 +384,11 @@ class TestDialogueExpert:
     def test_review_calls_llm(self, sample_pipeline_output):
         agent = self._make_agent()
         agent.llm = MagicMock()
-        agent.llm.generate_json.return_value = {"score": 0.85, "issues": [], "suggestions": []}
+        agent.llm.generate_json.return_value = {
+            "score": 0.85,
+            "issues": [],
+            "suggestions": [],
+        }
         review = agent.review(sample_pipeline_output, layer=2, iteration=1)
         assert agent.llm.generate_json.called
         assert review.approved is True
@@ -362,6 +397,7 @@ class TestDialogueExpert:
 # ---------------------------------------------------------------------------
 # DramaCriticAgent
 # ---------------------------------------------------------------------------
+
 
 class TestDramaCritic:
     def _make_agent(self):
@@ -382,6 +418,7 @@ class TestDramaCritic:
     def test_extract_data_no_enhanced_story_returns_default(self):
         agent = self._make_agent()
         from models.schemas import PipelineOutput
+
         output = PipelineOutput()
         chapters, events = agent._extract_data(output)
         assert chapters == "Chưa có chương đã tăng cường."
@@ -395,7 +432,11 @@ class TestDramaCritic:
     def test_review_calls_llm(self, sample_pipeline_output):
         agent = self._make_agent()
         agent.llm = MagicMock()
-        agent.llm.generate_json.return_value = {"score": 0.7, "issues": [], "suggestions": []}
+        agent.llm.generate_json.return_value = {
+            "score": 0.7,
+            "issues": [],
+            "suggestions": [],
+        }
         review = agent.review(sample_pipeline_output, layer=2, iteration=1)
         assert agent.llm.generate_json.called
         assert review.approved is True
@@ -404,6 +445,7 @@ class TestDramaCritic:
 # ---------------------------------------------------------------------------
 # EditorInChiefAgent
 # ---------------------------------------------------------------------------
+
 
 class TestEditorInChief:
     def _make_agent(self):
@@ -453,7 +495,11 @@ class TestEditorInChief:
     def test_get_content_for_layer2_includes_drama_score(self, sample_pipeline_output):
         agent = self._make_agent()
         content = agent._get_content_for_layer(sample_pipeline_output, layer=2)
-        assert "0.75" in content or "drama" in content.lower() or "Kiem tinh" in content.lower()
+        assert (
+            "0.75" in content
+            or "drama" in content.lower()
+            or "Kiem tinh" in content.lower()
+        )
 
     def test_get_content_for_layer3_includes_panel(self, sample_pipeline_output):
         agent = self._make_agent()
@@ -463,6 +509,7 @@ class TestEditorInChief:
     def test_get_content_for_layer_no_data(self):
         agent = self._make_agent()
         from models.schemas import PipelineOutput
+
         output = PipelineOutput()
         content = agent._get_content_for_layer(output, layer=1)
         assert "Chưa có nội dung" in content
@@ -470,7 +517,11 @@ class TestEditorInChief:
     def test_calls_llm_when_scores_adequate(self, sample_pipeline_output):
         agent = self._make_agent()
         agent.llm = MagicMock()
-        agent.llm.generate_json.return_value = {"score": 0.8, "issues": [], "suggestions": []}
+        agent.llm.generate_json.return_value = {
+            "score": 0.8,
+            "issues": [],
+            "suggestions": [],
+        }
         sample_pipeline_output.reviews = [
             AgentReview(
                 agent_role="drama_critic",

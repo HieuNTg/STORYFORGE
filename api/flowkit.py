@@ -23,20 +23,30 @@ from services.media.flow_service import FlowService
 def _svc() -> FlowService:
     return FlowService()
 
+
 logger = logging.getLogger(__name__)
 
 ws_router = APIRouter(prefix="/ws/flowkit", tags=["flowkit"])
 http_router = APIRouter(tags=["flowkit"])
 
 _REDACT_KEYS = {
-    "flowKey", "flow_key", "authorization", "Authorization",
-    "cookie", "Cookie", "secret", "callback_secret",
+    "flowKey",
+    "flow_key",
+    "authorization",
+    "Authorization",
+    "cookie",
+    "Cookie",
+    "secret",
+    "callback_secret",
 }
 
 
 def _redact(payload: Any) -> Any:
     if isinstance(payload, dict):
-        return {k: ("<redacted>" if k in _REDACT_KEYS else _redact(v)) for k, v in payload.items()}
+        return {
+            k: ("<redacted>" if k in _REDACT_KEYS else _redact(v))
+            for k, v in payload.items()
+        }
     if isinstance(payload, list):
         return [_redact(v) for v in payload]
     return payload
@@ -82,7 +92,9 @@ async def flowkit_ws(websocket: WebSocket) -> None:
             msg = await websocket.receive_json()
             # Drop frames from a stale connection that's been superseded by a reconnect.
             if _svc().active_ws is not websocket:
-                logger.debug("FlowKit WS dropping stale frame from superseded connection")
+                logger.debug(
+                    "FlowKit WS dropping stale frame from superseded connection"
+                )
                 continue
             await _dispatch(msg)
     except WebSocketDisconnect:

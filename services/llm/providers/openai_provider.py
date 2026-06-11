@@ -1,4 +1,5 @@
 """OpenAI-compatible provider (OpenAI, OpenRouter, vLLM, LM Studio, etc.)."""
+
 import logging
 from typing import Iterator
 
@@ -26,12 +27,16 @@ class OpenAIProvider:
 
     def __init__(self, api_key: str, base_url: str):
         from openai import OpenAI
+
         # max_retries=0: retry policy lives in services.llm.client
         # (_retry_with_backoff + fallback chain); the SDK's internal retry
         # layer would multiply attempts (SDK 3 x ours 3 x chain 3 per call).
         # timeout=300: bounded, instead of the SDK's 600s default.
         self.client = OpenAI(
-            api_key=api_key, base_url=base_url, max_retries=0, timeout=300.0,
+            api_key=api_key,
+            base_url=base_url,
+            max_retries=0,
+            timeout=300.0,
         )
         self._base_url = base_url
         self._api_key = api_key
@@ -48,17 +53,26 @@ class OpenAIProvider:
             raw_response = getattr(response, "_response", None)
             if not raw_response:
                 return
-            headers = dict(raw_response.headers) if hasattr(raw_response, "headers") else {}
+            headers = (
+                dict(raw_response.headers) if hasattr(raw_response, "headers") else {}
+            )
             if not headers:
                 return
             from services.llm.provider_status import get_provider_status_manager
+
             mgr = get_provider_status_manager()
             mgr.extract_rate_limits(self._provider_type, self._api_key, headers)
         except Exception as e:
             logger.debug(f"Rate limit extraction failed: {e}")
 
-    def complete(self, messages: list[dict], model: str, temperature: float,
-                 max_tokens: int, json_mode: bool = False) -> str:
+    def complete(
+        self,
+        messages: list[dict],
+        model: str,
+        temperature: float,
+        max_tokens: int,
+        json_mode: bool = False,
+    ) -> str:
         kwargs = {
             "model": model,
             "messages": messages,
@@ -70,7 +84,9 @@ class OpenAIProvider:
         response = self.client.chat.completions.create(**kwargs)
         self._extract_rate_limits(response)
         if not response.choices:
-            raise RuntimeError(f"LLM returned empty choices (model={model}, finish_reason=unknown)")
+            raise RuntimeError(
+                f"LLM returned empty choices (model={model}, finish_reason=unknown)"
+            )
         content = response.choices[0].message.content
         if not content or not content.strip():
             raise RuntimeError(
@@ -79,8 +95,9 @@ class OpenAIProvider:
             )
         return content
 
-    def stream(self, messages: list[dict], model: str, temperature: float,
-               max_tokens: int) -> Iterator[str]:
+    def stream(
+        self, messages: list[dict], model: str, temperature: float, max_tokens: int
+    ) -> Iterator[str]:
         response = self.client.chat.completions.create(
             model=model,
             messages=messages,

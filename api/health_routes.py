@@ -47,14 +47,16 @@ def _check_database() -> dict[str, Any]:
 
         with _health_engine_lock:
             if _health_engine is None:
-                db_url = os.environ.get(
-                    "DATABASE_URL", "sqlite:///data/storyforge.db"
+                db_url = os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
+                sync_db_url = db_url.replace(
+                    "postgresql+asyncpg://", "postgresql+psycopg2://", 1
                 )
-                sync_db_url = db_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://", 1)
                 _health_engine = create_engine(
                     sync_db_url,
                     pool_pre_ping=True,
-                    connect_args={"check_same_thread": False} if "sqlite" in sync_db_url else {},
+                    connect_args={"check_same_thread": False}
+                    if "sqlite" in sync_db_url
+                    else {},
                 )
             engine = _health_engine
         with engine.connect() as conn:
@@ -84,7 +86,9 @@ def _check_redis() -> dict[str, Any]:
 def _check_disk() -> dict[str, Any]:
     """Report free disk space on the data directory partition."""
     try:
-        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+        data_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data"
+        )
         total, used, free = shutil.disk_usage(data_dir)
         return {
             "status": "ok",
@@ -120,7 +124,9 @@ def _check_memory() -> dict[str, Any]:
                 }
             total_kb = lines.get("MemTotal", 0)
             avail_kb = lines.get("MemAvailable", lines.get("MemFree", 0))
-            used_pct = round((total_kb - avail_kb) / total_kb * 100, 1) if total_kb else 0
+            used_pct = (
+                round((total_kb - avail_kb) / total_kb * 100, 1) if total_kb else 0
+            )
             return {
                 "status": "ok",
                 "available_bytes": avail_kb * 1024,
@@ -156,6 +162,7 @@ def _check_llm() -> dict[str, Any]:
 # Routes
 # ---------------------------------------------------------------------------
 
+
 @router.get("/health/deep", summary="Deep health check")
 async def deep_health() -> JSONResponse:
     """Probe every subsystem and return per-component status.
@@ -176,10 +183,7 @@ async def deep_health() -> JSONResponse:
         "llm": _check_llm(),
     }
 
-    critical_failed = any(
-        checks[k]["status"] == "error"
-        for k in ("database", "disk")
-    )
+    critical_failed = any(checks[k]["status"] == "error" for k in ("database", "disk"))
 
     overall = "degraded" if critical_failed else "ok"
     status_code = 503 if critical_failed else 200

@@ -29,6 +29,7 @@ from models.schemas import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 def _make_chapter(n: int = 1) -> Chapter:
     return Chapter(
         chapter_number=n,
@@ -69,8 +70,10 @@ def _make_enhanced(draft: StoryDraft) -> EnhancedStory:
 # Helper: patch enhance_story_async to return a stub EnhancedStory directly
 # ---------------------------------------------------------------------------
 
+
 def _patch_enhance_story_async(enhanced: EnhancedStory):
     """Return a context manager that replaces enhance_story_async with an AsyncMock."""
+
     async def _stub(self, draft, sim_result, *args, **kwargs):  # noqa: ARG001
         return enhanced
 
@@ -102,6 +105,7 @@ def _patch_feedback_llm_validators():
 # 1. enhance_story_async works inside pytest.mark.asyncio
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_enhance_story_async_runs_in_loop():
     """enhance_story_async completes and returns EnhancedStory."""
@@ -122,6 +126,7 @@ async def test_enhance_story_async_runs_in_loop():
 # ---------------------------------------------------------------------------
 # 2. enhance_with_feedback_async works inside pytest.mark.asyncio
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_enhance_with_feedback_async_runs_in_loop():
@@ -146,6 +151,7 @@ async def test_enhance_with_feedback_async_runs_in_loop():
 # 3. enhance_story sync wrapper works outside any loop
 # ---------------------------------------------------------------------------
 
+
 def test_enhance_story_sync_outside_loop():
     """enhance_story (sync wrapper) succeeds when there is no running event loop."""
     from pipeline.layer2_enhance.enhancer import StoryEnhancer
@@ -165,6 +171,7 @@ def test_enhance_story_sync_outside_loop():
 # ---------------------------------------------------------------------------
 # 4. enhance_with_feedback sync wrapper works outside any loop
 # ---------------------------------------------------------------------------
+
 
 def test_enhance_with_feedback_sync_outside_loop():
     """enhance_with_feedback (sync wrapper) succeeds when there is no running loop."""
@@ -187,6 +194,7 @@ def test_enhance_with_feedback_sync_outside_loop():
 # 5. enhance_story sync wrapper raises from a running loop
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_enhance_story_raises_from_running_loop():
     """enhance_story raises RuntimeError and names enhance_story_async in message."""
@@ -206,6 +214,7 @@ async def test_enhance_story_raises_from_running_loop():
 # 6. enhance_with_feedback sync wrapper raises from a running loop
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_enhance_with_feedback_raises_from_running_loop():
     """enhance_with_feedback raises RuntimeError and names enhance_with_feedback_async."""
@@ -224,6 +233,7 @@ async def test_enhance_with_feedback_raises_from_running_loop():
 # ---------------------------------------------------------------------------
 # 7. ThreadPoolExecutor escape hatch is gone from enhancer module source
 # ---------------------------------------------------------------------------
+
 
 def test_no_threadpool_asyncio_run_escape_in_enhancer():
     """Prove the submit(asyncio.run, coro) escape pattern no longer exists in enhancer."""

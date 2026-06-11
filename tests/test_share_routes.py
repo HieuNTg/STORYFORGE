@@ -1,4 +1,5 @@
 """Tests for api/share_routes.py — library-story share + gallery metadata."""
+
 from __future__ import annotations
 
 import os
@@ -12,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 try:
     from fastapi.testclient import TestClient
     from fastapi import FastAPI
+
     _HAS_FASTAPI = True
 except ImportError:
     _HAS_FASTAPI = False
@@ -21,6 +23,7 @@ from services.share_manager import ShareManager
 
 def _make_client():
     from api.share_routes import router
+
     app = FastAPI()
     app.include_router(router)
     return TestClient(app, raise_server_exceptions=False)
@@ -31,7 +34,9 @@ def sandbox_mgr(tmp_path, monkeypatch):
     """ShareManager bound to a temp dir, patched into the routes module."""
     shares_dir = str(tmp_path / "shares")
     monkeypatch.setattr(ShareManager, "SHARES_DIR", shares_dir)
-    monkeypatch.setattr(ShareManager, "SHARES_INDEX", os.path.join(shares_dir, "index.json"))
+    monkeypatch.setattr(
+        ShareManager, "SHARES_INDEX", os.path.join(shares_dir, "index.json")
+    )
     mgr = ShareManager()
     with patch("api.share_routes._share_manager", mgr):
         yield mgr
@@ -52,8 +57,12 @@ def _library_payload(**overrides):
             {"title": "Chương 2", "content": "Nội dung hai.", "images": []},
         ],
         "characters": [
-            {"name": "Kiên", "role": "protagonist",
-             "personality": "kiên định", "motivation": "báo thù"},
+            {
+                "name": "Kiên",
+                "role": "protagonist",
+                "personality": "kiên định",
+                "motivation": "báo thù",
+            },
         ],
         "is_public": True,
     }

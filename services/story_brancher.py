@@ -92,7 +92,7 @@ class StoryBrancher:
             for i, c in enumerate(result.get("choices", [])[:3]):
                 choice = BranchChoice(
                     choice_id=f"{node_id}_c{i}",
-                    text=c.get("text", f"Lua chon {i+1}"),
+                    text=c.get("text", f"Lua chon {i + 1}"),
                     next_node_id="",
                     state_delta={"direction": c.get("direction", "")},
                 )
@@ -151,7 +151,7 @@ class StoryBrancher:
         """Save StoryTree to JSON. Returns file path."""
         os.makedirs(BRANCHES_DIR, exist_ok=True)
         if not filename:
-            safe_title = re.sub(r'[^\w\-]', '_', tree.title)[:30]
+            safe_title = re.sub(r"[^\w\-]", "_", tree.title)[:30]
             filename = f"{safe_title}_{int(time.time())}.json"
         path = os.path.join(BRANCHES_DIR, filename)
         with open(path, "w", encoding="utf-8") as f:
@@ -168,7 +168,9 @@ class StoryBrancher:
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
             raise ValueError(f"Corrupt tree file '{path}': {e}") from e
         if not isinstance(data, dict) or "root_id" not in data:
-            raise ValueError(f"Invalid tree format in '{path}': missing required fields")
+            raise ValueError(
+                f"Invalid tree format in '{path}': missing required fields"
+            )
         return StoryTree.model_validate(data)
 
     @staticmethod

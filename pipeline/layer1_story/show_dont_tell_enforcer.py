@@ -14,37 +14,67 @@ logger = logging.getLogger(__name__)
 
 SENSORY_PALETTE: dict[str, dict] = {
     "Tiên Hiệp": {
-        "primary": ["thị giác (luồng khí, hào quang năng lượng)", "xúc giác (cảm giác tu luyện, khí xuyên kinh mạch)"],
+        "primary": [
+            "thị giác (luồng khí, hào quang năng lượng)",
+            "xúc giác (cảm giác tu luyện, khí xuyên kinh mạch)",
+        ],
         "secondary": ["thính giác (tiếng gió linh khí, vũ khí rít qua không trung)"],
         "avoid": "tránh mô tả cảm xúc trực tiếp — dùng biến đổi cơ thể và phản ứng ngoại cảnh thay thế",
     },
     "Ngôn Tình": {
-        "primary": ["xúc giác (chạm tay, hơi ấm, nhịp tim)", "thính giác (giọng nói thì thầm, tiếng thở)"],
-        "secondary": ["thị giác (ánh mắt, cử chỉ nhỏ)", "khứu giác (mùi nước hoa, mùi quen thuộc)"],
+        "primary": [
+            "xúc giác (chạm tay, hơi ấm, nhịp tim)",
+            "thính giác (giọng nói thì thầm, tiếng thở)",
+        ],
+        "secondary": [
+            "thị giác (ánh mắt, cử chỉ nhỏ)",
+            "khứu giác (mùi nước hoa, mùi quen thuộc)",
+        ],
         "avoid": "tránh 'anh yêu em' hoặc 'tim cô đập loạn' — dùng chi tiết vật lý cụ thể",
     },
     "Trinh Thám": {
-        "primary": ["thị giác (chi tiết bất thường, dấu vết, ánh sáng bóng tối)", "thính giác (im lặng, bước chân, tiếng cọ)"],
+        "primary": [
+            "thị giác (chi tiết bất thường, dấu vết, ánh sáng bóng tối)",
+            "thính giác (im lặng, bước chân, tiếng cọ)",
+        ],
         "secondary": ["khứu giác (mùi thuốc, máu, bụi)", "xúc giác (vật chứng)"],
         "avoid": "tránh giải thích thẳng — để chi tiết tự nói, nhân vật quan sát chứ không kết luận vội",
     },
     "Kiếm Hiệp": {
-        "primary": ["thị giác (đường kiếm, chuyển động, địa thế)", "thính giác (tiếng kiếm khua, gió chém)"],
-        "secondary": ["xúc giác (trọng lượng kiếm, chấn động)", "vị giác (máu, mồ hôi trong chiến đấu)"],
+        "primary": [
+            "thị giác (đường kiếm, chuyển động, địa thế)",
+            "thính giác (tiếng kiếm khua, gió chém)",
+        ],
+        "secondary": [
+            "xúc giác (trọng lượng kiếm, chấn động)",
+            "vị giác (máu, mồ hôi trong chiến đấu)",
+        ],
         "avoid": "tránh tả võ công trừu tượng — neo vào hành động cụ thể và phản ứng đối thủ",
     },
     "Dị Giới": {
-        "primary": ["thị giác (cảnh vật lạ, sinh vật, phép thuật hiển thị)", "xúc giác (môi trường xa lạ tác động cơ thể)"],
+        "primary": [
+            "thị giác (cảnh vật lạ, sinh vật, phép thuật hiển thị)",
+            "xúc giác (môi trường xa lạ tác động cơ thể)",
+        ],
         "secondary": ["khứu giác (mùi lạ)", "thính giác (âm thanh thế giới khác)"],
         "avoid": "tránh info-dump mô tả thế giới — để nhân vật khám phá và phản ứng tự nhiên",
     },
     "Đô Thị": {
-        "primary": ["thính giác (tiếng ồn đô thị, nhạc, cuộc trò chuyện)", "thị giác (ánh đèn, đám đông, không gian)"],
-        "secondary": ["xúc giác (vật liệu, nhiệt độ)", "khứu giác (thức ăn, không khí thành phố)"],
+        "primary": [
+            "thính giác (tiếng ồn đô thị, nhạc, cuộc trò chuyện)",
+            "thị giác (ánh đèn, đám đông, không gian)",
+        ],
+        "secondary": [
+            "xúc giác (vật liệu, nhiệt độ)",
+            "khứu giác (thức ăn, không khí thành phố)",
+        ],
         "avoid": "tránh mô tả nội tâm quá dài — dùng hành vi và lựa chọn để lộ tâm lý",
     },
     "_default": {
-        "primary": ["thị giác (chi tiết môi trường cụ thể)", "xúc giác (cảm giác cơ thể)"],
+        "primary": [
+            "thị giác (chi tiết môi trường cụ thể)",
+            "xúc giác (cảm giác cơ thể)",
+        ],
         "secondary": ["thính giác", "khứu giác"],
         "avoid": "tránh nói thẳng cảm xúc — dùng hành động và phản ứng vật lý",
     },
@@ -113,10 +143,14 @@ def build_show_dont_tell_guidance(genre: str, pacing_type: str = "") -> str:
         lines.append("- Câu ngắn, nhịp nhanh. Không dừng để giải thích cảm xúc.")
     elif pacing_type == "cooldown":
         lines.append("- Cooldown: 40% hành động — 60% nội tâm/mô tả chậm")
-        lines.append("- Cho phép nhân vật phản ánh nhưng qua hình ảnh, không nói thẳng.")
+        lines.append(
+            "- Cho phép nhân vật phản ánh nhưng qua hình ảnh, không nói thẳng."
+        )
     elif pacing_type == "setup":
         lines.append("- Setup: 50% mô tả thế giới/nhân vật — 50% hành động nhỏ")
-        lines.append("- Xây dựng bằng chi tiết cụ thể, không liệt kê tính cách trực tiếp.")
+        lines.append(
+            "- Xây dựng bằng chi tiết cụ thể, không liệt kê tính cách trực tiếp."
+        )
     else:
         # rising / twist / default
         lines.append("- Nhịp chuẩn: 60% hành động/đối thoại — 40% mô tả/nội tâm")
@@ -125,11 +159,19 @@ def build_show_dont_tell_guidance(genre: str, pacing_type: str = "") -> str:
 
     # Anti-patterns
     lines.append("### Anti-patterns cần tránh (thay thế gợi ý):")
-    lines.append('- "Anh ấy rất buồn" → Mô tả: anh nhìn chằm vào tường, không nói thêm lời nào.')
-    lines.append('- "Cô ấy hạnh phúc" → Mô tả: khóe miệng cô nhếch lên dù cô không để ý.')
+    lines.append(
+        '- "Anh ấy rất buồn" → Mô tả: anh nhìn chằm vào tường, không nói thêm lời nào.'
+    )
+    lines.append(
+        '- "Cô ấy hạnh phúc" → Mô tả: khóe miệng cô nhếch lên dù cô không để ý.'
+    )
     lines.append('- "Hắn tức giận" → Mô tả: hàm hắn siết lại, nắm tay trắng bợt.')
-    lines.append('- "Cuộc chiến ác liệt" → Mô tả từng nhát kiếm, từng bước lùi, mồ hôi và máu.')
-    lines.append('- "Cô ấy thông minh" → Cho nhân vật giải quyết vấn đề — độc giả tự kết luận.')
+    lines.append(
+        '- "Cuộc chiến ác liệt" → Mô tả từng nhát kiếm, từng bước lùi, mồ hôi và máu.'
+    )
+    lines.append(
+        '- "Cô ấy thông minh" → Cho nhân vật giải quyết vấn đề — độc giả tự kết luận.'
+    )
 
     return "\n".join(lines)
 
@@ -172,7 +214,9 @@ def build_rewrite_telling_prompt(content: str, violations: list[dict]) -> str:
     if not violations:
         return ""
 
-    lines = ["Dưới đây là một đoạn văn cần được chỉnh sửa theo nguyên tắc SHOW DON'T TELL."]
+    lines = [
+        "Dưới đây là một đoạn văn cần được chỉnh sửa theo nguyên tắc SHOW DON'T TELL."
+    ]
     lines.append("")
     lines.append("## ĐOẠN VĂN GỐC:")
     lines.append(content)
@@ -182,7 +226,7 @@ def build_rewrite_telling_prompt(content: str, violations: list[dict]) -> str:
         excerpt = v.get("excerpt", "")
         issue = v.get("issue", "")
         suggestion = v.get("suggestion", "")
-        lines.append(f"{i}. Đoạn: \"{excerpt}\"")
+        lines.append(f'{i}. Đoạn: "{excerpt}"')
         if issue:
             lines.append(f"   Lý do: {issue}")
         if suggestion:
@@ -190,7 +234,11 @@ def build_rewrite_telling_prompt(content: str, violations: list[dict]) -> str:
     lines.append("")
     lines.append("## YÊU CẦU:")
     lines.append("- Chỉ sửa các đoạn được đánh dấu ở trên, giữ nguyên phần còn lại.")
-    lines.append("- Áp dụng kỹ thuật showing: hành động, phản ứng cơ thể, chi tiết cụ thể.")
-    lines.append("- Không thêm giải thích hay chú thích — trả về đoạn văn đã sửa hoàn chỉnh.")
+    lines.append(
+        "- Áp dụng kỹ thuật showing: hành động, phản ứng cơ thể, chi tiết cụ thể."
+    )
+    lines.append(
+        "- Không thêm giải thích hay chú thích — trả về đoạn văn đã sửa hoàn chỉnh."
+    )
 
     return "\n".join(lines)

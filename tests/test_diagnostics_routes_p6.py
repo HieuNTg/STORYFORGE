@@ -53,6 +53,7 @@ _FULL_RESULT = {
 def client():
     from fastapi import FastAPI
     from api.diagnostics_routes import router
+
     _app = FastAPI()
     _app.include_router(router, prefix="/api")
     return TestClient(_app, raise_server_exceptions=False)
@@ -67,6 +68,7 @@ class TestSemanticDiagnosticsEndpoint:
     def test_404_story_not_found(self, client, monkeypatch):
         """Non-existent story_id → 404."""
         import services.diagnostics_service as svc
+
         monkeypatch.setattr(svc, "build_semantic_diagnostics", lambda sid: None)
 
         resp = client.get("/api/diagnostics/semantic/nonexistent-id")
@@ -77,6 +79,7 @@ class TestSemanticDiagnosticsEndpoint:
     def test_404_pre_sprint2_story(self, client, monkeypatch):
         """Story exists but no Sprint-2 data → 404."""
         import services.diagnostics_service as svc
+
         monkeypatch.setattr(svc, "build_semantic_diagnostics", lambda sid: None)
 
         resp = client.get("/api/diagnostics/semantic/some-story-id")
@@ -127,6 +130,7 @@ class TestSemanticDiagnosticsEndpoint:
     def test_existing_handoff_endpoint_unchanged(self, client, monkeypatch):
         """Verify the Sprint-1 handoff endpoint is not broken by the new endpoint."""
         import services.diagnostics_service as svc
+
         monkeypatch.setattr(svc, "build_handoff_diagnostics", lambda sid: None)
 
         resp = client.get("/api/diagnostics/handoff/nonexistent-id")

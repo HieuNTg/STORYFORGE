@@ -17,6 +17,7 @@ debate panel:
   6. Schema regression — AgentReview with mixed lane suggestions round-trips
      through `model_validate` / `model_dump` without errors.
 """
+
 import logging
 
 
@@ -28,6 +29,7 @@ from models.schemas import (
 
 
 # ── Test 1: LaneSuggestion schema + legacy compat ───────────────────────
+
 
 class TestLaneSuggestionSchema:
     def test_round_trip(self):
@@ -45,7 +47,9 @@ class TestLaneSuggestionSchema:
         assert restored.target_chapter == 3
 
     def test_str_coercion(self):
-        sug = LaneSuggestion(lane="craft", text="Tighten dialogue", agent_role="dialogue_expert")
+        sug = LaneSuggestion(
+            lane="craft", text="Tighten dialogue", agent_role="dialogue_expert"
+        )
         assert str(sug) == "Tighten dialogue"
         # Equality with plain string (backward compat)
         assert sug == "Tighten dialogue"
@@ -62,7 +66,9 @@ class TestLaneSuggestionSchema:
         assert len(review.suggestions) == 1
         sug = review.suggestions[0]
         assert isinstance(sug, LaneSuggestion)
-        assert sug.lane == "craft"  # drama_critic is craft-lane per _DEFAULT_LANE_BY_ROLE
+        assert (
+            sug.lane == "craft"
+        )  # drama_critic is craft-lane per _DEFAULT_LANE_BY_ROLE
         assert sug.agent_role == "drama_critic"
         assert sug.text == "Đẩy mạnh cao trào chương 5"
 
@@ -105,6 +111,7 @@ class TestLaneSuggestionSchema:
 
 # ── Test 2: Lane boundary present in all agent prompts ──────────────────
 
+
 class TestPromptBoundaries:
     def test_all_craft_review_prompts_contain_boundary(self):
         from pipeline.agents import agent_prompts
@@ -141,6 +148,7 @@ class TestPromptBoundaries:
 
 # ── Test 3: _drop_cross_lane drops dramatic drift from craft agents ─────
 
+
 class TestDropCrossLaneCraft:
     def test_drops_dramatic_tagged_from_craft_agent(self, caplog):
         from pipeline.agents.agent_registry import _drop_cross_lane
@@ -152,8 +160,12 @@ class TestDropCrossLaneCraft:
             score=0.6,
             suggestions=[],
         )
-        good = LaneSuggestion(lane="craft", text="Sửa nhịp đoạn 3", agent_role="drama_critic")
-        bad = LaneSuggestion(lane="dramatic", text="Thêm conflict mới", agent_role="drama_critic")
+        good = LaneSuggestion(
+            lane="craft", text="Sửa nhịp đoạn 3", agent_role="drama_critic"
+        )
+        bad = LaneSuggestion(
+            lane="dramatic", text="Thêm conflict mới", agent_role="drama_critic"
+        )
         review.suggestions = [good, bad]
 
         with caplog.at_level(logging.WARNING):
@@ -179,6 +191,7 @@ class TestDropCrossLaneCraft:
 
 # ── Test 4: Simulator filters craft-tagged drift before SimulationResult ─
 
+
 class TestSimulatorLaneFilter:
     def test_simulator_filter_logic(self, caplog):
         """Replicate the inline filter from simulator.py:1018-1032."""
@@ -186,7 +199,9 @@ class TestSimulatorLaneFilter:
 
         raw_suggestions = [
             _LS(lane="dramatic", text="Đẩy cao trào", agent_role="character_simulator"),
-            _LS(lane="craft", text="Sửa pacing", agent_role="character_simulator"),  # cross-lane
+            _LS(
+                lane="craft", text="Sửa pacing", agent_role="character_simulator"
+            ),  # cross-lane
             "plain string suggestion",
         ]
 
@@ -198,7 +213,8 @@ class TestSimulatorLaneFilter:
                     sim_logger.warning(
                         "cross_lane_suggestion_dropped agent=character_simulator "
                         "claimed=%s expected=dramatic text=%r",
-                        sug.lane, str(sug)[:80],
+                        sug.lane,
+                        str(sug)[:80],
                     )
                     continue
                 filtered_suggestions.append(str(sug))
@@ -212,6 +228,7 @@ class TestSimulatorLaneFilter:
 
 # ── Test 5: Enhancer logs lane split at entry ───────────────────────────
 
+
 class TestEnhancerLaneSplitLog:
     def test_lane_split_log_replicates_enhancer_logic(self, caplog):
         """Mirror the partition in enhancer.py:1046-1066 and verify the log.
@@ -224,14 +241,21 @@ class TestEnhancerLaneSplitLog:
         """
         from types import SimpleNamespace
 
-        sim_result = SimpleNamespace(drama_suggestions=[
-            LaneSuggestion(lane="dramatic", text="A", agent_role="character_simulator"),
-            LaneSuggestion(lane="dramatic", text="B", agent_role="character_simulator"),
-            LaneSuggestion(lane="craft", text="C", agent_role="drama_critic"),
-            "plain str D",  # plain str passes the "not isinstance" branch → dramatic
-        ])
+        sim_result = SimpleNamespace(
+            drama_suggestions=[
+                LaneSuggestion(
+                    lane="dramatic", text="A", agent_role="character_simulator"
+                ),
+                LaneSuggestion(
+                    lane="dramatic", text="B", agent_role="character_simulator"
+                ),
+                LaneSuggestion(lane="craft", text="C", agent_role="drama_critic"),
+                "plain str D",  # plain str passes the "not isinstance" branch → dramatic
+            ]
+        )
 
         from models.schemas import LaneSuggestion as _LS
+
         _raw = list(getattr(sim_result, "drama_suggestions", []) or [])
         dramatic = [s for s in _raw if not isinstance(s, _LS) or s.lane == "dramatic"]
         craft = [s for s in _raw if isinstance(s, _LS) and s.lane == "craft"]
@@ -254,6 +278,7 @@ class TestEnhancerLaneSplitLog:
 
 # ── Test 6: Schema regression — mixed-lane round-trip ───────────────────
 
+
 class TestSchemaRegression:
     def test_mixed_lane_review_round_trips(self):
         review = AgentReview(
@@ -262,7 +287,9 @@ class TestSchemaRegression:
             score=0.75,
             issues=["plot gap chương 4"],
             suggestions=[
-                LaneSuggestion(lane="craft", text="Cải thiện pacing", agent_role="drama_critic"),
+                LaneSuggestion(
+                    lane="craft", text="Cải thiện pacing", agent_role="drama_critic"
+                ),
                 "legacy str — auto-wrapped",
                 {"lane": "craft", "text": "From dict", "severity": "info"},
             ],
@@ -286,7 +313,13 @@ class TestSchemaRegression:
         # inside it survives serialization via str() coercion (its __str__).
         sim = SimulationResult(
             drama_suggestions=[
-                str(LaneSuggestion(lane="dramatic", text="Kịch tính hơn", agent_role="character_simulator")),
+                str(
+                    LaneSuggestion(
+                        lane="dramatic",
+                        text="Kịch tính hơn",
+                        agent_role="character_simulator",
+                    )
+                ),
                 "raw string",
             ]
         )

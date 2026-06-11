@@ -37,7 +37,11 @@ def generate_scene_beats(
     Pass pacing_type to override outline.pacing_type (pass "" to force generation
     regardless of pacing type).
     """
-    pacing = pacing_type if pacing_type is not None else (getattr(outline, 'pacing_type', '') or '')
+    pacing = (
+        pacing_type
+        if pacing_type is not None
+        else (getattr(outline, "pacing_type", "") or "")
+    )
 
     chars_text = ", ".join(c.name for c in characters[:5])
 
@@ -60,7 +64,7 @@ def generate_scene_beats(
                 '"tension_level": 0.5, '
                 '"pov": "nhân vật POV", '
                 '"emotional_goal": "cảm xúc/mục tiêu cảnh này"'
-                '}]}'
+                "}]}"
             ),
             temperature=0.7,
             max_tokens=700,
@@ -88,7 +92,9 @@ def generate_scene_beats(
                 logger.debug(f"Skipping invalid scene beat: {exc}")
         return beats
     except Exception as e:
-        logger.debug(f"Scene beat generation failed for ch{outline.chapter_number}: {e}")
+        logger.debug(
+            f"Scene beat generation failed for ch{outline.chapter_number}: {e}"
+        )
         return []
 
 

@@ -25,6 +25,7 @@ try:
         async_sessionmaker,
         create_async_engine,
     )
+
     _SQLA_AVAILABLE = True
 except ImportError:
     _SQLA_AVAILABLE = False
@@ -77,7 +78,9 @@ def _setup_pool_metrics(engine: "AsyncEngine") -> None:  # noqa: F821
         pool = sync_engine.pool
         logger.debug(
             "DB pool checkout: size=%d, checked_in=%d, overflow=%d",
-            pool.size(), pool.checkedin(), pool.overflow(),
+            pool.size(),
+            pool.checkedin(),
+            pool.overflow(),
         )
 
     @event.listens_for(sync_engine, "checkin")
@@ -85,7 +88,9 @@ def _setup_pool_metrics(engine: "AsyncEngine") -> None:  # noqa: F821
         pool = sync_engine.pool
         logger.debug(
             "DB pool checkin: size=%d, checked_in=%d, overflow=%d",
-            pool.size(), pool.checkedin(), pool.overflow(),
+            pool.size(),
+            pool.checkedin(),
+            pool.overflow(),
         )
 
 
@@ -100,6 +105,7 @@ def _warn_no_db() -> None:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def get_engine() -> Optional["AsyncEngine"]:  # noqa: F821
     """Return (or lazily create) the async engine singleton.

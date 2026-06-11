@@ -20,6 +20,7 @@ from models.schemas import (
 # Shared minimal helpers (intentionally small to keep tests surgical)
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def _ch(num: int, content: str = "abc") -> Chapter:
     return Chapter(chapter_number=num, title=f"Ch{num}", content=content, word_count=10)
 
@@ -37,6 +38,7 @@ def _draft(chapters=None, characters=None) -> StoryDraft:
 # B1 — _rewritten_chapters reset between pipeline runs
 # pipeline/orchestrator_layers.py:run_full_pipeline (after LLM connectivity check)
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestB1RewrittenChaptersReset:
     """The set must be cleared at the entry of each run_full_pipeline call."""
@@ -74,6 +76,7 @@ class TestB1RewrittenChaptersReset:
 # B5 — Lookup by chapter_number (non-contiguous chapter list / continuation)
 # pipeline/layer2_enhance/enhancer.py: curve re-enhance + feedback rewrite blocks
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestB5LookupByChapterNumber:
     """When chapter list is [3,4,5] (continuation) and we rewrite ch_num=4,
@@ -115,6 +118,7 @@ class TestB5LookupByChapterNumber:
 # pipeline/layer1_story/generator.py:348-388
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestB6ConflictWebRetry:
     """Transient LLM failure on conflict_web should retry, not propagate empty."""
 
@@ -131,7 +135,10 @@ class TestB6ConflictWebRetry:
 
         with patch("pipeline.pipeline_utils.time.sleep"):  # skip backoff
             result = llm_call_with_retry(
-                flaky, max_retries=2, critical=True, operation_name="conflict_web",
+                flaky,
+                max_retries=2,
+                critical=True,
+                operation_name="conflict_web",
             )
         assert result == [{"id": "c1"}]
         assert attempts["n"] == 3
@@ -145,7 +152,9 @@ class TestB6ConflictWebRetry:
         with patch("pipeline.pipeline_utils.time.sleep"):
             with pytest.raises(LLMCallError):
                 llm_call_with_retry(
-                    always_fail, max_retries=2, critical=True,
+                    always_fail,
+                    max_retries=2,
+                    critical=True,
                     operation_name="conflict_web",
                 )
 
@@ -167,6 +176,7 @@ class TestB6ConflictWebRetry:
 # B3 — Structural rewrite forwards full per-chapter signals to write_chapter
 # pipeline/orchestrator_layers.py:_run_structural_rewrites._one
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestB3StructuralRewriteForwardsSignals:
     """When _run_structural_rewrites calls write_chapter, the signal kwargs
@@ -246,6 +256,7 @@ class TestB3StructuralRewriteForwardsSignals:
 # pipeline/orchestrator_layers.py: L2 simulator call site
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestB2AsyncSimulatorPath:
     """Orchestrator must await simulator.run_simulation_async directly,
     not asyncio.to_thread(simulator.run_simulation, ...)."""
@@ -267,6 +278,7 @@ class TestB2AsyncSimulatorPath:
 # pipeline/orchestrator_layers.py:_rebuild_signals_for_chapters
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestB4RebuildSignalsAfterRewrite:
     """After a structural rewrite swaps chapter content, downstream signals
     derived from chapter content (summary, character_states) must refresh."""
@@ -284,7 +296,10 @@ class TestB4RebuildSignalsAfterRewrite:
 
         async def _run():
             await _rebuild_signals_for_chapters(
-                self_stub, draft, [3], log_fn=lambda _m: None,
+                self_stub,
+                draft,
+                [3],
+                log_fn=lambda _m: None,
             )
 
         asyncio.run(_run())
@@ -302,7 +317,10 @@ class TestB4RebuildSignalsAfterRewrite:
 
         async def _run():
             await _rebuild_signals_for_chapters(
-                self_stub, draft, [], log_fn=lambda _m: None,
+                self_stub,
+                draft,
+                [],
+                log_fn=lambda _m: None,
             )
 
         asyncio.run(_run())
@@ -322,7 +340,10 @@ class TestB4RebuildSignalsAfterRewrite:
 
         async def _run():
             await _rebuild_signals_for_chapters(
-                self_stub, draft, [2], log_fn=lambda _m: None,
+                self_stub,
+                draft,
+                [2],
+                log_fn=lambda _m: None,
             )
 
         # Must not raise.

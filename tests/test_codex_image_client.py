@@ -19,12 +19,15 @@ from services.media.codex_image_client import CodexImageClient
 # helpers
 # ---------------------------------------------------------------------------
 
+
 # Minimal real PNG so the magic-byte validation in _extract_image passes. The
 # IDAT filler is deterministic but high-entropy (sha256 chaining) so it does NOT
 # compress away — the base64 string must clear the 5000-char threshold that
 # _extract_image uses to skip non-image payloads. ``blocks`` controls the size so
 # tests can build a clearly-"larger" frame to exercise the largest-wins logic.
-def _png_bytes(payload: bytes = b"storyforge-codex-test", *, blocks: int = 220) -> bytes:
+def _png_bytes(
+    payload: bytes = b"storyforge-codex-test", *, blocks: int = 220
+) -> bytes:
     def _chunk(tag: bytes, data: bytes) -> bytes:
         return (
             struct.pack(">I", len(data))
@@ -41,11 +44,17 @@ def _png_bytes(payload: bytes = b"storyforge-codex-test", *, blocks: int = 220) 
 
     ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
     idat = zlib.compress(filler)  # ~32*blocks bytes of incompressible data
-    return b"\x89PNG\r\n\x1a\n" + _chunk(b"IHDR", ihdr) + _chunk(b"IDAT", idat) + _chunk(b"IEND", b"")
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + _chunk(b"IHDR", ihdr)
+        + _chunk(b"IDAT", idat)
+        + _chunk(b"IEND", b"")
+    )
 
 
 def _jwt(exp: int) -> str:
     """Build an unsigned JWT whose payload carries the given ``exp``."""
+
     def b64(obj: dict) -> str:
         raw = json.dumps(obj).encode()
         return base64.urlsafe_b64encode(raw).decode().rstrip("=")
@@ -168,7 +177,9 @@ def test_ensure_token_refreshes_when_expired_and_persists_rotation(tmp_path):
     }
     refreshed.raise_for_status = MagicMock()
 
-    with patch("services.media.codex_image_client.requests.post", return_value=refreshed) as post:
+    with patch(
+        "services.media.codex_image_client.requests.post", return_value=refreshed
+    ) as post:
         tok = client._ensure_token()
 
     assert tok == "access-NEW"
@@ -201,10 +212,14 @@ def test_extract_image_picks_largest_valid_png():
     big = _png_bytes(b"the-final-frame", blocks=400)
     resp = _sse_response(
         [
-            {"type": "image_generation_call.partial_image",
-             "partial_image_b64": base64.b64encode(small).decode()},
-            {"type": "image_generation_call.partial_image",
-             "partial_image_b64": base64.b64encode(big).decode()},
+            {
+                "type": "image_generation_call.partial_image",
+                "partial_image_b64": base64.b64encode(small).decode(),
+            },
+            {
+                "type": "image_generation_call.partial_image",
+                "partial_image_b64": base64.b64encode(big).decode(),
+            },
             {"type": "response.completed"},
         ]
     )
@@ -226,9 +241,13 @@ def test_extract_image_handles_bytes_lines_from_real_stream():
     # bytes.startswith("data:") and silently losing the image.
     png = _png_bytes(b"bytes-stream")
     resp = _sse_response(
-        [{"type": "image_generation_call.partial_image",
-          "partial_image_b64": base64.b64encode(png).decode()},
-         {"type": "response.completed"}],
+        [
+            {
+                "type": "image_generation_call.partial_image",
+                "partial_image_b64": base64.b64encode(png).decode(),
+            },
+            {"type": "response.completed"},
+        ],
         as_bytes=True,
     )
     assert CodexImageClient._extract_image(resp) == png
@@ -237,9 +256,15 @@ def test_extract_image_handles_bytes_lines_from_real_stream():
 def test_extract_image_reads_result_on_output_item():
     png = _png_bytes(b"item-result")
     resp = _sse_response(
-        [{"type": "response.output_item.done",
-          "item": {"type": "image_generation_call",
-                   "result": base64.b64encode(png).decode()}}]
+        [
+            {
+                "type": "response.output_item.done",
+                "item": {
+                    "type": "image_generation_call",
+                    "result": base64.b64encode(png).decode(),
+                },
+            }
+        ]
     )
     assert CodexImageClient._extract_image(resp) == png
 
@@ -256,7 +281,9 @@ def test_stream_image_sends_auth_and_account_headers(tmp_path):
     resp = _sse_response(
         [{"type": "x", "partial_image_b64": base64.b64encode(png).decode()}]
     )
-    with patch("services.media.codex_image_client.requests.post", return_value=resp) as post:
+    with patch(
+        "services.media.codex_image_client.requests.post", return_value=resp
+    ) as post:
         out = client._stream_image([{"type": "input_text", "text": "hi"}], "1024x1024")
 
     assert out == png
@@ -277,7 +304,9 @@ def test_stream_image_401_triggers_force_refresh_and_retry(tmp_path):
 
     unauthorized = _sse_response([], status=401)
     png = _png_bytes()
-    ok = _sse_response([{"type": "x", "partial_image_b64": base64.b64encode(png).decode()}])
+    ok = _sse_response(
+        [{"type": "x", "partial_image_b64": base64.b64encode(png).decode()}]
+    )
 
     refreshed = MagicMock()
     refreshed.json.return_value = {"access_token": "access-NEW", "refresh_token": "r2"}

@@ -12,6 +12,7 @@ Design choices (YAGNI):
 - Milestones are content-agnostic beats (not character-specific) — keep separate
   from arc_waypoints which are character-centric.
 """
+
 from __future__ import annotations
 
 import logging
@@ -77,7 +78,9 @@ def generate_arc_milestones(
         result = llm.generate_json(
             system_prompt="Bạn là biên kịch cấu trúc truyện. BẮT BUỘC tiếng Việt. Trả về JSON.",
             user_prompt=_GENERATE_PROMPT.format(
-                synopsis=synopsis[:800], genre=genre, arcs=arcs_text,
+                synopsis=synopsis[:800],
+                genre=genre,
+                arcs=arcs_text,
             ),
             temperature=0.5,
             model=model,
@@ -100,7 +103,10 @@ def generate_arc_milestones(
             if not (lo <= m.required_by_chapter <= hi):
                 logger.warning(
                     "Milestone %s required_by_chapter=%d outside arc range [%d,%d] — clamping",
-                    m.milestone_id, m.required_by_chapter, lo, hi,
+                    m.milestone_id,
+                    m.required_by_chapter,
+                    lo,
+                    hi,
                 )
                 m.required_by_chapter = max(lo, min(hi, m.required_by_chapter))
             milestones.append(m)
@@ -153,7 +159,9 @@ def audit_arc_milestones(
     for m in milestones:
         if m.status == "pending" and m.required_by_chapter <= final_chapter:
             m.status = "missed"
-        rec = by_arc.setdefault(m.arc_number, {"hit": 0, "missed": 0, "pending": 0, "total": 0})
+        rec = by_arc.setdefault(
+            m.arc_number, {"hit": 0, "missed": 0, "pending": 0, "total": 0}
+        )
         rec[m.status] = rec.get(m.status, 0) + 1
         rec["total"] += 1
 

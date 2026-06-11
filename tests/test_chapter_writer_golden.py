@@ -12,6 +12,7 @@ Three snapshots:
 Uses substring match (not full-prompt equality) so surrounding outline/context
 variation doesn't break the assertion.
 """
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -27,6 +28,7 @@ from pipeline.layer1_story.chapter_writer import build_chapter_prompt
 # ---------------------------------------------------------------------------
 # Minimal stubs — mirror tests/test_chapter_writer.py helpers
 # ---------------------------------------------------------------------------
+
 
 def _mk_config():
     """Minimal pipeline config with all optional features disabled."""
@@ -53,23 +55,39 @@ def _mk_world():
 
 
 def _mk_outline(num=1):
-    return ChapterOutline(chapter_number=num, title="Chương Vàng", summary="Mọi thứ thay đổi")
+    return ChapterOutline(
+        chapter_number=num, title="Chương Vàng", summary="Mọi thứ thay đổi"
+    )
 
 
 def _mk_character():
-    return Character(name="Tuấn", role="protagonist", personality="kiên định", background="anh hùng")
+    return Character(
+        name="Tuấn", role="protagonist", personality="kiên định", background="anh hùng"
+    )
 
 
 def _build_prompt(negotiated_contract=None):
     """Invoke build_chapter_prompt with minimal stubs; returns user_prompt."""
     config = _mk_config()
-    with patch("pipeline.layer1_story.chapter_writer.build_adaptive_write_prompt",
-               side_effect=lambda p, *a, **kw: p), \
-         patch("pipeline.layer1_story.narrative_context_block.build_narrative_block") as mock_nb:
+    with (
+        patch(
+            "pipeline.layer1_story.chapter_writer.build_adaptive_write_prompt",
+            side_effect=lambda p, *a, **kw: p,
+        ),
+        patch(
+            "pipeline.layer1_story.narrative_context_block.build_narrative_block"
+        ) as mock_nb,
+    ):
         mock_nb.return_value.render.return_value = ""
         _, user_prompt = build_chapter_prompt(
-            config, "Truyện Vàng", "fantasy", "sử thi",
-            [_mk_character()], _mk_world(), _mk_outline(), 2000,
+            config,
+            "Truyện Vàng",
+            "fantasy",
+            "sử thi",
+            [_mk_character()],
+            _mk_world(),
+            _mk_outline(),
+            2000,
             negotiated_contract=negotiated_contract,
         )
     return user_prompt
@@ -78,6 +96,7 @@ def _build_prompt(negotiated_contract=None):
 # ---------------------------------------------------------------------------
 # Snapshot 1: No contract → directive ABSENT
 # ---------------------------------------------------------------------------
+
 
 class TestGoldenNoContract:
     def test_directive_absent_when_no_contract(self):
@@ -101,6 +120,7 @@ class TestGoldenNoContract:
 # ---------------------------------------------------------------------------
 # Snapshot 2: Full contract → directive present, verbatim byte-locked
 # ---------------------------------------------------------------------------
+
 
 class TestGoldenFullContract:
     """Exact verbatim directive block with non-empty subtext and forbidden lists."""
@@ -166,6 +186,7 @@ class TestGoldenFullContract:
 # ---------------------------------------------------------------------------
 # Snapshot 3: Empty subtext + empty forbidden → "không" rendered for both
 # ---------------------------------------------------------------------------
+
 
 class TestGoldenEmptyLists:
     """Empty required_subtext and forbidden_patterns → both render as 'không'."""

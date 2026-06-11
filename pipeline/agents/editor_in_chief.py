@@ -1,4 +1,5 @@
 """Agent Biên Tập Trưởng - đánh giá tổng thể và tổng hợp review của các agent khác."""
+
 from models.schemas import AgentReview, PipelineOutput
 from pipeline.agents.base_agent import BaseAgent
 from pipeline.agents import agent_prompts
@@ -9,16 +10,23 @@ class EditorInChiefAgent(BaseAgent):
     role = "editor_in_chief"
     goal = "Đánh giá chất lượng tổng thể và tổng hợp phản hồi từ các chuyên gia"
     layers = [1, 2, 3]
-    depends_on: list[str] = ["Nhà Phê Bình Kịch Tính", "Cân Bằng Đối Thoại", "Phân Tích Nhịp Truyện"]
+    depends_on: list[str] = [
+        "Nhà Phê Bình Kịch Tính",
+        "Cân Bằng Đối Thoại",
+        "Phân Tích Nhịp Truyện",
+    ]
 
-    def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
+    def review(
+        self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None
+    ) -> AgentReview:
         # Tổng hợp reviews từ các agent khác cùng layer (trừ chính mình)
         # prior_reviews (from DAG tiered execution) takes precedence when available
         if prior_reviews:
             other_reviews = [r for r in prior_reviews if r.agent_role != self.role]
         else:
             other_reviews = [
-                r for r in output.reviews
+                r
+                for r in output.reviews
                 if r.layer == layer and r.agent_role != self.role
             ]
 
@@ -52,10 +60,13 @@ class EditorInChiefAgent(BaseAgent):
         content = self._get_content_for_layer(output, layer)
 
         # Tóm tắt reviews của các agent khác
-        other_reviews_summary = "\n".join(
-            f"- {r.agent_name} (điểm {r.score:.1f}): {'; '.join(r.issues[:2]) or 'Không có vấn đề'}"
-            for r in other_reviews
-        ) or "Chưa có đánh giá từ chuyên gia khác."
+        other_reviews_summary = (
+            "\n".join(
+                f"- {r.agent_name} (điểm {r.score:.1f}): {'; '.join(r.issues[:2]) or 'Không có vấn đề'}"
+                for r in other_reviews
+            )
+            or "Chưa có đánh giá từ chuyên gia khác."
+        )
 
         prompt = agent_prompts.EDITOR_REVIEW.format(
             content=content[:3000],
@@ -77,7 +88,9 @@ class EditorInChiefAgent(BaseAgent):
                 f"Chương {c.chapter_number}: {c.title}\n{c.content[:300]}"
                 for c in draft.chapters[:3]
             )
-            return f"Tiêu đề: {draft.title}\nThể loại: {draft.genre}\n\n{chapters_preview}"
+            return (
+                f"Tiêu đề: {draft.title}\nThể loại: {draft.genre}\n\n{chapters_preview}"
+            )
         if layer == 2 and output.enhanced_story:
             story = output.enhanced_story
             chapters_preview = "\n\n".join(

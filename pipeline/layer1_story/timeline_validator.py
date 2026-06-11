@@ -15,20 +15,24 @@ logger = logging.getLogger(__name__)
 
 # Vietnamese time markers
 TIME_PATTERNS = {
-    "morning": re.compile(r'\b(sáng|bình minh|rạng đông)\b', re.IGNORECASE),
-    "noon": re.compile(r'\b(trưa|giữa trưa)\b', re.IGNORECASE),
-    "afternoon": re.compile(r'\b(chiều|xế chiều)\b', re.IGNORECASE),
-    "evening": re.compile(r'\b(tối|hoàng hôn|chập tối)\b', re.IGNORECASE),
-    "night": re.compile(r'\b(đêm|khuya|nửa đêm)\b', re.IGNORECASE),
+    "morning": re.compile(r"\b(sáng|bình minh|rạng đông)\b", re.IGNORECASE),
+    "noon": re.compile(r"\b(trưa|giữa trưa)\b", re.IGNORECASE),
+    "afternoon": re.compile(r"\b(chiều|xế chiều)\b", re.IGNORECASE),
+    "evening": re.compile(r"\b(tối|hoàng hôn|chập tối)\b", re.IGNORECASE),
+    "night": re.compile(r"\b(đêm|khuya|nửa đêm)\b", re.IGNORECASE),
 }
 
 RELATIVE_TIME = {
-    "same_day": re.compile(r'\b(hôm nay|ngày hôm đó|cùng ngày)\b', re.IGNORECASE),
-    "next_day": re.compile(r'\b(hôm sau|ngày hôm sau|sáng hôm sau)\b', re.IGNORECASE),
-    "days_later": re.compile(r'\b(vài ngày sau|mấy ngày sau|nhiều ngày sau)\b', re.IGNORECASE),
-    "week_later": re.compile(r'\b(tuần sau|một tuần sau)\b', re.IGNORECASE),
-    "month_later": re.compile(r'\b(tháng sau|một tháng sau)\b', re.IGNORECASE),
-    "flashback": re.compile(r'\b(nhớ lại|hồi tưởng|năm xưa|ngày xưa|trước đây)\b', re.IGNORECASE),
+    "same_day": re.compile(r"\b(hôm nay|ngày hôm đó|cùng ngày)\b", re.IGNORECASE),
+    "next_day": re.compile(r"\b(hôm sau|ngày hôm sau|sáng hôm sau)\b", re.IGNORECASE),
+    "days_later": re.compile(
+        r"\b(vài ngày sau|mấy ngày sau|nhiều ngày sau)\b", re.IGNORECASE
+    ),
+    "week_later": re.compile(r"\b(tuần sau|một tuần sau)\b", re.IGNORECASE),
+    "month_later": re.compile(r"\b(tháng sau|một tháng sau)\b", re.IGNORECASE),
+    "flashback": re.compile(
+        r"\b(nhớ lại|hồi tưởng|năm xưa|ngày xưa|trước đây)\b", re.IGNORECASE
+    ),
 }
 
 TIME_ORDER = ["morning", "noon", "afternoon", "evening", "night"]
@@ -37,6 +41,7 @@ TIME_ORDER = ["morning", "noon", "afternoon", "evening", "night"]
 @dataclass
 class TimelineEvent:
     """A temporal event extracted from chapter."""
+
     chapter: int
     time_of_day: str = ""
     relative_marker: str = ""
@@ -47,6 +52,7 @@ class TimelineEvent:
 @dataclass
 class TimelineState:
     """Track timeline state across chapters."""
+
     events: list[TimelineEvent] = field(default_factory=list)
     current_day: int = 1
     last_time_of_day: str = ""
@@ -146,14 +152,17 @@ def validate_chapter_timeline(
                 contradictions.append(contradiction)
 
     # LLM validation for complex cases
-    if len(markers["relative_markers"]) > 1 or "flashback" in markers["relative_markers"]:
+    if (
+        len(markers["relative_markers"]) > 1
+        or "flashback" in markers["relative_markers"]
+    ):
         try:
             result = llm.generate_json(
                 system_prompt="Phân tích timeline. Trả JSON.",
                 user_prompt=f"""Chương {chapter_number}:
 {chapter_content[:2000]}
 
-Thời gian chương trước: {timeline_state.last_time_of_day or 'không rõ'}
+Thời gian chương trước: {timeline_state.last_time_of_day or "không rõ"}
 Ngày hiện tại: ngày {timeline_state.current_day}
 
 Kiểm tra:
@@ -181,7 +190,9 @@ Kiểm tra:
     event = TimelineEvent(
         chapter=chapter_number,
         time_of_day=markers["time_of_day"],
-        relative_marker=markers["relative_markers"][0] if markers["relative_markers"] else "",
+        relative_marker=markers["relative_markers"][0]
+        if markers["relative_markers"]
+        else "",
         confidence=0.8 if markers["time_of_day"] else 0.5,
     )
     timeline_state.add_event(event)

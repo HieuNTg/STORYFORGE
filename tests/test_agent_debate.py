@@ -1,4 +1,5 @@
 """Tests for Phase 16 agent debate_response overrides."""
+
 from unittest.mock import patch, MagicMock
 from models.schemas import AgentReview, DebateStance
 
@@ -39,6 +40,7 @@ class TestDramaCriticDebate:
     def _make_agent(self):
         with patch("pipeline.agents.base_agent.LLMClient"):
             from pipeline.agents.drama_critic import DramaCriticAgent
+
             return DramaCriticAgent()
 
     def test_challenge_on_low_drama_suggestion(self):
@@ -52,7 +54,9 @@ class TestDramaCriticDebate:
             "OtherAgent",
             suggestions=["Cần giảm xung đột trong chương 3 để giữ nhịp"],
         )
-        entries = agent.debate_response(story_draft, 2, own_review, [own_review, other_review])
+        entries = agent.debate_response(
+            story_draft, 2, own_review, [own_review, other_review]
+        )
         assert len(entries) >= 1
         challenge = entries[0]
         assert challenge.stance == DebateStance.CHALLENGE
@@ -67,7 +71,9 @@ class TestDramaCriticDebate:
             "OtherAgent",
             suggestions=["Cải thiện văn phong đoạn mô tả cảnh sắc"],
         )
-        entries = agent.debate_response(story_draft, 2, own_review, [own_review, other_review])
+        entries = agent.debate_response(
+            story_draft, 2, own_review, [own_review, other_review]
+        )
         assert entries == []
 
     def test_skips_own_review(self):
@@ -84,6 +90,7 @@ class TestCharacterSpecialistDebate:
     def _make_agent(self):
         with patch("pipeline.agents.base_agent.LLMClient"):
             from pipeline.agents.character_specialist import CharacterSpecialistAgent
+
             return CharacterSpecialistAgent()
 
     def test_challenge_on_character_break_issue(self):
@@ -96,7 +103,9 @@ class TestCharacterSpecialistDebate:
             "DramaCritic",
             issues=["Nhân vật phản bội đột ngột không có foreshadowing"],
         )
-        entries = agent.debate_response(story_draft, 2, own_review, [own_review, other_review])
+        entries = agent.debate_response(
+            story_draft, 2, own_review, [own_review, other_review]
+        )
         assert len(entries) >= 1
         challenge = entries[0]
         assert challenge.stance == DebateStance.CHALLENGE
@@ -110,7 +119,9 @@ class TestCharacterSpecialistDebate:
             "DramaCritic",
             issues=["Cần thêm mô tả chi tiết về bối cảnh"],
         )
-        entries = agent.debate_response(story_draft, 2, own_review, [own_review, other_review])
+        entries = agent.debate_response(
+            story_draft, 2, own_review, [own_review, other_review]
+        )
         assert entries == []
 
     def test_skips_own_review(self):

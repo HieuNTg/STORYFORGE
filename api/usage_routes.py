@@ -59,7 +59,9 @@ class SessionSummaryResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-@router.get("/session", response_model=SessionSummaryResponse, dependencies=[_ACCESS_ANALYTICS])
+@router.get(
+    "/session", response_model=SessionSummaryResponse, dependencies=[_ACCESS_ANALYTICS]
+)
 async def get_session_summary() -> SessionSummaryResponse:
     """Return aggregated token usage and cost for the current server session.
 
@@ -83,7 +85,9 @@ async def reset_session() -> dict:
     return {"status": "ok", "message": "Session token usage reset."}
 
 
-@router.get("/{story_id}", response_model=StoryCostResponse, dependencies=[_ACCESS_ANALYTICS])
+@router.get(
+    "/{story_id}", response_model=StoryCostResponse, dependencies=[_ACCESS_ANALYTICS]
+)
 async def get_story_usage(story_id: str) -> StoryCostResponse:
     """Return token usage and cost breakdown for a single story.
 

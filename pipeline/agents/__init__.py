@@ -1,4 +1,5 @@
 """Package pipeline.agents - đăng ký và quản lý tất cả agent đánh giá."""
+
 from pipeline.agents.agent_registry import AgentRegistry
 
 _agents_registered = False

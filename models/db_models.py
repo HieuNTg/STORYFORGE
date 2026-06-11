@@ -30,14 +30,17 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 # Declarative base
 # ---------------------------------------------------------------------------
 
+
 class Base(DeclarativeBase):
     """Shared declarative base — all ORM models inherit from this."""
+
     pass
 
 
 # ---------------------------------------------------------------------------
 # Helper: default UUID factory
 # ---------------------------------------------------------------------------
+
 
 def _uuid() -> str:
     return str(uuid.uuid4())
@@ -47,34 +50,35 @@ def _uuid() -> str:
 # Tables
 # ---------------------------------------------------------------------------
 
+
 class User(Base):
     """Application users."""
 
     __tablename__ = "users"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=_uuid
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     username: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     credits: Mapped[int] = mapped_column(Integer, nullable=False, default=20)
     # Valid values: viewer | creator | admin | superadmin  (see middleware/rbac.py)
     role: Mapped[str] = mapped_column(String(50), nullable=False, default="creator")
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        nullable=False, server_default=func.now()
+    )
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
     # Relationships
-    stories: Mapped[list["Story"]] = relationship("Story", back_populates="user", lazy="select")
+    stories: Mapped[list["Story"]] = relationship(
+        "Story", back_populates="user", lazy="select"
+    )
     pipeline_runs: Mapped[list["PipelineRun"]] = relationship(
         "PipelineRun", back_populates="user", lazy="select"
     )
 
-    __table_args__ = (
-        Index("ix_users_username", "username"),
-    )
+    __table_args__ = (Index("ix_users_username", "username"),)
 
     def __repr__(self) -> str:
         return f"<User id={self.id!r} username={self.username!r}>"
@@ -85,9 +89,7 @@ class Story(Base):
 
     __tablename__ = "stories"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=_uuid
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     user_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -99,7 +101,9 @@ class Story(Base):
     chapter_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     word_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     drama_score: Mapped[float] = mapped_column(nullable=False, default=0.0)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        nullable=False, server_default=func.now()
+    )
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now(), onupdate=func.now()
     )
@@ -116,9 +120,7 @@ class Story(Base):
         "Feedback", back_populates="story", lazy="select", cascade="all, delete-orphan"
     )
 
-    __table_args__ = (
-        Index("ix_stories_user_id", "user_id"),
-    )
+    __table_args__ = (Index("ix_stories_user_id", "user_id"),)
 
     def __repr__(self) -> str:
         return f"<Story id={self.id!r} title={self.title!r}>"
@@ -129,9 +131,7 @@ class Chapter(Base):
 
     __tablename__ = "chapters"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=_uuid
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     story_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("stories.id", ondelete="CASCADE"), nullable=False
     )
@@ -140,11 +140,15 @@ class Chapter(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
     word_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     quality_score: Mapped[float] = mapped_column(nullable=False, default=0.0)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        nullable=False, server_default=func.now()
+    )
 
     # Sprint 1 P6: per-chapter negotiated contract (nullable; set after reconciliation)
     negotiated_contract: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    contract_reconciliation_warnings: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    contract_reconciliation_warnings: Mapped[Optional[list]] = mapped_column(
+        JSON, nullable=True
+    )
 
     # Sprint 2 P3: per-chapter semantic verification findings (nullable; set by foreshadowing_verifier)
     semantic_findings: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
@@ -166,14 +170,15 @@ class PipelineRun(Base):
 
     __tablename__ = "pipeline_runs"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=_uuid
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     user_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     story_id: Mapped[Optional[str]] = mapped_column(
-        String(36), ForeignKey("stories.id", ondelete="SET NULL"), nullable=True, index=True
+        String(36),
+        ForeignKey("stories.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     genre: Mapped[str] = mapped_column(String(100), nullable=False, default="")
     # status: running | completed | failed
@@ -182,23 +187,29 @@ class PipelineRun(Base):
     duration_seconds: Mapped[Optional[float]] = mapped_column(nullable=True)
     token_usage: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        nullable=False, server_default=func.now()
+    )
 
     # Sprint 1 P6: L1→L2 handoff observability (all nullable; NULL for pre-migration rows)
     handoff_envelope: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     handoff_health: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    handoff_signals_version: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    handoff_signals_version: Mapped[Optional[str]] = mapped_column(
+        String(16), nullable=True
+    )
 
     # Sprint 2 P5: deterministic outline metrics (nullable; NULL for pre-migration rows)
     outline_metrics: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     # Relationships
-    user: Mapped[Optional["User"]] = relationship("User", back_populates="pipeline_runs")
-    story: Mapped[Optional["Story"]] = relationship("Story", back_populates="pipeline_runs")
-
-    __table_args__ = (
-        Index("ix_pipeline_runs_user_id", "user_id"),
+    user: Mapped[Optional["User"]] = relationship(
+        "User", back_populates="pipeline_runs"
     )
+    story: Mapped[Optional["Story"]] = relationship(
+        "Story", back_populates="pipeline_runs"
+    )
+
+    __table_args__ = (Index("ix_pipeline_runs_user_id", "user_id"),)
 
     def __repr__(self) -> str:
         return f"<PipelineRun id={self.id!r} status={self.status!r}>"
@@ -209,10 +220,10 @@ class AuditLog(Base):
 
     __tablename__ = "audit_logs"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=_uuid
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    timestamp: Mapped[datetime] = mapped_column(
+        nullable=False, server_default=func.now()
     )
-    timestamp: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
     user_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     action: Mapped[str] = mapped_column(String(100), nullable=False)
     resource: Mapped[str] = mapped_column(String(255), nullable=False, default="")
@@ -221,9 +232,7 @@ class AuditLog(Base):
     result: Mapped[str] = mapped_column(String(50), nullable=False, default="")
     details: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
-    __table_args__ = (
-        Index("ix_audit_logs_timestamp", "timestamp"),
-    )
+    __table_args__ = (Index("ix_audit_logs_timestamp", "timestamp"),)
 
     def __repr__(self) -> str:
         return f"<AuditLog action={self.action!r} user={self.user_id!r}>"
@@ -234,9 +243,7 @@ class Feedback(Base):
 
     __tablename__ = "feedback"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=_uuid
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     story_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("stories.id", ondelete="SET NULL"), nullable=True
     )
@@ -246,10 +253,14 @@ class Feedback(Base):
     scores: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     overall_score: Mapped[float] = mapped_column(nullable=False, default=0.0)
     comment: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        nullable=False, server_default=func.now()
+    )
 
     # Relationships
-    story: Mapped[Optional["Story"]] = relationship("Story", back_populates="feedback_entries")
+    story: Mapped[Optional["Story"]] = relationship(
+        "Story", back_populates="feedback_entries"
+    )
 
     def __repr__(self) -> str:
         return f"<Feedback story={self.story_id!r} score={self.overall_score}>"
@@ -274,9 +285,7 @@ class EmbeddingCacheEntry(Base):
         DateTime, nullable=False, server_default=func.now()
     )
 
-    __table_args__ = (
-        Index("ix_embedding_cache_model_id", "model_id"),
-    )
+    __table_args__ = (Index("ix_embedding_cache_model_id", "model_id"),)
 
     def __repr__(self) -> str:
         return f"<EmbeddingCacheEntry key={self.key[:8]!r}... model={self.model_id!r}>"
@@ -287,18 +296,14 @@ class Config(Base):
 
     __tablename__ = "configs"
 
-    id: Mapped[str] = mapped_column(
-        String(36), primary_key=True, default=_uuid
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     key: Mapped[str] = mapped_column(String(255), nullable=False)
     value: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
-    __table_args__ = (
-        UniqueConstraint("key", name="uq_configs_key"),
-    )
+    __table_args__ = (UniqueConstraint("key", name="uq_configs_key"),)
 
     def __repr__(self) -> str:
         return f"<Config key={self.key!r}>"

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 try:
     import redis as _redis_lib
+
     _REDIS_AVAILABLE = True
 except ImportError:
     _redis_lib = None  # type: ignore[assignment]
@@ -23,6 +24,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # In-memory backend (default, single-process)
 # ---------------------------------------------------------------------------
+
 
 class InMemoryBranchStore:
     """In-memory branch session store. Thread-safe via lock.
@@ -71,7 +73,8 @@ class InMemoryBranchStore:
         with self._lock:
             now = time.time()
             return [
-                sid for sid in self._sessions
+                sid
+                for sid in self._sessions
                 if now - self._timestamps[sid] <= self.ttl_seconds
             ]
 
@@ -96,6 +99,7 @@ class InMemoryBranchStore:
 # Redis backend (production, multi-process safe)
 # ---------------------------------------------------------------------------
 
+
 class RedisBranchStore:
     """Redis-backed branch session store. Same interface as InMemoryBranchStore.
 
@@ -106,9 +110,7 @@ class RedisBranchStore:
 
     def __init__(self, redis_url: str, ttl_seconds: int = 86400):
         if not _REDIS_AVAILABLE:
-            raise RuntimeError(
-                "redis package is not installed. Run: pip install redis"
-            )
+            raise RuntimeError("redis package is not installed. Run: pip install redis")
         self.ttl_seconds = ttl_seconds
         self._client = _redis_lib.from_url(redis_url, decode_responses=True)
         # Verify connectivity
@@ -173,6 +175,7 @@ class RedisBranchStore:
 # Factory
 # ---------------------------------------------------------------------------
 
+
 def create_branch_store(
     redis_url: str = "",
     max_sessions: int = 50,
@@ -185,12 +188,16 @@ def create_branch_store(
             logger.warning(
                 "REDIS_URL is set but redis package not installed. Using in-memory store."
             )
-            return InMemoryBranchStore(max_sessions=max_sessions, ttl_seconds=ttl_seconds)
+            return InMemoryBranchStore(
+                max_sessions=max_sessions, ttl_seconds=ttl_seconds
+            )
         try:
             return RedisBranchStore(redis_url=url, ttl_seconds=ttl_seconds)
         except Exception as e:
             logger.warning("Redis connection failed, falling back to in-memory: %s", e)
-            return InMemoryBranchStore(max_sessions=max_sessions, ttl_seconds=ttl_seconds)
+            return InMemoryBranchStore(
+                max_sessions=max_sessions, ttl_seconds=ttl_seconds
+            )
     return InMemoryBranchStore(max_sessions=max_sessions, ttl_seconds=ttl_seconds)
 
 

@@ -3,15 +3,23 @@
 from unittest.mock import MagicMock, patch
 
 from pipeline.layer2_enhance.character_state_registry import (
-    CharacterState, CharacterStateRegistry,
+    CharacterState,
+    CharacterStateRegistry,
 )
 from pipeline.layer2_enhance.setting_continuity import (
-    Location, SignificantObject, SettingContinuityGraph,
+    Location,
+    SignificantObject,
+    SettingContinuityGraph,
 )
 from pipeline.layer2_enhance.thread_watchdog import PlotThread, ThreadWatchdog
-from pipeline.layer2_enhance.voice_fingerprint import VoiceProfile, VoiceFingerprintEngine
+from pipeline.layer2_enhance.voice_fingerprint import (
+    VoiceProfile,
+    VoiceFingerprintEngine,
+)
 from pipeline.layer2_enhance.consistency_engine import (
-    ConsistencyEngine, ConsistencyViolation, ConsistencyReport,
+    ConsistencyEngine,
+    ConsistencyViolation,
+    ConsistencyReport,
 )
 
 
@@ -153,7 +161,9 @@ class TestThreadWatchdog:
         watchdog.threads = {
             "t1": PlotThread(thread_id="t1", description="Open", status="open"),
             "t2": PlotThread(thread_id="t2", description="Resolved", status="resolved"),
-            "t3": PlotThread(thread_id="t3", description="Progressing", status="progressing"),
+            "t3": PlotThread(
+                thread_id="t3", description="Progressing", status="progressing"
+            ),
         }
 
         open_threads = watchdog.get_open_threads()
@@ -193,10 +203,10 @@ class TestVoiceFingerprintEngine:
 
     def test_extract_dialogues_pattern(self):
         engine = VoiceFingerprintEngine()
-        content = '''
+        content = """
         "Ta sẽ không bỏ cuộc!" - An nói.
         An quát lên: "Các ngươi dừng lại!"
-        '''
+        """
 
         dialogues = engine._extract_dialogues(content, "An")
         assert len(dialogues) >= 1  # Should extract at least one dialogue

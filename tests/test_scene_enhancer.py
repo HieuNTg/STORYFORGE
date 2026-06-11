@@ -59,7 +59,9 @@ class TestDramaCurveTarget:
             for ch in range(1, 101)
         ]
         # Should have peaks and valleys (variance > 0)
-        variance = sum((s - sum(scores) / len(scores)) ** 2 for s in scores) / len(scores)
+        variance = sum((s - sum(scores) / len(scores)) ** 2 for s in scores) / len(
+            scores
+        )
         assert variance > 0.01  # Has meaningful variation
 
     def test_unknown_curve_returns_default(self):
@@ -236,7 +238,10 @@ class TestSceneEnhancerRetry:
         enhancer.retry_threshold = 0.5
         enhancer.llm = MagicMock()
         enhancer.llm.generate.return_value = "Enhanced content"
-        enhancer.llm.generate_json.return_value = {"drama_score": 0.7, "weak_points": []}
+        enhancer.llm.generate_json.return_value = {
+            "drama_score": 0.7,
+            "weak_points": [],
+        }
 
         scene = {"scene_number": 1, "content": "weak"}
         score = SceneScore(scene_number=1, drama_score=0.3, weak_points=["boring"])

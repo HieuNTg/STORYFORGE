@@ -19,6 +19,7 @@ _RATE_LIMIT_STALE_SECONDS = 300  # 5min for rate limit data
 @dataclass
 class RateLimitStatus:
     """Rate limit status for a provider/key combo."""
+
     remaining_requests: Optional[int] = None
     limit_requests: Optional[int] = None
     remaining_tokens: Optional[int] = None
@@ -66,10 +67,13 @@ class RateLimitStatus:
 @dataclass
 class ProviderInfo:
     """Cached info for a provider."""
+
     provider_type: str
     models: list[str] = field(default_factory=list)
     models_updated_at: float = 0.0
-    rate_limits: dict[str, RateLimitStatus] = field(default_factory=dict)  # api_key -> status
+    rate_limits: dict[str, RateLimitStatus] = field(
+        default_factory=dict
+    )  # api_key -> status
 
 
 # Header mappings per provider
@@ -86,7 +90,10 @@ _HEADER_MAPS = {
         "limit_requests": ["anthropic-ratelimit-requests-limit"],
         "remaining_tokens": ["anthropic-ratelimit-tokens-remaining"],
         "limit_tokens": ["anthropic-ratelimit-tokens-limit"],
-        "reset": ["anthropic-ratelimit-requests-reset", "anthropic-ratelimit-tokens-reset"],
+        "reset": [
+            "anthropic-ratelimit-requests-reset",
+            "anthropic-ratelimit-tokens-reset",
+        ],
     },
     "openrouter": {
         "remaining_requests": ["x-ratelimit-remaining"],
@@ -186,7 +193,9 @@ class ProviderStatusManager:
     def _get_or_create_provider(self, provider_type: str) -> ProviderInfo:
         with self._data_lock:
             if provider_type not in self._providers:
-                self._providers[provider_type] = ProviderInfo(provider_type=provider_type)
+                self._providers[provider_type] = ProviderInfo(
+                    provider_type=provider_type
+                )
             return self._providers[provider_type]
 
     # -------------------------------------------------------------------------
@@ -248,7 +257,9 @@ class ProviderStatusManager:
             return status
         return None
 
-    def get_rate_limit(self, provider_type: str, api_key: str) -> Optional[RateLimitStatus]:
+    def get_rate_limit(
+        self, provider_type: str, api_key: str
+    ) -> Optional[RateLimitStatus]:
         """Get cached rate limit status for a provider/key."""
         prov = self._providers.get(provider_type)
         if not prov:
@@ -439,12 +450,14 @@ class ProviderStatusManager:
         for model in models:
             if model in exclude_models:
                 continue
-            result.append({
-                "model": model,
-                "provider": provider_type,
-                "quota_pct": status.min_pct if status else None,
-                "quota_low": self.is_quota_low(provider_type, api_key),
-            })
+            result.append(
+                {
+                    "model": model,
+                    "provider": provider_type,
+                    "quota_pct": status.min_pct if status else None,
+                    "quota_low": self.is_quota_low(provider_type, api_key),
+                }
+            )
         return result
 
     def refresh_all(self, api_keys: dict[str, str] = None) -> dict:

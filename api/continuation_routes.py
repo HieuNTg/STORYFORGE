@@ -37,65 +37,93 @@ router = APIRouter(
     dependencies=[Depends(require_permission_if_enabled(Permission.CREATE_STORIES))],
 )
 
+
 class ContinueRequest(BaseModel):
     """Request body for continuing an existing story."""
+
     checkpoint: str
     additional_chapters: int = Field(5, ge=1, le=50)
     word_count: int = Field(2000, ge=100, le=20000)
     style: str = Field("", max_length=100)
     run_enhancement: bool = False
     num_sim_rounds: int = Field(3, ge=1, le=10)
-    arc_directives: list[ArcDirective] = Field(default_factory=list, description="Character arc steering directives")
+    arc_directives: list[ArcDirective] = Field(
+        default_factory=list, description="Character arc steering directives"
+    )
 
 
 class RegenerateChapterRequest(BaseModel):
     """Request body for regenerating a specific chapter."""
+
     checkpoint: str
     chapter_number: int = Field(..., ge=1, description="Chapter to regenerate")
     word_count: int = Field(2000, ge=100, le=20000)
     style: str = Field("", max_length=100)
-    preserve_outline: bool = Field(True, description="Keep original outline or regenerate")
+    preserve_outline: bool = Field(
+        True, description="Keep original outline or regenerate"
+    )
 
 
 class OutlinePreviewRequest(BaseModel):
     """Request body for generating continuation outlines without writing chapters."""
+
     checkpoint: str
     additional_chapters: int = Field(5, ge=1, le=50)
-    arc_directives: list[ArcDirective] = Field(default_factory=list, description="Character arc steering directives")
+    arc_directives: list[ArcDirective] = Field(
+        default_factory=list, description="Character arc steering directives"
+    )
 
 
 class OutlineWriteRequest(BaseModel):
     """Request body for writing chapters from user-edited outlines."""
+
     checkpoint: str
     outlines: list[dict] = Field(..., description="User-edited ChapterOutline dicts")
     word_count: int = Field(2000, ge=100, le=20000)
     style: str = Field("", max_length=100)
-    arc_directives: list[ArcDirective] = Field(default_factory=list, description="Character arc steering directives")
+    arc_directives: list[ArcDirective] = Field(
+        default_factory=list, description="Character arc steering directives"
+    )
 
 
 class InsertChapterRequest(BaseModel):
     """Request body for inserting a chapter between existing chapters."""
+
     checkpoint: str
-    insert_after: int = Field(..., ge=0, description="Insert after this chapter (0 = insert at beginning)")
-    title: str = Field("", max_length=200, description="Optional title for inserted chapter")
-    summary: str = Field("", max_length=2000, description="Optional summary/direction for inserted chapter")
+    insert_after: int = Field(
+        ..., ge=0, description="Insert after this chapter (0 = insert at beginning)"
+    )
+    title: str = Field(
+        "", max_length=200, description="Optional title for inserted chapter"
+    )
+    summary: str = Field(
+        "",
+        max_length=2000,
+        description="Optional summary/direction for inserted chapter",
+    )
     word_count: int = Field(2000, ge=100, le=20000)
     style: str = Field("", max_length=100)
 
 
 class MultiPathRequest(BaseModel):
     """Request body for generating multiple continuation paths."""
+
     checkpoint: str
     additional_chapters: int = Field(5, ge=1, le=20)
-    num_paths: int = Field(3, ge=2, le=5, description="Number of alternative paths (2-5)")
+    num_paths: int = Field(
+        3, ge=2, le=5, description="Number of alternative paths (2-5)"
+    )
     arc_directives: list[ArcDirective] = Field(default_factory=list)
 
 
 class SelectPathRequest(BaseModel):
     """Request body for selecting a path and writing chapters."""
+
     checkpoint: str
     path_id: str = Field(..., description="ID of the selected path")
-    outlines: list[dict] = Field(..., description="ChapterOutline dicts from selected path")
+    outlines: list[dict] = Field(
+        ..., description="ChapterOutline dicts from selected path"
+    )
     word_count: int = Field(2000, ge=100, le=20000)
     style: str = Field("", max_length=100)
     arc_directives: list[ArcDirective] = Field(default_factory=list)
@@ -103,17 +131,28 @@ class SelectPathRequest(BaseModel):
 
 class CollaborativeChapterRequest(BaseModel):
     """Request body for collaborative chapter polishing."""
+
     checkpoint: str
-    chapter_number: int = Field(..., ge=1, description="Which chapter this replaces/adds")
-    user_text: str = Field(..., min_length=100, max_length=50000, description="User-written chapter text")
+    chapter_number: int = Field(
+        ..., ge=1, description="Which chapter this replaces/adds"
+    )
+    user_text: str = Field(
+        ..., min_length=100, max_length=50000, description="User-written chapter text"
+    )
     title: str = Field("", max_length=200, description="Chapter title")
-    polish_level: str = Field("light", description="'light' (grammar/flow), 'medium' (+ consistency), 'heavy' (+ style)")
+    polish_level: str = Field(
+        "light",
+        description="'light' (grammar/flow), 'medium' (+ consistency), 'heavy' (+ style)",
+    )
 
 
 class ConsistencyCheckRequest(BaseModel):
     """Request body for consistency check."""
+
     checkpoint: str
-    chapter_numbers: list[int] = Field(default_factory=list, description="Chapters to check (empty = full story)")
+    chapter_numbers: list[int] = Field(
+        default_factory=list, description="Chapters to check (empty = full story)"
+    )
 
 
 def _resolve_checkpoint(filename: str) -> pathlib.Path | None:
@@ -126,6 +165,7 @@ def _resolve_checkpoint(filename: str) -> pathlib.Path | None:
     if not safe_name or ".." in filename:
         return None
     from pipeline.orchestrator_checkpoint import find_checkpoint_path
+
     found = find_checkpoint_path(safe_name)
     return pathlib.Path(found) if found else None
 
@@ -145,8 +185,10 @@ async def continue_story(request: Request, body: ContinueRequest):
     """Continue a story from checkpoint, streaming progress via SSE."""
     checkpoint_path = _resolve_checkpoint(body.checkpoint)
     if checkpoint_path is None:
+
         async def _err():
             yield f"data: {json.dumps({'type': 'error', 'data': 'Checkpoint not found.'})}\n\n"
+
         return StreamingResponse(
             _err(),
             media_type="text/event-stream",
@@ -200,11 +242,15 @@ async def continue_story(request: Request, body: ContinueRequest):
                 if target is not None:
                     remaining = max(0, int(target) - written)
                     if remaining <= 0:
-                        caught_error[0] = f"Truyện đã đạt {target}/{target} chương — không còn dung lượng để viết thêm."
+                        caught_error[0] = (
+                            f"Truyện đã đạt {target}/{target} chương — không còn dung lượng để viết thêm."
+                        )
                         job.progress_queue.put_nowait(("error", caught_error[0]))
                         return
                     if effective > remaining:
-                        on_progress(f"Yêu cầu {effective} chương nhưng chỉ còn {remaining} chương trong tổng {target}; sẽ viết {remaining}.")
+                        on_progress(
+                            f"Yêu cầu {effective} chương nhưng chỉ còn {remaining} chương trong tổng {target}; sẽ viết {remaining}."
+                        )
                         effective = remaining
                 on_progress(f"Continuing with {effective} new chapters...")
 
@@ -273,8 +319,10 @@ async def regenerate_chapter(request: Request, body: RegenerateChapterRequest):
     """Regenerate a specific chapter, streaming progress via SSE."""
     checkpoint_path = _resolve_checkpoint(body.checkpoint)
     if checkpoint_path is None:
+
         async def _err():
             yield f"data: {json.dumps({'type': 'error', 'data': 'Checkpoint not found.'})}\n\n"
+
         return StreamingResponse(
             _err(),
             media_type="text/event-stream",
@@ -416,8 +464,10 @@ async def write_from_outlines_endpoint(request: Request, body: OutlineWriteReque
 
     checkpoint_path = _resolve_checkpoint(body.checkpoint)
     if checkpoint_path is None:
+
         async def _err():
             yield f"data: {json.dumps({'type': 'error', 'data': 'Checkpoint not found.'})}\n\n"
+
         return StreamingResponse(
             _err(),
             media_type="text/event-stream",
@@ -429,8 +479,10 @@ async def write_from_outlines_endpoint(request: Request, body: OutlineWriteReque
         outlines = [ChapterOutline(**o) for o in body.outlines]
     except Exception as e:
         err_msg = str(e)  # Capture error message before closure
+
         async def _err():
             yield f"data: {json.dumps({'type': 'error', 'data': f'Invalid outlines: {err_msg}'})}\n\n"
+
         return StreamingResponse(
             _err(),
             media_type="text/event-stream",
@@ -514,7 +566,9 @@ async def write_from_outlines_endpoint(request: Request, body: OutlineWriteReque
                 )
 
         launch_job_task(
-            session_id, job, _run_async(),
+            session_id,
+            job,
+            _run_async(),
             cancelled_msg="Write from outlines was cancelled.",
         )
 
@@ -533,8 +587,10 @@ async def insert_chapter(request: Request, body: InsertChapterRequest):
     """Insert a new chapter between existing chapters, streaming progress via SSE."""
     checkpoint_path = _resolve_checkpoint(body.checkpoint)
     if checkpoint_path is None:
+
         async def _err():
             yield f"data: {json.dumps({'type': 'error', 'data': 'Checkpoint not found.'})}\n\n"
+
         return StreamingResponse(
             _err(),
             media_type="text/event-stream",
@@ -619,7 +675,9 @@ async def insert_chapter(request: Request, body: InsertChapterRequest):
                 )
 
         launch_job_task(
-            session_id, job, _run_async(),
+            session_id,
+            job,
+            _run_async(),
             cancelled_msg="Chapter insertion was cancelled.",
         )
 
@@ -636,6 +694,7 @@ async def insert_chapter(request: Request, body: InsertChapterRequest):
 # ══════════════════════════════════════════════════════════════════════════════
 # Multi-path Preview Endpoints
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 @router.post("/continue/paths")
 async def generate_continuation_paths(body: MultiPathRequest):
@@ -733,7 +792,9 @@ async def select_path_and_write(request: Request, body: SelectPathRequest):
             except asyncio.CancelledError:
                 logger.info("Select-path write cancelled (session=%s)", session_id)
             except Exception as e:
-                logger.exception("Select-path write error (session=%s): %s", session_id, e)
+                logger.exception(
+                    "Select-path write error (session=%s): %s", session_id, e
+                )
                 msg_queue.put(f"Error: {e}")
 
         task = asyncio.create_task(run_write())
@@ -741,7 +802,9 @@ async def select_path_and_write(request: Request, body: SelectPathRequest):
         try:
             while not task.done():
                 if await request.is_disconnected():
-                    logger.info("Client disconnected from /select-path (session=%s)", session_id)
+                    logger.info(
+                        "Client disconnected from /select-path (session=%s)", session_id
+                    )
                     task.cancel()
                     break
                 while not msg_queue.empty():
@@ -769,7 +832,9 @@ async def select_path_and_write(request: Request, body: SelectPathRequest):
             if not task.done():
                 task.cancel()
         except Exception:
-            logger.exception("SSE /select-path unexpected error (session=%s)", session_id)
+            logger.exception(
+                "SSE /select-path unexpected error (session=%s)", session_id
+            )
             if not task.done():
                 task.cancel()
             raise
@@ -871,7 +936,9 @@ async def collaborative_chapter(body: CollaborativeChapterRequest):
             if not task.done():
                 task.cancel()
         except Exception:
-            logger.exception("SSE /collaborative-chapter error (session=%s)", session_id)
+            logger.exception(
+                "SSE /collaborative-chapter error (session=%s)", session_id
+            )
             if not task.done():
                 task.cancel()
             raise

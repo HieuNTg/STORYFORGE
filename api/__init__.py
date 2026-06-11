@@ -36,7 +36,10 @@ from api.diagnostics_routes import router as diagnostics_router
 from api.forge_routes import router as forge_router
 from api.character_routes import router as character_router
 from api.simulation_routes import router as simulation_router
-from api.flowkit import ws_router as flowkit_ws_router, http_router as flowkit_http_router
+from api.flowkit import (
+    ws_router as flowkit_ws_router,
+    http_router as flowkit_http_router,
+)
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(auth_router)
@@ -73,6 +76,7 @@ _log = logging.getLogger(__name__)
 # Error response schema
 # ---------------------------------------------------------------------------
 
+
 class ErrorResponse(BaseModel):
     """Consistent error payload for all 4xx/5xx API responses."""
 
@@ -83,6 +87,7 @@ class ErrorResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Exception handler registration
 # ---------------------------------------------------------------------------
+
 
 def register_exception_handlers(app) -> None:
     """Register global exception handlers on the FastAPI *app* instance.
@@ -110,7 +115,9 @@ def register_exception_handlers(app) -> None:
         )
 
     @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    async def validation_exception_handler(
+        request: Request, exc: RequestValidationError
+    ):
         """Log which field/rule failed; return detail so the UI can display it."""
         request_id = getattr(request.state, "request_id", None)
         errors = exc.errors()
@@ -120,7 +127,11 @@ def register_exception_handlers(app) -> None:
             loc = ".".join(str(p) for p in err.get("loc", []))
             msg = err.get("msg", "")
             input_val = err.get("input")
-            input_info = f" len={len(input_val)}" if isinstance(input_val, (str, list, dict)) else ""
+            input_info = (
+                f" len={len(input_val)}"
+                if isinstance(input_val, (str, list, dict))
+                else ""
+            )
             summary.append(f"{loc}: {msg}{input_info}")
         _log.warning(
             "Validation failed %s [request_id=%s]: %s",

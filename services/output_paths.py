@@ -175,7 +175,9 @@ def checkpoints_dir(title=None, *, story_id=None, session_id=None, slug=None) ->
     )
 
 
-def chapter_checkpoints_dir(title=None, *, story_id=None, session_id=None, slug=None) -> str:
+def chapter_checkpoints_dir(
+    title=None, *, story_id=None, session_id=None, slug=None
+) -> str:
     """``output/<story>/checkpoints/per_chapter`` — per-chapter resume files."""
     return os.path.join(
         checkpoints_dir(title, story_id=story_id, session_id=session_id, slug=slug),

@@ -1,4 +1,5 @@
 """Web story reader — enhanced HTML reader with progress tracking and bookmarks."""
+
 import html as _html
 import logging
 import re
@@ -21,7 +22,9 @@ class WebReaderGenerator:
     ) -> str:
         """Generate full HTML reader string with all features."""
         title = _html.escape(story.title)
-        genre = _html.escape(story.genre) if hasattr(story, "genre") and story.genre else ""
+        genre = (
+            _html.escape(story.genre) if hasattr(story, "genre") and story.genre else ""
+        )
         chapters = story.chapters
         if not chapters:
             return f"<html><body><h1>{title}</h1><p>Chưa có nội dung.</p></body></html>"
@@ -30,7 +33,9 @@ class WebReaderGenerator:
         total_words = sum(len(ch.content.split()) for ch in chapters)
         truncation_info = None  # (total_words, original_count, kept_count)
         if total_words > MAX_WORDS:
-            logger.warning(f"Story too large for web reader ({total_words} words), truncating to {MAX_WORDS} words")
+            logger.warning(
+                f"Story too large for web reader ({total_words} words), truncating to {MAX_WORDS} words"
+            )
             original_count = len(chapters)
             running_total = 0
             truncated_chapters = []
@@ -49,13 +54,15 @@ class WebReaderGenerator:
             words = len(ch.content.split())
             reading_min = max(1, words // READER_WPM)
             content_html = WebReaderGenerator._content_to_html(ch.content)
-            chapter_data.append({
-                "number": ch.chapter_number,
-                "title": _html.escape(ch.title),
-                "words": words,
-                "reading_min": reading_min,
-                "content": content_html,
-            })
+            chapter_data.append(
+                {
+                    "number": ch.chapter_number,
+                    "title": _html.escape(ch.title),
+                    "words": words,
+                    "reading_min": reading_min,
+                    "content": content_html,
+                }
+            )
 
         # Character cards
         char_html = ""
@@ -64,14 +71,16 @@ class WebReaderGenerator:
             for c in characters:
                 cards.append(
                     f'<div class="char-card">'
-                    f'<strong>{_html.escape(c.name)}</strong> '
+                    f"<strong>{_html.escape(c.name)}</strong> "
                     f'<span class="role">({_html.escape(c.role)})</span>'
-                    f'<p>{_html.escape(c.personality)}</p>'
-                    f'</div>'
+                    f"<p>{_html.escape(c.personality)}</p>"
+                    f"</div>"
                 )
             char_html = f'<div class="char-grid">{"".join(cards)}</div>'
 
-        return WebReaderGenerator._render_template(title, genre, chapter_data, char_html, truncation_info)
+        return WebReaderGenerator._render_template(
+            title, genre, chapter_data, char_html, truncation_info
+        )
 
     @staticmethod
     def _content_to_html(content: str) -> str:
@@ -79,8 +88,8 @@ class WebReaderGenerator:
         escaped = _html.escape(content)
         escaped = escaped.replace("</", "&lt;/")  # prevent script injection
         # Bold/italic
-        escaped = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', escaped)
-        escaped = re.sub(r'\*(.+?)\*', r'<em>\1</em>', escaped)
+        escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
+        escaped = re.sub(r"\*(.+?)\*", r"<em>\1</em>", escaped)
         paragraphs = [f"<p>{p.strip()}</p>" for p in escaped.split("\n") if p.strip()]
         return "\n".join(paragraphs)
 
@@ -99,17 +108,17 @@ class WebReaderGenerator:
             f'<span class="ch-num">Ch.{ch["number"]}</span> {ch["title"]}'
             f'<span class="ch-time">{ch["reading_min"]} phút</span>'
             f'<div class="ch-progress-bar"><div class="ch-progress-fill" id="progress-{ch["number"]}"></div></div>'
-            f'</div>'
+            f"</div>"
             for ch in chapters
         )
 
         # Build chapter content divs
         ch_content_divs = "\n".join(
             f'<div class="chapter-content" id="chapter-{ch["number"]}" style="display:none">'
-            f'<h2>Chương {ch["number"]}: {ch["title"]}</h2>'
+            f"<h2>Chương {ch['number']}: {ch['title']}</h2>"
             f'<div class="reading-meta">{ch["words"]:,} từ · ~{ch["reading_min"]} phút đọc</div>'
-            f'{ch["content"]}'
-            f'</div>'
+            f"{ch['content']}"
+            f"</div>"
             for ch in chapters
         )
 
@@ -123,18 +132,23 @@ class WebReaderGenerator:
             truncation_banner = (
                 f'<div style="background:#f59e0b;color:#000;padding:12px 20px;'
                 f'border-radius:8px;margin:15px 0;text-align:center;font-weight:600">'
-                f'&#9888;&#65039; Truy&#7879;n qu&aacute; d&agrave;i ({tw:,} t&#7915;). '
-                f'Ch&#7881; hi&#7875;n th&#7883; {kept} / {orig} ch&#432;&#417;ng '
-                f'({MAX_WORDS:,} t&#7915; t&#7889;i &#273;a).'
-                f'</div>'
+                f"&#9888;&#65039; Truy&#7879;n qu&aacute; d&agrave;i ({tw:,} t&#7915;). "
+                f"Ch&#7881; hi&#7875;n th&#7883; {kept} / {orig} ch&#432;&#417;ng "
+                f"({MAX_WORDS:,} t&#7915; t&#7889;i &#273;a)."
+                f"</div>"
             )
         else:
             truncation_banner = ""
 
         # Escape title for JS (avoid breaking JS string literals and script injection)
-        title_js = title.replace("\\", "\\\\").replace("'", "\\'").replace('"', '\\"').replace("</", "<\\/")
+        title_js = (
+            title.replace("\\", "\\\\")
+            .replace("'", "\\'")
+            .replace('"', '\\"')
+            .replace("</", "<\\/")
+        )
 
-        return f'''<!DOCTYPE html>
+        return f"""<!DOCTYPE html>
 <html lang="vi">
 <head>
 <meta charset="UTF-8">
@@ -360,4 +374,4 @@ showChapter(restoreProgress());
 renderBookmarkList();
 </script>
 </body>
-</html>'''
+</html>"""

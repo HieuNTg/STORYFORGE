@@ -35,7 +35,9 @@ class PrometheusMetrics:
     # Public recording API
     # ------------------------------------------------------------------
 
-    def record_request(self, method: str, path: str, status: int, duration_ms: float) -> None:
+    def record_request(
+        self, method: str, path: str, status: int, duration_ms: float
+    ) -> None:
         """Record an HTTP request with its outcome and duration."""
         key = (method.upper(), path, str(status))
         duration_s = duration_ms / 1000.0
@@ -106,11 +108,17 @@ class PrometheusMetrics:
                 lines.append(
                     f'storyforge_request_duration_seconds_bucket{{path="{path}",le="+Inf"}} {n}'
                 )
-                lines.append(f'storyforge_request_duration_seconds_sum{{path="{path}"}} {total}')
-                lines.append(f'storyforge_request_duration_seconds_count{{path="{path}"}} {n}')
+                lines.append(
+                    f'storyforge_request_duration_seconds_sum{{path="{path}"}} {total}'
+                )
+                lines.append(
+                    f'storyforge_request_duration_seconds_count{{path="{path}"}} {n}'
+                )
         else:
             for bound in _DURATION_BUCKETS:
-                lines.append(f'storyforge_request_duration_seconds_bucket{{le="{bound}"}} 0')
+                lines.append(
+                    f'storyforge_request_duration_seconds_bucket{{le="{bound}"}} 0'
+                )
             lines.append('storyforge_request_duration_seconds_bucket{le="+Inf"} 0')
             lines.append("storyforge_request_duration_seconds_sum 0")
             lines.append("storyforge_request_duration_seconds_count 0")

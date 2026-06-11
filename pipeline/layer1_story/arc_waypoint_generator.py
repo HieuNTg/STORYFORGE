@@ -66,7 +66,9 @@ def generate_arc_waypoints(
         for c in characters
     )
     prompt = _PROMPT.format(
-        genre=genre, num_chapters=num_chapters, characters_text=chars_text,
+        genre=genre,
+        num_chapters=num_chapters,
+        characters_text=chars_text,
     )
     try:
         result = llm.generate_json(
@@ -90,13 +92,18 @@ def generate_arc_waypoints(
         wps = []
         for wp_data in entry.get("waypoints", []):
             try:
-                wps.append(ArcWaypoint(
-                    stage_name=wp_data.get("stage_name", ""),
-                    chapter_range=[wp_data.get("chapter_start", 1), wp_data.get("chapter_end", num_chapters)],
-                    description=wp_data.get("description", ""),
-                    emotional_state=wp_data.get("emotional_state", ""),
-                    progress_pct=float(wp_data.get("progress_pct", 0.0)),
-                ))
+                wps.append(
+                    ArcWaypoint(
+                        stage_name=wp_data.get("stage_name", ""),
+                        chapter_range=[
+                            wp_data.get("chapter_start", 1),
+                            wp_data.get("chapter_end", num_chapters),
+                        ],
+                        description=wp_data.get("description", ""),
+                        emotional_state=wp_data.get("emotional_state", ""),
+                        progress_pct=float(wp_data.get("progress_pct", 0.0)),
+                    )
+                )
             except Exception as e:
                 logger.debug("Skipping invalid waypoint for %s: %s", name, e)
         if wps:
@@ -116,18 +123,26 @@ def apply_waypoints_to_characters(
 
 
 def get_expected_stage(
-    character: Character, chapter_number: int,
+    character: Character,
+    chapter_number: int,
 ) -> Optional[ArcWaypoint]:
     """Lookup which arc stage a character should be at for a given chapter. Pure Python."""
     for wp_data in getattr(character, "arc_waypoints", []):
-        wp = wp_data if isinstance(wp_data, ArcWaypoint) else ArcWaypoint(**wp_data) if isinstance(wp_data, dict) else None
+        wp = (
+            wp_data
+            if isinstance(wp_data, ArcWaypoint)
+            else ArcWaypoint(**wp_data)
+            if isinstance(wp_data, dict)
+            else None
+        )
         if wp and wp.chapter_range[0] <= chapter_number <= wp.chapter_range[1]:
             return wp
     return None
 
 
 def format_arc_stages_for_prompt(
-    characters: list[Character], chapter_number: int,
+    characters: list[Character],
+    chapter_number: int,
 ) -> str:
     """Format expected arc stages for all characters at a given chapter. Vietnamese output."""
     lines = []
@@ -159,7 +174,9 @@ def update_arc_progression_cache(
         if not name:
             continue
         entry = {
-            "chapter": int(getattr(r, "chapter_number", chapter_number) or chapter_number),
+            "chapter": int(
+                getattr(r, "chapter_number", chapter_number) or chapter_number
+            ),
             "stage_name": getattr(r, "expected_stage", "") or "",
             "emotion": getattr(r, "expected_emotion", "") or "",
             "found": bool(getattr(r, "found", False)),
@@ -170,7 +187,9 @@ def update_arc_progression_cache(
         # Deduplicate: overwrite existing entry for same chapter
         history = [e for e in history if e.get("chapter") != entry["chapter"]]
         history.append(entry)
-        cache[name] = sorted(history, key=lambda e: e.get("chapter", 0))[-cap_per_character:]
+        cache[name] = sorted(history, key=lambda e: e.get("chapter", 0))[
+            -cap_per_character:
+        ]
 
 
 def format_arc_progression_for_prompt(
@@ -188,15 +207,15 @@ def format_arc_progression_for_prompt(
     lines: list[str] = []
     for c in characters:
         history = cache.get(c.name) or []
-        recent = [e for e in history if e.get("chapter", 0) < current_chapter][-lookback:]
+        recent = [e for e in history if e.get("chapter", 0) < current_chapter][
+            -lookback:
+        ]
         if not recent:
             continue
         parts = []
         for e in recent:
             marker = "✓" if e.get("found") else "✗"
-            parts.append(
-                f"ch{e.get('chapter')}:{e.get('stage_name') or '?'}{marker}"
-            )
+            parts.append(f"ch{e.get('chapter')}:{e.get('stage_name') or '?'}{marker}")
         lines.append(f"- {c.name}: " + " → ".join(parts))
     if not lines:
         return ""

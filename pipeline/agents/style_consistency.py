@@ -1,4 +1,5 @@
 """Agent Kiểm Tra Văn Phong - đánh giá tính nhất quán tone, voice, và phong cách viết."""
+
 from models.schemas import AgentReview, PipelineOutput
 from pipeline.agents.base_agent import BaseAgent
 from pipeline.agents import agent_prompts
@@ -7,11 +8,15 @@ from pipeline.agents import agent_prompts
 class StyleConsistencyAgent(BaseAgent):
     name = "Kiểm Tra Văn Phong"
     role = "style_consistency"
-    goal = "Kiểm tra tính nhất quán về tone, voice, và phong cách viết xuyên suốt truyện"
+    goal = (
+        "Kiểm tra tính nhất quán về tone, voice, và phong cách viết xuyên suốt truyện"
+    )
     layers = [1, 2]
     depends_on: list[str] = ["Chuyên Gia Nhân Vật"]
 
-    def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
+    def review(
+        self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None
+    ) -> AgentReview:
         chapters_excerpt = self._extract_chapters(output, layer)
 
         prompt = agent_prompts.STYLE_REVIEW.format(

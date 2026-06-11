@@ -1,4 +1,5 @@
 """Coverage tests for API routes: health, config, pipeline, export."""
+
 from __future__ import annotations
 
 import os
@@ -12,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 try:
     from fastapi.testclient import TestClient
     from fastapi import FastAPI
+
     _HAS_FASTAPI = True
 except ImportError:
     _HAS_FASTAPI = False
@@ -24,17 +26,42 @@ class TestHealthRoutes:
     @pytest.fixture(autouse=True)
     def client(self):
         from api.health_routes import router
+
         app = FastAPI()
         app.include_router(router)
         self._client = TestClient(app, raise_server_exceptions=False)
 
     def test_deep_health_returns_json(self):
         """Deep health endpoint returns JSON with status field."""
-        with patch("api.health_routes._check_database", return_value={"status": "ok"}), \
-             patch("api.health_routes._check_redis", return_value={"status": "not_configured"}), \
-             patch("api.health_routes._check_disk", return_value={"status": "ok", "free_bytes": 1_000_000, "total_bytes": 10_000_000, "used_pct": 90.0}), \
-             patch("api.health_routes._check_memory", return_value={"status": "ok", "available_bytes": 1_000_000, "total_bytes": 8_000_000, "used_pct": 50.0}), \
-             patch("api.health_routes._check_llm", return_value={"status": "unreachable", "detail": "test"}):
+        with (
+            patch("api.health_routes._check_database", return_value={"status": "ok"}),
+            patch(
+                "api.health_routes._check_redis",
+                return_value={"status": "not_configured"},
+            ),
+            patch(
+                "api.health_routes._check_disk",
+                return_value={
+                    "status": "ok",
+                    "free_bytes": 1_000_000,
+                    "total_bytes": 10_000_000,
+                    "used_pct": 90.0,
+                },
+            ),
+            patch(
+                "api.health_routes._check_memory",
+                return_value={
+                    "status": "ok",
+                    "available_bytes": 1_000_000,
+                    "total_bytes": 8_000_000,
+                    "used_pct": 50.0,
+                },
+            ),
+            patch(
+                "api.health_routes._check_llm",
+                return_value={"status": "unreachable", "detail": "test"},
+            ),
+        ):
             resp = self._client.get("/health/deep")
         assert resp.status_code == 200
         data = resp.json()
@@ -43,11 +70,29 @@ class TestHealthRoutes:
 
     def test_deep_health_503_when_db_error(self):
         """Returns 503 when database check fails."""
-        with patch("api.health_routes._check_database", return_value={"status": "error", "detail": "conn failed"}), \
-             patch("api.health_routes._check_redis", return_value={"status": "not_configured"}), \
-             patch("api.health_routes._check_disk", return_value={"status": "ok", "free_bytes": 1_000_000, "total_bytes": 10_000_000, "used_pct": 90.0}), \
-             patch("api.health_routes._check_memory", return_value={"status": "ok"}), \
-             patch("api.health_routes._check_llm", return_value={"status": "unreachable"}):
+        with (
+            patch(
+                "api.health_routes._check_database",
+                return_value={"status": "error", "detail": "conn failed"},
+            ),
+            patch(
+                "api.health_routes._check_redis",
+                return_value={"status": "not_configured"},
+            ),
+            patch(
+                "api.health_routes._check_disk",
+                return_value={
+                    "status": "ok",
+                    "free_bytes": 1_000_000,
+                    "total_bytes": 10_000_000,
+                    "used_pct": 90.0,
+                },
+            ),
+            patch("api.health_routes._check_memory", return_value={"status": "ok"}),
+            patch(
+                "api.health_routes._check_llm", return_value={"status": "unreachable"}
+            ),
+        ):
             resp = self._client.get("/health/deep")
         assert resp.status_code == 503
         data = resp.json()
@@ -56,18 +101,21 @@ class TestHealthRoutes:
     def test_check_disk_helper(self):
         """_check_disk returns ok with disk info."""
         from api.health_routes import _check_disk
+
         result = _check_disk()
         assert result["status"] in ("ok", "error")
 
     def test_check_memory_helper(self):
         """_check_memory returns status."""
         from api.health_routes import _check_memory
+
         result = _check_memory()
         assert "status" in result
 
     def test_check_redis_not_configured(self):
         """_check_redis returns not_configured when REDIS_URL absent."""
         from api.health_routes import _check_redis
+
         original = os.environ.pop("REDIS_URL", None)
         try:
             result = _check_redis()
@@ -80,6 +128,7 @@ class TestHealthRoutes:
         """_check_database works with SQLite."""
         from api.health_routes import _check_database
         import api.health_routes as hr
+
         # Reset engine so it gets created fresh
         orig = hr._health_engine
         hr._health_engine = None
@@ -93,6 +142,7 @@ class TestHealthRoutes:
     def test_check_llm_unreachable(self):
         """_check_llm returns unreachable for bogus URL."""
         from api.health_routes import _check_llm
+
         # ConfigManager is imported inside _check_llm via config package
         with patch("config.ConfigManager") as MockCM:
             mock_cfg = MagicMock()
@@ -109,6 +159,7 @@ class TestConfigRoutes:
     @pytest.fixture(autouse=True)
     def client(self):
         from api.config_routes import router
+
         app = FastAPI()
         app.include_router(router)
         self._client = TestClient(app, raise_server_exceptions=False)
@@ -123,6 +174,7 @@ class TestConfigRoutes:
     def test_get_config_masks_api_key(self):
         """GET /config masks the API key."""
         from config import ConfigManager
+
         cm = ConfigManager()
         cm.llm.api_key = "sk-testapikey1234"
         resp = self._client.get("/config")
@@ -182,6 +234,7 @@ class TestPipelineRoutes:
     @pytest.fixture(autouse=True)
     def client(self):
         from api.pipeline_routes import router
+
         app = FastAPI()
         app.include_router(router)
         self._client = TestClient(app, raise_server_exceptions=False)
@@ -216,14 +269,11 @@ class TestPipelineRoutes:
         """_sanitize_summary handles chapters with HTML content."""
         from api.pipeline_routes import _sanitize_summary
         from services.text_utils import _HAS_NH3
+
         if not _HAS_NH3:
             pytest.skip("nh3 not installed")
         summary = {
-            "draft": {
-                "chapters": [
-                    {"content": "<script>alert(1)</script>Hello"}
-                ]
-            }
+            "draft": {"chapters": [{"content": "<script>alert(1)</script>Hello"}]}
         }
         result = _sanitize_summary(summary)
         assert isinstance(result, dict)
@@ -231,6 +281,7 @@ class TestPipelineRoutes:
     def test_pipeline_sanitize_summary_empty(self):
         """_sanitize_summary handles empty input."""
         from api.pipeline_routes import _sanitize_summary
+
         assert _sanitize_summary({}) == {}
         assert _sanitize_summary({"draft": None}) == {"draft": None}
 
@@ -242,6 +293,7 @@ class TestExportRoutes:
     @pytest.fixture(autouse=True)
     def client(self):
         from api.export_routes import router
+
         app = FastAPI()
         app.include_router(router)
         self._client = TestClient(app, raise_server_exceptions=False)
@@ -263,6 +315,7 @@ class TestExportRoutes:
         """_safe_file_response raises 400 on path traversal."""
         from api.export_routes import _safe_file_response
         from fastapi import HTTPException
+
         with pytest.raises(HTTPException) as exc_info:
             _safe_file_response("/etc/passwd", "passwd")
         assert exc_info.value.status_code == 400
@@ -271,6 +324,7 @@ class TestExportRoutes:
         """_safe_file_response raises 404 when file doesn't exist."""
         from api.export_routes import _safe_file_response, _ALLOWED_EXPORT_DIRS
         from fastapi import HTTPException
+
         # Use an allowed dir but nonexistent file
         allowed_dir = str(_ALLOWED_EXPORT_DIRS[0])
         fake_path = os.path.join(allowed_dir, "nonexistent_file_12345.txt")

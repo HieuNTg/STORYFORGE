@@ -8,16 +8,27 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from models.schemas import (  # noqa: E402
-    StoryBible, StoryDraft,
-    Chapter, CharacterState, PlotEvent, WorldSetting, Character,
+    StoryBible,
+    StoryDraft,
+    Chapter,
+    CharacterState,
+    PlotEvent,
+    WorldSetting,
+    Character,
 )
 from pipeline.layer1_story.story_bible_manager import StoryBibleManager  # noqa: E402
-from services.genre_library import get_genre, get_genre_by_name, list_genres, GENRE_LIBRARY  # noqa: E402
+from services.genre_library import (
+    get_genre,
+    get_genre_by_name,
+    list_genres,
+    GENRE_LIBRARY,
+)  # noqa: E402
 
 
 def _make_draft(num_outlines: int = 60) -> StoryDraft:
     """Tạo StoryDraft giả cho test."""
     from models.schemas import ChapterOutline
+
     draft = StoryDraft(
         title="Kiếm Thần Vô Song",
         genre="Tiên Hiệp",
@@ -28,16 +39,23 @@ def _make_draft(num_outlines: int = 60) -> StoryDraft:
             rules=["Mạnh thắng yếu", "Linh khí là nguồn sức mạnh"],
         ),
         characters=[
-            Character(name="Lý Vân", role="chính", personality="cương nghị",
-                      background="mồ côi", motivation="báo thù"),
+            Character(
+                name="Lý Vân",
+                role="chính",
+                personality="cương nghị",
+                background="mồ côi",
+                motivation="báo thù",
+            ),
         ],
     )
     for i in range(1, num_outlines + 1):
-        draft.outlines.append(ChapterOutline(
-            chapter_number=i,
-            title=f"Chương {i}",
-            summary=f"Tóm tắt chương {i}",
-        ))
+        draft.outlines.append(
+            ChapterOutline(
+                chapter_number=i,
+                title=f"Chương {i}",
+                summary=f"Tóm tắt chương {i}",
+            )
+        )
     return draft
 
 
@@ -171,14 +189,24 @@ class TestStoryBibleContextBuilding(unittest.TestCase):
 
     def test_context_includes_recent_summaries(self):
         ctx = self.manager.get_context_for_chapter(
-            self.bible, 5,
+            self.bible,
+            5,
             recent_summaries=["Tóm tắt ch4", "Tóm tắt ch5"],
         )
         self.assertIn("Tóm tắt ch4", ctx)
 
     def test_context_includes_character_states(self):
-        states = [CharacterState(name="Lý Vân", mood="quyết tâm", arc_position="rising", last_action="tu luyện")]
-        ctx = self.manager.get_context_for_chapter(self.bible, 5, character_states=states)
+        states = [
+            CharacterState(
+                name="Lý Vân",
+                mood="quyết tâm",
+                arc_position="rising",
+                last_action="tu luyện",
+            )
+        ]
+        ctx = self.manager.get_context_for_chapter(
+            self.bible, 5, character_states=states
+        )
         self.assertIn("Lý Vân", ctx)
 
     def test_context_includes_arc_summaries_after_completion(self):

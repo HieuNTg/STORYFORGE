@@ -3,8 +3,13 @@
 import logging
 import uuid
 from models.schemas import (
-    StoryBible, PlotThread, StoryArc, StoryDraft,
-    Chapter, CharacterState, PlotEvent,
+    StoryBible,
+    PlotThread,
+    StoryArc,
+    StoryDraft,
+    Chapter,
+    CharacterState,
+    PlotEvent,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,12 +36,14 @@ class StoryBibleManager:
         for i in range(num_arcs):
             start = i * arc_size + 1
             end = min((i + 1) * arc_size, total)
-            bible.arcs.append(StoryArc(
-                arc_number=i + 1,
-                title=f"Arc {i + 1}",
-                start_chapter=start,
-                end_chapter=end,
-            ))
+            bible.arcs.append(
+                StoryArc(
+                    arc_number=i + 1,
+                    title=f"Arc {i + 1}",
+                    start_chapter=start,
+                    end_chapter=end,
+                )
+            )
         return bible
 
     def update_after_chapter(
@@ -64,7 +71,9 @@ class StoryBibleManager:
                 bible.active_threads.append(thread)
 
         # Giữ tối đa N thread đang mở (cũ nhất tự động resolved)
-        max_threads = getattr(getattr(self, '_config_pipeline', None), 'bible_max_active_threads', 20)
+        max_threads = getattr(
+            getattr(self, "_config_pipeline", None), "bible_max_active_threads", 20
+        )
         if len(bible.active_threads) > max_threads:
             overflow = bible.active_threads[:-max_threads]
             for t in overflow:
@@ -74,11 +83,11 @@ class StoryBibleManager:
             bible.active_threads = bible.active_threads[-max_threads:]
 
         # Cập nhật milestone events (cap at 30 to match other bible limits)
-        max_milestones = getattr(getattr(self, '_config_pipeline', None), 'bible_max_milestones', 30)
+        max_milestones = getattr(
+            getattr(self, "_config_pipeline", None), "bible_max_milestones", 30
+        )
         for event in plot_events:
-            bible.milestone_events.append(
-                f"Ch{event.chapter_number}: {event.event}"
-            )
+            bible.milestone_events.append(f"Ch{event.chapter_number}: {event.event}")
         bible.milestone_events = bible.milestone_events[-max_milestones:]
 
         # Đánh dấu arc hoàn tất khi đến cuối arc
@@ -102,11 +111,15 @@ class StoryBibleManager:
         if timeline_positions:
             bible.timeline_positions.update(timeline_positions)
             if len(bible.timeline_positions) > 30:
-                bible.timeline_positions = dict(list(bible.timeline_positions.items())[-30:])
+                bible.timeline_positions = dict(
+                    list(bible.timeline_positions.items())[-30:]
+                )
         if character_locations:
             bible.character_locations.update(character_locations)
             if len(bible.character_locations) > 30:
-                bible.character_locations = dict(list(bible.character_locations.items())[-30:])
+                bible.character_locations = dict(
+                    list(bible.character_locations.items())[-30:]
+                )
 
     def get_context_for_chapter(
         self,
@@ -123,7 +136,9 @@ class StoryBibleManager:
             parts.append(f"## Tiền đề truyện:\n{bible.premise}")
 
         # 2. Quy tắc thế giới (nén gọn)
-        max_rules = getattr(getattr(self, '_config_pipeline', None), 'bible_max_world_rules', 10)
+        max_rules = getattr(
+            getattr(self, "_config_pipeline", None), "bible_max_world_rules", 10
+        )
         if bible.world_rules:
             rules = "; ".join(bible.world_rules[:max_rules])
             parts.append(f"## Quy tắc thế giới:\n{rules}")
@@ -150,7 +165,7 @@ class StoryBibleManager:
         if bible.active_threads:
             threads = [
                 f"- {t.description} (từ ch{t.planted_chapter})"
-                for t in bible.active_threads[-min(15, len(bible.active_threads)):]
+                for t in bible.active_threads[-min(15, len(bible.active_threads)) :]
             ]
             parts.append("## Tuyến truyện đang mở:\n" + "\n".join(threads))
 
@@ -168,15 +183,25 @@ class StoryBibleManager:
 
         # 8. Timeline & vị trí nhân vật (long-term persistence)
         if bible.timeline_positions:
-            tl_lines = [f"- {name}: {tl}" for name, tl in bible.timeline_positions.items()]
+            tl_lines = [
+                f"- {name}: {tl}" for name, tl in bible.timeline_positions.items()
+            ]
             parts.append("## Mốc thời gian:\n" + "\n".join(tl_lines))
         if bible.character_locations:
-            loc_lines = [f"- {name}: {loc}" for name, loc in bible.character_locations.items()]
+            loc_lines = [
+                f"- {name}: {loc}" for name, loc in bible.character_locations.items()
+            ]
             parts.append("## Vị trí nhân vật:\n" + "\n".join(loc_lines))
 
         # 9. Trạng thái nhân vật
-        max_chars = getattr(getattr(self, '_config_pipeline', None), 'bible_max_character_states', 15)
-        max_rels = getattr(getattr(self, '_config_pipeline', None), 'bible_max_relationships_per_char', 8)
+        max_chars = getattr(
+            getattr(self, "_config_pipeline", None), "bible_max_character_states", 15
+        )
+        max_rels = getattr(
+            getattr(self, "_config_pipeline", None),
+            "bible_max_relationships_per_char",
+            8,
+        )
         if character_states:
             char_lines = [
                 f"- {cs.name}: {cs.mood}, {cs.arc_position}, last: {cs.last_action}"

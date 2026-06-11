@@ -81,18 +81,20 @@ Lời thoại sau enhance:
         dialogues.extend(re.findall(pattern2, content, re.IGNORECASE))
 
         # Pattern 3: Direct speech with name mention nearby
-        pattern3 = rf'{name_re}[^.]*:\s*[-–—]?\s*([^.!?]+[.!?])'
+        pattern3 = rf"{name_re}[^.]*:\s*[-–—]?\s*([^.!?]+[.!?])"
         matches = re.findall(pattern3, content, re.IGNORECASE)
         dialogues.extend([m.strip() for m in matches if len(m) > 10])
 
         # Pattern 4 (VN em-dash, leading): "— Lời thoại. — Tên nói." / line-start em-dash
         # Captures dialogue between an opening em-dash and a closing tag containing the name.
-        pattern4 = rf'[—–-]\s*([^—–\-\n.!?]{{4,}}[.!?…]?)\s*[—–-]\s*[^—\n]{{0,40}}{name_re}'
+        pattern4 = (
+            rf"[—–-]\s*([^—–\-\n.!?]{{4,}}[.!?…]?)\s*[—–-]\s*[^—\n]{{0,40}}{name_re}"
+        )
         dialogues.extend(re.findall(pattern4, content, re.IGNORECASE))
 
         # Pattern 5 (VN verb-tag): "Tên nói: ..." / "Tên nói rằng: ..." / "Tên đáp:"
         pattern5 = (
-            rf'{name_re}\s+(?:nói(?:\s+rằng)?|đáp|hỏi|thì\s+thầm|thốt\s+lên|cười\s+nói|trả\s+lời)[:\s]*'
+            rf"{name_re}\s+(?:nói(?:\s+rằng)?|đáp|hỏi|thì\s+thầm|thốt\s+lên|cười\s+nói|trả\s+lời)[:\s]*"
             rf'[-–—"]?\s*([^.!?\n"]{{4,}}[.!?…]?)'
         )
         dialogues.extend(re.findall(pattern5, content, re.IGNORECASE))
@@ -100,7 +102,7 @@ Lời thoại sau enhance:
         # Pattern 6 (verb-tag, post-dialogue): "..." Tên nói. / "..." — Tên đáp.
         pattern6 = (
             rf'"([^"]{{5,}})"\s*[,.\-–—]?\s*{name_re}\s+'
-            rf'(?:nói|đáp|hỏi|thì\s+thầm|thốt\s+lên|cười\s+nói|trả\s+lời)'
+            rf"(?:nói|đáp|hỏi|thì\s+thầm|thốt\s+lên|cười\s+nói|trả\s+lời)"
         )
         dialogues.extend(re.findall(pattern6, content, re.IGNORECASE))
 
@@ -108,7 +110,7 @@ Lời thoại sau enhance:
         seen = set()
         cleaned = []
         for d in dialogues:
-            d_clean = d.strip().strip('"\'—–-')
+            d_clean = d.strip().strip("\"'—–-")
             if d_clean and d_clean not in seen and len(d_clean) > 5:
                 seen.add(d_clean)
                 cleaned.append(d_clean)
@@ -124,7 +126,7 @@ Lời thoại sau enhance:
         total_sentences = 0
 
         for d in dialogues:
-            sentences = re.split(r'[.!?]+', d)
+            sentences = re.split(r"[.!?]+", d)
             for s in sentences:
                 words = s.split()
                 if words:
@@ -171,7 +173,9 @@ Lời thoại sau enhance:
 
             # Unified VoiceProfile: emotional_expression is dict; coerce legacy str result
             _ee = result.get("emotional_expression", "moderate")
-            ee_dict: dict[str, str] = _ee if isinstance(_ee, dict) else {"general": str(_ee or "")}
+            ee_dict: dict[str, str] = (
+                _ee if isinstance(_ee, dict) else {"general": str(_ee or "")}
+            )
             _tics = result.get("speech_quirks", []) or []
             profile = VoiceProfile(
                 name=character_name,
@@ -205,7 +209,9 @@ Lời thoại sau enhance:
             self.profiles[character_name] = profile
             return profile
 
-    def build_from_draft(self, draft, progress_callback=None, dedup_l1: bool = True) -> "VoiceFingerprintEngine":
+    def build_from_draft(
+        self, draft, progress_callback=None, dedup_l1: bool = True
+    ) -> "VoiceFingerprintEngine":
         """Build voice profiles. When dedup_l1 AND draft.voice_profiles present,
         skip per-character LLM extraction and reuse L1 profiles + zero-LLM observed supplement.
         """
@@ -213,8 +219,13 @@ Lời thoại sau enhance:
         chapters = getattr(draft, "chapters", []) or []
 
         from pipeline.layer2_enhance import _envelope_access as _env
+
         l1_profiles = _env.voice_profiles(draft)
-        l1_map = {p.get("name", ""): p for p in l1_profiles if isinstance(p, dict) and p.get("name")}
+        l1_map = {
+            p.get("name", ""): p
+            for p in l1_profiles
+            if isinstance(p, dict) and p.get("name")
+        }
 
         self.llm_calls_saved = 0
 
@@ -229,7 +240,12 @@ Lời thoại sau enhance:
                 if not isinstance(ee, dict):
                     ee = {"general": str(ee or "")}
                 tics = list(l1.get("verbal_tics") or l1.get("speech_quirks") or [])
-                examples = list(l1.get("dialogue_examples") or l1.get("dialogue_example") or l1.get("dialogue_samples") or [])
+                examples = list(
+                    l1.get("dialogue_examples")
+                    or l1.get("dialogue_example")
+                    or l1.get("dialogue_samples")
+                    or []
+                )
                 profile = VoiceProfile(
                     name=char_name,
                     vocabulary_level=l1.get("vocabulary_level", ""),
@@ -248,11 +264,15 @@ Lời thoại sau enhance:
                 self.profiles[char_name] = profile
                 self.llm_calls_saved += 1
                 if progress_callback:
-                    progress_callback(f"[VoiceFingerprint] Reused L1 profile for {char_name} (no LLM)")
+                    progress_callback(
+                        f"[VoiceFingerprint] Reused L1 profile for {char_name} (no LLM)"
+                    )
             else:
                 self.extract_profile(char_name, chapters)
                 if progress_callback:
-                    progress_callback(f"[VoiceFingerprint] Extracted profile for {char_name}")
+                    progress_callback(
+                        f"[VoiceFingerprint] Extracted profile for {char_name}"
+                    )
 
         logger.info(
             f"VoiceFingerprintEngine: {len(self.profiles)} profiles, "
@@ -260,7 +280,9 @@ Lời thoại sau enhance:
         )
         return self
 
-    def _gather_samples(self, char_name: str, chapters: list, max_per_chapter: int = 3, cap: int = 10) -> list[str]:
+    def _gather_samples(
+        self, char_name: str, chapters: list, max_per_chapter: int = 3, cap: int = 10
+    ) -> list[str]:
         """Collect dialogue samples across chapters for observed-stats supplement."""
         samples: list[str] = []
         for ch in chapters or []:
@@ -326,8 +348,12 @@ Lời thoại sau enhance:
         enh_avg_len = self._compute_avg_sentence_length(enhanced_dialogues)
 
         issues = []
-        if abs(orig_avg_len - enh_avg_len) > orig_avg_len * 0.25:  # P0-5: tightened 50%→25%
-            issues.append(f"Độ dài câu thay đổi đáng kể: {orig_avg_len:.1f} → {enh_avg_len:.1f}")
+        if (
+            abs(orig_avg_len - enh_avg_len) > orig_avg_len * 0.25
+        ):  # P0-5: tightened 50%→25%
+            issues.append(
+                f"Độ dài câu thay đổi đáng kể: {orig_avg_len:.1f} → {enh_avg_len:.1f}"
+            )
 
         # LLM consistency check if significant dialogues
         if len(original_dialogues) >= 2 and len(enhanced_dialogues) >= 2:
@@ -344,8 +370,12 @@ Lời thoại sau enhance:
                     user_prompt=self.CHECK_VOICE_CONSISTENCY_PROMPT.format(
                         name=character_name,
                         voice_profile=profile_text,
-                        original_dialogues="\n".join(f'- "{d}"' for d in original_dialogues[:5]),
-                        enhanced_dialogues="\n".join(f'- "{d}"' for d in enhanced_dialogues[:5]),
+                        original_dialogues="\n".join(
+                            f'- "{d}"' for d in original_dialogues[:5]
+                        ),
+                        enhanced_dialogues="\n".join(
+                            f'- "{d}"' for d in enhanced_dialogues[:5]
+                        ),
                     ),
                     temperature=0.1,
                     max_tokens=400,
@@ -366,7 +396,9 @@ Lời thoại sau enhance:
                 }
 
             except Exception as e:
-                logger.debug(f"Voice consistency check failed for {character_name}: {e}")
+                logger.debug(
+                    f"Voice consistency check failed for {character_name}: {e}"
+                )
 
         return {
             "consistent": len(issues) == 0,
@@ -395,19 +427,27 @@ Lời thoại sau enhance:
             "avg_drift": avg_drift,
             "issues_count": issues_count,
             "checks_count": len(drift_history),
-            "status": "ok" if avg_drift < 0.3 else "warning" if avg_drift < 0.5 else "critical",
+            "status": "ok"
+            if avg_drift < 0.3
+            else "warning"
+            if avg_drift < 0.5
+            else "critical",
         }
 
-    def record_drift_check(self, character_name: str, drift: float, issues: list) -> None:
+    def record_drift_check(
+        self, character_name: str, drift: float, issues: list
+    ) -> None:
         """Record a drift check result for tracking."""
         if not hasattr(self, "_drift_history"):
             self._drift_history = {}
         if character_name not in self._drift_history:
             self._drift_history[character_name] = []
-        self._drift_history[character_name].append({
-            "drift": drift,
-            "issues": issues,
-        })
+        self._drift_history[character_name].append(
+            {
+                "drift": drift,
+                "issues": issues,
+            }
+        )
 
     def get_character_voice_guidance(self, character_name: str) -> str:
         """Lấy hướng dẫn giọng nói cụ thể cho một nhân vật."""
@@ -500,13 +540,13 @@ def _extract_dialogue_anchors(content: str, characters: list) -> list[DialogueAn
             found.append((m.start(), m.group(1)))
 
         # P0-5 Pattern 4 (VN em-dash leading): — Lời thoại. — Tên nói.
-        pat4 = rf'[—–-]\s*([^—–\-\n.!?]{{4,}}[.!?…]?)\s*[—–-]\s*[^—\n]{{0,40}}{nre}'
+        pat4 = rf"[—–-]\s*([^—–\-\n.!?]{{4,}}[.!?…]?)\s*[—–-]\s*[^—\n]{{0,40}}{nre}"
         for m in re.finditer(pat4, content, re.IGNORECASE):
             found.append((m.start(), m.group(1)))
 
         # P0-5 Pattern 5 (VN verb-tag pre-dialogue): Tên nói: ...
         pat5 = (
-            rf'{nre}\s+(?:nói(?:\s+rằng)?|đáp|hỏi|thì\s+thầm|thốt\s+lên|cười\s+nói|trả\s+lời)[:\s]*'
+            rf"{nre}\s+(?:nói(?:\s+rằng)?|đáp|hỏi|thì\s+thầm|thốt\s+lên|cười\s+nói|trả\s+lời)[:\s]*"
             rf'[-–—"]?\s*([^.!?\n"]{{4,}}[.!?…]?)'
         )
         for m in re.finditer(pat5, content, re.IGNORECASE):
@@ -524,12 +564,14 @@ def _extract_dialogue_anchors(content: str, characters: list) -> list[DialogueAn
             seen_texts.add(text_clean)
             ordinal = ordinal_counters.get(speaker_id, 0)
             ordinal_counters[speaker_id] = ordinal + 1
-            anchors.append(DialogueAnchor(
-                speaker_id=speaker_id,
-                ordinal=ordinal,
-                text=text_clean,
-                char_offset=offset,
-            ))
+            anchors.append(
+                DialogueAnchor(
+                    speaker_id=speaker_id,
+                    ordinal=ordinal,
+                    text=text_clean,
+                    char_offset=offset,
+                )
+            )
 
     anchors.sort(key=lambda a: a.char_offset)
     return anchors
@@ -611,7 +653,8 @@ def _revert_dialogues_anchored(
             result.anchor_mismatch_count += 1
             logger.warning(
                 "voice_revert_anchor_mismatch char=%s expected_ord=%d",
-                orig_anchor.speaker_id, orig_anchor.ordinal,
+                orig_anchor.speaker_id,
+                orig_anchor.ordinal,
             )
             continue
 
@@ -627,7 +670,9 @@ def _revert_dialogues_anchored(
             action="revert",
         )
         result.diffs.append(diff)
-        revert_ops.append((enh_anchor.char_offset, enh_anchor.text, orig_anchor.text, diff))
+        revert_ops.append(
+            (enh_anchor.char_offset, enh_anchor.text, orig_anchor.text, diff)
+        )
 
     # Apply reverts right-to-left so earlier offsets stay valid
     revert_ops.sort(key=lambda x: x[0], reverse=True)
@@ -640,7 +685,8 @@ def _revert_dialogues_anchored(
             result.reverted_count += 1
             logger.debug(
                 "voice_revert_anchored: %s... → %s...",
-                enh_text[:30], orig_text[:30],
+                enh_text[:30],
+                orig_text[:30],
             )
         elif enh_text in reverted:
             reverted = reverted.replace(enh_text, orig_text, 1)
@@ -659,7 +705,7 @@ def enforce_voice_preservation(
     enhanced_content: str,
     characters: list,
     drift_threshold: float = 0.25,  # P0-5: tightened 0.4→0.25
-    revert_threshold: float = 0.2,   # P0-5: tightened 0.3→0.2
+    revert_threshold: float = 0.2,  # P0-5: tightened 0.3→0.2
     config=None,
 ) -> tuple[str, VoicePreservationResult]:
     """Enforce voice preservation by reverting drifted dialogues.
@@ -674,8 +720,12 @@ def enforce_voice_preservation(
 
     if not use_anchored:
         return _enforce_voice_preservation_legacy(
-            engine, original_content, enhanced_content, characters,
-            drift_threshold, revert_threshold,
+            engine,
+            original_content,
+            enhanced_content,
+            characters,
+            drift_threshold,
+            revert_threshold,
         )
 
     result = VoicePreservationResult()
@@ -703,7 +753,9 @@ def enforce_voice_preservation(
         result.enhanced_dialogues.extend(enhanced_dialogues)
 
         validation = engine.validate_enhanced_dialogue(
-            original_content, enhanced_content, char_name,
+            original_content,
+            enhanced_content,
+            char_name,
         )
 
         score = validation.get("score", 1.0)
@@ -716,7 +768,10 @@ def enforce_voice_preservation(
 
     if drifted_chars:
         preserved_content, anchor_result = _revert_dialogues_anchored(
-            enhanced_content, original_content, characters, drifted_chars,
+            enhanced_content,
+            original_content,
+            characters,
+            drifted_chars,
         )
         result.reverted_count = anchor_result.reverted_count
         result.anchor_mismatch_count = anchor_result.anchor_mismatch_count
@@ -725,7 +780,8 @@ def enforce_voice_preservation(
         if anchor_result.reverted_count > 0:
             logger.warning(
                 "Voice drift anchored-revert: %d dialogue(s) reverted for: %s",
-                anchor_result.reverted_count, ", ".join(drifted_chars),
+                anchor_result.reverted_count,
+                ", ".join(drifted_chars),
             )
 
     result.drift_severity = total_drift / max(1, char_count)
@@ -750,7 +806,9 @@ def _revert_dialogues_legacy(
         DeprecationWarning,
         stacklevel=2,
     )
-    return _revert_dialogues(content, original_dialogues, enhanced_dialogues, character_name)
+    return _revert_dialogues(
+        content, original_dialogues, enhanced_dialogues, character_name
+    )
 
 
 def _revert_dialogues(
@@ -776,7 +834,9 @@ def _revert_dialogues(
                 reverted = reverted.replace(enh, orig, 1)
                 logger.debug(
                     "Reverted dialogue for %s: %s... → %s...",
-                    character_name, enh[:30], orig[:30],
+                    character_name,
+                    enh[:30],
+                    orig[:30],
                 )
 
     return reverted
@@ -815,7 +875,9 @@ def _enforce_voice_preservation_legacy(
         result.enhanced_dialogues.extend(enhanced_dialogues)
 
         validation = engine.validate_enhanced_dialogue(
-            original_content, enhanced_content, char_name,
+            original_content,
+            enhanced_content,
+            char_name,
         )
 
         score = validation.get("score", 1.0)
@@ -831,12 +893,16 @@ def _enforce_voice_preservation_legacy(
                     stacklevel=3,
                 )
                 preserved_content = _revert_dialogues(
-                    preserved_content, original_dialogues, enhanced_dialogues, char_name,
+                    preserved_content,
+                    original_dialogues,
+                    enhanced_dialogues,
+                    char_name,
                 )
                 result.reverted_count += 1
                 logger.warning(
                     "Voice drift for %s: %.0f%% — reverting dialogues (legacy)",
-                    char_name, drift * 100,
+                    char_name,
+                    drift * 100,
                 )
 
     result.drift_severity = total_drift / max(1, char_count)
@@ -895,7 +961,9 @@ def build_voice_enforcement_prompt(
 
     lines = ["## ⚠️ BẮT BUỘC: GIỮ NGUYÊN GIỌNG NÓI NHÂN VẬT"]
     if strict:
-        lines.append("KHÔNG ĐƯỢC thay đổi phong cách nói của nhân vật. Chỉ tăng kịch tính, KHÔNG thay đổi giọng điệu.")
+        lines.append(
+            "KHÔNG ĐƯỢC thay đổi phong cách nói của nhân vật. Chỉ tăng kịch tính, KHÔNG thay đổi giọng điệu."
+        )
     lines.append("")
 
     for char in characters:
@@ -962,7 +1030,9 @@ def supplement_observed(
     if not dialogue_samples:
         return profile
     lens = [len(re.findall(r"\w+", s)) for s in dialogue_samples]
-    profile.observed_avg_sentence_length = round(sum(lens) / len(lens), 2) if lens else 0.0
+    profile.observed_avg_sentence_length = (
+        round(sum(lens) / len(lens), 2) if lens else 0.0
+    )
     profile.observed_samples = dialogue_samples[:max_samples]
     profile.observed_formality = _infer_formality_vn(dialogue_samples)
     if profile.source == "L1":
@@ -978,8 +1048,10 @@ def get_voice_drift_summary(result: VoicePreservationResult) -> dict:
         "violations": len(result.violations),
         "violation_chars": [v["character"] for v in result.violations],
         "status": (
-            "ok" if result.drift_severity < 0.3
-            else "warning" if result.drift_severity < 0.5
+            "ok"
+            if result.drift_severity < 0.3
+            else "warning"
+            if result.drift_severity < 0.5
             else "critical"
         ),
     }

@@ -5,7 +5,12 @@ import re
 from typing import Optional, TYPE_CHECKING
 
 from models.schemas import (
-    Character, WorldSetting, ChapterOutline, Chapter, PlotEvent, StoryContext,
+    Character,
+    WorldSetting,
+    ChapterOutline,
+    Chapter,
+    PlotEvent,
+    StoryContext,
     count_words,
 )
 from services import prompts
@@ -25,7 +30,6 @@ def excerpt(content: str, max_chars: int = 4000) -> str:
     return excerpt_text(content, max_chars=max_chars)
 
 
-
 # Bug 1: Strip LLM "here is the result" preamble that leaks into chapter body.
 # Detects Vietnamese/English meta-paragraphs at the start of generated content.
 _PREAMBLE_PATTERNS = [
@@ -36,10 +40,19 @@ _PREAMBLE_PATTERNS = [
     # English variants
     r"^(?:here(?:'s| is)|below is|here you go)\b.*?(?:\n\s*\n|$)",
 ]
-_PREAMBLE_REGEXES = [re.compile(p, re.IGNORECASE | re.DOTALL) for p in _PREAMBLE_PATTERNS]
+_PREAMBLE_REGEXES = [
+    re.compile(p, re.IGNORECASE | re.DOTALL) for p in _PREAMBLE_PATTERNS
+]
 # Heuristic: paragraph mentioning both "phiên bản"/"version" and "Chương" is meta.
-_META_MARKERS = ("phiên bản", "version", "đã được hoàn thiện", "đã được mở rộng",
-                  "đã được chỉnh sửa", "below is the", "here is the")
+_META_MARKERS = (
+    "phiên bản",
+    "version",
+    "đã được hoàn thiện",
+    "đã được mở rộng",
+    "đã được chỉnh sửa",
+    "below is the",
+    "here is the",
+)
 
 
 def strip_llm_preamble(content: str) -> str:
@@ -57,7 +70,7 @@ def strip_llm_preamble(content: str) -> str:
         for rx in _PREAMBLE_REGEXES:
             m = rx.match(text)
             if m:
-                text = text[m.end():].lstrip()
+                text = text[m.end() :].lstrip()
                 stripped = True
                 break
         if stripped:
@@ -80,10 +93,14 @@ def strip_llm_preamble(content: str) -> str:
 def _append_consistency_context(parts: list[str], context: StoryContext) -> None:
     """Append timeline, location, arc drift, and name warnings to prompt parts."""
     if context.timeline_positions:
-        tl_lines = [f"- {name}: {tl}" for name, tl in context.timeline_positions.items()]
+        tl_lines = [
+            f"- {name}: {tl}" for name, tl in context.timeline_positions.items()
+        ]
         parts.append("## Mốc thời gian hiện tại:\n" + "\n".join(tl_lines))
     if context.character_locations:
-        loc_lines = [f"- {name}: {loc}" for name, loc in context.character_locations.items()]
+        loc_lines = [
+            f"- {name}: {loc}" for name, loc in context.character_locations.items()
+        ]
         parts.append("## Vị trí nhân vật hiện tại:\n" + "\n".join(loc_lines))
     if context.arc_drift_warnings:
         drift_text = "\n".join(context.arc_drift_warnings)
@@ -153,7 +170,9 @@ def format_context(
             rel_lines = []
             for s in context.character_states:
                 if getattr(s, "cumulative_relationships", None):
-                    rel_lines.append(f"- {s.name}: {'; '.join(s.cumulative_relationships[-5:])}")
+                    rel_lines.append(
+                        f"- {s.name}: {'; '.join(s.cumulative_relationships[-5:])}"
+                    )
             if rel_lines:
                 parts.append("## Diễn biến mối quan hệ:\n" + "\n".join(rel_lines))
         if context and context.plot_events:
@@ -173,7 +192,9 @@ def format_context(
 
     parts = []
     if context.recent_summaries:
-        parts.append("## Bối cảnh các chương trước:\n" + "\n---\n".join(context.recent_summaries))
+        parts.append(
+            "## Bối cảnh các chương trước:\n" + "\n---\n".join(context.recent_summaries)
+        )
     if context.character_states:
         states_text = "\n".join(
             f"- {s.name}: tâm trạng={s.mood}, vị trí={s.arc_position}, "
@@ -184,7 +205,9 @@ def format_context(
         rel_lines = []
         for s in context.character_states:
             if getattr(s, "cumulative_relationships", None):
-                rel_lines.append(f"- {s.name}: {'; '.join(s.cumulative_relationships[-5:])}")
+                rel_lines.append(
+                    f"- {s.name}: {'; '.join(s.cumulative_relationships[-5:])}"
+                )
         if rel_lines:
             parts.append("## Diễn biến mối quan hệ:\n" + "\n".join(rel_lines))
     if context.plot_events:
@@ -235,15 +258,23 @@ def build_chapter_prompt(
     """
     chars_text = "\n".join(
         f"- {c.name} ({c.role}): {c.personality}\n  Tiểu sử: {c.background}"
-        + (f"\n  Giọng nói: {c.speech_pattern}" if getattr(c, 'speech_pattern', '') else "")
+        + (
+            f"\n  Giọng nói: {c.speech_pattern}"
+            if getattr(c, "speech_pattern", "")
+            else ""
+        )
         for c in characters
     )
     chars_constraints_lines = [
         f"- {c.name}: bí mật=[{c.secret}] | điểm gãy=[{c.breaking_point}]"
         for c in characters
-        if getattr(c, 'secret', '') or getattr(c, 'breaking_point', '')
+        if getattr(c, "secret", "") or getattr(c, "breaking_point", "")
     ]
-    chars_constraints = "\n".join(chars_constraints_lines) if chars_constraints_lines else "Không có ràng buộc đặc biệt."
+    chars_constraints = (
+        "\n".join(chars_constraints_lines)
+        if chars_constraints_lines
+        else "Không có ràng buộc đặc biệt."
+    )
     outline_text = (
         f"Tóm tắt: {outline.summary}\n"
         f"Sự kiện chính: {', '.join(outline.key_events)}\n"
@@ -259,6 +290,7 @@ def build_chapter_prompt(
     if config.pipeline.rag_enabled and rag_kb is not None and rag_kb.is_available:
         import time as _time
         from services.trace_context import get_module, set_module, get_trace
+
         rag_section_text = ""
         _hits_count = 0
         _prev_module = get_module()
@@ -268,13 +300,18 @@ def build_chapter_prompt(
             if getattr(config.pipeline, "rag_multi_query", False):
                 # Sprint 2 Task 1: multi-query retrieval (per char + per thread + summary)
                 from pipeline.layer1_story.context_helpers import build_rag_context
+
                 rag_section_text = build_rag_context(
                     rag_kb,
                     outline,
                     characters=characters,
                     open_threads=open_threads,
-                    per_char_queries=getattr(config.pipeline, "rag_per_char_queries", 3),
-                    per_thread_queries=getattr(config.pipeline, "rag_per_thread_queries", 3),
+                    per_char_queries=getattr(
+                        config.pipeline, "rag_per_char_queries", 3
+                    ),
+                    per_thread_queries=getattr(
+                        config.pipeline, "rag_per_thread_queries", 3
+                    ),
                     n_per_query=getattr(config.pipeline, "rag_n_results_per_query", 2),
                     merge_cap=getattr(config.pipeline, "rag_merge_cap", 8),
                 )
@@ -294,7 +331,9 @@ def build_chapter_prompt(
             set_module(_prev_module or "chapter_writer")
 
         if rag_section_text:
-            rag_section = prompts.RAG_CONTEXT_SECTION.format(rag_context=rag_section_text)
+            rag_section = prompts.RAG_CONTEXT_SECTION.format(
+                rag_context=rag_section_text
+            )
             context_text = context_text + "\n\n" + rag_section
 
     # Knowledge graph entity context (gated behind rag_enabled)
@@ -310,16 +349,24 @@ def build_chapter_prompt(
     # Prepare new narrative context strings
     try:
         from pipeline.layer1_story.plot_thread_tracker import format_threads_for_prompt
+
         threads_text = format_threads_for_prompt(open_threads or [])
     except Exception:
         threads_text = "Chưa có tuyến truyện đang mở."
     try:
-        from pipeline.layer1_story.conflict_web_builder import format_conflicts_for_prompt
+        from pipeline.layer1_story.conflict_web_builder import (
+            format_conflicts_for_prompt,
+        )
+
         conflicts_text = format_conflicts_for_prompt(active_conflicts or [])
     except Exception:
         conflicts_text = "Không có xung đột active."
     try:
-        from pipeline.layer1_story.foreshadowing_manager import format_seeds_for_prompt, format_payoffs_for_prompt
+        from pipeline.layer1_story.foreshadowing_manager import (
+            format_seeds_for_prompt,
+            format_payoffs_for_prompt,
+        )
+
         seeds_text = format_seeds_for_prompt(foreshadowing_to_plant or [])
         payoffs_text = format_payoffs_for_prompt(foreshadowing_to_payoff or [])
     except Exception:
@@ -328,6 +375,7 @@ def build_chapter_prompt(
     dialogue_context = ""
     try:
         from pipeline.layer1_story.dialogue_strategy import build_dialogue_context
+
         dialogue_context = build_dialogue_context(characters, genre)
     except Exception:
         pass
@@ -337,11 +385,13 @@ def build_chapter_prompt(
 
     # Build world text with era, rules, locations
     world_lines = [f"{world.name}: {world.description}"]
-    if getattr(world, 'era', ''):
+    if getattr(world, "era", ""):
         world_lines.append(f"Thời đại: {world.era}")
-    if getattr(world, 'rules', []):
-        world_lines.append("Quy tắc PHẢI tuân thủ:\n" + "\n".join(f"  • {r}" for r in world.rules))
-    if getattr(world, 'locations', []):
+    if getattr(world, "rules", []):
+        world_lines.append(
+            "Quy tắc PHẢI tuân thủ:\n" + "\n".join(f"  • {r}" for r in world.rules)
+        )
+    if getattr(world, "locations", []):
         world_lines.append("Địa điểm: " + ", ".join(world.locations[:5]))
     world_text = "\n".join(world_lines)
 
@@ -366,7 +416,9 @@ def build_chapter_prompt(
     user_story_idea_block = _build_idea_block(idea, idea_summary)
 
     user_prompt = prompts.WRITE_CHAPTER.format(
-        genre=genre, style=style, title=title,
+        genre=genre,
+        style=style,
+        title=title,
         user_story_idea=user_story_idea_block,
         world=world_text,
         characters=chars_text,
@@ -384,9 +436,12 @@ def build_chapter_prompt(
         pacing_type=resolved_pacing,
         pacing_directive=pacing_directive,
     )
-    user_prompt = build_adaptive_write_prompt(user_prompt, genre, pacing_type=resolved_pacing)
+    user_prompt = build_adaptive_write_prompt(
+        user_prompt, genre, pacing_type=resolved_pacing
+    )
     # L1-A: Unified NarrativeContextBlock — single ordered block for non-core directives.
     from pipeline.layer1_story.narrative_context_block import build_narrative_block
+
     narrative_block = build_narrative_block(
         characters=characters,
         outline=outline,
@@ -399,8 +454,16 @@ def build_chapter_prompt(
     if narrative_block:
         user_prompt += "\n\n" + narrative_block
     if negotiated_contract is not None and negotiated_contract.drama_ceiling > 0:
-        subtext = ", ".join(negotiated_contract.required_subtext) if negotiated_contract.required_subtext else "không"
-        forbidden = ", ".join(negotiated_contract.forbidden_patterns) if negotiated_contract.forbidden_patterns else "không"
+        subtext = (
+            ", ".join(negotiated_contract.required_subtext)
+            if negotiated_contract.required_subtext
+            else "không"
+        )
+        forbidden = (
+            ", ".join(negotiated_contract.forbidden_patterns)
+            if negotiated_contract.forbidden_patterns
+            else "không"
+        )
         user_prompt += (
             "\n\n## RÀNG BUỘC KỊCH TÍNH"
             f"\n- Mục tiêu kịch tính: {negotiated_contract.drama_target:.2f}"
@@ -485,9 +548,19 @@ def write_chapter(
 ) -> Chapter:
     """Write a single chapter (non-streaming)."""
     sys_prompt, user_prompt = build_chapter_prompt(
-        config, title, genre, style, characters, world, outline,
-        word_count, context, previous_summary, rag_kb=rag_kb,
-        open_threads=open_threads, active_conflicts=active_conflicts,
+        config,
+        title,
+        genre,
+        style,
+        characters,
+        world,
+        outline,
+        word_count,
+        context,
+        previous_summary,
+        rag_kb=rag_kb,
+        open_threads=open_threads,
+        active_conflicts=active_conflicts,
         foreshadowing_to_plant=foreshadowing_to_plant,
         foreshadowing_to_payoff=foreshadowing_to_payoff,
         pacing_type=pacing_type,
@@ -545,9 +618,18 @@ def write_chapter_stream(
 ) -> Chapter:
     """Write chapter with streaming. Calls stream_callback(partial_text) each chunk."""
     sys_prompt, user_prompt = build_chapter_prompt(
-        config, title, genre, style, characters, world, outline,
-        word_count, context, rag_kb=rag_kb,
-        open_threads=open_threads, active_conflicts=active_conflicts,
+        config,
+        title,
+        genre,
+        style,
+        characters,
+        world,
+        outline,
+        word_count,
+        context,
+        rag_kb=rag_kb,
+        open_threads=open_threads,
+        active_conflicts=active_conflicts,
         foreshadowing_to_plant=foreshadowing_to_plant,
         foreshadowing_to_payoff=foreshadowing_to_payoff,
         pacing_type=pacing_type,
@@ -575,11 +657,23 @@ def write_chapter_stream(
     except Exception as e:
         logger.warning(f"Stream failed, falling back to generate: {e}")
         return write_chapter(
-            llm, config, title, genre, style, characters, world,
-            outline, word_count=word_count, context=context, rag_kb=rag_kb,
-            model=model, open_threads=open_threads, active_conflicts=active_conflicts,
+            llm,
+            config,
+            title,
+            genre,
+            style,
+            characters,
+            world,
+            outline,
+            word_count=word_count,
+            context=context,
+            rag_kb=rag_kb,
+            model=model,
+            open_threads=open_threads,
+            active_conflicts=active_conflicts,
             foreshadowing_to_plant=foreshadowing_to_plant,
-            foreshadowing_to_payoff=foreshadowing_to_payoff, pacing_type=pacing_type,
+            foreshadowing_to_payoff=foreshadowing_to_payoff,
+            pacing_type=pacing_type,
             enhancement_context=enhancement_context,
             current_arc_context=current_arc_context,
             chapter_contract=chapter_contract,
@@ -647,8 +741,7 @@ def write_chapter_by_beats(
         continuity = f"\n## Đoạn văn trước kết thúc:\n{tail}\n" if tail else ""
 
         user_prompt = (
-            idea_header
-            + f"Thể loại: {genre} | Phong cách: {style}\n"
+            idea_header + f"Thể loại: {genre} | Phong cách: {style}\n"
             f"Tiêu đề truyện: {wrap_user_input(title)}\n"
             + (f"Thế giới: {world_text}\n" if world_text else "")
             + (f"Nhân vật: {characters_text}\n" if characters_text else "")
@@ -711,7 +804,11 @@ def validate_beat_transitions(beats: list, texts: list[str]) -> list[str]:
             curr_text = texts[i].lower() if i < len(texts) else ""
             # Use first significant word of new setting as probe
             setting_probe = curr.setting.split("/")[0].strip().lower()
-            if setting_probe and len(setting_probe) > 3 and setting_probe not in curr_text:
+            if (
+                setting_probe
+                and len(setting_probe) > 3
+                and setting_probe not in curr_text
+            ):
                 warnings.append(
                     f"Cảnh {curr.scene_num}: địa điểm thay đổi sang '{curr.setting}' "
                     "nhưng văn bản không đề cập rõ. Kiểm tra chuyển cảnh."
@@ -741,7 +838,8 @@ def extract_plot_events(
     result = llm.generate_json(
         system_prompt="Trích xuất sự kiện cốt truyện. Trả về JSON bằng tiếng Việt.",
         user_prompt=prompts.EXTRACT_PLOT_EVENTS.format(
-            content=excerpt(content), chapter_number=chapter_number,
+            content=excerpt(content),
+            chapter_number=chapter_number,
         ),
         temperature=0.3,
         max_tokens=1000,

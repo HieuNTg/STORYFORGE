@@ -1,6 +1,5 @@
 """Tests for services/quality_gate.py"""
 
-
 from models.schemas import ChapterScore, StoryScore
 from services.quality_gate import (
     QualityGate,
@@ -10,6 +9,7 @@ from services.quality_gate import (
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
+
 def make_chapter_score(chapter_number: int, overall: float) -> ChapterScore:
     cs = ChapterScore(chapter_number=chapter_number)
     cs.overall = overall
@@ -17,7 +17,9 @@ def make_chapter_score(chapter_number: int, overall: float) -> ChapterScore:
 
 
 def make_story_score(chapter_overalls: list[float], overall: float) -> StoryScore:
-    chapter_scores = [make_chapter_score(i + 1, s) for i, s in enumerate(chapter_overalls)]
+    chapter_scores = [
+        make_chapter_score(i + 1, s) for i, s in enumerate(chapter_overalls)
+    ]
     s = StoryScore(chapter_scores=chapter_scores)
     s.overall = overall
     return s
@@ -25,11 +27,15 @@ def make_story_score(chapter_overalls: list[float], overall: float) -> StoryScor
 
 # ─── QualityGateResult ────────────────────────────────────────────────────────
 
+
 class TestQualityGateResult:
     def test_attributes_set_correctly(self):
         r = QualityGateResult(
-            passed=True, overall_score=3.5, weak_chapters=[],
-            message="ok", should_retry=False
+            passed=True,
+            overall_score=3.5,
+            weak_chapters=[],
+            message="ok",
+            should_retry=False,
         )
         assert r.passed is True
         assert r.overall_score == 3.5
@@ -38,11 +44,14 @@ class TestQualityGateResult:
         assert r.should_retry is False
 
     def test_should_retry_defaults_false(self):
-        r = QualityGateResult(passed=False, overall_score=1.0, weak_chapters=[], message="fail")
+        r = QualityGateResult(
+            passed=False, overall_score=1.0, weak_chapters=[], message="fail"
+        )
         assert r.should_retry is False
 
 
 # ─── QualityGate.check ────────────────────────────────────────────────────────
+
 
 class TestQualityGateCheck:
     def setup_method(self):
@@ -143,20 +152,25 @@ class TestQualityGateCheck:
 
 # ─── Config integration ───────────────────────────────────────────────────────
 
+
 class TestQualityGateConfig:
     def test_default_fields_exist(self):
         from config import ConfigManager
+
         # Reset singleton for isolated test
         ConfigManager._instance = None
         cfg = ConfigManager()
         assert hasattr(cfg.pipeline, "enable_quality_gate")
-        assert cfg.pipeline.enable_quality_gate is True  # Enabled by default since Sprint 1
+        assert (
+            cfg.pipeline.enable_quality_gate is True
+        )  # Enabled by default since Sprint 1
         assert cfg.pipeline.quality_gate_threshold == 2.5
         assert cfg.pipeline.quality_gate_chapter_threshold == 2.0
         assert cfg.pipeline.quality_gate_max_retries == 1
 
     def test_validation_rejects_out_of_range_threshold(self):
         from config import ConfigManager
+
         ConfigManager._instance = None
         cfg = ConfigManager()
         cfg.pipeline.quality_gate_threshold = 0.5  # below 1.0
@@ -165,6 +179,7 @@ class TestQualityGateConfig:
 
     def test_validation_accepts_valid_threshold(self):
         from config import ConfigManager
+
         ConfigManager._instance = None
         cfg = ConfigManager()
         cfg.pipeline.quality_gate_threshold = 3.0
@@ -173,6 +188,7 @@ class TestQualityGateConfig:
 
     def test_validation_rejects_high_threshold(self):
         from config import ConfigManager
+
         ConfigManager._instance = None
         cfg = ConfigManager()
         cfg.pipeline.quality_gate_threshold = 5.5  # above 5.0

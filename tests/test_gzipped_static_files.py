@@ -48,7 +48,7 @@ async def test_serves_precompressed_gz_when_available(static_app):
     client, tmp_path = static_app
     # Large enough that runtime gzip *would* fire — so we can prove the sibling
     # is preferred (different bytes vs runtime-compressed level=6).
-    raw = (b"body { color: hotpink; } /* padding */" * 50)
+    raw = b"body { color: hotpink; } /* padding */" * 50
     (tmp_path / "foo.css").write_bytes(raw)
     # Use a deliberately distinct compression level (9) so the .gz bytes
     # differ from what runtime gzip would produce at level 6.
@@ -94,7 +94,9 @@ async def test_no_gzip_when_accept_encoding_omitted(static_app):
     (tmp_path / "plain.css.gz").write_bytes(gzip.compress(raw))
 
     # httpx adds its own Accept-Encoding by default; override explicitly.
-    resp = await client.get("/static/plain.css", headers={"Accept-Encoding": "identity"})
+    resp = await client.get(
+        "/static/plain.css", headers={"Accept-Encoding": "identity"}
+    )
 
     assert resp.status_code == 200
     assert resp.headers.get("content-encoding") in (None, "")

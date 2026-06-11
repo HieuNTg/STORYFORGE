@@ -37,7 +37,9 @@ class DialogueLine(BaseModel):
     character: str
     says: str
     means: str
-    subtext_type: str = "genuine"  # deflection|half_truth|loaded_silence|misdirection|genuine
+    subtext_type: str = (
+        "genuine"  # deflection|half_truth|loaded_silence|misdirection|genuine
+    )
     tension_contribution: float = 0.0
 
 

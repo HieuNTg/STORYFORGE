@@ -1,4 +1,5 @@
 """Test ImagePromptGenerator service."""
+
 import types
 
 from models.schemas import Chapter
@@ -7,7 +8,12 @@ from services.image_prompt_generator import ImagePromptGenerator
 
 def test_generate_scene_prompt_basic():
     gen = ImagePromptGenerator(style="cinematic")
-    chapter = Chapter(chapter_number=1, title="The Beginning", content="Story content", summary="A hero emerges")
+    chapter = Chapter(
+        chapter_number=1,
+        title="The Beginning",
+        content="Story content",
+        summary="A hero emerges",
+    )
     result = gen.generate_scene_prompt(chapter)
     assert result != ""
     assert "cinematic" in result
@@ -15,14 +21,18 @@ def test_generate_scene_prompt_basic():
 
 def test_generate_scene_prompt_uses_summary():
     gen = ImagePromptGenerator(style="anime")
-    chapter = Chapter(chapter_number=1, title="Ch1", content="content", summary="battle scene")
+    chapter = Chapter(
+        chapter_number=1, title="Ch1", content="content", summary="battle scene"
+    )
     result = gen.generate_scene_prompt(chapter)
     assert "battle scene" in result
 
 
 def test_generate_scene_prompt_fallback_to_title():
     gen = ImagePromptGenerator(style="anime")
-    chapter = Chapter(chapter_number=2, title="The Storm", content="content", summary="")
+    chapter = Chapter(
+        chapter_number=2, title="The Storm", content="content", summary=""
+    )
     result = gen.generate_scene_prompt(chapter)
     assert "The Storm" in result
 
@@ -64,6 +74,7 @@ def test_default_style_is_comic_family_not_cinematic():
     test doesn't depend on a user's local settings.
     """
     from config.defaults import PipelineConfig
+
     default_style = PipelineConfig().image_prompt_style.lower()
     assert default_style != "cinematic"
     assert any(
@@ -244,13 +255,34 @@ from services.media.shot_list import ShotList, Page, Panel
 
 
 def _two_panel_shot_list():
-    return ShotList(chapter_number=3, pages=[Page(page=1, panels=[
-        Panel(n=1, shot="WS", beat="hoàng hôn ở làng", subject="Kiên",
-              action="đứng giữa quảng trường", setting="ngôi làng", mood="u ám"),
-        Panel(n=2, shot="CU", beat="mở Nghịch Mệnh Nhãn", subject="Kiên",
-              action="mắt phát sáng nhìn sợi chỉ sinh mệnh", setting="ngôi làng",
-              mood="kinh ngạc"),
-    ])])
+    return ShotList(
+        chapter_number=3,
+        pages=[
+            Page(
+                page=1,
+                panels=[
+                    Panel(
+                        n=1,
+                        shot="WS",
+                        beat="hoàng hôn ở làng",
+                        subject="Kiên",
+                        action="đứng giữa quảng trường",
+                        setting="ngôi làng",
+                        mood="u ám",
+                    ),
+                    Panel(
+                        n=2,
+                        shot="CU",
+                        beat="mở Nghịch Mệnh Nhãn",
+                        subject="Kiên",
+                        action="mắt phát sáng nhìn sợi chỉ sinh mệnh",
+                        setting="ngôi làng",
+                        mood="kinh ngạc",
+                    ),
+                ],
+            )
+        ],
+    )
 
 
 def _shot_chapter():
@@ -262,10 +294,20 @@ def test_generate_from_shot_list_one_prompt_per_panel_mapped_by_n(monkeypatch):
     gen = ImagePromptGenerator(style="manhwa")
 
     def fake_generate_json(*a, **k):
-        return {"prompts": [
-            {"n": 2, "dalle_prompt": "close-up glowing eyes", "sd_prompt": "cu eyes"},
-            {"n": 1, "dalle_prompt": "wide shot village dusk", "sd_prompt": "ws village"},
-        ]}
+        return {
+            "prompts": [
+                {
+                    "n": 2,
+                    "dalle_prompt": "close-up glowing eyes",
+                    "sd_prompt": "cu eyes",
+                },
+                {
+                    "n": 1,
+                    "dalle_prompt": "wide shot village dusk",
+                    "sd_prompt": "ws village",
+                },
+            ]
+        }
 
     _stub_llm(monkeypatch, gen, generate_json=fake_generate_json)
     prompts = gen.generate_from_shot_list(_two_panel_shot_list(), _shot_chapter())
@@ -285,14 +327,18 @@ def test_generate_from_shot_list_fallback_for_skipped_panel(monkeypatch):
     gen = ImagePromptGenerator(style="manhwa")
 
     def fake_generate_json(*a, **k):
-        return {"prompts": [{"n": 1, "dalle_prompt": "wide shot village", "sd_prompt": "ws"}]}
+        return {
+            "prompts": [
+                {"n": 1, "dalle_prompt": "wide shot village", "sd_prompt": "ws"}
+            ]
+        }
 
     _stub_llm(monkeypatch, gen, generate_json=fake_generate_json)
     prompts = gen.generate_from_shot_list(_two_panel_shot_list(), _shot_chapter())
 
     assert len(prompts) == 2
     low = prompts[1].dalle_prompt.lower()
-    assert "close-up" in low                      # shot phrase from CU
+    assert "close-up" in low  # shot phrase from CU
     assert "mắt phát sáng nhìn sợi chỉ sinh mệnh" in prompts[1].dalle_prompt
     assert "no text in image" in low
 
@@ -331,7 +377,8 @@ def test_generate_from_shot_list_uses_visual_profile_in_fallback(monkeypatch):
 
     _stub_llm(monkeypatch, gen, generate_json=boom)
     prompts = gen.generate_from_shot_list(
-        _two_panel_shot_list(), _shot_chapter(),
+        _two_panel_shot_list(),
+        _shot_chapter(),
         visual_profiles={"Kiên": "thiếu niên tóc đen, áo vải xám, mắt đỏ"},
     )
     assert "thiếu niên tóc đen, áo vải xám, mắt đỏ" in prompts[0].dalle_prompt
@@ -341,6 +388,7 @@ def test_panel_prompt_template_demands_positive_constraints():
     """The panel prompt template must phrase constraints positively and ban
     in-image lettering (autoregressive image models ignore negative prompts)."""
     from services.media.image_prompt_generator import _PANEL_PROMPT_GEN
+
     low = _PANEL_PROMPT_GEN.lower()
     assert "no text in image" in low
     assert "no speech bubbles" in low

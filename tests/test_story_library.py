@@ -31,33 +31,69 @@ def _minimal_pipeline_data(title="Test Story", genre="tien_hiep", chapter_count=
         for i in range(1, chapter_count + 1)
     ]
     return {
-        "story_draft": {"title": title, "genre": genre, "synopsis": "A story",
-                        "characters": [], "world": {"name": "W", "description": "D",
-                        "rules": [], "locations": [], "era": ""}, "outlines": [],
-                        "chapters": chapters},
-        "enhanced_story": {"title": title, "genre": genre, "chapters": chapters,
-                           "drama_score": 0.7, "enhancement_notes": []},
-        "simulation_result": None, "status": "completed",
-        "current_layer": 3, "progress": 1.0, "logs": [], "reviews": [],
-        "quality_scores": [], "analytics": {}, "knowledge_graph_summary": None,
+        "story_draft": {
+            "title": title,
+            "genre": genre,
+            "synopsis": "A story",
+            "characters": [],
+            "world": {
+                "name": "W",
+                "description": "D",
+                "rules": [],
+                "locations": [],
+                "era": "",
+            },
+            "outlines": [],
+            "chapters": chapters,
+        },
+        "enhanced_story": {
+            "title": title,
+            "genre": genre,
+            "chapters": chapters,
+            "drama_score": 0.7,
+            "enhancement_notes": [],
+        },
+        "simulation_result": None,
+        "status": "completed",
+        "current_layer": 3,
+        "progress": 1.0,
+        "logs": [],
+        "reviews": [],
+        "quality_scores": [],
+        "analytics": {},
+        "knowledge_graph_summary": None,
         "progress_events": [],
     }
 
 
 # ── GET /pipeline/checkpoints ─────────────────────────────────────────────────
 
+
 def test_list_checkpoints_empty(client):
-    with patch("pipeline.orchestrator.PipelineOrchestrator.list_checkpoints", return_value=[]):
+    with patch(
+        "pipeline.orchestrator.PipelineOrchestrator.list_checkpoints", return_value=[]
+    ):
         resp = client.get("/pipeline/checkpoints")
     assert resp.status_code == 200
     assert resp.json() == {"checkpoints": []}
 
 
 def test_list_checkpoints_fields_shape(client):
-    mock_ckpts = [{"file": "story_layer3.json", "modified": "2026-04-02 10:00",
-                   "size_kb": 12, "title": "Story Title", "genre": "tien_hiep",
-                   "chapter_count": 5, "current_layer": 3}]
-    with patch("pipeline.orchestrator.PipelineOrchestrator.list_checkpoints", return_value=mock_ckpts):
+    mock_ckpts = [
+        {
+            "file": "story_layer3.json",
+            "modified": "2026-04-02 10:00",
+            "size_kb": 12,
+            "title": "Story Title",
+            "genre": "tien_hiep",
+            "chapter_count": 5,
+            "current_layer": 3,
+        }
+    ]
+    with patch(
+        "pipeline.orchestrator.PipelineOrchestrator.list_checkpoints",
+        return_value=mock_ckpts,
+    ):
         resp = client.get("/pipeline/checkpoints")
     ckpt = resp.json()["checkpoints"][0]
     assert ckpt["path"] == "story_layer3.json"
@@ -67,9 +103,21 @@ def test_list_checkpoints_fields_shape(client):
 
 
 def test_list_checkpoints_label_includes_size(client):
-    mock_ckpts = [{"file": "x.json", "modified": "2026-04-01 08:30", "size_kb": 5,
-                   "title": "T", "genre": "k", "chapter_count": 2, "current_layer": 1}]
-    with patch("pipeline.orchestrator.PipelineOrchestrator.list_checkpoints", return_value=mock_ckpts):
+    mock_ckpts = [
+        {
+            "file": "x.json",
+            "modified": "2026-04-01 08:30",
+            "size_kb": 5,
+            "title": "T",
+            "genre": "k",
+            "chapter_count": 2,
+            "current_layer": 1,
+        }
+    ]
+    with patch(
+        "pipeline.orchestrator.PipelineOrchestrator.list_checkpoints",
+        return_value=mock_ckpts,
+    ):
         resp = client.get("/pipeline/checkpoints")
     label = resp.json()["checkpoints"][0]["label"]
     assert "x.json" in label and "5KB" in label
@@ -77,12 +125,17 @@ def test_list_checkpoints_label_includes_size(client):
 
 # ── GET /pipeline/checkpoints/{filename} metadata extraction ──────────────────
 
+
 def test_metadata_extraction_title_genre_chapters(tmp_path):
     from pipeline.orchestrator_checkpoint import CheckpointManager
     import pipeline.orchestrator_checkpoint as ckpt_mod
 
     ckpt_dir = tmp_path / "checkpoints"
-    _write_checkpoint(ckpt_dir, "dragon_layer3.json", _minimal_pipeline_data("Dragon Sword", "kiem_hiep", 4))
+    _write_checkpoint(
+        ckpt_dir,
+        "dragon_layer3.json",
+        _minimal_pipeline_data("Dragon Sword", "kiem_hiep", 4),
+    )
 
     orig = ckpt_mod.CHECKPOINT_DIR
     ckpt_mod.CHECKPOINT_DIR = str(ckpt_dir)
@@ -153,6 +206,7 @@ def test_nonexistent_dir_returns_empty(tmp_path):
 
 # ── GET / DELETE invalid filename ─────────────────────────────────────────────
 
+
 def test_get_checkpoint_404_for_missing(client):
     with patch("api.pipeline_routes.os.path.exists", return_value=False):
         resp = client.get("/pipeline/checkpoints/missing.json")
@@ -171,8 +225,13 @@ def test_delete_checkpoint_calls_remove(client, tmp_path):
 
     # The route resolves the checkpoint via find_checkpoint_path (not raw
     # os.path.join/exists), so patch that resolver to point at our temp file.
-    with patch("pipeline.orchestrator_checkpoint.find_checkpoint_path", return_value=str(ckpt_path)), \
-         patch("api.pipeline_routes.os.remove") as mock_rm:
+    with (
+        patch(
+            "pipeline.orchestrator_checkpoint.find_checkpoint_path",
+            return_value=str(ckpt_path),
+        ),
+        patch("api.pipeline_routes.os.remove") as mock_rm,
+    ):
         resp = client.delete("/pipeline/checkpoints/to_delete.json")
 
     assert resp.status_code == 200
@@ -182,6 +241,7 @@ def test_delete_checkpoint_calls_remove(client, tmp_path):
 
 # ── CheckpointManager.save ────────────────────────────────────────────────────
 
+
 def test_save_creates_valid_json_file(tmp_path, sample_pipeline_output):
     from pipeline.orchestrator_checkpoint import CheckpointManager
     import pipeline.orchestrator_checkpoint as ckpt_mod
@@ -189,8 +249,12 @@ def test_save_creates_valid_json_file(tmp_path, sample_pipeline_output):
     orig = ckpt_mod.CHECKPOINT_DIR
     ckpt_mod.CHECKPOINT_DIR = str(tmp_path / "ckpts")
     try:
-        mgr = CheckpointManager(output=sample_pipeline_output, analyzer=MagicMock(),
-                                simulator=MagicMock(), enhancer=MagicMock())
+        mgr = CheckpointManager(
+            output=sample_pipeline_output,
+            analyzer=MagicMock(),
+            simulator=MagicMock(),
+            enhancer=MagicMock(),
+        )
         path = mgr.save(layer=1, background=False)
     finally:
         ckpt_mod.CHECKPOINT_DIR = orig

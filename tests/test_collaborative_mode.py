@@ -31,8 +31,16 @@ class TestPolishChapterImpl:
             title="Test Story",
             genre="Fantasy",
             chapters=[
-                Chapter(chapter_number=1, title="Beginning", content="Original chapter 1 content."),
-                Chapter(chapter_number=2, title="Middle", content="Original chapter 2 content."),
+                Chapter(
+                    chapter_number=1,
+                    title="Beginning",
+                    content="Original chapter 1 content.",
+                ),
+                Chapter(
+                    chapter_number=2,
+                    title="Middle",
+                    content="Original chapter 2 content.",
+                ),
             ],
             characters=[
                 Character(name="Hero", role="protagonist", personality="brave"),
@@ -85,7 +93,9 @@ class TestPolishChapterImpl:
         )
 
         assert result is not None
-        assert result.chapters[1].content == "Polished chapter content with better prose."
+        assert (
+            result.chapters[1].content == "Polished chapter content with better prose."
+        )
 
     def test_polish_preserves_user_title(self, mock_generator, sample_draft):
         """User-provided title should be preserved."""
@@ -102,7 +112,9 @@ class TestPolishChapterImpl:
 
         assert result.chapters[0].title == "User's Custom Title"
 
-    def test_polish_uses_existing_title_if_not_provided(self, mock_generator, sample_draft):
+    def test_polish_uses_existing_title_if_not_provided(
+        self, mock_generator, sample_draft
+    ):
         """Should use existing title if user doesn't provide one."""
         from pipeline.layer1_story.story_continuation import polish_chapter_impl
 
@@ -118,7 +130,9 @@ class TestPolishChapterImpl:
         # Title should come from LLM or be original
         assert result.chapters[0].title is not None
 
-    def test_polish_appends_new_chapter_if_beyond_existing(self, mock_generator, sample_draft):
+    def test_polish_appends_new_chapter_if_beyond_existing(
+        self, mock_generator, sample_draft
+    ):
         """Chapter number beyond existing should append as new chapter."""
         from pipeline.layer1_story.story_continuation import polish_chapter_impl
 
@@ -316,9 +330,15 @@ class TestCollaborativeIntegration:
             title="Test",
             genre="Fantasy",
             chapters=[
-                Chapter(chapter_number=1, title="Ch1", content="First chapter original"),
-                Chapter(chapter_number=2, title="Ch2", content="Second chapter original"),
-                Chapter(chapter_number=3, title="Ch3", content="Third chapter original"),
+                Chapter(
+                    chapter_number=1, title="Ch1", content="First chapter original"
+                ),
+                Chapter(
+                    chapter_number=2, title="Ch2", content="Second chapter original"
+                ),
+                Chapter(
+                    chapter_number=3, title="Ch3", content="Third chapter original"
+                ),
             ],
             characters=[],
             outlines=[],

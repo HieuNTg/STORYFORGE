@@ -7,6 +7,7 @@ Covers:
 - Pruning keeps newest `keep_last` per (slug, layer) group
 - Config flags default false, chapter_checkpoint_keep_last defaults to 5
 """
+
 from __future__ import annotations
 
 import os
@@ -25,12 +26,16 @@ from pipeline.orchestrator_checkpoint import (
 )
 
 
-def _build_manager(title: str = "Test Story", chapters: list[Chapter] | None = None) -> CheckpointManager:
+def _build_manager(
+    title: str = "Test Story", chapters: list[Chapter] | None = None
+) -> CheckpointManager:
     draft = StoryDraft(title=title, genre="Test")
     if chapters:
         draft.chapters = list(chapters)
     output = PipelineOutput(story_draft=draft)
-    return CheckpointManager(output=output, analyzer=MagicMock(), simulator=MagicMock(), enhancer=MagicMock())
+    return CheckpointManager(
+        output=output, analyzer=MagicMock(), simulator=MagicMock(), enhancer=MagicMock()
+    )
 
 
 class _CleanDirMixin:
@@ -83,7 +88,12 @@ class TestSaveChapter(_CleanDirMixin, unittest.TestCase):
 
     def test_save_chapter_with_no_draft_uses_untitled(self):
         output = PipelineOutput()
-        mgr = CheckpointManager(output=output, analyzer=MagicMock(), simulator=MagicMock(), enhancer=MagicMock())
+        mgr = CheckpointManager(
+            output=output,
+            analyzer=MagicMock(),
+            simulator=MagicMock(),
+            enhancer=MagicMock(),
+        )
         path = mgr.save_chapter(chapter_number=2, layer=1, background=False)
         fname = os.path.basename(path)
         self.assertTrue(fname.startswith("untitled_"))
@@ -128,31 +138,45 @@ class TestListChapterCheckpoints(_CleanDirMixin, unittest.TestCase):
 
 class TestResumeFromChapter(_CleanDirMixin, unittest.TestCase):
     def test_next_ch_from_draft_when_no_enhanced(self):
-        chapters = [Chapter(chapter_number=i, title=f"T{i}", content="x") for i in (1, 2, 3)]
+        chapters = [
+            Chapter(chapter_number=i, title=f"T{i}", content="x") for i in (1, 2, 3)
+        ]
         mgr = _build_manager(title="Run", chapters=chapters)
         path = mgr.save_chapter(3, 1, background=False)
 
         fresh = CheckpointManager(
-            output=PipelineOutput(), analyzer=MagicMock(),
-            simulator=MagicMock(), enhancer=MagicMock(),
+            output=PipelineOutput(),
+            analyzer=MagicMock(),
+            simulator=MagicMock(),
+            enhancer=MagicMock(),
         )
         output, next_ch = fresh.resume_from_chapter(path)
         self.assertEqual(next_ch, 4)
         self.assertEqual(len(output.story_draft.chapters), 3)
 
     def test_next_ch_from_enhanced_when_present(self):
-        draft_chapters = [Chapter(chapter_number=i, title=f"T{i}", content="x") for i in (1, 2, 3)]
-        enhanced_chapters = [Chapter(chapter_number=i, title=f"E{i}", content="y") for i in (1, 2, 3, 4, 5)]
+        draft_chapters = [
+            Chapter(chapter_number=i, title=f"T{i}", content="x") for i in (1, 2, 3)
+        ]
+        enhanced_chapters = [
+            Chapter(chapter_number=i, title=f"E{i}", content="y")
+            for i in (1, 2, 3, 4, 5)
+        ]
         mgr = _build_manager(title="Run2", chapters=draft_chapters)
         mgr.output.enhanced_story = EnhancedStory(
-            title="Run2", genre="Test", chapters=enhanced_chapters,
-            enhancement_notes=[], drama_score=0.0,
+            title="Run2",
+            genre="Test",
+            chapters=enhanced_chapters,
+            enhancement_notes=[],
+            drama_score=0.0,
         )
         path = mgr.save_chapter(5, 2, background=False)
 
         fresh = CheckpointManager(
-            output=PipelineOutput(), analyzer=MagicMock(),
-            simulator=MagicMock(), enhancer=MagicMock(),
+            output=PipelineOutput(),
+            analyzer=MagicMock(),
+            simulator=MagicMock(),
+            enhancer=MagicMock(),
         )
         output, next_ch = fresh.resume_from_chapter(path)
         self.assertEqual(next_ch, 6)
@@ -161,8 +185,10 @@ class TestResumeFromChapter(_CleanDirMixin, unittest.TestCase):
         mgr = _build_manager(title="Empty")
         path = mgr.save_chapter(0, 1, background=False)
         fresh = CheckpointManager(
-            output=PipelineOutput(), analyzer=MagicMock(),
-            simulator=MagicMock(), enhancer=MagicMock(),
+            output=PipelineOutput(),
+            analyzer=MagicMock(),
+            simulator=MagicMock(),
+            enhancer=MagicMock(),
         )
         _, next_ch = fresh.resume_from_chapter(path)
         self.assertEqual(next_ch, 1)
@@ -193,23 +219,29 @@ class TestPrune(_CleanDirMixin, unittest.TestCase):
         remaining = sorted(os.listdir(out_dir))
         self.assertEqual(len(remaining), 3)
         # Newest three are ch4, ch5, ch6
-        self.assertEqual(remaining, ["Story_ch4_layer1.json",
-                                     "Story_ch5_layer1.json",
-                                     "Story_ch6_layer1.json"])
+        self.assertEqual(
+            remaining,
+            ["Story_ch4_layer1.json", "Story_ch5_layer1.json", "Story_ch6_layer1.json"],
+        )
 
     def test_prune_ignores_other_slugs_and_layers(self):
         out_dir = _chapter_checkpoint_dir()
         os.makedirs(out_dir, exist_ok=True)
-        for fname in ("A_ch1_layer1.json", "A_ch2_layer1.json",
-                      "B_ch1_layer1.json", "A_ch1_layer2.json"):
+        for fname in (
+            "A_ch1_layer1.json",
+            "A_ch2_layer1.json",
+            "B_ch1_layer1.json",
+            "A_ch1_layer2.json",
+        ):
             with open(os.path.join(out_dir, fname), "w") as f:
                 f.write("{}")
 
         _prune_chapter_checkpoints(out_dir, "A", 1, keep_last=1)
         remaining = set(os.listdir(out_dir))
         # A/layer1 pruned to 1, others untouched
-        self.assertEqual(remaining,
-                         {"A_ch2_layer1.json", "B_ch1_layer1.json", "A_ch1_layer2.json"})
+        self.assertEqual(
+            remaining, {"A_ch2_layer1.json", "B_ch1_layer1.json", "A_ch1_layer2.json"}
+        )
 
     def test_prune_noop_when_keep_last_zero(self):
         out_dir = _chapter_checkpoint_dir()
@@ -235,11 +267,13 @@ class TestPrune(_CleanDirMixin, unittest.TestCase):
 class TestConfigDefaults(unittest.TestCase):
     def test_enable_chapter_checkpoint_default_false(self):
         from config.defaults import PipelineConfig
+
         cfg = PipelineConfig()
         self.assertFalse(cfg.enable_chapter_checkpoint)
 
     def test_chapter_checkpoint_keep_last_default(self):
         from config.defaults import PipelineConfig
+
         cfg = PipelineConfig()
         self.assertEqual(cfg.chapter_checkpoint_keep_last, 5)
         self.assertEqual(cfg.chapter_checkpoint_every_n_batches, 1)

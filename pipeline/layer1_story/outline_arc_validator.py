@@ -66,7 +66,9 @@ def validate_outline_arc_coherence(
     try:
         result = llm.generate_json(
             system_prompt="Bạn là biên tập viên phân tích cấu trúc truyện. Trả về JSON bằng tiếng Việt.",
-            user_prompt=_PROMPT.format(arcs_text=arcs_text, outlines_text=outlines_text),
+            user_prompt=_PROMPT.format(
+                arcs_text=arcs_text, outlines_text=outlines_text
+            ),
             temperature=0.3,
             max_tokens=1000,
             model=model,
@@ -80,7 +82,11 @@ def validate_outline_arc_coherence(
     score = float(result.get("score", 0.0))
 
     if warnings:
-        logger.info("Outline-arc coherence warnings (%d): %s", len(warnings), "; ".join(warnings[:3]))
+        logger.info(
+            "Outline-arc coherence warnings (%d): %s",
+            len(warnings),
+            "; ".join(warnings[:3]),
+        )
     else:
         logger.info("Outline-arc coherence: OK (score=%.1f)", score)
 

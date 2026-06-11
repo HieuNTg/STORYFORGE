@@ -18,32 +18,38 @@ class TestIsStrictMode:
     def test_returns_false_when_unset(self, monkeypatch):
         monkeypatch.delenv("STORYFORGE_SEMANTIC_STRICT", raising=False)
         from pipeline.semantic import is_strict_mode
+
         assert is_strict_mode() is False
 
     def test_returns_true_when_set_to_1(self, monkeypatch):
         monkeypatch.setenv("STORYFORGE_SEMANTIC_STRICT", "1")
         from pipeline.semantic import is_strict_mode
+
         assert is_strict_mode() is True
 
     def test_returns_false_when_set_to_0(self, monkeypatch):
         monkeypatch.setenv("STORYFORGE_SEMANTIC_STRICT", "0")
         from pipeline.semantic import is_strict_mode
+
         assert is_strict_mode() is False
 
     def test_returns_false_for_other_values(self, monkeypatch):
         monkeypatch.setenv("STORYFORGE_SEMANTIC_STRICT", "true")
         from pipeline.semantic import is_strict_mode
+
         assert is_strict_mode() is False
 
     def test_strips_whitespace(self, monkeypatch):
         monkeypatch.setenv("STORYFORGE_SEMANTIC_STRICT", " 1 ")
         from pipeline.semantic import is_strict_mode
+
         assert is_strict_mode() is True
 
     def test_no_direct_env_reads_in_p3(self):
         """P3 (foreshadowing_verifier) must not read STORYFORGE_SEMANTIC_STRICT directly."""
         import inspect
         import pipeline.semantic.foreshadowing_verifier as mod
+
         src = inspect.getsource(mod)
         # The module-level _STRICT_ENV constant should be gone; direct env.get should be gone
         assert 'os.environ.get("STORYFORGE_SEMANTIC_STRICT"' not in src
@@ -53,6 +59,7 @@ class TestIsStrictMode:
         """P4 (structural_detector) must not read STORYFORGE_SEMANTIC_STRICT directly."""
         import inspect
         import pipeline.semantic.structural_detector as mod
+
         src = inspect.getsource(mod)
         assert 'os.environ.get("STORYFORGE_SEMANTIC_STRICT"' not in src
         assert "_STRICT_ENV" not in src
@@ -61,6 +68,7 @@ class TestIsStrictMode:
         """P5 (outline_critic) must not read STORYFORGE_SEMANTIC_STRICT directly."""
         import inspect
         import pipeline.layer1_story.outline_critic as mod
+
         src = inspect.getsource(mod)
         assert 'os.environ.get("STORYFORGE_SEMANTIC_STRICT"' not in src
 
@@ -96,7 +104,10 @@ class TestForeshadowingVerifierStrictMode:
         mock_svc = MagicMock()
         mock_svc.is_available.return_value = False
 
-        with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=mock_svc):
+        with patch(
+            "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+            return_value=mock_svc,
+        ):
             from pipeline.semantic import SemanticVerificationError
             from pipeline.semantic.foreshadowing_verifier import verify_payoffs
 
@@ -114,7 +125,10 @@ class TestForeshadowingVerifierStrictMode:
         mock_svc = MagicMock()
         mock_svc.is_available.return_value = False
 
-        with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=mock_svc):
+        with patch(
+            "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+            return_value=mock_svc,
+        ):
             from pipeline.semantic.foreshadowing_verifier import verify_payoffs
 
             seed = self._make_seed(payoff_ch=1)
@@ -153,13 +167,21 @@ class TestStructuralDetectorStrictMode:
         mock_emb.is_available.return_value = False
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service", return_value=mock_ner),
-            patch("pipeline.semantic.structural_detector.get_embedding_service", return_value=mock_emb),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=mock_ner,
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=mock_emb,
+            ),
         ):
             from pipeline.semantic import SemanticVerificationError
             from pipeline.semantic.structural_detector import detect_structural_issues
 
-            chapter = self._make_chapter("This chapter has no mention of the required character.")
+            chapter = self._make_chapter(
+                "This chapter has no mention of the required character."
+            )
             contract = self._make_contract(must_mention=["ZxZxZxMissingChar"])
 
             with pytest.raises(SemanticVerificationError):
@@ -175,8 +197,14 @@ class TestStructuralDetectorStrictMode:
         mock_emb.is_available.return_value = False
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service", return_value=mock_ner),
-            patch("pipeline.semantic.structural_detector.get_embedding_service", return_value=mock_emb),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=mock_ner,
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=mock_emb,
+            ),
         ):
             from pipeline.semantic.structural_detector import detect_structural_issues
 
@@ -208,7 +236,9 @@ class TestOutlineCriticStrictMode:
         """STORYFORGE_SEMANTIC_STRICT=1 + score < 0.50 → SemanticVerificationError."""
         monkeypatch.setenv("STORYFORGE_SEMANTIC_STRICT", "1")
 
-        metrics = self._make_metrics(overall_score=0.30)  # below STRICT_RAISE_THRESHOLD=0.50
+        metrics = self._make_metrics(
+            overall_score=0.30
+        )  # below STRICT_RAISE_THRESHOLD=0.50
 
         # compute_outline_metrics is imported inside score_outline locally,
         # so we patch it at the source module level.
@@ -233,8 +263,11 @@ class TestOutlineCriticStrictMode:
             return_value=metrics,
         ):
             from pipeline.layer1_story.outline_critic import score_outline
+
             # Should not raise
-            result_metrics, should_rewrite, failing = score_outline(outlines=[], characters=[])
+            result_metrics, should_rewrite, failing = score_outline(
+                outlines=[], characters=[]
+            )
         assert result_metrics.overall_score == 0.55
 
     def test_default_mode_does_not_raise_when_low_score(self, monkeypatch):
@@ -248,6 +281,9 @@ class TestOutlineCriticStrictMode:
             return_value=metrics,
         ):
             from pipeline.layer1_story.outline_critic import score_outline
+
             # Should not raise
-            result_metrics, should_rewrite, failing = score_outline(outlines=[], characters=[])
+            result_metrics, should_rewrite, failing = score_outline(
+                outlines=[], characters=[]
+            )
         assert result_metrics.overall_score == 0.20

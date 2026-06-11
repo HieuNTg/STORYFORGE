@@ -9,6 +9,7 @@ Covers:
 - InMemoryRateLimiter service class (is_allowed, get_remaining)
 - RedisRateLimiter service class (fallback on unavailable)
 """
+
 from __future__ import annotations
 
 import time
@@ -38,6 +39,7 @@ from services._rate_limiter_redis_impl import RedisRateLimiter
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_request(
     path: str = "/api/stories",
     client_ip: str = "1.2.3.4",
@@ -65,6 +67,7 @@ def _clear_state():
 # TestGetIP
 # ---------------------------------------------------------------------------
 
+
 class TestGetIP:
     def setup_method(self):
         # Ensure _TRUSTED_PROXIES is empty unless explicitly set in a test
@@ -86,7 +89,9 @@ class TestGetIP:
 
     def test_uses_forwarded_for_from_trusted_proxy(self):
         rl_mod._TRUSTED_PROXIES.add("10.0.0.1")
-        req = _make_request(client_ip="10.0.0.1", headers={"X-Forwarded-For": "203.0.113.5"})
+        req = _make_request(
+            client_ip="10.0.0.1", headers={"X-Forwarded-For": "203.0.113.5"}
+        )
         assert _get_ip(req) == "203.0.113.5"
 
     def test_uses_first_ip_in_forwarded_for_chain(self):
@@ -114,6 +119,7 @@ class TestGetIP:
 # ---------------------------------------------------------------------------
 # TestGetTier
 # ---------------------------------------------------------------------------
+
 
 class TestGetTier:
     def test_default_tier_for_normal_api(self):
@@ -164,6 +170,7 @@ class TestGetTier:
 # TestCheckRateLimitMemory
 # ---------------------------------------------------------------------------
 
+
 class TestCheckRateLimitMemory:
     def setup_method(self):
         _clear_state()
@@ -212,6 +219,7 @@ class TestCheckRateLimitMemory:
 # TestEvictExpiredEntries
 # ---------------------------------------------------------------------------
 
+
 class TestEvictExpiredEntries:
     def setup_method(self):
         _clear_state()
@@ -236,6 +244,7 @@ class TestEvictExpiredEntries:
 # ---------------------------------------------------------------------------
 # TestCheckRateLimitRedis
 # ---------------------------------------------------------------------------
+
 
 class TestCheckRateLimitRedis:
     def setup_method(self):
@@ -296,6 +305,7 @@ class TestCheckRateLimitRedis:
 # ---------------------------------------------------------------------------
 # TestRateLimitMiddlewareDispatch
 # ---------------------------------------------------------------------------
+
 
 class TestRateLimitMiddlewareDispatch:
     def setup_method(self):
@@ -389,6 +399,7 @@ class TestRateLimitMiddlewareDispatch:
         resp = await mw.dispatch(req, call_next)
 
         import json
+
         body = json.loads(resp.body)
         assert body["error"] == "Too Many Requests"
         assert "Rate limit exceeded" in body["detail"]
@@ -432,6 +443,7 @@ class TestRateLimitMiddlewareDispatch:
 # ---------------------------------------------------------------------------
 # TestInMemoryRateLimiter (service class)
 # ---------------------------------------------------------------------------
+
 
 class TestInMemoryRateLimiter:
     def test_is_allowed_first_request(self):
@@ -483,6 +495,7 @@ class TestInMemoryRateLimiter:
 # ---------------------------------------------------------------------------
 # TestRedisRateLimiter (service class)
 # ---------------------------------------------------------------------------
+
 
 class TestRedisRateLimiter:
     def test_falls_back_to_inmemory_when_redis_unavailable(self):

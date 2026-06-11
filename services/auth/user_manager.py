@@ -1,4 +1,5 @@
 """Simple user management with JSON file storage."""
+
 import bcrypt
 import json
 import logging
@@ -24,7 +25,9 @@ class UserManager:
         for fname in os.listdir(self.storage_path):
             if fname.endswith(".json"):
                 try:
-                    with open(os.path.join(self.storage_path, fname), "r", encoding="utf-8") as f:
+                    with open(
+                        os.path.join(self.storage_path, fname), "r", encoding="utf-8"
+                    ) as f:
                         data = json.load(f)
                     if data.get("username") == username:
                         raise ValueError(f"Username '{username}' already exists")
@@ -53,7 +56,9 @@ class UserManager:
                     with open(path, "r", encoding="utf-8") as f:
                         data = json.load(f)
                     if data.get("username") == username:
-                        if self._verify_password(password, data.get("password_hash", "")):
+                        if self._verify_password(
+                            password, data.get("password_hash", "")
+                        ):
                             return UserProfile(**data)
                 except (json.JSONDecodeError, OSError, KeyError, TypeError) as e:
                     logger.debug(f"Login scan error for {fname}: {e}")
@@ -90,13 +95,17 @@ class UserManager:
         for fname in sorted(os.listdir(stories_dir)):
             if fname.endswith(".json"):
                 try:
-                    with open(os.path.join(stories_dir, fname), "r", encoding="utf-8") as f:
+                    with open(
+                        os.path.join(stories_dir, fname), "r", encoding="utf-8"
+                    ) as f:
                         meta = json.load(f)
-                    result.append({
-                        "story_id": meta["story_id"],
-                        "title": meta["title"],
-                        "saved_at": meta.get("saved_at", ""),
-                    })
+                    result.append(
+                        {
+                            "story_id": meta["story_id"],
+                            "title": meta["title"],
+                            "saved_at": meta.get("saved_at", ""),
+                        }
+                    )
                 except (json.JSONDecodeError, OSError, KeyError) as e:
                     logger.debug(f"Story list error: {e}")
                     continue
@@ -120,11 +129,11 @@ class UserManager:
     # --- helpers ---
 
     def _hash_password(self, password: str) -> str:
-        return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
     def _verify_password(self, password: str, hash_str: str) -> bool:
         try:
-            return bcrypt.checkpw(password.encode('utf-8'), hash_str.encode('utf-8'))
+            return bcrypt.checkpw(password.encode("utf-8"), hash_str.encode("utf-8"))
         except (ValueError, TypeError) as e:
             logger.debug(f"Password verify failed: {e}")
             return False

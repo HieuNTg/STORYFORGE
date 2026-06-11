@@ -1,4 +1,5 @@
 """Test drama escalation and feedback loop."""
+
 from models.schemas import Relationship, RelationType
 from pipeline.layer2_enhance.simulator import DramaSimulator, ESCALATION_PATTERNS
 
@@ -11,9 +12,11 @@ def test_check_escalation_high_tension():
     sim = DramaSimulator()
     sim.relationships = [
         Relationship(
-            character_a="A", character_b="B",
+            character_a="A",
+            character_b="B",
             relation_type=RelationType.RIVAL,
-            tension=0.8, intensity=0.7,
+            tension=0.8,
+            intensity=0.7,
         )
     ]
     patterns = sim._check_escalation(round_num=1)
@@ -27,9 +30,11 @@ def test_check_escalation_low_tension():
     sim = DramaSimulator()
     sim.relationships = [
         Relationship(
-            character_a="A", character_b="B",
+            character_a="A",
+            character_b="B",
             relation_type=RelationType.ALLY,
-            tension=0.1, intensity=0.3,
+            tension=0.1,
+            intensity=0.3,
         )
     ]
     patterns = sim._check_escalation(round_num=1)
@@ -39,8 +44,18 @@ def test_check_escalation_low_tension():
 def test_check_escalation_deduplicates():
     sim = DramaSimulator()
     sim.relationships = [
-        Relationship(character_a="A", character_b="B", relation_type=RelationType.ENEMY, tension=0.9),
-        Relationship(character_a="C", character_b="D", relation_type=RelationType.ENEMY, tension=0.9),
+        Relationship(
+            character_a="A",
+            character_b="B",
+            relation_type=RelationType.ENEMY,
+            tension=0.9,
+        ),
+        Relationship(
+            character_a="C",
+            character_b="D",
+            relation_type=RelationType.ENEMY,
+            tension=0.9,
+        ),
     ]
     patterns = sim._check_escalation(round_num=1)
     types = [p.pattern_type for p in patterns]
@@ -53,9 +68,11 @@ def test_betrayal_triggers_for_ally_high_tension():
     sim = DramaSimulator()
     sim.relationships = [
         Relationship(
-            character_a="A", character_b="B",
+            character_a="A",
+            character_b="B",
             relation_type=RelationType.ALLY,
-            tension=0.9, intensity=0.8,
+            tension=0.9,
+            intensity=0.8,
         )
     ]
     patterns = sim._check_escalation(round_num=1)
@@ -68,9 +85,11 @@ def test_betrayal_does_not_trigger_for_enemy_high_tension():
     sim = DramaSimulator()
     sim.relationships = [
         Relationship(
-            character_a="A", character_b="B",
+            character_a="A",
+            character_b="B",
             relation_type=RelationType.ENEMY,
-            tension=0.9, intensity=0.8,
+            tension=0.9,
+            intensity=0.8,
         )
     ]
     patterns = sim._check_escalation(round_num=1)
@@ -84,9 +103,11 @@ def test_revelation_triggers_for_any_relationship():
         sim = DramaSimulator()
         sim.relationships = [
             Relationship(
-                character_a="A", character_b="B",
+                character_a="A",
+                character_b="B",
                 relation_type=rel_type,
-                tension=0.9, intensity=0.5,
+                tension=0.9,
+                intensity=0.5,
             )
         ]
         patterns = sim._check_escalation(round_num=1)
@@ -96,11 +117,13 @@ def test_revelation_triggers_for_any_relationship():
 
 def test_enhancer_constants():
     from pipeline.layer2_enhance.enhancer import MAX_REENHANCE_ROUNDS, MIN_DRAMA_SCORE
+
     assert MAX_REENHANCE_ROUNDS == 2
     assert MIN_DRAMA_SCORE == 0.6
 
 
 def test_enhancer_has_feedback_method():
     from pipeline.layer2_enhance.enhancer import StoryEnhancer
+
     enhancer = StoryEnhancer()
-    assert hasattr(enhancer, 'enhance_chapter')
+    assert hasattr(enhancer, "enhance_chapter")

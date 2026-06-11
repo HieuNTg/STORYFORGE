@@ -129,7 +129,9 @@ def fresh_cache(tmp_path: Path, real_embedder):
 
 
 @pytest.mark.perf
-def test_sprint2_10ch_cold_vs_warm_cache(fresh_cache, real_embedder, monkeypatch, capsys):
+def test_sprint2_10ch_cold_vs_warm_cache(
+    fresh_cache, real_embedder, monkeypatch, capsys
+):
     """Cold-cache vs warm-cache run over 10 Vietnamese chapters.
 
     Asserts: warm-cache time per chapter ≤ 1.20 × cold-cache time per chapter
@@ -180,11 +182,11 @@ def test_sprint2_10ch_cold_vs_warm_cache(fresh_cache, real_embedder, monkeypatch
     print(f"Chapters: {len(chapters)}")
     print(
         f"Cold-cache total: {cold_seconds:.3f}s "
-        f"({cold_per_chapter*1000:.1f} ms/chapter)"
+        f"({cold_per_chapter * 1000:.1f} ms/chapter)"
     )
     print(
         f"Warm-cache total: {warm_seconds:.3f}s "
-        f"({warm_per_chapter*1000:.1f} ms/chapter)"
+        f"({warm_per_chapter * 1000:.1f} ms/chapter)"
     )
     print(f"Warm/cold ratio: {ratio:.3f} (assert ≤ 1.20)")
     print(f"Cache after cold: {cache_stats_after_cold['total_entries']} entries")

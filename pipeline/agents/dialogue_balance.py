@@ -1,4 +1,5 @@
 """Agent Cân Bằng Đối Thoại - đánh giá phân bổ đối thoại và giọng riêng từng nhân vật."""
+
 from models.schemas import AgentReview, PipelineOutput
 from pipeline.agents.base_agent import BaseAgent
 from pipeline.agents import agent_prompts
@@ -11,7 +12,9 @@ class DialogueBalanceAgent(BaseAgent):
     layers = [2]
     depends_on: list[str] = ["Chuyên Gia Đối Thoại"]
 
-    def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
+    def review(
+        self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None
+    ) -> AgentReview:
         characters, chapters_excerpt = self._extract_data(output)
 
         prompt = agent_prompts.DIALOGUE_BALANCE_REVIEW.format(

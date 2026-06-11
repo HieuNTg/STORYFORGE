@@ -1,4 +1,5 @@
 """Native Google Gemini provider."""
+
 import logging
 from typing import Iterator
 
@@ -11,6 +12,7 @@ class GeminiProvider:
     def __init__(self, api_key: str, base_url: str = ""):
         try:
             from google import genai
+
             self.client = genai.Client(api_key=api_key)
             self._base_url = base_url
             self._api_key = api_key
@@ -48,9 +50,16 @@ class GeminiProvider:
                 contents.append({"role": role, "parts": [{"text": m["content"]}]})
         return system_instruction, contents
 
-    def complete(self, messages: list[dict], model: str, temperature: float,
-                 max_tokens: int, json_mode: bool = False) -> str:
+    def complete(
+        self,
+        messages: list[dict],
+        model: str,
+        temperature: float,
+        max_tokens: int,
+        json_mode: bool = False,
+    ) -> str:
         from google.genai import types
+
         system_instruction, contents = self._build_contents(messages)
         config = types.GenerateContentConfig(
             temperature=temperature,
@@ -68,9 +77,11 @@ class GeminiProvider:
             raise RuntimeError(f"LLM returned empty content (model={model})")
         return content
 
-    def stream(self, messages: list[dict], model: str, temperature: float,
-               max_tokens: int) -> Iterator[str]:
+    def stream(
+        self, messages: list[dict], model: str, temperature: float, max_tokens: int
+    ) -> Iterator[str]:
         from google.genai import types
+
         system_instruction, contents = self._build_contents(messages)
         config = types.GenerateContentConfig(
             temperature=temperature,

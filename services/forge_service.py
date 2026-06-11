@@ -115,7 +115,9 @@ def _call_llm(llm: Any, sentence: str, model: str | None) -> str:
     )
 
 
-def forge_from_sentence(llm: Any, sentence: str, model: str | None = None) -> ForgeResponse:
+def forge_from_sentence(
+    llm: Any, sentence: str, model: str | None = None
+) -> ForgeResponse:
     """Synchronous: idea → ForgeResponse. One retry on validation/parse failure.
 
     `llm` is any object with `.generate(system_prompt, user_prompt, ...)` that
@@ -132,9 +134,7 @@ def forge_from_sentence(llm: Any, sentence: str, model: str | None = None) -> Fo
             return ForgeResponse.model_validate(data)
         except Exception as e:  # noqa: BLE001 — retry once with stricter prompt
             last_error = e
-            logger.warning(
-                "forge_from_sentence attempt %d failed: %s", attempt + 1, e
-            )
+            logger.warning("forge_from_sentence attempt %d failed: %s", attempt + 1, e)
             if attempt == 0:
                 # Reword sentence to nudge model to fix structure on retry.
                 sentence = (

@@ -1,4 +1,5 @@
 """Coverage tests for PipelineOrchestrator."""
+
 from __future__ import annotations
 
 import os
@@ -18,17 +19,23 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 def _make_orchestrator(session_id: str = "test-session") -> PipelineOrchestrator:
     """Create a PipelineOrchestrator with all external deps mocked."""
     from pipeline.orchestrator import PipelineOrchestrator
+
     # Patch constructor-level heavy deps
-    with patch("pipeline.orchestrator._make_redis_client", side_effect=RuntimeError("no redis")), \
-         patch("pipeline.orchestrator.ConfigManager"), \
-         patch("pipeline.orchestrator.StoryGenerator"), \
-         patch("pipeline.orchestrator.StoryAnalyzer"), \
-         patch("pipeline.orchestrator.DramaSimulator"), \
-         patch("pipeline.orchestrator.StoryEnhancer"), \
-         patch("pipeline.orchestrator.MediaProducer"), \
-         patch("pipeline.orchestrator.PipelineExporter"), \
-         patch("pipeline.orchestrator.CheckpointManager"), \
-         patch("pipeline.orchestrator.StoryContinuation"):
+    with (
+        patch(
+            "pipeline.orchestrator._make_redis_client",
+            side_effect=RuntimeError("no redis"),
+        ),
+        patch("pipeline.orchestrator.ConfigManager"),
+        patch("pipeline.orchestrator.StoryGenerator"),
+        patch("pipeline.orchestrator.StoryAnalyzer"),
+        patch("pipeline.orchestrator.DramaSimulator"),
+        patch("pipeline.orchestrator.StoryEnhancer"),
+        patch("pipeline.orchestrator.MediaProducer"),
+        patch("pipeline.orchestrator.PipelineExporter"),
+        patch("pipeline.orchestrator.CheckpointManager"),
+        patch("pipeline.orchestrator.StoryContinuation"),
+    ):
         orch = PipelineOrchestrator(session_id=session_id)
     return orch
 
@@ -51,6 +58,7 @@ class TestPipelineOrchestratorInit:
 
     def test_output_is_pipeline_output(self):
         from models.schemas import PipelineOutput
+
         orch = _make_orchestrator()
         assert isinstance(orch.output, PipelineOutput)
 
@@ -60,6 +68,7 @@ class TestPipelineOrchestratorInit:
 
     def test_checkpoint_dir_class_attribute(self):
         from pipeline.orchestrator import PipelineOrchestrator, CHECKPOINT_DIR
+
         assert PipelineOrchestrator.CHECKPOINT_DIR == CHECKPOINT_DIR
 
 
@@ -77,6 +86,7 @@ class TestMemoryFallbackStore:
 
     def test_store_evicts_oldest_when_full(self):
         from pipeline.orchestrator import PipelineOrchestrator
+
         orch = _make_orchestrator("s3")
         # P2: memory store is now per-instance; reset via instance lock
         with orch._memory_store_lock:
@@ -154,6 +164,7 @@ class TestSessionKey:
 
     def test_session_key_format(self):
         from pipeline.orchestrator import _session_key
+
         key = _session_key("abc123", "output")
         assert "abc123" in key
         assert "output" in key
@@ -165,18 +176,23 @@ class TestRedisRequired:
 
     def test_redis_required_raises_on_missing(self):
         from pipeline.orchestrator import PipelineOrchestrator
-        with pytest.raises(Exception), \
-             patch("pipeline.orchestrator._make_redis_client",
-                   side_effect=RuntimeError("no redis")), \
-             patch("pipeline.orchestrator.ConfigManager"), \
-             patch("pipeline.orchestrator.StoryGenerator"), \
-             patch("pipeline.orchestrator.StoryAnalyzer"), \
-             patch("pipeline.orchestrator.DramaSimulator"), \
-             patch("pipeline.orchestrator.StoryEnhancer"), \
-             patch("pipeline.orchestrator.MediaProducer"), \
-             patch("pipeline.orchestrator.PipelineExporter"), \
-             patch("pipeline.orchestrator.CheckpointManager"), \
-             patch("pipeline.orchestrator.StoryContinuation"):
+
+        with (
+            pytest.raises(Exception),
+            patch(
+                "pipeline.orchestrator._make_redis_client",
+                side_effect=RuntimeError("no redis"),
+            ),
+            patch("pipeline.orchestrator.ConfigManager"),
+            patch("pipeline.orchestrator.StoryGenerator"),
+            patch("pipeline.orchestrator.StoryAnalyzer"),
+            patch("pipeline.orchestrator.DramaSimulator"),
+            patch("pipeline.orchestrator.StoryEnhancer"),
+            patch("pipeline.orchestrator.MediaProducer"),
+            patch("pipeline.orchestrator.PipelineExporter"),
+            patch("pipeline.orchestrator.CheckpointManager"),
+            patch("pipeline.orchestrator.StoryContinuation"),
+        ):
             os.environ["STORYFORGE_REDIS_REQUIRED"] = "true"
             try:
                 PipelineOrchestrator(session_id="x")

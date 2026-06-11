@@ -4,6 +4,7 @@ NegotiatedChapterContract (from models.handoff_schemas) is the single rubric
 for both L1 and L2 contract requirements. DramaContract has been removed;
 NegotiatedChapterContract carries all equivalent fields.
 """
+
 from __future__ import annotations
 
 import logging
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class ContractValidation(BaseModel):
     """Result of validating an enhanced chapter against its contract."""
+
     chapter_number: int
     passed: bool = False
     drama_actual: float = 0.0
@@ -36,7 +38,9 @@ def _clip(value: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, value))
 
 
-def build_chapter_contracts(sim_result, chapter_numbers: list[int]) -> dict[int, "NegotiatedChapterContract"]:
+def build_chapter_contracts(
+    sim_result, chapter_numbers: list[int]
+) -> dict[int, "NegotiatedChapterContract"]:
     """Derive NegotiatedChapterContract per chapter from SimulationResult.
 
     Returns a dict keyed by chapter number. Only drama-related fields are
@@ -114,6 +118,7 @@ def build_chapter_contracts(sim_result, chapter_numbers: list[int]) -> dict[int,
 
 def _extract_chapter_nums(text: str) -> list[int]:
     import re
+
     return [int(x) for x in re.findall(r"\d+", text or "")]
 
 
@@ -125,10 +130,17 @@ def validate_chapter_against_contract(
 ) -> ContractValidation:
     """Single cheap LLM call → structured validation against NegotiatedChapterContract."""
     from models.handoff_schemas import NegotiatedChapterContract  # noqa: F401 (type check)
+
     # chapter_number compat: NegotiatedChapterContract uses chapter_num
-    ch_num = getattr(contract, "chapter_num", None) or getattr(contract, "chapter_number", 0)
-    escalations = getattr(contract, "escalation_events", None) or getattr(contract, "required_escalations", [])
-    causal_refs = getattr(contract, "causal_refs", None) or getattr(contract, "required_causal_refs", [])
+    ch_num = getattr(contract, "chapter_num", None) or getattr(
+        contract, "chapter_number", 0
+    )
+    escalations = getattr(contract, "escalation_events", None) or getattr(
+        contract, "required_escalations", []
+    )
+    causal_refs = getattr(contract, "causal_refs", None) or getattr(
+        contract, "required_causal_refs", []
+    )
 
     content_excerpt = (chapter_content or "")[:4000]
     prompt = (
@@ -164,12 +176,18 @@ def validate_chapter_against_contract(
 
     if not isinstance(raw, dict):
         logger.warning("Contract validation returned non-dict for ch%d", ch_num)
-        return ContractValidation(chapter_number=ch_num, passed=False, reason="malformed")
+        return ContractValidation(
+            chapter_number=ch_num, passed=False, reason="malformed"
+        )
 
     drama_actual = _clip(float(raw.get("drama_actual", 0.0) or 0.0), 0.0, 1.0)
     missing_esc = [str(x) for x in (raw.get("missing_escalations") or []) if x]
     missing_sub = [str(x) for x in (raw.get("missing_subtext") or []) if x]
-    missing_causal = [int(x) for x in (raw.get("missing_causal_refs") or []) if str(x).lstrip("-").isdigit()]
+    missing_causal = [
+        int(x)
+        for x in (raw.get("missing_causal_refs") or [])
+        if str(x).lstrip("-").isdigit()
+    ]
     violated = [str(x) for x in (raw.get("violated_patterns") or []) if x]
 
     drama_delta = drama_actual - contract.drama_target
@@ -221,7 +239,10 @@ def build_retry_hint(validation: ContractValidation) -> str:
     if validation.missing_subtext:
         parts.append("Thiếu subtext: " + "; ".join(validation.missing_subtext))
     if validation.missing_causal_refs:
-        parts.append("Phải reference sự kiện chương: " + ", ".join(str(c) for c in validation.missing_causal_refs))
+        parts.append(
+            "Phải reference sự kiện chương: "
+            + ", ".join(str(c) for c in validation.missing_causal_refs)
+        )
     if validation.violated_patterns:
         parts.append("PHẢI LOẠI BỎ: " + "; ".join(validation.violated_patterns))
     return "\n".join(f"- {p}" for p in parts)
@@ -234,6 +255,7 @@ def build_retry_hint(validation: ContractValidation) -> str:
 
 class VoiceContract(BaseModel):
     """Per-chapter voice contract derived from unified VoiceProfile + chapter speakers."""
+
     chapter_number: int
     per_character: dict[str, dict] = Field(default_factory=dict)
     min_compliance: float = Field(default=0.75, ge=0.0, le=1.0)
@@ -261,10 +283,12 @@ def _infer_speakers(outline, characters: list | None = None) -> list[str]:
         if vals:
             return [str(v) for v in vals if v]
     # Fallback: scan key_events + summary for character names
-    text = " ".join([
-        getattr(outline, "summary", "") or "",
-        " ".join(getattr(outline, "key_events", []) or []),
-    ])
+    text = " ".join(
+        [
+            getattr(outline, "summary", "") or "",
+            " ".join(getattr(outline, "key_events", []) or []),
+        ]
+    )
     if characters:
         hits = [c.name for c in characters if getattr(c, "name", "") and c.name in text]
         if hits:
@@ -284,7 +308,11 @@ def build_voice_contracts(
     voice_profiles: either list of dicts (StoryDraft.voice_profiles) or {name: dict/VoiceProfile}.
     """
     if isinstance(voice_profiles, list):
-        vp_map = {p.get("name", ""): p for p in voice_profiles if isinstance(p, dict) and p.get("name")}
+        vp_map = {
+            p.get("name", ""): p
+            for p in voice_profiles
+            if isinstance(p, dict) and p.get("name")
+        }
     else:
         vp_map = {}
         for k, v in (voice_profiles or {}).items():
@@ -322,6 +350,7 @@ def build_voice_contracts(
 def _extract_dialogues(content: str, limit_chars: int = 4000) -> str:
     """Pull quoted segments from chapter content; fall back to raw excerpt."""
     import re as _re
+
     quotes = _re.findall(r'"([^"]{3,200})"', content or "")
     if not quotes:
         return (content or "")[:limit_chars]
@@ -379,7 +408,11 @@ def validate_chapter_voice(
             expect="dict",
         )
     except Exception as exc:
-        logger.warning("Voice validation LLM call failed for ch%d: %s", contract.chapter_number, exc)
+        logger.warning(
+            "Voice validation LLM call failed for ch%d: %s",
+            contract.chapter_number,
+            exc,
+        )
         return VoiceValidation(
             chapter_number=contract.chapter_number,
             passed=False,
@@ -387,7 +420,9 @@ def validate_chapter_voice(
         )
 
     if not isinstance(raw, dict):
-        logger.warning("Voice validation returned non-dict for ch%d", contract.chapter_number)
+        logger.warning(
+            "Voice validation returned non-dict for ch%d", contract.chapter_number
+        )
         return VoiceValidation(
             chapter_number=contract.chapter_number, passed=False, reason="malformed"
         )
@@ -442,7 +477,9 @@ def build_voice_retry_hint(validation: VoiceValidation) -> str:
     return "\n".join(f"- {p}" for p in parts)
 
 
-def aggregate_voice_stats(validations: list[VoiceValidation], llm_calls_saved: int = 0) -> dict:
+def aggregate_voice_stats(
+    validations: list[VoiceValidation], llm_calls_saved: int = 0
+) -> dict:
     """Aggregate per-chapter voice validations into analytics payload."""
     total = len(validations)
     if total == 0:

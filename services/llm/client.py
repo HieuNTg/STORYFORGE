@@ -12,8 +12,13 @@ from dataclasses import dataclass
 from typing import Optional
 
 from services.llm.retry import (
-    MAX_RETRIES, BASE_DELAY,
-    _redact, _is_transient, _is_auth_error, _detect_provider, _should_retry,
+    MAX_RETRIES,
+    BASE_DELAY,
+    _redact,
+    _is_transient,
+    _is_auth_error,
+    _detect_provider,
+    _should_retry,
     parse_openrouter_reset,
 )
 from services.llm.streaming import StreamingMixin
@@ -35,12 +40,14 @@ _retry_sleep = time.sleep
 
 class LLMBudgetExceededError(RuntimeError):
     """Raised when the global LLM wallet exceeds a configured cap (P0-7)."""
+
     pass
 
 
 @dataclass
 class LayerConfig:
     """Configuration for a specific pipeline layer."""
+
     model: str
     base_url: str
     api_key: str
@@ -123,7 +130,9 @@ def _model_matches_provider(model: str, provider: str) -> bool:
     return True  # Unknown provider, assume it matches
 
 
-def _normalize_model_for_provider(model: str, base_url: str, fallback_model: str = "") -> str:
+def _normalize_model_for_provider(
+    model: str, base_url: str, fallback_model: str = ""
+) -> str:
     """Normalize model name to match provider format.
 
     If model format doesn't match provider, attempts conversion or returns fallback.
@@ -165,6 +174,7 @@ def _normalize_model_for_provider(model: str, base_url: str, fallback_model: str
 def _imports():
     """Lazy-resolve ConfigManager/OpenAI/LLMCache through compat hub for test mock support."""
     import services.llm_client as m
+
     return m.ConfigManager, m.OpenAI, m.LLMCache
 
 
@@ -178,11 +188,19 @@ class _LegacyClientAdapter:
         self._raw = raw_client
         self.base_url = getattr(raw_client, "base_url", "")
 
-    def complete(self, messages: list, model: str, temperature: float,
-                 max_tokens: int, json_mode: bool = False) -> str:
+    def complete(
+        self,
+        messages: list,
+        model: str,
+        temperature: float,
+        max_tokens: int,
+        json_mode: bool = False,
+    ) -> str:
         kwargs = {
-            "model": model, "messages": messages,
-            "temperature": temperature, "max_tokens": max_tokens,
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
         }
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
@@ -192,11 +210,13 @@ class _LegacyClientAdapter:
             raise RuntimeError("LLM returned empty content (legacy adapter)")
         return content
 
-    def stream(self, messages: list, model: str, temperature: float,
-               max_tokens: int):
+    def stream(self, messages: list, model: str, temperature: float, max_tokens: int):
         response = self._raw.chat.completions.create(
-            model=model, messages=messages, temperature=temperature,
-            max_tokens=max_tokens, stream=True,
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=True,
         )
         for chunk in response:
             if chunk.choices and chunk.choices[0].delta.content:
@@ -211,6 +231,7 @@ def _get_provider(base_url: str, api_key: str):
     unavailable for any reason we fall back to a raw OpenAIProvider.
     """
     from services.llm.providers import get_provider
+
     return get_provider(base_url=base_url, api_key=api_key)
 
 
@@ -242,7 +263,9 @@ def _record_trace_call(
     try:
         chapter = get_chapter()
         module = get_module() or "unknown"
-        prompt_text = "".join((m.get("content") or "") for m in messages if isinstance(m, dict))
+        prompt_text = "".join(
+            (m.get("content") or "") for m in messages if isinstance(m, dict)
+        )
         prompt_tokens = _estimate_tokens(prompt_text)
         completion_tokens = _estimate_tokens(result) if success else 0
         total = prompt_tokens + completion_tokens
@@ -283,6 +306,7 @@ def _record_trace_call(
         if success and getattr(trace, "title", ""):
             try:
                 from services.usage_history import record_usage
+
                 record_usage(
                     title=trace.title,
                     model=model,
@@ -300,6 +324,7 @@ def _record_trace_call(
 @dataclass
 class WalletState:
     """Per-run LLM cost/token/call counters."""
+
     cost_usd: float = 0.0
     tokens: int = 0
     calls: int = 0
@@ -314,7 +339,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
     # Per-run wallet dict (P0-8). Key = run_id string. _wallet_run_id is the
     # default-pointer so legacy callers without run_id still work.
     _wallet_lock = threading.Lock()
-    _wallet_state: dict = {}   # dict[str, WalletState]
+    _wallet_state: dict = {}  # dict[str, WalletState]
     _wallet_run_id: str = ""
 
     @classmethod
@@ -345,6 +370,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
         Caps come from PipelineConfig: max_cost_per_run_usd, max_total_tokens_per_run,
         max_calls_per_run. A cap value of 0 means disabled.
         """
+
         def _safe_num(v, cast, default):
             try:
                 return cast(v) if isinstance(v, (int, float)) else default
@@ -409,7 +435,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
         self._providers_cache: dict = {}
         self._key_index = 0
         self._rate_limited_keys: dict[str, float] = {}
-        self._rate_limited_models: dict[str, float] = {}  # "model:api_key" -> cooldown_expiry
+        self._rate_limited_models: dict[
+            str, float
+        ] = {}  # "model:api_key" -> cooldown_expiry
         ConfigManager, _, LLMCache = _imports()
         try:
             config = ConfigManager()
@@ -603,11 +631,15 @@ class LLMClient(StreamingMixin, GenerationMixin):
         if not _model_matches_provider(cheap_model, cheap_ptype):
             primary_base = config.llm.base_url
             primary_ptype = _detect_provider_type(primary_base)
-            if cheap_base != primary_base and _model_matches_provider(cheap_model, primary_ptype):
+            if cheap_base != primary_base and _model_matches_provider(
+                cheap_model, primary_ptype
+            ):
                 logger.info(
                     "cheap_model %r incompatible with cheap_base_url (%s) — "
                     "routing to primary base_url (%s)",
-                    cheap_model, cheap_ptype, primary_ptype,
+                    cheap_model,
+                    cheap_ptype,
+                    primary_ptype,
                 )
                 cheap_base = primary_base
                 api_key = config.llm.api_key
@@ -617,7 +649,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     logger.info(
                         "cheap_model %r incompatible with cheap_base_url (%s) — "
                         "auto-resolved to %s",
-                        cheap_model, cheap_ptype, resolved["base_url"],
+                        cheap_model,
+                        cheap_ptype,
+                        resolved["base_url"],
                     )
                     cheap_base = resolved["base_url"]
                     api_key = resolved["api_key"]
@@ -628,7 +662,8 @@ class LLMClient(StreamingMixin, GenerationMixin):
                         "or api_keys[] — call will likely fail. Set cheap_base_url "
                         "to match the model's provider, or add a matching entry "
                         "to api_keys[].",
-                        cheap_model, cheap_ptype,
+                        cheap_model,
+                        cheap_ptype,
                     )
 
         with self._client_lock:
@@ -662,8 +697,12 @@ class LLMClient(StreamingMixin, GenerationMixin):
                         should_retry = _is_transient(e)
                         suggested_delay = BASE_DELAY
                     if should_retry and suggested_delay > 0:
-                        delay = max(suggested_delay, BASE_DELAY * (2 ** attempt)) + random.uniform(0, 0.5)
-                        logger.warning(f"{label} attempt {attempt+1} failed: {_redact(e)}. Retry in {delay:.1f}s")
+                        delay = max(
+                            suggested_delay, BASE_DELAY * (2**attempt)
+                        ) + random.uniform(0, 0.5)
+                        logger.warning(
+                            f"{label} attempt {attempt + 1} failed: {_redact(e)}. Retry in {delay:.1f}s"
+                        )
                         _retry_sleep(delay)
                         continue
                 break
@@ -690,9 +729,12 @@ class LLMClient(StreamingMixin, GenerationMixin):
         """
         ConfigManager, _, LLMCache = _imports()
         config = ConfigManager()
-        effective_temp = temperature if temperature is not None else config.llm.temperature
+        effective_temp = (
+            temperature if temperature is not None else config.llm.temperature
+        )
 
         from services.prompts import localize_prompt
+
         lang = config.pipeline.language
         system_prompt = localize_prompt(system_prompt, lang)
         user_prompt = localize_prompt(user_prompt, lang)
@@ -714,8 +756,10 @@ class LLMClient(StreamingMixin, GenerationMixin):
             # services.llm_client compat hub patch points.
             cache = LLMCache(ttl_days=config.llm.cache_ttl_days)
             cache_params = dict(
-                system_prompt=system_prompt, user_prompt=user_prompt,
-                model=effective_model, temperature=effective_temp,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                model=effective_model,
+                temperature=effective_temp,
                 json_mode=json_mode,
             )
             cached = cache.get(**cache_params)
@@ -726,7 +770,11 @@ class LLMClient(StreamingMixin, GenerationMixin):
         eff_max_tokens = max_tokens or config.llm.max_tokens
         if budget_remaining is not None:
             eff_max_tokens = min(eff_max_tokens, budget_remaining)
-            logger.debug("budget_remaining=%d → effective max_tokens=%d", budget_remaining, eff_max_tokens)
+            logger.debug(
+                "budget_remaining=%d → effective max_tokens=%d",
+                budget_remaining,
+                eff_max_tokens,
+            )
 
         # Chain-level retry config
         chain_retry_max = getattr(config.llm, "chain_retry_max", 2)
@@ -735,32 +783,53 @@ class LLMClient(StreamingMixin, GenerationMixin):
         last_chain_error = None
         for chain_attempt in range(chain_retry_max + 1):
             if chain_attempt > 0:
-                delay = chain_retry_base_delay * (2 ** (chain_attempt - 1)) + random.uniform(0, 5)
-                logger.warning(f"Chain exhausted, retrying entire chain in {delay:.1f}s (attempt {chain_attempt + 1}/{chain_retry_max + 1})")
+                delay = chain_retry_base_delay * (
+                    2 ** (chain_attempt - 1)
+                ) + random.uniform(0, 5)
+                logger.warning(
+                    f"Chain exhausted, retrying entire chain in {delay:.1f}s (attempt {chain_attempt + 1}/{chain_retry_max + 1})"
+                )
                 _retry_sleep(delay)
                 # Clear rate-limit state for fresh retry
                 self._rate_limited_keys.clear()
                 self._rate_limited_models.clear()
-                chain = self._build_fallback_chain(config, model_tier, model_override=model)
+                chain = self._build_fallback_chain(
+                    config, model_tier, model_override=model
+                )
 
             all_errors = []
             skip_keys: set[str] = set()
-            account_rl_reset: float | None = None  # seconds-until-reset across all exhausted OR keys
+            account_rl_reset: float | None = (
+                None  # seconds-until-reset across all exhausted OR keys
+            )
             if not chain:
-                logger.error(f"Fallback chain is EMPTY (chain attempt {chain_attempt + 1}) — check config/model availability")
+                logger.error(
+                    f"Fallback chain is EMPTY (chain attempt {chain_attempt + 1}) — check config/model availability"
+                )
             else:
-                logger.debug(f"Fallback chain has {len(chain)} entries (chain attempt {chain_attempt + 1})")
+                logger.debug(
+                    f"Fallback chain has {len(chain)} entries (chain attempt {chain_attempt + 1})"
+                )
             for entry in chain:
                 entry_key = entry.get("_api_key", "")
-                logger.debug(f"Trying {entry.get('label', '?')} (key: {entry_key[:12] if entry_key else 'none'}...)")
+                logger.debug(
+                    f"Trying {entry.get('label', '?')} (key: {entry_key[:12] if entry_key else 'none'}...)"
+                )
                 if entry_key and entry_key in skip_keys:
-                    all_errors.append(f"{entry['label']}: skipped (account rate-limited)")
+                    all_errors.append(
+                        f"{entry['label']}: skipped (account rate-limited)"
+                    )
                     continue
                 try:
                     result = self._try_provider(
                         entry, messages, effective_temp, eff_max_tokens, json_mode
                     )
-                    if use_cache and cache is not None and cache_params is not None and result.strip():
+                    if (
+                        use_cache
+                        and cache is not None
+                        and cache_params is not None
+                        and result.strip()
+                    ):
                         # Cache with actual model used (may differ from primary)
                         actual_model = entry.get("model", effective_model)
                         cache.put(result, **{**cache_params, "model": actual_model})
@@ -772,7 +841,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     all_errors.append(f"{entry['label']}: {_redact(e)}")
                     pobj = entry.get("provider") or entry.get("client")
                     provider_url = getattr(pobj, "base_url", None)
-                    provider_type = _detect_provider(str(provider_url) if provider_url else "")
+                    provider_type = _detect_provider(
+                        str(provider_url) if provider_url else ""
+                    )
                     should_try_next, suggested_delay = _should_retry(e, provider_type)
 
                     # Mark model as unhealthy for fallback manager (skip auth errors - those are config issues)
@@ -785,45 +856,75 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     if "_api_key" in entry:
                         err_str = str(e)
                         if "429" in err_str:
-                            if provider_type == "openrouter" and self._is_account_rate_limit(err_str):
+                            if (
+                                provider_type == "openrouter"
+                                and self._is_account_rate_limit(err_str)
+                            ):
                                 reset_delta = parse_openrouter_reset(err_str)
-                                cooldown = reset_delta if reset_delta is not None else 300.0
+                                cooldown = (
+                                    reset_delta if reset_delta is not None else 300.0
+                                )
                                 if reset_delta is not None:
-                                    account_rl_reset = min(account_rl_reset, reset_delta) if account_rl_reset else reset_delta
+                                    account_rl_reset = (
+                                        min(account_rl_reset, reset_delta)
+                                        if account_rl_reset
+                                        else reset_delta
+                                    )
                                 self._mark_rate_limited(entry_key, cooldown)
                                 skip_keys.add(entry_key)
-                                logger.warning("Account-level rate limit on key %s...%s — cooldown %.0fs, skipping remaining models",
-                                               entry_key[:8], entry_key[-4:] if len(entry_key) > 8 else "", cooldown)
+                                logger.warning(
+                                    "Account-level rate limit on key %s...%s — cooldown %.0fs, skipping remaining models",
+                                    entry_key[:8],
+                                    entry_key[-4:] if len(entry_key) > 8 else "",
+                                    cooldown,
+                                )
                             elif provider_type == "openrouter":
-                                self._mark_model_rate_limited(model_name, entry_key, 90.0)
+                                self._mark_model_rate_limited(
+                                    model_name, entry_key, 90.0
+                                )
                             else:
-                                self._mark_rate_limited(entry_key, suggested_delay or 60.0)
+                                self._mark_rate_limited(
+                                    entry_key, suggested_delay or 60.0
+                                )
                         elif "404" in err_str:
                             # 404 = model not available at this provider. Mark it and
                             # let the chain loop try the next entry. If the chain has no
                             # remaining peers, the natural exhaustion path at the bottom
                             # of this function raises with a clear hint.
                             if model_name:
-                                self._mark_model_rate_limited(model_name, entry_key, 600.0)
+                                self._mark_model_rate_limited(
+                                    model_name, entry_key, 600.0
+                                )
                             logger.warning(
                                 "404 for model %r at %s — rotating to next chain entry",
-                                model_name, entry.get("label", "?"),
+                                model_name,
+                                entry.get("label", "?"),
                             )
                             _force_rotate = True
-                    if not should_try_next and not _is_transient(e) and not _force_rotate:
-                        logger.error(f"FATAL: Non-retryable error from {entry.get('label', '?')}: {_redact(e)}")
+                    if (
+                        not should_try_next
+                        and not _is_transient(e)
+                        and not _force_rotate
+                    ):
+                        logger.error(
+                            f"FATAL: Non-retryable error from {entry.get('label', '?')}: {_redact(e)}"
+                        )
                         raise
                     logger.warning(f"Provider {entry['label']} failed, trying next...")
 
             # Chain exhausted this attempt
-            logger.debug(f"Chain exhausted. Tried {len(all_errors)} providers, skip_keys={[k[:12]+'...' for k in skip_keys]}")
+            logger.debug(
+                f"Chain exhausted. Tried {len(all_errors)} providers, skip_keys={[k[:12] + '...' for k in skip_keys]}"
+            )
             last_chain_error = (all_errors, account_rl_reset, chain)
 
         # All chain retries exhausted
         all_errors, account_rl_reset, chain = last_chain_error
         hint = self._build_exhaustion_hint(account_rl_reset, chain)
         error_msg = "; ".join(all_errors)
-        logger.error(f"All LLM providers failed after {chain_retry_max + 1} chain attempts: {hint} | details: {error_msg}")
+        logger.error(
+            f"All LLM providers failed after {chain_retry_max + 1} chain attempts: {hint} | details: {error_msg}"
+        )
         raise RuntimeError(f"All LLM providers failed. {hint}")
 
     @staticmethod
@@ -833,19 +934,30 @@ class LLMClient(StreamingMixin, GenerationMixin):
         Tells the user *when* OpenRouter's free tier resets and *how* to unblock
         themselves now (add credits or plug in a non-OpenRouter provider).
         """
-        only_openrouter = all(
-            "openrouter" in str(getattr(e.get("provider") or e.get("client"), "base_url", "")).lower()
-            for e in chain
-        ) if chain else False
+        only_openrouter = (
+            all(
+                "openrouter"
+                in str(
+                    getattr(e.get("provider") or e.get("client"), "base_url", "")
+                ).lower()
+                for e in chain
+            )
+            if chain
+            else False
+        )
         parts = []
         if reset_delta is not None:
             hours = reset_delta / 3600.0
             if hours >= 1:
                 parts.append(f"OpenRouter free tier resets in ~{hours:.1f}h")
             else:
-                parts.append(f"OpenRouter free tier resets in ~{reset_delta/60.0:.0f}min")
+                parts.append(
+                    f"OpenRouter free tier resets in ~{reset_delta / 60.0:.0f}min"
+                )
         if only_openrouter:
-            parts.append("To unblock now: add $10 OpenRouter credits (unlocks 1000 req/day), add more API keys in Settings > LLM, or configure a non-OpenRouter fallback (Gemini/Anthropic)")
+            parts.append(
+                "To unblock now: add $10 OpenRouter credits (unlocks 1000 req/day), add more API keys in Settings > LLM, or configure a non-OpenRouter fallback (Gemini/Anthropic)"
+            )
         return " — ".join(parts) if parts else "All LLM providers failed."
 
     def _resolve_api_keys(self, config) -> list[dict]:
@@ -859,10 +971,12 @@ class LLMClient(StreamingMixin, GenerationMixin):
             if isinstance(item, str):
                 entries.append({"base_url": config.llm.base_url, "api_key": item})
             elif isinstance(item, dict):
-                entries.append({
-                    "base_url": item.get("base_url", config.llm.base_url),
-                    "api_key": item.get("key", item.get("api_key", "")),
-                })
+                entries.append(
+                    {
+                        "base_url": item.get("base_url", config.llm.base_url),
+                        "api_key": item.get("key", item.get("api_key", "")),
+                    }
+                )
         result = []
         for e in entries:
             cooldown_until = self._rate_limited_keys.get(e["api_key"], 0)
@@ -893,10 +1007,12 @@ class LLMClient(StreamingMixin, GenerationMixin):
             remaining = max(0, int(expiry - now))
             if remaining <= 0:
                 continue
-            rl_keys.append({
-                "key_id": _redact_key_id(api_key),
-                "cooldown_remaining_s": remaining,
-            })
+            rl_keys.append(
+                {
+                    "key_id": _redact_key_id(api_key),
+                    "cooldown_remaining_s": remaining,
+                }
+            )
 
         rl_models = []
         for combo, expiry in models_snap.items():
@@ -908,21 +1024,29 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 model, api_key = combo.rsplit(":", 1)
             else:
                 model, api_key = combo, ""
-            rl_models.append({
-                "model": model,
-                "key_id": _redact_key_id(api_key) if api_key else "",
-                "cooldown_remaining_s": remaining,
-            })
+            rl_models.append(
+                {
+                    "model": model,
+                    "key_id": _redact_key_id(api_key) if api_key else "",
+                    "cooldown_remaining_s": remaining,
+                }
+            )
 
         return {"rate_limited_keys": rl_keys, "rate_limited_models": rl_models}
 
     def _mark_rate_limited(self, api_key: str, cooldown: float = 60.0):
         """Mark an API key as rate-limited for `cooldown` seconds."""
         self._rate_limited_keys[api_key] = time.time() + cooldown
-        logger.warning("API key %s...%s rate-limited, cooldown %.0fs",
-                       api_key[:8], api_key[-4:] if len(api_key) > 8 else "", cooldown)
+        logger.warning(
+            "API key %s...%s rate-limited, cooldown %.0fs",
+            api_key[:8],
+            api_key[-4:] if len(api_key) > 8 else "",
+            cooldown,
+        )
 
-    def _mark_model_rate_limited(self, model: str, api_key: str, cooldown: float = 90.0):
+    def _mark_model_rate_limited(
+        self, model: str, api_key: str, cooldown: float = 90.0
+    ):
         """Mark a model+key combo as rate-limited."""
         combo = f"{model}:{api_key}"
         self._rate_limited_models[combo] = time.time() + cooldown
@@ -976,7 +1100,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
             entry["_api_key"] = api_key
         chain.append(entry)
 
-    def _build_fallback_chain(self, config, model_tier: str, model_override: Optional[str] = None) -> list[dict]:
+    def _build_fallback_chain(
+        self, config, model_tier: str, model_override: Optional[str] = None
+    ) -> list[dict]:
         chain = []
         api_key_entries = self._resolve_api_keys(config)
         fm = get_fallback_manager()
@@ -996,20 +1122,30 @@ class LLMClient(StreamingMixin, GenerationMixin):
             if not _model_matches_provider(model_override, primary_ptype):
                 resolved = self._find_backend_for_model(config, model_override)
                 if resolved is not None:
-                    promoted = {"base_url": resolved["base_url"], "api_key": resolved["api_key"]}
+                    promoted = {
+                        "base_url": resolved["base_url"],
+                        "api_key": resolved["api_key"],
+                    }
                     # Deduplicate: drop existing entry with same (base_url, api_key)
                     api_key_entries = [promoted] + [
-                        e for e in api_key_entries
-                        if not (e.get("base_url") == promoted["base_url"]
-                                and e.get("api_key") == promoted["api_key"])
+                        e
+                        for e in api_key_entries
+                        if not (
+                            e.get("base_url") == promoted["base_url"]
+                            and e.get("api_key") == promoted["api_key"]
+                        )
                     ]
 
         primary_model = _normalize_model_for_provider(
-            raw_model, api_key_entries[0]["base_url"] if api_key_entries else config.llm.base_url, default_model
+            raw_model,
+            api_key_entries[0]["base_url"] if api_key_entries else config.llm.base_url,
+            default_model,
         )
 
         # Detect which provider types we have
-        provider_types = {self._detect_provider_type(e.get("base_url", "")) for e in api_key_entries}
+        provider_types = {
+            self._detect_provider_type(e.get("base_url", "")) for e in api_key_entries
+        }
 
         # Lazy-load model lists
         openrouter_models: list[str] = []
@@ -1026,22 +1162,28 @@ class LLMClient(StreamingMixin, GenerationMixin):
         cheap_model_name = None
         if model_tier == "cheap" and config.llm.cheap_model:
             provider, cheap_model_name = self._get_cheap_client()
-            self._add_to_chain(chain, provider, cheap_model_name, f"cheap:{cheap_model_name}")
+            self._add_to_chain(
+                chain, provider, cheap_model_name, f"cheap:{cheap_model_name}"
+            )
 
         # Primary + round-robin models across all API keys
         for i, entry in enumerate(api_key_entries):
             base_url, api_key = entry["base_url"], entry["api_key"]
             prov = self._get_or_create_provider(base_url, api_key)
-            key_label = "primary" if i == 0 else f"key-{i+1}"
+            key_label = "primary" if i == 0 else f"key-{i + 1}"
             ptype = self._detect_provider_type(base_url)
 
             # Add primary model (skip if cheap tier already added it or format mismatch)
             # Primary model (i==0) is ALWAYS added — latency/health checks only for fallbacks
-            if cheap_model_name is None and _model_matches_provider(primary_model, ptype):
-                is_primary = (i == 0)
+            if cheap_model_name is None and _model_matches_provider(
+                primary_model, ptype
+            ):
+                is_primary = i == 0
                 if is_primary:
                     # Always add primary model — it's the user's configured choice
-                    label = f"{key_label}:{primary_model}" if model_override else key_label
+                    label = (
+                        f"{key_label}:{primary_model}" if model_override else key_label
+                    )
                     self._add_to_chain(chain, prov, primary_model, label, api_key)
                 else:
                     # Secondary keys: check if model is usable
@@ -1050,7 +1192,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
                         label = f"{key_label}:{primary_model}"
                         self._add_to_chain(chain, prov, primary_model, label, api_key)
                     elif reason:
-                        logger.debug(f"Skipping {primary_model} on {key_label}: {reason}")
+                        logger.debug(
+                            f"Skipping {primary_model} on {key_label}: {reason}"
+                        )
             elif cheap_model_name is None:
                 logger.debug(f"Model {primary_model} doesn't match provider {ptype}")
 
@@ -1067,7 +1211,13 @@ class LLMClient(StreamingMixin, GenerationMixin):
                         continue
                     can_use, reason = self._can_use_model(model_name, api_key, fm)
                     if can_use:
-                        self._add_to_chain(chain, prov, model_name, f"{key_label}:rr:{model_name}", api_key)
+                        self._add_to_chain(
+                            chain,
+                            prov,
+                            model_name,
+                            f"{key_label}:rr:{model_name}",
+                            api_key,
+                        )
                     elif reason:
                         logger.debug(f"Skipping {model_name}: {reason}")
 
@@ -1078,7 +1228,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
 
         # Configured fallback models
         existing_combos = {(c["model"], c.get("_api_key", "")) for c in chain}
-        for fb in getattr(config.llm, 'fallback_models', []):
+        for fb in getattr(config.llm, "fallback_models", []):
             fb_model = fb.get("model", "")
             if not fb_model or fb.get("enabled") is False:
                 continue
@@ -1091,9 +1241,16 @@ class LLMClient(StreamingMixin, GenerationMixin):
 
             # Add configured fallback model
             if (fb_model, fb_key) not in existing_combos:
-                can_use, reason = self._can_use_model(fb_model, fb_key, fm, fb_cost, )
+                can_use, reason = self._can_use_model(
+                    fb_model,
+                    fb_key,
+                    fm,
+                    fb_cost,
+                )
                 if can_use:
-                    self._add_to_chain(chain, fb_prov, fb_model, f"fallback:{fb_model}", fb_key)
+                    self._add_to_chain(
+                        chain, fb_prov, fb_model, f"fallback:{fb_model}", fb_key
+                    )
                     existing_combos.add((fb_model, fb_key))
                 elif reason:
                     logger.warning(f"Skipping fallback {fb_model}: {reason}")
@@ -1107,7 +1264,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 if ptype == "kyma" and not kyma_models:
                     kyma_models = self._get_kyma_models(config, primary_model)
                 elif ptype == "openrouter" and not openrouter_models:
-                    openrouter_models = self._get_openrouter_free_models(config, primary_model)
+                    openrouter_models = self._get_openrouter_free_models(
+                        config, primary_model
+                    )
                 elif ptype == "google" and not gemini_models:
                     gemini_models = self._get_gemini_models(config, primary_model)
 
@@ -1120,15 +1279,26 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 for model_name in models:
                     if (model_name, fb_key) in existing_combos:
                         continue
-                    can_use, reason = self._can_use_model(model_name, fb_key, fm, )
+                    can_use, reason = self._can_use_model(
+                        model_name,
+                        fb_key,
+                        fm,
+                    )
                     if can_use:
-                        self._add_to_chain(chain, fb_prov, model_name, f"fallback:rr:{model_name}", fb_key)
+                        self._add_to_chain(
+                            chain,
+                            fb_prov,
+                            model_name,
+                            f"fallback:rr:{model_name}",
+                            fb_key,
+                        )
                         existing_combos.add((model_name, fb_key))
                     elif reason:
                         logger.warning(f"Skipping fallback:rr:{model_name}: {reason}")
 
         # Auto-add Z.AI from environment if available and not already in chain
         import os
+
         zai_key = os.environ.get("ZAI_API_KEY", "")
         if zai_key and not any(
             self._detect_provider_type(e.get("base_url", "")) == "zai"
@@ -1151,6 +1321,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
         """Get all free OpenRouter models, primary first."""
         try:
             from services.openrouter_model_discovery import get_free_models
+
             api_key = config.llm.api_key
             models = get_free_models(api_key=api_key)
             # Primary model first, then the rest
@@ -1169,6 +1340,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
         """Get all Kyma models, primary first."""
         try:
             from services.kyma_model_discovery import get_kyma_models
+
             api_key = config.llm.api_key
             models = get_kyma_models(api_key=api_key)
             ordered = []
@@ -1190,6 +1362,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
         """
         try:
             from services.gemini_model_discovery import get_gemini_models
+
             # Prefer the key that will actually call Gemini. Primary base_url
             # may not be Google — scan api_keys for a google entry first.
             google_key = ""
@@ -1197,7 +1370,10 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 google_key = config.llm.api_key
             else:
                 for item in getattr(config.llm, "api_keys", []) or []:
-                    if isinstance(item, dict) and _detect_provider_type(item.get("base_url", "")) == "google":
+                    if (
+                        isinstance(item, dict)
+                        and _detect_provider_type(item.get("base_url", "")) == "google"
+                    ):
                         google_key = item.get("key", item.get("api_key", ""))
                         break
             models = get_gemini_models(api_key=google_key)
@@ -1212,8 +1388,14 @@ class LLMClient(StreamingMixin, GenerationMixin):
             logger.warning("Failed to fetch Gemini models for round-robin: %s", e)
             return []
 
-    def _try_provider(self, entry: dict, messages: list, temperature: float,
-                      max_tokens: int, json_mode: bool) -> str:
+    def _try_provider(
+        self,
+        entry: dict,
+        messages: list,
+        temperature: float,
+        max_tokens: int,
+        json_mode: bool,
+    ) -> str:
         # Support legacy {"client": ..., "model": ...} entries (test mocks use this form)
         if "client" in entry and "provider" not in entry:
             raw_client = entry["client"]
@@ -1230,7 +1412,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
         def _call():
             start_time = time.monotonic()
             try:
-                result = provider.complete(messages, model, temperature, max_tokens, json_mode)
+                result = provider.complete(
+                    messages, model, temperature, max_tokens, json_mode
+                )
                 latency_ms = (time.monotonic() - start_time) * 1000
 
                 # Track latency for fallback decisions
@@ -1240,15 +1424,23 @@ class LLMClient(StreamingMixin, GenerationMixin):
 
                 logger.info(f"LLM success via {entry['label']} ({latency_ms:.0f}ms)")
                 _record_trace_call(
-                    model=model, model_tier=tier_label, messages=messages, result=result,
-                    duration_ms=int(latency_ms), success=True, error="",
+                    model=model,
+                    model_tier=tier_label,
+                    messages=messages,
+                    result=result,
+                    duration_ms=int(latency_ms),
+                    success=True,
+                    error="",
                 )
                 # Charge the global wallet (P0-7). Raises LLMBudgetExceededError
                 # if a configured cap is exceeded — propagates to abort the run.
                 try:
                     from services.llm_pricing import compute_cost
+
                     prompt_text = "".join(
-                        (m.get("content") or "") for m in messages if isinstance(m, dict)
+                        (m.get("content") or "")
+                        for m in messages
+                        if isinstance(m, dict)
                     )
                     p_tokens = _estimate_tokens(prompt_text)
                     c_tokens = _estimate_tokens(result)
@@ -1262,8 +1454,13 @@ class LLMClient(StreamingMixin, GenerationMixin):
             except Exception as exc:
                 latency_ms = (time.monotonic() - start_time) * 1000
                 _record_trace_call(
-                    model=model, model_tier=tier_label, messages=messages, result="",
-                    duration_ms=int(latency_ms), success=False, error=str(exc)[:200],
+                    model=model,
+                    model_tier=tier_label,
+                    messages=messages,
+                    result="",
+                    duration_ms=int(latency_ms),
+                    success=False,
+                    error=str(exc)[:200],
                 )
                 raise
 
@@ -1288,6 +1485,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
         `self.llm.generate(...)` with `await self.llm.agenerate(...)`.
         """
         import asyncio
+
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
             None,
@@ -1318,6 +1516,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
         `self.llm.generate_json(...)` with `await self.llm.agenerate_json(...)`.
         """
         import asyncio
+
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
             None,
@@ -1356,12 +1555,15 @@ class LLMClient(StreamingMixin, GenerationMixin):
             # Layer has dedicated provider — prepend to fallback chain
             ConfigManager, _, LLMCache = _imports()
             config = ConfigManager()
-            effective_temp = temperature if temperature is not None else config.llm.temperature
+            effective_temp = (
+                temperature if temperature is not None else config.llm.temperature
+            )
             eff_max_tokens = max_tokens or config.llm.max_tokens
             if budget_remaining is not None:
                 eff_max_tokens = min(eff_max_tokens, budget_remaining)
 
             from services.prompts import localize_prompt
+
             lang = config.pipeline.language
             system_prompt = localize_prompt(system_prompt, lang)
             user_prompt = localize_prompt(user_prompt, lang)
@@ -1372,7 +1574,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
             ]
 
             # Build chain: layer provider first, then standard fallback chain
-            layer_provider = self._get_or_create_provider(layer_cfg.base_url, layer_cfg.api_key)
+            layer_provider = self._get_or_create_provider(
+                layer_cfg.base_url, layer_cfg.api_key
+            )
             layer_entry = {
                 "provider": layer_provider,
                 "model": layer_cfg.model,
@@ -1381,13 +1585,22 @@ class LLMClient(StreamingMixin, GenerationMixin):
             }
 
             # Standard fallback chain as backup
-            fallback_chain = self._build_fallback_chain(config, "default", model_override=None)
+            fallback_chain = self._build_fallback_chain(
+                config, "default", model_override=None
+            )
 
             # Full chain: layer-specific first, then fallbacks
             chain = [layer_entry] + fallback_chain
 
             # Use same retry logic as generate()
-            from services.llm.retry import _redact, _detect_provider, _should_retry, _is_transient, _is_auth_error, parse_openrouter_reset
+            from services.llm.retry import (
+                _redact,
+                _detect_provider,
+                _should_retry,
+                _is_transient,
+                _is_auth_error,
+                parse_openrouter_reset,
+            )
 
             all_errors = []
             skip_keys: set[str] = set()
@@ -1397,15 +1610,21 @@ class LLMClient(StreamingMixin, GenerationMixin):
             for entry in chain:
                 entry_key = entry.get("_api_key", "")
                 if entry_key and entry_key in skip_keys:
-                    all_errors.append(f"{entry['label']}: skipped (account rate-limited)")
+                    all_errors.append(
+                        f"{entry['label']}: skipped (account rate-limited)"
+                    )
                     continue
                 try:
-                    return self._try_provider(entry, messages, effective_temp, eff_max_tokens, json_mode)
+                    return self._try_provider(
+                        entry, messages, effective_temp, eff_max_tokens, json_mode
+                    )
                 except Exception as e:
                     all_errors.append(f"{entry['label']}: {_redact(e)}")
                     pobj = entry.get("provider")
                     provider_url = getattr(pobj, "base_url", None)
-                    provider_type = _detect_provider(str(provider_url) if provider_url else "")
+                    provider_type = _detect_provider(
+                        str(provider_url) if provider_url else ""
+                    )
                     should_try_next, suggested_delay = _should_retry(e, provider_type)
 
                     model_name = entry.get("model", "")
@@ -1415,28 +1634,46 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     if entry_key:
                         err_str = str(e)
                         if "429" in err_str:
-                            if provider_type == "openrouter" and self._is_account_rate_limit(err_str):
+                            if (
+                                provider_type == "openrouter"
+                                and self._is_account_rate_limit(err_str)
+                            ):
                                 reset_delta = parse_openrouter_reset(err_str)
-                                cooldown = reset_delta if reset_delta is not None else 300.0
+                                cooldown = (
+                                    reset_delta if reset_delta is not None else 300.0
+                                )
                                 if reset_delta is not None:
-                                    account_rl_reset = min(account_rl_reset, reset_delta) if account_rl_reset else reset_delta
+                                    account_rl_reset = (
+                                        min(account_rl_reset, reset_delta)
+                                        if account_rl_reset
+                                        else reset_delta
+                                    )
                                 self._mark_rate_limited(entry_key, cooldown)
                                 skip_keys.add(entry_key)
                             elif provider_type == "openrouter":
-                                self._mark_model_rate_limited(model_name, entry_key, 90.0)
+                                self._mark_model_rate_limited(
+                                    model_name, entry_key, 90.0
+                                )
                             else:
-                                self._mark_rate_limited(entry_key, suggested_delay or 60.0)
+                                self._mark_rate_limited(
+                                    entry_key, suggested_delay or 60.0
+                                )
                         elif "404" in err_str:
                             try:
                                 _cfg = _imports()[0]()
                                 _fb_names = [
-                                    f.get("model", "") for f in (getattr(_cfg.llm, "fallback_models", []) or [])
+                                    f.get("model", "")
+                                    for f in (
+                                        getattr(_cfg.llm, "fallback_models", []) or []
+                                    )
                                     if isinstance(f, dict)
                                 ]
                             except Exception:
                                 _fb_names = []
                             if model_name and model_name in _fb_names:
-                                self._mark_model_rate_limited(model_name, entry_key, 600.0)
+                                self._mark_model_rate_limited(
+                                    model_name, entry_key, 600.0
+                                )
                             else:
                                 logger.error(
                                     "404 for model %r not in fallback_models — failing loud (user config error)",
@@ -1450,7 +1687,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
 
             hint = self._build_exhaustion_hint(account_rl_reset, chain)
             error_msg = "; ".join(all_errors)
-            logger.error(f"All LLM providers failed for layer {layer}: {hint} | details: {error_msg}")
+            logger.error(
+                f"All LLM providers failed for layer {layer}: {hint} | details: {error_msg}"
+            )
             raise RuntimeError(f"All LLM providers failed for layer {layer}. {hint}")
 
         # No layer-specific provider — use standard generate with model override
@@ -1476,6 +1715,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
     ) -> str:
         """Async wrapper around generate_for_layer()."""
         import asyncio
+
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
             None,
@@ -1494,4 +1734,5 @@ class LLMClient(StreamingMixin, GenerationMixin):
     def _repair_json(text: str) -> str:
         """Backward-compat static method — delegates to generation module."""
         from services.llm.generation import _repair_json
+
         return _repair_json(text)

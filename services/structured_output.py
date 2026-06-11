@@ -113,7 +113,9 @@ def generate_structured(
 
     if use_json_mode:
         # Native JSON mode — provider enforces well-formed JSON output
-        logger.debug("generate_structured: using json_object mode (provider=%s)", provider)
+        logger.debug(
+            "generate_structured: using json_object mode (provider=%s)", provider
+        )
         raw = client.generate(
             system_prompt=system_prompt,
             user_prompt=prompt,
@@ -125,7 +127,9 @@ def generate_structured(
         )
     else:
         # Regex fallback — add JSON instruction to prompt
-        logger.debug("generate_structured: using regex extraction (provider=%s)", provider)
+        logger.debug(
+            "generate_structured: using regex extraction (provider=%s)", provider
+        )
         json_hint = (
             "\n\nIMPORTANT: Your response must be a single valid JSON object with no "
             "surrounding text, markdown, or code fences."

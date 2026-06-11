@@ -27,7 +27,11 @@ _CYBERPUNK_RULES: dict[str, Any] = {
     ],
     "tension_curve": "escalating_spiral",
     "dialogue_style": "đường phố kỹ thuật số",
-    "emotional_peaks": ["lộ bí mật tập đoàn", "khủng hoảng bản sắc", "hy sinh vì tự do"],
+    "emotional_peaks": [
+        "lộ bí mật tập đoàn",
+        "khủng hoảng bản sắc",
+        "hy sinh vì tự do",
+    ],
     "pacing_note": "Căng thẳng công nghệ xen kẽ với xung đột nhân tính mỗi 6-8 chương",
 }
 
@@ -41,12 +45,19 @@ class CustomGenrePlugin(StoryForgePlugin):
 
     def register(self) -> None:
         """Validate that our rules dict has the expected structure."""
-        required = {"escalation_pattern", "key_beats", "tension_curve", "dialogue_style"}
+        required = {
+            "escalation_pattern",
+            "key_beats",
+            "tension_curve",
+            "dialogue_style",
+        }
         missing = required - _CYBERPUNK_RULES.keys()
         if missing:
             raise ValueError(f"CustomGenrePlugin: missing rule keys {missing}")
 
-    def on_genre_rules(self, genre: str, rules: dict[str, Any]) -> dict[str, Any] | None:
+    def on_genre_rules(
+        self, genre: str, rules: dict[str, Any]
+    ) -> dict[str, Any] | None:
         """Inject Cyberpunk VN rules when the genre matches.
 
         Returns the custom rules dict for "Cyberpunk VN" (case-insensitive match).
@@ -68,7 +79,12 @@ class CustomGenrePlugin(StoryForgePlugin):
             adjusted["drama"] = min(5.0, drama + 0.1)
             # Recalculate overall if present
             if "overall" in adjusted:
-                dim_keys = ["coherence", "character_consistency", "drama", "writing_quality"]
+                dim_keys = [
+                    "coherence",
+                    "character_consistency",
+                    "drama",
+                    "writing_quality",
+                ]
                 present = [adjusted[k] for k in dim_keys if k in adjusted]
                 if present:
                     adjusted["overall"] = round(sum(present) / len(present), 4)

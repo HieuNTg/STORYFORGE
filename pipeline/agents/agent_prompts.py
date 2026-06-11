@@ -11,10 +11,12 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # Path to user-customizable prompt file
-_PROMPTS_FILE = Path(os.environ.get(
-    "STORYFORGE_PROMPTS_FILE",
-    Path(__file__).resolve().parents[2] / "data" / "prompts" / "agent_prompts.yaml",
-))
+_PROMPTS_FILE = Path(
+    os.environ.get(
+        "STORYFORGE_PROMPTS_FILE",
+        Path(__file__).resolve().parents[2] / "data" / "prompts" / "agent_prompts.yaml",
+    )
+)
 
 # ── Lane contract boundary (shared across all craft agents) ─────────────
 # Lane contract: debate panel agents critique craft (pacing/prose/dialogue
@@ -51,7 +53,6 @@ Yêu cầu: Trả về JSON theo định dạng sau (không có markdown):
 {{"score": 0.0-1.0, "issues": ["vấn đề 1", "vấn đề 2"], "suggestions": ["gợi ý 1", "gợi ý 2"]}}
 
 Trong đó score: 1.0 = xuất sắc, 0.6 = đạt yêu cầu, dưới 0.4 = cần làm lại.""",
-
     "CHARACTER_REVIEW": """Bạn là Chuyên Gia Nhân Vật, kiểm tra tính nhất quán của nhân vật xuyên suốt tác phẩm.
 
 PHẠM VI: Bạn là editor critique craft (pacing, prose, dialogue rhythm, continuity, voice). KHÔNG được đề xuất thay đổi plot, character motivation, drama, hay conflict mới. Nếu thấy vấn đề plot, ghi chú trong `issues` nhưng KHÔNG đưa vào `suggestions`.
@@ -72,7 +73,6 @@ Yêu cầu: Trả về JSON theo định dạng sau (không có markdown):
 {{"score": 0.0-1.0, "issues": ["mâu thuẫn 1", "mâu thuẫn 2"], "suggestions": ["gợi ý sửa 1", "gợi ý sửa 2"]}}
 
 Trong đó score: 1.0 = không có mâu thuẫn, 0.6 = vài lỗi nhỏ, dưới 0.4 = nhiều lỗi nghiêm trọng.""",
-
     "DIALOGUE_REVIEW": """Bạn là Chuyên Gia Đối Thoại, đánh giá chất lượng lời thoại trong tác phẩm.
 
 PHẠM VI: Bạn là editor critique craft (pacing, prose, dialogue rhythm, continuity, voice). KHÔNG được đề xuất thay đổi plot, character motivation, drama, hay conflict mới. Nếu thấy vấn đề plot, ghi chú trong `issues` nhưng KHÔNG đưa vào `suggestions`.
@@ -90,7 +90,6 @@ Yêu cầu: Trả về JSON theo định dạng sau (không có markdown):
 {{"score": 0.0-1.0, "issues": ["lỗi thoại 1", "lỗi thoại 2"], "suggestions": ["cải thiện 1", "cải thiện 2"]}}
 
 Trong đó score: 1.0 = đối thoại xuất sắc, 0.6 = tạm được, dưới 0.4 = cần viết lại nhiều.""",
-
     "DRAMA_REVIEW": """Bạn là Nhà Phê Bình Kịch Tính, đánh giá mức độ hấp dẫn và kịch tính của tác phẩm.
 
 PHẠM VI: Bạn là editor critique craft (pacing, prose, dialogue rhythm, continuity, voice). KHÔNG được đề xuất thay đổi plot, character motivation, drama, hay conflict mới. Nếu thấy vấn đề plot, ghi chú trong `issues` nhưng KHÔNG đưa vào `suggestions`.
@@ -111,7 +110,6 @@ Yêu cầu: Trả về JSON theo định dạng sau (không có markdown):
 {{"score": 0.0-1.0, "issues": ["điểm yếu 1", "điểm yếu 2"], "suggestions": ["tăng kịch tính 1", "tăng kịch tính 2"]}}
 
 Trong đó score: 1.0 = rất kịch tính, 0.6 = đủ thu hút, dưới 0.4 = nhạt nhẽo cần làm lại.""",
-
     "CONTINUITY_REVIEW": """Bạn là Kiểm Soát Viên, chuyên tìm lỗi liên tục (continuity errors) trong tác phẩm.
 
 PHẠM VI: Bạn là editor critique craft (pacing, prose, dialogue rhythm, continuity, voice). KHÔNG được đề xuất thay đổi plot, character motivation, drama, hay conflict mới. Nếu thấy vấn đề plot, ghi chú trong `issues` nhưng KHÔNG đưa vào `suggestions`.
@@ -132,7 +130,6 @@ Yêu cầu: Trả về JSON theo định dạng sau (không có markdown):
 {{"score": 0.0-1.0, "issues": ["lỗi liên tục 1", "lỗi liên tục 2"], "suggestions": ["cách sửa 1", "cách sửa 2"]}}
 
 Trong đó score: 1.0 = không lỗi, 0.6 = vài lỗi nhỏ, dưới 0.4 = nhiều lỗi ảnh hưởng mạch truyện.""",
-
     "STYLE_REVIEW": """Bạn là biên tập viên chuyên về phong cách văn học Việt Nam. Đánh giá tính nhất quán về tone, giọng văn, và phong cách viết. Trả về JSON.
 
 PHẠM VI: Bạn là editor critique craft (pacing, prose, dialogue rhythm, continuity, voice). KHÔNG được đề xuất thay đổi plot, character motivation, drama, hay conflict mới. Nếu thấy vấn đề plot, ghi chú trong `issues` nhưng KHÔNG đưa vào `suggestions`.
@@ -150,7 +147,6 @@ Yêu cầu: Trả về JSON theo định dạng sau (không có markdown):
 {{"score": 0.0-1.0, "issues": ["vấn đề văn phong 1", "vấn đề văn phong 2"], "suggestions": ["gợi ý 1", "gợi ý 2"]}}
 
 Trong đó score: 1.0 = phong cách nhất quán xuất sắc, 0.6 = có vài điểm lệch nhỏ, dưới 0.4 = văn phong không nhất quán nghiêm trọng.""",
-
     "PACING_REVIEW": """Bạn là chuyên gia phân tích nhịp điệu truyện. Đánh giá pacing dựa trên dữ liệu thống kê. Trả về JSON.
 
 PHẠM VI: Bạn là editor critique craft (pacing, prose, dialogue rhythm, continuity, voice). KHÔNG được đề xuất thay đổi plot, character motivation, drama, hay conflict mới. Nếu thấy vấn đề plot, ghi chú trong `issues` nhưng KHÔNG đưa vào `suggestions`.
@@ -168,7 +164,6 @@ Yêu cầu: Trả về JSON theo định dạng sau (không có markdown):
 {{"score": 0.0-1.0, "issues": ["vấn đề nhịp 1", "vấn đề nhịp 2"], "suggestions": ["gợi ý cải thiện 1", "gợi ý cải thiện 2"]}}
 
 Trong đó score: 1.0 = nhịp điệu hoàn hảo, 0.6 = đủ ổn, dưới 0.4 = nhịp điệu có vấn đề nghiêm trọng.""",
-
     "DIALOGUE_BALANCE_REVIEW": """Bạn là chuyên gia đối thoại văn học. Đánh giá mỗi nhân vật có giọng riêng không. Trả về JSON.
 
 PHẠM VI: Bạn là editor critique craft (pacing, prose, dialogue rhythm, continuity, voice). KHÔNG được đề xuất thay đổi plot, character motivation, drama, hay conflict mới. Nếu thấy vấn đề plot, ghi chú trong `issues` nhưng KHÔNG đưa vào `suggestions`.
@@ -189,7 +184,6 @@ Yêu cầu: Trả về JSON theo định dạng sau (không có markdown):
 {{"score": 0.0-1.0, "issues": ["vấn đề 1", "vấn đề 2"], "suggestions": ["gợi ý 1", "gợi ý 2"]}}
 
 Trong đó score: 1.0 = mỗi nhân vật giọng riêng rõ ràng, 0.6 = phân biệt được phần lớn, dưới 0.4 = thoại nhân vật khó phân biệt.""",
-
     "DRAMA_DEBATE": """Bạn là Nhà Phê Bình Kịch Tính tham gia vòng tranh luận với các chuyên gia khác.
 
 Đánh giá của bạn (Round 1):
@@ -214,7 +208,6 @@ Trả về JSON hợp lệ (không markdown):
 {{"entries": [{{"stance": "challenge" hoặc "support" hoặc "neutral", "target_agent": "tên agent", "target_issue": "vấn đề cụ thể", "reasoning": "lý do dựa trên bằng chứng", "revised_score": 0.0-1.0}}]}}
 
 Nếu không có gì cần phản đối hay ủng hộ, trả về: {{"entries": []}}""",
-
     "CHARACTER_DEBATE": """Bạn là Chuyên Gia Nhân Vật tham gia vòng tranh luận với các chuyên gia khác.
 
 Đánh giá của bạn (Round 1):
@@ -252,6 +245,7 @@ def _load_custom_prompts() -> dict:
     try:
         # Use yaml if available, otherwise skip custom prompts
         import yaml  # noqa: F811
+
         with open(_PROMPTS_FILE, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         if isinstance(data, dict):

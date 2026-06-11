@@ -17,7 +17,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-_PACING_LABELS = ("setup", "rising", "climax", "twist", "falling", "resolution", "slow", "fast")
+_PACING_LABELS = (
+    "setup",
+    "rising",
+    "climax",
+    "twist",
+    "falling",
+    "resolution",
+    "slow",
+    "fast",
+)
 
 
 _CLASSIFY_PROMPT = """Phân loại nhịp độ (pacing) của chương truyện sau.
@@ -58,7 +67,9 @@ def verify_pacing(
     if not content or not target_pacing:
         return {}
     target = target_pacing.strip().lower()
-    excerpt = content[:2000] + ("\n...\n" + content[-1000:] if len(content) > 3000 else "")
+    excerpt = content[:2000] + (
+        "\n...\n" + content[-1000:] if len(content) > 3000 else ""
+    )
     prompt = _CLASSIFY_PROMPT.format(excerpt=excerpt)
     try:
         result = llm.generate_json(
@@ -120,11 +131,14 @@ def rewrite_for_pacing(
     if not content or not target_pacing:
         return content
     from services.text_utils import build_idea_header
+
     idea_header = build_idea_header(idea, idea_summary) if idea else ""
     prompt = _REWRITE_PROMPT.format(
         user_story_idea_header=idea_header,
-        target=target_pacing, current=current_pacing or "không rõ",
-        reason=reason or "nhịp độ không khớp", content=content,
+        target=target_pacing,
+        current=current_pacing or "không rõ",
+        reason=reason or "nhịp độ không khớp",
+        content=content,
     )
     try:
         revised = llm.generate(
@@ -133,7 +147,9 @@ def rewrite_for_pacing(
             model=model,
             max_tokens=8192,
         )
-        if isinstance(revised, str) and len(revised) > max(100, int(len(content) * 0.5)):
+        if isinstance(revised, str) and len(revised) > max(
+            100, int(len(content) * 0.5)
+        ):
             return strip_llm_preamble(revised)
         logger.warning(
             "rewrite_for_pacing: response too short (%d chars), keeping original",

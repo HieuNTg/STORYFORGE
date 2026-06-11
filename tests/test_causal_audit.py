@@ -4,10 +4,15 @@ from unittest.mock import MagicMock
 
 
 from pipeline.layer2_enhance.causal_chain import (
-    CausalEvent, CausalGraph, record_revelation_event, audit_revelation_causality,
+    CausalEvent,
+    CausalGraph,
+    record_revelation_event,
+    audit_revelation_causality,
 )
 from pipeline.layer2_enhance.knowledge_system import (
-    KnowledgeRegistry, KnowledgeItem, RevealEntry,
+    KnowledgeRegistry,
+    KnowledgeItem,
+    RevealEntry,
 )
 
 
@@ -54,7 +59,9 @@ def test_knowledge_item_reveal_log_default():
 
 def test_reveal_to_appends_log_and_sets_round():
     reg = KnowledgeRegistry()
-    reg.items["s1"] = KnowledgeItem(fact_id="s1", content="c", known_by=["A"], is_secret=True)
+    reg.items["s1"] = KnowledgeItem(
+        fact_id="s1", content="c", known_by=["A"], is_secret=True
+    )
     entry = reg.reveal_to("s1", "B", round_num=3, source="revealed")
     assert entry is not None and entry.char == "B" and entry.round == 3
     item = reg.items["s1"]
@@ -103,11 +110,15 @@ def test_infer_cause_strict_for_non_revelation():
 def test_record_revelation_event_links_to_prior():
     g = CausalGraph()
     reg = KnowledgeRegistry()
-    reg.items["secret_M"] = KnowledgeItem(fact_id="secret_M", content="c", known_by=["M"], is_secret=True)
+    reg.items["secret_M"] = KnowledgeItem(
+        fact_id="secret_M", content="c", known_by=["M"], is_secret=True
+    )
     # first reveal → records event, prior_id empty
     id1 = record_revelation_event(g, reg, "secret_M", "M", "A", round_num=1)
     assert id1 and id1 in g.events
-    reg.items["secret_M"].reveal_log.append(RevealEntry(char="A", round=1, event_id=id1))
+    reg.items["secret_M"].reveal_log.append(
+        RevealEntry(char="A", round=1, event_id=id1)
+    )
     # second reveal → should link cause to id1
     id2 = record_revelation_event(g, reg, "secret_M", "A", "B", round_num=2)
     assert id2 and g.events[id2].cause_event_id == id1
@@ -126,13 +137,18 @@ def test_record_revelation_event_unknown_fact():
 def test_witness_propagation_within_window():
     reg = KnowledgeRegistry()
     reg.items["s1"] = KnowledgeItem(
-        fact_id="s1", content="kho vàng ẩn giấu phía bắc rừng",
-        known_by=["M"], is_secret=True, dramatic_irony=False,
+        fact_id="s1",
+        content="kho vàng ẩn giấu phía bắc rừng",
+        known_by=["M"],
+        is_secret=True,
+        dramatic_irony=False,
     )
     post = _make_post("M", content="kho vàng ẩn giấu phía bắc", target="A", round_num=2)
     witness_post = _make_post("W", content="hỏi thăm", target="", round_num=2)
     reg.check_revelation_triggers(
-        [post, witness_post], round_num=2, all_posts=[post, witness_post],
+        [post, witness_post],
+        round_num=2,
+        all_posts=[post, witness_post],
     )
     item = reg.items["s1"]
     assert "A" in item.known_by
@@ -144,13 +160,18 @@ def test_witness_propagation_within_window():
 def test_witness_propagation_skipped_for_dramatic_irony():
     reg = KnowledgeRegistry()
     reg.items["s1"] = KnowledgeItem(
-        fact_id="s1", content="kho vàng ẩn giấu phía bắc rừng",
-        known_by=["M"], is_secret=True, dramatic_irony=True,
+        fact_id="s1",
+        content="kho vàng ẩn giấu phía bắc rừng",
+        known_by=["M"],
+        is_secret=True,
+        dramatic_irony=True,
     )
     post = _make_post("M", content="kho vàng ẩn giấu phía bắc", target="A", round_num=2)
     witness_post = _make_post("W", content="x", target="", round_num=2)
     reg.check_revelation_triggers(
-        [post, witness_post], round_num=2, all_posts=[post, witness_post],
+        [post, witness_post],
+        round_num=2,
+        all_posts=[post, witness_post],
     )
     item = reg.items["s1"]
     assert "A" in item.known_by
@@ -160,13 +181,18 @@ def test_witness_propagation_skipped_for_dramatic_irony():
 def test_witness_cap_at_3():
     reg = KnowledgeRegistry()
     reg.items["s1"] = KnowledgeItem(
-        fact_id="s1", content="kho vàng ẩn giấu phía bắc rừng",
-        known_by=["M"], is_secret=True, dramatic_irony=False,
+        fact_id="s1",
+        content="kho vàng ẩn giấu phía bắc rừng",
+        known_by=["M"],
+        is_secret=True,
+        dramatic_irony=False,
     )
     post = _make_post("M", content="kho vàng ẩn giấu phía bắc", target="A", round_num=2)
     witnesses = [_make_post(f"W{i}", content="x", round_num=2) for i in range(6)]
     reg.check_revelation_triggers(
-        [post] + witnesses, round_num=2, all_posts=[post] + witnesses,
+        [post] + witnesses,
+        round_num=2,
+        all_posts=[post] + witnesses,
     )
     item = reg.items["s1"]
     witness_names = {e.char for e in item.reveal_log if e.source == "witness"}
@@ -175,7 +201,11 @@ def test_witness_cap_at_3():
 
 def test_audit_skipped_when_flag_off():
     violations = audit_revelation_causality(
-        llm_client=MagicMock(), graph=None, registry=None, enhanced_chapters=[], enabled=False,
+        llm_client=MagicMock(),
+        graph=None,
+        registry=None,
+        enhanced_chapters=[],
+        enabled=False,
     )
     assert violations == []
 
@@ -183,7 +213,10 @@ def test_audit_skipped_when_flag_off():
 def test_audit_empty_registry_returns_empty():
     reg = KnowledgeRegistry()
     violations = audit_revelation_causality(
-        llm_client=MagicMock(), graph=None, registry=reg, enhanced_chapters=[MagicMock()],
+        llm_client=MagicMock(),
+        graph=None,
+        registry=reg,
+        enhanced_chapters=[MagicMock()],
     )
     assert violations == []
 
@@ -191,17 +224,21 @@ def test_audit_empty_registry_returns_empty():
 def test_audit_flags_unknown_claimed_source():
     reg = KnowledgeRegistry()
     reg.items["secret_M"] = KnowledgeItem(
-        fact_id="secret_M", content="kho vàng ẩn giấu phía bắc",
-        known_by=["M"], is_secret=True,
+        fact_id="secret_M",
+        content="kho vàng ẩn giấu phía bắc",
+        known_by=["M"],
+        is_secret=True,
     )
     ch = MagicMock(chapter_number=1, content="Z nói với B về kho vàng ẩn giấu phía bắc")
     llm = MagicMock()
     llm.generate_json.return_value = {
-        "fact_mentions": [{
-            "fact": "kho vàng ẩn giấu phía bắc",
-            "claimed_source": "Z",
-            "sentence": "Z nói với B về kho vàng ẩn giấu phía bắc",
-        }]
+        "fact_mentions": [
+            {
+                "fact": "kho vàng ẩn giấu phía bắc",
+                "claimed_source": "Z",
+                "sentence": "Z nói với B về kho vàng ẩn giấu phía bắc",
+            }
+        ]
     }
     violations = audit_revelation_causality(llm, CausalGraph(), reg, [ch])
     assert len(violations) == 1
@@ -212,8 +249,10 @@ def test_audit_flags_unknown_claimed_source():
 def test_audit_accepts_revealer_within_first_two():
     reg = KnowledgeRegistry()
     item = KnowledgeItem(
-        fact_id="secret_M", content="kho vàng ẩn giấu phía bắc",
-        known_by=["M", "A", "B"], is_secret=True,
+        fact_id="secret_M",
+        content="kho vàng ẩn giấu phía bắc",
+        known_by=["M", "A", "B"],
+        is_secret=True,
     )
     item.reveal_log = [
         RevealEntry(char="A", round=1, source="revealed"),
@@ -223,11 +262,13 @@ def test_audit_accepts_revealer_within_first_two():
     ch = MagicMock(chapter_number=2, content="B nói với C về kho vàng ẩn giấu phía bắc")
     llm = MagicMock()
     llm.generate_json.return_value = {
-        "fact_mentions": [{
-            "fact": "kho vàng ẩn giấu phía bắc",
-            "claimed_source": "B",
-            "sentence": "B nói với C về kho vàng ẩn giấu phía bắc",
-        }]
+        "fact_mentions": [
+            {
+                "fact": "kho vàng ẩn giấu phía bắc",
+                "claimed_source": "B",
+                "sentence": "B nói với C về kho vàng ẩn giấu phía bắc",
+            }
+        ]
     }
     violations = audit_revelation_causality(llm, CausalGraph(), reg, [ch])
     # B is in reveal_log (position 2) — within first 2, so not flagged as wrong
@@ -237,15 +278,21 @@ def test_audit_accepts_revealer_within_first_two():
 def test_audit_ignores_mentions_not_in_content():
     reg = KnowledgeRegistry()
     reg.items["s1"] = KnowledgeItem(
-        fact_id="s1", content="kho vàng ẩn giấu", known_by=["M"], is_secret=True,
+        fact_id="s1",
+        content="kho vàng ẩn giấu",
+        known_by=["M"],
+        is_secret=True,
     )
     ch = MagicMock(chapter_number=1, content="some other chapter text")
     llm = MagicMock()
     llm.generate_json.return_value = {
-        "fact_mentions": [{
-            "fact": "kho vàng ẩn giấu", "claimed_source": "Z",
-            "sentence": "phantom sentence not in content",
-        }]
+        "fact_mentions": [
+            {
+                "fact": "kho vàng ẩn giấu",
+                "claimed_source": "Z",
+                "sentence": "phantom sentence not in content",
+            }
+        ]
     }
     violations = audit_revelation_causality(llm, CausalGraph(), reg, [ch])
     assert violations == []

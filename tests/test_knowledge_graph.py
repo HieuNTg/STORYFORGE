@@ -12,12 +12,15 @@ from unittest.mock import patch
 # Helper: build a graph with pure Python backend regardless of NetworkX
 # ---------------------------------------------------------------------------
 
+
 def _make_pure_python_graph():
     """Return a StoryKnowledgeGraph forced to use the pure Python fallback."""
     import services.knowledge_graph as kg_module
+
     original = kg_module.HAS_NETWORKX
     kg_module.HAS_NETWORKX = False
     from services.knowledge_graph import StoryKnowledgeGraph
+
     g = StoryKnowledgeGraph()
     kg_module.HAS_NETWORKX = original
     return g
@@ -27,9 +30,11 @@ def _make_pure_python_graph():
 # Unit tests
 # ---------------------------------------------------------------------------
 
+
 class TestAddNodes(unittest.TestCase):
     def setUp(self):
         from services.knowledge_graph import StoryKnowledgeGraph
+
         self.kg = StoryKnowledgeGraph()
 
     def test_add_character(self):
@@ -62,6 +67,7 @@ class TestAddNodes(unittest.TestCase):
 class TestAddRelationship(unittest.TestCase):
     def setUp(self):
         from services.knowledge_graph import StoryKnowledgeGraph
+
         self.kg = StoryKnowledgeGraph()
         self.kg.add_character("Alice")
         self.kg.add_character("Bob")
@@ -89,6 +95,7 @@ class TestAddRelationship(unittest.TestCase):
 class TestGetChapterEvents(unittest.TestCase):
     def setUp(self):
         from services.knowledge_graph import StoryKnowledgeGraph
+
         self.kg = StoryKnowledgeGraph()
         self.kg.add_event("e1", "Chapter 1 event", chapter=1)
         self.kg.add_event("e2", "Chapter 2 event", chapter=2)
@@ -110,6 +117,7 @@ class TestGetChapterEvents(unittest.TestCase):
 class TestGetCharacterTimeline(unittest.TestCase):
     def setUp(self):
         from services.knowledge_graph import StoryKnowledgeGraph
+
         self.kg = StoryKnowledgeGraph()
         self.kg.add_character("Alice")
         self.kg.add_event("e3", "Late event", chapter=3, characters=["Alice"])
@@ -133,6 +141,7 @@ class TestGetCharacterTimeline(unittest.TestCase):
 class TestGetAllCharacters(unittest.TestCase):
     def setUp(self):
         from services.knowledge_graph import StoryKnowledgeGraph
+
         self.kg = StoryKnowledgeGraph()
 
     def test_empty_graph(self):
@@ -149,6 +158,7 @@ class TestGetAllCharacters(unittest.TestCase):
 class TestNodeEdgeCount(unittest.TestCase):
     def setUp(self):
         from services.knowledge_graph import StoryKnowledgeGraph
+
         self.kg = StoryKnowledgeGraph()
 
     def test_empty_graph_counts(self):
@@ -166,6 +176,7 @@ class TestNodeEdgeCount(unittest.TestCase):
 class TestToSummary(unittest.TestCase):
     def setUp(self):
         from services.knowledge_graph import StoryKnowledgeGraph
+
         self.kg = StoryKnowledgeGraph()
 
     def test_summary_contains_header(self):
@@ -196,6 +207,7 @@ class TestToSummary(unittest.TestCase):
 class TestSaveLoad(unittest.TestCase):
     def test_save_load_roundtrip(self):
         from services.knowledge_graph import StoryKnowledgeGraph
+
         kg = StoryKnowledgeGraph()
         kg.add_character("Alice", {"role": "hero"})
         kg.add_location("Hanoi")
@@ -216,6 +228,7 @@ class TestSaveLoad(unittest.TestCase):
 
     def test_save_creates_file(self):
         from services.knowledge_graph import StoryKnowledgeGraph
+
         kg = StoryKnowledgeGraph()
         kg.add_character("Test")
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
@@ -262,6 +275,7 @@ class TestBuildFromStoryDraft(unittest.TestCase):
 
     def test_characters_added(self):
         from services.knowledge_graph import StoryKnowledgeGraph
+
         draft = self._make_mock_draft()
         kg = StoryKnowledgeGraph().build_from_story_draft(draft)
         names = [c["name"] for c in kg.get_all_characters()]
@@ -270,6 +284,7 @@ class TestBuildFromStoryDraft(unittest.TestCase):
 
     def test_plot_events_added(self):
         from services.knowledge_graph import StoryKnowledgeGraph
+
         draft = self._make_mock_draft()
         kg = StoryKnowledgeGraph().build_from_story_draft(draft)
         events = kg.get_chapter_events(1)
@@ -277,6 +292,7 @@ class TestBuildFromStoryDraft(unittest.TestCase):
 
     def test_relationships_parsed(self):
         from services.knowledge_graph import StoryKnowledgeGraph
+
         draft = self._make_mock_draft()
         kg = StoryKnowledgeGraph().build_from_story_draft(draft)
         rels = kg.get_character_relationships("Alice")
@@ -286,7 +302,10 @@ class TestBuildFromStoryDraft(unittest.TestCase):
 
     def test_story_context_states(self):
         from services.knowledge_graph import StoryKnowledgeGraph
-        state = types.SimpleNamespace(name="Alice", mood="happy", arc_position="rising", last_action="fought")
+
+        state = types.SimpleNamespace(
+            name="Alice", mood="happy", arc_position="rising", last_action="fought"
+        )
         ctx = types.SimpleNamespace(
             plot_events=[],
             character_states=[state],
@@ -298,6 +317,7 @@ class TestBuildFromStoryDraft(unittest.TestCase):
 
     def test_empty_draft(self):
         from services.knowledge_graph import StoryKnowledgeGraph
+
         draft = types.SimpleNamespace(characters=[], plot_events=[], story_context=None)
         kg = StoryKnowledgeGraph().build_from_story_draft(draft)
         self.assertEqual(kg.node_count(), 0)
@@ -309,6 +329,7 @@ class TestPurePythonFallback(unittest.TestCase):
     def setUp(self):
         """Patch HAS_NETWORKX=False for the entire test method."""
         import services.knowledge_graph as kg_module
+
         self._patcher = patch.object(kg_module, "HAS_NETWORKX", False)
         self._patcher.start()
 
@@ -317,6 +338,7 @@ class TestPurePythonFallback(unittest.TestCase):
 
     def _kg(self):
         from services.knowledge_graph import StoryKnowledgeGraph
+
         return StoryKnowledgeGraph()
 
     def test_add_character_fallback(self):
@@ -385,6 +407,7 @@ class TestPurePythonFallback(unittest.TestCase):
 class TestEmptyGraphOperations(unittest.TestCase):
     def setUp(self):
         from services.knowledge_graph import StoryKnowledgeGraph
+
         self.kg = StoryKnowledgeGraph()
 
     def test_get_all_characters_empty(self):
@@ -413,12 +436,14 @@ class TestEmptyGraphOperations(unittest.TestCase):
 class TestPipelineOutputField(unittest.TestCase):
     def test_knowledge_graph_summary_field_exists(self):
         from models.schemas import PipelineOutput
+
         output = PipelineOutput()
         self.assertTrue(hasattr(output, "knowledge_graph_summary"))
         self.assertEqual(output.knowledge_graph_summary, "")
 
     def test_field_accepts_string(self):
         from models.schemas import PipelineOutput
+
         output = PipelineOutput(knowledge_graph_summary="test summary")
         self.assertEqual(output.knowledge_graph_summary, "test summary")
 

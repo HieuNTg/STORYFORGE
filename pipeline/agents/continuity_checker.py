@@ -1,4 +1,5 @@
 """Agent Kiểm Soát Viên - phát hiện lỗi liên tục trong câu chuyện."""
+
 from models.schemas import AgentReview, PipelineOutput
 from pipeline.agents.base_agent import BaseAgent
 from pipeline.agents import agent_prompts
@@ -11,7 +12,9 @@ class ContinuityCheckerAgent(BaseAgent):
     layers = [1, 2, 3]
     depends_on: list[str] = ["Chuyên Gia Nhân Vật"]
 
-    def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
+    def review(
+        self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None
+    ) -> AgentReview:
         world_setting, chapters_content = self._extract_data(output, layer)
 
         prompt = agent_prompts.CONTINUITY_REVIEW.format(
@@ -21,6 +24,7 @@ class ContinuityCheckerAgent(BaseAgent):
 
         try:
             from services.rag_knowledge_base import RAGKnowledgeBase
+
             rag = RAGKnowledgeBase()
             context_results = rag.query(chapters_content[:500], n_results=3)
             if context_results:

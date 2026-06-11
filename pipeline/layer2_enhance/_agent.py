@@ -4,16 +4,28 @@ from models.schemas import Character, AgentPost, CharacterPsychology
 
 # Tension deltas by relationship type
 TENSION_DELTAS = {
-    "đồng_minh": -0.1, "liên_minh": -0.1, "đối_thủ": 0.2,
-    "kẻ_thù": 0.3, "phản_bội": 0.3, "tình_nhân": -0.15,
-    "sư_phụ": -0.05, "gia_đình": -0.1, "chưa_rõ": 0.0,
+    "đồng_minh": -0.1,
+    "liên_minh": -0.1,
+    "đối_thủ": 0.2,
+    "kẻ_thù": 0.3,
+    "phản_bội": 0.3,
+    "tình_nhân": -0.15,
+    "sư_phụ": -0.05,
+    "gia_đình": -0.1,
+    "chưa_rõ": 0.0,
 }
 
 # Moods and their drama multipliers
 MOOD_DRAMA = {
-    "bình_thường": 1.0, "tức_giận": 1.5, "sợ_hãi": 1.3,
-    "đau_khổ": 1.4, "hận_thù": 1.8, "yêu": 1.2,
-    "tham_lam": 1.3, "kiêu_ngạo": 1.4, "tuyệt_vọng": 1.6,
+    "bình_thường": 1.0,
+    "tức_giận": 1.5,
+    "sợ_hãi": 1.3,
+    "đau_khổ": 1.4,
+    "hận_thù": 1.8,
+    "yêu": 1.2,
+    "tham_lam": 1.3,
+    "kiêu_ngạo": 1.4,
+    "tuyệt_vọng": 1.6,
     "quyết_tâm": 1.1,
 }
 
@@ -37,7 +49,9 @@ class EmotionalState:
         self.energy: float = 0.7  # 0=exhausted, 1=peak
         self.stakes: float = 0.3  # 0=nothing to lose, 1=everything at stake
         self.mood_history: list[str] = []
-        self.arc_trajectory: list[tuple[int, str, float]] = []  # (vòng, tâm_trạng, drama_multiplier)
+        self.arc_trajectory: list[
+            tuple[int, str, float]
+        ] = []  # (vòng, tâm_trạng, drama_multiplier)
 
     def update(self, new_mood: str, energy_delta: float = 0, stakes_delta: float = 0):
         """Update emotional state. Records history."""
@@ -149,7 +163,14 @@ class CharacterAgent:
 
     def _score_importance(self, event: str) -> float:
         """Chấm điểm độ quan trọng của ký ức. Sự kiện leo thang/có liên quan trực tiếp được điểm cao hơn."""
-        escalation_keywords = {"phản_bội", "tiết_lộ", "đối_đầu", "hy_sinh", "đảo_ngược", "escalation"}
+        escalation_keywords = {
+            "phản_bội",
+            "tiết_lộ",
+            "đối_đầu",
+            "hy_sinh",
+            "đảo_ngược",
+            "escalation",
+        }
         if any(kw in event for kw in escalation_keywords):
             return 1.0
         if self.character.name in event:
@@ -159,7 +180,9 @@ class CharacterAgent:
     def _prune_memory(self):
         """Xóa ký ức kém quan trọng nhất để duy trì giới hạn 50."""
         while len(self.memory) > 50:
-            min_idx = min(range(len(self._memory_scores)), key=lambda i: self._memory_scores[i])
+            min_idx = min(
+                range(len(self._memory_scores)), key=lambda i: self._memory_scores[i]
+            )
             self.memory.pop(min_idx)
             self._memory_scores.pop(min_idx)
 
@@ -188,7 +211,10 @@ class CharacterAgent:
             vuln_avg = sum(
                 v.drama_multiplier for v in self.psychology.vulnerabilities
             ) / len(self.psychology.vulnerabilities)
-            blended = vuln_avg * (1.0 + self.psychology.pressure) + self.emotion.drama_multiplier * 0.3
+            blended = (
+                vuln_avg * (1.0 + self.psychology.pressure)
+                + self.emotion.drama_multiplier * 0.3
+            )
             return min(3.0, max(self.emotion.drama_multiplier, blended))
         return self.emotion.drama_multiplier
 
@@ -202,10 +228,11 @@ class CharacterAgent:
     def get_emotional_context(self) -> str:
         """Format emotional state + trust + psychology for prompt injection."""
         trust_text = ", ".join(
-            f"{name}: {edge.trust:.0f}/100"
-            for name, edge in self.trust_map.items()
+            f"{name}: {edge.trust:.0f}/100" for name, edge in self.trust_map.items()
         )
-        base = f"{self.emotion.to_prompt_text()} | Tin tưởng: [{trust_text or 'chưa rõ'}]"
+        base = (
+            f"{self.emotion.to_prompt_text()} | Tin tưởng: [{trust_text or 'chưa rõ'}]"
+        )
         if self.psychology:
             psych_parts = []
             if self.psychology.goals.fear:

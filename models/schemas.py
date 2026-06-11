@@ -8,13 +8,15 @@ from enum import Enum
 
 def count_words(text: str) -> int:
     """Count words accurately — filters out standalone punctuation tokens."""
-    return len([w for w in text.split() if re.search(r'\w', w)])
+    return len([w for w in text.split() if re.search(r"\w", w)])
 
 
 # === Layer 1: Tạo truyện ===
 
+
 class Character(BaseModel):
     """Nhân vật trong truyện."""
+
     name: str = Field(description="Tên nhân vật")
     role: str = Field(description="Vai trò: chính/phụ/phản diện")
     personality: str = Field(default="Chưa xác định", description="Tính cách")
@@ -28,17 +30,32 @@ class Character(BaseModel):
         if isinstance(v, list):
             return ", ".join(str(x) for x in v if x)
         return "Chưa xác định"
+
     background: str = Field(default="", description="Tiểu sử")
     motivation: str = Field(default="", description="Động lực")
     appearance: str = Field(default="", description="Ngoại hình")
     relationships: list[str] = Field(default_factory=list, description="Mối quan hệ")
     reference_image: str = Field(default="", description="Ảnh tham chiếu nhân vật")
-    arc_trajectory: str = Field(default="", description="Character transformation arc, e.g. 'từ hèn nhát → can đảm'")
-    internal_conflict: str = Field(default="", description="Core internal conflict driving character")
-    breaking_point: str = Field(default="", description="Event that triggers character transformation")
-    secret: str = Field(default="", description="Hidden information that shifts dynamics when revealed")
-    speech_pattern: str = Field(default="", description="Distinctive speech style: formal/slang/archaic/etc")
-    arc_waypoints: list[dict] = Field(default_factory=list, description="Structured arc stages — each dict is an ArcWaypoint")
+    arc_trajectory: str = Field(
+        default="",
+        description="Character transformation arc, e.g. 'từ hèn nhát → can đảm'",
+    )
+    internal_conflict: str = Field(
+        default="", description="Core internal conflict driving character"
+    )
+    breaking_point: str = Field(
+        default="", description="Event that triggers character transformation"
+    )
+    secret: str = Field(
+        default="", description="Hidden information that shifts dynamics when revealed"
+    )
+    speech_pattern: str = Field(
+        default="", description="Distinctive speech style: formal/slang/archaic/etc"
+    )
+    arc_waypoints: list[dict] = Field(
+        default_factory=list,
+        description="Structured arc stages — each dict is an ArcWaypoint",
+    )
 
     @field_validator("relationships", mode="before")
     @classmethod
@@ -61,7 +78,10 @@ class Character(BaseModel):
             for item in v:
                 if isinstance(item, dict):
                     char_name = item.get("character", item.get("name", ""))
-                    desc = item.get("description", item.get("relation", item.get("relationship", "")))
+                    desc = item.get(
+                        "description",
+                        item.get("relation", item.get("relationship", "")),
+                    )
                     if char_name and desc:
                         normalized.append(f"{char_name}: {desc}")
                     elif char_name:
@@ -76,6 +96,7 @@ class Character(BaseModel):
 
 class WorldSetting(BaseModel):
     """Bối cảnh thế giới."""
+
     name: str = Field(description="Tên thế giới/bối cảnh")
     description: str = Field(description="Mô tả chi tiết")
     rules: list[str] = Field(default_factory=list, description="Quy tắc thế giới")
@@ -85,54 +106,102 @@ class WorldSetting(BaseModel):
 
 class StructuredSummary(BaseModel):
     """Rich chapter summary for better context tracking."""
-    plot_critical_events: list[str] = Field(default_factory=list, description="Events that affect future chapters")
-    character_developments: list[str] = Field(default_factory=list, description="Character growth moments")
-    open_questions: list[str] = Field(default_factory=list, description="Questions reader will have")
+
+    plot_critical_events: list[str] = Field(
+        default_factory=list, description="Events that affect future chapters"
+    )
+    character_developments: list[str] = Field(
+        default_factory=list, description="Character growth moments"
+    )
+    open_questions: list[str] = Field(
+        default_factory=list, description="Questions reader will have"
+    )
     emotional_shift: str = Field(default="", description="How emotional tone changed")
-    threads_advanced: list[str] = Field(default_factory=list, description="Thread IDs that progressed")
-    threads_opened: list[str] = Field(default_factory=list, description="New thread IDs introduced")
-    threads_resolved: list[str] = Field(default_factory=list, description="Thread IDs resolved")
-    chapter_ending_hook: str = Field(default="", description="Cliffhanger hoặc khoảnh khắc chưa giải quyết cuối chương")
-    actual_emotional_arc: str = Field(default="", description="Cung bậc cảm xúc thực sự trong chương")
+    threads_advanced: list[str] = Field(
+        default_factory=list, description="Thread IDs that progressed"
+    )
+    threads_opened: list[str] = Field(
+        default_factory=list, description="New thread IDs introduced"
+    )
+    threads_resolved: list[str] = Field(
+        default_factory=list, description="Thread IDs resolved"
+    )
+    chapter_ending_hook: str = Field(
+        default="",
+        description="Cliffhanger hoặc khoảnh khắc chưa giải quyết cuối chương",
+    )
+    actual_emotional_arc: str = Field(
+        default="", description="Cung bậc cảm xúc thực sự trong chương"
+    )
 
 
 class ChapterOutline(BaseModel):
     """Dàn ý 1 chương."""
+
     chapter_number: int
     title: str
     summary: str = Field(description="Tóm tắt nội dung")
     key_events: list[str] = Field(default_factory=list, description="Sự kiện chính")
     characters_involved: list[str] = Field(default_factory=list)
     emotional_arc: str = Field(default="", description="Cung bậc cảm xúc")
-    pacing_type: str = Field(default="rising", description="Pacing: setup/rising/climax/cooldown/twist")
-    foreshadowing_plants: list[str] = Field(default_factory=list, description="Seeds to plant for future payoff")
-    payoff_references: list[str] = Field(default_factory=list, description="Earlier foreshadowing to pay off in this chapter")
-    arc_id: int = Field(default=0, description="Which macro arc this chapter belongs to")
+    pacing_type: str = Field(
+        default="rising", description="Pacing: setup/rising/climax/cooldown/twist"
+    )
+    foreshadowing_plants: list[str] = Field(
+        default_factory=list, description="Seeds to plant for future payoff"
+    )
+    payoff_references: list[str] = Field(
+        default_factory=list,
+        description="Earlier foreshadowing to pay off in this chapter",
+    )
+    arc_id: int = Field(
+        default=0, description="Which macro arc this chapter belongs to"
+    )
 
 
 class Chapter(BaseModel):
     """Một chương truyện hoàn chỉnh."""
+
     chapter_number: int
     title: str
     content: str
     word_count: int = 0
     summary: str = ""
-    structured_summary: Optional[StructuredSummary] = Field(default=None, description="Rich structured summary")
-    enhancement_changelog: list[str] = Field(default_factory=list, description="Log các thay đổi trong quá trình tăng cường kịch tính")
-    contract: Optional["ChapterContract"] = Field(default=None, description="L1-generated per-chapter requirements contract")
+    structured_summary: Optional[StructuredSummary] = Field(
+        default=None, description="Rich structured summary"
+    )
+    enhancement_changelog: list[str] = Field(
+        default_factory=list,
+        description="Log các thay đổi trong quá trình tăng cường kịch tính",
+    )
+    contract: Optional["ChapterContract"] = Field(
+        default=None, description="L1-generated per-chapter requirements contract"
+    )
     # Sprint 1 Task 3: L2 drama-contract validation (dict to avoid forward-ref cycles)
-    contract_validation: Optional[dict] = Field(default=None, description="L2 drama contract validation result")
+    contract_validation: Optional[dict] = Field(
+        default=None, description="L2 drama contract validation result"
+    )
     # Sprint 2 Task 2: L2 voice-contract validation (dict to avoid cycles)
-    voice_validation: Optional[dict] = Field(default=None, description="L2 voice contract validation result")
+    voice_validation: Optional[dict] = Field(
+        default=None, description="L2 voice contract validation result"
+    )
     # Per-chapter generated images, served via /media static mount as basenames
-    images: list[str] = Field(default_factory=list, description="Generated image filenames (relative to /media mount)")
+    images: list[str] = Field(
+        default_factory=list,
+        description="Generated image filenames (relative to /media mount)",
+    )
     # Comic Phase 2: Beat→Shot-list for this chapter (spec §4.2), carried alongside
     # panels so Phase 3's page compositor can consume dialogue/layout/screen_side.
     # None when the comic shot-list stage is disabled. Stored as a plain dict to
     # avoid a forward-ref cycle on ShotList.
-    shot_list: Optional[dict] = Field(default=None, description="Comic shot-list JSON (Phase 2)")
+    shot_list: Optional[dict] = Field(
+        default=None, description="Comic shot-list JSON (Phase 2)"
+    )
     # Sprint 2 P3: semantic findings from foreshadowing_verifier (persisted to chapters.semantic_findings)
-    semantic_findings: Optional[dict] = Field(default=None, description="SemanticPayoffMatch results — persisted to DB by orchestrator")
+    semantic_findings: Optional[dict] = Field(
+        default=None,
+        description="SemanticPayoffMatch results — persisted to DB by orchestrator",
+    )
 
 
 class VoiceProfile(BaseModel):
@@ -141,18 +210,23 @@ class VoiceProfile(BaseModel):
     Backward-compatible superset of former L1 dict and former L2 VoiceProfile.
     Extra fields allowed so legacy serialized stories still load.
     """
+
     model_config = ConfigDict(extra="allow")
 
     name: str
     # L1 prescriptive
-    vocabulary_level: str = ""                      # formal | casual | archaic | mixed | simple | moderate | sophisticated
-    sentence_style: str = ""                        # short_punchy | long_flowing | fragmented | poetic
+    vocabulary_level: str = (
+        ""  # formal | casual | archaic | mixed | simple | moderate | sophisticated
+    )
+    sentence_style: str = ""  # short_punchy | long_flowing | fragmented | poetic
     verbal_tics: list[str] = Field(default_factory=list)
-    emotional_expression: dict[str, str] = Field(default_factory=dict)  # anger/joy/sadness → how expressed
+    emotional_expression: dict[str, str] = Field(
+        default_factory=dict
+    )  # anger/joy/sadness → how expressed
     dialogue_examples: list[str] = Field(default_factory=list)
     # L2 observed (post-generation; zero-LLM stats)
     observed_avg_sentence_length: float = 0.0
-    observed_formality: str = ""                    # casual | neutral | formal | mixed
+    observed_formality: str = ""  # casual | neutral | formal | mixed
     observed_samples: list[str] = Field(default_factory=list)
     # Legacy L2 fields (optional, deprecated — kept for serialization compat)
     avg_sentence_length: float = 0.0
@@ -162,11 +236,12 @@ class VoiceProfile(BaseModel):
     accent_markers: list[str] = Field(default_factory=list)
     typical_topics: list[str] = Field(default_factory=list)
     # Meta
-    source: str = "L1"                              # "L1" | "L1+L2"
+    source: str = "L1"  # "L1" | "L1+L2"
 
 
 class CharacterState(BaseModel):
     """Trạng thái nhân vật thay đổi theo chương."""
+
     name: str
     mood: str = ""
     arc_position: str = ""  # e.g., "rising", "crisis", "resolution"
@@ -179,24 +254,37 @@ class CharacterState(BaseModel):
 
 class ArcDirective(BaseModel):
     """User-specified character arc steering directive for continuation."""
+
     character: str = Field(description="Character name to steer")
-    from_state: str = Field(description="Current/starting arc state (e.g., 'villain', 'naive')")
+    from_state: str = Field(
+        description="Current/starting arc state (e.g., 'villain', 'naive')"
+    )
     to_state: str = Field(description="Target arc state (e.g., 'redeemed', 'wise')")
-    chapter_span: int = Field(default=5, ge=1, le=50, description="Number of chapters for arc transition")
+    chapter_span: int = Field(
+        default=5, ge=1, le=50, description="Number of chapters for arc transition"
+    )
     notes: str = Field(default="", description="Optional guidance for arc progression")
 
 
 class PathPreview(BaseModel):
     """A single continuation path alternative with outlines."""
+
     path_id: str = Field(description="Unique path identifier (e.g., 'path_1')")
     theme: str = Field(description="Brief description of this path's direction/theme")
-    tone: str = Field(default="", description="Emotional tone of this path (e.g., 'dark', 'hopeful')")
-    outlines: list = Field(default_factory=list, description="List of ChapterOutline dicts for this path")
+    tone: str = Field(
+        default="", description="Emotional tone of this path (e.g., 'dark', 'hopeful')"
+    )
+    outlines: list = Field(
+        default_factory=list, description="List of ChapterOutline dicts for this path"
+    )
 
 
 class MergeConflict(BaseModel):
     """A detected conflict between two branch paths."""
-    conflict_type: str = Field(description="Type: 'character_state', 'timeline', 'fact', 'location'")
+
+    conflict_type: str = Field(
+        description="Type: 'character_state', 'timeline', 'fact', 'location'"
+    )
     description: str = Field(description="Description of the contradiction")
     source_a: str = Field(description="Text from first branch")
     source_b: str = Field(description="Text from second branch")
@@ -205,10 +293,13 @@ class MergeConflict(BaseModel):
 
 class MergeResult(BaseModel):
     """Result of merging two branch paths."""
+
     merged_text: str = Field(description="Combined narrative text")
     conflicts_resolved: list[MergeConflict] = Field(default_factory=list)
     conflicts_unresolved: list[MergeConflict] = Field(default_factory=list)
-    merge_strategy: str = Field(default="auto", description="Strategy used: 'auto', 'prefer_a', 'prefer_b'")
+    merge_strategy: str = Field(
+        default="auto", description="Strategy used: 'auto', 'prefer_a', 'prefer_b'"
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -218,21 +309,38 @@ class MergeResult(BaseModel):
 
 class ConsistencyIssue(BaseModel):
     """A detected consistency issue between chapters."""
-    issue_type: str = Field(description="Type: 'character_location', 'timeline', 'fact', 'character_state', 'object'")
-    severity: str = Field(default="warning", description="'error' (blocking), 'warning' (should fix), 'info' (minor)")
-    description: str = Field(description="Human-readable description of the inconsistency")
+
+    issue_type: str = Field(
+        description="Type: 'character_location', 'timeline', 'fact', 'character_state', 'object'"
+    )
+    severity: str = Field(
+        default="warning",
+        description="'error' (blocking), 'warning' (should fix), 'info' (minor)",
+    )
+    description: str = Field(
+        description="Human-readable description of the inconsistency"
+    )
     chapter_a: int = Field(description="First chapter number where issue appears")
     chapter_b: int = Field(description="Second chapter number with contradiction")
-    entity: str = Field(default="", description="Entity involved (character name, object, location)")
+    entity: str = Field(
+        default="", description="Entity involved (character name, object, location)"
+    )
     value_a: str = Field(default="", description="Value/state in chapter_a")
-    value_b: str = Field(default="", description="Contradicting value/state in chapter_b")
+    value_b: str = Field(
+        default="", description="Contradicting value/state in chapter_b"
+    )
     suggested_fix: str = Field(default="", description="Suggested resolution")
-    auto_fixable: bool = Field(default=False, description="Whether this can be auto-fixed")
+    auto_fixable: bool = Field(
+        default=False, description="Whether this can be auto-fixed"
+    )
 
 
 class ConsistencyReport(BaseModel):
     """Report from consistency check across chapters."""
-    checked_chapters: list[int] = Field(default_factory=list, description="Chapter numbers that were checked")
+
+    checked_chapters: list[int] = Field(
+        default_factory=list, description="Chapter numbers that were checked"
+    )
     issues: list[ConsistencyIssue] = Field(default_factory=list)
     error_count: int = Field(default=0)
     warning_count: int = Field(default=0)
@@ -243,14 +351,18 @@ class ConsistencyReport(BaseModel):
 
 class PlotEvent(BaseModel):
     """Sự kiện quan trọng để theo dõi tính liên tục."""
+
     chapter_number: int
     event: str
     characters_involved: list[str] = Field(default_factory=list)
-    critical: bool = Field(default=False, description="If True, this event is never pruned from context")
+    critical: bool = Field(
+        default=False, description="If True, this event is never pruned from context"
+    )
 
 
 class PlotThread(BaseModel):
     """Tracks an open narrative thread across chapters."""
+
     thread_id: str = Field(description="Unique thread identifier")
     description: str = Field(description="What this thread is about")
     planted_chapter: int = Field(description="Chapter where thread was introduced")
@@ -258,45 +370,69 @@ class PlotThread(BaseModel):
     involved_characters: list[str] = Field(default_factory=list)
     last_mentioned_chapter: int = Field(default=0)
     resolution_chapter: int = Field(default=0)
-    depends_on: list[str] = Field(default_factory=list, description="Thread IDs that must resolve before this one")
-    blocks: list[str] = Field(default_factory=list, description="Thread IDs this thread blocks")
-    urgency: int = Field(default=3, ge=1, le=5, description="1=background, 5=must-resolve-soon")
+    depends_on: list[str] = Field(
+        default_factory=list, description="Thread IDs that must resolve before this one"
+    )
+    blocks: list[str] = Field(
+        default_factory=list, description="Thread IDs this thread blocks"
+    )
+    urgency: int = Field(
+        default=3, ge=1, le=5, description="1=background, 5=must-resolve-soon"
+    )
 
 
 class ConflictEntry(BaseModel):
     """A conflict between characters or internal conflict."""
+
     conflict_id: str = Field(description="Unique conflict identifier")
     conflict_type: str = Field(description="external/internal/ideological")
     characters: list[str] = Field(description="Characters involved")
     description: str = Field(description="Nature of conflict")
     arc_range: str = Field(default="", description="Arc range where active, e.g. '1-3'")
-    trigger_event: str = Field(default="", description="Event that activates this conflict")
-    status: str = Field(default="dormant", description="dormant/active/escalating/resolved")
-    intensity: int = Field(default=1, ge=1, le=5, description="Current conflict intensity 1-5")
-    escalation_timeline: list[dict] = Field(default_factory=list, description="[{chapter: int, intensity: int}]")
+    trigger_event: str = Field(
+        default="", description="Event that activates this conflict"
+    )
+    status: str = Field(
+        default="dormant", description="dormant/active/escalating/resolved"
+    )
+    intensity: int = Field(
+        default=1, ge=1, le=5, description="Current conflict intensity 1-5"
+    )
+    escalation_timeline: list[dict] = Field(
+        default_factory=list, description="[{chapter: int, intensity: int}]"
+    )
 
 
 class MacroArc(BaseModel):
     """High-level story arc spanning multiple chapters."""
+
     arc_number: int = Field(description="Arc sequence number")
     name: str = Field(description="Arc name")
     chapter_start: int = Field(description="First chapter")
     chapter_end: int = Field(description="Last chapter")
     central_conflict: str = Field(description="Main conflict of this arc")
-    character_focus: list[str] = Field(default_factory=list, description="Key characters in this arc")
+    character_focus: list[str] = Field(
+        default_factory=list, description="Key characters in this arc"
+    )
     resolution: str = Field(default="", description="How arc resolves")
     emotional_trajectory: str = Field(default="", description="Overall emotional arc")
 
 
 class ForeshadowingEntry(BaseModel):
     """A foreshadowing seed and its planned payoff."""
+
     hint: str = Field(description="The subtle hint/seed")
     plant_chapter: int = Field(description="Chapter to plant the seed")
     payoff_chapter: int = Field(description="Chapter where payoff happens")
     characters_involved: list[str] = Field(default_factory=list)
     planted: bool = Field(default=False, description="Whether seed has been written")
     paid_off: bool = Field(default=False, description="Whether payoff has been written")
-    planted_confidence: float = Field(default=0.0, ge=0.0, le=1.0, description="Semantic confidence that seed was planted")
+    planted_confidence: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description="Semantic confidence that seed was planted",
+    )
 
 
 class ArcMilestone(BaseModel):
@@ -306,20 +442,28 @@ class ArcMilestone(BaseModel):
     'Mentor revealed'). They are required-by a chapter and checked across the arc's
     chapter range to detect structural drift — chapters missing their expected beats.
     """
+
     milestone_id: str = Field(description="Unique milestone id, e.g. 'm1_a1'")
     arc_number: int = Field(description="Parent MacroArc.arc_number")
     description: str = Field(description="Milestone description — what must happen")
-    required_by_chapter: int = Field(description="Latest chapter by which milestone must land")
-    keywords: list[str] = Field(default_factory=list, description="Heuristic match keywords")
+    required_by_chapter: int = Field(
+        description="Latest chapter by which milestone must land"
+    )
+    keywords: list[str] = Field(
+        default_factory=list, description="Heuristic match keywords"
+    )
     characters_involved: list[str] = Field(default_factory=list)
     status: str = Field(default="pending", description="pending/hit/missed")
-    hit_chapter: int = Field(default=0, description="Chapter where milestone was detected")
+    hit_chapter: int = Field(
+        default=0, description="Chapter where milestone was detected"
+    )
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     evidence: str = Field(default="", description="Snippet/evidence of milestone hit")
 
 
 class StoryArc(BaseModel):
     """Một arc trong truyện dài."""
+
     arc_number: int = 0
     title: str = ""
     summary: str = ""
@@ -331,6 +475,7 @@ class StoryArc(BaseModel):
 
 class StoryBible(BaseModel):
     """Memory dài hạn cho truyện 100+ chương."""
+
     premise: str = ""
     world_rules: list[str] = Field(default_factory=list)
     active_threads: list[PlotThread] = Field(default_factory=list)
@@ -338,8 +483,13 @@ class StoryBible(BaseModel):
     arcs: list[StoryArc] = Field(default_factory=list)
     milestone_events: list[str] = Field(default_factory=list)
     arc_summaries: list[str] = Field(default_factory=list)
-    timeline_positions: dict[str, str] = Field(default_factory=dict, description="Mốc thời gian per POV {tên nhân vật: mốc thời gian}")
-    character_locations: dict[str, str] = Field(default_factory=dict, description="Vị trí nhân vật {tên: địa điểm}")
+    timeline_positions: dict[str, str] = Field(
+        default_factory=dict,
+        description="Mốc thời gian per POV {tên nhân vật: mốc thời gian}",
+    )
+    character_locations: dict[str, str] = Field(
+        default_factory=dict, description="Vị trí nhân vật {tên: địa điểm}"
+    )
 
 
 class ExtractionHealth(BaseModel):
@@ -349,6 +499,7 @@ class ExtractionHealth(BaseModel):
     logic to halt pipeline when context gets corrupted by repeated failures,
     instead of silently continuing with empty fallback state.
     """
+
     chapter_number: int
     extraction_type: str  # "summary" | "character_states" | "plot_events" | "world_state" | "timeline_location" | "structured_summary" | "plot_threads" | "emotional_memory" | "causal_events" | "conflict_status" | "foreshadowing" | "arc_execution" | "world_rules" | "dialogue_voice"
     success: bool = False
@@ -358,6 +509,7 @@ class ExtractionHealth(BaseModel):
 
 class StoryContext(BaseModel):
     """Rolling context cho việc viết chương."""
+
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
 
     recent_summaries: list[str] = Field(default_factory=list)
@@ -365,35 +517,81 @@ class StoryContext(BaseModel):
     plot_events: list[PlotEvent] = Field(default_factory=list)
     total_chapters: int = 0
     current_chapter: int = 0
-    open_threads: list[PlotThread] = Field(default_factory=list, description="Active narrative threads")
-    conflict_map: list[ConflictEntry] = Field(default_factory=list, description="Active conflicts")
+    open_threads: list[PlotThread] = Field(
+        default_factory=list, description="Active narrative threads"
+    )
+    conflict_map: list[ConflictEntry] = Field(
+        default_factory=list, description="Active conflicts"
+    )
     current_arc: int = Field(default=1, description="Current macro arc number")
-    pacing_history: list[str] = Field(default_factory=list, description="Recent pacing types for rhythm tracking")
-    world_state_changes: list[str] = Field(default_factory=list, description="Permanent world changes (cities burned, rulers dead, etc.)")
-    timeline_positions: dict[str, str] = Field(default_factory=dict, description="Mốc thời gian per POV {tên nhân vật/narrator: mốc thời gian}")
-    character_locations: dict[str, str] = Field(default_factory=dict, description="Vị trí hiện tại {tên nhân vật: địa điểm}")
-    arc_drift_warnings: list[str] = Field(default_factory=list, description="Cảnh báo trượt arc nhân vật")
-    name_warnings: list[str] = Field(default_factory=list, description="Cảnh báo tên nhân vật không nhất quán")
-    stale_thread_warnings: list[str] = Field(default_factory=list, description="Cảnh báo tuyến truyện bị bỏ quên")
-    chapter_ending_hook: str = Field(default="", description="Hook từ chương trước để tiếp nối")
-    emotional_history: list[str] = Field(default_factory=list, description="Lịch sử cảm xúc per chapter")
-    world_rule_violations: list[str] = Field(default_factory=list, description="Vi phạm quy tắc thế giới phát hiện trong chương")
-    dialogue_voice_warnings: list[str] = Field(default_factory=list, description="Cảnh báo giọng nói nhân vật không nhất quán")
-    pacing_adjustment: str = Field(default="", description="Pacing correction directive for next chapter")
-    emotional_whiplash_warning: str = Field(default="", description="Emotional whiplash warning for next chapter prompt")
-    arc_execution_warnings: list[str] = Field(default_factory=list, description="Cảnh báo arc waypoint không được thực hiện trong chương")
+    pacing_history: list[str] = Field(
+        default_factory=list, description="Recent pacing types for rhythm tracking"
+    )
+    world_state_changes: list[str] = Field(
+        default_factory=list,
+        description="Permanent world changes (cities burned, rulers dead, etc.)",
+    )
+    timeline_positions: dict[str, str] = Field(
+        default_factory=dict,
+        description="Mốc thời gian per POV {tên nhân vật/narrator: mốc thời gian}",
+    )
+    character_locations: dict[str, str] = Field(
+        default_factory=dict, description="Vị trí hiện tại {tên nhân vật: địa điểm}"
+    )
+    arc_drift_warnings: list[str] = Field(
+        default_factory=list, description="Cảnh báo trượt arc nhân vật"
+    )
+    name_warnings: list[str] = Field(
+        default_factory=list, description="Cảnh báo tên nhân vật không nhất quán"
+    )
+    stale_thread_warnings: list[str] = Field(
+        default_factory=list, description="Cảnh báo tuyến truyện bị bỏ quên"
+    )
+    chapter_ending_hook: str = Field(
+        default="", description="Hook từ chương trước để tiếp nối"
+    )
+    emotional_history: list[str] = Field(
+        default_factory=list, description="Lịch sử cảm xúc per chapter"
+    )
+    world_rule_violations: list[str] = Field(
+        default_factory=list,
+        description="Vi phạm quy tắc thế giới phát hiện trong chương",
+    )
+    dialogue_voice_warnings: list[str] = Field(
+        default_factory=list, description="Cảnh báo giọng nói nhân vật không nhất quán"
+    )
+    pacing_adjustment: str = Field(
+        default="", description="Pacing correction directive for next chapter"
+    )
+    emotional_whiplash_warning: str = Field(
+        default="", description="Emotional whiplash warning for next chapter prompt"
+    )
+    arc_execution_warnings: list[str] = Field(
+        default_factory=list,
+        description="Cảnh báo arc waypoint không được thực hiện trong chương",
+    )
     # L1-C: Per-character arc progression cache (chapter-by-chapter history)
     arc_progression_cache: dict[str, list[dict]] = Field(
         default_factory=dict,
         description="Per-character arc execution log {name: [{chapter, stage_name, progress_pct, emotion, found, confidence, severity}]}",
     )
-    foreshadowing_payoff_missing: list[dict] = Field(default_factory=list, description="Payoffs due but not detected in chapter content — {hint, confidence, payoff_chapter}")
+    foreshadowing_payoff_missing: list[dict] = Field(
+        default_factory=list,
+        description="Payoffs due but not detected in chapter content — {hint, confidence, payoff_chapter}",
+    )
     # Phase 5: L1 consistency
-    emotional_memory_banks: dict = Field(default_factory=dict, description="Per-character emotional memory banks")
+    emotional_memory_banks: dict = Field(
+        default_factory=dict, description="Per-character emotional memory banks"
+    )
     causal_graph: Any = Field(default=None, description="L1 causal event graph")
     # Sprint 1 Task 1: Context Health tracking
-    extraction_health: list[ExtractionHealth] = Field(default_factory=list, description="Telemetry for post-chapter extraction attempts")
-    consecutive_failures: int = Field(default=0, description="Counter for circuit breaker tripping")
+    extraction_health: list[ExtractionHealth] = Field(
+        default_factory=list,
+        description="Telemetry for post-chapter extraction attempts",
+    )
+    consecutive_failures: int = Field(
+        default=0, description="Counter for circuit breaker tripping"
+    )
 
     @field_validator(
         "arc_drift_warnings",
@@ -425,23 +623,36 @@ class StoryContext(BaseModel):
         return out
 
     def compute_health_score(self, lookback: int = 10) -> float:
-        recent = self.extraction_health[-lookback * 6:]
+        recent = self.extraction_health[-lookback * 6 :]
         if not recent:
             return 1.0
         return sum(1 for e in recent if e.success) / len(recent)
 
-    def failed_extractions_in_last_chapter(self, chapter_num: int) -> list[ExtractionHealth]:
-        return [e for e in self.extraction_health if e.chapter_number == chapter_num and not e.success]
+    def failed_extractions_in_last_chapter(
+        self, chapter_num: int
+    ) -> list[ExtractionHealth]:
+        return [
+            e
+            for e in self.extraction_health
+            if e.chapter_number == chapter_num and not e.success
+        ]
 
 
 class StoryDraft(BaseModel):
     """Bản thảo truyện từ Layer 1."""
+
     title: str
     genre: str
     sub_genres: list[str] = Field(default_factory=list)
     synopsis: str = ""
-    premise: dict = Field(default_factory=dict, description="Thematic premise anchor from theme_premise_generator")
-    voice_profiles: list[dict] = Field(default_factory=list, description="Character voice profiles for distinct dialogue")
+    premise: dict = Field(
+        default_factory=dict,
+        description="Thematic premise anchor from theme_premise_generator",
+    )
+    voice_profiles: list[dict] = Field(
+        default_factory=list,
+        description="Character voice profiles for distinct dialogue",
+    )
     characters: list[Character] = Field(default_factory=list)
     world: Optional[WorldSetting] = None
     outlines: list[ChapterOutline] = Field(default_factory=list)
@@ -449,30 +660,72 @@ class StoryDraft(BaseModel):
     character_states: list[CharacterState] = Field(default_factory=list)
     plot_events: list[PlotEvent] = Field(default_factory=list)
     story_bible: Optional[StoryBible] = None
-    macro_arcs: list[MacroArc] = Field(default_factory=list, description="High-level story arcs")
-    conflict_web: list[ConflictEntry] = Field(default_factory=list, description="All planned conflicts")
-    foreshadowing_plan: list[ForeshadowingEntry] = Field(default_factory=list, description="Planned foreshadowing")
-    foreshadowing_audit: dict = Field(default_factory=dict, description="End-of-story foreshadowing completion audit")
-    arc_milestones: list[ArcMilestone] = Field(default_factory=list, description="Sprint 3 Task 3: arc-level milestones")
-    arc_milestone_audit: dict = Field(default_factory=dict, description="Sprint 3 Task 3: arc milestone drift report")
-    open_threads: list[PlotThread] = Field(default_factory=list, description="Active narrative threads carried across chapters")
-    context: Optional[StoryContext] = Field(default=None, description="Rolling StoryContext with extraction_health telemetry")
+    macro_arcs: list[MacroArc] = Field(
+        default_factory=list, description="High-level story arcs"
+    )
+    conflict_web: list[ConflictEntry] = Field(
+        default_factory=list, description="All planned conflicts"
+    )
+    foreshadowing_plan: list[ForeshadowingEntry] = Field(
+        default_factory=list, description="Planned foreshadowing"
+    )
+    foreshadowing_audit: dict = Field(
+        default_factory=dict, description="End-of-story foreshadowing completion audit"
+    )
+    arc_milestones: list[ArcMilestone] = Field(
+        default_factory=list, description="Sprint 3 Task 3: arc-level milestones"
+    )
+    arc_milestone_audit: dict = Field(
+        default_factory=dict, description="Sprint 3 Task 3: arc milestone drift report"
+    )
+    open_threads: list[PlotThread] = Field(
+        default_factory=list,
+        description="Active narrative threads carried across chapters",
+    )
+    context: Optional[StoryContext] = Field(
+        default=None,
+        description="Rolling StoryContext with extraction_health telemetry",
+    )
     # Sprint 3 Task 1: Unified knowledge graph (serialized form — dict produced by StoryKnowledgeGraph.to_dict)
-    knowledge_graph: dict = Field(default_factory=dict, description="Unified KG merging characters/threads/conflicts/foreshadowing")
+    knowledge_graph: dict = Field(
+        default_factory=dict,
+        description="Unified KG merging characters/threads/conflicts/foreshadowing",
+    )
     # Sprint 1 P2: top-level handoff signals (parallel to per-character storage during migration)
-    voice_fingerprints: list[dict] = Field(default_factory=list, description="Canonicalised voice profiles, top-level for L1Handoff")
-    arc_waypoints: list[dict] = Field(default_factory=list, description="Top-level arc waypoint records, parallel to per-character storage")
-    l1_handoff: Optional[dict] = Field(default=None, description="L1Handoff envelope dict (set by handoff_builder before L2 entry)")
+    voice_fingerprints: list[dict] = Field(
+        default_factory=list,
+        description="Canonicalised voice profiles, top-level for L1Handoff",
+    )
+    arc_waypoints: list[dict] = Field(
+        default_factory=list,
+        description="Top-level arc waypoint records, parallel to per-character storage",
+    )
+    l1_handoff: Optional[dict] = Field(
+        default=None,
+        description="L1Handoff envelope dict (set by handoff_builder before L2 entry)",
+    )
     # Idea fidelity (P0 fix): preserve user's verbatim story idea + cached summary for long ideas
-    original_idea: str = Field(default="", description="User's original story idea, preserved verbatim from input")
-    idea_summary_for_chapters: str = Field(default="", description="LLM-compressed idea for chapter prompts (only built when len(idea) > 3000)")
+    original_idea: str = Field(
+        default="",
+        description="User's original story idea, preserved verbatim from input",
+    )
+    idea_summary_for_chapters: str = Field(
+        default="",
+        description="LLM-compressed idea for chapter prompts (only built when len(idea) > 3000)",
+    )
     # Story-arc cap for multi-session preview/continue. When set, len(chapters)+additional_chapters must not exceed this.
-    target_total_chapters: Optional[int] = Field(default=None, ge=1, le=500, description="Total chapters in the full story arc (preview/continue cap). None = single-session story.")
+    target_total_chapters: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=500,
+        description="Total chapters in the full story arc (preview/continue cap). None = single-session story.",
+    )
 
 
 # === Layer 2: Mô phỏng tăng kịch tính ===
 
 # --- Psychology Engine schemas ---
+
 
 class GoalHierarchy(BaseModel):
     primary_goal: str = ""
@@ -497,6 +750,7 @@ class CharacterPsychology(BaseModel):
 
 # --- Simulation schemas ---
 
+
 class RelationType(str, Enum):
     ALLY = "đồng_minh"
     RIVAL = "đối_thủ"
@@ -510,6 +764,7 @@ class RelationType(str, Enum):
 
 class Relationship(BaseModel):
     """Mối quan hệ giữa 2 nhân vật."""
+
     character_a: str
     character_b: str
     relation_type: RelationType
@@ -520,79 +775,132 @@ class Relationship(BaseModel):
 
 class SimulationEvent(BaseModel):
     """Sự kiện phát sinh từ mô phỏng."""
+
     round_number: int
-    event_type: str = Field(description="Loại: xung_đột/liên_minh/phản_bội/tiết_lộ/đối_đầu")
+    event_type: str = Field(
+        description="Loại: xung_đột/liên_minh/phản_bội/tiết_lộ/đối_đầu"
+    )
     characters_involved: list[str]
     description: str
     drama_score: float = Field(ge=0, le=1, description="Độ kịch tính 0-1")
-    suggested_insertion: str = Field(default="", description="Gợi ý chèn vào chương nào")
-    cause_event_id: str = Field(default="", description="ID of event that caused this one")
-    consequences: list[str] = Field(default_factory=list, description="What this event caused")
+    suggested_insertion: str = Field(
+        default="", description="Gợi ý chèn vào chương nào"
+    )
+    cause_event_id: str = Field(
+        default="", description="ID of event that caused this one"
+    )
+    consequences: list[str] = Field(
+        default_factory=list, description="What this event caused"
+    )
 
 
 class AgentPost(BaseModel):
     """Bài viết/hành động của agent trong mô phỏng."""
+
     agent_name: str
     content: str
     action_type: str = Field(description="post/comment/reaction/confrontation")
     target: Optional[str] = None
     sentiment: str = ""
     round_number: int = 0
-    importance_score: float = Field(default=0.5, ge=0, le=1, description="Điểm quan trọng để lọc bộ nhớ agent thông minh")
+    importance_score: float = Field(
+        default=0.5,
+        ge=0,
+        le=1,
+        description="Điểm quan trọng để lọc bộ nhớ agent thông minh",
+    )
 
 
 class SimulationResult(BaseModel):
     """Kết quả mô phỏng từ Layer 2."""
+
     events: list[SimulationEvent] = Field(default_factory=list)
     updated_relationships: list[Relationship] = Field(default_factory=list)
     drama_suggestions: list[str] = Field(default_factory=list)
     character_arcs: dict[str, str] = Field(default_factory=dict)
     tension_map: dict[str, float] = Field(default_factory=dict)
     agent_posts: list[AgentPost] = Field(default_factory=list)
-    emotional_trajectories: dict[str, list[str]] = Field(default_factory=dict, description="Chuỗi trạng thái cảm xúc theo vòng mô phỏng: tên_nhân_vật → [mood_round1, mood_round2, ...]")
-    knowledge_state: dict[str, list[str]] = Field(default_factory=dict, description="Per-character knowledge at end of simulation")
-    causal_chains: list[list[str]] = Field(default_factory=list, description="Top causal chains as event_id lists")
-    actual_rounds: int = Field(default=0, description="Actual rounds run (may differ from requested)")
+    emotional_trajectories: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Chuỗi trạng thái cảm xúc theo vòng mô phỏng: tên_nhân_vật → [mood_round1, mood_round2, ...]",
+    )
+    knowledge_state: dict[str, list[str]] = Field(
+        default_factory=dict, description="Per-character knowledge at end of simulation"
+    )
+    causal_chains: list[list[str]] = Field(
+        default_factory=list, description="Top causal chains as event_id lists"
+    )
+    actual_rounds: int = Field(
+        default=0, description="Actual rounds run (may differ from requested)"
+    )
     # Sprint 1 Task 3: per-chapter drama contracts (dict stored raw for Pydantic-agnostic propagation)
-    chapter_contracts: dict = Field(default_factory=dict, description="chapter_number → NegotiatedChapterContract dict")
+    chapter_contracts: dict = Field(
+        default_factory=dict,
+        description="chapter_number → NegotiatedChapterContract dict",
+    )
     # Sprint 2 Task 2: per-chapter voice contracts (dict stored raw)
-    voice_contracts: dict = Field(default_factory=dict, description="chapter_number → VoiceContract dict")
+    voice_contracts: dict = Field(
+        default_factory=dict, description="chapter_number → VoiceContract dict"
+    )
 
 
 class EnhancedStory(BaseModel):
     """Truyện đã được tăng cường kịch tính."""
+
     title: str
     genre: str
     chapters: list[Chapter] = Field(default_factory=list)
     enhancement_notes: list[str] = Field(default_factory=list)
     drama_score: float = Field(default=0.0, description="Điểm kịch tính tổng thể")
-    coherence_issues: list[str] = Field(default_factory=list, description="Danh sách vấn đề nhất quán phát hiện sau khi tăng cường")
+    coherence_issues: list[str] = Field(
+        default_factory=list,
+        description="Danh sách vấn đề nhất quán phát hiện sau khi tăng cường",
+    )
 
 
 # === Quality Metrics ===
 
+
 class ChapterScore(BaseModel):
     """Quality score for a single chapter."""
+
     chapter_number: int
     coherence: float = Field(default=3.0, ge=1, le=5, description="Plot logic & flow")
-    character_consistency: float = Field(default=3.0, ge=1, le=5, description="Character behavior consistency")
+    character_consistency: float = Field(
+        default=3.0, ge=1, le=5, description="Character behavior consistency"
+    )
     drama: float = Field(default=3.0, ge=1, le=5, description="Tension & engagement")
-    writing_quality: float = Field(default=3.0, ge=1, le=5, description="Prose quality & clarity")
-    thematic_alignment: float = Field(default=0.0, ge=0, le=5, description="Theme reinforcement score")
-    dialogue_depth: float = Field(default=0.0, ge=0, le=5, description="Dialogue subtext depth score")
+    writing_quality: float = Field(
+        default=3.0, ge=1, le=5, description="Prose quality & clarity"
+    )
+    thematic_alignment: float = Field(
+        default=0.0, ge=0, le=5, description="Theme reinforcement score"
+    )
+    dialogue_depth: float = Field(
+        default=0.0, ge=0, le=5, description="Dialogue subtext depth score"
+    )
     overall: float = Field(default=0.0, description="Computed average of 4 dimensions")
-    notes: str = Field(default="", max_length=1000, description="Brief strengths/weaknesses note")
+    notes: str = Field(
+        default="", max_length=1000, description="Brief strengths/weaknesses note"
+    )
 
 
 class StoryScore(BaseModel):
     """Aggregate quality score for full story."""
-    chapter_scores: list[ChapterScore] = Field(default_factory=list, description="Per-chapter scores")
-    avg_coherence: float = Field(default=0.0, description="Mean coherence across chapters")
+
+    chapter_scores: list[ChapterScore] = Field(
+        default_factory=list, description="Per-chapter scores"
+    )
+    avg_coherence: float = Field(
+        default=0.0, description="Mean coherence across chapters"
+    )
     avg_character: float = Field(default=0.0, description="Mean character consistency")
     avg_drama: float = Field(default=0.0, description="Mean drama/tension")
     avg_writing: float = Field(default=0.0, description="Mean writing quality")
     overall: float = Field(default=0.0, description="Computed average of 4 aggregates")
-    weakest_chapter: int = Field(default=0, description="Chapter number with lowest overall")
+    weakest_chapter: int = Field(
+        default=0, description="Chapter number with lowest overall"
+    )
     scoring_layer: int = Field(default=0, description="Which layer was scored (1 or 2)")
 
 
@@ -624,6 +932,7 @@ class LaneSuggestion(BaseModel):
     `for sug in review.suggestions: ...` keep functioning when suggestions are
     auto-wrapped from `list[str]` via the `AgentReview.suggestions` validator.
     """
+
     lane: Literal["dramatic", "craft"]
     text: str
     severity: Literal["info", "warning", "error"] = "warning"
@@ -655,6 +964,7 @@ class LaneSuggestion(BaseModel):
 
 class AgentReview(BaseModel):
     """Kết quả đánh giá từ một agent."""
+
     agent_role: str
     agent_name: str
     score: float = Field(ge=0, le=1, description="Điểm chất lượng 0-1")
@@ -678,6 +988,7 @@ class AgentReview(BaseModel):
         default_lane = _DEFAULT_LANE_BY_ROLE.get(agent_role)
         if default_lane is None and agent_role:
             import logging as _logging
+
             _logging.getLogger(__name__).warning(
                 "unknown_agent_role lane fallback agent=%s -> craft", agent_role
             )
@@ -689,29 +1000,43 @@ class AgentReview(BaseModel):
             if isinstance(item, LaneSuggestion):
                 out.append(item)
             elif isinstance(item, dict):
-                out.append(LaneSuggestion(**{**item, "agent_role": item.get("agent_role") or agent_role}))
+                out.append(
+                    LaneSuggestion(
+                        **{**item, "agent_role": item.get("agent_role") or agent_role}
+                    )
+                )
             elif isinstance(item, str):
-                out.append(LaneSuggestion(
-                    lane=default_lane,
-                    text=item,
-                    agent_role=agent_role,
-                ))
+                out.append(
+                    LaneSuggestion(
+                        lane=default_lane,
+                        text=item,
+                        agent_role=agent_role,
+                    )
+                )
             else:
                 # Coerce unknown types to str for resilience
-                out.append(LaneSuggestion(
-                    lane=default_lane,
-                    text=str(item),
-                    agent_role=agent_role,
-                ))
+                out.append(
+                    LaneSuggestion(
+                        lane=default_lane,
+                        text=str(item),
+                        agent_role=agent_role,
+                    )
+                )
         return out
 
 
 # === Features: Drama, Image Gen, User, Share ===
 
+
 class EscalationPattern(BaseModel):
     """Drama escalation pattern for Layer 2."""
-    pattern_type: str = Field(description="betrayal/revelation/confrontation/sacrifice/reversal")
-    trigger_tension: float = Field(default=0.6, ge=0, le=1, description="Min tension to trigger")
+
+    pattern_type: str = Field(
+        description="betrayal/revelation/confrontation/sacrifice/reversal"
+    )
+    trigger_tension: float = Field(
+        default=0.6, ge=0, le=1, description="Min tension to trigger"
+    )
     characters_required: int = Field(default=2, ge=1)
     description: str = ""
     intensity_multiplier: float = Field(default=1.5, ge=1.0, le=3.0)
@@ -719,10 +1044,13 @@ class EscalationPattern(BaseModel):
 
 class ImagePrompt(BaseModel):
     """AI image generation prompt from story content."""
+
     panel_number: int = 0
     chapter_number: int = 0
     scene_description: str = ""
-    style: str = Field(default="cinematic", description="cinematic/anime/watercolor/realistic")
+    style: str = Field(
+        default="cinematic", description="cinematic/anime/watercolor/realistic"
+    )
     dalle_prompt: str = ""
     sd_prompt: str = ""
     negative_prompt: str = ""
@@ -730,7 +1058,9 @@ class ImagePrompt(BaseModel):
     # --- Comic Phase 2: Beat→Shot-list fields (optional; image prompts carry NO
     # dialogue text — only the Phase 3 compositor consumes ``dialogue``). All
     # default to empty so existing callsites and the non-comic path are unchanged.
-    shot_type: str = Field(default="", description="EWS/WS/MS/CU/ECU/OTS/insert/reaction")
+    shot_type: str = Field(
+        default="", description="EWS/WS/MS/CU/ECU/OTS/insert/reaction"
+    )
     dialogue: list[dict] = Field(
         default_factory=list,
         description="Ordered bubbles for this panel: {speaker, type, text}",
@@ -747,6 +1077,7 @@ class ImagePrompt(BaseModel):
 
 class UserProfile(BaseModel):
     """Simple user profile for story library."""
+
     user_id: str
     username: str
     password_hash: str = ""
@@ -760,6 +1091,7 @@ class UserProfile(BaseModel):
 
 class ReadingStats(BaseModel):
     """Reading statistics for a story."""
+
     total_words: int = 0
     total_chapters: int = 0
     estimated_reading_minutes: int = 0
@@ -768,6 +1100,7 @@ class ReadingStats(BaseModel):
 
 class ShareableStory(BaseModel):
     """Story share metadata."""
+
     share_id: str
     story_title: str
     created_at: str = ""
@@ -783,16 +1116,21 @@ class ShareableStory(BaseModel):
 
 # === Story Branching ===
 
+
 class BranchChoice(BaseModel):
     """A decision point choice."""
+
     choice_id: str = Field(description="Unique choice identifier")
     text: str = Field(description="Choice text shown to user")
     next_node_id: str = Field(default="", description="ID of next story node")
-    state_delta: dict = Field(default_factory=dict, description="Character state changes")
+    state_delta: dict = Field(
+        default_factory=dict, description="Character state changes"
+    )
 
 
 class StoryNode(BaseModel):
     """A node in the branching story tree."""
+
     node_id: str = Field(description="Unique node identifier")
     chapter_number: int = 0
     title: str = ""
@@ -804,6 +1142,7 @@ class StoryNode(BaseModel):
 
 class StoryTree(BaseModel):
     """Complete branching story structure (DAG)."""
+
     root_id: str = "root"
     nodes: dict[str, StoryNode] = Field(default_factory=dict)
     current_node_id: str = "root"
@@ -813,6 +1152,7 @@ class StoryTree(BaseModel):
 
 # === Agent Debate ===
 
+
 class DebateStance(str, Enum):
     CHALLENGE = "challenge"
     SUPPORT = "support"
@@ -821,6 +1161,7 @@ class DebateStance(str, Enum):
 
 class DebateEntry(BaseModel):
     """Single entry in a debate round."""
+
     agent_name: str
     round_number: int = 1
     stance: DebateStance = DebateStance.NEUTRAL
@@ -832,6 +1173,7 @@ class DebateEntry(BaseModel):
 
 class DebateResult(BaseModel):
     """Full debate outcome across all rounds."""
+
     rounds: list[list[DebateEntry]] = Field(default_factory=list)
     final_reviews: list[AgentReview] = Field(default_factory=list)
     consensus_score: float = 0.0
@@ -841,8 +1183,10 @@ class DebateResult(BaseModel):
 
 # === Pipeline Output ===
 
+
 class PipelineOutput(BaseModel):
     """Kết quả cuối cùng của toàn bộ pipeline."""
+
     story_draft: Optional[StoryDraft] = None
     simulation_result: Optional[SimulationResult] = None
     enhanced_story: Optional[EnhancedStory] = None
@@ -855,17 +1199,32 @@ class PipelineOutput(BaseModel):
     analytics: dict = Field(default_factory=dict)
     knowledge_graph_summary: str = ""
     # Sprint 3 Task 1: Full serialized unified KG (nodes + edges) — kept alongside summary for back-compat
-    knowledge_graph: dict = Field(default_factory=dict, description="Unified KG serialized form (see services.knowledge_graph.StoryKnowledgeGraph.to_dict)")
+    knowledge_graph: dict = Field(
+        default_factory=dict,
+        description="Unified KG serialized form (see services.knowledge_graph.StoryKnowledgeGraph.to_dict)",
+    )
     progress_events: list = Field(default_factory=list)
     # Sprint 1 Task 1: Context Health surfacing
-    context_health_score: float = Field(default=1.0, description="Final context health score (0.0-1.0)")
-    extraction_failures: list[ExtractionHealth] = Field(default_factory=list, description="All failed extraction attempts")
+    context_health_score: float = Field(
+        default=1.0, description="Final context health score (0.0-1.0)"
+    )
+    extraction_failures: list[ExtractionHealth] = Field(
+        default_factory=list, description="All failed extraction attempts"
+    )
     # Sprint 1 Task 2: Trace + cost/token telemetry summary
-    trace: dict = Field(default_factory=dict, description="Pipeline trace summary (trace_id, totals, per-module/chapter cost breakdown)")
+    trace: dict = Field(
+        default_factory=dict,
+        description="Pipeline trace summary (trace_id, totals, per-module/chapter cost breakdown)",
+    )
     # Sprint 1 P3: Per-signal L1→L2 handoff health (DB column added in P6)
-    handoff_health: dict = Field(default_factory=dict, description="Per-signal SignalHealth from L1 handoff envelope")
+    handoff_health: dict = Field(
+        default_factory=dict,
+        description="Per-signal SignalHealth from L1 handoff envelope",
+    )
     # Sprint 1 P6: full serialised L1Handoff envelope (for story_id extraction in output builder)
-    handoff_envelope: Optional[dict] = Field(default=None, description="Serialised L1Handoff dict")
+    handoff_envelope: Optional[dict] = Field(
+        default=None, description="Serialised L1Handoff dict"
+    )
 
 
 # === Phase 1: Forge-from-Sentence ===
@@ -922,6 +1281,7 @@ class ForgeResponse(BaseModel):
 
 # === Phase 2: Character Traits ===
 
+
 class CharacterGenerateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     role: ForgeRole
@@ -962,6 +1322,7 @@ def normalize_drama(v: str) -> DramaLevel:
 
 class TranscriptTurn(BaseModel):
     """One turn in a simulation transcript."""
+
     id: str = Field(min_length=1, max_length=64)
     senderId: str = Field(min_length=1, max_length=80)
     senderName: str = Field(min_length=1, max_length=80)
@@ -972,12 +1333,14 @@ class TranscriptTurn(BaseModel):
 
 class SimulationTranscript(BaseModel):
     """Structured simulator output for the SimulationView UI."""
+
     logs: list[TranscriptTurn] = Field(default_factory=list)
     outcomeSummary: str = Field(default="", max_length=4000)
 
 
 class SimulationContinueRequest(BaseModel):
     """POST /api/simulation/continue payload."""
+
     characters: list[dict] = Field(min_length=1, max_length=10)
     historyLogs: list[TranscriptTurn] = Field(default_factory=list, max_length=6)
     topic: str = Field(min_length=1, max_length=2000)
@@ -989,6 +1352,7 @@ class SimulationContinueRequest(BaseModel):
 
 try:
     from models.narrative_schemas import ChapterContract
+
     Chapter.model_rebuild(_types_namespace={"ChapterContract": ChapterContract})
 except Exception:
     pass

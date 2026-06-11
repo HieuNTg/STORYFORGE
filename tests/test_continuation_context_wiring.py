@@ -2,8 +2,14 @@
 
 from unittest.mock import MagicMock, patch
 from models.schemas import (
-    StoryDraft, Character, Chapter,
-    CharacterState, PlotEvent, StoryContext, ConflictEntry, ForeshadowingEntry,
+    StoryDraft,
+    Character,
+    Chapter,
+    CharacterState,
+    PlotEvent,
+    StoryContext,
+    ConflictEntry,
+    ForeshadowingEntry,
     StoryBible,
 )
 from pipeline.layer1_story.generator import StoryGenerator
@@ -14,26 +20,44 @@ class TestRebuildContextConflictMap:
 
     def _make_draft(self, with_conflict_web=True):
         draft = StoryDraft(
-            title="Test", genre="fantasy",
-            characters=[Character(name="A", role="hero", personality="brave", motivation="save world")],
-            chapters=[
-                Chapter(chapter_number=1, title="Ch1", content="content", word_count=100, summary="summary1"),
+            title="Test",
+            genre="fantasy",
+            characters=[
+                Character(
+                    name="A", role="hero", personality="brave", motivation="save world"
+                )
             ],
-            character_states=[CharacterState(name="A", mood="happy", arc_position="rising", last_action="fought")],
+            chapters=[
+                Chapter(
+                    chapter_number=1,
+                    title="Ch1",
+                    content="content",
+                    word_count=100,
+                    summary="summary1",
+                ),
+            ],
+            character_states=[
+                CharacterState(
+                    name="A", mood="happy", arc_position="rising", last_action="fought"
+                )
+            ],
             plot_events=[PlotEvent(chapter_number=1, event="battle")],
         )
         if with_conflict_web:
             draft.conflict_web = [
                 ConflictEntry(
-                    conflict_id="c1", conflict_type="external",
+                    conflict_id="c1",
+                    conflict_type="external",
                     characters=["A", "B"],
-                    description="rivalry", status="active",
+                    description="rivalry",
+                    status="active",
                 ),
             ]
             draft.foreshadowing_plan = [
                 ForeshadowingEntry(
                     hint="dark omen",
-                    plant_chapter=1, payoff_chapter=5,
+                    plant_chapter=1,
+                    payoff_chapter=5,
                 ),
             ]
         return draft
@@ -83,9 +107,20 @@ class TestContinuationParameterPassing:
         from pipeline.layer1_story.story_continuation import continue_story
 
         draft = StoryDraft(
-            title="T", genre="fantasy",
-            characters=[Character(name="A", role="hero", personality="brave", motivation="m")],
-            chapters=[Chapter(chapter_number=1, title="Ch1", content="c", word_count=100, summary="s")],
+            title="T",
+            genre="fantasy",
+            characters=[
+                Character(name="A", role="hero", personality="brave", motivation="m")
+            ],
+            chapters=[
+                Chapter(
+                    chapter_number=1,
+                    title="Ch1",
+                    content="c",
+                    word_count=100,
+                    summary="s",
+                )
+            ],
             story_bible=StoryBible(),
         )
 
@@ -93,9 +128,13 @@ class TestContinuationParameterPassing:
         gen.config.pipeline.context_window_chapters = 5
         gen.config.pipeline.enable_self_review = False
         gen.config.pipeline.writing_style = ""
-        gen.rebuild_context.return_value = StoryContext(total_chapters=1, current_chapter=1)
+        gen.rebuild_context.return_value = StoryContext(
+            total_chapters=1, current_chapter=1
+        )
         gen.llm.generate_json.return_value = {
-            "outlines": [{"chapter_number": 2, "title": "Ch2", "summary": "s", "key_events": []}]
+            "outlines": [
+                {"chapter_number": 2, "title": "Ch2", "summary": "s", "key_events": []}
+            ]
         }
         gen._layer_model = None
         gen._get_self_reviewer.return_value = None
@@ -103,8 +142,12 @@ class TestContinuationParameterPassing:
             chapter_number=2, title="Ch2", content="new content", word_count=200
         )
         mock_post_write.return_value = (
-            Chapter(chapter_number=2, title="Ch2", content="new content", word_count=200),
-            "summary", [], [],
+            Chapter(
+                chapter_number=2, title="Ch2", content="new content", word_count=200
+            ),
+            "summary",
+            [],
+            [],
         )
 
         continue_story(gen, draft, additional_chapters=1)
@@ -118,9 +161,20 @@ class TestContinuationParameterPassing:
         from pipeline.layer1_story.story_continuation import continue_story
 
         draft = StoryDraft(
-            title="T", genre="fantasy",
-            characters=[Character(name="A", role="hero", personality="brave", motivation="m")],
-            chapters=[Chapter(chapter_number=1, title="Ch1", content="c", word_count=100, summary="s")],
+            title="T",
+            genre="fantasy",
+            characters=[
+                Character(name="A", role="hero", personality="brave", motivation="m")
+            ],
+            chapters=[
+                Chapter(
+                    chapter_number=1,
+                    title="Ch1",
+                    content="c",
+                    word_count=100,
+                    summary="s",
+                )
+            ],
             foreshadowing_plan=[
                 ForeshadowingEntry(hint="omen", plant_chapter=1, payoff_chapter=3),
             ],
@@ -130,9 +184,13 @@ class TestContinuationParameterPassing:
         gen.config.pipeline.context_window_chapters = 5
         gen.config.pipeline.enable_self_review = False
         gen.config.pipeline.writing_style = ""
-        gen.rebuild_context.return_value = StoryContext(total_chapters=1, current_chapter=1)
+        gen.rebuild_context.return_value = StoryContext(
+            total_chapters=1, current_chapter=1
+        )
         gen.llm.generate_json.return_value = {
-            "outlines": [{"chapter_number": 2, "title": "Ch2", "summary": "s", "key_events": []}]
+            "outlines": [
+                {"chapter_number": 2, "title": "Ch2", "summary": "s", "key_events": []}
+            ]
         }
         gen._layer_model = None
         gen._get_self_reviewer.return_value = None
@@ -141,7 +199,9 @@ class TestContinuationParameterPassing:
         )
         mock_post_write.return_value = (
             Chapter(chapter_number=2, title="Ch2", content="content", word_count=200),
-            "summary", [], [],
+            "summary",
+            [],
+            [],
         )
 
         continue_story(gen, draft, additional_chapters=1)
@@ -157,17 +217,20 @@ class TestBuildSystemPrompt:
 
     def test_empty_context_returns_base_prompt(self):
         from api.branch_routes import _build_system_prompt
+
         prompt = _build_system_prompt({})
         assert "creative storyteller" in prompt
         assert "Return JSON" in prompt
 
     def test_genre_included(self):
         from api.branch_routes import _build_system_prompt
+
         prompt = _build_system_prompt({"genre": "sci-fi"})
         assert "sci-fi" in prompt
 
     def test_characters_included(self):
         from api.branch_routes import _build_system_prompt
+
         ctx = {"characters": [{"name": "Aria", "role": "hero", "personality": "brave"}]}
         prompt = _build_system_prompt(ctx)
         assert "Aria" in prompt
@@ -175,6 +238,7 @@ class TestBuildSystemPrompt:
 
     def test_node_states_injected_into_characters(self):
         from api.branch_routes import _build_system_prompt
+
         ctx = {"characters": [{"name": "Aria", "role": "hero", "personality": "brave"}]}
         states = {"Aria": {"mood": "furious", "arc_position": "climax"}}
         prompt = _build_system_prompt(ctx, states)
@@ -183,6 +247,7 @@ class TestBuildSystemPrompt:
 
     def test_world_and_conflict_included(self):
         from api.branch_routes import _build_system_prompt
+
         ctx = {"world_summary": "Dark forest realm", "conflict_summary": "ancient war"}
         prompt = _build_system_prompt(ctx)
         assert "Dark forest realm" in prompt

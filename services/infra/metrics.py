@@ -11,10 +11,13 @@ from typing import Dict, List, Optional
 # Internal primitives
 # ---------------------------------------------------------------------------
 
+
 class _Counter:
     """Monotonically increasing counter with optional labels."""
 
-    def __init__(self, name: str, help_text: str, label_names: Optional[List[str]] = None):
+    def __init__(
+        self, name: str, help_text: str, label_names: Optional[List[str]] = None
+    ):
         self.name = name
         self.help_text = help_text
         self.label_names = label_names or []
@@ -70,18 +73,25 @@ class _Gauge:
     def render(self) -> str:
         with self._lock:
             val = self._value
-        return "\n".join([
-            f"# HELP {self.name} {self.help_text}",
-            f"# TYPE {self.name} gauge",
-            f"{self.name} {val}",
-        ])
+        return "\n".join(
+            [
+                f"# HELP {self.name} {self.help_text}",
+                f"# TYPE {self.name} gauge",
+                f"{self.name} {val}",
+            ]
+        )
 
 
 class _Histogram:
     """Histogram with configurable buckets."""
 
-    def __init__(self, name: str, help_text: str, buckets: List[float],
-                 label_names: Optional[List[str]] = None):
+    def __init__(
+        self,
+        name: str,
+        help_text: str,
+        buckets: List[float],
+        label_names: Optional[List[str]] = None,
+    ):
         self.name = name
         self.help_text = help_text
         self.label_names = label_names or []
@@ -132,7 +142,9 @@ class _Histogram:
             prefix = base_labels.rstrip("}") if base_labels else "{"
             # counts[i] is already cumulative (observe increments all bounds >= value)
             for i, bound in enumerate(self._buckets):
-                le_label = f'{prefix},le="{bound}"}}' if base_labels else f'{{le="{bound}"}}'
+                le_label = (
+                    f'{prefix},le="{bound}"}}' if base_labels else f'{{le="{bound}"}}'
+                )
                 lines.append(f"{self.name}_bucket{le_label} {counts[i]}")
             # +Inf bucket equals total observation count
             inf_label = f'{prefix},le="+Inf"}}' if base_labels else '{le="+Inf"}'

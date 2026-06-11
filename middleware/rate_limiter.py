@@ -146,12 +146,15 @@ def _get_redis():
 
     try:
         import redis
+
         _redis_client = redis.from_url(redis_url, decode_responses=True)
         _redis_client.ping()
         logger.info("Rate limiter: using Redis backend at %s", redis_url)
         return _redis_client
     except Exception as exc:
-        logger.warning("Rate limiter: Redis unavailable (%s), falling back to in-memory", exc)
+        logger.warning(
+            "Rate limiter: Redis unavailable (%s), falling back to in-memory", exc
+        )
         _redis_client = None
         return None
 
@@ -202,7 +205,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Only rate-limit API routes. Test/dev browser suites can opt out or raise
         # limits via env without changing production defaults.
         if (
-            os.environ.get("STORYFORGE_DISABLE_RATE_LIMIT", "").lower() in ("1", "true", "yes")
+            os.environ.get("STORYFORGE_DISABLE_RATE_LIMIT", "").lower()
+            in ("1", "true", "yes")
             or not path.startswith("/api/")
             or path in self.EXEMPT_PATHS
         ):

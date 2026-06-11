@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 class ReaderFeedback(BaseModel):
     """Feedback from simulated reader."""
+
     chapter_number: int
     engagement_score: float = Field(ge=0.0, le=1.0, description="0=bored, 1=engaged")
     confusion_points: list[str] = Field(default_factory=list)
@@ -81,7 +82,9 @@ class ReaderSimulator:
             )
         except Exception as e:
             logger.warning(f"Reader simulation ch{chapter.chapter_number} failed: {e}")
-            return ReaderFeedback(chapter_number=chapter.chapter_number, engagement_score=0.5)
+            return ReaderFeedback(
+                chapter_number=chapter.chapter_number, engagement_score=0.5
+            )
 
     def simulate_story(
         self,
@@ -92,7 +95,9 @@ class ReaderSimulator:
         feedbacks = []
         for chapter in enhanced.chapters:
             if progress_callback:
-                progress_callback(f"[Reader] Simulating chapter {chapter.chapter_number}...")
+                progress_callback(
+                    f"[Reader] Simulating chapter {chapter.chapter_number}..."
+                )
             feedback = self.simulate_reading(chapter)
             feedbacks.append(feedback)
         return feedbacks

@@ -7,6 +7,7 @@ Tests:
     - invalid token handling
     - user registration validation
 """
+
 from __future__ import annotations
 
 import os
@@ -22,9 +23,11 @@ os.environ.setdefault("STORYFORGE_SECRET_KEY", "test-secret-key-for-unit-tests")
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _import_auth():
     """Import auth module (avoids top-level import failures if env not set)."""
     import services.auth.auth as auth  # noqa: PLC0415
+
     return auth
 
 
@@ -130,7 +133,12 @@ class TestInvalidTokenHandling:
         parts = token.split(".")
 
         # Re-encode payload with different username
-        fake_payload = {"sub": "attacker", "username": "hacked", "iat": 0, "exp": 9999999999}
+        fake_payload = {
+            "sub": "attacker",
+            "username": "hacked",
+            "iat": 0,
+            "exp": 9999999999,
+        }
         new_payload = (
             base64.urlsafe_b64encode(json.dumps(fake_payload).encode())
             .rstrip(b"=")
@@ -173,7 +181,9 @@ class TestExpiredToken:
         import json
 
         header = (
-            base64.urlsafe_b64encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+            base64.urlsafe_b64encode(
+                json.dumps({"alg": "HS256", "typ": "JWT"}).encode()
+            )
             .rstrip(b"=")
             .decode()
         )
@@ -223,7 +233,9 @@ class TestAlgorithmHardening:
 
         auth = _import_auth()
         header = (
-            base64.urlsafe_b64encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+            base64.urlsafe_b64encode(
+                json.dumps({"alg": "HS256", "typ": "JWT"}).encode()
+            )
             .rstrip(b"=")
             .decode()
         )

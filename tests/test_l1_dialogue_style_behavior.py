@@ -133,7 +133,9 @@ Lan dừng gõ phím. "Vậy anh muốn nghe gì?"
 """
 
 
-def _make_char(name: str, speech_pattern: str = "", voice_profile: str = "") -> Character:
+def _make_char(
+    name: str, speech_pattern: str = "", voice_profile: str = ""
+) -> Character:
     c = Character(name=name, role="chính", personality="Kiên quyết")
     c.speech_pattern = speech_pattern
     # voice_profile is not on the schema but modules use getattr fallback
@@ -322,7 +324,9 @@ class TestCheckVoiceConsistency:
     def test_consistent_dialogue_passes(self):
         llm = MagicMock()
         llm.generate_json.return_value = {"match": True, "confidence": 0.9, "issue": ""}
-        chars = [_make_char("Minh", speech_pattern="lạnh lùng, ngắn gọn, chuyên nghiệp")]
+        chars = [
+            _make_char("Minh", speech_pattern="lạnh lùng, ngắn gọn, chuyên nghiệp")
+        ]
         result = check_voice_consistency(llm, GOOD_DIALOGUE_PROSE, chars)
         assert result["consistent"] is True
         assert result["score"] == 1.0
@@ -334,7 +338,11 @@ class TestCheckVoiceConsistency:
             "confidence": 0.85,
             "issue": "dùng từ quá dân dã, không phù hợp nhân vật học thuật",
         }
-        chars = [_make_char("Tuấn", speech_pattern="học thuật, trang trọng, dùng từ Hán-Việt")]
+        chars = [
+            _make_char(
+                "Tuấn", speech_pattern="học thuật, trang trọng, dùng từ Hán-Việt"
+            )
+        ]
         result = check_voice_consistency(llm, CLEAR_ATTRIBUTION_PROSE, chars)
         assert len(result["violations"]) >= 1
         assert result["violations"][0]["character"] == "Tuấn"
@@ -363,9 +371,15 @@ class TestCheckVoiceConsistency:
 class TestDialogueConsistencyCheck:
     def test_passes_when_score_above_threshold(self):
         llm = MagicMock()
-        llm.generate_json.return_value = {"match": True, "confidence": 0.95, "issue": ""}
+        llm.generate_json.return_value = {
+            "match": True,
+            "confidence": 0.95,
+            "issue": "",
+        }
         chars = [_make_char("Minh", speech_pattern="concise")]
-        passed, warning = dialogue_consistency_check(llm, GOOD_DIALOGUE_PROSE, chars, threshold=0.7)
+        passed, warning = dialogue_consistency_check(
+            llm, GOOD_DIALOGUE_PROSE, chars, threshold=0.7
+        )
         assert passed is True
         assert warning == ""
 
@@ -377,7 +391,9 @@ class TestDialogueConsistencyCheck:
             "issue": "giọng không khớp",
         }
         chars = [_make_char("Tuấn", speech_pattern="archaic")]
-        passed, warning = dialogue_consistency_check(llm, CLEAR_ATTRIBUTION_PROSE, chars, threshold=0.7)
+        passed, warning = dialogue_consistency_check(
+            llm, CLEAR_ATTRIBUTION_PROSE, chars, threshold=0.7
+        )
         assert passed is False
         assert "CẢNH BÁO" in warning
 
@@ -474,7 +490,9 @@ class TestGetSpeechPatternReminder:
 class TestBuildShowDontTellGuidance:
     def test_known_genre_uses_specific_palette(self):
         guidance = build_show_dont_tell_guidance("Tiên Hiệp")
-        assert "Tiên Hiệp" not in guidance or "khí" in guidance or "tu luyện" in guidance
+        assert (
+            "Tiên Hiệp" not in guidance or "khí" in guidance or "tu luyện" in guidance
+        )
         assert "SHOW DON'T TELL" in guidance
 
     def test_unknown_genre_uses_default_palette(self):
@@ -567,15 +585,29 @@ class TestBuildRewriteTellingPrompt:
         assert prompt == ""
 
     def test_prompt_includes_original_content(self):
-        violations = [{"excerpt": "Anh ấy rất buồn", "issue": "telling", "suggestion": "dùng hành động"}]
+        violations = [
+            {
+                "excerpt": "Anh ấy rất buồn",
+                "issue": "telling",
+                "suggestion": "dùng hành động",
+            }
+        ]
         prompt = build_rewrite_telling_prompt(TELLING_PROSE, violations)
         assert "ĐOẠN VĂN GỐC" in prompt
         assert TELLING_PROSE in prompt
 
     def test_prompt_lists_each_violation(self):
         violations = [
-            {"excerpt": "Anh ấy rất buồn", "issue": "cảm xúc trực tiếp", "suggestion": "mô tả hành động"},
-            {"excerpt": "cô ấy hạnh phúc", "issue": "nói thẳng", "suggestion": "cử chỉ cụ thể"},
+            {
+                "excerpt": "Anh ấy rất buồn",
+                "issue": "cảm xúc trực tiếp",
+                "suggestion": "mô tả hành động",
+            },
+            {
+                "excerpt": "cô ấy hạnh phúc",
+                "issue": "nói thẳng",
+                "suggestion": "cử chỉ cụ thể",
+            },
         ]
         prompt = build_rewrite_telling_prompt(TELLING_PROSE, violations)
         assert "Anh ấy rất buồn" in prompt
@@ -620,7 +652,9 @@ class TestDetectPovDrift:
     def test_short_content_is_consistent(self):
         llm = MagicMock()
         chars = [_make_char("Tuấn")]
-        result = detect_pov_drift(llm, "Tuấn bước vào phòng.", chars, expected_pov="Tuấn")
+        result = detect_pov_drift(
+            llm, "Tuấn bước vào phòng.", chars, expected_pov="Tuấn"
+        )
         assert result["consistent"] is True
         assert result["drifts"] == []
         llm.generate_json.assert_not_called()

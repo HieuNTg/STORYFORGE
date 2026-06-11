@@ -23,12 +23,17 @@ def extract_structured_summary(
     Returns (StructuredSummary, brief_text_summary) tuple.
     The brief text summary is for backward compat with context window.
     """
-    threads_text = "\n".join(
-        f"- [{t.thread_id}] {t.description}"
-        for t in open_threads if t.status != "resolved"
-    ) or "Chưa có threads."
+    threads_text = (
+        "\n".join(
+            f"- [{t.thread_id}] {t.description}"
+            for t in open_threads
+            if t.status != "resolved"
+        )
+        or "Chưa có threads."
+    )
 
     from services.text_utils import excerpt_text
+
     result = llm.generate_json(
         system_prompt="Trích xuất tóm tắt có cấu trúc. Trả về JSON bằng tiếng Việt.",
         user_prompt=prompts.EXTRACT_STRUCTURED_SUMMARY.format(

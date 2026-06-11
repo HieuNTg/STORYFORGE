@@ -1,4 +1,5 @@
 """Generate AI image prompts from story content."""
+
 import json
 import logging
 import re
@@ -75,7 +76,9 @@ class ImagePromptGenerator:
 
     def generate_scene_prompt(self, chapter: Chapter) -> str:
         """Generate a single image prompt string for a chapter scene."""
-        summary = chapter.summary or chapter.title or f"Chapter {chapter.chapter_number}"
+        summary = (
+            chapter.summary or chapter.title or f"Chapter {chapter.chapter_number}"
+        )
         return f"{self.style} style, {summary}"
 
     def refine_to_cinematic_prompt(self, text: str) -> str:
@@ -154,9 +157,17 @@ class ImagePromptGenerator:
         low = s.lower()
         # Reject model refusals (e.g. Gemini "can't generate images / are you logged in?")
         refusal_markers = (
-            "đăng nhập", "không thể tạo", "chưa khả dụng", "khả dụng ở vị trí",
-            "i can't", "i cannot", "i'm unable", "unable to", "as an ai",
-            "logged in", "not available in your",
+            "đăng nhập",
+            "không thể tạo",
+            "chưa khả dụng",
+            "khả dụng ở vị trí",
+            "i can't",
+            "i cannot",
+            "i'm unable",
+            "unable to",
+            "as an ai",
+            "logged in",
+            "not available in your",
         )
         if any(m in low for m in refusal_markers):
             return ""
@@ -221,7 +232,9 @@ class ImagePromptGenerator:
                 )
             return prompts_list
         except Exception as e:
-            logger.warning(f"Image prompt generation failed for ch {chapter.chapter_number}: {e}")
+            logger.warning(
+                f"Image prompt generation failed for ch {chapter.chapter_number}: {e}"
+            )
             return []
 
     def generate_from_shot_list(
@@ -289,7 +302,8 @@ class ImagePromptGenerator:
         except Exception as e:
             logger.warning(
                 "Panel prompt generation failed for ch %s, using fallback prompts: %s",
-                chapter.chapter_number, e,
+                chapter.chapter_number,
+                e,
             )
 
         descriptors = visual_profiles or {}
@@ -299,7 +313,9 @@ class ImagePromptGenerator:
             dalle = str(item.get("dalle_prompt", "") or "").strip()
             sd = str(item.get("sd_prompt", "") or "").strip()
             if not dalle and not sd:
-                dalle = sd = self._fallback_panel_prompt(p, descriptors.get(p.subject, ""))
+                dalle = sd = self._fallback_panel_prompt(
+                    p, descriptors.get(p.subject, "")
+                )
             prompts_list.append(
                 ImagePrompt(
                     panel_number=i,
@@ -402,11 +418,13 @@ def bake_dialogue_into_prompts(prompts: list, *, language: str = "Vietnamese") -
     """
     for ip in prompts:
         bubbles = [
-            b for b in (getattr(ip, "dialogue", None) or [])
+            b
+            for b in (getattr(ip, "dialogue", None) or [])
             if (b or {}).get("text", "").strip()
         ]
         captions = [
-            c for c in (getattr(ip, "captions", None) or [])
+            c
+            for c in (getattr(ip, "captions", None) or [])
             if (c or {}).get("text", "").strip()
         ]
         base_dalle = _strip_no_text_clauses(ip.dalle_prompt)
@@ -431,10 +449,10 @@ def bake_dialogue_into_prompts(prompts: list, *, language: str = "Vietnamese") -
         for c in captions:
             txt = c.get("text", "").strip()
             lines.append(
-                f'- narration — draw a rectangular caption box with squared '
-                f'corners, a thin black border and a flat pale-yellow cream '
-                f'background (NO tail, it is the narrator, not a character) '
-                f'butted against the top edge of the panel, containing '
+                f"- narration — draw a rectangular caption box with squared "
+                f"corners, a thin black border and a flat pale-yellow cream "
+                f"background (NO tail, it is the narrator, not a character) "
+                f"butted against the top edge of the panel, containing "
                 f'exactly: "{txt}"'
             )
         for b in bubbles:

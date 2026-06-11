@@ -4,7 +4,11 @@ import pytest
 from unittest.mock import patch
 
 from models.schemas import (
-    Character, Relationship, RelationType, ConflictEntry, StoryDraft,
+    Character,
+    Relationship,
+    RelationType,
+    ConflictEntry,
+    StoryDraft,
 )
 from pipeline.layer2_enhance.analyzer import StoryAnalyzer
 
@@ -19,7 +23,9 @@ def _draft(title="T"):
 
 
 def _rel(a, b, tension=0.3, rel_type=RelationType.ALLY):
-    return Relationship(character_a=a, character_b=b, relation_type=rel_type, tension=tension)
+    return Relationship(
+        character_a=a, character_b=b, relation_type=rel_type, tension=tension
+    )
 
 
 def _conflict(chars, intensity=3, description="conflict"):
@@ -104,7 +110,12 @@ class TestAnalyzeWithConflictWeb:
         analyzer = StoryAnalyzer()
         mock_result = {
             "relationships": [
-                {"character_a": "A", "character_b": "B", "relation_type": "đối_thủ", "tension": 0.4}
+                {
+                    "character_a": "A",
+                    "character_b": "B",
+                    "relation_type": "đối_thủ",
+                    "tension": 0.4,
+                }
             ],
             "conflict_points": [],
             "untapped_drama": [],
@@ -118,7 +129,12 @@ class TestAnalyzeWithConflictWeb:
         analyzer = StoryAnalyzer()
         mock_result = {
             "relationships": [
-                {"character_a": "A", "character_b": "B", "relation_type": "đối_thủ", "tension": 0.2}
+                {
+                    "character_a": "A",
+                    "character_b": "B",
+                    "relation_type": "đối_thủ",
+                    "tension": 0.2,
+                }
             ],
             "conflict_points": [],
             "untapped_drama": [],
@@ -134,7 +150,12 @@ class TestAnalyzeWithConflictWeb:
         analyzer = StoryAnalyzer()
         mock_result = {
             "relationships": [
-                {"character_a": "A", "character_b": "B", "relation_type": "đối_thủ", "tension": 0.2}
+                {
+                    "character_a": "A",
+                    "character_b": "B",
+                    "relation_type": "đối_thủ",
+                    "tension": 0.2,
+                }
             ],
             "conflict_points": [],
             "untapped_drama": [],

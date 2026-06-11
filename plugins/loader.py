@@ -79,12 +79,16 @@ class PluginManager:
                     self._plugins.append(instance)
                     logger.info(
                         "plugin_manager: registered '%s' v%s from %s",
-                        instance.name, instance.version, path.name,
+                        instance.name,
+                        instance.version,
+                        path.name,
                     )
                 except Exception as exc:
                     logger.error(
                         "plugin_manager: register() failed for %s in %s — %s",
-                        attr_name, path.name, exc,
+                        attr_name,
+                        path.name,
+                        exc,
                     )
 
     # ------------------------------------------------------------------
@@ -126,9 +130,7 @@ class PluginManager:
                 if result is not None:
                     current = result
             except Exception as exc:
-                logger.warning(
-                    "plugin '%s' on_export raised: %s", plugin.name, exc
-                )
+                logger.warning("plugin '%s' on_export raised: %s", plugin.name, exc)
         return current
 
     @property

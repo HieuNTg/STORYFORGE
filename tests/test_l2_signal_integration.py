@@ -5,12 +5,18 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from models.schemas import (
-    Chapter, Character, PlotThread, SimulationResult, StructuredSummary,
+    Chapter,
+    Character,
+    PlotThread,
+    SimulationResult,
+    StructuredSummary,
 )
 from pipeline.layer2_enhance._agent import CharacterAgent
 from pipeline.layer2_enhance.adaptive_intensity import AdaptiveController, DRAMA_TARGET
 from pipeline.layer2_enhance.scene_enhancer import (
-    SceneEnhancer, _build_preserve_facts, _build_thread_status,
+    SceneEnhancer,
+    _build_preserve_facts,
+    _build_thread_status,
 )
 from pipeline.layer2_enhance.simulator import DramaSimulator
 
@@ -49,8 +55,18 @@ def test_simulator_applies_arc_waypoints():
         [_char("A"), _char("B")],
         [],
         arc_waypoints=[
-            {"character": "A", "stage_name": "climax", "progress_pct": 0.8, "chapter_range": "1-3"},
-            {"character": "B", "stage_name": "setup", "progress_pct": 0.2, "chapter_range": "5-10"},
+            {
+                "character": "A",
+                "stage_name": "climax",
+                "progress_pct": 0.8,
+                "chapter_range": "1-3",
+            },
+            {
+                "character": "B",
+                "stage_name": "setup",
+                "progress_pct": 0.2,
+                "chapter_range": "5-10",
+            },
         ],
         current_chapter=2,
     )
@@ -139,17 +155,23 @@ def test_enhance_chapter_by_scenes_skips_decompose_with_summary():
     summary = MagicMock()
     summary.key_events = ["a", "b", "c"]
     summary.threads_advanced = []
-    with patch.object(enhancer, "decompose_chapter_content") as dec, \
-         patch.object(enhancer, "score_scenes", return_value=[]):
+    with (
+        patch.object(enhancer, "decompose_chapter_content") as dec,
+        patch.object(enhancer, "score_scenes", return_value=[]),
+    ):
         dec.return_value = []
         enhancer.enhance_chapter_by_scenes(
-            ch, sim_result, "drama", chapter_summary=summary,
+            ch,
+            sim_result,
+            "drama",
+            chapter_summary=summary,
         )
         dec.assert_not_called()
 
 
 def test_chapter_contract_field_assignable():
     from models.narrative_schemas import ChapterContract
+
     ch = Chapter(chapter_number=1, title="t", content="c")
     assert ch.contract is None
     ch.contract = ChapterContract(chapter_number=1, must_mention_characters=["A"])

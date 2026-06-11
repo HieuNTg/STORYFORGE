@@ -34,7 +34,9 @@ def _build_system_prompt(
     """Build story-aware system prompt from session context and per-node character states."""
     from services.character_service import _language_label
 
-    language_code = (context.get("language") or "vi") if isinstance(context, dict) else "vi"
+    language_code = (
+        (context.get("language") or "vi") if isinstance(context, dict) else "vi"
+    )
     language_label = _language_label(language_code)
 
     parts = [
@@ -87,6 +89,7 @@ def _build_system_prompt(
 
 # ── Request models ──────────────────────────────────────────────────────────
 
+
 class BranchCharacter(BaseModel):
     name: str = ""
     role: str = ""
@@ -114,24 +117,37 @@ class GotoBody(BaseModel):
 
 
 class MergeBody(BaseModel):
-    node_a_id: str = Field(..., min_length=1, max_length=64, description="First node to merge")
-    node_b_id: str = Field(..., min_length=1, max_length=64, description="Second node to merge")
-    strategy: str = Field(default="auto", description="Merge strategy: 'auto', 'prefer_a', 'prefer_b'")
+    node_a_id: str = Field(
+        ..., min_length=1, max_length=64, description="First node to merge"
+    )
+    node_b_id: str = Field(
+        ..., min_length=1, max_length=64, description="Second node to merge"
+    )
+    strategy: str = Field(
+        default="auto", description="Merge strategy: 'auto', 'prefer_a', 'prefer_b'"
+    )
 
 
 class BookmarkBody(BaseModel):
-    node_id: str = Field(..., min_length=1, max_length=64, description="Node to bookmark")
-    label: str = Field(default="", max_length=100, description="Optional bookmark label")
+    node_id: str = Field(
+        ..., min_length=1, max_length=64, description="Node to bookmark"
+    )
+    label: str = Field(
+        default="", max_length=100, description="Optional bookmark label"
+    )
 
 
 # ── Routes ──────────────────────────────────────────────────────────────────
+
 
 @router.post("/start", status_code=201)
 def start_session(body: StartBody):
     """Create a new branch session from story text."""
     context = {
         "genre": body.genre,
-        "characters": [c.model_dump() for c in body.characters] if body.characters else [],
+        "characters": [c.model_dump() for c in body.characters]
+        if body.characters
+        else [],
         "world_summary": body.world_summary,
         "conflict_summary": body.conflict_summary,
         "language": body.language or "vi",
@@ -202,7 +218,9 @@ def choose_branch(session_id: str, body: ChooseBody):
             )
         except Exception as exc:
             logger.error(f"LLM generation failed: {exc}")
-            raise HTTPException(status_code=502, detail="LLM generation failed. Please try again.")
+            raise HTTPException(
+                status_code=502, detail="LLM generation failed. Please try again."
+            )
         continuation = result.get("continuation") or result.get("text", "")
         new_choices: list[str] = []
     else:
@@ -218,13 +236,19 @@ def choose_branch(session_id: str, body: ChooseBody):
             )
         except Exception as exc:
             logger.error(f"LLM generation failed: {exc}")
-            raise HTTPException(status_code=502, detail="LLM generation failed. Please try again.")
+            raise HTTPException(
+                status_code=502, detail="LLM generation failed. Please try again."
+            )
 
         continuation = result.get("continuation") or result.get("text", "")
         # Fallback choice labels: pick a localized default based on the
         # session's language so we don't reintroduce English drift when the
         # LLM returns an empty/invalid choices list.
-        _lang = (story_context.get("language") or "vi") if isinstance(story_context, dict) else "vi"
+        _lang = (
+            (story_context.get("language") or "vi")
+            if isinstance(story_context, dict)
+            else "vi"
+        )
         if str(_lang).lower().startswith("vi"):
             _fallback_choices = ["Tiếp tục", "Đi hướng khác"]
         else:
@@ -242,7 +266,10 @@ def choose_branch(session_id: str, body: ChooseBody):
 
     try:
         node = manager.add_generated_node(
-            session_id, body.choice_index, continuation, new_choices,
+            session_id,
+            body.choice_index,
+            continuation,
+            new_choices,
             character_states=merged_states,
         )
     except KeyError as exc:
@@ -263,6 +290,7 @@ async def choose_branch_stream(request: Request, session_id: str, body: ChooseBo
         # Already generated — return immediately as SSE
         def _cached():
             yield f"data: {json.dumps({'type': 'complete', 'node': existing, 'generated': False})}\n\n"
+
         return StreamingResponse(
             _cached(),
             media_type="text/event-stream",
@@ -373,7 +401,10 @@ async def choose_branch_stream(request: Request, session_id: str, body: ChooseBo
             try:
                 # Try to extract JSON from markdown code blocks
                 import re
-                json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', accumulated_text)
+
+                json_match = re.search(
+                    r"```(?:json)?\s*([\s\S]*?)```", accumulated_text
+                )
                 if json_match:
                     result = json.loads(json_match.group(1))
                 else:
@@ -382,15 +413,21 @@ async def choose_branch_stream(request: Request, session_id: str, body: ChooseBo
                 # Fallback: treat accumulated text as continuation
                 result = {
                     "continuation": accumulated_text,
-                    "choices": [] if at_depth_limit else ["Continue", "Take a different path"],
+                    "choices": []
+                    if at_depth_limit
+                    else ["Continue", "Take a different path"],
                     "character_states": {},
                 }
 
-            continuation = result.get("continuation") or result.get("text", accumulated_text)
+            continuation = result.get("continuation") or result.get(
+                "text", accumulated_text
+            )
             if at_depth_limit:
                 new_choices = []
             else:
-                new_choices = result.get("choices", ["Continue", "Take a different path"])
+                new_choices = result.get(
+                    "choices", ["Continue", "Take a different path"]
+                )
                 if not isinstance(new_choices, list):
                     new_choices = ["Continue", "Take a different path"]
                 new_choices = [str(c) for c in new_choices[:3]]
@@ -404,7 +441,10 @@ async def choose_branch_stream(request: Request, session_id: str, body: ChooseBo
             # Add node to tree — persisted even when disconnected so a retry
             # finds it cached rather than paying for another generation.
             node = manager.add_generated_node(
-                session_id, body.choice_index, continuation, new_choices,
+                session_id,
+                body.choice_index,
+                continuation,
+                new_choices,
                 character_states=merged_states,
             )
 
@@ -611,7 +651,9 @@ def remove_bookmark(session_id: str, bookmark_id: str):
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     if not removed:
-        raise HTTPException(status_code=404, detail=f"Bookmark {bookmark_id!r} not found")
+        raise HTTPException(
+            status_code=404, detail=f"Bookmark {bookmark_id!r} not found"
+        )
     return {"removed": True}
 
 
@@ -631,18 +673,24 @@ def goto_bookmark(session_id: str, bookmark_id: str):
 
 
 class AutoExploreBody(BaseModel):
-    num_paths: int = Field(default=3, ge=2, le=5, description="Number of paths to generate")
+    num_paths: int = Field(
+        default=3, ge=2, le=5, description="Number of paths to generate"
+    )
     depth: int = Field(default=2, ge=1, le=3, description="Depth to explore each path")
 
 
 class StateChangesBody(BaseModel):
     node_id: str = Field(..., min_length=1, max_length=64)
-    state_changes: dict = Field(..., description="State changes, e.g., {'gold': 10, 'reputation': -5}")
+    state_changes: dict = Field(
+        ..., description="State changes, e.g., {'gold': 10, 'reputation': -5}"
+    )
 
 
 class ChoiceConditionsBody(BaseModel):
     node_id: str = Field(..., min_length=1, max_length=64)
-    conditions: list[dict] = Field(..., description="Conditions, e.g., [{'index': 0, 'requires': {'gold': 50}}]")
+    conditions: list[dict] = Field(
+        ..., description="Conditions, e.g., [{'index': 0, 'requires': {'gold': 50}}]"
+    )
 
 
 @router.post("/{session_id}/auto-explore")
@@ -699,7 +747,9 @@ def get_state_variables(session_id: str):
 def set_node_state_changes(session_id: str, body: StateChangesBody):
     """Set state changes for a node (applied when player reaches this node)."""
     try:
-        changes = manager.set_state_changes(session_id, body.node_id, body.state_changes)
+        changes = manager.set_state_changes(
+            session_id, body.node_id, body.state_changes
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except ValueError as exc:
@@ -711,7 +761,9 @@ def set_node_state_changes(session_id: str, body: StateChangesBody):
 def set_choice_conditions(session_id: str, body: ChoiceConditionsBody):
     """Set conditions for choices (e.g., requires certain state to unlock)."""
     try:
-        conditions = manager.set_choice_conditions(session_id, body.node_id, body.conditions)
+        conditions = manager.set_choice_conditions(
+            session_id, body.node_id, body.conditions
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except ValueError as exc:

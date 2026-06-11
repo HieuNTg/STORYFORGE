@@ -66,15 +66,19 @@ class ThematicTracker:
 
     def extract_theme(self, draft: StoryDraft) -> ThemeProfile:
         """Dùng LLM trích xuất chủ đề trung tâm từ synopsis, premise và nhân vật."""
-        chars_text = "\n".join(
-            f"- {c.name} ({c.role}): {c.motivation}"
-            for c in (draft.characters or [])[:5]
-        ) or "Không có thông tin nhân vật"
+        chars_text = (
+            "\n".join(
+                f"- {c.name} ({c.role}): {c.motivation}"
+                for c in (draft.characters or [])[:5]
+            )
+            or "Không có thông tin nhân vật"
+        )
 
         synopsis = getattr(draft, "synopsis", "") or ""
         premise_raw = getattr(draft, "premise", {}) or {}
         if isinstance(premise_raw, dict):
             import json as _json
+
             premise = _json.dumps(premise_raw, ensure_ascii=False)
         else:
             premise = str(premise_raw)
@@ -160,9 +164,7 @@ class ThematicTracker:
             parts.append(f"Cảnh báo lệch chủ đề: {chapter_score.drift_warning}")
 
         if theme.thematic_questions:
-            parts.append(
-                f"Câu hỏi chủ đề cần gợi lên: {theme.thematic_questions[0]}"
-            )
+            parts.append(f"Câu hỏi chủ đề cần gợi lên: {theme.thematic_questions[0]}")
 
         return "\n".join(parts)
 

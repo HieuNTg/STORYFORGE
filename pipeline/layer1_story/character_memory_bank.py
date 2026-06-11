@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 # Models
 # ---------------------------------------------------------------------------
 
+
 class EmotionalMemory(BaseModel):
     """Một ký ức cảm xúc của nhân vật từ một sự kiện cụ thể."""
 
@@ -72,6 +73,7 @@ CHỈ trả JSON. Tối đa 3 ký ức cảm xúc nổi bật nhất mỗi nhân
 # Functions
 # ---------------------------------------------------------------------------
 
+
 def extract_emotional_memories(
     llm: "LLMClient",
     chapter_text: str,
@@ -90,8 +92,7 @@ def extract_emotional_memories(
         Dict keyed by character name → CharacterMemoryBank.
     """
     char_names = [
-        c if isinstance(c, str) else getattr(c, "name", str(c))
-        for c in characters
+        c if isinstance(c, str) else getattr(c, "name", str(c)) for c in characters
     ]
     if not char_names:
         return {}

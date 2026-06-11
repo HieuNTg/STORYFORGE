@@ -1,4 +1,5 @@
 """Export story as DOCX (Word) using python-docx. Vietnamese-friendly out of the box."""
+
 import logging
 import os
 from typing import Union
@@ -79,7 +80,11 @@ class DOCXExporter:
 
         # Chapters
         for ch in story.chapters:
-            heading_text = f"Chương {ch.chapter_number}: {ch.title}" if getattr(ch, "chapter_number", None) else (ch.title or "")
+            heading_text = (
+                f"Chương {ch.chapter_number}: {ch.title}"
+                if getattr(ch, "chapter_number", None)
+                else (ch.title or "")
+            )
             doc.add_heading(heading_text, level=1)
             content = ch.content or ""
             for para in content.split("\n"):

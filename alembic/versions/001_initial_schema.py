@@ -30,8 +30,12 @@ def upgrade() -> None:
         sa.Column("password_hash", sa.String(255), nullable=False, server_default=""),
         sa.Column("credits", sa.Integer(), nullable=False, server_default="20"),
         sa.Column("role", sa.String(50), nullable=False, server_default="user"),
-        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
+        ),
         sa.UniqueConstraint("username", name="uq_users_username"),
     )
     op.create_index("ix_users_username", "users", ["username"])
@@ -53,8 +57,12 @@ def upgrade() -> None:
         sa.Column("chapter_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("word_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("drama_score", sa.Float(), nullable=False, server_default="0"),
-        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
+        ),
     )
     op.create_index("ix_stories_user_id", "stories", ["user_id"])
 
@@ -73,7 +81,9 @@ def upgrade() -> None:
         sa.Column("content", sa.Text(), nullable=False, server_default=""),
         sa.Column("word_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("quality_score", sa.Float(), nullable=False, server_default="0"),
-        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
+        ),
     )
     op.create_index("ix_chapters_story_id", "chapters", ["story_id"])
 
@@ -99,7 +109,9 @@ def upgrade() -> None:
         sa.Column("duration_seconds", sa.Float(), nullable=True),
         sa.Column("token_usage", sa.BigInteger(), nullable=False, server_default="0"),
         sa.Column("error_message", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
+        ),
     )
     op.create_index("ix_pipeline_runs_user_id", "pipeline_runs", ["user_id"])
 
@@ -107,7 +119,9 @@ def upgrade() -> None:
     op.create_table(
         "audit_logs",
         sa.Column("id", postgresql.UUID(as_uuid=False), primary_key=True),
-        sa.Column("timestamp", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "timestamp", sa.DateTime(), nullable=False, server_default=sa.func.now()
+        ),
         sa.Column("user_id", sa.String(255), nullable=True),
         sa.Column("action", sa.String(100), nullable=False),
         sa.Column("resource", sa.String(255), nullable=False, server_default=""),
@@ -133,7 +147,9 @@ def upgrade() -> None:
         sa.Column("scores", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("overall_score", sa.Float(), nullable=False, server_default="0"),
         sa.Column("comment", sa.Text(), nullable=False, server_default=""),
-        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
+        ),
     )
 
     # ------------------------------------------------------------------ configs
@@ -142,7 +158,9 @@ def upgrade() -> None:
         sa.Column("id", postgresql.UUID(as_uuid=False), primary_key=True),
         sa.Column("key", sa.String(255), nullable=False),
         sa.Column("value", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
+        ),
         sa.UniqueConstraint("key", name="uq_configs_key"),
     )
 

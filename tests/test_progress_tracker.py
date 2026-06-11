@@ -5,6 +5,7 @@ from services.progress_tracker import ProgressEvent, ProgressTracker
 
 # ── ProgressEvent ──────────────────────────────────────────────────────────
 
+
 class TestProgressEvent:
     def test_creation_defaults(self):
         ev = ProgressEvent(step="gate", status="started", message="hello")
@@ -16,8 +17,9 @@ class TestProgressEvent:
         assert ev.timestamp > 0
 
     def test_creation_full(self):
-        ev = ProgressEvent(step="revision", status="retry", message="msg",
-                           detail="ch3", progress=0.5)
+        ev = ProgressEvent(
+            step="revision", status="retry", message="msg", detail="ch3", progress=0.5
+        )
         assert ev.detail == "ch3"
         assert ev.progress == 0.5
 
@@ -44,6 +46,7 @@ class TestProgressEvent:
 
 
 # ── ProgressTracker ────────────────────────────────────────────────────────
+
 
 class TestProgressTrackerEmit:
     def test_emit_calls_callback(self):
@@ -87,6 +90,7 @@ class TestProgressTrackerEmit:
 
 # ── Gate helpers ───────────────────────────────────────────────────────────
 
+
 class TestGateHelpers:
     def setup_method(self):
         self.logs = []
@@ -125,6 +129,7 @@ class TestGateHelpers:
 
 # ── Revision helpers ───────────────────────────────────────────────────────
 
+
 class TestRevisionHelpers:
     def setup_method(self):
         self.logs = []
@@ -138,7 +143,9 @@ class TestRevisionHelpers:
         assert "5" in ev.message
 
     def test_revision_chapter(self):
-        self.tracker.revision_chapter(chapter_num=3, pass_num=1, total_weak=5, current=2)
+        self.tracker.revision_chapter(
+            chapter_num=3, pass_num=1, total_weak=5, current=2
+        )
         ev = self.tracker.last_event
         assert ev.status == "in_progress"
         assert "3" in ev.message
@@ -146,7 +153,9 @@ class TestRevisionHelpers:
         assert abs(ev.progress - 0.4) < 1e-9
 
     def test_revision_chapter_progress_clamp_zero(self):
-        self.tracker.revision_chapter(chapter_num=1, pass_num=1, total_weak=0, current=0)
+        self.tracker.revision_chapter(
+            chapter_num=1, pass_num=1, total_weak=0, current=0
+        )
         ev = self.tracker.last_event
         # total_weak=0 uses max(0,1)=1, so progress = 0/1 = 0.0
         assert ev.progress == 0.0
@@ -176,6 +185,7 @@ class TestRevisionHelpers:
 
 # ── Scoring helpers ────────────────────────────────────────────────────────
 
+
 class TestScoringHelpers:
     def setup_method(self):
         self.logs = []
@@ -198,6 +208,7 @@ class TestScoringHelpers:
 
 
 # ── Accumulation and last_event ────────────────────────────────────────────
+
 
 class TestAccumulationAndLastEvent:
     def test_events_accumulate_across_helpers(self):

@@ -76,7 +76,11 @@ GENRE_DRAMA_RULES: dict[str, dict] = {
         ],
         "tension_curve": "wave",
         "dialogue_style": "pha trộn thời đại",
-        "emotional_peaks": ["khủng hoảng thời gian", "lộ danh tính", "thay đổi lịch sử"],
+        "emotional_peaks": [
+            "khủng hoảng thời gian",
+            "lộ danh tính",
+            "thay đổi lịch sử",
+        ],
         "pacing_note": "Lợi thế kiến thức giảm dần → cần xung đột mới",
     },
     "Trọng Sinh": {
@@ -102,7 +106,11 @@ GENRE_DRAMA_RULES: dict[str, dict] = {
         ],
         "tension_curve": "ascending_steps",
         "dialogue_style": "cổ điển hào hiệp",
-        "emotional_peaks": ["cao trào quyết đấu", "bị đồng minh phản bội", "hy sinh vì danh dự"],
+        "emotional_peaks": [
+            "cao trào quyết đấu",
+            "bị đồng minh phản bội",
+            "hy sinh vì danh dự",
+        ],
         "pacing_note": "Lưỡng nan danh dự mỗi 8-10 chương",
     },
 }
@@ -129,7 +137,9 @@ def get_genre_rules(genre: str) -> dict:
     }
 
 
-def get_genre_enhancement_hints(genre: str, chapter_num: int, total_chapters: int) -> str:
+def get_genre_enhancement_hints(
+    genre: str, chapter_num: int, total_chapters: int
+) -> str:
     """Generate genre-specific enhancement hints for a chapter position."""
     rules = get_genre_rules(genre)
     position = chapter_num / max(total_chapters, 1)
@@ -141,7 +151,7 @@ def get_genre_enhancement_hints(genre: str, chapter_num: int, total_chapters: in
         hints.append(f"Giai đoạn mở đầu — thiết lập: {rules['key_beats'][0]}")
     elif position < 0.5:
         hints.append(f"Giai đoạn phát triển — leo thang: {rules['key_beats'][1]}")
-        if rules['escalation_pattern'] == 'power_progression' and position > 0.35:
+        if rules["escalation_pattern"] == "power_progression" and position > 0.35:
             hints.append("⚡ Đây là thời điểm seed phản bội sư phụ (~40% truyện)")
     elif position < 0.75:
         hints.append(f"Giai đoạn cao trào — xung đột: {rules['key_beats'][2]}")
@@ -149,7 +159,7 @@ def get_genre_enhancement_hints(genre: str, chapter_num: int, total_chapters: in
         hints.append(f"Giai đoạn kết — giải quyết: {rules['key_beats'][3]}")
 
     # Emotional peak suggestions
-    peak_text = ", ".join(rules['emotional_peaks'])
+    peak_text = ", ".join(rules["emotional_peaks"])
     hints.append(f"Đỉnh cảm xúc cần hướng tới: {peak_text}")
     hints.append(f"Lưu ý pacing: {rules['pacing_note']}")
 

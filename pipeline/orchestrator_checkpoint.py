@@ -96,7 +96,9 @@ def find_checkpoint_path(filename: str) -> str | None:
     return None
 
 
-_CHAPTER_RE = re.compile(r"(?P<slug>.+)_ch(?P<ch>\d+)_layer(?P<layer>\d+)(?:_[0-9a-f]+)?\.json$")
+_CHAPTER_RE = re.compile(
+    r"(?P<slug>.+)_ch(?P<ch>\d+)_layer(?P<layer>\d+)(?:_[0-9a-f]+)?\.json$"
+)
 
 
 def _atomic_write_text(path: str, data: str) -> None:
@@ -124,7 +126,9 @@ def _atomic_write_text(path: str, data: str) -> None:
         raise
 
 
-def _prune_chapter_checkpoints(out_dir: str, slug: str, layer: int, keep_last: int) -> None:
+def _prune_chapter_checkpoints(
+    out_dir: str, slug: str, layer: int, keep_last: int
+) -> None:
     """Keep newest `keep_last` files matching {slug}_ch*_layer{layer}.json; delete older."""
     if keep_last <= 0:
         return
@@ -163,7 +167,9 @@ class CheckpointManager:
 
     def save(self, layer: int, background: bool = True) -> str:
         """Save pipeline state after layer completion. Non-blocking by default."""
-        raw_title = self.output.story_draft.title if self.output.story_draft else "untitled"
+        raw_title = (
+            self.output.story_draft.title if self.output.story_draft else "untitled"
+        )
         out_dir = _checkpoint_dir_for_title(raw_title)
         os.makedirs(out_dir, exist_ok=True)
         hash_id = hashlib.sha256(raw_title.encode()).hexdigest()[:16]
@@ -184,7 +190,9 @@ class CheckpointManager:
             _write()
         return path
 
-    def save_chapter(self, chapter_number: int, layer: int, background: bool = True) -> str:
+    def save_chapter(
+        self, chapter_number: int, layer: int, background: bool = True
+    ) -> str:
         """Sprint 3 Task 2: save pipeline state after a single chapter completes.
 
         Writes to output/checkpoints/per_chapter/{slug}_ch{N}_layer{L}.json.
@@ -194,12 +202,16 @@ class CheckpointManager:
         After writing, prunes older per-chapter files beyond `keep_last` (caller
         passes this via the manager's state or it defaults to 5).
         """
-        raw_title = self.output.story_draft.title if self.output.story_draft else "untitled"
+        raw_title = (
+            self.output.story_draft.title if self.output.story_draft else "untitled"
+        )
         out_dir = _chapter_checkpoint_dir(raw_title)
         os.makedirs(out_dir, exist_ok=True)
         hash_id = hashlib.sha256(raw_title.encode()).hexdigest()[:16]
         slug = re.sub(r"[^\w\-]", "_", raw_title[:30])
-        path = os.path.join(out_dir, f"{slug}_ch{chapter_number}_layer{layer}_{hash_id}.json")
+        path = os.path.join(
+            out_dir, f"{slug}_ch{chapter_number}_layer{layer}_{hash_id}.json"
+        )
         data = self.output.model_dump_json(indent=2)
         keep_last = getattr(self, "_chapter_keep_last", 5)
 
@@ -218,7 +230,9 @@ class CheckpointManager:
         return path
 
     @staticmethod
-    def list_chapter_checkpoints(slug: str | None = None, layer: int | None = None) -> list:
+    def list_chapter_checkpoints(
+        slug: str | None = None, layer: int | None = None
+    ) -> list:
         """Return per-chapter checkpoint descriptors, newest-first.
 
         Filters by slug and/or layer when provided. Parses `{slug}_ch{N}_layer{L}.json`.
@@ -245,15 +259,19 @@ class CheckpointManager:
                 seen.add(fname)
                 path = os.path.join(out_dir, fname)
                 stat = os.stat(path)
-                entries.append({
-                    "file": fname,
-                    "path": path,
-                    "slug": f_slug,
-                    "chapter": f_ch,
-                    "layer": f_layer,
-                    "size_kb": stat.st_size // 1024,
-                    "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
-                })
+                entries.append(
+                    {
+                        "file": fname,
+                        "path": path,
+                        "slug": f_slug,
+                        "chapter": f_ch,
+                        "layer": f_layer,
+                        "size_kb": stat.st_size // 1024,
+                        "modified": datetime.fromtimestamp(stat.st_mtime).strftime(
+                            "%Y-%m-%d %H:%M"
+                        ),
+                    }
+                )
         entries.sort(key=lambda e: (e["layer"], e["chapter"]), reverse=True)
         return entries
 
@@ -271,7 +289,9 @@ class CheckpointManager:
                 data = json.load(f)
             self.output = PipelineOutput(**data)
         except Exception as e:
-            raise ValueError(f"Per-chapter checkpoint corrupted or incompatible: {e}") from e
+            raise ValueError(
+                f"Per-chapter checkpoint corrupted or incompatible: {e}"
+            ) from e
 
         enhanced = self.output.enhanced_story
         draft = self.output.story_draft
@@ -282,7 +302,9 @@ class CheckpointManager:
         else:
             last = 0
         next_ch = last + 1
-        logger.info(f"Resuming from chapter checkpoint {checkpoint_path}: next_chapter={next_ch}")
+        logger.info(
+            f"Resuming from chapter checkpoint {checkpoint_path}: next_chapter={next_ch}"
+        )
         return self.output, next_ch
 
     @staticmethod
@@ -314,7 +336,9 @@ class CheckpointManager:
                     "file": f,
                     "path": path,
                     "size_kb": stat.st_size // 1024,
-                    "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                    "modified": datetime.fromtimestamp(stat.st_mtime).strftime(
+                        "%Y-%m-%d %H:%M"
+                    ),
                     "title": "",
                     "genre": "",
                     "chapter_count": 0,
@@ -369,6 +393,7 @@ class CheckpointManager:
         if enable_agents:
             try:
                 from pipeline.agents import register_all_agents
+
                 register_all_agents()
             except Exception as e:
                 logger.warning(f"Không thể khởi tạo agents: {e}")
@@ -391,7 +416,8 @@ class CheckpointManager:
                 )
                 self.output.simulation_result = sim_result
                 enhanced = self.enhancer.enhance_with_feedback(
-                    draft=draft, sim_result=sim_result,
+                    draft=draft,
+                    sim_result=sim_result,
                     word_count=kwargs.get("word_count", 2000),
                     progress_callback=lambda m: _log(f"[L2] {m}"),
                 )
@@ -410,9 +436,11 @@ class CheckpointManager:
             except Exception as e:
                 _log(f"Layer 2 lỗi: {e}")
                 enhanced = EnhancedStory(
-                    title=draft.title, genre=draft.genre,
+                    title=draft.title,
+                    genre=draft.genre,
                     chapters=list(draft.chapters),
-                    enhancement_notes=["Layer 2 skipped"], drama_score=0.0,
+                    enhancement_notes=["Layer 2 skipped"],
+                    drama_score=0.0,
                 )
                 self.output.enhanced_story = enhanced
                 self.output.status = "partial"

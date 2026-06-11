@@ -1,4 +1,5 @@
 """Sprint 2 Task 2 — VoiceContract unit tests."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -42,7 +43,10 @@ def _mk_l1_profiles():
             "sentence_style": "short_punchy",
             "verbal_tics": ["thật ra là", "vậy đó"],
             "emotional_expression": {"anger": "im lặng", "joy": "cười nhẹ"},
-            "dialogue_examples": ["Thật ra là tôi không biết.", "Vậy đó, kết thúc rồi."],
+            "dialogue_examples": [
+                "Thật ra là tôi không biết.",
+                "Vậy đó, kết thúc rồi.",
+            ],
         },
         {
             "name": "An",
@@ -85,7 +89,9 @@ class TestBuildVoiceContracts:
     def test_maps_speakers_to_profiles(self):
         outlines = [_mk_outline(ch=1), _mk_outline(ch=2)]
         contracts = build_voice_contracts(
-            _mk_l1_profiles(), outlines, characters=_mk_chars(),
+            _mk_l1_profiles(),
+            outlines,
+            characters=_mk_chars(),
         )
         assert 1 in contracts and 2 in contracts
         c1 = contracts[1]
@@ -97,7 +103,9 @@ class TestBuildVoiceContracts:
     def test_skips_chapters_without_matching_profiles(self):
         outlines = [_mk_outline(ch=1, chars=["Unknown"])]
         contracts = build_voice_contracts(
-            _mk_l1_profiles(), outlines, characters=[Character(name="Unknown", role="extra", personality="x")],
+            _mk_l1_profiles(),
+            outlines,
+            characters=[Character(name="Unknown", role="extra", personality="x")],
         )
         assert contracts == {}
 
@@ -108,9 +116,17 @@ class TestBuildVoiceContracts:
         assert 1 in contracts
 
     def test_accepts_unified_VoiceProfile_models(self):
-        vp_map = {"Linh": VoiceProfile(name="Linh", vocabulary_level="casual", verbal_tics=["ừ"])}
+        vp_map = {
+            "Linh": VoiceProfile(
+                name="Linh", vocabulary_level="casual", verbal_tics=["ừ"]
+            )
+        }
         outlines = [_mk_outline(ch=1, chars=["Linh"])]
-        contracts = build_voice_contracts(vp_map, outlines, characters=[Character(name="Linh", role="p", personality="x")])
+        contracts = build_voice_contracts(
+            vp_map,
+            outlines,
+            characters=[Character(name="Linh", role="p", personality="x")],
+        )
         assert 1 in contracts
         assert contracts[1].per_character["Linh"]["vocabulary_level"] == "casual"
 
@@ -118,7 +134,9 @@ class TestBuildVoiceContracts:
 class TestValidateChapterVoice:
     def test_empty_contract_passes(self):
         llm = MagicMock()
-        v = validate_chapter_voice(llm, "content", VoiceContract(chapter_number=1, per_character={}))
+        v = validate_chapter_voice(
+            llm, "content", VoiceContract(chapter_number=1, per_character={})
+        )
         assert v.passed
         assert v.reason == "no_speakers"
         llm.generate_json.assert_not_called()
@@ -127,14 +145,25 @@ class TestValidateChapterVoice:
         llm = MagicMock()
         llm.generate_json.return_value = {
             "per_character": {
-                "Linh": {"compliance_score": 0.9, "missing_tics": [], "tone_mismatch": ""},
-                "An": {"compliance_score": 0.85, "missing_tics": [], "tone_mismatch": ""},
+                "Linh": {
+                    "compliance_score": 0.9,
+                    "missing_tics": [],
+                    "tone_mismatch": "",
+                },
+                "An": {
+                    "compliance_score": 0.85,
+                    "missing_tics": [],
+                    "tone_mismatch": "",
+                },
             },
             "reason": "ok",
         }
         contract = VoiceContract(
             chapter_number=1,
-            per_character={"Linh": {"verbal_tics": ["ừ"]}, "An": {"verbal_tics": ["kính thưa"]}},
+            per_character={
+                "Linh": {"verbal_tics": ["ừ"]},
+                "An": {"verbal_tics": ["kính thưa"]},
+            },
         )
         v = validate_chapter_voice(llm, 'Some "dialogue" here.', contract)
         assert v.passed
@@ -145,11 +174,17 @@ class TestValidateChapterVoice:
         llm = MagicMock()
         llm.generate_json.return_value = {
             "per_character": {
-                "Linh": {"compliance_score": 0.5, "missing_tics": ["ừ", "vậy đó"], "tone_mismatch": "quá trịnh trọng"},
+                "Linh": {
+                    "compliance_score": 0.5,
+                    "missing_tics": ["ừ", "vậy đó"],
+                    "tone_mismatch": "quá trịnh trọng",
+                },
             },
             "reason": "drift",
         }
-        contract = VoiceContract(chapter_number=1, per_character={"Linh": {"verbal_tics": ["ừ", "vậy đó"]}})
+        contract = VoiceContract(
+            chapter_number=1, per_character={"Linh": {"verbal_tics": ["ừ", "vậy đó"]}}
+        )
         v = validate_chapter_voice(llm, "content", contract)
         assert not v.passed
         assert "Linh" in v.drifted_characters
@@ -177,12 +212,18 @@ class TestValidateChapterVoice:
         llm = MagicMock()
         llm.generate_json.return_value = {
             "per_character": {
-                "Linh": {"compliance_score": 0.9, "missing_tics": ["x"], "tone_mismatch": ""},
+                "Linh": {
+                    "compliance_score": 0.9,
+                    "missing_tics": ["x"],
+                    "tone_mismatch": "",
+                },
             },
             "reason": "",
         }
         contract = VoiceContract(
-            chapter_number=1, per_character={"Linh": {}}, tolerance_missing_tics=1,
+            chapter_number=1,
+            per_character={"Linh": {}},
+            tolerance_missing_tics=1,
         )
         v = validate_chapter_voice(llm, "content", contract)
         assert "Linh" not in v.missing_tics  # within tolerance
@@ -212,8 +253,20 @@ class TestAggregateVoiceStats:
     def test_counts_retry_revert(self):
         vs = [
             VoiceValidation(chapter_number=1, passed=True, overall_compliance=0.9),
-            VoiceValidation(chapter_number=2, passed=True, overall_compliance=0.8, retry_attempted=True),
-            VoiceValidation(chapter_number=3, passed=False, overall_compliance=0.4, retry_attempted=True, binary_reverted=True, drifted_characters=["Linh"]),
+            VoiceValidation(
+                chapter_number=2,
+                passed=True,
+                overall_compliance=0.8,
+                retry_attempted=True,
+            ),
+            VoiceValidation(
+                chapter_number=3,
+                passed=False,
+                overall_compliance=0.4,
+                retry_attempted=True,
+                binary_reverted=True,
+                drifted_characters=["Linh"],
+            ),
         ]
         s = aggregate_voice_stats(vs, llm_calls_saved=50)
         assert s["total_chapters"] == 3

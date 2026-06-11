@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 class CharacterState(BaseModel):
     """Trạng thái nhân vật tại một thời điểm."""
+
     name: str
     chapter_number: int = 0
     location: str = ""
@@ -21,7 +22,9 @@ class CharacterState(BaseModel):
     inventory: list[str] = Field(default_factory=list)  # items held/acquired
     companions: list[str] = Field(default_factory=list)  # who they're with
     goals_active: list[str] = Field(default_factory=list)  # immediate goals
-    secrets_revealed: list[str] = Field(default_factory=list)  # secrets exposed this chapter
+    secrets_revealed: list[str] = Field(
+        default_factory=list
+    )  # secrets exposed this chapter
 
 
 class CharacterStateRegistry:
@@ -46,7 +49,9 @@ Trả về JSON với các trường:
 Chỉ ghi nhận thông tin CHẮC CHẮN xuất hiện trong văn bản. Nếu không rõ, để rỗng."""
 
     def __init__(self):
-        self.states: dict[str, dict[int, CharacterState]] = {}  # name -> chapter -> state
+        self.states: dict[
+            str, dict[int, CharacterState]
+        ] = {}  # name -> chapter -> state
         self.llm = LLMClient()
 
     def extract_states_from_chapter(
@@ -96,10 +101,14 @@ Chỉ ghi nhận thông tin CHẮC CHẮN xuất hiện trong văn bản. Nếu 
                 self.states[name][chapter_number] = state
                 results.append(state)
 
-                logger.debug(f"Extracted state for {name} ch{chapter_number}: loc={state.location}")
+                logger.debug(
+                    f"Extracted state for {name} ch{chapter_number}: loc={state.location}"
+                )
 
             except Exception as e:
-                logger.warning(f"Failed to extract state for {name} ch{chapter_number}: {e}")
+                logger.warning(
+                    f"Failed to extract state for {name} ch{chapter_number}: {e}"
+                )
 
         return results
 
@@ -107,7 +116,9 @@ Chỉ ghi nhận thông tin CHẮC CHẮN xuất hiện trong văn bản. Nếu 
         """Lấy trạng thái nhân vật tại chương cụ thể."""
         return self.states.get(name, {}).get(chapter_number)
 
-    def get_last_known_state(self, name: str, before_chapter: int) -> CharacterState | None:
+    def get_last_known_state(
+        self, name: str, before_chapter: int
+    ) -> CharacterState | None:
         """Lấy trạng thái gần nhất TRƯỚC chương hiện tại."""
         char_states = self.states.get(name, {})
         if not char_states:
@@ -121,7 +132,9 @@ Chỉ ghi nhận thông tin CHẮC CHẮN xuất hiện trong văn bản. Nếu 
         latest = max(valid_chapters)
         return char_states[latest]
 
-    def build_from_draft(self, draft, progress_callback=None) -> "CharacterStateRegistry":
+    def build_from_draft(
+        self, draft, progress_callback=None
+    ) -> "CharacterStateRegistry":
         """Xây dựng registry từ toàn bộ draft."""
         characters = getattr(draft, "characters", []) or []
         char_names = [c.name for c in characters]
@@ -133,7 +146,9 @@ Chỉ ghi nhận thông tin CHẮC CHẮN xuất hiện trong văn bản. Nếu 
             if content and ch_num:
                 self.extract_states_from_chapter(content, ch_num, char_names)
                 if progress_callback:
-                    progress_callback(f"[StateRegistry] Extracted states for ch{ch_num}")
+                    progress_callback(
+                        f"[StateRegistry] Extracted states for ch{ch_num}"
+                    )
 
         logger.info(f"CharacterStateRegistry: {len(self.states)} characters tracked")
         return self
@@ -217,7 +232,9 @@ Trả về:
                         expect="dict",
                     )
 
-                    if result.get("location_changed") and not result.get("transition_explained"):
+                    if result.get("location_changed") and not result.get(
+                        "transition_explained"
+                    ):
                         violation_msg = result.get("violation", "")
                         if violation_msg:
                             violation = {
@@ -237,11 +254,22 @@ Trả về:
             if prev_state.physical_state:
                 # If char was injured, check if still mentioned or healed
                 injury_keywords = ["bị thương", "chấn thương", "máu", "đau"]
-                had_injury = any(kw in prev_state.physical_state.lower() for kw in injury_keywords)
+                had_injury = any(
+                    kw in prev_state.physical_state.lower() for kw in injury_keywords
+                )
                 if had_injury:
-                    mentions_injury = any(kw in enhanced_content.lower() for kw in injury_keywords)
-                    mentions_healing = any(kw in enhanced_content.lower() for kw in ["hồi phục", "lành", "chữa"])
-                    if not mentions_injury and not mentions_healing and name.lower() in enhanced_content.lower():
+                    mentions_injury = any(
+                        kw in enhanced_content.lower() for kw in injury_keywords
+                    )
+                    mentions_healing = any(
+                        kw in enhanced_content.lower()
+                        for kw in ["hồi phục", "lành", "chữa"]
+                    )
+                    if (
+                        not mentions_injury
+                        and not mentions_healing
+                        and name.lower() in enhanced_content.lower()
+                    ):
                         violation = {
                             "type": "physical_state_continuity",
                             "character": name,

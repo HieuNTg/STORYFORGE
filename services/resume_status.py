@@ -45,7 +45,9 @@ def _has_recent_continuation(filename: str, *, now: Optional[datetime] = None) -
             continue
         try:
             # Stored format: "2026-05-03T22:39:00Z" — strip the trailing Z.
-            ev_dt = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+            ev_dt = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(
+                tzinfo=timezone.utc
+            )
         except ValueError:
             continue
         if (now - ev_dt).total_seconds() <= cutoff_seconds:

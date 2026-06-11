@@ -340,6 +340,7 @@ class TestEmbeddingMissError:
 
     def test_embed_batch_none_slot_raises_embedding_miss_error_strict(self) -> None:
         """Injecting a None slot after model fill → EmbeddingMissError (strict=True)."""
+
         # Build a service whose embed_texts returns only 1 row for 2-text input.
         # zip(strict=True) in embed_batch then raises ValueError (length mismatch),
         # which bubbles up. EmbeddingMissError is raised for the None-slot path.

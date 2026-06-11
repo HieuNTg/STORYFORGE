@@ -17,7 +17,16 @@ logger = logging.getLogger(__name__)
 class ImageGenerator:
     """Generate images from prompts using various AI providers."""
 
-    PROVIDERS = ["dalle", "sd-api", "seedream", "replicate", "huggingface", "flowkit", "codex", "none"]
+    PROVIDERS = [
+        "dalle",
+        "sd-api",
+        "seedream",
+        "replicate",
+        "huggingface",
+        "flowkit",
+        "codex",
+        "none",
+    ]
 
     def __init__(
         self,
@@ -36,13 +45,21 @@ class ImageGenerator:
             api_key
             or cfg.image_api_key
             or os.environ.get("IMAGE_API_KEY", "")
-            or (config.llm.api_key if "openai.com" in (config.llm.base_url or "") else "")
+            or (
+                config.llm.api_key
+                if "openai.com" in (config.llm.base_url or "")
+                else ""
+            )
         )
         self.base_url = (
             base_url
             or cfg.image_api_url
             or os.environ.get("IMAGE_API_URL", "")
-            or (config.llm.base_url if "openai.com" in (config.llm.base_url or "") else "https://api.openai.com/v1")
+            or (
+                config.llm.base_url
+                if "openai.com" in (config.llm.base_url or "")
+                else "https://api.openai.com/v1"
+            )
         )
         self.hf_token = cfg.hf_token or os.environ.get("HF_TOKEN", "")
         self.hf_model = cfg.hf_image_model
@@ -57,6 +74,7 @@ class ImageGenerator:
         # ``chNN_panelNN.png`` collides in one shared dir. Falls back to a
         # global images dir only when no title is known (CLI / standalone use).
         from services.output_paths import OUTPUT_ROOT, images_dir
+
         if story_title:
             self.output_dir = images_dir(story_title, session_id=session_id)
         else:
@@ -70,7 +88,9 @@ class ImageGenerator:
     ) -> Optional[str]:
         """Generate image from prompt. Returns saved file path or None."""
         if self.provider == "none":
-            logger.info("Image gen disabled (prompt-only mode). Prompt: %.100s...", prompt)
+            logger.info(
+                "Image gen disabled (prompt-only mode). Prompt: %.100s...", prompt
+            )
             return None
 
         if self.provider == "dalle":
@@ -140,7 +160,9 @@ class ImageGenerator:
         # A panel sometimes comes back empty (Codex occasionally drops one, a
         # transient provider hiccup, etc.). Retry it a few times rather than
         # silently shipping a chapter with a hole in it.
-        _retries = max(0, int(getattr(ConfigManager().pipeline, "panel_retry_attempts", 2)))
+        _retries = max(
+            0, int(getattr(ConfigManager().pipeline, "panel_retry_attempts", 2))
+        )
         for i, ip in enumerate(image_prompts):
             prompt = ip.dalle_prompt if self.provider == "dalle" else ip.sd_prompt
             if not prompt:
@@ -176,14 +198,19 @@ class ImageGenerator:
                 if attempt < _retries:
                     logger.warning(
                         "Panel %d (ch%02d) returned no image; retry %d/%d",
-                        i + 1, chapter_number, attempt + 1, _retries,
+                        i + 1,
+                        chapter_number,
+                        attempt + 1,
+                        _retries,
                     )
             if path:
                 paths.append(path)
             else:
                 logger.error(
                     "Panel %d (ch%02d) failed after %d attempt(s); skipped",
-                    i + 1, chapter_number, _retries + 1,
+                    i + 1,
+                    chapter_number,
+                    _retries + 1,
                 )
         return paths
 
@@ -265,10 +292,17 @@ class ImageGenerator:
 
             max_retries = 2
             for attempt in range(max_retries + 1):
-                resp = requests.post(api_url, headers=headers, json=payload, timeout=120)
+                resp = requests.post(
+                    api_url, headers=headers, json=payload, timeout=120
+                )
                 if resp.status_code == 503 and attempt < max_retries:
-                    delay = 5 * (3 ** attempt)  # 5s, 15s
-                    logger.warning("HuggingFace model loading, retry %d/%d in %ds...", attempt + 1, max_retries, delay)
+                    delay = 5 * (3**attempt)  # 5s, 15s
+                    logger.warning(
+                        "HuggingFace model loading, retry %d/%d in %ds...",
+                        attempt + 1,
+                        max_retries,
+                        delay,
+                    )
                     time.sleep(delay)
                     continue
                 break
@@ -287,7 +321,9 @@ class ImageGenerator:
 
     def _generate_seedream(self, prompt: str, filename: str) -> Optional[str]:
         """Generate via ByteDance Seedream API (delegates to SeedreamClient)."""
-        from services.seedream_client import SeedreamClient  # local import avoids circular deps
+        from services.seedream_client import (
+            SeedreamClient,
+        )  # local import avoids circular deps
 
         cfg = ConfigManager().pipeline
         client = SeedreamClient(
@@ -308,10 +344,14 @@ class ImageGenerator:
         self, prompt: str, reference_paths: list, filename: str
     ) -> Optional[str]:
         """Generate via Seedream with character references."""
-        from services.seedream_client import SeedreamClient  # local import avoids circular deps
+        from services.seedream_client import (
+            SeedreamClient,
+        )  # local import avoids circular deps
 
         cfg = ConfigManager().pipeline
-        client = SeedreamClient(api_key=cfg.seedream_api_key, base_url=cfg.seedream_api_url)
+        client = SeedreamClient(
+            api_key=cfg.seedream_api_key, base_url=cfg.seedream_api_url
+        )
         if not client.is_configured():
             logger.warning("Seedream not configured for reference generation")
             return self.generate(prompt, filename)
@@ -334,6 +374,7 @@ class ImageGenerator:
 
     def _codex_client(self):
         from services.media.codex_image_client import CodexImageClient
+
         cfg = ConfigManager().pipeline
         return CodexImageClient(model=getattr(cfg, "codex_model", "") or "")
 
@@ -366,6 +407,7 @@ class ImageGenerator:
             return prompt
         try:
             from services.media.image_prompt_generator import ImagePromptGenerator
+
             return ImagePromptGenerator().refine_to_cinematic_prompt(prompt) or prompt
         except Exception as e:
             logger.warning("FlowKit refiner failed, using raw prompt: %s", e)
@@ -378,12 +420,14 @@ class ImageGenerator:
         FlowService captured ``_main_loop`` when the WS connected.
         """
         from services.media.flow_service import FlowService
+
         flow_service = FlowService()
         cfg = ConfigManager().pipeline
         if not cfg.flowkit_enabled or flow_service.active_ws is None:
             logger.warning(
                 "FlowKit not ready (enabled=%s, ws_connected=%s)",
-                cfg.flowkit_enabled, flow_service.active_ws is not None,
+                cfg.flowkit_enabled,
+                flow_service.active_ws is not None,
             )
             return None
         loop = getattr(flow_service, "_main_loop", None)
@@ -403,9 +447,12 @@ class ImageGenerator:
     ) -> Optional[str]:
         """Text-only image generation via Google Labs Flow (Imagen)."""
         from services.media.flow_service import FlowService
+
         flow_service = FlowService()
         if flow_service.active_ws is None:
-            logger.warning("FlowKit not connected (no active WebSocket); skipping generation")
+            logger.warning(
+                "FlowKit not connected (no active WebSocket); skipping generation"
+            )
             return None
         refined = self._flowkit_refine(prompt)
         return self._flowkit_call(
@@ -419,9 +466,12 @@ class ImageGenerator:
     ) -> Optional[str]:
         """Reference-conditioned generation. Splits CHARACTER/STYLE refs when split flag set."""
         from services.media.flow_service import FlowService
+
         flow_service = FlowService()
         if flow_service.active_ws is None:
-            logger.warning("FlowKit not connected (no active WebSocket); skipping generation")
+            logger.warning(
+                "FlowKit not connected (no active WebSocket); skipping generation"
+            )
             return None
         cfg = ConfigManager().pipeline
         refined = self._flowkit_refine(prompt)

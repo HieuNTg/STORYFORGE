@@ -30,6 +30,7 @@ def _reset_state():
     """Reset fallback manager + LLMClient between tests so state doesn't leak."""
     reset_fallback_manager()
     from services.llm.client import LLMClient
+
     LLMClient.reset()
     yield
     reset_fallback_manager()
@@ -39,6 +40,7 @@ def _reset_state():
 def _build_test_app() -> FastAPI:
     app = FastAPI()
     from api.provider_status_routes import router
+
     app.include_router(router, prefix="/api")
     return app
 
@@ -102,6 +104,7 @@ def test_health_snapshot_includes_latency():
 
 def test_rate_limit_snapshot_redacts_keys():
     from services.llm.client import LLMClient
+
     client = LLMClient()
     fake_key = "sk-supersecretvalue1234567890"
     client._rate_limited_keys[fake_key] = time.time() + 60.0
@@ -112,12 +115,13 @@ def test_rate_limit_snapshot_redacts_keys():
     # Actual key must not appear anywhere
     assert fake_key not in entry["key_id"]
     assert entry["key_id"].startswith("sk-sup")  # 6-char prefix preserved
-    assert entry["key_id"].endswith("7890")      # 4-char suffix preserved
+    assert entry["key_id"].endswith("7890")  # 4-char suffix preserved
     assert entry["cooldown_remaining_s"] > 0
 
 
 def test_rate_limit_snapshot_skips_expired():
     from services.llm.client import LLMClient
+
     client = LLMClient()
     client._rate_limited_keys["sk-already-expired-key-12345"] = time.time() - 10.0
 
@@ -127,6 +131,7 @@ def test_rate_limit_snapshot_skips_expired():
 
 def test_rate_limit_snapshot_model_combo():
     from services.llm.client import LLMClient
+
     client = LLMClient()
     client._rate_limited_models["gpt-4o:sk-abcdef1234567890xyz"] = time.time() + 90.0
 

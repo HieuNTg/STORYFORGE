@@ -117,6 +117,7 @@ def continue_dialogue(
 
     # Lazy import to avoid circular concerns; this maps locale -> readable name.
     from services.character_service import _language_label
+
     language_label = _language_label(language)
 
     safe_topic = _safe(topic.strip().replace('"', "'")[:2000])

@@ -1,4 +1,5 @@
 """Error path tests — retries exhausted, bad directories, corrupted checkpoints, invalid config."""
+
 import json
 import os
 import pytest
@@ -8,6 +9,7 @@ from unittest.mock import MagicMock, patch
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_llm_config(api_key="valid-key"):
     cfg = MagicMock()
@@ -28,6 +30,7 @@ def _make_llm_config(api_key="valid-key"):
 
 def _reset_llm_singleton():
     from services import llm_client
+
     llm_client.LLMClient._instance = None
 
 
@@ -35,8 +38,8 @@ def _reset_llm_singleton():
 # 1. LLM client: all retries exhausted → RuntimeError
 # ---------------------------------------------------------------------------
 
-class TestLLMAllRetriesExhausted:
 
+class TestLLMAllRetriesExhausted:
     def setup_method(self):
         _reset_llm_singleton()
 
@@ -48,6 +51,7 @@ class TestLLMAllRetriesExhausted:
     def test_all_retries_exhausted_raises_runtime_error(self, MockCache, MockCM):
         """When single provider exhausts all 3 retries, RuntimeError is raised."""
         from services.llm_client import LLMClient
+
         cfg = _make_llm_config()
         MockCM.return_value = cfg
         MockCache.return_value.get.return_value = None
@@ -57,12 +61,16 @@ class TestLLMAllRetriesExhausted:
         failing = MagicMock()
         # Always raises transient error — _try_provider retries MAX_RETRIES times then re-raises
         failing.chat.completions.create.side_effect = Exception("timeout 503")
-        client._build_fallback_chain = MagicMock(return_value=[
-            {"client": failing, "model": "gpt-4", "label": "primary"},
-        ])
+        client._build_fallback_chain = MagicMock(
+            return_value=[
+                {"client": failing, "model": "gpt-4", "label": "primary"},
+            ]
+        )
 
         with patch("services.llm_client.time"):
-            with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
+            with patch(
+                "services.prompts.localize_prompt", side_effect=lambda p, lang: p
+            ):
                 with pytest.raises(RuntimeError):
                     client.generate("system", "user prompt")
 
@@ -71,6 +79,7 @@ class TestLLMAllRetriesExhausted:
     def test_three_attempts_made_before_exhaustion(self, MockCache, MockCM):
         """Provider is called MAX_RETRIES (3) times before giving up."""
         from services.llm_client import LLMClient, MAX_RETRIES
+
         cfg = _make_llm_config()
         MockCM.return_value = cfg
         MockCache.return_value.get.return_value = None
@@ -79,12 +88,16 @@ class TestLLMAllRetriesExhausted:
 
         failing = MagicMock()
         failing.chat.completions.create.side_effect = Exception("timeout")
-        client._build_fallback_chain = MagicMock(return_value=[
-            {"client": failing, "model": "gpt-4", "label": "primary"},
-        ])
+        client._build_fallback_chain = MagicMock(
+            return_value=[
+                {"client": failing, "model": "gpt-4", "label": "primary"},
+            ]
+        )
 
         with patch("services.llm_client.time"):
-            with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
+            with patch(
+                "services.prompts.localize_prompt", side_effect=lambda p, lang: p
+            ):
                 with pytest.raises((RuntimeError, Exception)):
                     client.generate("system", "user")
 
@@ -95,6 +108,7 @@ class TestLLMAllRetriesExhausted:
     def test_all_fallbacks_exhausted_raises_runtime_error(self, MockCache, MockCM):
         """When primary + all fallbacks fail, RuntimeError is raised."""
         from services.llm_client import LLMClient
+
         cfg = _make_llm_config()
         MockCM.return_value = cfg
         MockCache.return_value.get.return_value = None
@@ -106,14 +120,22 @@ class TestLLMAllRetriesExhausted:
             m.chat.completions.create.side_effect = Exception("timeout")
             return m
 
-        client._build_fallback_chain = MagicMock(return_value=[
-            {"client": _make_failing(), "model": "gpt-4", "label": "primary"},
-            {"client": _make_failing(), "model": "gpt-3.5", "label": "cheap"},
-            {"client": _make_failing(), "model": "claude", "label": "fallback:claude"},
-        ])
+        client._build_fallback_chain = MagicMock(
+            return_value=[
+                {"client": _make_failing(), "model": "gpt-4", "label": "primary"},
+                {"client": _make_failing(), "model": "gpt-3.5", "label": "cheap"},
+                {
+                    "client": _make_failing(),
+                    "model": "claude",
+                    "label": "fallback:claude",
+                },
+            ]
+        )
 
         with patch("services.llm_client.time"):
-            with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
+            with patch(
+                "services.prompts.localize_prompt", side_effect=lambda p, lang: p
+            ):
                 with pytest.raises(RuntimeError):
                     client.generate("sys", "usr")
 
@@ -122,8 +144,8 @@ class TestLLMAllRetriesExhausted:
 # 2. Export to non-existent directory → graceful error (not crash)
 # ---------------------------------------------------------------------------
 
-class TestExportToNonExistentDirectory:
 
+class TestExportToNonExistentDirectory:
     def test_html_export_creates_parent_dirs_automatically(self, tmp_path):
         """HTMLExporter creates missing parent dirs — should not raise."""
         from models.schemas import StoryDraft, Chapter
@@ -175,7 +197,9 @@ class TestExportToNonExistentDirectory:
         from services.share_manager import ShareManager
 
         monkeypatch.setattr(ShareManager, "SHARES_DIR", str(tmp_path / "shares"))
-        monkeypatch.setattr(ShareManager, "SHARES_INDEX", str(tmp_path / "shares" / "index.json"))
+        monkeypatch.setattr(
+            ShareManager, "SHARES_INDEX", str(tmp_path / "shares" / "index.json")
+        )
 
         mgr = ShareManager()
         story = StoryDraft(
@@ -184,7 +208,10 @@ class TestExportToNonExistentDirectory:
             chapters=[Chapter(chapter_number=1, title="Ch1", content="Content")],
         )
 
-        with patch("services.html_exporter.HTMLExporter.export", side_effect=Exception("export failed")):
+        with patch(
+            "services.html_exporter.HTMLExporter.export",
+            side_effect=Exception("export failed"),
+        ):
             share = mgr.create_share(story)
 
         assert share.share_id != ""
@@ -199,16 +226,18 @@ class TestExportToNonExistentDirectory:
 # 3. Checkpoint load with corrupted JSON → ValueError raised, not crash
 # ---------------------------------------------------------------------------
 
-class TestCheckpointCorruptedJSON:
 
+class TestCheckpointCorruptedJSON:
     def _make_minimal_output(self):
         """Build a minimal PipelineOutput for CheckpointManager init."""
         from models.schemas import PipelineOutput, StoryDraft
+
         draft = StoryDraft(title="Test", genre="test", chapters=[])
         return PipelineOutput(story_draft=draft)
 
     def _make_checkpoint_manager(self):
         from pipeline.orchestrator_checkpoint import CheckpointManager
+
         output = self._make_minimal_output()
         analyzer = MagicMock()
         simulator = MagicMock()
@@ -245,6 +274,7 @@ class TestCheckpointCorruptedJSON:
     def test_list_checkpoints_no_dir_returns_empty(self):
         """list_checkpoints() returns [] gracefully when dir doesn't exist."""
         from pipeline.orchestrator_checkpoint import CheckpointManager
+
         with patch("pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", "/no/such/dir"):
             result = CheckpointManager.list_checkpoints()
         assert result == []
@@ -264,8 +294,8 @@ class TestCheckpointCorruptedJSON:
 # 4. Pipeline with invalid config (empty API key) → proper error message
 # ---------------------------------------------------------------------------
 
-class TestPipelineInvalidConfig:
 
+class TestPipelineInvalidConfig:
     def setup_method(self):
         _reset_llm_singleton()
 
@@ -277,12 +307,15 @@ class TestPipelineInvalidConfig:
     def test_empty_api_key_check_connection_returns_false(self, MockCache, MockCM):
         """check_connection returns (False, error_msg) when API key is empty."""
         from services.llm_client import LLMClient
+
         cfg = _make_llm_config(api_key="")
         MockCM.return_value = cfg
         client = LLMClient()
 
         mock_openai = MagicMock()
-        mock_openai.chat.completions.create.side_effect = Exception("401 unauthorized invalid api key")
+        mock_openai.chat.completions.create.side_effect = Exception(
+            "401 unauthorized invalid api key"
+        )
         client._get_client = MagicMock(return_value=mock_openai)
 
         ok, msg = client.check_connection()
@@ -300,6 +333,7 @@ class TestPipelineInvalidConfig:
         must try it instead of failing fast (services/llm/retry.py).
         """
         from services.llm_client import LLMClient
+
         cfg = _make_llm_config(api_key="bad-key")
         MockCM.return_value = cfg
         MockCache.return_value.get.return_value = None
@@ -313,10 +347,12 @@ class TestPipelineInvalidConfig:
         resp.choices[0].message.content = "fallback response"
         fallback.chat.completions.create.return_value = resp
 
-        client._build_fallback_chain = MagicMock(return_value=[
-            {"client": primary, "model": "gpt-4", "label": "primary"},
-            {"client": fallback, "model": "gpt-3.5", "label": "cheap"},
-        ])
+        client._build_fallback_chain = MagicMock(
+            return_value=[
+                {"client": primary, "model": "gpt-4", "label": "primary"},
+                {"client": fallback, "model": "gpt-3.5", "label": "cheap"},
+            ]
+        )
 
         with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
             result = client.generate("sys", "usr")

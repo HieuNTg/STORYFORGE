@@ -78,20 +78,26 @@ def enforce_handoff(
     if ok and not warnings:
         logger.info(
             "handoff_validated story_id=%s signals_ok=%d/%d",
-            envelope.story_id, ok_count, total,
+            envelope.story_id,
+            ok_count,
+            total,
         )
         return envelope
 
     if not ok and _is_strict(strict):
         logger.error(
             "handoff_blocked story_id=%s blockers=%s warnings=%s",
-            envelope.story_id, blockers, warnings,
+            envelope.story_id,
+            blockers,
+            warnings,
         )
         raise HandoffValidationError(blockers, envelope)
 
     logger.warning(
         "handoff_degraded story_id=%s blockers=%s warnings=%s",
-        envelope.story_id, blockers, warnings,
+        envelope.story_id,
+        blockers,
+        warnings,
     )
     return envelope
 

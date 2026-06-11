@@ -30,7 +30,10 @@ def build_enhancement_context(
     # Theme premise
     if premise and getattr(config.pipeline, "enable_theme_premise", False):
         try:
-            from pipeline.layer1_story.theme_premise_generator import format_premise_for_prompt
+            from pipeline.layer1_story.theme_premise_generator import (
+                format_premise_for_prompt,
+            )
+
             text = format_premise_for_prompt(premise)
             if text:
                 parts.append(text)
@@ -40,7 +43,10 @@ def build_enhancement_context(
     # Voice profiles
     if voice_profiles and getattr(config.pipeline, "enable_voice_profiles", False):
         try:
-            from pipeline.layer1_story.character_voice_profiler import format_voice_profiles_for_prompt
+            from pipeline.layer1_story.character_voice_profiler import (
+                format_voice_profiles_for_prompt,
+            )
+
             text = format_voice_profiles_for_prompt(voice_profiles)
             if text:
                 parts.append(text)
@@ -56,10 +62,15 @@ def build_enhancement_context(
     ):
         try:
             from pipeline.layer1_story.scene_decomposer import (
-                decompose_chapter_scenes, format_scenes_for_prompt, should_decompose,
+                decompose_chapter_scenes,
+                format_scenes_for_prompt,
+                should_decompose,
             )
+
             if should_decompose(outline.chapter_number, pacing):
-                scenes = decompose_chapter_scenes(llm, outline, characters, world, genre, model=layer_model)
+                scenes = decompose_chapter_scenes(
+                    llm, outline, characters, world, genre, model=layer_model
+                )
                 text = format_scenes_for_prompt(scenes)
                 if text:
                     parts.append(text)
@@ -69,7 +80,10 @@ def build_enhancement_context(
     # Show-don't-tell guidance (no LLM call)
     if getattr(config.pipeline, "enable_show_dont_tell", False):
         try:
-            from pipeline.layer1_story.show_dont_tell_enforcer import build_show_dont_tell_guidance
+            from pipeline.layer1_story.show_dont_tell_enforcer import (
+                build_show_dont_tell_guidance,
+            )
+
             text = build_show_dont_tell_guidance(genre, pacing)
             if text:
                 parts.append(text)
@@ -94,7 +108,10 @@ def build_shared_enhancement_context(
 
     if premise and getattr(config.pipeline, "enable_theme_premise", False):
         try:
-            from pipeline.layer1_story.theme_premise_generator import format_premise_for_prompt
+            from pipeline.layer1_story.theme_premise_generator import (
+                format_premise_for_prompt,
+            )
+
             text = format_premise_for_prompt(premise)
             if text:
                 parts.append(text)
@@ -103,7 +120,10 @@ def build_shared_enhancement_context(
 
     if voice_profiles and getattr(config.pipeline, "enable_voice_profiles", False):
         try:
-            from pipeline.layer1_story.character_voice_profiler import format_voice_profiles_for_prompt
+            from pipeline.layer1_story.character_voice_profiler import (
+                format_voice_profiles_for_prompt,
+            )
+
             text = format_voice_profiles_for_prompt(voice_profiles)
             if text:
                 parts.append(text)
@@ -112,7 +132,10 @@ def build_shared_enhancement_context(
 
     if getattr(config.pipeline, "enable_show_dont_tell", False):
         try:
-            from pipeline.layer1_story.show_dont_tell_enforcer import build_show_dont_tell_guidance
+            from pipeline.layer1_story.show_dont_tell_enforcer import (
+                build_show_dont_tell_guidance,
+            )
+
             text = build_show_dont_tell_guidance(genre)
             if text:
                 parts.append(text)

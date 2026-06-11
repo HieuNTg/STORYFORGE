@@ -28,7 +28,9 @@ def generate_foreshadowing_plan(
     result = llm.generate_json(
         system_prompt="Bạn là bậc thầy foreshadowing. BẮT BUỘC viết bằng tiếng Việt. Trả về JSON.",
         user_prompt=prompts.GENERATE_FORESHADOWING_PLAN.format(
-            genre=genre, title=title, synopsis=synopsis,
+            genre=genre,
+            title=title,
+            synopsis=synopsis,
             macro_arcs=format_arcs_for_prompt(macro_arcs),
             conflict_web=format_conflicts_for_prompt(conflict_web),
         ),
@@ -47,14 +49,22 @@ def generate_foreshadowing_plan(
     return entries
 
 
-def get_seeds_to_plant(plan: list[ForeshadowingEntry], chapter_number: int) -> list[ForeshadowingEntry]:
+def get_seeds_to_plant(
+    plan: list[ForeshadowingEntry], chapter_number: int
+) -> list[ForeshadowingEntry]:
     """Get foreshadowing seeds that should be planted in this chapter."""
     return [f for f in plan if f.plant_chapter == chapter_number and not f.planted]
 
 
-def get_payoffs_due(plan: list[ForeshadowingEntry], chapter_number: int) -> list[ForeshadowingEntry]:
+def get_payoffs_due(
+    plan: list[ForeshadowingEntry], chapter_number: int
+) -> list[ForeshadowingEntry]:
     """Get foreshadowing that should pay off in this chapter."""
-    return [f for f in plan if f.payoff_chapter == chapter_number and f.planted and not f.paid_off]
+    return [
+        f
+        for f in plan
+        if f.payoff_chapter == chapter_number and f.planted and not f.paid_off
+    ]
 
 
 def mark_planted(
@@ -69,14 +79,18 @@ def mark_planted(
                 hint_words = [w.lower() for w in f.hint.split() if len(w) > 3]
                 content_lower = chapter_content.lower()
                 if hint_words:
-                    match_ratio = sum(1 for w in hint_words if w in content_lower) / len(hint_words)
+                    match_ratio = sum(
+                        1 for w in hint_words if w in content_lower
+                    ) / len(hint_words)
                     if match_ratio >= 0.3:
                         f.planted = True
                         f.planted_confidence = match_ratio
                     else:
                         logger.warning(
                             "Foreshadowing '%s' scheduled for ch%d but hint not detected (match=%.0f%%)",
-                            f.hint[:50], chapter_number, match_ratio * 100,
+                            f.hint[:50],
+                            chapter_number,
+                            match_ratio * 100,
                         )
                 else:
                     f.planted = True
@@ -119,7 +133,9 @@ def format_seeds_for_prompt(seeds: list[ForeshadowingEntry]) -> str:
     lines = []
     for s in seeds:
         chars = ", ".join(s.characters_involved) if s.characters_involved else "general"
-        lines.append(f"- GIEO: {s.hint} (payoff ở ch.{s.payoff_chapter}, nhân vật: {chars})")
+        lines.append(
+            f"- GIEO: {s.hint} (payoff ở ch.{s.payoff_chapter}, nhân vật: {chars})"
+        )
     return "\n".join(lines)
 
 
@@ -286,26 +302,20 @@ def format_audit_warnings(audit: dict) -> list[str]:
     warnings = []
 
     if audit["missed"] > 0:
-        warnings.append(
-            f"⚠️ {audit['missed']} foreshadowing đã gieo nhưng chưa payoff"
-        )
+        warnings.append(f"⚠️ {audit['missed']} foreshadowing đã gieo nhưng chưa payoff")
         for m in audit["missed_payoffs"][:5]:
             warnings.append(
                 f"  - '{m['hint']}' (ch.{m['plant_chapter']}→ch.{m['payoff_chapter']})"
             )
 
     if audit["not_planted"] > 0:
-        warnings.append(
-            f"⚠️ {audit['not_planted']} foreshadowing không được gieo"
-        )
+        warnings.append(f"⚠️ {audit['not_planted']} foreshadowing không được gieo")
         for u in audit["unplanted_seeds"][:3]:
             warnings.append(f"  - '{u['hint']}' (planned ch.{u['plant_chapter']})")
 
     rate = audit["completion_rate"]
     if rate < 0.8:
-        warnings.append(
-            f"🚨 Tỷ lệ hoàn thành foreshadowing thấp: {rate:.0%}"
-        )
+        warnings.append(f"🚨 Tỷ lệ hoàn thành foreshadowing thấp: {rate:.0%}")
 
     return warnings
 
@@ -345,17 +355,19 @@ def get_foreshadowing_status(
     if planted_waiting:
         lines.append("## FORESHADOWING ĐÃ GIEO (chờ payoff):")
         for f in planted_waiting[:5]:
-            lines.append(f"- Ch{f.plant_chapter}: \"{f.hint}\" → payoff ch{f.payoff_chapter}")
+            lines.append(
+                f'- Ch{f.plant_chapter}: "{f.hint}" → payoff ch{f.payoff_chapter}'
+            )
 
     if to_plant:
         lines.append("## CẦN GIEO CHƯƠNG NÀY:")
         for f in to_plant:
-            lines.append(f"- \"{f.hint}\"")
+            lines.append(f'- "{f.hint}"')
 
     if to_payoff:
         lines.append("## CẦN PAYOFF CHƯƠNG NÀY:")
         for f in to_payoff:
-            lines.append(f"- \"{f.hint}\" (đã gieo ch{f.plant_chapter})")
+            lines.append(f'- "{f.hint}" (đã gieo ch{f.plant_chapter})')
 
     return "\n".join(lines) if lines else ""
 
@@ -392,7 +404,9 @@ def reschedule_overdue_payoffs(
         rescheduled.append((f, new_ch))
         logger.info(
             "Rescheduled payoff '%s' to ch%d (was ch%d)",
-            f.hint[:40], new_ch, f.payoff_chapter,
+            f.hint[:40],
+            new_ch,
+            f.payoff_chapter,
         )
 
     return rescheduled

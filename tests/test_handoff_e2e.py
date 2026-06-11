@@ -70,7 +70,9 @@ class _Draft:
     """Light SimpleNamespace-style draft mirroring the attrs the builder reads."""
 
     def __init__(self, fixture: dict):
-        self.characters = [_Char(c["name"], c["character_id"]) for c in fixture["characters"]]
+        self.characters = [
+            _Char(c["name"], c["character_id"]) for c in fixture["characters"]
+        ]
         self.outlines = [_Outline(o["chapter_number"]) for o in fixture["outlines"]]
         self.chapters = []  # populated separately for golden hashing
         self.conflict_web = list(fixture["conflict_web"])
@@ -116,6 +118,7 @@ def diagnostics_client():
 def _seed_story_and_run(engine, story_id: str) -> str:
     """Insert minimal stories + pipeline_runs rows so persistence helpers can update."""
     from sqlalchemy.orm import Session
+
     with Session(engine) as session:
         story = Story(
             id=story_id,
@@ -142,18 +145,21 @@ def _seed_story_and_run(engine, story_id: str) -> str:
 def _insert_chapters(engine, story_id: str, fixture: dict) -> None:
     """Insert chapters so chapter-contract persistence has rows to update."""
     from sqlalchemy.orm import Session
+
     with Session(engine) as session:
         for outline in fixture["outlines"]:
             ch_num = outline["chapter_number"]
             content = fixture["chapter_contents"][str(ch_num)]
-            session.add(Chapter(
-                id=f"ddddddee-aaaa-bbbb-cccc-aaaaaaaa{ch_num:04d}",
-                story_id=story_id,
-                chapter_number=ch_num,
-                title=outline["title"],
-                content=content,
-                word_count=len(content.split()),
-            ))
+            session.add(
+                Chapter(
+                    id=f"ddddddee-aaaa-bbbb-cccc-aaaaaaaa{ch_num:04d}",
+                    story_id=story_id,
+                    chapter_number=ch_num,
+                    title=outline["title"],
+                    content=content,
+                    word_count=len(content.split()),
+                )
+            )
         session.commit()
 
 
@@ -217,6 +223,7 @@ def test_handoff_e2e_3_chapter_run(temp_db, fixture_data, diagnostics_client):
 
     # 5a. Verify pipeline_runs row has envelope + signal_health.
     from sqlalchemy import text
+
     with engine.connect() as conn:
         row = conn.execute(
             text(
@@ -244,7 +251,11 @@ def test_handoff_e2e_3_chapter_run(temp_db, fixture_data, diagnostics_client):
         ).fetchall()
     assert len(rows) == 3
     for ch_num, contract_json, _warnings in rows:
-        contract = json.loads(contract_json) if isinstance(contract_json, str) else contract_json
+        contract = (
+            json.loads(contract_json)
+            if isinstance(contract_json, str)
+            else contract_json
+        )
         assert contract["chapter_num"] == ch_num
         assert contract["reconciled"] is True
 
@@ -279,6 +290,7 @@ def test_persist_helpers_bug_documentation(temp_db, fixture_data):
     _seed_story_and_run(engine, story_id)
 
     from pipeline.orchestrator_layers import _persist_handoff_to_db
+
     draft = _Draft(fixture_data)
     envelope = build_l1_handoff(draft, story_id=story_id)
     health_dict = {sig: h.model_dump() for sig, h in envelope.signal_health.items()}
@@ -291,13 +303,16 @@ def test_persist_helpers_bug_documentation(temp_db, fixture_data):
 
     # Fixed: ORM update goes through type coercion, so the envelope is written.
     from sqlalchemy import text
+
     with engine.connect() as conn:
         rows = conn.execute(
             text("SELECT story_id, handoff_envelope FROM pipeline_runs")
         ).fetchall()
     assert len(rows) == 1
     stored_sid, stored_env = rows[0]
-    assert stored_sid == story_id, "ORM preserves dashes on SQLite VARCHAR(36) (post-005)"
+    assert stored_sid == story_id, (
+        "ORM preserves dashes on SQLite VARCHAR(36) (post-005)"
+    )
     assert stored_env is not None, (
         "ORM persist must write handoff_envelope (Bug A fix regression)"
     )
@@ -327,6 +342,7 @@ def test_diagnostics_returns_404_for_premigration_run(temp_db, diagnostics_clien
 
 def _hash_chapter(content: str) -> str:
     import hashlib
+
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 

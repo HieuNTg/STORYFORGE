@@ -33,6 +33,7 @@ from services.gzipped_static_files import GzippedStaticFiles
 
 # Logging
 from services.structured_logger import configure_logging
+
 configure_logging()
 
 # Replace the plain FileHandler with a RotatingFileHandler
@@ -129,7 +130,10 @@ def _preflight_check() -> bool:
     # --- Redis (optional unless STORYFORGE_REDIS_REQUIRED=1) ---
     redis_result = _check_redis()
     redis_status = redis_result.get("status")
-    redis_required = os.environ.get("STORYFORGE_REDIS_REQUIRED", "").lower() in ("1", "true")
+    redis_required = os.environ.get("STORYFORGE_REDIS_REQUIRED", "").lower() in (
+        "1",
+        "true",
+    )
 
     if redis_status == "ok":
         logger.info("Preflight: Redis OK")
@@ -157,7 +161,11 @@ def main():
 
     # STORYFORGE_ENABLE_DOCS defaults to "1" (enabled). Set to "0" in production
     # to hide /docs and /redoc from the public route inventory.
-    _docs_enabled = os.environ.get("STORYFORGE_ENABLE_DOCS", "1") not in ("0", "false", "no")
+    _docs_enabled = os.environ.get("STORYFORGE_ENABLE_DOCS", "1") not in (
+        "0",
+        "false",
+        "no",
+    )
     main_app = FastAPI(
         title="StoryForge",
         description=(
@@ -169,10 +177,22 @@ def main():
         docs_url="/docs" if _docs_enabled else None,
         redoc_url="/redoc" if _docs_enabled else None,
         openapi_tags=[
-            {"name": "pipeline", "description": "Run and manage story generation pipelines"},
-            {"name": "config", "description": "Manage application configuration and model presets"},
-            {"name": "export", "description": "Export stories to PDF, EPUB, and other formats"},
-            {"name": "analytics", "description": "Usage analytics and story statistics"},
+            {
+                "name": "pipeline",
+                "description": "Run and manage story generation pipelines",
+            },
+            {
+                "name": "config",
+                "description": "Manage application configuration and model presets",
+            },
+            {
+                "name": "export",
+                "description": "Export stories to PDF, EPUB, and other formats",
+            },
+            {
+                "name": "analytics",
+                "description": "Usage analytics and story statistics",
+            },
             {"name": "metrics", "description": "System performance metrics"},
             {"name": "dashboard", "description": "Dashboard summary data"},
             {"name": "auth", "description": "Authentication and user management"},
@@ -198,39 +218,48 @@ def main():
 
     # --- CSRF protection middleware (double-submit cookie) ---
     from middleware.csrf import CSRFMiddleware
+
     main_app.add_middleware(CSRFMiddleware)
 
     # --- Request trace ID middleware (must be outermost so all downstream layers see it) ---
     from middleware.trace_id import TraceIDMiddleware
+
     main_app.add_middleware(TraceIDMiddleware)
 
     # --- Security headers middleware (CSP, X-Frame-Options, etc.) ---
     from middleware.security_headers import SecurityHeadersMiddleware
+
     main_app.add_middleware(SecurityHeadersMiddleware)
 
     # --- Input sanitization middleware (prompt injection detection) ---
     from middleware.sanitization import SanitizationMiddleware
+
     main_app.add_middleware(SanitizationMiddleware)
 
     # --- Rate limiting middleware (Redis or in-memory, per-IP) ---
     from middleware.rate_limiter import RateLimitMiddleware
+
     main_app.add_middleware(RateLimitMiddleware)
 
     # --- Audit logging middleware ---
     from middleware.audit_middleware import AuditMiddleware
+
     main_app.add_middleware(AuditMiddleware)
 
     # --- Request metrics middleware ---
     from middleware.metrics_middleware import MetricsMiddleware
+
     main_app.add_middleware(MetricsMiddleware)
 
     from errors.exceptions import StoryForgeError
     from errors.handlers import storyforge_error_handler
+
     main_app.add_exception_handler(StoryForgeError, storyforge_error_handler)
 
     # Global exception handler: log full traceback, return generic 500.
     # Must be registered AFTER domain-specific handlers so those still fire first.
     from api import register_exception_handlers
+
     register_exception_handlers(main_app)
 
     from fastapi.responses import JSONResponse
@@ -244,23 +273,29 @@ def main():
     @main_app.on_event("startup")
     async def on_startup():
         from services.infra.database import init_db
+
         await init_db()
         from services.embedding_service import get_embedding_service
         from services.embedding_cache import get_embedding_cache
+
         get_embedding_service().attach_cache(get_embedding_cache())
         logger.info("EmbeddingCache attached to EmbeddingService")
         from api.pipeline_routes import start_session_reaper
+
         start_session_reaper()
         logger.info("Session reaper started")
         from api.pipeline_job_registry import start_job_reaper
+
         start_job_reaper()
         logger.info("Pipeline job reaper started")
 
         # FlowKit: init jobs.db + start Veo poll loop (gated on flowkit_enabled).
         try:
             from config import ConfigManager
+
             if ConfigManager().pipeline.flowkit_enabled:
                 from services.media.flow_service import flow_service
+
                 await flow_service.init_db()
                 await flow_service.start_polling()
                 logger.info("FlowKit poll loop started")
@@ -271,12 +306,15 @@ def main():
     @main_app.on_event("shutdown")
     async def on_shutdown():
         from api.pipeline_routes import shutdown_pipeline_tasks
+
         await shutdown_pipeline_tasks(timeout=30)
         from api.pipeline_job_registry import shutdown_job_reaper
+
         await shutdown_job_reaper()
 
         try:
             from services.media.flow_service import flow_service
+
             await flow_service.stop_polling()
             if flow_service.active_ws is not None:
                 try:
@@ -292,6 +330,7 @@ def main():
 
     # --- API v1 versioned routes (mirrors /api/ with version header) ---
     from api.v1 import v1_router, DeprecationMiddleware
+
     main_app.include_router(v1_router)
     main_app.add_middleware(DeprecationMiddleware)
 
@@ -308,7 +347,7 @@ def main():
             if content_length and int(content_length) > MAX_BODY_SIZE:
                 return _SJSONResponse(
                     status_code=413,
-                    content={"detail": "Request body too large. Maximum size is 10MB."}
+                    content={"detail": "Request body too large. Maximum size is 10MB."},
                 )
             return await call_next(request)
 
@@ -319,19 +358,23 @@ def main():
     locales_dir = os.path.join(base_dir, "locales")
 
     if os.path.isdir(locales_dir):
-        main_app.mount("/static/locales", GzippedStaticFiles(directory=locales_dir), name="locales")
+        main_app.mount(
+            "/static/locales", GzippedStaticFiles(directory=locales_dir), name="locales"
+        )
 
     # Generated media (per-story layout: output/<story-slug>/images/...,
     # .../images/avatars/..., exports, etc.). The /media mount serves the whole
     # output root so any per-story asset is reachable at /media/<path-rel-to-root>.
     # See services/output_paths.py for the single source of truth.
     from services.output_paths import OUTPUT_ROOT
+
     media_root = os.path.join(base_dir, OUTPUT_ROOT)
     os.makedirs(media_root, exist_ok=True)
     main_app.mount("/media", StaticFiles(directory=media_root), name="media")
 
     # Health check — lightweight with cached DB/Redis probes (30s TTL)
     from fastapi.responses import JSONResponse as _JSONResponse
+
     _health_cache: dict = {}
     _HEALTH_CACHE_TTL = 30
 
@@ -347,6 +390,7 @@ def main():
     @main_app.get("/api/health")
     async def health():
         from api.health_routes import _check_database, _check_redis
+
         cfg = ConfigManager()
         llm_ok = bool(cfg.llm.api_key)
 

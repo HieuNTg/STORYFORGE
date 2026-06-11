@@ -1,4 +1,5 @@
 """Tests for self-review config integration."""
+
 import copy
 import json
 from config import ConfigManager, PipelineConfig
@@ -17,6 +18,7 @@ class TestSelfReviewConfig:
 
     def test_config_save_includes_self_review(self, tmp_path):
         import config.persistence as persistence_module
+
         original_config_file = persistence_module.CONFIG_FILE
         config_file = str(tmp_path / "config.json")
         persistence_module.CONFIG_FILE = config_file
@@ -25,7 +27,9 @@ class TestSelfReviewConfig:
             cfg._initialized = False
             cfg.llm = copy.deepcopy(ConfigManager().llm)
             cfg.llm.api_key = "test-key"
-            cfg.pipeline = PipelineConfig(enable_self_review=True, self_review_threshold=4.0)
+            cfg.pipeline = PipelineConfig(
+                enable_self_review=True, self_review_threshold=4.0
+            )
             cfg.save()
             with open(config_file) as f:
                 data = json.load(f)

@@ -163,8 +163,10 @@ def _plan_checkpoints(root: Path, plan: Plan) -> None:
     # Pass 1: resolve a target slug per checkpoint *stem* from the real .json.
     stem_slug: dict[str, str] = {}
     for entry in sorted(src_dir.iterdir()):
-        if entry.is_file() and entry.name.endswith(".json") and not entry.name.endswith(
-            (".usage.json", ".history.json")
+        if (
+            entry.is_file()
+            and entry.name.endswith(".json")
+            and not entry.name.endswith((".usage.json", ".history.json"))
         ):
             title = _title_from_checkpoint(entry)
             slug = story_slug(title) if title else UNSORTED_SLUG

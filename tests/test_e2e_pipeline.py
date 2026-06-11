@@ -267,7 +267,10 @@ MOCK_QUICK_DRAMA_CHECK = {
 
 # ── Routing helper ────────────────────────────────────────────────────────────
 
-def _route_mock_response(system_prompt: str = "", user_prompt: str = "", **kwargs) -> str:
+
+def _route_mock_response(
+    system_prompt: str = "", user_prompt: str = "", **kwargs
+) -> str:
     """Return appropriate mock text response based on prompt keywords.
 
     Routing order matters — more specific checks come first.
@@ -328,7 +331,10 @@ def _route_mock_response(system_prompt: str = "", user_prompt: str = "", **kwarg
     # ── Layer 2: conflict graph (per-chapter analysis) ─────────────────────────
     # system_prompt = "Phân tích cấu trúc tường thuật. Trả về JSON."
     if "phân tích cấu trúc tường thuật" in combined or "tường thuật" in combined:
-        return json.dumps({"goal": "chiến thắng", "obstacle": "kẻ thù", "conflict": "đối đầu"}, ensure_ascii=False)
+        return json.dumps(
+            {"goal": "chiến thắng", "obstacle": "kẻ thù", "conflict": "đối đầu"},
+            ensure_ascii=False,
+        )
 
     # ── Layer 2: agent persona (simulator) ────────────────────────────────────
     # system_prompt = "Bạn đang nhập vai {name} trong một mô phỏng tương tác..."
@@ -396,7 +402,9 @@ def _route_mock_response(system_prompt: str = "", user_prompt: str = "", **kwarg
 
 def _route_mock_json(system_prompt: str = "", user_prompt: str = "", **kwargs) -> dict:
     """Return appropriate mock dict response based on prompt keywords."""
-    text = _route_mock_response(system_prompt=system_prompt, user_prompt=user_prompt, **kwargs)
+    text = _route_mock_response(
+        system_prompt=system_prompt, user_prompt=user_prompt, **kwargs
+    )
     try:
         result = json.loads(text)
         return result
@@ -406,10 +414,12 @@ def _route_mock_json(system_prompt: str = "", user_prompt: str = "", **kwargs) -
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture(autouse=True)
 def reset_llm_singleton():
     """Reset LLMClient singleton between tests to avoid state leakage."""
     from services import llm_client as llm_module
+
     original_instance = llm_module.LLMClient._instance
     llm_module.LLMClient._instance = None
     yield
@@ -419,9 +429,17 @@ def reset_llm_singleton():
 @pytest.fixture
 def mock_llm():
     """Patch LLMClient methods at class level for all pipeline tests."""
-    with patch("services.llm_client.LLMClient.generate", side_effect=_route_mock_response) as mock_gen, \
-         patch("services.llm_client.LLMClient.generate_json", side_effect=_route_mock_json) as mock_json, \
-         patch("services.llm_client.LLMClient.check_connection", return_value=(True, "OK")) as mock_check:
+    with (
+        patch(
+            "services.llm_client.LLMClient.generate", side_effect=_route_mock_response
+        ) as mock_gen,
+        patch(
+            "services.llm_client.LLMClient.generate_json", side_effect=_route_mock_json
+        ) as mock_json,
+        patch(
+            "services.llm_client.LLMClient.check_connection", return_value=(True, "OK")
+        ) as mock_check,
+    ):
         yield {
             "generate": mock_gen,
             "generate_json": mock_json,
@@ -433,6 +451,7 @@ def mock_llm():
 def pipeline(mock_llm):
     """Create PipelineOrchestrator with mocked LLM."""
     from pipeline.orchestrator import PipelineOrchestrator
+
     return PipelineOrchestrator()
 
 
@@ -456,6 +475,7 @@ async def _run_minimal_pipeline(pipeline, **overrides):
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
+
 
 class TestFullPipelineFlow:
     """E2E tests for the full 2-layer pipeline."""
@@ -508,7 +528,9 @@ class TestFullPipelineFlow:
         """progress should reach 1.0 on successful pipeline."""
         output = await _run_minimal_pipeline(pipeline)
         if output.status == "completed":
-            assert output.progress == 1.0, f"Expected progress=1.0, got {output.progress}"
+            assert output.progress == 1.0, (
+                f"Expected progress=1.0, got {output.progress}"
+            )
 
 
 class TestPipelineWithScoring:
@@ -566,7 +588,9 @@ class TestPipelineGracefulFallbacks:
             output = await _run_minimal_pipeline(orch)
 
         # Should fall back gracefully — Layer 2 failure is caught
-        assert output.enhanced_story is not None, "enhanced_story should fall back to draft chapters"
+        assert output.enhanced_story is not None, (
+            "enhanced_story should fall back to draft chapters"
+        )
         # Status may be 'partial' or 'completed' (Layer 3 can still run)
         assert output.status in ("completed", "partial")
 
@@ -579,7 +603,10 @@ class TestPipelineGracefulFallbacks:
         output = await _run_minimal_pipeline(orch)
 
         assert output.status == "error"
-        assert any("LLM" in log or "ket noi" in log.lower() or "kết nối" in log for log in output.logs)
+        assert any(
+            "LLM" in log or "ket noi" in log.lower() or "kết nối" in log
+            for log in output.logs
+        )
 
     async def test_pipeline_layer1_failure_returns_error(self, mock_llm):
         """Layer 1 hard failure should abort with error status."""
@@ -601,6 +628,7 @@ class TestPipelineOutputStructure:
     async def test_pipeline_output_is_pipeline_output_type(self, pipeline):
         """Output must be a PipelineOutput instance."""
         from models.schemas import PipelineOutput
+
         output = await _run_minimal_pipeline(pipeline)
         assert isinstance(output, PipelineOutput)
 
@@ -619,4 +647,6 @@ class TestPipelineOutputStructure:
     async def test_pipeline_current_layer_advanced(self, pipeline):
         """current_layer should be at least 2 after successful run."""
         output = await _run_minimal_pipeline(pipeline)
-        assert output.current_layer >= 2, f"current_layer={output.current_layer}, expected >=2"
+        assert output.current_layer >= 2, (
+            f"current_layer={output.current_layer}, expected >=2"
+        )

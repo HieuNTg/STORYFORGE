@@ -38,9 +38,13 @@ class ConnectionManager:
                 count = len(self._connections[session_id])
                 if count == 0:
                     del self._connections[session_id]
-                logger.info(f"WebSocket disconnected from session {session_id[:8]} ({count} users)")
+                logger.info(
+                    f"WebSocket disconnected from session {session_id[:8]} ({count} users)"
+                )
 
-    async def broadcast(self, session_id: str, message: dict, exclude: WebSocket = None):
+    async def broadcast(
+        self, session_id: str, message: dict, exclude: WebSocket = None
+    ):
         """Broadcast message to all connections in session except sender."""
         async with self._lock:
             connections = self._connections.get(session_id, set()).copy()
@@ -100,11 +104,13 @@ async def branch_websocket(websocket: WebSocket, session_id: str):
     # Send initial state to new user
     try:
         node = manager.get_current_node(session_id)
-        await websocket.send_json({
-            "type": "sync",
-            "node": node,
-            "user_count": user_count,
-        })
+        await websocket.send_json(
+            {
+                "type": "sync",
+                "node": node,
+                "user_count": user_count,
+            }
+        )
     except Exception as e:
         logger.error(f"Failed to send initial state: {e}")
 
@@ -120,17 +126,24 @@ async def branch_websocket(websocket: WebSocket, session_id: str):
                     node = manager.choose_branch(session_id, choice_index)
                     if node is None:
                         # Need LLM generation — not supported in WebSocket
-                        await websocket.send_json({
-                            "type": "error",
-                            "message": "Choice requires LLM generation. Use HTTP endpoint.",
-                        })
+                        await websocket.send_json(
+                            {
+                                "type": "error",
+                                "message": "Choice requires LLM generation. Use HTTP endpoint.",
+                            }
+                        )
                         continue
 
                     # Broadcast navigation to all users
                     user_count = await connection_manager.get_user_count(session_id)
                     await connection_manager.broadcast(
                         session_id,
-                        {"type": "navigation", "node": node, "user_count": user_count, "action": "choose"},
+                        {
+                            "type": "navigation",
+                            "node": node,
+                            "user_count": user_count,
+                            "action": "choose",
+                        },
                     )
                 except Exception as e:
                     await websocket.send_json({"type": "error", "message": str(e)})
@@ -138,14 +151,21 @@ async def branch_websocket(websocket: WebSocket, session_id: str):
             elif action == "goto":
                 node_id = data.get("node_id")
                 if not node_id:
-                    await websocket.send_json({"type": "error", "message": "node_id required"})
+                    await websocket.send_json(
+                        {"type": "error", "message": "node_id required"}
+                    )
                     continue
                 try:
                     node = manager.goto_node(session_id, node_id)
                     user_count = await connection_manager.get_user_count(session_id)
                     await connection_manager.broadcast(
                         session_id,
-                        {"type": "navigation", "node": node, "user_count": user_count, "action": "goto"},
+                        {
+                            "type": "navigation",
+                            "node": node,
+                            "user_count": user_count,
+                            "action": "goto",
+                        },
                     )
                 except Exception as e:
                     await websocket.send_json({"type": "error", "message": str(e)})
@@ -156,7 +176,12 @@ async def branch_websocket(websocket: WebSocket, session_id: str):
                     user_count = await connection_manager.get_user_count(session_id)
                     await connection_manager.broadcast(
                         session_id,
-                        {"type": "navigation", "node": node, "user_count": user_count, "action": "back"},
+                        {
+                            "type": "navigation",
+                            "node": node,
+                            "user_count": user_count,
+                            "action": "back",
+                        },
                     )
                 except Exception as e:
                     await websocket.send_json({"type": "error", "message": str(e)})
@@ -165,11 +190,13 @@ async def branch_websocket(websocket: WebSocket, session_id: str):
                 try:
                     node = manager.get_current_node(session_id)
                     user_count = await connection_manager.get_user_count(session_id)
-                    await websocket.send_json({
-                        "type": "sync",
-                        "node": node,
-                        "user_count": user_count,
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "sync",
+                            "node": node,
+                            "user_count": user_count,
+                        }
+                    )
                 except Exception as e:
                     await websocket.send_json({"type": "error", "message": str(e)})
 
@@ -177,7 +204,9 @@ async def branch_websocket(websocket: WebSocket, session_id: str):
                 await websocket.send_json({"type": "pong"})
 
             else:
-                await websocket.send_json({"type": "error", "message": f"Unknown action: {action}"})
+                await websocket.send_json(
+                    {"type": "error", "message": f"Unknown action: {action}"}
+                )
 
     except WebSocketDisconnect:
         pass

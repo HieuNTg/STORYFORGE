@@ -19,6 +19,7 @@ Usage:
     log.log_event("login", "/api/auth/login", user_id="uuid", ip="1.2.3.4", result="success")
     events = log.query_events({"user_id": "uuid", "date_from": "2026-04-01"})
 """
+
 import logging
 import os
 import queue
@@ -27,7 +28,10 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from services._audit_store import (
-    write_event, list_log_files, read_log_file, cleanup_old_logs
+    write_event,
+    list_log_files,
+    read_log_file,
+    cleanup_old_logs,
 )
 
 logger = logging.getLogger(__name__)
@@ -106,7 +110,9 @@ class AuditLogger:
         t.start()
         self._started = True
         # Kick off retention cleanup on a separate thread to avoid blocking start
-        threading.Thread(target=self.cleanup_old_logs, daemon=True, name="audit-cleanup").start()
+        threading.Thread(
+            target=self.cleanup_old_logs, daemon=True, name="audit-cleanup"
+        ).start()
 
     def _writer_loop(self) -> None:
         """Drain event queue and write events to disk. Runs forever."""
@@ -170,7 +176,9 @@ class AuditLogger:
         filters = filters or {}
         date_from = filters.get("date_from")
         date_to = filters.get("date_to")
-        field_filters = {k: v for k, v in filters.items() if k not in ("date_from", "date_to")}
+        field_filters = {
+            k: v for k, v in filters.items() if k not in ("date_from", "date_to")
+        }
         results: list[dict] = []
         for path in list_log_files(date_from, date_to):
             results.extend(read_log_file(path, field_filters))

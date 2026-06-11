@@ -22,17 +22,24 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("pipeline_runs",
-        sa.Column("handoff_envelope", sa.JSON(), nullable=True))
-    op.add_column("pipeline_runs",
-        sa.Column("handoff_health", sa.JSON(), nullable=True))
-    op.add_column("pipeline_runs",
-        sa.Column("handoff_signals_version", sa.String(16), nullable=True))
+    op.add_column(
+        "pipeline_runs", sa.Column("handoff_envelope", sa.JSON(), nullable=True)
+    )
+    op.add_column(
+        "pipeline_runs", sa.Column("handoff_health", sa.JSON(), nullable=True)
+    )
+    op.add_column(
+        "pipeline_runs",
+        sa.Column("handoff_signals_version", sa.String(16), nullable=True),
+    )
 
-    op.add_column("chapters",
-        sa.Column("negotiated_contract", sa.JSON(), nullable=True))
-    op.add_column("chapters",
-        sa.Column("contract_reconciliation_warnings", sa.JSON(), nullable=True))
+    op.add_column(
+        "chapters", sa.Column("negotiated_contract", sa.JSON(), nullable=True)
+    )
+    op.add_column(
+        "chapters",
+        sa.Column("contract_reconciliation_warnings", sa.JSON(), nullable=True),
+    )
 
 
 def downgrade() -> None:

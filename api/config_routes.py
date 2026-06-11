@@ -78,13 +78,62 @@ def _detect_provider_name(base_url: str) -> str:
 
 
 PROVIDER_FROM_KEY = [
-    ("sk-ant-", {"name": "Anthropic", "base_url": "https://api.anthropic.com/v1/", "model": "claude-haiku-4-5-20251001"}),
-    ("sk-or-",  {"name": "OpenRouter", "base_url": "https://openrouter.ai/api/v1", "model": "qwen/qwen3.6-plus:free"}),
-    ("sk-proj-", {"name": "OpenAI", "base_url": "https://api.openai.com/v1", "model": "gpt-4o-mini"}),
-    ("sk-",     {"name": "OpenAI", "base_url": "https://api.openai.com/v1", "model": "gpt-4o-mini"}),
-    ("AIza",    {"name": "Google Gemini", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/", "model": "gemini-2.5-flash"}),
-    ("ky-",     {"name": "Kyma", "base_url": "https://kymaapi.com/v1", "model": "qwen-3.6-plus"}),
-    ("kyma-",   {"name": "Kyma", "base_url": "https://kymaapi.com/v1", "model": "qwen-3.6-plus"}),
+    (
+        "sk-ant-",
+        {
+            "name": "Anthropic",
+            "base_url": "https://api.anthropic.com/v1/",
+            "model": "claude-haiku-4-5-20251001",
+        },
+    ),
+    (
+        "sk-or-",
+        {
+            "name": "OpenRouter",
+            "base_url": "https://openrouter.ai/api/v1",
+            "model": "qwen/qwen3.6-plus:free",
+        },
+    ),
+    (
+        "sk-proj-",
+        {
+            "name": "OpenAI",
+            "base_url": "https://api.openai.com/v1",
+            "model": "gpt-4o-mini",
+        },
+    ),
+    (
+        "sk-",
+        {
+            "name": "OpenAI",
+            "base_url": "https://api.openai.com/v1",
+            "model": "gpt-4o-mini",
+        },
+    ),
+    (
+        "AIza",
+        {
+            "name": "Google Gemini",
+            "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+            "model": "gemini-2.5-flash",
+        },
+    ),
+    (
+        "ky-",
+        {
+            "name": "Kyma",
+            "base_url": "https://kymaapi.com/v1",
+            "model": "qwen-3.6-plus",
+        },
+    ),
+    (
+        "kyma-",
+        {
+            "name": "Kyma",
+            "base_url": "https://kymaapi.com/v1",
+            "model": "qwen-3.6-plus",
+        },
+    ),
 ]
 
 
@@ -95,12 +144,17 @@ def _detect_provider_from_key(api_key: str) -> dict | None:
             return config
     # Z.AI keys: 32 hex chars + dot + alphanumeric (e.g., 1e8d5fd...951.ee3dhU4x...)
     if re.match(r"^[a-f0-9]{32}\.[A-Za-z0-9]+$", api_key):
-        return {"name": "Z.AI", "base_url": "https://api.z.ai/api/paas/v4", "model": "glm-4.7-flash"}
+        return {
+            "name": "Z.AI",
+            "base_url": "https://api.z.ai/api/paas/v4",
+            "model": "glm-4.7-flash",
+        }
     return None
 
 
 class ProfileCreate(BaseModel):
     """Request body for creating/updating an API profile."""
+
     name: str = ""
     base_url: str = ""
     api_key: str = ""
@@ -110,6 +164,7 @@ class ProfileCreate(BaseModel):
 
 class ConfigUpdate(BaseModel):
     """Request body for saving settings."""
+
     api_key: Optional[str] = None
     api_keys: Optional[list] = None
     append_api_keys: Optional[list] = None
@@ -151,7 +206,9 @@ class ConfigUpdate(BaseModel):
     flowkit_project_id: Optional[str] = None
 
 
-_CONFIGURE_PIPELINE = Depends(require_permission_if_enabled(Permission.CONFIGURE_PIPELINE))
+_CONFIGURE_PIPELINE = Depends(
+    require_permission_if_enabled(Permission.CONFIGURE_PIPELINE)
+)
 _MANAGE_API_KEYS = Depends(require_permission_if_enabled(Permission.MANAGE_API_KEYS))
 
 
@@ -181,20 +238,24 @@ def get_config(response: Response):
     key = cfg.llm.api_key or ""
     masked_key = key[:4] + "***" + key[-4:] if len(key) > 8 else "***"
     hf_tok = cfg.pipeline.hf_token or ""
-    masked_hf_token = "***" + hf_tok[-4:] if len(hf_tok) > 4 else ("***" if hf_tok else "")
+    masked_hf_token = (
+        "***" + hf_tok[-4:] if len(hf_tok) > 4 else ("***" if hf_tok else "")
+    )
     profiles_masked = []
     for fb in cfg.llm.fallback_models:
-        profiles_masked.append({
-            "name": fb.get("name", fb.get("model", "Unknown")),
-            "provider": _detect_provider_name(fb.get("base_url", "")),
-            "base_url": fb.get("base_url", ""),
-            "api_key_masked": _mask_key(fb.get("api_key", "")),
-            "model": fb.get("model", ""),
-            "enabled": fb.get("enabled", True),
-            "last_test_ok": fb.get("last_test_ok"),
-            "last_tested_at": fb.get("last_tested_at", ""),
-            "last_test_message": fb.get("last_test_message", ""),
-        })
+        profiles_masked.append(
+            {
+                "name": fb.get("name", fb.get("model", "Unknown")),
+                "provider": _detect_provider_name(fb.get("base_url", "")),
+                "base_url": fb.get("base_url", ""),
+                "api_key_masked": _mask_key(fb.get("api_key", "")),
+                "model": fb.get("model", ""),
+                "enabled": fb.get("enabled", True),
+                "last_test_ok": fb.get("last_test_ok"),
+                "last_tested_at": fb.get("last_tested_at", ""),
+                "last_test_message": fb.get("last_test_message", ""),
+            }
+        )
     return {
         "llm": {
             "api_key_masked": masked_key,
@@ -207,7 +268,11 @@ def get_config(response: Response):
             "api_keys_masked": [
                 _mask_key(k)
                 for raw in cfg.llm.api_keys
-                for k in [raw if isinstance(raw, str) else (raw.get("key") or raw.get("api_key") or "")]
+                for k in [
+                    raw
+                    if isinstance(raw, str)
+                    else (raw.get("key") or raw.get("api_key") or "")
+                ]
                 if k
             ],
             "api_keys_count": len(cfg.llm.api_keys),
@@ -260,8 +325,16 @@ def save_config(body: ConfigUpdate):
     # acknowledgement. Evaluated against the post-PATCH effective state
     # (delta + current) so a previously-acked user can toggle enabled alone.
     cfg = ConfigManager()
-    eff_provider = body.image_provider if body.image_provider is not None else cfg.pipeline.image_provider
-    eff_enabled = body.flowkit_enabled if body.flowkit_enabled is not None else cfg.pipeline.flowkit_enabled
+    eff_provider = (
+        body.image_provider
+        if body.image_provider is not None
+        else cfg.pipeline.image_provider
+    )
+    eff_enabled = (
+        body.flowkit_enabled
+        if body.flowkit_enabled is not None
+        else cfg.pipeline.flowkit_enabled
+    )
     eff_ack = (
         body.flowkit_risk_acknowledged
         if body.flowkit_risk_acknowledged is not None
@@ -285,7 +358,11 @@ def save_config(body: ConfigUpdate):
             )
     if body.api_keys is not None:
         for k in body.api_keys:
-            key_value = k if isinstance(k, str) else (k or {}).get("key") or (k or {}).get("api_key")
+            key_value = (
+                k
+                if isinstance(k, str)
+                else (k or {}).get("key") or (k or {}).get("api_key")
+            )
             if _is_masked_echo(key_value):
                 raise HTTPException(
                     status_code=400,
@@ -303,7 +380,9 @@ def save_config(body: ConfigUpdate):
     if body.api_keys is not None:
         cfg.llm.api_keys = body.api_keys
     if body.append_api_keys:
-        cfg.llm.api_keys = list(cfg.llm.api_keys) + [k for k in body.append_api_keys if k not in cfg.llm.api_keys]
+        cfg.llm.api_keys = list(cfg.llm.api_keys) + [
+            k for k in body.append_api_keys if k not in cfg.llm.api_keys
+        ]
     if body.base_url is not None:
         validate_base_url(body.base_url)
         cfg.llm.base_url = body.base_url
@@ -351,12 +430,20 @@ def save_config(body: ConfigUpdate):
             setattr(cfg.pipeline, _attr, _val)
     # FlowKit persistence (gate already enforced above)
     for _attr in (
-        "flowkit_enabled", "flowkit_port", "flowkit_style_reference_path",
-        "flowkit_concurrent_workers_max", "flowkit_workers_ramp_threshold",
-        "flowkit_veo_poll_interval", "flowkit_account_warning_shown",
-        "flowkit_risk_acknowledged", "flowkit_image_input_type_split",
-        "flowkit_callback_hmac_required", "flowkit_use_refiner",
-        "flowkit_request_timeout", "flowkit_aspect_ratio", "flowkit_project_id",
+        "flowkit_enabled",
+        "flowkit_port",
+        "flowkit_style_reference_path",
+        "flowkit_concurrent_workers_max",
+        "flowkit_workers_ramp_threshold",
+        "flowkit_veo_poll_interval",
+        "flowkit_account_warning_shown",
+        "flowkit_risk_acknowledged",
+        "flowkit_image_input_type_split",
+        "flowkit_callback_hmac_required",
+        "flowkit_use_refiner",
+        "flowkit_request_timeout",
+        "flowkit_aspect_ratio",
+        "flowkit_project_id",
     ):
         _val = getattr(body, _attr, None)
         if _val is not None:
@@ -367,6 +454,7 @@ def save_config(body: ConfigUpdate):
         raise HTTPException(status_code=422, detail=str(exc))
     # Reset LLM client singleton
     from services.llm_client import LLMClient
+
     LLMClient.reset()
     return {"status": "ok"}
 
@@ -375,6 +463,7 @@ def save_config(body: ConfigUpdate):
 def test_connection():
     """Test LLM connection with current settings + all additional profiles."""
     from services.llm_client import LLMClient
+
     LLMClient.reset()
     client = LLMClient()
     cfg = ConfigManager()
@@ -391,12 +480,18 @@ def test_connection():
     now_iso = datetime.now(timezone.utc).isoformat()
     _fanout_deadline = time.monotonic() + 30
     for i, fb in enumerate(profiles):
-        name = fb.get("name", f"Profile-{i+1}")
+        name = fb.get("name", f"Profile-{i + 1}")
         if fb.get("enabled") is False:
             results.append({"name": name, "ok": None, "message": "disabled"})
             continue
         if time.monotonic() >= _fanout_deadline:
-            results.append({"name": name, "ok": None, "message": "skipped — aggregate timeout (30s) exceeded"})
+            results.append(
+                {
+                    "name": name,
+                    "ok": None,
+                    "message": "skipped — aggregate timeout (30s) exceeded",
+                }
+            )
             continue
         base_url = fb.get("base_url", "")
         api_key = fb.get("api_key", "")
@@ -417,7 +512,11 @@ def test_connection():
         logger.warning("test-connection persist failed: %s", e)
 
     all_ok = all(r["ok"] for r in results if r["ok"] is not None)
-    return {"ok": all_ok, "message": msg if not all_ok else "All providers OK", "profiles": results}
+    return {
+        "ok": all_ok,
+        "message": msg if not all_ok else "All providers OK",
+        "profiles": results,
+    }
 
 
 @router.get("/languages")
@@ -476,6 +575,7 @@ def detect_provider(body: ProfileCreate):
 
 class ModelsRequest(BaseModel):
     """Request body for fetching models from a provider."""
+
     base_url: str = ""
     api_key: str = ""
 
@@ -490,13 +590,18 @@ def get_provider_models(body: ModelsRequest):
     if provider == "openrouter":
         try:
             from services.openrouter_model_discovery import get_free_models
-            models = [{"id": m, "label": m.split("/")[-1].replace(":free", "")} for m in get_free_models(body.api_key)]
+
+            models = [
+                {"id": m, "label": m.split("/")[-1].replace(":free", "")}
+                for m in get_free_models(body.api_key)
+            ]
         except Exception as e:
             return {"provider": provider, "models": [], "error": str(e)}
 
     elif provider == "kyma":
         try:
             from services.kyma_model_discovery import get_kyma_models
+
             models = [{"id": m, "label": m} for m in get_kyma_models(body.api_key)]
         except Exception as e:
             return {"provider": provider, "models": [], "error": str(e)}
@@ -543,7 +648,10 @@ def add_profile(body: ProfileCreate):
         "enabled": body.enabled,
     }
     if not profile["base_url"]:
-        raise HTTPException(status_code=400, detail="Could not detect provider. Provide base_url manually.")
+        raise HTTPException(
+            status_code=400,
+            detail="Could not detect provider. Provide base_url manually.",
+        )
     validate_base_url(profile["base_url"])
     # If no primary key set, use this provider as primary too
     if not cfg.llm.api_key:
@@ -556,6 +664,7 @@ def add_profile(body: ProfileCreate):
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     from services.llm_client import LLMClient
+
     LLMClient.reset()
     return {
         "status": "ok",
@@ -592,6 +701,7 @@ def update_profile(index: int, body: ProfileCreate):
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     from services.llm_client import LLMClient
+
     LLMClient.reset()
     return {"status": "ok"}
 
@@ -610,6 +720,7 @@ def delete_profile(index: int):
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     from services.llm_client import LLMClient
+
     LLMClient.reset()
     return {"status": "ok", "remaining": len(profiles)}
 
@@ -625,6 +736,7 @@ def toggle_profile(index: int):
     cfg.llm.fallback_models = profiles
     cfg.save()
     from services.llm_client import LLMClient
+
     LLMClient.reset()
     return {"status": "ok", "enabled": profiles[index]["enabled"]}
 
@@ -633,6 +745,7 @@ def toggle_profile(index: int):
 def cache_stats():
     """Return LLM cache statistics."""
     from services.llm_cache import LLMCache
+
     return LLMCache(ttl_days=ConfigManager().llm.cache_ttl_days).stats()
 
 
@@ -647,6 +760,7 @@ def remove_api_key(index: int):
     cfg.llm.api_keys = keys
     cfg.save()
     from services.llm_client import LLMClient
+
     LLMClient.reset()
     return {"status": "ok", "remaining": len(keys)}
 
@@ -655,5 +769,6 @@ def remove_api_key(index: int):
 def clear_cache():
     """Clear LLM cache."""
     from services.llm_cache import LLMCache
+
     LLMCache().clear()
     return {"status": "ok"}

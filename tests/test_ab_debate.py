@@ -32,23 +32,49 @@ DRAMA_THRESHOLD = 0.10  # +0.10 on 0-1 scale to ship (validated decision)
 
 # ── Test Data ────────────────────────────────────────────────────────────
 
+
 def _make_draft(n: int = 3) -> StoryDraft:
     chars = [
-        Character(name="Linh", role="protagonist", personality="Dũng cảm",
-                  background="Chiến binh", motivation="Sự thật"),
-        Character(name="Khoa", role="antagonist", personality="Xảo quyệt",
-                  background="Phản bội", motivation="Quyền lực"),
+        Character(
+            name="Linh",
+            role="protagonist",
+            personality="Dũng cảm",
+            background="Chiến binh",
+            motivation="Sự thật",
+        ),
+        Character(
+            name="Khoa",
+            role="antagonist",
+            personality="Xảo quyệt",
+            background="Phản bội",
+            motivation="Quyền lực",
+        ),
     ]
     return StoryDraft(
-        title="AB Test Story", genre="Hành động", synopsis="Test",
+        title="AB Test Story",
+        genre="Hành động",
+        synopsis="Test",
         characters=chars,
         world=WorldSetting(name="Test World", description="Test"),
-        outlines=[ChapterOutline(chapter_number=i, title=f"Ch{i}",
-                                  summary=f"S{i}", key_events=[f"E{i}"],
-                                  emotional_arc="rising") for i in range(1, n + 1)],
-        chapters=[Chapter(chapter_number=i, title=f"Ch{i}",
-                          content=f"Nội dung chương {i}. Xung đột và kịch tính.",
-                          word_count=50) for i in range(1, n + 1)],
+        outlines=[
+            ChapterOutline(
+                chapter_number=i,
+                title=f"Ch{i}",
+                summary=f"S{i}",
+                key_events=[f"E{i}"],
+                emotional_arc="rising",
+            )
+            for i in range(1, n + 1)
+        ],
+        chapters=[
+            Chapter(
+                chapter_number=i,
+                title=f"Ch{i}",
+                content=f"Nội dung chương {i}. Xung đột và kịch tính.",
+                word_count=50,
+            )
+            for i in range(1, n + 1)
+        ],
     )
 
 
@@ -56,22 +82,31 @@ def _make_output(draft: StoryDraft) -> PipelineOutput:
     return PipelineOutput(
         story_draft=draft,
         enhanced_story=EnhancedStory(
-            title=draft.title, genre=draft.genre,
-            chapters=list(draft.chapters), drama_score=0.5,
+            title=draft.title,
+            genre=draft.genre,
+            chapters=list(draft.chapters),
+            drama_score=0.5,
         ),
-        status="running", current_layer=2,
+        status="running",
+        current_layer=2,
     )
 
 
 def _make_review(name: str, score: float, issues=None, suggestions=None) -> AgentReview:
     return AgentReview(
-        agent_role=name, agent_name=name, score=score,
-        issues=issues or [], suggestions=suggestions or [],
-        approved=score >= 0.7, layer=2, iteration=1,
+        agent_role=name,
+        agent_name=name,
+        score=score,
+        issues=issues or [],
+        suggestions=suggestions or [],
+        approved=score >= 0.7,
+        layer=2,
+        iteration=1,
     )
 
 
 # ── A/B Result Container ────────────────────────────────────────────────
+
 
 class ABResult:
     def __init__(self, control_scores, variant_scores, debate_result=None):
@@ -80,13 +115,20 @@ class ABResult:
         self.debate_result = debate_result
 
     @property
-    def control_avg(self): return mean(self.control_scores) if self.control_scores else 0
+    def control_avg(self):
+        return mean(self.control_scores) if self.control_scores else 0
+
     @property
-    def variant_avg(self): return mean(self.variant_scores) if self.variant_scores else 0
+    def variant_avg(self):
+        return mean(self.variant_scores) if self.variant_scores else 0
+
     @property
-    def delta(self): return self.variant_avg - self.control_avg
+    def delta(self):
+        return self.variant_avg - self.control_avg
+
     @property
-    def meets_threshold(self): return self.delta >= DRAMA_THRESHOLD
+    def meets_threshold(self):
+        return self.delta >= DRAMA_THRESHOLD
 
     def report(self):
         return {
@@ -95,12 +137,17 @@ class ABResult:
             "delta": round(self.delta, 3),
             "threshold": DRAMA_THRESHOLD,
             "meets_threshold": self.meets_threshold,
-            "total_challenges": self.debate_result.total_challenges if self.debate_result else 0,
-            "debate_skipped": self.debate_result.debate_skipped if self.debate_result else None,
+            "total_challenges": self.debate_result.total_challenges
+            if self.debate_result
+            else 0,
+            "debate_skipped": self.debate_result.debate_skipped
+            if self.debate_result
+            else None,
         }
 
 
 # ── Core A/B Test Logic ─────────────────────────────────────────────────
+
 
 def run_ab_mock() -> ABResult:
     """Run mock A/B test by directly invoking DebateOrchestrator.
@@ -110,7 +157,9 @@ def run_ab_mock() -> ABResult:
     """
     from pipeline.agents.debate_orchestrator import DebateOrchestrator
     from pipeline.agents.drama_critic import DramaCriticAgent as DramaCritic
-    from pipeline.agents.character_specialist import CharacterSpecialistAgent as CharacterSpecialist
+    from pipeline.agents.character_specialist import (
+        CharacterSpecialistAgent as CharacterSpecialist,
+    )
 
     draft = _make_draft(3)
     output = _make_output(draft)
@@ -118,13 +167,19 @@ def run_ab_mock() -> ABResult:
     # ── CONTROL: Standard reviews, no debate ──
     # NOTE: agent_name must match actual agent.name (Vietnamese names)
     control_reviews = [
-        _make_review("Chuyên Gia Nhân Vật", 0.55,
-                     suggestions=["Nên giảm bớt kịch tính ở phân đoạn chiến đấu"]),
+        _make_review(
+            "Chuyên Gia Nhân Vật",
+            0.55,
+            suggestions=["Nên giảm bớt kịch tính ở phân đoạn chiến đấu"],
+        ),
         _make_review("continuity_checker", 0.65),
         _make_review("dialogue_expert", 0.60),
-        _make_review("Nhà Phê Bình Kịch Tính", 0.50,
-                     issues=["Drama chưa đủ mạnh"],
-                     suggestions=["Tăng xung đột"]),
+        _make_review(
+            "Nhà Phê Bình Kịch Tính",
+            0.50,
+            issues=["Drama chưa đủ mạnh"],
+            suggestions=["Tăng xung đột"],
+        ),
         _make_review("editor_in_chief", 0.58),
     ]
     control_scores = [r.score for r in control_reviews]
@@ -134,10 +189,13 @@ def run_ab_mock() -> ABResult:
 
     # Run actual debate logic — force rule-based fallback (no real LLM calls)
     from unittest.mock import patch
+
     agents = [DramaCritic(), CharacterSpecialist()]
     orchestrator = DebateOrchestrator(max_rounds=3)
-    with patch.object(agents[0].llm, "generate_json", side_effect=RuntimeError("mock")), \
-         patch.object(agents[1].llm, "generate_json", side_effect=RuntimeError("mock")):
+    with (
+        patch.object(agents[0].llm, "generate_json", side_effect=RuntimeError("mock")),
+        patch.object(agents[1].llm, "generate_json", side_effect=RuntimeError("mock")),
+    ):
         debate_result = orchestrator.run_debate(
             agents=agents,
             story_draft=output,
@@ -152,6 +210,7 @@ def run_ab_mock() -> ABResult:
 
 # ── Pytest Tests ─────────────────────────────────────────────────────────
 
+
 class TestABDebate:
     """A/B test: multi-agent debate effectiveness."""
 
@@ -165,13 +224,16 @@ class TestABDebate:
         own = _make_review("Nhà Phê Bình Kịch Tính", 0.5)
         all_reviews = [
             own,
-            _make_review("Chuyên Gia Nhân Vật", 0.6,
-                         suggestions=["Nên giảm bớt kịch tính"]),
+            _make_review(
+                "Chuyên Gia Nhân Vật", 0.6, suggestions=["Nên giảm bớt kịch tính"]
+            ),
         ]
 
         draft = _make_draft()
         # Force rule-based fallback by failing LLM call (asserts keyword logic)
-        with patch.object(critic.llm, "generate_json", side_effect=RuntimeError("forced")):
+        with patch.object(
+            critic.llm, "generate_json", side_effect=RuntimeError("forced")
+        ):
             entries = critic.debate_response(draft, 2, own, all_reviews)
         challenges = [e for e in entries if e.stance == DebateStance.CHALLENGE]
 
@@ -181,20 +243,27 @@ class TestABDebate:
     def test_character_specialist_challenges_plot_twist(self):
         """CharacterSpecialist should challenge suggestions that break character consistency."""
         from unittest.mock import patch
-        from pipeline.agents.character_specialist import CharacterSpecialistAgent as CharacterSpecialist
+        from pipeline.agents.character_specialist import (
+            CharacterSpecialistAgent as CharacterSpecialist,
+        )
         from models.schemas import DebateStance
 
         spec = CharacterSpecialist()
         own = _make_review("Chuyên Gia Nhân Vật", 0.6)
         all_reviews = [
             own,
-            _make_review("Nhà Phê Bình Kịch Tính", 0.5,
-                         issues=["Cần plot twist bất ngờ để tăng drama"]),
+            _make_review(
+                "Nhà Phê Bình Kịch Tính",
+                0.5,
+                issues=["Cần plot twist bất ngờ để tăng drama"],
+            ),
         ]
 
         draft = _make_draft()
         # Force rule-based fallback by failing LLM call (asserts keyword logic)
-        with patch.object(spec.llm, "generate_json", side_effect=RuntimeError("forced")):
+        with patch.object(
+            spec.llm, "generate_json", side_effect=RuntimeError("forced")
+        ):
             entries = spec.debate_response(draft, 2, own, all_reviews)
         challenges = [e for e in entries if e.stance == DebateStance.CHALLENGE]
 
@@ -210,8 +279,9 @@ class TestABDebate:
         own = _make_review("Nhà Phê Bình Kịch Tính", 0.7)
         all_reviews = [
             own,
-            _make_review("continuity_checker", 0.8,
-                         suggestions=["Cải thiện mạch truyện"]),
+            _make_review(
+                "continuity_checker", 0.8, suggestions=["Cải thiện mạch truyện"]
+            ),
         ]
 
         draft = _make_draft()
@@ -308,6 +378,7 @@ class TestABDebate:
 
 # ── LLM-Backed Debate Tests (Phase 16.5) ────────────────────────────────
 
+
 class TestLLMDebate:
     """Tests for LLM-backed debate_response() with mocked LLM."""
 
@@ -318,22 +389,27 @@ class TestLLMDebate:
 
         critic = DramaCriticAgent()
         own = _make_review("Nhà Phê Bình Kịch Tính", 0.5)
-        peer = _make_review("Chuyên Gia Nhân Vật", 0.6,
-                            suggestions=["Nên giảm bớt kịch tính"])
+        peer = _make_review(
+            "Chuyên Gia Nhân Vật", 0.6, suggestions=["Nên giảm bớt kịch tính"]
+        )
         all_reviews = [own, peer]
 
         mock_response = {
-            "entries": [{
-                "stance": "challenge",
-                "target_agent": "Chuyên Gia Nhân Vật",
-                "target_issue": "Giảm kịch tính",
-                "reasoning": "Giảm kịch tính sẽ làm mất tension arc",
-                "revised_score": 0.45,
-            }]
+            "entries": [
+                {
+                    "stance": "challenge",
+                    "target_agent": "Chuyên Gia Nhân Vật",
+                    "target_issue": "Giảm kịch tính",
+                    "reasoning": "Giảm kịch tính sẽ làm mất tension arc",
+                    "revised_score": 0.45,
+                }
+            ]
         }
 
         with patch.object(critic.llm, "generate_json", return_value=mock_response):
-            entries = critic.debate_response(_make_output(_make_draft()), 2, own, all_reviews)
+            entries = critic.debate_response(
+                _make_output(_make_draft()), 2, own, all_reviews
+            )
 
         assert len(entries) >= 1
         challenge = entries[0]
@@ -348,12 +424,17 @@ class TestLLMDebate:
 
         critic = DramaCriticAgent()
         own = _make_review("Nhà Phê Bình Kịch Tính", 0.5)
-        peer = _make_review("Chuyên Gia Nhân Vật", 0.6,
-                            suggestions=["Nên giảm bớt kịch tính"])
+        peer = _make_review(
+            "Chuyên Gia Nhân Vật", 0.6, suggestions=["Nên giảm bớt kịch tính"]
+        )
         all_reviews = [own, peer]
 
-        with patch.object(critic.llm, "generate_json", side_effect=RuntimeError("API down")):
-            entries = critic.debate_response(_make_output(_make_draft()), 2, own, all_reviews)
+        with patch.object(
+            critic.llm, "generate_json", side_effect=RuntimeError("API down")
+        ):
+            entries = critic.debate_response(
+                _make_output(_make_draft()), 2, own, all_reviews
+            )
 
         # Rule-based fallback should still detect "giảm" keyword and challenge
         challenges = [e for e in entries if e.stance == DebateStance.CHALLENGE]
@@ -372,21 +453,24 @@ class TestLLMDebate:
         output = _make_output(draft)
 
         control_reviews = [
-            _make_review("Chuyên Gia Nhân Vật", 0.55,
-                         suggestions=["Nên giảm bớt kịch tính"]),
+            _make_review(
+                "Chuyên Gia Nhân Vật", 0.55, suggestions=["Nên giảm bớt kịch tính"]
+            ),
             _make_review("Nhà Phê Bình Kịch Tính", 0.50),
         ]
         control_scores = [r.score for r in control_reviews]
 
         # Mock LLM to return revised_score that changes the outcome
         drama_mock_response = {
-            "entries": [{
-                "stance": "challenge",
-                "target_agent": "Chuyên Gia Nhân Vật",
-                "target_issue": "Giảm kịch tính",
-                "reasoning": "Tension arc cần được duy trì",
-                "revised_score": 0.35,
-            }]
+            "entries": [
+                {
+                    "stance": "challenge",
+                    "target_agent": "Chuyên Gia Nhân Vật",
+                    "target_issue": "Giảm kịch tính",
+                    "reasoning": "Tension arc cần được duy trì",
+                    "revised_score": 0.35,
+                }
+            ]
         }
         char_mock_response = {"entries": []}
 
@@ -394,11 +478,19 @@ class TestLLMDebate:
         char_agent = CharacterSpecialistAgent()
 
         # Patch char_agent first, then drama_agent (reverse order prevents mock override issue)
-        with patch.object(char_agent.llm, "generate_json", return_value=char_mock_response), \
-             patch.object(drama_agent.llm, "generate_json", return_value=drama_mock_response):
+        with (
+            patch.object(
+                char_agent.llm, "generate_json", return_value=char_mock_response
+            ),
+            patch.object(
+                drama_agent.llm, "generate_json", return_value=drama_mock_response
+            ),
+        ):
             variant_reviews = [r.model_copy() for r in control_reviews]
             orch = DebateOrchestrator(max_rounds=3)
-            result = orch.run_debate([drama_agent, char_agent], output, 2, variant_reviews)
+            result = orch.run_debate(
+                [drama_agent, char_agent], output, 2, variant_reviews
+            )
 
         variant_scores = [r.score for r in result.final_reviews]
         delta = mean(variant_scores) - mean(control_scores)
@@ -415,31 +507,37 @@ class TestLLMDebate:
         # Create a concrete subclass for testing
         agent = MagicMock(spec=BaseAgent)
         agent.name = "test_agent"
-        agent._parse_debate_llm_response = BaseAgent._parse_debate_llm_response.__get__(agent)
+        agent._parse_debate_llm_response = BaseAgent._parse_debate_llm_response.__get__(
+            agent
+        )
 
         all_reviews = [_make_review("peer_agent", 0.5)]
 
         result_over = {
-            "entries": [{
-                "stance": "challenge",
-                "target_agent": "peer_agent",
-                "target_issue": "test",
-                "reasoning": "test",
-                "revised_score": 1.5,  # Over max
-            }]
+            "entries": [
+                {
+                    "stance": "challenge",
+                    "target_agent": "peer_agent",
+                    "target_issue": "test",
+                    "reasoning": "test",
+                    "revised_score": 1.5,  # Over max
+                }
+            ]
         }
         entries = agent._parse_debate_llm_response(result_over, all_reviews)
         assert len(entries) == 1
         assert entries[0].revised_score == 1.0  # Clamped
 
         result_under = {
-            "entries": [{
-                "stance": "support",
-                "target_agent": "peer_agent",
-                "target_issue": "test",
-                "reasoning": "test",
-                "revised_score": -0.5,  # Under min
-            }]
+            "entries": [
+                {
+                    "stance": "support",
+                    "target_agent": "peer_agent",
+                    "target_issue": "test",
+                    "reasoning": "test",
+                    "revised_score": -0.5,  # Under min
+                }
+            ]
         }
         entries = agent._parse_debate_llm_response(result_under, all_reviews)
         assert len(entries) == 1
@@ -447,6 +545,7 @@ class TestLLMDebate:
 
 
 # ── CLI: Real API A/B Test ───────────────────────────────────────────────
+
 
 def _run_real_ab():
     """Run A/B test with real LLM. Requires configured API key.
@@ -461,10 +560,12 @@ def _run_real_ab():
     report = result.report()
 
     print(json.dumps(report, indent=2, ensure_ascii=False))
-    print(f"\n{'PASS' if report['meets_threshold'] else 'FAIL'}: "
-          f"Delta = {report['delta']:+.3f} (threshold: {report['threshold']})")
+    print(
+        f"\n{'PASS' if report['meets_threshold'] else 'FAIL'}: "
+        f"Delta = {report['delta']:+.3f} (threshold: {report['threshold']})"
+    )
 
-    if report['meets_threshold']:
+    if report["meets_threshold"]:
         print(">>> SHIP debate feature")
     else:
         print(">>> ITERATE or DROP debate feature")

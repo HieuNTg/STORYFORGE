@@ -1,4 +1,5 @@
 """Test ShareManager service."""
+
 import os
 import pytest
 from models.schemas import StoryDraft, Chapter
@@ -9,13 +10,16 @@ from services.share_manager import ShareManager
 def share_mgr(tmp_path, monkeypatch):
     shares_dir = str(tmp_path / "shares")
     monkeypatch.setattr(ShareManager, "SHARES_DIR", shares_dir)
-    monkeypatch.setattr(ShareManager, "SHARES_INDEX", os.path.join(shares_dir, "index.json"))
+    monkeypatch.setattr(
+        ShareManager, "SHARES_INDEX", os.path.join(shares_dir, "index.json")
+    )
     return ShareManager()
 
 
 def _make_story():
     return StoryDraft(
-        title="Test Story", genre="Fantasy",
+        title="Test Story",
+        genre="Fantasy",
         chapters=[Chapter(chapter_number=1, title="Ch1", content="Content here")],
     )
 
@@ -60,11 +64,16 @@ def test_delete_nonexistent(share_mgr):
 
 def test_share_captures_genre_and_comic_cover(share_mgr):
     story = StoryDraft(
-        title="Comic Story", genre="tien_hiep",
+        title="Comic Story",
+        genre="tien_hiep",
         chapters=[
             Chapter(chapter_number=1, title="Ch1", content="x"),  # no images
-            Chapter(chapter_number=2, title="Ch2", content="y",
-                    images=["/media/output/s/pages/ch02_page01.png"]),
+            Chapter(
+                chapter_number=2,
+                title="Ch2",
+                content="y",
+                images=["/media/output/s/pages/ch02_page01.png"],
+            ),
         ],
     )
     share = share_mgr.create_share(story, is_public=True)
@@ -79,9 +88,16 @@ def test_share_captures_genre_and_comic_cover(share_mgr):
 
 def test_share_cover_ignores_unsafe_urls(share_mgr):
     story = StoryDraft(
-        title="S", genre="Fantasy",
-        chapters=[Chapter(chapter_number=1, title="C", content="x",
-                          images=["https://evil.example/a.png", "/media/../etc"])],
+        title="S",
+        genre="Fantasy",
+        chapters=[
+            Chapter(
+                chapter_number=1,
+                title="C",
+                content="x",
+                images=["https://evil.example/a.png", "/media/../etc"],
+            )
+        ],
     )
     share = share_mgr.create_share(story)
     assert share.cover_url == ""
@@ -89,14 +105,16 @@ def test_share_cover_ignores_unsafe_urls(share_mgr):
 
 def test_legacy_index_entries_without_new_fields_still_load(share_mgr):
     # Simulate a pre-existing index.json entry written before genre/cover_url
-    share_mgr.shares.append({
-        "share_id": "legacy0001",
-        "story_title": "Old",
-        "created_at": "2026-01-01T00:00:00",
-        "html_path": "",
-        "expires_at": "2099-01-01T00:00:00",
-        "is_public": True,
-    })
+    share_mgr.shares.append(
+        {
+            "share_id": "legacy0001",
+            "story_title": "Old",
+            "created_at": "2026-01-01T00:00:00",
+            "html_path": "",
+            "expires_at": "2099-01-01T00:00:00",
+            "is_public": True,
+        }
+    )
     listed = share_mgr.list_public_shares()
     legacy = [s for s in listed if s.share_id == "legacy0001"][0]
     assert legacy.genre == ""

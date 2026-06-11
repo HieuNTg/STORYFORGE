@@ -3,6 +3,7 @@
 Extracted to keep jwt_manager.py under the 200-line project limit.
 Do not import this module directly from outside the services package.
 """
+
 import base64
 import hashlib
 import hmac

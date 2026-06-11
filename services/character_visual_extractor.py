@@ -60,6 +60,7 @@ class CharacterVisualExtractor:
 
     def __init__(self):
         from services.llm_client import LLMClient
+
         self.llm = LLMClient()
 
     def extract_attributes(self, character) -> dict:
@@ -104,8 +105,11 @@ class CharacterVisualExtractor:
                     attributes[key] = result[key]
             return attributes
         except Exception as e:
-            logger.warning("LLM attribute extraction failed for %s: %s — using fallback",
-                           getattr(character, "name", "unknown"), e)
+            logger.warning(
+                "LLM attribute extraction failed for %s: %s — using fallback",
+                getattr(character, "name", "unknown"),
+                e,
+            )
             return self._fallback_attributes(character)
 
     def generate_frozen_prompt(self, name: str, attributes: dict) -> str:
@@ -207,8 +211,16 @@ class CharacterVisualExtractor:
 
     def _fallback_attributes(self, character) -> dict:
         """Build minimal attributes from character fields without LLM."""
-        attributes = {k: (dict(v) if isinstance(v, dict) else list(v) if isinstance(v, list) else v)
-                      for k, v in _DEFAULT_ATTRIBUTES.items()}
+        attributes = {
+            k: (
+                dict(v)
+                if isinstance(v, dict)
+                else list(v)
+                if isinstance(v, list)
+                else v
+            )
+            for k, v in _DEFAULT_ATTRIBUTES.items()
+        }
         appearance = (
             getattr(character, "appearance", "")
             or getattr(character, "description", "")

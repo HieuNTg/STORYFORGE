@@ -55,17 +55,26 @@ def _save_cache(cache_key: str, models: list[str]) -> None:
         with open(_CACHE_FILE, "w", encoding="utf-8") as f:
             json.dump(
                 {"cached_at": time.time(), "key_hash": cache_key, "models": models},
-                f, indent=2,
+                f,
+                indent=2,
             )
     except Exception as e:
         logger.warning(f"Gemini cache save failed: {e}")
 
 
 _EXCLUDE_KEYWORDS = (
-    "embedding", "aqa",
-    "image", "tts", "audio", "vision-only",
-    "robotics", "computer-use", "lyria", "nano-banana",
-    "deep-research", "customtools",
+    "embedding",
+    "aqa",
+    "image",
+    "tts",
+    "audio",
+    "vision-only",
+    "robotics",
+    "computer-use",
+    "lyria",
+    "nano-banana",
+    "deep-research",
+    "customtools",
 )
 
 
@@ -77,12 +86,13 @@ def _fetch_from_api(api_key: str) -> Optional[list[str]]:
     """
     try:
         from google import genai
+
         client = genai.Client(api_key=api_key)
         models: list[str] = []
         for m in client.models.list():
             name = getattr(m, "name", "") or ""
             if name.startswith("models/"):
-                name = name[len("models/"):]
+                name = name[len("models/") :]
             if not name:
                 continue
             # Only include generateContent-capable models (if SDK exposes it)
@@ -112,7 +122,10 @@ def _key_hash(api_key: str) -> str:
     """Short deterministic hash so we don't bust cache across sessions but
     still invalidate when the user swaps keys."""
     import hashlib
-    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:16] if api_key else "nokey"
+
+    return (
+        hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:16] if api_key else "nokey"
+    )
 
 
 def get_gemini_models(api_key: str = "") -> list[str]:

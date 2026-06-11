@@ -220,6 +220,7 @@ def patched_service(monkeypatch):
 class TestBuildSemanticDiagnostics:
     def test_unknown_story_returns_none(self, patched_service):
         from services.diagnostics_service import build_semantic_diagnostics
+
         result = build_semantic_diagnostics("nonexistent-id")
         assert result is None
 
@@ -234,6 +235,7 @@ class TestBuildSemanticDiagnostics:
             conn.commit()
 
         from services.diagnostics_service import build_semantic_diagnostics
+
         result = build_semantic_diagnostics(sid)
         assert result is None
 
@@ -251,12 +253,11 @@ class TestBuildSemanticDiagnostics:
                 semantic_findings=_SEMANTIC_FINDINGS_CHAPTER_1,
                 contract=_CONTRACT_CHAPTER_1,
             )
-            _insert_run(
-                conn, str(uuid.uuid4()), sid, outline_metrics=_OUTLINE_METRICS
-            )
+            _insert_run(conn, str(uuid.uuid4()), sid, outline_metrics=_OUTLINE_METRICS)
             conn.commit()
 
         from services.diagnostics_service import build_semantic_diagnostics
+
         result = build_semantic_diagnostics(sid)
 
         assert result is not None
@@ -277,10 +278,16 @@ class TestBuildSemanticDiagnostics:
         # summary
         summary = result["summary"]
         assert summary["total_payoff_matched"] == 1  # seed001 matched
-        assert summary["total_payoff_missed"] == 1   # seed002 missed (conf=0.30, floor=0.57)
+        assert (
+            summary["total_payoff_missed"] == 1
+        )  # seed002 missed (conf=0.30, floor=0.57)
         assert summary["total_payoff_weak"] == 0
-        assert summary["total_structural_findings_by_severity"]["critical"] == 1  # sev=0.90
-        assert summary["total_structural_findings_by_severity"]["major"] == 1    # sev=0.65
+        assert (
+            summary["total_structural_findings_by_severity"]["critical"] == 1
+        )  # sev=0.90
+        assert (
+            summary["total_structural_findings_by_severity"]["major"] == 1
+        )  # sev=0.65
         assert summary["total_structural_findings_by_severity"]["minor"] == 0
 
     def test_only_outline_metrics_returns_partial(self, patched_service):
@@ -290,12 +297,11 @@ class TestBuildSemanticDiagnostics:
         with eng.connect() as conn:
             _insert_story(conn, sid)
             _insert_chapter(conn, str(uuid.uuid4()), sid, 1)  # no findings
-            _insert_run(
-                conn, str(uuid.uuid4()), sid, outline_metrics=_OUTLINE_METRICS
-            )
+            _insert_run(conn, str(uuid.uuid4()), sid, outline_metrics=_OUTLINE_METRICS)
             conn.commit()
 
         from services.diagnostics_service import build_semantic_diagnostics
+
         result = build_semantic_diagnostics(sid)
 
         assert result is not None
@@ -320,6 +326,7 @@ class TestBuildSemanticDiagnostics:
             conn.commit()
 
         from services.diagnostics_service import build_semantic_diagnostics
+
         result = build_semantic_diagnostics(sid)
 
         assert result is not None
@@ -333,7 +340,7 @@ class TestBuildSemanticDiagnostics:
         sid = str(uuid.uuid4())
         low_metrics = dict(_OUTLINE_METRICS)
         low_metrics["conflict_web_density"] = 0.05  # below 0.10 floor
-        low_metrics["beat_coverage_ratio"] = 0.40   # below 0.50 floor
+        low_metrics["beat_coverage_ratio"] = 0.40  # below 0.50 floor
         with eng.connect() as conn:
             _insert_story(conn, sid)
             _insert_chapter(
@@ -347,6 +354,7 @@ class TestBuildSemanticDiagnostics:
             conn.commit()
 
         from services.diagnostics_service import build_semantic_diagnostics
+
         result = build_semantic_diagnostics(sid)
 
         violated = result["summary"]["outline_floors_violated"]

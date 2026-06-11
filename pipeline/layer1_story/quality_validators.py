@@ -20,7 +20,8 @@ def validate_world_rules(
         return []
 
     from services.text_utils import excerpt_text
-    rules_text = "\n".join(f"{i+1}. {r}" for i, r in enumerate(rules))
+
+    rules_text = "\n".join(f"{i + 1}. {r}" for i, r in enumerate(rules))
     result = llm.generate_json(
         system_prompt="Kiểm tra vi phạm quy tắc thế giới. Trả về JSON bằng tiếng Việt.",
         user_prompt=(
@@ -62,8 +63,11 @@ def validate_dialogue_voice(
     if not voice_profiles:
         return []
 
-    from pipeline.layer1_story.character_voice_profiler import format_voice_profiles_for_prompt
+    from pipeline.layer1_story.character_voice_profiler import (
+        format_voice_profiles_for_prompt,
+    )
     from services.text_utils import excerpt_text
+
     profiles_text = format_voice_profiles_for_prompt(voice_profiles)
     if not profiles_text:
         return []

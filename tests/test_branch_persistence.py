@@ -1,4 +1,5 @@
 """Tests for story branch persistence."""
+
 import os
 from models.schemas import StoryTree, StoryNode
 
@@ -10,11 +11,13 @@ class TestBranchPersistence:
 
         tree = StoryTree(
             root_id="root",
-            nodes={"root": StoryNode(
-                node_id="root", chapter_number=1,
-                title="Test", content="Hello"
-            )},
-            title="Test Story", genre="fantasy",
+            nodes={
+                "root": StoryNode(
+                    node_id="root", chapter_number=1, title="Test", content="Hello"
+                )
+            },
+            title="Test Story",
+            genre="fantasy",
         )
         orig_dir = sb.BRANCHES_DIR
         sb.BRANCHES_DIR = str(tmp_path)
@@ -36,10 +39,14 @@ class TestBranchPersistence:
         sb.BRANCHES_DIR = str(tmp_path)
         try:
             tree = StoryTree(
-                root_id="r", nodes={"r": StoryNode(
-                    node_id="r", chapter_number=1, title="T", content="C"
-                )},
-                title="My Tree", genre="sci-fi",
+                root_id="r",
+                nodes={
+                    "r": StoryNode(
+                        node_id="r", chapter_number=1, title="T", content="C"
+                    )
+                },
+                title="My Tree",
+                genre="sci-fi",
             )
             StoryBrancher.save_tree(tree)
             trees = StoryBrancher.list_saved_trees()

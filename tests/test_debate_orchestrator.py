@@ -1,4 +1,5 @@
 """Tests for Phase 16 debate orchestrator."""
+
 import pytest
 from unittest.mock import MagicMock
 from models.schemas import AgentReview, DebateEntry, DebateStance
@@ -104,7 +105,9 @@ class TestDebateOrchestrator:
         story_draft = MagicMock()
         story_draft.genre = "tien_hiep"
 
-        result = orchestrator.run_debate(agents, story_draft, layer=2, round1_reviews=reviews)
+        result = orchestrator.run_debate(
+            agents, story_draft, layer=2, round1_reviews=reviews
+        )
 
         assert result.debate_skipped is True
         assert result.total_challenges == 0
@@ -126,7 +129,9 @@ class TestDebateOrchestrator:
         ]
         story_draft = MagicMock()
 
-        result = orchestrator.run_debate(agents, story_draft, layer=2, round1_reviews=reviews)
+        result = orchestrator.run_debate(
+            agents, story_draft, layer=2, round1_reviews=reviews
+        )
 
         assert result.debate_skipped is False
         assert result.total_challenges == 1
@@ -148,7 +153,9 @@ class TestDebateOrchestrator:
         ]
         story_draft = MagicMock()
 
-        result = orchestrator.run_debate(agents, story_draft, layer=2, round1_reviews=reviews)
+        result = orchestrator.run_debate(
+            agents, story_draft, layer=2, round1_reviews=reviews
+        )
 
         assert 0.0 <= result.consensus_score <= 1.0
 
@@ -166,7 +173,11 @@ class TestDebateOrchestrator:
         callback = MagicMock()
 
         orchestrator.run_debate(
-            agents, story_draft, layer=2, round1_reviews=reviews, progress_callback=callback
+            agents,
+            story_draft,
+            layer=2,
+            round1_reviews=reviews,
+            progress_callback=callback,
         )
 
         callback.assert_called()

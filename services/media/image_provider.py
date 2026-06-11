@@ -22,6 +22,7 @@ class ImageProvider:
     def seedream(self):
         if self._seedream is None:
             from services.seedream_client import SeedreamClient
+
             self._seedream = SeedreamClient()
         return self._seedream
 
@@ -29,16 +30,25 @@ class ImageProvider:
     def ip_adapter(self):
         if self._ip_adapter is None:
             from services.replicate_ip_adapter import ReplicateIPAdapter
+
             self._ip_adapter = ReplicateIPAdapter()
         return self._ip_adapter
 
-    def generate_scene(self, prompt: str, reference_images: Optional[list] = None, filename: str = "scene.png", **kwargs) -> Optional[str]:
+    def generate_scene(
+        self,
+        prompt: str,
+        reference_images: Optional[list] = None,
+        filename: str = "scene.png",
+        **kwargs,
+    ) -> Optional[str]:
         """Generate a scene/background image. Returns image path or None.
 
         Falls back to IP-Adapter if Seedream is unavailable.
         """
         try:
-            return self.seedream.generate_scene(prompt, reference_images or [], filename)
+            return self.seedream.generate_scene(
+                prompt, reference_images or [], filename
+            )
         except Exception as e:
             logger.warning(f"Seedream failed, trying IP-Adapter: {e}")
             try:
@@ -50,7 +60,13 @@ class ImageProvider:
                 logger.error(f"All image providers failed: {e2}")
                 return None
 
-    def generate_character(self, prompt: str, reference_image: Optional[str] = None, filename: str = "character.png", **kwargs) -> Optional[str]:
+    def generate_character(
+        self,
+        prompt: str,
+        reference_image: Optional[str] = None,
+        filename: str = "character.png",
+        **kwargs,
+    ) -> Optional[str]:
         """Generate a character-consistent image. Uses IP-Adapter if reference available."""
         if reference_image:
             try:
@@ -59,10 +75,14 @@ class ImageProvider:
                 logger.warning(f"IP-Adapter character gen failed: {e}")
         return self.generate_scene(prompt, filename=filename)
 
-    def generate_character_reference(self, name: str, description: str, filename: str = "") -> Optional[str]:
+    def generate_character_reference(
+        self, name: str, description: str, filename: str = ""
+    ) -> Optional[str]:
         """Generate a character reference portrait via Seedream."""
         try:
-            return self.seedream.generate_character_reference(name, description, filename)
+            return self.seedream.generate_character_reference(
+                name, description, filename
+            )
         except Exception as e:
             logger.error(f"Character reference generation failed for {name!r}: {e}")
             return None
@@ -75,9 +95,11 @@ class ImageProvider:
         """
         try:
             from config import ConfigManager
+
             cfg = ConfigManager().pipeline
             if cfg.image_provider == "flowkit":
                 from services.media.flow_service import FlowService
+
                 flow_service = FlowService()
                 return bool(cfg.flowkit_enabled and flow_service.active_ws is not None)
         except Exception:

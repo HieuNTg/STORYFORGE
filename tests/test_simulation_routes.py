@@ -1,4 +1,5 @@
 """Simulation endpoint tests — flag gating, transcript extract, continue (mocked LLM), rate limit."""
+
 from __future__ import annotations
 
 import json
@@ -54,7 +55,9 @@ def _mock_llm(payload):
         llm.generate.side_effect = payload
     else:
         llm.generate.return_value = (
-            payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False)
+            payload
+            if isinstance(payload, str)
+            else json.dumps(payload, ensure_ascii=False)
         )
     return llm
 
@@ -69,7 +72,9 @@ def _continue_req():
 
 
 def test_continue_happy_path(client):
-    with patch.object(simulation_routes, "_get_llm", return_value=_mock_llm(VALID_TURN_PAYLOAD)):
+    with patch.object(
+        simulation_routes, "_get_llm", return_value=_mock_llm(VALID_TURN_PAYLOAD)
+    ):
         resp = client.post("/api/simulation/continue", json=_continue_req())
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -98,7 +103,9 @@ def test_continue_rejects_empty_characters(client):
 
 
 def test_continue_rate_limit_429(client):
-    with patch.object(simulation_routes, "_get_llm", return_value=_mock_llm(VALID_TURN_PAYLOAD)):
+    with patch.object(
+        simulation_routes, "_get_llm", return_value=_mock_llm(VALID_TURN_PAYLOAD)
+    ):
         for _ in range(simulation_routes.CONTINUE_LIMIT_PER_MIN):
             r = client.post("/api/simulation/continue", json=_continue_req())
             assert r.status_code == 200
@@ -107,7 +114,9 @@ def test_continue_rate_limit_429(client):
 
 
 def test_continue_502_on_bad_llm_output(client):
-    with patch.object(simulation_routes, "_get_llm", return_value=_mock_llm("totally not json")):
+    with patch.object(
+        simulation_routes, "_get_llm", return_value=_mock_llm("totally not json")
+    ):
         resp = client.post("/api/simulation/continue", json=_continue_req())
     assert resp.status_code == 502
 

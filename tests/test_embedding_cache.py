@@ -38,6 +38,7 @@ from services.embedding_cache import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_vec(dim: int = 4, seed: int = 0) -> np.ndarray:
     rng = np.random.default_rng(seed)
     v = rng.random(dim).astype(np.float32)
@@ -58,6 +59,7 @@ def _fake_model(vecs: np.ndarray) -> MagicMock:
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(autouse=True)
 def _reset_singletons():
     """Ensure module-level singletons don't bleed between tests."""
@@ -77,6 +79,7 @@ def cache(tmp_path):
 # ---------------------------------------------------------------------------
 # Round-trip: set → get returns identical bytes
 # ---------------------------------------------------------------------------
+
 
 class TestRoundTrip:
     def test_put_then_get_returns_same_bytes(self, cache):
@@ -99,6 +102,7 @@ class TestRoundTrip:
 # Miss returns None
 # ---------------------------------------------------------------------------
 
+
 class TestCacheMiss:
     def test_missing_key_returns_none(self, cache):
         assert cache.get("notexist" * 8) is None
@@ -112,6 +116,7 @@ class TestCacheMiss:
 # ---------------------------------------------------------------------------
 # Bulk get with mix of present/absent keys
 # ---------------------------------------------------------------------------
+
 
 class TestBulkGet:
     def test_bulk_get_all_present(self, cache):
@@ -145,6 +150,7 @@ class TestBulkGet:
 # Idempotent set: writing same key twice doesn't error or duplicate
 # ---------------------------------------------------------------------------
 
+
 class TestIdempotentSet:
     def test_duplicate_key_no_error(self, cache):
         key = "d" * 64
@@ -175,6 +181,7 @@ class TestIdempotentSet:
 # Integration: EmbeddingService with attached cache
 # ---------------------------------------------------------------------------
 
+
 class TestEmbeddingServiceIntegration:
     """Verify the service calls the model only once for same-text embed."""
 
@@ -197,10 +204,12 @@ class TestEmbeddingServiceIntegration:
     def test_different_texts_each_call_model(self, cache):
         vecs = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32)
         fake = MagicMock()
-        fake.encode = MagicMock(side_effect=[
-            vecs[0:1],  # first text
-            vecs[1:2],  # second text
-        ])
+        fake.encode = MagicMock(
+            side_effect=[
+                vecs[0:1],  # first text
+                vecs[1:2],  # second text
+            ]
+        )
         with patch("sentence_transformers.SentenceTransformer", return_value=fake):
             svc = es.EmbeddingService("model-x", cache=cache)
             svc.embed("text A")
@@ -262,11 +271,13 @@ class TestEmbeddingServiceIntegration:
 # Migration test: DDL forward + downgrade
 # ---------------------------------------------------------------------------
 
+
 class TestMigrationDDL:
     """Verify the Alembic migration SQL works on SQLite (same DDL)."""
 
     def test_upgrade_creates_table_and_index(self, tmp_path):
         import sqlite3
+
         db = str(tmp_path / "mig.db")
         conn = sqlite3.connect(db)
         # Run upgrade DDL (mirrors alembic/versions/004_embedding_cache.py)
@@ -282,18 +293,25 @@ class TestMigrationDDL:
                 ON embedding_cache (model_id);
         """)
         conn.commit()
-        tables = {r[0] for r in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()}
+        tables = {
+            r[0]
+            for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
         assert "embedding_cache" in tables
-        indexes = {r[0] for r in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='index'"
-        ).fetchall()}
+        indexes = {
+            r[0]
+            for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='index'"
+            ).fetchall()
+        }
         assert "ix_embedding_cache_model_id" in indexes
         conn.close()
 
     def test_downgrade_drops_table_and_index(self, tmp_path):
         import sqlite3
+
         db = str(tmp_path / "mig_down.db")
         conn = sqlite3.connect(db)
         conn.executescript("""
@@ -312,15 +330,19 @@ class TestMigrationDDL:
         conn.execute("DROP INDEX IF EXISTS ix_embedding_cache_model_id")
         conn.execute("DROP TABLE IF EXISTS embedding_cache")
         conn.commit()
-        tables = {r[0] for r in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()}
+        tables = {
+            r[0]
+            for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
         assert "embedding_cache" not in tables
         conn.close()
 
     def test_upgrade_then_downgrade_then_upgrade_idempotent(self, tmp_path):
         """Mirrors the alembic upgrade → downgrade → upgrade cycle."""
         from services.embedding_cache import EmbeddingCache
+
         db = str(tmp_path / "cycle.db")
         # First upgrade: table created implicitly by EmbeddingCache init
         c1 = EmbeddingCache(db_path=db)
@@ -330,6 +352,7 @@ class TestMigrationDDL:
 
         # Simulate downgrade: drop table
         import sqlite3
+
         conn = sqlite3.connect(db)
         conn.execute("DROP INDEX IF EXISTS ix_embedding_cache_model_id")
         conn.execute("DROP TABLE IF EXISTS embedding_cache")
@@ -353,6 +376,7 @@ class TestMigrationDDL:
 # Stats / diagnostics
 # ---------------------------------------------------------------------------
 
+
 class TestStats:
     def test_stats_empty_cache(self, cache):
         s = cache.stats()
@@ -368,6 +392,7 @@ class TestStats:
     def test_stats_size_oserror_handled(self, cache):
         """OSError on getsize (e.g. in-memory path) returns 0 gracefully."""
         import unittest.mock as mock
+
         with mock.patch("os.path.getsize", side_effect=OSError("no file")):
             s = cache.stats()
         assert s["db_size_bytes"] == 0
@@ -376,6 +401,7 @@ class TestStats:
 # ---------------------------------------------------------------------------
 # Singleton accessor
 # ---------------------------------------------------------------------------
+
 
 class TestSingleton:
     def test_get_returns_same_instance(self, tmp_path):

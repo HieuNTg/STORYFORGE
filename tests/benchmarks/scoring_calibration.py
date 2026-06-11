@@ -27,8 +27,13 @@ def calculate_bias(
     if len(llm_scores) != len(human_scores):
         raise ValueError("llm_scores and human_scores must have the same length")
     if not llm_scores:
-        return {"mean_bias": 0.0, "std_bias": 0.0,
-                "over_count": 0, "under_count": 0, "exact_count": 0}
+        return {
+            "mean_bias": 0.0,
+            "std_bias": 0.0,
+            "over_count": 0,
+            "under_count": 0,
+            "exact_count": 0,
+        }
 
     diffs = [lv - h for lv, h in zip(llm_scores, human_scores)]
     mean_bias = sum(diffs) / len(diffs)
@@ -70,7 +75,7 @@ def create_calibration_map(
         ss_yy = sum((y - my) ** 2 for y in ys)
         slope = ss_xy / ss_xx if ss_xx else 1.0
         intercept = my - slope * mx
-        r_sq = (ss_xy ** 2 / (ss_xx * ss_yy)) if (ss_xx * ss_yy) else 0.0
+        r_sq = (ss_xy**2 / (ss_xx * ss_yy)) if (ss_xx * ss_yy) else 0.0
         calibration[dim] = {
             "slope": round(slope, 6),
             "intercept": round(intercept, 6),
@@ -90,7 +95,9 @@ def apply_calibration(
     if dimension not in calibration_map:
         return raw_score
     p = calibration_map[dimension]
-    return round(max(clamp_min, min(clamp_max, p["slope"] * raw_score + p["intercept"])), 4)
+    return round(
+        max(clamp_min, min(clamp_max, p["slope"] * raw_score + p["intercept"])), 4
+    )
 
 
 def evaluate_calibration(
@@ -102,6 +109,7 @@ def evaluate_calibration(
 
     Returns mae_before, mae_after, improvement, improvement_pct.
     """
+
     def _mae(pred: list[float], truth: list[float]) -> float:
         return sum(abs(p - t) for p, t in zip(pred, truth)) / len(pred) if pred else 0.0
 
@@ -125,8 +133,12 @@ def export_calibration_params(
     path = Path(out_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
-        json.dump({"calibration": calibration_map, "metadata": metadata or {}},
-                  f, indent=2, ensure_ascii=False)
+        json.dump(
+            {"calibration": calibration_map, "metadata": metadata or {}},
+            f,
+            indent=2,
+            ensure_ascii=False,
+        )
 
 
 def load_calibration_params(path: str | Path) -> CalibrationMap:

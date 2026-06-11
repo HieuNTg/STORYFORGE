@@ -41,19 +41,28 @@ def _envelope() -> L1Handoff:
         signals_version="1.0.0",
         num_chapters=3,
         conflict_web=ConflictWeb(
-            nodes=[ConflictNode(id="c1", parties=["A", "B"], type="ideological", intensity=4)],
+            nodes=[
+                ConflictNode(
+                    id="c1", parties=["A", "B"], type="ideological", intensity=4
+                )
+            ],
             edges=[],
         ),
         foreshadowing_plan=[
             ForeshadowingSeed(
-                id="f1", plant_chapter=1, payoff_chapter=3,
-                description="d", semantic_anchor="s",
+                id="f1",
+                plant_chapter=1,
+                payoff_chapter=3,
+                description="d",
+                semantic_anchor="s",
             )
         ],
         arc_waypoints=[
             ArcWaypoint(
-                character_id="A", chapter=1,
-                state_label="phủ nhận", required_evidence=["e1"],
+                character_id="A",
+                chapter=1,
+                state_label="phủ nhận",
+                required_evidence=["e1"],
             )
         ],
         threads=[
@@ -64,12 +73,17 @@ def _envelope() -> L1Handoff:
         ],
         voice_fingerprints=[
             VoiceFingerprint(
-                name="A", character_id="a",
-                vocabulary_level="formal", sentence_style="short",
+                name="A",
+                character_id="a",
+                vocabulary_level="formal",
+                sentence_style="short",
                 emotional_expression="reserved",
-                verbal_tics=["Hừ."], dialogue_examples=["Ta hiểu."],
-                register_="formal", emotional_baseline="kiên định",
-                avoid_phrases=[], avg_sentence_length=12.0,
+                verbal_tics=["Hừ."],
+                dialogue_examples=["Ta hiểu."],
+                register_="formal",
+                emotional_baseline="kiên định",
+                avoid_phrases=[],
+                avg_sentence_length=12.0,
             )
         ],
         signal_health=_ok_health(),
@@ -167,10 +181,14 @@ def test_voice_profiles_falls_back_to_character_id_when_name_empty():
     env = _envelope()
     # Construct a vf with empty name; need to bypass frozen via reconstruction
     vf = VoiceFingerprint(
-        name="", character_id="char_42",
-        verbal_tics=[], dialogue_examples=[],
-        register_="formal", emotional_baseline="neutral",
-        avoid_phrases=[], avg_sentence_length=None,
+        name="",
+        character_id="char_42",
+        verbal_tics=[],
+        dialogue_examples=[],
+        register_="formal",
+        emotional_baseline="neutral",
+        avoid_phrases=[],
+        avg_sentence_length=None,
     )
     env2 = env.model_copy(update={"voice_fingerprints": [vf]})
     draft = SimpleNamespace(_l1_handoff_envelope=env2)

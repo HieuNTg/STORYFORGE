@@ -8,6 +8,7 @@ Isolation: contextvars.ContextVar so concurrent pipelines don't mix calls.
 Per-chapter / per-module tags are ALSO ContextVars — each thread spawned via
 asyncio.to_thread() gets its own copy so parallel batches don't race.
 """
+
 from __future__ import annotations
 
 import contextvars
@@ -18,11 +19,11 @@ from typing import Optional
 _current_trace: contextvars.ContextVar[Optional["PipelineTrace"]] = (
     contextvars.ContextVar("storyforge_trace", default=None)
 )
-_current_chapter: contextvars.ContextVar[Optional[int]] = (
-    contextvars.ContextVar("storyforge_trace_chapter", default=None)
+_current_chapter: contextvars.ContextVar[Optional[int]] = contextvars.ContextVar(
+    "storyforge_trace_chapter", default=None
 )
-_current_module: contextvars.ContextVar[str] = (
-    contextvars.ContextVar("storyforge_trace_module", default="")
+_current_module: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "storyforge_trace_module", default=""
 )
 
 
@@ -46,6 +47,7 @@ class LLMCall:
 @dataclass
 class RagEventStats:
     """Lightweight RAG telemetry (Sprint 2 Task 1). Not LLM-backed, so not in `calls`."""
+
     chapters_indexed: int = 0
     chunks_indexed_total: int = 0
     retrievals_performed: int = 0
@@ -77,7 +79,8 @@ class RagEventStats:
 
         avg_retrieved = (
             round(self.chunks_retrieved_total / self.retrievals_performed, 2)
-            if self.retrievals_performed else 0.0
+            if self.retrievals_performed
+            else 0.0
         )
         return {
             "chapters_indexed": self.chapters_indexed,
@@ -133,8 +136,12 @@ class PipelineTrace:
             "total_calls": len(self.calls),
             "total_tokens": self.total_tokens(),
             "total_cost_usd": round(self.total_cost(), 6),
-            "cost_by_module": {k: round(v, 6) for k, v in self.cost_by_module().items()},
-            "cost_by_chapter": {k: round(v, 6) for k, v in self.cost_by_chapter().items()},
+            "cost_by_module": {
+                k: round(v, 6) for k, v in self.cost_by_module().items()
+            },
+            "cost_by_chapter": {
+                k: round(v, 6) for k, v in self.cost_by_chapter().items()
+            },
             "rag": self.rag_stats.summary(),
         }
 

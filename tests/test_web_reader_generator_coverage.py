@@ -1,4 +1,5 @@
 """Tests for services/web_reader_generator.py."""
+
 import pytest
 from unittest.mock import MagicMock
 from models.schemas import Chapter
@@ -8,6 +9,7 @@ from services.web_reader_generator import WebReaderGenerator
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_chapter(number: int, title: str, content: str) -> Chapter:
     return Chapter(chapter_number=number, title=title, content=content)
@@ -32,6 +34,7 @@ def _make_character(name: str, role: str, personality: str):
 # ---------------------------------------------------------------------------
 # generate — basic
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestWebReaderGeneratorGenerate:
@@ -60,6 +63,7 @@ class TestWebReaderGeneratorGenerate:
         html = WebReaderGenerator.generate(sample_story_draft)
         # genre is HTML-escaped in the output
         import html as html_lib
+
         assert html_lib.escape(sample_story_draft.genre) in html
 
     def test_xss_prevention(self):
@@ -72,7 +76,9 @@ class TestWebReaderGeneratorGenerate:
         assert "&lt;script&gt;" in html or "alert" not in html
 
     def test_with_characters(self, sample_story_draft, sample_characters):
-        html = WebReaderGenerator.generate(sample_story_draft, characters=sample_characters)
+        html = WebReaderGenerator.generate(
+            sample_story_draft, characters=sample_characters
+        )
         for char in sample_characters:
             assert char.name in html
 
@@ -99,6 +105,7 @@ class TestWebReaderGeneratorGenerate:
 # Truncation behavior
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestTruncation:
     def test_truncation_banner_shown_when_over_limit(self):
@@ -108,7 +115,9 @@ class TestTruncation:
         chapters = [_make_chapter(i, f"Ch {i}", big_content) for i in range(1, 202)]
         story = _make_mock_story("Large Story", chapters)
         html = WebReaderGenerator.generate(story)
-        assert "truncation" in html.lower() or "Truy" in html  # truncation banner Vietnamese text
+        assert (
+            "truncation" in html.lower() or "Truy" in html
+        )  # truncation banner Vietnamese text
 
     def test_no_truncation_for_normal_story(self, sample_story_draft):
         html = WebReaderGenerator.generate(sample_story_draft)
@@ -120,6 +129,7 @@ class TestTruncation:
 # ---------------------------------------------------------------------------
 # _content_to_html
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestContentToHtml:
@@ -155,46 +165,74 @@ class TestContentToHtml:
 # _render_template
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestRenderTemplate:
     def _sample_chapters_data(self):
         return [
-            {"number": 1, "title": "Ch One", "words": 500, "reading_min": 3, "content": "<p>Content</p>"},
-            {"number": 2, "title": "Ch Two", "words": 600, "reading_min": 3, "content": "<p>More</p>"},
+            {
+                "number": 1,
+                "title": "Ch One",
+                "words": 500,
+                "reading_min": 3,
+                "content": "<p>Content</p>",
+            },
+            {
+                "number": 2,
+                "title": "Ch Two",
+                "words": 600,
+                "reading_min": 3,
+                "content": "<p>More</p>",
+            },
         ]
 
     def test_renders_valid_html(self):
-        html = WebReaderGenerator._render_template("My Title", "Fantasy", self._sample_chapters_data(), "")
+        html = WebReaderGenerator._render_template(
+            "My Title", "Fantasy", self._sample_chapters_data(), ""
+        )
         assert "<!DOCTYPE html>" in html
         assert "My Title" in html
 
     def test_chapter_ids_present(self):
-        html = WebReaderGenerator._render_template("T", "G", self._sample_chapters_data(), "")
+        html = WebReaderGenerator._render_template(
+            "T", "G", self._sample_chapters_data(), ""
+        )
         assert 'id="chapter-1"' in html
         assert 'id="chapter-2"' in html
 
     def test_total_word_count_displayed(self):
-        html = WebReaderGenerator._render_template("T", "G", self._sample_chapters_data(), "")
+        html = WebReaderGenerator._render_template(
+            "T", "G", self._sample_chapters_data(), ""
+        )
         assert "1,100" in html  # 500 + 600
 
     def test_truncation_info_renders_banner(self):
         html = WebReaderGenerator._render_template(
-            "T", "G", self._sample_chapters_data(), "",
+            "T",
+            "G",
+            self._sample_chapters_data(),
+            "",
             truncation_info=(300000, 250, 150),
         )
         assert "&#9888;" in html  # warning sign
 
     def test_no_truncation_info_no_banner(self):
-        html = WebReaderGenerator._render_template("T", "G", self._sample_chapters_data(), "")
+        html = WebReaderGenerator._render_template(
+            "T", "G", self._sample_chapters_data(), ""
+        )
         assert "&#9888;" not in html
 
     def test_char_html_injected(self):
         char_html = '<div class="char-grid"><p>Character data</p></div>'
-        html = WebReaderGenerator._render_template("T", "G", self._sample_chapters_data(), char_html)
+        html = WebReaderGenerator._render_template(
+            "T", "G", self._sample_chapters_data(), char_html
+        )
         assert "Character data" in html
 
     def test_js_title_quote_escaped(self):
         """Title with quotes should not break the JS string literal."""
-        html = WebReaderGenerator._render_template("It's \"Great\"", "G", self._sample_chapters_data(), "")
+        html = WebReaderGenerator._render_template(
+            'It\'s "Great"', "G", self._sample_chapters_data(), ""
+        )
         # The title_js should have escaped quotes — verify no raw unescaped double quote in JS context
         assert "STORY_KEY" in html  # JS key is present

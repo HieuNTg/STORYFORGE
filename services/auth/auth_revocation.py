@@ -6,6 +6,7 @@ when REDIS_URL env var is set. Tokens are stored by their `jti` claim.
 Note: In-memory revocation does not survive server restarts.
 Deploy with REDIS_URL for persistent revocation in production.
 """
+
 from __future__ import annotations
 
 import logging
@@ -35,6 +36,7 @@ def _get_redis():
         return None
     try:
         import redis  # type: ignore
+
         _redis_client = redis.from_url(url, decode_responses=True)
         return _redis_client
     except Exception as exc:

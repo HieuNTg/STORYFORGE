@@ -23,7 +23,13 @@ import logging
 import re
 from typing import Optional, TYPE_CHECKING
 
-from models.schemas import Character, ChapterOutline, ConflictEntry, ForeshadowingEntry, WorldSetting
+from models.schemas import (
+    Character,
+    ChapterOutline,
+    ConflictEntry,
+    ForeshadowingEntry,
+    WorldSetting,
+)
 from models.semantic_schemas import OutlineMetrics
 from pipeline.layer1_story.outline_metrics import OUTLINE_METRIC_FLOORS
 
@@ -44,40 +50,185 @@ PROPER_NOUN_COVERAGE_FLOOR: float = 0.60
 
 # Common Vietnamese sentence-starters / generic words that pass capitalization heuristics
 # but are NOT proper nouns. Keep tight — false positives are cheaper than false negatives here.
-_PROPER_NOUN_STOPWORDS: frozenset[str] = frozenset({
-    # pronouns / conjunctions / particles
-    "Tôi", "Bạn", "Anh", "Chị", "Em", "Họ", "Nó", "Nhưng", "Và", "Hoặc",
-    "Khi", "Nếu", "Vì", "Để", "Sau", "Trước", "Trong", "Ngoài", "Với",
-    "Một", "Hai", "Ba", "Bốn", "Năm", "Sáu", "Bảy", "Tám", "Chín", "Mười",
-    "Câu", "Chương", "Phần", "Tập", "Truyện", "Cốt", "Câu chuyện",
-    "Có", "Là", "Sẽ", "Đã", "Đang", "Không", "Cũng", "Chỉ", "Còn",
-    "Tuy", "Mặc", "Vẫn", "Lại", "Theo", "Bởi", "Bằng",
-    # determiners / demonstratives / quantifiers
-    "Đây", "Đó", "Kia", "Này", "Những", "Các", "Mỗi", "Mọi", "Vài", "Nhiều", "Ít",
-    "Cái", "Con", "Chiếc", "Cuộc", "Bước", "Chuyện",
-    # common nouns frequently mis-capitalized in titles / headings.
-    # NOTE: keep out tokens that can legitimately prefix names (Thiên, Đường, Trời, Lý, Tô, ...).
-    "Người", "Nhân", "Thần", "Thánh", "Vua", "Quan", "Dân", "Đời", "Thế",
-    "Đất", "Núi", "Sông", "Biển", "Rừng", "Làng", "Thành", "Phố",
-    "Trường", "Nhà", "Cửa", "Sách", "Vật", "Sự", "Điều", "Phép",
-    "Pháp", "Đạo", "Đan", "Khí", "Cơ", "Cảnh", "Giai", "Cấp", "Hệ", "Vị",
-    "Võ", "Đồng", "Bác", "Khoa", "Khả", "Ký", "Thực", "Cộng", "Xâm", "Xung",
-    "Thay", "Hoàn",
-    # generic verbs frequently sentence-initial
-    "Sống", "Chết", "Đi", "Đến", "Về", "Lên", "Xuống", "Ra", "Vào",
-    "Bắt", "Tạo", "Làm", "Trở", "Phát", "Tiến", "Giành", "Chiến",
-})
+_PROPER_NOUN_STOPWORDS: frozenset[str] = frozenset(
+    {
+        # pronouns / conjunctions / particles
+        "Tôi",
+        "Bạn",
+        "Anh",
+        "Chị",
+        "Em",
+        "Họ",
+        "Nó",
+        "Nhưng",
+        "Và",
+        "Hoặc",
+        "Khi",
+        "Nếu",
+        "Vì",
+        "Để",
+        "Sau",
+        "Trước",
+        "Trong",
+        "Ngoài",
+        "Với",
+        "Một",
+        "Hai",
+        "Ba",
+        "Bốn",
+        "Năm",
+        "Sáu",
+        "Bảy",
+        "Tám",
+        "Chín",
+        "Mười",
+        "Câu",
+        "Chương",
+        "Phần",
+        "Tập",
+        "Truyện",
+        "Cốt",
+        "Câu chuyện",
+        "Có",
+        "Là",
+        "Sẽ",
+        "Đã",
+        "Đang",
+        "Không",
+        "Cũng",
+        "Chỉ",
+        "Còn",
+        "Tuy",
+        "Mặc",
+        "Vẫn",
+        "Lại",
+        "Theo",
+        "Bởi",
+        "Bằng",
+        # determiners / demonstratives / quantifiers
+        "Đây",
+        "Đó",
+        "Kia",
+        "Này",
+        "Những",
+        "Các",
+        "Mỗi",
+        "Mọi",
+        "Vài",
+        "Nhiều",
+        "Ít",
+        "Cái",
+        "Con",
+        "Chiếc",
+        "Cuộc",
+        "Bước",
+        "Chuyện",
+        # common nouns frequently mis-capitalized in titles / headings.
+        # NOTE: keep out tokens that can legitimately prefix names (Thiên, Đường, Trời, Lý, Tô, ...).
+        "Người",
+        "Nhân",
+        "Thần",
+        "Thánh",
+        "Vua",
+        "Quan",
+        "Dân",
+        "Đời",
+        "Thế",
+        "Đất",
+        "Núi",
+        "Sông",
+        "Biển",
+        "Rừng",
+        "Làng",
+        "Thành",
+        "Phố",
+        "Trường",
+        "Nhà",
+        "Cửa",
+        "Sách",
+        "Vật",
+        "Sự",
+        "Điều",
+        "Phép",
+        "Pháp",
+        "Đạo",
+        "Đan",
+        "Khí",
+        "Cơ",
+        "Cảnh",
+        "Giai",
+        "Cấp",
+        "Hệ",
+        "Vị",
+        "Võ",
+        "Đồng",
+        "Bác",
+        "Khoa",
+        "Khả",
+        "Ký",
+        "Thực",
+        "Cộng",
+        "Xâm",
+        "Xung",
+        "Thay",
+        "Hoàn",
+        # generic verbs frequently sentence-initial
+        "Sống",
+        "Chết",
+        "Đi",
+        "Đến",
+        "Về",
+        "Lên",
+        "Xuống",
+        "Ra",
+        "Vào",
+        "Bắt",
+        "Tạo",
+        "Làm",
+        "Trở",
+        "Phát",
+        "Tiến",
+        "Giành",
+        "Chiến",
+    }
+)
 
 # Multi-token cultivation/genre terms that ARE capitalized in Vietnamese wuxia/xianxia
 # prose but function as common nouns, not proper nouns. Filtered from extractor output.
-_PROPER_NOUN_PHRASE_STOPWORDS: frozenset[str] = frozenset({
-    "Con Người", "Loài Người", "Đại Đạo", "Thiên Đạo", "Thiên Địa",
-    "Kim Đan", "Nguyên Anh", "Trúc Cơ", "Luyện Khí", "Luyện Khí Trúc Cơ",
-    "Hóa Thần", "Đại Thừa", "Vực Ngoại", "Vực Nội", "Tiên Giới", "Phàm Giới",
-    "Ma Giới", "Thần Giới", "Pháp Bảo", "Pháp Tắc", "Pháp Lực",
-    "Tu Luyện", "Tu Sĩ", "Tu Tiên", "Tiên Nhân", "Cảnh Giới",
-    "Đại Năng", "Thiên Tài", "Thiên Mệnh", "Thiên Cơ",
-})
+_PROPER_NOUN_PHRASE_STOPWORDS: frozenset[str] = frozenset(
+    {
+        "Con Người",
+        "Loài Người",
+        "Đại Đạo",
+        "Thiên Đạo",
+        "Thiên Địa",
+        "Kim Đan",
+        "Nguyên Anh",
+        "Trúc Cơ",
+        "Luyện Khí",
+        "Luyện Khí Trúc Cơ",
+        "Hóa Thần",
+        "Đại Thừa",
+        "Vực Ngoại",
+        "Vực Nội",
+        "Tiên Giới",
+        "Phàm Giới",
+        "Ma Giới",
+        "Thần Giới",
+        "Pháp Bảo",
+        "Pháp Tắc",
+        "Pháp Lực",
+        "Tu Luyện",
+        "Tu Sĩ",
+        "Tu Tiên",
+        "Tiên Nhân",
+        "Cảnh Giới",
+        "Đại Năng",
+        "Thiên Tài",
+        "Thiên Mệnh",
+        "Thiên Cơ",
+    }
+)
 
 
 def _extract_proper_nouns(text: str) -> set[str]:
@@ -119,7 +270,11 @@ def _extract_proper_nouns(text: str) -> set[str]:
                 # double-spaces in joined phrases.
                 if tokens:
                     prev_word, prev_breaks, prev_ends = tokens[-1]
-                    tokens[-1] = (prev_word, prev_breaks or breaks, prev_ends or ends_sent)
+                    tokens[-1] = (
+                        prev_word,
+                        prev_breaks or breaks,
+                        prev_ends or ends_sent,
+                    )
                 continue
             if line_start_pending:
                 line_starts.add(len(tokens))
@@ -168,7 +323,10 @@ def _extract_proper_nouns(text: str) -> set[str]:
             #   - single token that's sentence-initial (almost always just capitalization)
             #   - single ASCII-only token (English bleed-through like "Plot")
             keep = bool(phrase)
-            if phrase in _PROPER_NOUN_STOPWORDS or phrase in _PROPER_NOUN_PHRASE_STOPWORDS:
+            if (
+                phrase in _PROPER_NOUN_STOPWORDS
+                or phrase in _PROPER_NOUN_PHRASE_STOPWORDS
+            ):
                 keep = False
             if phrase_len == 1 and i in sentence_initial:
                 keep = False
@@ -199,12 +357,12 @@ def proper_noun_fidelity_check(
         return 1.0, []
 
     haystack = "\n".join(
-        f"{o.title} {o.summary} {' '.join(o.characters_involved)}"
-        for o in outlines
+        f"{o.title} {o.summary} {' '.join(o.characters_involved)}" for o in outlines
     )
     missing = [n for n in idea_nouns if n not in haystack]
     coverage = 1.0 - (len(missing) / len(idea_nouns))
     return coverage, missing
+
 
 STRICT_RAISE_THRESHOLD: float = 0.50
 """STORYFORGE_SEMANTIC_STRICT=1 + composite < this → raise SemanticVerificationError."""
@@ -334,7 +492,9 @@ def revise_outline_from_critique(
         score = threshold
 
     if score >= threshold:
-        logger.info("Outline score %s >= threshold %s, skipping revision.", score, threshold)
+        logger.info(
+            "Outline score %s >= threshold %s, skipping revision.", score, threshold
+        )
         return outlines
 
     chars_text = "\n".join(
@@ -350,9 +510,13 @@ def revise_outline_from_critique(
                 outlines=_format_outlines_for_prompt(outlines),
                 plot_holes=_format_critique_field(critique.get("plot_holes", [])),
                 pacing_issues=_format_critique_field(critique.get("pacing_issues", [])),
-                character_underuse=_format_critique_field(critique.get("character_underuse", [])),
+                character_underuse=_format_critique_field(
+                    critique.get("character_underuse", [])
+                ),
                 arc_coherence=_format_critique_field(critique.get("arc_coherence", [])),
-                foreshadowing_gaps=_format_critique_field(critique.get("foreshadowing_gaps", [])),
+                foreshadowing_gaps=_format_critique_field(
+                    critique.get("foreshadowing_gaps", [])
+                ),
             ),
             temperature=0.85,
             model=model,
@@ -378,14 +542,22 @@ def revise_outline_from_critique(
         # Strip any remaining wrapper dicts inside the list (defensive)
         cleaned: list[dict] = []
         for o in raw_outlines:
-            if isinstance(o, dict) and "outlines" in o and isinstance(o["outlines"], list):
-                logger.warning("revise_outline_from_critique: stripping nested 'outlines' wrapper from list item.")
+            if (
+                isinstance(o, dict)
+                and "outlines" in o
+                and isinstance(o["outlines"], list)
+            ):
+                logger.warning(
+                    "revise_outline_from_critique: stripping nested 'outlines' wrapper from list item."
+                )
                 cleaned.extend(x for x in o["outlines"] if isinstance(x, dict))
             elif isinstance(o, dict):
                 cleaned.append(o)
         revised = [ChapterOutline(**o) for o in cleaned]
         if not revised:
-            logger.warning("revise_outline_from_critique returned empty list, keeping originals.")
+            logger.warning(
+                "revise_outline_from_critique returned empty list, keeping originals."
+            )
             return outlines
         logger.info("Outline revised: %d chapters (score was %s).", len(revised), score)
         return revised
@@ -473,8 +645,10 @@ def score_outline(
 
     # Strict mode
     from pipeline.semantic import is_strict_mode
+
     if is_strict_mode() and metrics.overall_score < STRICT_RAISE_THRESHOLD:
         from pipeline.semantic import SemanticVerificationError
+
         raise SemanticVerificationError(
             f"Outline composite_score={metrics.overall_score:.3f} "
             f"< strict floor={STRICT_RAISE_THRESHOLD}. Failing: {failing}"
@@ -486,9 +660,7 @@ def score_outline(
             "; ".join(failing),
         )
     else:
-        logger.info(
-            "Outline metrics OK: overall=%.3f", metrics.overall_score
-        )
+        logger.info("Outline metrics OK: overall=%.3f", metrics.overall_score)
 
     return metrics, should_rewrite, failing
 
@@ -548,16 +720,22 @@ def critique_and_revise(
             break
         logger.info(
             "Round %d: rewriting outline (composite=%.3f, failing=%s)",
-            round_num + 1, metrics.overall_score, failing,
+            round_num + 1,
+            metrics.overall_score,
+            failing,
         )
-        guide_critique = llm_critique if llm_critique else {
-            "overall_score": 1,
-            "plot_holes": failing,
-            "pacing_issues": [],
-            "character_underuse": [],
-            "arc_coherence": [],
-            "foreshadowing_gaps": [],
-        }
+        guide_critique = (
+            llm_critique
+            if llm_critique
+            else {
+                "overall_score": 1,
+                "plot_holes": failing,
+                "pacing_issues": [],
+                "character_underuse": [],
+                "arc_coherence": [],
+                "foreshadowing_gaps": [],
+            }
+        )
         outlines = revise_outline_from_critique(
             llm, outlines, guide_critique, characters, world, genre, model=model
         )
@@ -579,7 +757,9 @@ def critique_and_revise(
         if fidelity_coverage < PROPER_NOUN_COVERAGE_FLOOR:
             logger.warning(
                 "Outline fidelity FAIL: %.0f%% proper-noun coverage (floor=%.0f%%); missing=%s. Re-rolling once.",
-                fidelity_coverage * 100, PROPER_NOUN_COVERAGE_FLOOR * 100, fidelity_missing,
+                fidelity_coverage * 100,
+                PROPER_NOUN_COVERAGE_FLOOR * 100,
+                fidelity_missing,
             )
             fidelity_critique = {
                 "overall_score": 1,
@@ -596,10 +776,13 @@ def critique_and_revise(
                 llm, outlines, fidelity_critique, characters, world, genre, model=model
             )
             # Re-check post-revision (no further re-rolls)
-            fidelity_coverage, fidelity_missing = proper_noun_fidelity_check(idea, outlines)
+            fidelity_coverage, fidelity_missing = proper_noun_fidelity_check(
+                idea, outlines
+            )
             logger.info(
                 "Outline fidelity post-reroll: %.0f%% coverage; still_missing=%s",
-                fidelity_coverage * 100, fidelity_missing,
+                fidelity_coverage * 100,
+                fidelity_missing,
             )
 
     # Build backward-compat return dict
@@ -618,8 +801,13 @@ def critique_and_revise(
     }
     # Merge in LLM critique fields if available (plot_holes etc.) for diagnostics
     if llm_critique:
-        for k in ("plot_holes", "pacing_issues", "character_underuse",
-                  "arc_coherence", "foreshadowing_gaps"):
+        for k in (
+            "plot_holes",
+            "pacing_issues",
+            "character_underuse",
+            "arc_coherence",
+            "foreshadowing_gaps",
+        ):
             if k in llm_critique:
                 result_dict[k] = llm_critique[k]
 

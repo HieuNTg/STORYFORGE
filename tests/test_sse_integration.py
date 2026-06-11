@@ -17,6 +17,7 @@ from models.schemas import PipelineOutput
 
 def _make_app() -> FastAPI:
     from fastapi import APIRouter
+
     app = FastAPI()
     api = APIRouter(prefix="/api")
     api.include_router(pipeline_router)
@@ -63,6 +64,7 @@ def _parse_sse_events(body: str) -> list[dict]:
 
 
 # ── SSE Connection Lifecycle ──
+
 
 @pytest.mark.asyncio
 async def test_sse_error_stream_on_short_idea(client):
@@ -153,7 +155,9 @@ async def test_sse_pipeline_error_event():
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             resp = await c.post(
                 "/api/pipeline/run",
-                json={"idea": "A test story about dragons and magic in a fantasy world"},
+                json={
+                    "idea": "A test story about dragons and magic in a fantasy world"
+                },
             )
 
         events = _parse_sse_events(resp.text)
@@ -181,7 +185,9 @@ async def test_sse_error_status_output_emits_error_not_done():
         async with AsyncClient(transport=transport, base_url="http://test") as c:
             resp = await c.post(
                 "/api/pipeline/run",
-                json={"idea": "A brave warrior travels through time to save the kingdom"},
+                json={
+                    "idea": "A brave warrior travels through time to save the kingdom"
+                },
             )
 
         events = _parse_sse_events(resp.text)
@@ -223,7 +229,6 @@ async def test_sse_event_ordering_with_progress():
     """Progress callbacks should produce SSE log events between session and done."""
     app = _make_app()
 
-
     def _mock_pipeline(**kwargs):
         cb = kwargs.get("progress_callback")
         if cb:
@@ -244,7 +249,9 @@ async def test_sse_event_ordering_with_progress():
             async with AsyncClient(transport=transport, base_url="http://test") as c:
                 resp = await c.post(
                     "/api/pipeline/run",
-                    json={"idea": "An epic tale of heroes fighting against darkness in ancient times"},
+                    json={
+                        "idea": "An epic tale of heroes fighting against darkness in ancient times"
+                    },
                 )
 
             events = _parse_sse_events(resp.text)
@@ -286,6 +293,7 @@ async def test_sse_double_newline_format(client):
 async def _clean_jobs():
     """Drop any jobs this test created so the module-level registry stays clean."""
     from api import pipeline_job_registry as _jobs
+
     before = set(_jobs.JOBS)
     yield _jobs
     for sid in set(_jobs.JOBS) - before:

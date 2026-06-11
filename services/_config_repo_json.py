@@ -45,6 +45,7 @@ else:
 # Implementation
 # ---------------------------------------------------------------------------
 
+
 class JsonFileConfigRepository(ConfigRepository):
     """Thread-safe, atomically-written JSON file backend.
 
@@ -73,8 +74,11 @@ class JsonFileConfigRepository(ConfigRepository):
     def _write_raw(self, data: dict) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(
-            "w", encoding="utf-8", dir=str(self._path.parent),
-            delete=False, suffix=".tmp"
+            "w",
+            encoding="utf-8",
+            dir=str(self._path.parent),
+            delete=False,
+            suffix=".tmp",
         ) as tmp:
             json.dump(data, tmp, ensure_ascii=False, indent=2)
             tmp_name = tmp.name

@@ -15,6 +15,7 @@ class VoiceConfig:
     New call sites should read this nested shape; legacy call sites can keep
     using flat fields without breaking.
     """
+
     # Validation (L2)
     enabled: bool = True
     min_compliance: float = 0.75
@@ -37,6 +38,7 @@ class LLMConfig:
       glm-4.5-flash   - text, 200K context
       glm-4.6v-flash  - vision, 200K context
     """
+
     api_key: str = ""
     base_url: str = "https://api.openai.com/v1"
     model: str = "gpt-4o-mini"
@@ -55,7 +57,9 @@ class LLMConfig:
     # Each entry: {"base_url": "...", "model": "...", "api_key": "..."}
     # Fallback thresholds — used by ModelFallbackManager
     fallback_max_latency_ms: int = 120000  # Switch model if avg latency exceeds 2min
-    fallback_max_cost_per_1k: float = 0.01  # Skip fallback models above this cost/1k tokens
+    fallback_max_cost_per_1k: float = (
+        0.01  # Skip fallback models above this cost/1k tokens
+    )
     # Chain-level retry when all providers fail (rate-limit storms, outages)
     chain_retry_max: int = 2  # Max times to retry entire fallback chain
     chain_retry_base_delay: float = 30.0  # Initial delay (seconds) before chain retry
@@ -78,6 +82,7 @@ class LLMConfig:
 @dataclass
 class PipelineConfig:
     """Cấu hình pipeline tổng thể."""
+
     # Layer 1 - Tạo truyện
     num_chapters: int = 100
     words_per_chapter: int = 3000
@@ -111,7 +116,9 @@ class PipelineConfig:
     pdf_font: str = "NotoSansVN"
 
     # Image generation provider
-    image_provider: str = "none"  # none / dalle / sd-api / seedream / huggingface / flowkit / codex
+    image_provider: str = (
+        "none"  # none / dalle / sd-api / seedream / huggingface / flowkit / codex
+    )
     image_api_key: str = ""
     image_api_url: str = ""
     # Codex provider: generate images through the user's own logged-in ChatGPT
@@ -188,17 +195,27 @@ class PipelineConfig:
     flowkit_enabled: bool = True
     flowkit_port: int = 7860
     flowkit_style_reference_path: str = ""
-    flowkit_concurrent_workers: int = 1  # runtime initial value; adaptive ramp managed by FlowService
+    flowkit_concurrent_workers: int = (
+        1  # runtime initial value; adaptive ramp managed by FlowService
+    )
     flowkit_concurrent_workers_max: int = 4  # ceiling for adaptive ramp
-    flowkit_workers_ramp_threshold: int = 10  # consecutive successes before incrementing
+    flowkit_workers_ramp_threshold: int = (
+        10  # consecutive successes before incrementing
+    )
     flowkit_veo_poll_interval: float = 5.0
     flowkit_account_warning_shown: bool = False
-    flowkit_risk_acknowledged: bool = True  # hard gate; backend rejects flowkit_enabled=True without this
-    flowkit_image_input_type_split: bool = False  # split REFERENCE → CHARACTER/STYLE (requires live enum sniff)
+    flowkit_risk_acknowledged: bool = (
+        True  # hard gate; backend rejects flowkit_enabled=True without this
+    )
+    flowkit_image_input_type_split: bool = (
+        False  # split REFERENCE → CHARACTER/STYLE (requires live enum sniff)
+    )
     flowkit_callback_hmac_required: bool = False  # verify X-Callback-Signature (HMAC-SHA256 of body) on the HTTP /api/ext/callback fallback; the live WS path relies on 127.0.0.1 trust
     flowkit_use_refiner: bool = True  # ACTIVE: ImageGenerator._flowkit_refine runs the comic-panel refiner on every prompt before flowMedia:batchGenerateImages
     flowkit_request_timeout: float = 180.0  # seconds; sync-bridge wait when ImageGenerator dispatches to FlowService loop
-    flowkit_aspect_ratio: str = "4:5"  # webtoon comic panel; mapped to IMAGE_ASPECT_RATIO_* enum at send time
+    flowkit_aspect_ratio: str = (
+        "4:5"  # webtoon comic panel; mapped to IMAGE_ASPECT_RATIO_* enum at send time
+    )
     # Google Labs Flow project UUID. Find in URL at labs.google/fx/tools/flow/project/<UUID>.
     # Required when flowkit_enabled=True — request_image raises if empty.
     flowkit_project_id: str = ""
@@ -212,13 +229,13 @@ class PipelineConfig:
     rag_persist_dir: str = "data/rag"
     # RAG — semantic retrieval over generated chapters (Sprint 2 Task 1).
     # Gated behind rag_enabled master switch; no effect when rag_enabled=False.
-    rag_index_chapters: bool = True             # auto-index each chapter after write
-    rag_multi_query: bool = True                # fan-out per char + per thread + summary
-    rag_per_char_queries: int = 3               # top-N focus characters to query
-    rag_per_thread_queries: int = 3             # top-N open threads to query
-    rag_n_results_per_query: int = 2            # hits per sub-query
-    rag_merge_cap: int = 8                      # max merged chunks injected into prompt
-    rag_max_tokens: int = 1000                  # soft cap for RAG block in prompt
+    rag_index_chapters: bool = True  # auto-index each chapter after write
+    rag_multi_query: bool = True  # fan-out per char + per thread + summary
+    rag_per_char_queries: int = 3  # top-N focus characters to query
+    rag_per_thread_queries: int = 3  # top-N open threads to query
+    rag_n_results_per_query: int = 2  # hits per sub-query
+    rag_merge_cap: int = 8  # max merged chunks injected into prompt
+    rag_max_tokens: int = 1000  # soft cap for RAG block in prompt
 
     # Character-consistent images
     enable_character_consistency: bool = False
@@ -245,20 +262,32 @@ class PipelineConfig:
     smart_revision_threshold: float = 3.5  # 1.0-5.0 scale
 
     # Parallel chapter generation (batch mode)
-    parallel_chapters_enabled: bool = True  # Feature flag — parallel chapter generation enabled
+    parallel_chapters_enabled: bool = (
+        True  # Feature flag — parallel chapter generation enabled
+    )
     chapter_batch_size: int = 5  # Chapters per batch
-    parallel_use_asyncio: bool = True  # Use asyncio.gather() instead of ThreadPoolExecutor
+    parallel_use_asyncio: bool = (
+        True  # Use asyncio.gather() instead of ThreadPoolExecutor
+    )
     # When True, chapters within a batch run sequentially so each chapter's
     # continuity anchor = its immediate predecessor's tail (not just the prior
     # batch's last chapter). Costs ~chapter_batch_size× throughput within L1.
     l1_strict_chapter_continuity: bool = False
     chapter_retry_max: int = 2  # Max retries for failed contract validation
-    chapter_retry_threshold: float = 0.6  # Contract compliance score below this triggers retry
-    parallel_causal_sync: bool = True  # Sync causal events between parallel chapters post-write
+    chapter_retry_threshold: float = (
+        0.6  # Contract compliance score below this triggers retry
+    )
+    parallel_causal_sync: bool = (
+        True  # Sync causal events between parallel chapters post-write
+    )
 
     # Sprint 2 P5: semantic outline metrics thresholds
-    enable_llm_outline_critic: bool = True   # Secondary LLM signal alongside deterministic metrics
-    outline_metric_floor: float = 0.40       # composite_score floor; below this → log WARN + optional revise
+    enable_llm_outline_critic: bool = (
+        True  # Secondary LLM signal alongside deterministic metrics
+    )
+    outline_metric_floor: float = (
+        0.40  # composite_score floor; below this → log WARN + optional revise
+    )
 
     # Layer 1 enhancements (all opt-in, non-fatal)
     enable_theme_premise: bool = True  # Generate thematic anchor before story
@@ -267,27 +296,47 @@ class PipelineConfig:
     outline_critique_max_rounds: int = 1  # Max critique-revise iterations
     enable_scene_decomposition: bool = True  # Break chapters into scenes before writing
     enable_show_dont_tell: bool = True  # Inject show-don't-tell guidance into prompts
-    enable_chapter_critique: bool = True  # Post-write selective self-critique (climax, arc boundaries, first/last)
+    enable_chapter_critique: bool = (
+        True  # Post-write selective self-critique (climax, arc boundaries, first/last)
+    )
     # L1-B: Critique frequency + rollback-on-regression
-    chapter_critique_every_n_chapters: int = 5  # Force critique every N chapters (0 disables this trigger)
-    chapter_critique_rollback: bool = True  # Re-score after rewrite; revert if aggregate drops
-    chapter_critique_rollback_threshold: float = 0.3  # Revert if avg_after < avg_before - threshold
+    chapter_critique_every_n_chapters: int = (
+        5  # Force critique every N chapters (0 disables this trigger)
+    )
+    chapter_critique_rollback: bool = (
+        True  # Re-score after rewrite; revert if aggregate drops
+    )
+    chapter_critique_rollback_threshold: float = (
+        0.3  # Revert if avg_after < avg_before - threshold
+    )
     # L1-F: Pacing as hard contract constraint (was advisory)
-    enable_pacing_enforcement: bool = True  # Post-write pacing classification + rewrite on mismatch
-    pacing_enforcement_confidence: float = 0.7  # Min classifier confidence before triggering rewrite
-    pacing_mismatch_rewrite: bool = True  # If confidence ≥ threshold AND mismatch, trigger rewrite
+    enable_pacing_enforcement: bool = (
+        True  # Post-write pacing classification + rewrite on mismatch
+    )
+    pacing_enforcement_confidence: float = (
+        0.7  # Min classifier confidence before triggering rewrite
+    )
+    pacing_mismatch_rewrite: bool = (
+        True  # If confidence ≥ threshold AND mismatch, trigger rewrite
+    )
 
     # Phase 1 quality improvements
     enable_arc_waypoints: bool = True  # Structured character arc tracking per chapter
-    enable_outline_arc_validation: bool = True  # Validate outline-to-macro_arc coherence
+    enable_outline_arc_validation: bool = (
+        True  # Validate outline-to-macro_arc coherence
+    )
 
     # Phase 2 chapter contracts
     enable_chapter_contracts: bool = True  # Per-chapter requirement contracts
     enable_contract_validation: bool = True  # Post-write contract compliance check
 
     # Phase 3 narrative linking
-    enable_semantic_foreshadowing: bool = True  # LLM-based foreshadowing verification (replaces keyword)
-    semantic_foreshadowing_threshold: float = 0.7  # Confidence threshold for seed/payoff verification
+    enable_semantic_foreshadowing: bool = (
+        True  # LLM-based foreshadowing verification (replaces keyword)
+    )
+    semantic_foreshadowing_threshold: float = (
+        0.7  # Confidence threshold for seed/payoff verification
+    )
 
     # Phase 4 context management
     enable_tiered_context: bool = True  # Tiered summary system for long stories
@@ -300,27 +349,49 @@ class PipelineConfig:
     tiered_max_promotions: int = 5  # max chapters promoted from low tier to high tier
 
     # Phase 6: Arc execution validation
-    enable_arc_execution_validation: bool = True  # Validate arc waypoints in chapter content
+    enable_arc_execution_validation: bool = (
+        True  # Validate arc waypoints in chapter content
+    )
     arc_validation_use_llm: bool = True  # Use LLM for critical/ambiguous cases
 
     # Phase 6: Foreshadowing payoff enforcement
-    enable_foreshadowing_enforcement: bool = True  # Enforce payoff of planted foreshadowing
-    foreshadowing_grace_chapters: int = 2  # Chapters past deadline before flagging as overdue
-    enable_foreshadowing_payoff_verify: bool = True  # Post-write semantic verification + targeted rewrite if payoff missing
-    foreshadowing_payoff_rewrite_on_miss: bool = True  # Trigger targeted rewrite when due payoff not detected
+    enable_foreshadowing_enforcement: bool = (
+        True  # Enforce payoff of planted foreshadowing
+    )
+    foreshadowing_grace_chapters: int = (
+        2  # Chapters past deadline before flagging as overdue
+    )
+    enable_foreshadowing_payoff_verify: bool = (
+        True  # Post-write semantic verification + targeted rewrite if payoff missing
+    )
+    foreshadowing_payoff_rewrite_on_miss: bool = (
+        True  # Trigger targeted rewrite when due payoff not detected
+    )
 
     # L1-D: Consistency block-and-rewrite (was warn-only)
-    enable_consistency_rewrite: bool = True  # Rewrite chapter when consistency violations exceed thresholds
+    enable_consistency_rewrite: bool = (
+        True  # Rewrite chapter when consistency violations exceed thresholds
+    )
     consistency_name_warning_threshold: int = 3  # Rewrite if >= N name warnings
-    consistency_location_warning_threshold: int = 2  # Rewrite if >= N location transition warnings
+    consistency_location_warning_threshold: int = (
+        2  # Rewrite if >= N location transition warnings
+    )
     consistency_arc_drift_threshold: int = 2  # Rewrite if >= N arc drift warnings
 
     # Phase 5: L1 consistency improvements
-    enable_emotional_memory: bool = True  # Per-character emotion tracking across chapters
-    enable_proactive_constraints: bool = True  # forbidden_actions, must_maintain in contracts
-    enable_thread_enforcement: bool = True  # Hard requirement for stale threads (gap >= 8)
+    enable_emotional_memory: bool = (
+        True  # Per-character emotion tracking across chapters
+    )
+    enable_proactive_constraints: bool = (
+        True  # forbidden_actions, must_maintain in contracts
+    )
+    enable_thread_enforcement: bool = (
+        True  # Hard requirement for stale threads (gap >= 8)
+    )
     enable_emotional_bridge: bool = True  # Inter-chapter emotional continuity
-    enable_scene_beat_writing: bool = True  # Per-beat chapter writing (extends enable_scene_decomposition)
+    enable_scene_beat_writing: bool = (
+        True  # Per-beat chapter writing (extends enable_scene_decomposition)
+    )
     enable_l1_causal_graph: bool = True  # Causal event tracking and validation
 
     # New L1 validators (Feature #12-16)
@@ -329,13 +400,19 @@ class PipelineConfig:
     enable_timeline_validation: bool = True  # Feature #13: Temporal consistency
     enable_secret_tracking: bool = True  # Feature #14: Character secret reveal tracking
     enable_thematic_resonance: bool = True  # Feature #15: Theme presence tracking
-    enable_dialogue_attribution_check: bool = True  # Feature #16: Clear dialogue attribution
+    enable_dialogue_attribution_check: bool = (
+        True  # Feature #16: Clear dialogue attribution
+    )
 
     # L2 enhancement quality signals
-    l2_use_l1_signals: bool = True  # wire L1 waypoints/summary/pacing/thread.status into L2
+    l2_use_l1_signals: bool = (
+        True  # wire L1 waypoints/summary/pacing/thread.status into L2
+    )
     l2_causal_audit: bool = True  # post-L2 causality verification (Phase B)
     l2_thread_pressure: bool = True  # thread.urgency → psychology pressure (Phase C)
-    l2_contract_gate: bool = True  # post-L2 contract validation + optional rewrite (Phase E)
+    l2_contract_gate: bool = (
+        True  # post-L2 contract validation + optional rewrite (Phase E)
+    )
 
     # Sprint 1 Task 3 — Simulator → Enhancer drama contract enforcement
     enable_simulator_contracts: bool = True
@@ -345,11 +422,15 @@ class PipelineConfig:
     contract_cheap_validation: bool = True
 
     # Sprint 2 Task 2 — Voice contract + L1↔L2 dedup
-    enable_voice_contract: bool = True               # Build per-chapter voice contracts from L1 profiles
-    enable_voice_contract_retry: bool = True         # Refine-with-hint on drift (vs. binary revert)
+    enable_voice_contract: bool = (
+        True  # Build per-chapter voice contracts from L1 profiles
+    )
+    enable_voice_contract_retry: bool = (
+        True  # Refine-with-hint on drift (vs. binary revert)
+    )
     voice_contract_retry_max: int = 1
-    voice_min_compliance: float = 0.75               # Pass threshold per chapter
-    voice_binary_revert_floor: float = 0.5           # Below this compliance → last-resort revert
+    voice_min_compliance: float = 0.75  # Pass threshold per chapter
+    voice_binary_revert_floor: float = 0.5  # Below this compliance → last-resort revert
 
     # L2 Consistency Engine (master switch + thread watchdog sub-gate)
     l2_consistency_engine: bool = True  # Enable A-E consistency improvements
@@ -357,10 +438,14 @@ class PipelineConfig:
 
     # Phase 6: Voice preservation (reverts drifted dialogues)
     l2_voice_preservation: bool = True  # Enforce voice preservation post-enhancement
-    l2_knowledge_constraints: bool = True  # L2-B: inject character knowledge facts to prevent hallucination
+    l2_knowledge_constraints: bool = (
+        True  # L2-B: inject character knowledge facts to prevent hallucination
+    )
     l2_voice_drift_threshold: float = 0.4  # Drift level for warning
     l2_voice_revert_threshold: float = 0.3  # Drift level for automatic revert
-    voice_revert_use_anchored: bool = True  # Use speaker-anchored revert (Sprint 3 P3); False → legacy positional
+    voice_revert_use_anchored: bool = (
+        True  # Use speaker-anchored revert (Sprint 3 P3); False → legacy positional
+    )
 
     # Phase 6: Drama ceiling (prevents melodrama)
     l2_drama_ceiling: bool = True  # Apply genre-specific drama ceilings
@@ -371,12 +456,16 @@ class PipelineConfig:
     l2_scene_retry_max: int = 2  # Max retries for weak scenes after enhancement
     l2_scene_retry_threshold: float = 0.5  # Drama threshold for scene retry
     l2_chapter_retry_max: int = 2  # Max retries for failed chapter enhancement (P-F)
-    l2_chapter_retry_backoff: float = 1.5  # Exponential backoff multiplier for chapter retry
+    l2_chapter_retry_backoff: float = (
+        1.5  # Exponential backoff multiplier for chapter retry
+    )
     l2_drama_curve_balancing: bool = True  # Cross-chapter drama curve optimization
     l2_drama_curve_target: str = "rising"  # rising | climax_at_end | wave
 
     # Adaptive simulation rounds (Phase 4 - dynamic round calculation)
-    adaptive_simulation_rounds: bool = True  # Dynamic round calculation based on complexity
+    adaptive_simulation_rounds: bool = (
+        True  # Dynamic round calculation based on complexity
+    )
     l2_drama_threshold: float = 0.5  # Below = weak round, trigger escalation
     l2_drama_target: float = 0.65  # Stop when avg drama reaches this
     l2_min_rounds: int = 3  # Minimum simulation rounds
@@ -412,18 +501,26 @@ class PipelineConfig:
     quality_gate_max_retries: int = 1
 
     # Sprint 3 Task 1: Unified knowledge graph (merges conflict_web + threads + foreshadowing + arcs)
-    enable_unified_kg: bool = False  # Opt-in — replaces legacy build_from_story_draft when True
+    enable_unified_kg: bool = (
+        False  # Opt-in — replaces legacy build_from_story_draft when True
+    )
 
     # Sprint 3 Task 2: Per-chapter checkpoint (resume from last completed chapter)
-    enable_chapter_checkpoint: bool = False  # Opt-in — writes per_chapter/{slug}_ch{N}_layer{L}.json
-    chapter_checkpoint_keep_last: int = 5  # Auto-prune older per-chapter files beyond this count
+    enable_chapter_checkpoint: bool = (
+        False  # Opt-in — writes per_chapter/{slug}_ch{N}_layer{L}.json
+    )
+    chapter_checkpoint_keep_last: int = (
+        5  # Auto-prune older per-chapter files beyond this count
+    )
     chapter_checkpoint_every_n_batches: int = 1  # Checkpoint cadence (1 = every batch)
 
     # Sprint 3 Task 3: Cross-chapter ArcMilestone contract
     enable_arc_milestones: bool = False  # Opt-in — generates + tracks arc-level beats
 
     # L3 Sensory Polish (P-A) — optional post-L2 prose enhancement
-    enable_sensory_polish: bool = True  # On by default — adds sensory details to prose (L3)
+    enable_sensory_polish: bool = (
+        True  # On by default — adds sensory details to prose (L3)
+    )
     sensory_polish_model: str = ""  # Empty = use primary model
 
     # Reader Simulator (P-B) — simulates reader experience for quality feedback
@@ -444,7 +541,9 @@ class PipelineConfig:
     # Simulation Transcript (Phase 3) — structured TranscriptTurn[] + /api/simulation/* endpoints.
     enable_simulation_transcript: bool = True
     enable_drama_climax: bool = False  # extends drama_level to {low,medium,high,climax}
-    simulation_continue_cheap_model_override: str = ""  # empty = use LLMConfig.cheap_model
+    simulation_continue_cheap_model_override: str = (
+        ""  # empty = use LLMConfig.cheap_model
+    )
 
     # Reader + Branching + Pipeline overlay (Phase 4) — cinematic reader chrome,
     # per-chapter illustration trigger, SSE-driven overlay during branch generation.

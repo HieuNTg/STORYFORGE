@@ -25,6 +25,7 @@ class StoryAnalyzer:
         """
         try:
             from services.trace_context import set_module
+
             set_module("l2_analyzer")
         except Exception:
             pass
@@ -40,7 +41,9 @@ class StoryAnalyzer:
                 # Ưu tiên summary nếu có, không thì lấy nội dung đầu
                 text = ch.summary if ch.summary else ch.content[:300]
                 if text:
-                    parts.append(f"Chương {ch.chapter_number} ({ch.title}): {text.strip()}")
+                    parts.append(
+                        f"Chương {ch.chapter_number} ({ch.title}): {text.strip()}"
+                    )
             synopsis = "\n".join(parts) or "Không có tóm tắt."
 
         result = self.llm.generate_json(
@@ -60,14 +63,16 @@ class StoryAnalyzer:
         for r in result.get("relationships", []):
             try:
                 rel_type = r.get("relation_type", "chưa_rõ")
-                relationships.append(Relationship(
-                    character_a=r["character_a"],
-                    character_b=r["character_b"],
-                    relation_type=RelationType(rel_type),
-                    intensity=r.get("intensity", 0.5),
-                    description=r.get("description", ""),
-                    tension=r.get("tension", 0.0),
-                ))
+                relationships.append(
+                    Relationship(
+                        character_a=r["character_a"],
+                        character_b=r["character_b"],
+                        relation_type=RelationType(rel_type),
+                        intensity=r.get("intensity", 0.5),
+                        description=r.get("description", ""),
+                        tension=r.get("tension", 0.0),
+                    )
+                )
             except (ValueError, KeyError):
                 continue
 
@@ -102,8 +107,7 @@ class StoryAnalyzer:
         # Build lookup: frozenset pair → index in list
         merged: list[Relationship] = list(llm_rels)
         pair_index: dict[frozenset, int] = {
-            frozenset([r.character_a, r.character_b]): i
-            for i, r in enumerate(merged)
+            frozenset([r.character_a, r.character_b]): i for i, r in enumerate(merged)
         }
 
         for entry in conflict_web:
@@ -126,7 +130,9 @@ class StoryAnalyzer:
                 if pair_key in pair_index:
                     idx = pair_index[pair_key]
                     if l1_tension > merged[idx].tension:
-                        merged[idx] = merged[idx].model_copy(update={"tension": l1_tension})
+                        merged[idx] = merged[idx].model_copy(
+                            update={"tension": l1_tension}
+                        )
                 else:
                     new_rel = Relationship(
                         character_a=chars[0],
@@ -170,16 +176,17 @@ class StoryAnalyzer:
                 intensity = e.get("intensity", 1)
 
                 if timeline or status in ("active", "escalating"):
-                    arcs.append({
-                        "conflict_id": e.get("conflict_id", ""),
-                        "characters": e.get("characters", []),
-                        "description": e.get("description", ""),
-                        "status": status,
-                        "current_intensity": intensity,
-                        "escalation_timeline": timeline,
-                        "arc_range": e.get("arc_range", ""),
-                    })
+                    arcs.append(
+                        {
+                            "conflict_id": e.get("conflict_id", ""),
+                            "characters": e.get("characters", []),
+                            "description": e.get("description", ""),
+                            "status": status,
+                            "current_intensity": intensity,
+                            "escalation_timeline": timeline,
+                            "arc_range": e.get("arc_range", ""),
+                        }
+                    )
             except Exception as ex:
                 logger.debug(f"escalation arc extraction skipped: {ex}")
         return arcs
-

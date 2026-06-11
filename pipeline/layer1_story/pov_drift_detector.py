@@ -14,10 +14,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Vietnamese POV indicators
-FIRST_PERSON = re.compile(r'\b(tôi|ta|mình|tao|tớ)\b', re.IGNORECASE)
+FIRST_PERSON = re.compile(r"\b(tôi|ta|mình|tao|tớ)\b", re.IGNORECASE)
 THIRD_PERSON_PATTERNS = [
-    r'\b(anh ấy|cô ấy|hắn|nàng|gã|y|thị)\b',
-    r'\b(nghĩ thầm|tự nhủ|trong lòng)\b',
+    r"\b(anh ấy|cô ấy|hắn|nàng|gã|y|thị)\b",
+    r"\b(nghĩ thầm|tự nhủ|trong lòng)\b",
 ]
 
 
@@ -28,8 +28,7 @@ def detect_pov_type(text: str) -> str:
     """
     first_count = len(FIRST_PERSON.findall(text))
     third_count = sum(
-        len(re.findall(p, text, re.IGNORECASE))
-        for p in THIRD_PERSON_PATTERNS
+        len(re.findall(p, text, re.IGNORECASE)) for p in THIRD_PERSON_PATTERNS
     )
 
     if first_count > 10 and third_count < 3:
@@ -58,7 +57,7 @@ def extract_pov_character(
         user_prompt=f"""Đoạn văn:
 {text[:2000]}
 
-Nhân vật: {', '.join(char_names)}
+Nhân vật: {", ".join(char_names)}
 
 Xác định:
 1. Nhân vật POV chính (ai đang kể/suy nghĩ)
@@ -102,7 +101,7 @@ def detect_pov_drift(
     segment_size = 500
     segments = []
     for i in range(0, len(words), segment_size):
-        segment_words = words[i:i + segment_size]
+        segment_words = words[i : i + segment_size]
         segments.append(" ".join(segment_words))
 
     if len(segments) < 2:
@@ -137,12 +136,14 @@ def detect_pov_drift(
 
         if curr["character"] and curr["character"] != prev["character"]:
             if curr["confidence"] > 0.6 and prev["confidence"] > 0.6:
-                drifts.append({
-                    "segment": curr["segment"],
-                    "from_char": prev["character"],
-                    "to_char": curr["character"],
-                    "position": f"segment {curr['segment'] + 1}/{len(segments)}",
-                })
+                drifts.append(
+                    {
+                        "segment": curr["segment"],
+                        "from_char": prev["character"],
+                        "to_char": curr["character"],
+                        "position": f"segment {curr['segment'] + 1}/{len(segments)}",
+                    }
+                )
 
     # Calculate overall confidence
     avg_confidence = sum(p["confidence"] for p in pov_results) / len(pov_results)
@@ -165,9 +166,7 @@ def format_pov_warning(drift_result: dict) -> str:
     lines.append(f"POV chính: {drift_result.get('primary_pov', '?')}")
 
     for d in drift_result.get("drifts", [])[:3]:
-        lines.append(
-            f"- {d['position']}: {d['from_char']} → {d['to_char']}"
-        )
+        lines.append(f"- {d['position']}: {d['from_char']} → {d['to_char']}")
 
     lines.append("Giữ nhất quán POV hoặc thêm chuyển cảnh rõ ràng.")
     return "\n".join(lines)
@@ -193,7 +192,8 @@ def validate_chapter_pov(
     if result["drifts"]:
         logger.warning(
             "POV drift detected: %d shifts, confidence %.2f",
-            len(result["drifts"]), result["confidence"]
+            len(result["drifts"]),
+            result["confidence"],
         )
 
     return result["consistent"], warning

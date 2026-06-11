@@ -1,4 +1,5 @@
 """Tests for services/story_analytics.py — coverage for StoryAnalytics class."""
+
 import pytest
 from unittest.mock import MagicMock, patch
 from models.schemas import Chapter
@@ -9,6 +10,7 @@ from services.story_analytics import StoryAnalytics
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_chapter(number: int, title: str, content: str) -> Chapter:
     return Chapter(chapter_number=number, title=title, content=content)
 
@@ -16,6 +18,7 @@ def _make_chapter(number: int, title: str, content: str) -> Chapter:
 # ---------------------------------------------------------------------------
 # analyze_chapter
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestAnalyzeChapter:
@@ -69,6 +72,7 @@ class TestAnalyzeChapter:
 # analyze_story
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestAnalyzeStory:
     def test_empty_chapters_returns_error(self):
@@ -107,11 +111,18 @@ class TestAnalyzeStory:
 # extract_emotion_arc (keyword-based)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestExtractEmotionArc:
     def test_returns_expected_keys(self, sample_chapters):
         result = StoryAnalytics.extract_emotion_arc(sample_chapters)
-        for key in ("chapter_numbers", "positivity", "negativity", "tension", "emotional_valence"):
+        for key in (
+            "chapter_numbers",
+            "positivity",
+            "negativity",
+            "tension",
+            "emotional_valence",
+        ):
             assert key in result
 
     def test_length_matches_chapters(self, sample_chapters):
@@ -125,12 +136,16 @@ class TestExtractEmotionArc:
         assert result["positivity"] == []
 
     def test_positive_keywords_detected(self):
-        ch = _make_chapter(1, "Happy", "Anh ta vui mừng và hạnh phúc khi gặp lại bạn cũ.")
+        ch = _make_chapter(
+            1, "Happy", "Anh ta vui mừng và hạnh phúc khi gặp lại bạn cũ."
+        )
         result = StoryAnalytics.extract_emotion_arc([ch])
         assert result["positivity"][0] >= 0
 
     def test_negative_keywords_detected(self):
-        ch = _make_chapter(1, "Sad", "Cô ấy buồn và khóc khi nghe tin xấu về người thân.")
+        ch = _make_chapter(
+            1, "Sad", "Cô ấy buồn và khóc khi nghe tin xấu về người thân."
+        )
         result = StoryAnalytics.extract_emotion_arc([ch])
         assert result["negativity"][0] >= 0
 
@@ -144,19 +159,30 @@ class TestExtractEmotionArc:
 # extract_emotion_arc_llm (with mocked LLM)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestExtractEmotionArcLLM:
     """LLMClient is imported inside the function body — patch at source module."""
 
     def test_llm_success(self, sample_chapters):
         mock_result = {
-            "joy": 7, "sadness": 3, "anger": 2, "fear": 1,
-            "surprise": 5, "tension": 4, "romance": 2,
-            "dominant_emotion": "joy", "emotional_summary": "Happy chapter",
+            "joy": 7,
+            "sadness": 3,
+            "anger": 2,
+            "fear": 1,
+            "surprise": 5,
+            "tension": 4,
+            "romance": 2,
+            "dominant_emotion": "joy",
+            "emotional_summary": "Happy chapter",
         }
-        with patch("services.llm_client.LLMClient") as MockLLM, \
-             patch("services.prompts.EXTRACT_CHAPTER_EMOTIONS",
-                   "Analyze chapter {chapter_number} {title} {content}"):
+        with (
+            patch("services.llm_client.LLMClient") as MockLLM,
+            patch(
+                "services.prompts.EXTRACT_CHAPTER_EMOTIONS",
+                "Analyze chapter {chapter_number} {title} {content}",
+            ),
+        ):
             instance = MockLLM.return_value
             instance.generate_json.return_value = mock_result
 
@@ -168,9 +194,13 @@ class TestExtractEmotionArcLLM:
             assert 0 <= v <= 10
 
     def test_llm_fallback_on_exception(self, sample_chapters):
-        with patch("services.llm_client.LLMClient") as MockLLM, \
-             patch("services.prompts.EXTRACT_CHAPTER_EMOTIONS",
-                   "Analyze {chapter_number} {title} {content}"):
+        with (
+            patch("services.llm_client.LLMClient") as MockLLM,
+            patch(
+                "services.prompts.EXTRACT_CHAPTER_EMOTIONS",
+                "Analyze {chapter_number} {title} {content}",
+            ),
+        ):
             instance = MockLLM.return_value
             instance.generate_json.side_effect = Exception("LLM error")
 
@@ -181,14 +211,24 @@ class TestExtractEmotionArcLLM:
 
     def test_max_chapters_limit(self):
         chapters = [_make_chapter(i, f"Ch {i}", f"Content {i}") for i in range(10)]
-        with patch("services.llm_client.LLMClient") as MockLLM, \
-             patch("services.prompts.EXTRACT_CHAPTER_EMOTIONS",
-                   "Analyze {chapter_number} {title} {content}"):
+        with (
+            patch("services.llm_client.LLMClient") as MockLLM,
+            patch(
+                "services.prompts.EXTRACT_CHAPTER_EMOTIONS",
+                "Analyze {chapter_number} {title} {content}",
+            ),
+        ):
             instance = MockLLM.return_value
             instance.generate_json.return_value = {
-                "joy": 5, "sadness": 5, "anger": 5, "fear": 5,
-                "surprise": 5, "tension": 5, "romance": 5,
-                "dominant_emotion": "neutral", "emotional_summary": "",
+                "joy": 5,
+                "sadness": 5,
+                "anger": 5,
+                "fear": 5,
+                "surprise": 5,
+                "tension": 5,
+                "romance": 5,
+                "dominant_emotion": "neutral",
+                "emotional_summary": "",
             }
             result = StoryAnalytics.extract_emotion_arc_llm(chapters, max_chapters=3)
 
@@ -197,13 +237,23 @@ class TestExtractEmotionArcLLM:
     def test_clamp_out_of_range_values(self, sample_chapters):
         """LLM may return values outside [0,10] — should be clamped."""
         mock_result = {
-            "joy": 99, "sadness": -5, "anger": 0, "fear": 0,
-            "surprise": 0, "tension": 0, "romance": 0,
-            "dominant_emotion": "joy", "emotional_summary": "",
+            "joy": 99,
+            "sadness": -5,
+            "anger": 0,
+            "fear": 0,
+            "surprise": 0,
+            "tension": 0,
+            "romance": 0,
+            "dominant_emotion": "joy",
+            "emotional_summary": "",
         }
-        with patch("services.llm_client.LLMClient") as MockLLM, \
-             patch("services.prompts.EXTRACT_CHAPTER_EMOTIONS",
-                   "Analyze {chapter_number} {title} {content}"):
+        with (
+            patch("services.llm_client.LLMClient") as MockLLM,
+            patch(
+                "services.prompts.EXTRACT_CHAPTER_EMOTIONS",
+                "Analyze {chapter_number} {title} {content}",
+            ),
+        ):
             instance = MockLLM.return_value
             instance.generate_json.return_value = mock_result
             result = StoryAnalytics.extract_emotion_arc_llm(sample_chapters[:1])

@@ -40,11 +40,14 @@ def verify_contract(
     # must_mention_characters — critical
     for name in contract.must_mention_characters or []:
         if not _contains_ci(content, name):
-            failures.append(ContractFailure(
-                field="must_mention_characters",
-                expected=name, actual="not found in content",
-                severity="critical",
-            ))
+            failures.append(
+                ContractFailure(
+                    field="must_mention_characters",
+                    expected=name,
+                    actual="not found in content",
+                    severity="critical",
+                )
+            )
 
     # must_advance_threads — critical if thread urgency >= 4, else warning
     threads_advanced = set()
@@ -69,39 +72,51 @@ def verify_contract(
         if tid_tokens and any(tok.lower() in content.lower() for tok in tid_tokens):
             continue
         severity = "critical" if thread_urgency_map.get(tid, 3) >= 4 else "warning"
-        failures.append(ContractFailure(
-            field="must_advance_threads",
-            expected=tid, actual="no evidence of advancement",
-            severity=severity,
-        ))
+        failures.append(
+            ContractFailure(
+                field="must_advance_threads",
+                expected=tid,
+                actual="no evidence of advancement",
+                severity=severity,
+            )
+        )
 
     # must_plant_seeds — warning
     for seed in contract.must_plant_seeds or []:
         if not _contains_ci(content, seed):
-            failures.append(ContractFailure(
-                field="must_plant_seeds",
-                expected=seed, actual="not planted",
-                severity="warning",
-            ))
+            failures.append(
+                ContractFailure(
+                    field="must_plant_seeds",
+                    expected=seed,
+                    actual="not planted",
+                    severity="warning",
+                )
+            )
 
     # must_payoff — critical
     for payoff in contract.must_payoff or []:
         if not _contains_ci(content, payoff):
-            failures.append(ContractFailure(
-                field="must_payoff",
-                expected=payoff, actual="missed",
-                severity="critical",
-            ))
+            failures.append(
+                ContractFailure(
+                    field="must_payoff",
+                    expected=payoff,
+                    actual="missed",
+                    severity="critical",
+                )
+            )
 
     # pacing_type — warning if mismatch with structured_summary
     if contract.pacing_type and summary is not None:
         actual_pacing = getattr(summary, "pacing_type", "") or ""
         if actual_pacing and actual_pacing != contract.pacing_type:
-            failures.append(ContractFailure(
-                field="pacing_type",
-                expected=contract.pacing_type, actual=actual_pacing,
-                severity="warning",
-            ))
+            failures.append(
+                ContractFailure(
+                    field="pacing_type",
+                    expected=contract.pacing_type,
+                    actual=actual_pacing,
+                    severity="warning",
+                )
+            )
 
     # emotional_endpoint — warning (fuzzy token-overlap ≥ 0.4)
     if contract.emotional_endpoint and summary is not None:
@@ -116,11 +131,14 @@ def verify_contract(
             if a and b:
                 overlap = len(a & b) / max(1, min(len(a), len(b)))
                 if overlap < 0.4:
-                    failures.append(ContractFailure(
-                        field="emotional_endpoint",
-                        expected=contract.emotional_endpoint, actual=actual_arc[:80],
-                        severity="warning",
-                    ))
+                    failures.append(
+                        ContractFailure(
+                            field="emotional_endpoint",
+                            expected=contract.emotional_endpoint,
+                            actual=actual_arc[:80],
+                            severity="warning",
+                        )
+                    )
 
     # character_arc_targets — warning if char missing from character_developments
     if contract.character_arc_targets and summary is not None:
@@ -130,16 +148,21 @@ def verify_contract(
             dev_names = {k.lower() for k in devs.keys()}
         elif isinstance(devs, list):
             for d in devs:
-                n = getattr(d, "character", "") or (d.get("character", "") if isinstance(d, dict) else "")
+                n = getattr(d, "character", "") or (
+                    d.get("character", "") if isinstance(d, dict) else ""
+                )
                 if n:
                     dev_names.add(n.lower())
         for char_name in contract.character_arc_targets.keys():
             if char_name.lower() not in dev_names:
-                failures.append(ContractFailure(
-                    field="character_arc_targets",
-                    expected=char_name, actual="no development recorded",
-                    severity="warning",
-                ))
+                failures.append(
+                    ContractFailure(
+                        field="character_arc_targets",
+                        expected=char_name,
+                        actual="no development recorded",
+                        severity="warning",
+                    )
+                )
 
     return failures
 
@@ -205,18 +228,24 @@ def enforce_gate(
             max_tokens=8192,
         )
     except Exception as e:
-        logger.warning(f"[contract_gate] LLM rewrite ch{chapter.chapter_number} failed: {e}")
+        logger.warning(
+            f"[contract_gate] LLM rewrite ch{chapter.chapter_number} failed: {e}"
+        )
         return chapter
 
     if not rewritten or not rewritten.strip():
-        logger.warning(f"[contract_gate] empty rewrite ch{chapter.chapter_number}, keeping original")
+        logger.warning(
+            f"[contract_gate] empty rewrite ch{chapter.chapter_number}, keeping original"
+        )
         return chapter
 
     # Re-verify; revert if rewrite made things worse
-    new_chapter = chapter.model_copy(update={
-        "content": rewritten,
-        "word_count": len(rewritten.split()),
-    })
+    new_chapter = chapter.model_copy(
+        update={
+            "content": rewritten,
+            "word_count": len(rewritten.split()),
+        }
+    )
     post_failures = verify_contract(new_chapter, contract, draft_threads)
     post_crit = sum(1 for f in post_failures if f.severity == "critical")
     pre_crit = sum(1 for f in failures if f.severity == "critical")
@@ -255,7 +284,11 @@ def apply_contract_gate(
         return {"enabled": False, "chapters_checked": 0, "rewrites": 0}
 
     _idea = getattr(draft, "original_idea", "") or "" if draft is not None else ""
-    _idea_summary = getattr(draft, "idea_summary_for_chapters", "") or "" if draft is not None else ""
+    _idea_summary = (
+        getattr(draft, "idea_summary_for_chapters", "") or ""
+        if draft is not None
+        else ""
+    )
 
     rewrites = 0
     total_failures = 0
@@ -268,9 +301,14 @@ def apply_contract_gate(
         if should_rewrite(failures):
             try:
                 new_ch = enforce_gate(
-                    llm, ch, contract, failures,
-                    max_retries=1, draft_threads=draft_threads,
-                    idea=_idea, idea_summary=_idea_summary,
+                    llm,
+                    ch,
+                    contract,
+                    failures,
+                    max_retries=1,
+                    draft_threads=draft_threads,
+                    idea=_idea,
+                    idea_summary=_idea_summary,
                 )
                 if new_ch is not ch:
                     enhanced_story.chapters[idx] = new_ch
@@ -298,6 +336,7 @@ def _post_gate_validate(new_chapter: Chapter, original_chapter: Chapter) -> bool
     """
     try:
         from config.config import ConfigManager
+
         cfg = ConfigManager().load().pipeline
         revert_floor = float(getattr(cfg, "voice_binary_revert_floor", 0.5))
     except Exception:
@@ -311,18 +350,24 @@ def _post_gate_validate(new_chapter: Chapter, original_chapter: Chapter) -> bool
 
         from pipeline.layer2_enhance.chapter_contract import validate_chapter_voice
         from services.llm_client import LLMClient
+
         llm = LLMClient()
-        validation = validate_chapter_voice(llm, new_chapter.content or "", voice_contract)
+        validation = validate_chapter_voice(
+            llm, new_chapter.content or "", voice_contract
+        )
         if validation.overall_compliance < revert_floor:
             logger.info(
                 "[contract_gate] ch%d voice compliance=%.2f < floor=%.2f → revert",
-                new_chapter.chapter_number, validation.overall_compliance, revert_floor,
+                new_chapter.chapter_number,
+                validation.overall_compliance,
+                revert_floor,
             )
             return False
         return True
     except Exception as exc:
         logger.warning(
             "[contract_gate] _post_gate_validate ch%d raised %s — treating as fail, reverting",
-            new_chapter.chapter_number, exc,
+            new_chapter.chapter_number,
+            exc,
         )
         return False

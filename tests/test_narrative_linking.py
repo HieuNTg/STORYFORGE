@@ -14,27 +14,48 @@ from pipeline.layer1_story.conflict_web_builder import (
 )
 
 
-def _thread(tid="t1", status="open", planted=1, last=1, deps=None, blocks=None, urgency=3, chars=None):
+def _thread(
+    tid="t1",
+    status="open",
+    planted=1,
+    last=1,
+    deps=None,
+    blocks=None,
+    urgency=3,
+    chars=None,
+):
     return PlotThread(
-        thread_id=tid, description=f"Thread {tid}", planted_chapter=planted,
-        status=status, last_mentioned_chapter=last,
-        depends_on=deps or [], blocks=blocks or [], urgency=urgency,
+        thread_id=tid,
+        description=f"Thread {tid}",
+        planted_chapter=planted,
+        status=status,
+        last_mentioned_chapter=last,
+        depends_on=deps or [],
+        blocks=blocks or [],
+        urgency=urgency,
         involved_characters=chars or [],
     )
 
 
 def _seed(hint="dark omen", plant=3, payoff=8, planted=False, paid=False, conf=0.0):
     return ForeshadowingEntry(
-        hint=hint, plant_chapter=plant, payoff_chapter=payoff,
-        planted=planted, paid_off=paid, planted_confidence=conf,
+        hint=hint,
+        plant_chapter=plant,
+        payoff_chapter=payoff,
+        planted=planted,
+        paid_off=paid,
+        planted_confidence=conf,
     )
 
 
 def _conflict(cid="c1", status="active", intensity=1, chars=None, desc="test conflict"):
     return ConflictEntry(
-        conflict_id=cid, conflict_type="external",
-        characters=chars or ["A", "B"], description=desc,
-        status=status, intensity=intensity,
+        conflict_id=cid,
+        conflict_type="external",
+        characters=chars or ["A", "B"],
+        description=desc,
+        status=status,
+        intensity=intensity,
     )
 
 
@@ -119,8 +140,14 @@ class TestNewThreadsCaptureDeps:
         result = update_threads(
             [],
             {
-                "new_threads": [{"thread_id": "t1", "description": "test",
-                                 "depends_on": ["t0"], "urgency": 4}],
+                "new_threads": [
+                    {
+                        "thread_id": "t1",
+                        "description": "test",
+                        "depends_on": ["t0"],
+                        "urgency": 4,
+                    }
+                ],
                 "progressed_threads": [],
                 "resolved_threads": [],
             },
@@ -169,7 +196,9 @@ class TestConflictEscalation:
 
     def test_heavy_escalation_jumps_two(self):
         c = _conflict(intensity=1, status="active")
-        update_conflict_status([c], "phản bội đối đầu bùng nổ giết chết", chapter_number=5)
+        update_conflict_status(
+            [c], "phản bội đối đầu bùng nổ giết chết", chapter_number=5
+        )
         assert c.intensity >= 3
 
     def test_intensity_capped_at_5(self):

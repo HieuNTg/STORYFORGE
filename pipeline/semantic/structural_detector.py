@@ -50,9 +50,9 @@ logger = logging.getLogger(__name__)
 _DEFAULT_THREAD_THRESHOLD = 0.50
 
 # Severity levels
-_SEVERITY_CRITICAL = 0.90   # must-mention character missing
-_SEVERITY_HIGH = 0.75       # dropped thread
-_SEVERITY_MEDIUM = 0.55     # dangling reference
+_SEVERITY_CRITICAL = 0.90  # must-mention character missing
+_SEVERITY_HIGH = 0.75  # dropped thread
+_SEVERITY_MEDIUM = 0.55  # dangling reference
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +147,11 @@ def _check_missing_characters(
             continue
 
         # Character is genuinely missing
-        detection_method = "ner" if ner_persons or get_ner_service().is_available() else "ner_fallback_substring"
+        detection_method = (
+            "ner"
+            if ner_persons or get_ner_service().is_available()
+            else "ner_fallback_substring"
+        )
         findings.append(
             StructuralFinding(
                 finding_type=StructuralFindingType.MISSING_CHARACTER,
@@ -202,7 +206,7 @@ def _check_dropped_threads(
     all_texts = threads_advance + spans
     all_bytes = svc.embed_batch(all_texts)
     thread_vecs = all_bytes[: len(threads_advance)]
-    span_vecs = all_bytes[len(threads_advance):]
+    span_vecs = all_bytes[len(threads_advance) :]
 
     findings: list[StructuralFinding] = []
     for thread_label, t_vec in zip(threads_advance, thread_vecs):
@@ -297,7 +301,9 @@ def detect_structural_issues(
     ch_num: int = getattr(chapter, "chapter_number", 0) or 0
     content: str = getattr(chapter, "content", "") or ""
 
-    must_mention: list[str] = list(getattr(contract, "must_mention_characters", []) or [])
+    must_mention: list[str] = list(
+        getattr(contract, "must_mention_characters", []) or []
+    )
     threads_advance: list[str] = list(getattr(contract, "threads_advance", []) or [])
 
     cast_names = _canonical_names(characters)
@@ -356,7 +362,10 @@ def detect_structural_issues(
     for f in findings:
         logger.warning(
             "semantic_structural_issue ch=%d type=%s severity=%.2f description=%s",
-            ch_num, f.finding_type.value, f.severity, f.description,
+            ch_num,
+            f.finding_type.value,
+            f.severity,
+            f.description,
         )
 
     n_critical = sum(1 for f in findings if f.severity >= 0.80)
@@ -365,7 +374,10 @@ def detect_structural_issues(
     ch_label = f"ch_{ch_num:02d}"
     logger.info(
         "structural_findings critical=%d major=%d minor=%d chapter=%s",
-        n_critical, n_major, n_minor, ch_label,
+        n_critical,
+        n_major,
+        n_minor,
+        ch_label,
     )
 
     return findings
