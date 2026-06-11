@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from api.pipeline_routes import _orchestrators
 from middleware.rbac import Permission, require_permission_if_enabled
+from services.output_paths import OUTPUT_ROOT as _OUTPUT_ROOT, exports_dir as _exports_dir
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/export", tags=["export"])
@@ -239,7 +240,6 @@ async def export_epub(session_id: str):
 # (``output/<story-slug>/exports``) instead of a shared ``output/library``.
 # The served-file guard validates against the whole output root so any
 # per-story exports dir is acceptable while still blocking path traversal.
-from services.output_paths import OUTPUT_ROOT as _OUTPUT_ROOT, exports_dir as _exports_dir
 _OUTPUT_ROOT_ABS = (_PROJECT_ROOT / _OUTPUT_ROOT).resolve()
 _SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9_\-]+")
 

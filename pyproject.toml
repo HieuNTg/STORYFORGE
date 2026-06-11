@@ -94,3 +94,13 @@ paths_to_mutate = [
 tests_dir = "tests"
 # Exclude vendor, data fixtures, and generated artefacts
 runner = "python -m pytest -x -q"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests stub sys.modules / monkeypatch state before importing the code under
+# test; scripts insert the repo root into sys.path before any project import.
+# In both, import-after-statement (E402) is load-bearing, not accidental.
+"tests/*" = ["E402"]
+"scripts/*" = ["E402"]
+# app.py installs warnings filters that must run before importing the modules
+# that would emit those warnings at import time.
+"app.py" = ["E402"]

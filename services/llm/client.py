@@ -11,11 +11,6 @@ import uuid
 from dataclasses import dataclass
 from typing import Optional
 
-# P0-8: contextvar for ambient run_id — propagates across asyncio.gather boundaries
-# so charge_wallet() inherits the orchestrator's run_id without explicit threading.
-current_run_id: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "current_run_id", default=""
-)
 from services.llm.retry import (
     MAX_RETRIES, BASE_DELAY,
     _redact, _is_transient, _is_auth_error, _detect_provider, _should_retry,
@@ -24,6 +19,12 @@ from services.llm.retry import (
 from services.llm.streaming import StreamingMixin
 from services.llm.generation import GenerationMixin
 from services.llm.model_fallback import get_fallback_manager
+
+# P0-8: contextvar for ambient run_id — propagates across asyncio.gather boundaries
+# so charge_wallet() inherits the orchestrator's run_id without explicit threading.
+current_run_id: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "current_run_id", default=""
+)
 
 logger = logging.getLogger(__name__)
 

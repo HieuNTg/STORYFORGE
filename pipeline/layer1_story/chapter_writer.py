@@ -11,7 +11,7 @@ from models.schemas import (
 from services import prompts
 from services.adaptive_prompts import build_adaptive_write_prompt
 from services.security.input_sanitizer import wrap_user_input
-from services.text_utils import excerpt_text
+from services.text_utils import build_idea_block as _build_idea_block, excerpt_text
 
 if TYPE_CHECKING:
     from services.llm_client import LLMClient
@@ -24,8 +24,6 @@ def excerpt(content: str, max_chars: int = 4000) -> str:
     """Extract beginning + end of content for extraction prompts."""
     return excerpt_text(content, max_chars=max_chars)
 
-
-from services.text_utils import build_idea_block as _build_idea_block  # shared L1/L2 helper
 
 
 # Bug 1: Strip LLM "here is the result" preamble that leaks into chapter body.
