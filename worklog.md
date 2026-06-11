@@ -386,3 +386,16 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - batch_generator.py 1880 -> 1788 lines; new module 157 (<200).
   - Commits: f70d469, b8c6978.
 - Backlog: batch_generator.py still 1788 (P1) — _run_batch_sequential ~470 lines; remaining candidates: contract build block (~41), contract-validation retry loop (~142, entangled with writer calls), then _write_chapter_parallel (~230) / _run_batch_async (~222) / _run_batch_threaded (~215). P2 carry-over: api/provider_status_routes.py 19% coverage, TODO in api/v1/router.py.
+
+## Cycle #17: Extract contract-validation retry loop from batch_generator
+- Task ID: 17-contract-retry-extraction
+- Agent: Claude (eng-loop)
+- Task: Tách khối post-write contract validation + retry (~143 dòng, khối entangled cuối của `_run_batch_sequential`) ra module mới `pipeline/layer1_story/contract_validation_retry.py`.
+- Work Log:
+  - Serena: `find_referencing_symbols BatchChapterGenerator/_run_batch_sequential` → 1 caller nội bộ duy nhất (`generate_chapters`); Grep tests → chỉ patch `chapter_contract_builder.build_contract` (module nguồn, lazy import resolve tại call time → không cần repoint test nào).
+  - Scope decision: khối contract-build (41 dòng) GIỮ LẠI trong batch_generator — gộp cả hai sẽ đẩy module mới vượt 200 dòng. Module mới = retry loop thôi, 191 dòng.
+  - Verbatim move với substitutions chuẩn: `self.llm`→`llm`, `self.gen._layer_model`→`gen._layer_model`, `self.retry_max/threshold`→params, `self.config.pipeline`→`pipeline_config`. Gate đảo thành early-return trả `previous_failures` nguyên vẹn (giữ semantics `_contract_failures` carry-over sang chương sau); except branch trả `[]` như cũ. `chapters[-1]`/`all_chapter_texts[-1]` vẫn mutate in place.
+  - Khối thay bằng call `validate_and_retry_contract(...)` qua Serena replace_content regex; import mới ở top batch_generator.
+  - Phát hiện: con số 1788 dòng ghi nhận trước đó là stale — thực tế file 1640 dòng trước edit (git diff xác nhận 141 del / 39 ins, đúng phạm vi khối).
+- Stage Summary: batch_generator.py 1640 → 1538 dòng. Gate: ruff clean, format clean (516 files), targeted 77 passed, full suite 4434 passed / 6 skipped, coverage 70.60% (baseline 70.59%, +0.01), import smoke OK, module mới 191 < 200. Commit `7ac9e20`.
+- Backlog sau cycle: P1 batch_generator vẫn 1538 dòng (`_write_chapter_parallel` ~230, `_run_batch_async` ~222, `_run_batch_threaded` ~215 là ứng viên kế); P2 api/provider_status_routes.py coverage 19%; 1 TODO trong api/v1/router.py.
