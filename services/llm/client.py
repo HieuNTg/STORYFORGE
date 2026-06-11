@@ -27,6 +27,10 @@ from services.llm.model_fallback import get_fallback_manager
 
 logger = logging.getLogger(__name__)
 
+# Test seam: retry backoff sleeps funnel through this so the test suite can
+# no-op them (an unmocked LLM call must fail fast, not hang in backoff).
+_retry_sleep = time.sleep
+
 
 class LLMBudgetExceededError(RuntimeError):
     """Raised when the global LLM wallet exceeds a configured cap (P0-7)."""
@@ -659,7 +663,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     if should_retry and suggested_delay > 0:
                         delay = max(suggested_delay, BASE_DELAY * (2 ** attempt)) + random.uniform(0, 0.5)
                         logger.warning(f"{label} attempt {attempt+1} failed: {_redact(e)}. Retry in {delay:.1f}s")
-                        time.sleep(delay)
+                        _retry_sleep(delay)
                         continue
                 break
         raise last_exc
@@ -732,7 +736,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
             if chain_attempt > 0:
                 delay = chain_retry_base_delay * (2 ** (chain_attempt - 1)) + random.uniform(0, 5)
                 logger.warning(f"Chain exhausted, retrying entire chain in {delay:.1f}s (attempt {chain_attempt + 1}/{chain_retry_max + 1})")
-                time.sleep(delay)
+                _retry_sleep(delay)
                 # Clear rate-limit state for fresh retry
                 self._rate_limited_keys.clear()
                 self._rate_limited_models.clear()

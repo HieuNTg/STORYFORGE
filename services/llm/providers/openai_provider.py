@@ -26,7 +26,13 @@ class OpenAIProvider:
 
     def __init__(self, api_key: str, base_url: str):
         from openai import OpenAI
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
+        # max_retries=0: retry policy lives in services.llm.client
+        # (_retry_with_backoff + fallback chain); the SDK's internal retry
+        # layer would multiply attempts (SDK 3 x ours 3 x chain 3 per call).
+        # timeout=300: bounded, instead of the SDK's 600s default.
+        self.client = OpenAI(
+            api_key=api_key, base_url=base_url, max_retries=0, timeout=300.0,
+        )
         self._base_url = base_url
         self._api_key = api_key
         self._provider_type = _detect_provider_type(base_url)
