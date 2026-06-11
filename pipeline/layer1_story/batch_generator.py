@@ -26,6 +26,9 @@ from pipeline.layer1_story.enhancement_injections import (
 )
 from pipeline.layer1_story.context_helpers import get_rag_batch_cache
 from pipeline.layer1_story.chapter_contract_setup import build_contract_for_chapter
+from pipeline.layer1_story.scene_write_prep import (
+    prepare_scene_context_and_beat_chapter,
+)
 from pipeline.layer1_story.contract_batch_retry import validate_and_retry_threaded
 from pipeline.layer1_story.contract_validation_retry import (
     validate_and_retry_contract,
@@ -418,104 +421,31 @@ class BatchChapterGenerator:
                 progress_callback=progress_callback,
             )
 
-            # Append scene beats for climax/twist chapters (Fix #12)
-            from pipeline.layer1_story.scene_beat_generator import (
-                generate_scene_beats,
-                format_beats_for_prompt,
-            )
-
-            scene_beats_list = generate_scene_beats(
-                self.llm,
-                outline,
-                characters,
-                world,
-                genre,
-                model_tier=self.gen._layer_model or "cheap",
-            )
-            scene_beats_text = ""
-            if scene_beats_list:
-                scene_beats_text = format_beats_for_prompt(scene_beats_list)
-                enhancement_context = (
-                    f"{enhancement_context}\n\n{scene_beats_text}"
-                    if enhancement_context
-                    else scene_beats_text
+            # Scene beats, optional decomposition, optional per-beat writing
+            enhancement_context, chapter_scenes, _beat_chapter = (
+                prepare_scene_context_and_beat_chapter(
+                    self,
+                    outline=outline,
+                    characters=characters,
+                    world=world,
+                    genre=genre,
+                    title=title,
+                    style=style,
+                    word_count=word_count,
+                    story_context=story_context,
+                    enhancement_context=enhancement_context,
+                    stream_callback=stream_callback,
+                    idea=idea,
+                    idea_summary=idea_summary,
                 )
-
-            # Scene decomposition: decompose chapter into 3-5 scenes before writing
-            chapter_scenes: list[dict] = []
-            if getattr(self.config.pipeline, "enable_scene_decomposition", False):
-                try:
-                    from pipeline.layer1_story.scene_decomposer import (
-                        decompose_chapter_scenes,
-                    )
-
-                    chapter_scenes = decompose_chapter_scenes(
-                        self.llm,
-                        outline,
-                        characters,
-                        world,
-                        genre,
-                        model=self.gen._layer_model,
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "Scene decomposition failed for ch%d (non-fatal): %s",
-                        outline.chapter_number,
-                        e,
-                    )
-
-            # Scene beat writing: per-beat generation when enabled
-            use_beat_writing = (
-                getattr(self.config.pipeline, "enable_scene_beat_writing", False)
-                and scene_beats_list
-                and not stream_callback  # stream mode not compatible
             )
-
-            if use_beat_writing:
-                try:
-                    from pipeline.layer1_story.chapter_writer import (
-                        write_chapter_by_beats,
-                    )
-
-                    beat_context = {
-                        "previous_summary": "\n".join(
-                            story_context.recent_summaries[-2:]
-                        ),
-                        "characters_text": ", ".join(c.name for c in characters[:5]),
-                        "world_text": getattr(world, "setting", "") if world else "",
-                    }
-                    chapter_content = write_chapter_by_beats(
-                        self.llm,
-                        scene_beats_list,
-                        beat_context,
-                        title,
-                        genre,
-                        style,
-                        word_count,
-                        model=self.gen._layer_model,
-                        idea=idea,
-                        idea_summary=idea_summary,
-                    )
-                    from models.schemas import count_words
-
-                    chapter = Chapter(
-                        chapter_number=outline.chapter_number,
-                        title=outline.title,
-                        content=chapter_content,
-                        word_count=count_words(chapter_content),
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "Beat writing failed for ch%d, falling back: %s",
-                        outline.chapter_number,
-                        e,
-                    )
-                    use_beat_writing = False
 
             _negotiated_contract = (
                 contract.to_negotiated() if contract is not None else None
             )
-            if not use_beat_writing and stream_callback:
+            if _beat_chapter is not None:
+                chapter = _beat_chapter
+            elif stream_callback:
                 chapter = self.gen.write_chapter_stream(
                     title,
                     genre,
@@ -539,7 +469,7 @@ class BatchChapterGenerator:
                     idea=idea,
                     idea_summary=idea_summary,
                 )
-            elif not use_beat_writing:
+            else:
                 chapter = self.gen._write_chapter_with_long_context(
                     title,
                     genre,
