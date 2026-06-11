@@ -1,5 +1,34 @@
 # StoryForge Engineering Loop — Worklog
 
+## Cycle #11 — E402 zeroed: ruff check fully clean (2026-06-11)
+
+- **Task ID**: cycle11-e402-source-reorder + cycle11-per-file-ignores
+- **Agent**: Claude (eng-loop, autonomous, Serena-first)
+- **Task**: Resolve all 37 remaining E402 → `ruff check .` = 0 errors, zero behavior change.
+
+### Work Log
+
+1. **Source reorders (real fixes)** — impact checked via Serena before moving:
+   - `services/llm/client.py`: `find_referencing_symbols(current_run_id)` showed only function-level imports (orchestrator_layers, tests) and no module-level back-import from retry/streaming/generation → safe to hoist the 4 mixin imports above the contextvar.
+   - `chapter_writer.py`: mid-file `build_idea_block` import merged into the existing top-level `services.text_utils` import.
+   - `forge_routes.py`: mid-file `import threading` hoisted to the import block.
+   - `export_routes.py`: mid-file `services.output_paths` import hoisted; `_OUTPUT_ROOT_ABS` assignment stays in place.
+2. **Load-bearing order kept (config fix)** — new `[tool.ruff.lint.per-file-ignores]` in pyproject.toml: `tests/*` (sys.modules stubs before import), `scripts/*` (sys.path setup), `app.py` (warnings filters must precede the imports that emit them). First ruff config section in the repo; selection rules unchanged (defaults).
+
+### Stage Summary (verification gate)
+
+- `ruff check .`: **All checks passed — 0 errors** (first lint-clean state; STOP condition "zero lint errors" reached).
+- Full suite: **4394 passed, 0 failed**, 6 skipped in 366s. Coverage **69.59% = baseline exactly**.
+- Circular-import smoke incl. `import app` ✓. Format drift unchanged (457 before/after; all 4 touched .py were already dirty).
+- Diff: 5 files, +19/−11. Commit `534c929`.
+
+### Backlog (next cycles)
+
+- **P1**: 457 files fail `ruff format --check` — needs a dedicated format-only commit (exceeds the 500-line cycle cap by design; CEO sign-off pending).
+- **P1**: Coverage 69.59% vs 70% STOP threshold — 0.41pp (token_cost_tracker 59% best lever).
+- **P1**: Oversized files, worst `batch_generator.py` 1891 lines.
+- **P2**: provider SDK retry defaults; 1 TODO in `api/v1/router.py`.
+
 ## Cycle #10 — Lint debt: 137 ruff errors → 37 (2026-06-11)
 
 - **Task ID**: cycle10-ruff-autofix + cycle10-manual-e741-f841-e702
