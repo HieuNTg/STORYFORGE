@@ -570,3 +570,14 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - `tests/test_audit_logger.py` (11 tests): covers audit_logger.py (202L) + _audit_store.py (136L) — event normalization, singleton reset fixture with writer thread suppressed, queue enqueue, date-range query delegation, NDJSON roundtrip + retention cleanup on tmp_path.
   - Test-only change, no source touched. Gate: EXIT 0/0/0/5(expected)/0, 4561 passed (+40), coverage 71.82% (was 71.41, baseline 70.61).
 - **Stage Summary**: Shipped as 95be40e. Backlog: 10 services still untested (gemini_model_discovery 189L, simulation_continue_service 179L, character_service 167L, ...).
+
+## Cycle #29 — Unit tests for three more zero-coverage services
+- **Task ID**: 29-service-tests-2
+- **Agent**: eng-loop (Claude)
+- **Task**: Continue covering untested services/ modules (10 remained after cycle #28).
+- **Work Log**:
+  - `tests/test_prompt_ab_bridge.py` (10 tests): experiment creation/registration, variant routing via assign_variant, fallback to version="latest" on assignment failure, quality recording, results shape, metadata merge in list_active_experiments.
+  - `tests/test_onboarding_analytics.py` (6 tests): funnel count/avg aggregation, dropout-only steps, per-step independence, None-duration handling, max_events trimming.
+  - `tests/test_character_service.py` (11 tests): language label mapping + system prompt pinning, name/role forced from request against LLM drift, retry-once on bad JSON with strict warning appended, raise after 2 failures, empty name/genre rejection, schema trait clamping, cheap-tier/json_mode call contract.
+  - Test-only, no source touched. Gate: EXIT 0/0/0/5(expected)/0, 4588 passed (+27), coverage 72.01% (was 71.82, baseline 70.61).
+- **Stage Summary**: Coverage crosses 72%. 7 services still untested (gemini_model_discovery 189L, simulation_continue_service 179L, _config_repo_json 169L, ...).
