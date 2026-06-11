@@ -1,5 +1,28 @@
 # StoryForge Engineering Loop — Worklog
 
+## Cycle #4 — Three 4-failure clusters: quality routes, structural rewrite, long context (2026-06-11)
+
+- **Task ID**: cycle4-quality-routes + cycle4-structural-rewrite + cycle4-long-context
+- **Agent**: Claude (eng-loop, autonomous)
+- **Task**: Fix the three remaining 4-failure clusters (12 of the 35 failures recorded in cycle #3).
+
+### Work Log
+
+1. **test_quality_routes (4F)** — `_CHECKPOINT_DIR` removed from `api.quality_routes`; the `/quality` batch summary now scans `pipeline.orchestrator_checkpoint._all_checkpoint_dirs()`. Tests patch `orchestrator_checkpoint.CHECKPOINT_DIR` instead — by design that redirects the entire per-story + legacy scan (its parent becomes the scan root).
+2. **test_structural_rewrite_parallel (4F)** — `_run_structural_rewrites` gained a duplicate-rewrite guard (`assert ch_num not in self.enhancer._rewritten_chapters`); the test's SimpleNamespace stub lacked `enhancer`, so every chapter raised AttributeError *before* the try block and `gather` swallowed it → 0 rewritten, 0 failed. Stub now carries `enhancer=SimpleNamespace(_rewritten_chapters=set())`.
+3. **test_long_context (4F)** — two causes. (a) `estimate_tokens` prefers tiktoken (exact BPE: 400×"a" merges to 45 tokens) over the heuristic the tests asserted; tests pin `_TIKTOKEN_AVAILABLE=False` and assert the current 4.0 chars/token Latin ratio (single char now `max(1, …)` = 1, not 0). (b) LC integration test: chapters generate in parallel batches and siblings only see chapter texts frozen from *prior* batches, so with the default batch size chapter 2 saw no prior text and never took the long-context path; test sets `chapter_batch_size=1`. ("All LLM providers failed" log lines were noise, not the cause.)
+
+### Stage Summary (verification gate)
+
+- Full suite run #11: **23 failed, 4372 passed, 0 errors** in 188s — exactly the 12 fixed, zero regressions.
+- Coverage **69.55%** (baseline 69.38%) ✓. Ruff check clean on touched files (1 unused import auto-fixed). Test-only changes.
+
+### Backlog (remaining 23 failures, next cycles)
+
+- test_pipeline_coverage (3), test_layer2_upgrade (3), test_integration_pipeline (3)
+- test_rag_multi_query (2), test_mutation_smoke (2)
+- Singles: voice_contract, scene_enhancer, pipeline_core_coverage, outline_metrics, foreshadowing_verifier, error_paths, consistency_engine, chapter_contracts, chapter_contract, perf/sprint2_10ch_bench
+
 ## Cycle #3 — Injection corpus contract + test-connection mock (2026-06-11)
 
 - **Task ID**: cycle3-injection-corpus + cycle3-test-connection
