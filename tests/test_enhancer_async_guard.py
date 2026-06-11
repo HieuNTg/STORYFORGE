@@ -12,15 +12,13 @@ Coverage:
 
 from __future__ import annotations
 
-import asyncio
 import inspect
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from models.schemas import (
     Chapter,
-    Character,
     EnhancedStory,
     SimulationResult,
     StoryDraft,
@@ -82,6 +80,24 @@ def _patch_enhance_story_async(enhanced: EnhancedStory):
     )
 
 
+def _patch_feedback_llm_validators():
+    """Stub the LLM-backed validators enhance_with_feedback_async calls after rewrite.
+
+    Without these, validate_coherence/apply_contract_gate hit the real LLM
+    client and hang the suite in its retry/sleep loop.
+    """
+    return (
+        patch(
+            "pipeline.layer2_enhance.coherence_validator.validate_coherence",
+            return_value=[],
+        ),
+        patch(
+            "pipeline.layer2_enhance.contract_gate.apply_contract_gate",
+            return_value={"rewrites": 0, "total_failures": 0},
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # 1. enhance_story_async works inside pytest.mark.asyncio
 # ---------------------------------------------------------------------------
@@ -116,7 +132,8 @@ async def test_enhance_with_feedback_async_runs_in_loop():
     sim = _make_sim_result()
     expected = _make_enhanced(draft)
 
-    with _patch_enhance_story_async(expected):
+    coherence_patch, gate_patch = _patch_feedback_llm_validators()
+    with _patch_enhance_story_async(expected), coherence_patch, gate_patch:
         # Also stub _find_weak_chapters so no LLM call is made
         enhancer = StoryEnhancer()
         with patch.object(enhancer, "_find_weak_chapters", return_value=[]):
@@ -157,7 +174,8 @@ def test_enhance_with_feedback_sync_outside_loop():
     sim = _make_sim_result()
     expected = _make_enhanced(draft)
 
-    with _patch_enhance_story_async(expected):
+    coherence_patch, gate_patch = _patch_feedback_llm_validators()
+    with _patch_enhance_story_async(expected), coherence_patch, gate_patch:
         enhancer = StoryEnhancer()
         with patch.object(enhancer, "_find_weak_chapters", return_value=[]):
             result = enhancer.enhance_with_feedback(draft, sim)

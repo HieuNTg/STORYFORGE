@@ -962,6 +962,12 @@ def test_handlers_relpath_subdirs(isolated_image_gen_env, monkeypatch):
         "services.media.image_prompt_generator.ImagePromptGenerator.generate_from_chapter",
         lambda self, *a, **kw: [MagicMock(panel_number=1)],
     )
+    # Force the legacy scene-extraction path regardless of the local
+    # comic_shot_list_enabled flag — the shot-list path calls the real LLM.
+    from config import ConfigManager
+    monkeypatch.setattr(
+        ConfigManager().pipeline, "comic_shot_list_enabled", False, raising=False,
+    )
 
     sub = tmp_dir = "output/t_sid1/images"
     os.makedirs(sub, exist_ok=True)

@@ -6,6 +6,11 @@
 testpaths = ["tests"]
 # Default options: coverage plugin with source dirs
 addopts = [
+    # Block real network in tests (unmocked LLM calls must fail fast, not hang
+    # the suite or spend API quota). Localhost stays open for asyncio internals
+    # and local test servers. Opt back in per-test with @pytest.mark.enable_socket.
+    "--disable-socket",
+    "--allow-hosts=127.0.0.1,::1",
     "--cov=pipeline",
     "--cov=services",
     "--cov=api",
@@ -19,6 +24,9 @@ addopts = [
 ]
 # asyncio mode for async tests
 asyncio_mode = "auto"
+# Hard per-test ceiling (pytest-timeout) — a stuck test fails itself instead of
+# hanging the whole suite. Override per-test with @pytest.mark.timeout(N).
+timeout = 120
 # Custom markers (Sprint 2 P7)
 markers = [
     "calibration: real-model calibration tests (slow; loads sentence-transformers)",

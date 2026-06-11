@@ -36,6 +36,62 @@ if os.path.exists(_config_persistence.CONFIG_FILE):
 
     shutil.copyfile(_config_persistence.CONFIG_FILE, _TEST_CONFIG_FILE)
 
+    # Hermetic LLM: point every base_url in the sandbox copy at a local
+    # accept-and-close listener so an unmocked LLM call fails in milliseconds
+    # instead of running a real generation against the developer's live proxy.
+    # A listener (not a closed port) because Windows loopback takes ~2-4s to
+    # refuse a connection — across the 12-attempt retry chain that exceeds the
+    # 120s per-test timeout for pipeline tests. Paired with the no-op
+    # retry-sleep fixture below, such tests fail fast and visibly rather than
+    # hanging the suite or spending quota.
+    import socket as _socket
+    import threading as _threading
+
+    _dead_srv = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+    _dead_srv.bind(("127.0.0.1", 0))
+    _dead_srv.listen(64)
+
+    def _dead_llm_accept_loop():
+        while True:
+            try:
+                _conn, _ = _dead_srv.accept()
+                _conn.close()
+            except OSError:
+                return  # listener closed at interpreter exit
+
+    _threading.Thread(
+        target=_dead_llm_accept_loop, daemon=True, name="dead-llm-listener"
+    ).start()
+    _DEAD_LLM_URL = f"http://127.0.0.1:{_dead_srv.getsockname()[1]}/v1"
+    def _rewrite_base_urls(_node):
+        """Point every *base_url key (LLM endpoints at any nesting level —
+        llm.base_url, cheap/layer1/layer2/long_context overrides,
+        fallback_models[].base_url, api_keys[].base_url) at the dead listener.
+        share_base_url is a public-link prefix, not an endpoint — leave it."""
+        if isinstance(_node, dict):
+            for _k, _v in _node.items():
+                if isinstance(_v, (dict, list)):
+                    _rewrite_base_urls(_v)
+                elif (
+                    isinstance(_k, str)
+                    and _k.endswith("base_url")
+                    and _k != "share_base_url"
+                    and _v
+                ):
+                    _node[_k] = _DEAD_LLM_URL
+        elif isinstance(_node, list):
+            for _item in _node:
+                _rewrite_base_urls(_item)
+
+    try:
+        with open(_TEST_CONFIG_FILE, encoding="utf-8") as _f:
+            _sandbox_cfg = json.load(_f)
+        _rewrite_base_urls(_sandbox_cfg)
+        with open(_TEST_CONFIG_FILE, "w", encoding="utf-8") as _f:
+            json.dump(_sandbox_cfg, _f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass  # malformed config — tests fall back to dataclass defaults anyway
+
 _config_persistence.CONFIG_FILE = _TEST_CONFIG_FILE
 _config_persistence._SECRETS_FILE = os.path.join(_TEST_CONFIG_DIR, "secrets.json")
 
@@ -53,6 +109,59 @@ def _default_strict_handoff(monkeypatch):
     if "STORYFORGE_HANDOFF_STRICT" not in os.environ:
         monkeypatch.setenv("STORYFORGE_HANDOFF_STRICT", "1")
     yield
+
+
+# An unmocked LLM call in a test lands in services.llm.client's retry backoff
+# (30s base, exponential) and hangs the whole suite past any per-test timeout.
+# No-op the dedicated retry-sleep seam so such calls fail fast and visibly.
+@pytest.fixture(autouse=True)
+def _no_llm_retry_backoff(monkeypatch):
+    import services.llm.client as _llm_client
+    monkeypatch.setattr(_llm_client, "_retry_sleep", lambda *_a, **_k: None)
+    yield
+
+
+# Settings-API tests write through the ConfigManager singleton (and the
+# sandbox config file), so e.g. a POST with base_url=http://localhost:8000/v1
+# leaks a dead, SLOW-to-refuse endpoint into every later test — unmocked LLM
+# calls then take minutes instead of milliseconds and blow the per-test
+# timeout. Restore the LLM section and per-layer endpoint overrides (and the
+# sandbox file) after every test.
+_SANDBOX_CONFIG_BASELINE: bytes | None = None
+if os.path.exists(_TEST_CONFIG_FILE):
+    with open(_TEST_CONFIG_FILE, "rb") as _f:
+        _SANDBOX_CONFIG_BASELINE = _f.read()
+
+_PIPELINE_URL_FIELDS = ("layer1_base_url", "layer2_base_url", "long_context_base_url")
+
+
+@pytest.fixture(autouse=True)
+def _restore_llm_config():
+    import copy
+
+    from config import ConfigManager
+
+    cfg = ConfigManager()
+    saved_llm = copy.deepcopy(cfg.llm.__dict__)
+    saved_pipeline = {
+        k: getattr(cfg.pipeline, k)
+        for k in _PIPELINE_URL_FIELDS
+        if hasattr(cfg.pipeline, k)
+    }
+    yield
+    cfg.llm.__dict__.clear()
+    cfg.llm.__dict__.update(saved_llm)
+    for k, v in saved_pipeline.items():
+        setattr(cfg.pipeline, k, v)
+    if _SANDBOX_CONFIG_BASELINE is not None:
+        try:
+            with open(_TEST_CONFIG_FILE, "rb") as f:
+                current = f.read()
+            if current != _SANDBOX_CONFIG_BASELINE:
+                with open(_TEST_CONFIG_FILE, "wb") as f:
+                    f.write(_SANDBOX_CONFIG_BASELINE)
+        except OSError:
+            pass
 
 
 # Reset orchestrator_layers' module-level sync engine before each test so

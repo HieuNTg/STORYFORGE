@@ -36,3 +36,5 @@ pytest-benchmark>=4.0.0        # Stable statistical benchmarks inside pytest
 # ---------------------------------------------------------------------------
 httpx>=0.25.0                  # Async HTTP client for FastAPI TestClient
 anyio>=4.0.0                   # Async backend for pytest-asyncio
+pytest-timeout>=2.4.0          # Per-test timeout — a hung test kills itself, not the suite
+pytest-socket>=0.8.0           # Block real network in tests (see pyproject addopts)
