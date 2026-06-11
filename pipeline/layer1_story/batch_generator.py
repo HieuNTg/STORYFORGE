@@ -17,6 +17,10 @@ from pipeline.layer1_story.chapter_finalizer import (
     finalize_chapter,
     _index_chapter_into_rag,
 )
+from pipeline.layer1_story.chapter_critique_runner import run_chapter_self_critique
+from pipeline.layer1_story.enhancement_injections import (
+    build_chapter_enhancement_context,
+)
 from pipeline.layer1_story.context_helpers import get_rag_batch_cache
 from services.token_counter import estimate_tokens
 
@@ -509,144 +513,22 @@ class BatchChapterGenerator:
                     )
 
             # Build enhancement context (theme, voice, scenes, show-don't-tell)
-            from pipeline.layer1_story.enhancement_context_builder import (
-                build_enhancement_context,
-            )
-
-            enhancement_context = build_enhancement_context(
+            # plus optional injections (threads, causal, memories, foreshadowing)
+            enhancement_context = build_chapter_enhancement_context(
                 self.config,
                 self.llm,
-                genre,
-                pacing,
+                genre=genre,
+                pacing=pacing,
                 premise=premise,
                 voice_profiles=voice_profiles,
                 outline=outline,
                 characters=characters,
                 world=world,
+                story_context=story_context,
+                foreshadowing_plan=foreshadowing_plan,
                 layer_model=self.gen._layer_model,
+                progress_callback=progress_callback,
             )
-
-            # Thread enforcement: inject mandatory threads as hard requirement
-            if getattr(self.config.pipeline, "enable_thread_enforcement", False):
-                try:
-                    from pipeline.layer1_story.plot_thread_tracker import (
-                        format_mandatory_threads,
-                    )
-
-                    mandatory = format_mandatory_threads(
-                        list(story_context.open_threads),
-                        outline.chapter_number,
-                        gap_threshold=8,
-                    )
-                    if mandatory:
-                        enhancement_context = (
-                            f"{enhancement_context}\n\n{mandatory}"
-                            if enhancement_context
-                            else mandatory
-                        )
-                except Exception as e:
-                    logger.debug("Thread enforcement failed (non-fatal): %s", e)
-
-            # Causal dependencies injection
-            if getattr(self.config.pipeline, "enable_l1_causal_graph", False):
-                try:
-                    from pipeline.layer1_story.l1_causal_graph import (
-                        format_causal_dependencies_for_prompt,
-                    )
-
-                    causal_graph = getattr(story_context, "causal_graph", None)
-                    if causal_graph:
-                        required = causal_graph.query_required_references(
-                            outline.chapter_number, min_age=2
-                        )
-                        causal_block = format_causal_dependencies_for_prompt(required)
-                        if causal_block:
-                            enhancement_context = (
-                                f"{enhancement_context}\n\n{causal_block}"
-                                if enhancement_context
-                                else causal_block
-                            )
-                except Exception as e:
-                    logger.debug(
-                        "Causal dependencies injection failed (non-fatal): %s", e
-                    )
-
-            # Emotional memory injection
-            if getattr(self.config.pipeline, "enable_emotional_memory", False):
-                try:
-                    from pipeline.layer1_story.character_memory_bank import (
-                        format_memories_for_prompt,
-                    )
-
-                    banks = getattr(story_context, "emotional_memory_banks", None) or {}
-                    if banks:
-                        memories_block = format_memories_for_prompt(banks, last_n=3)
-                        if (
-                            memories_block
-                            and memories_block != "Không có ký ức cảm xúc."
-                        ):
-                            enhancement_context = f"{enhancement_context}\n\n## KÝ ỨC CẢM XÚC NHÂN VẬT:\n{memories_block}"
-                except Exception as e:
-                    logger.debug("Emotional memory injection failed (non-fatal): %s", e)
-
-            # Bug #5: Inject foreshadowing status summary
-            if foreshadowing_plan:
-                try:
-                    from pipeline.layer1_story.foreshadowing_manager import (
-                        get_foreshadowing_status,
-                    )
-
-                    foreshadowing_status = get_foreshadowing_status(
-                        foreshadowing_plan, outline.chapter_number
-                    )
-                    if foreshadowing_status:
-                        enhancement_context = (
-                            f"{enhancement_context}\n\n{foreshadowing_status}"
-                            if enhancement_context
-                            else foreshadowing_status
-                        )
-                except Exception as e:
-                    logger.debug(
-                        "Foreshadowing status injection failed (non-fatal): %s", e
-                    )
-
-            # Foreshadowing payoff enforcement (Phase 6)
-            if foreshadowing_plan and getattr(
-                self.config.pipeline, "enable_foreshadowing_enforcement", True
-            ):
-                try:
-                    from pipeline.layer1_story.foreshadowing_manager import (
-                        get_overdue_payoffs,
-                        get_approaching_payoffs,
-                        format_payoff_enforcement_prompt,
-                    )
-
-                    overdue = get_overdue_payoffs(
-                        foreshadowing_plan, outline.chapter_number, grace_chapters=2
-                    )
-                    approaching = get_approaching_payoffs(
-                        foreshadowing_plan, outline.chapter_number, lookahead=3
-                    )
-                    if overdue or approaching:
-                        payoff_block = format_payoff_enforcement_prompt(
-                            overdue,
-                            approaching,
-                            outline.chapter_number,
-                        )
-                        if payoff_block:
-                            enhancement_context = (
-                                f"{enhancement_context}\n\n{payoff_block}"
-                                if enhancement_context
-                                else payoff_block
-                            )
-                            if overdue and progress_callback:
-                                progress_callback(
-                                    f"⚠️ {len(overdue)} foreshadowing quá hạn cần payoff"
-                                )
-                except Exception as e:
-                    logger.debug(
-                        "Foreshadowing payoff enforcement failed (non-fatal): %s", e
-                    )
 
             # Append scene beats for climax/twist chapters (Fix #12)
             from pipeline.layer1_story.scene_beat_generator import (
@@ -835,121 +717,20 @@ class BatchChapterGenerator:
                 )
 
             # --- Enhancement 6: Chapter self-critique ---
-            if self.config.pipeline.enable_chapter_critique:
-                try:
-                    from pipeline.layer1_story.chapter_self_critique import (
-                        critique_chapter,
-                        rewrite_weak_sections,
-                        should_critique,
-                        aggregate_critique_score,
-                    )
-
-                    every_n = int(
-                        getattr(
-                            self.config.pipeline, "chapter_critique_every_n_chapters", 0
-                        )
-                        or 0
-                    )
-                    if should_critique(
-                        outline.chapter_number,
-                        story_context.total_chapters,
-                        macro_arcs=macro_arcs,
-                        pacing_type=pacing,
-                        every_n_chapters=every_n,
-                    ):
-                        outline_text = f"{outline.title}: {outline.summary}"
-                        crit = critique_chapter(
-                            self.llm,
-                            chapter.content,
-                            outline_text,
-                            characters,
-                            genre,
-                            pacing,
-                            model=self.gen._layer_model,
-                        )
-                        if crit:
-                            original_content = chapter.content
-                            score_before = aggregate_critique_score(crit)
-                            revised = rewrite_weak_sections(
-                                self.llm,
-                                chapter.content,
-                                crit,
-                                model=self.gen._layer_model,
-                                idea=getattr(draft, "original_idea", "") or "",
-                                idea_summary=getattr(
-                                    draft, "idea_summary_for_chapters", ""
-                                )
-                                or "",
-                            )
-                            if revised != original_content:
-                                from models.schemas import count_words
-
-                                chapter.content = revised
-                                chapter.word_count = count_words(revised)
-                                # L1-B rollback: re-score revised; revert if aggregate drops.
-                                if getattr(
-                                    self.config.pipeline,
-                                    "chapter_critique_rollback",
-                                    False,
-                                ):
-                                    try:
-                                        crit_after = critique_chapter(
-                                            self.llm,
-                                            revised,
-                                            outline_text,
-                                            characters,
-                                            genre,
-                                            pacing,
-                                            model=self.gen._layer_model,
-                                        )
-                                        score_after = (
-                                            aggregate_critique_score(crit_after)
-                                            if crit_after
-                                            else score_before
-                                        )
-                                        threshold = float(
-                                            getattr(
-                                                self.config.pipeline,
-                                                "chapter_critique_rollback_threshold",
-                                                0.3,
-                                            )
-                                        )
-                                        if score_after + threshold < score_before:
-                                            chapter.content = original_content
-                                            chapter.word_count = count_words(
-                                                original_content
-                                            )
-                                            if progress_callback:
-                                                progress_callback(
-                                                    f"⚠️ Ch{outline.chapter_number} rollback self-critique "
-                                                    f"({score_before:.2f} → {score_after:.2f})"
-                                                )
-                                            logger.info(
-                                                "Ch%d critique rollback: %.2f → %.2f",
-                                                outline.chapter_number,
-                                                score_before,
-                                                score_after,
-                                            )
-                                        elif progress_callback:
-                                            progress_callback(
-                                                f"Chương {outline.chapter_number} cải thiện "
-                                                f"({score_before:.2f} → {score_after:.2f})"
-                                            )
-                                    except Exception as e:
-                                        logger.debug(
-                                            "Rollback rescore failed (keeping revised): %s",
-                                            e,
-                                        )
-                                elif progress_callback:
-                                    progress_callback(
-                                        f"Chương {outline.chapter_number} đã cải thiện qua self-critique"
-                                    )
-                except Exception as e:
-                    logger.warning(
-                        "Chapter self-critique failed for ch%d (non-fatal): %s",
-                        outline.chapter_number,
-                        e,
-                    )
+            run_chapter_self_critique(
+                self.config.pipeline,
+                self.llm,
+                chapter=chapter,
+                outline=outline,
+                characters=characters,
+                genre=genre,
+                pacing=pacing,
+                macro_arcs=macro_arcs,
+                story_context=story_context,
+                draft=draft,
+                layer_model=self.gen._layer_model,
+                progress_callback=progress_callback,
+            )
 
             finalize_chapter(
                 pipeline_config=self.config.pipeline,
