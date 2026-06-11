@@ -27,8 +27,6 @@ import pytest
 from models.schemas import Character, ChapterOutline, ConflictEntry, ForeshadowingEntry
 from models.semantic_schemas import OUTLINE_METRIC_WEIGHTS, OutlineMetrics
 from pipeline.layer1_story.outline_metrics import (
-    BEAT_COVERAGE_THRESHOLD,
-    PACING_TARGET,
     _gini,
     _shannon_entropy,
     compute_arc_trajectory_variance,

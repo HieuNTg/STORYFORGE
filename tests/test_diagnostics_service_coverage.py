@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from unittest.mock import MagicMock
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from models.db_models import Chapter, PipelineRun, Story

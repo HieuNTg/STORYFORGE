@@ -33,7 +33,7 @@ from typing import Union
 from models.semantic_schemas import SemanticPayoffMatch
 from models.handoff_schemas import ForeshadowingSeed
 from models.schemas import ForeshadowingEntry
-from services.embedding_service import get_embedding_service, bytes_to_vec
+from services.embedding_service import get_embedding_service
 
 logger = logging.getLogger(__name__)
 

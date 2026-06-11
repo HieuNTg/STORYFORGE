@@ -10,7 +10,6 @@ from typing import Optional
 import requests
 
 from config import ConfigManager
-from services.media._util import slug_session_dir
 
 logger = logging.getLogger(__name__)
 

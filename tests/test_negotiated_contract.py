@@ -1,7 +1,6 @@
 """Sprint 1 P5 — NegotiatedChapterContract unification tests."""
 from __future__ import annotations
 
-from unittest.mock import MagicMock
 
 import pytest
 

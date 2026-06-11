@@ -36,7 +36,6 @@ def test_default_style():
 # Phase 1: comic-panel prompt building (scene extractor + refiner)
 # ---------------------------------------------------------------------------
 
-from unittest.mock import MagicMock
 
 from services.media.image_prompt_generator import _SCENE_EXTRACT_PROMPT
 

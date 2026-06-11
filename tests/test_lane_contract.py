@@ -19,7 +19,6 @@ debate panel:
 """
 import logging
 
-import pytest
 
 from models.schemas import (
     AgentReview,

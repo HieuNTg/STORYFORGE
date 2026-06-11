@@ -17,7 +17,7 @@ import asyncio
 import statistics
 import time
 from concurrent.futures import ThreadPoolExecutor
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

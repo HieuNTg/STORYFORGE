@@ -235,9 +235,6 @@ def test_extractor_returns_empty_on_llm_failure(monkeypatch):
 
 def test_module_level_extract_shot_list(monkeypatch):
     """The convenience wrapper threads through to ShotListExtractor."""
-    raw = _raw_pages([
-        {"n": 1, "shot": "WS", "beat": "b", "subject": "Kiên", "setting": "x"},
-    ])
     monkeypatch.setattr(
         "services.media.shot_list.ShotListExtractor.extract",
         lambda self, *a, **k: ShotList(chapter_number=9, pages=[

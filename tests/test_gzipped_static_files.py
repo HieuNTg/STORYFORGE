@@ -12,7 +12,6 @@ Verifies the four contractual behaviours documented in S3:
 from __future__ import annotations
 
 import gzip
-import os
 from pathlib import Path
 
 import httpx

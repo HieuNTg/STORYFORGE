@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from models.handoff_schemas import NegotiatedChapterContract
 from models.schemas import Character, ChapterOutline, WorldSetting

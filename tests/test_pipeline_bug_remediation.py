@@ -12,9 +12,6 @@ import pytest
 
 from models.schemas import (
     Chapter,
-    Character,
-    EnhancedStory,
-    SimulationResult,
     StoryDraft,
 )
 

@@ -1,13 +1,16 @@
 """Dump the shot-list for chapter 1 — per-panel dialogue/caption — to confirm
 which panels are SILENT (codex invents English text there)."""
-import json, os, sys
+import json
+import os
+import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.stdout.reconfigure(encoding="utf-8")
 
 CHECKPOINT = ("output/binh_than_thuc_duoc_pham_nhan_nghich_thien/checkpoints/"
               "Bình_Thần_Thúc_Dược__Phàm_Nhân_layer2_e7c43f15afa9ba50.json")
 d = json.load(open(CHECKPOINT, encoding="utf-8"))
-es = d["enhanced_story"]; sd = d.get("story_draft") or {}
+es = d["enhanced_story"]
+sd = d.get("story_draft") or {}
 chars = es.get("characters") or sd.get("characters") or []
 ch = es["chapters"][0]
 

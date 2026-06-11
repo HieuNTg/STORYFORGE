@@ -238,7 +238,6 @@ class StoryEnhancer:
         if not _STRUCTURAL_DETECTOR_AVAILABLE or _detect_structural_issues is None:
             return {}
         try:
-            from models.handoff_schemas import NegotiatedChapterContract
 
             characters = list(getattr(draft, "characters", []) or [])
             # Build a per-chapter contract from negotiated_contract if present,

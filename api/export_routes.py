@@ -4,9 +4,8 @@ import logging
 import os
 import pathlib
 import re
-import tempfile
 import uuid
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 if TYPE_CHECKING:

@@ -143,7 +143,6 @@ def _check_missing_characters(
 
         # Substring fallback (word-boundary)
         if _name_in_content(name, content):
-            method = "ner_fallback_substring"
             # Found via substring; no finding
             continue
 

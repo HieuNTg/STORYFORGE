@@ -7,7 +7,6 @@ Prevents: homogenized dialogue, character voice drift after enhancement.
 import logging
 import re
 import warnings
-from pydantic import BaseModel, Field
 from services.llm_client import LLMClient
 from models.schemas import VoiceProfile  # unified schema (Sprint 2 Task 2)
 from models.voice_schemas import (

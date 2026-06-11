@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from models.handoff_schemas import ConflictWeb, L1Handoff
+    from models.handoff_schemas import L1Handoff
 
 
 def get_envelope(draft) -> Optional["L1Handoff"]:

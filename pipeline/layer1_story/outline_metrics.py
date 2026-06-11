@@ -27,7 +27,6 @@ from __future__ import annotations
 import logging
 import math
 import statistics
-from typing import TYPE_CHECKING
 
 from models.schemas import Character, ChapterOutline, ConflictEntry, ForeshadowingEntry
 from models.semantic_schemas import OUTLINE_METRIC_WEIGHTS, OutlineMetrics
@@ -295,7 +294,7 @@ def _beat_coverage_embedding(
     ratio = len(covered) / len(beats)
     evidence = [
         f"{len(covered)}/{len(beats)} beats covered (threshold={BEAT_COVERAGE_THRESHOLD})",
-        f"method=embedding",
+        "method=embedding",
     ]
     if uncovered:
         evidence.append(
@@ -333,7 +332,6 @@ def compute_character_screen_time_gini(
     if not characters:
         return 0.0, ["no characters"]
 
-    char_names = {c.name.lower() for c in characters}
     # Map display name → count
     counts: dict[str, int] = {c.name: 0 for c in characters}
     for o in outlines:

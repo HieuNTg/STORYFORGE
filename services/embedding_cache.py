@@ -92,7 +92,6 @@ class EmbeddingCache:
 
     def put(self, key: str, model_id: str, vec_bytes: bytes) -> None:
         """Persist `vec_bytes` under `key`. Idempotent — duplicate keys are ignored."""
-        import numpy as np
 
         # Derive dim from byte length (float32 = 4 bytes each)
         dim = len(vec_bytes) // 4

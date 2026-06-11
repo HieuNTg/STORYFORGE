@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import asdict, dataclass
 from typing import Optional, TYPE_CHECKING
 
 from models.schemas import Character, ChapterOutline, ConflictEntry, ForeshadowingEntry, WorldSetting

@@ -139,25 +139,25 @@ Cell = tuple[int, int, int, int]
 
 def _rows(box: Cell, gutter: int, weights: Sequence[float]) -> list[Cell]:
     """Split ``box`` vertically into rows sized by ``weights`` (full-width)."""
-    l, t, r, b = box
+    left, t, r, b = box
     inner_h = (b - t) - gutter * (len(weights) - 1)
     total = float(sum(weights)) or 1.0
     cells: list[Cell] = []
     y = t
     for w in weights:
         h = int(round(inner_h * (w / total)))
-        cells.append((l, y, r, y + h))
+        cells.append((left, y, r, y + h))
         y += h + gutter
     return cells
 
 
 def _split_cols(cell: Cell, gutter: int, n: int) -> list[Cell]:
     """Split one row ``cell`` horizontally into ``n`` equal columns (LTR)."""
-    l, t, r, b = cell
-    inner_w = (r - l) - gutter * (n - 1)
+    left, t, r, b = cell
+    inner_w = (r - left) - gutter * (n - 1)
     cw = inner_w // n
     out: list[Cell] = []
-    x = l
+    x = left
     for i in range(n):
         x2 = r if i == n - 1 else x + cw
         out.append((x, t, x2, b))
@@ -470,16 +470,16 @@ def _draw_text_block(
 
 def _tail_polygon(bbox: tuple[int, int, int, int], side: str) -> list[tuple[int, int]]:
     """Triangle tail from the bubble edge toward ``side`` (the speaker)."""
-    l, t, r, b = bbox
-    cx = (l + r) // 2
+    left, t, r, b = bbox
+    cx = (left + r) // 2
     by = b  # tails drop from the bottom of the bubble toward the speaker below
-    base = max(18, (r - l) // 8)
+    base = max(18, (r - left) // 8)
     drop = max(28, (b - t) // 3)
     if side == "left":
-        ax = l + (r - l) // 4
-        tip = (max(l - drop // 2, l - 60), by + drop)
+        ax = left + (r - left) // 4
+        tip = (max(left - drop // 2, left - 60), by + drop)
     elif side == "right":
-        ax = r - (r - l) // 4
+        ax = r - (r - left) // 4
         tip = (min(r + drop // 2, r + 60), by + drop)
     else:  # center
         ax = cx
@@ -494,7 +494,6 @@ def _bubble_outline_shape(
     ow: int = BUBBLE_OUTLINE,
 ) -> None:
     """Stroke the bubble body according to ``type`` (§5 shapes)."""
-    l, t, r, b = bbox
     if btype == "narration":
         draw.rectangle(bbox, fill=PAPER, outline=INK, width=ow)
         return
@@ -515,9 +514,9 @@ def _bubble_outline_shape(
 
 def _dashed_ellipse(draw, bbox, color, width) -> None:
     import math
-    l, t, r, b = bbox
-    cx, cy = (l + r) / 2, (t + b) / 2
-    rx, ry = (r - l) / 2, (b - t) / 2
+    left, t, r, b = bbox
+    cx, cy = (left + r) / 2, (t + b) / 2
+    rx, ry = (r - left) / 2, (b - t) / 2
     # Dense, even dash rhythm (dash ≈ gap) reads as "whisper" at page size;
     # the old sparse 8-dash ring was barely distinguishable from speech.
     seg = 6
@@ -534,9 +533,9 @@ def _dashed_ellipse(draw, bbox, color, width) -> None:
 
 def _spiky(draw, bbox, ow: int = BUBBLE_OUTLINE) -> None:
     import math
-    l, t, r, b = bbox
-    cx, cy = (l + r) / 2, (t + b) / 2
-    rx, ry = (r - l) / 2, (b - t) / 2
+    left, t, r, b = bbox
+    cx, cy = (left + r) / 2, (t + b) / 2
+    rx, ry = (r - left) / 2, (b - t) / 2
     pts = []
     n = SHOUT_SPIKES * 2
     for i in range(n):
@@ -555,9 +554,9 @@ def _spiky(draw, bbox, ow: int = BUBBLE_OUTLINE) -> None:
 
 def _cloud(draw, bbox, ow: int = BUBBLE_OUTLINE) -> None:
     import math
-    l, t, r, b = bbox
-    cx, cy = (l + r) / 2, (t + b) / 2
-    rx, ry = (r - l) / 2, (b - t) / 2
+    left, t, r, b = bbox
+    cx, cy = (left + r) / 2, (t + b) / 2
+    rx, ry = (r - left) / 2, (b - t) / 2
     # Base body
     draw.ellipse(bbox, fill=PAPER)
     lobe = max(14, int(min(rx, ry) * 0.42))
@@ -568,17 +567,17 @@ def _cloud(draw, bbox, ow: int = BUBBLE_OUTLINE) -> None:
         py = cy + (ry - lobe * 0.4) * math.sin(ang)
         draw.ellipse((px - lobe, py - lobe, px + lobe, py + lobe), fill=PAPER, outline=INK, width=ow)
     # redraw center to clean interior strokes
-    draw.ellipse((l + lobe, t + lobe, r - lobe, b - lobe), fill=PAPER)
+    draw.ellipse((left + lobe, t + lobe, r - lobe, b - lobe), fill=PAPER)
 
 
 def _draw_thought_dots(draw, bbox, side, ow: int = BUBBLE_OUTLINE, scale: int = 1) -> None:
     """Trailing puffs from a thought bubble toward the speaker."""
-    l, t, r, b = bbox
-    cx = (l + r) // 2
+    left, t, r, b = bbox
+    cx = (left + r) // 2
     if side == "left":
-        x = l + (r - l) // 4
+        x = left + (r - left) // 4
     elif side == "right":
-        x = r - (r - l) // 4
+        x = r - (r - left) // 4
     else:
         x = cx
     y = b

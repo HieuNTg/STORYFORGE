@@ -112,9 +112,9 @@ def test_layout_library_cell_counts(name, count):
     assert len(cells) == count
     # Every cell is inside the safe margin and non-degenerate.
     l0, t0, r0, b0 = geom.content_box
-    for (l, t, r, b) in cells:
-        assert l >= l0 - 1 and t >= t0 - 1 and r <= r0 + 1 and b <= b0 + 1
-        assert r > l and b > t
+    for (left, t, r, b) in cells:
+        assert left >= l0 - 1 and t >= t0 - 1 and r <= r0 + 1 and b <= b0 + 1
+        assert r > left and b > t
 
 
 def test_layout_library_covers_spec():
@@ -165,7 +165,7 @@ def test_wrap_respects_char_cap():
 
 def test_wrap_hard_cuts_overlong_token():
     out = wrap_vietnamese("X" * 50, 18)
-    assert all(len(l) <= 18 for l in out)
+    assert all(len(line) <= 18 for line in out)
     assert "".join(out) == "X" * 50
 
 

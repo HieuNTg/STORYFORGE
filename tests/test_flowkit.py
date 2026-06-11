@@ -145,8 +145,10 @@ async def test_request_image_payload_split_enabled(isolated_flow_service, tmp_pa
     svc.set_active_ws(_fake_ws(captured))
     monkeypatch.setattr(svc, "_upload_image", AsyncMock(side_effect=["mid-c", "mid-s"]))
 
-    c = tmp_path / "c.png"; c.write_bytes(b"x")
-    s = tmp_path / "s.png"; s.write_bytes(b"y")
+    c = tmp_path / "c.png"
+    c.write_bytes(b"x")
+    s = tmp_path / "s.png"
+    s.write_bytes(b"y")
     with patch.object(svc, "download_to_local", AsyncMock(return_value="/tmp/o.png")):
         task = asyncio.create_task(
             svc.request_image("x", char_refs=[str(c)], style_ref=str(s),
@@ -170,7 +172,8 @@ async def test_video_job_lifecycle(isolated_flow_service, tmp_path, monkeypatch)
     monkeypatch.setattr(ConfigManager().pipeline, "flowkit_project_id", "test-project")
     svc.set_active_ws(_fake_ws([]))
     monkeypatch.setattr(svc, "_upload_image", AsyncMock(return_value="mid-start"))
-    start = tmp_path / "start.png"; start.write_bytes(b"x")
+    start = tmp_path / "start.png"
+    start.write_bytes(b"x")
 
     task = asyncio.create_task(svc.request_video("a horse", str(start)))
     await _resolve_after(svc, 200, {"operationName": "op-123"})
@@ -712,7 +715,8 @@ async def test_flowkit_image_input_type_split_off_no_style(isolated_image_gen_en
     monkeypatch.setattr(cfg, "flowkit_enabled", True)
     monkeypatch.setattr(cfg, "flowkit_use_refiner", False)
     monkeypatch.setattr(cfg, "flowkit_image_input_type_split", False)
-    style_path = tmp_path / "style.png"; style_path.write_bytes(b"x")
+    style_path = tmp_path / "style.png"
+    style_path.write_bytes(b"x")
     monkeypatch.setattr(cfg, "flowkit_style_reference_path", str(style_path))
 
     import services.media.flow_service as fs_mod
@@ -743,7 +747,8 @@ async def test_flowkit_image_input_type_split_on_passes_style(isolated_image_gen
     monkeypatch.setattr(cfg, "flowkit_enabled", True)
     monkeypatch.setattr(cfg, "flowkit_use_refiner", False)
     monkeypatch.setattr(cfg, "flowkit_image_input_type_split", True)
-    style_path = tmp_path / "style.png"; style_path.write_bytes(b"x")
+    style_path = tmp_path / "style.png"
+    style_path.write_bytes(b"x")
     monkeypatch.setattr(cfg, "flowkit_style_reference_path", str(style_path))
 
     import services.media.flow_service as fs_mod
@@ -969,7 +974,7 @@ def test_handlers_relpath_subdirs(isolated_image_gen_env, monkeypatch):
         ConfigManager().pipeline, "comic_shot_list_enabled", False, raising=False,
     )
 
-    sub = tmp_dir = "output/t_sid1/images"
+    sub = "output/t_sid1/images"
     os.makedirs(sub, exist_ok=True)
     fake_path = os.path.join(sub, "ch01_panel01.png")
 

@@ -14,10 +14,6 @@ P7 follow-up: calibration test with real model on 30-pair Vietnamese set.
 from __future__ import annotations
 
 import hashlib
-import os
-import sqlite3
-import tempfile
-from typing import Generator
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -25,7 +21,6 @@ import pytest
 
 from models.handoff_schemas import ForeshadowingSeed
 from models.schemas import Chapter, ForeshadowingEntry
-from models.semantic_schemas import ChapterSemanticFindings, SemanticPayoffMatch
 from pipeline.semantic.foreshadowing_verifier import (
     SemanticVerificationError,
     _keyword_match,
@@ -478,9 +473,6 @@ def test_chapter_semantic_findings_sqlite(tmp_path, monkeypatch):
     import uuid
     import sqlalchemy as sa
     from sqlalchemy import create_engine
-    from sqlalchemy.orm import Session, DeclarativeBase, Mapped, mapped_column
-    from sqlalchemy import String, Integer, Text, JSON, ForeignKey, func
-    from typing import Optional
     from pipeline.orchestrator_layers import persist_chapter_semantic_findings
 
     db_path = str(tmp_path / "test.db")
@@ -567,7 +559,7 @@ def test_chapter_semantic_findings_sqlite(tmp_path, monkeypatch):
 def test_post_processing_no_llm_call(monkeypatch):
     """verify_payoffs in post_processing does not call the LLM client."""
     from pipeline.layer1_story.post_processing import process_chapter_post_write
-    from models.schemas import StoryContext, ChapterOutline, Character
+    from models.schemas import StoryContext, ChapterOutline
     from concurrent.futures import ThreadPoolExecutor
 
     anchor = _unit_vec([1.0, 0.0, 0.0])
@@ -689,7 +681,7 @@ def test_verify_seeds_warn_on_weak(monkeypatch, caplog):
     import logging
     with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
         with caplog.at_level(logging.WARNING, logger="pipeline.semantic.foreshadowing_verifier"):
-            results = verify_seeds([entry], [chapter], threshold=0.55)
+            verify_seeds([entry], [chapter], threshold=0.55)
 
     assert any("weak" in r.message for r in caplog.records)
 

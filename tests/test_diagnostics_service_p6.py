@@ -201,7 +201,6 @@ def _insert_chapter(
 # Patch diagnostics_service to use in-memory engine
 # ---------------------------------------------------------------------------
 
-import importlib
 import services.diagnostics_service as _svc_module
 
 

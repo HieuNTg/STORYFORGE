@@ -28,7 +28,7 @@ from api.pipeline_routes import (
     stream_job_events,
 )
 from pipeline.orchestrator import PipelineOrchestrator
-from services.continuation_history import read_events, sidecar_path_for
+from services.continuation_history import read_events
 
 logger = logging.getLogger(__name__)
 router = APIRouter(

@@ -514,7 +514,6 @@ class TestDramaContractPassthrough:
     @patch("pipeline.layer1_story.batch_generator.process_chapter_post_write")
     def test_negotiated_contract_passed_when_contract_built(self, mock_post_write):
         """When a contract is built, to_negotiated() result is passed to write call."""
-        from unittest.mock import call
         gen = _mock_generator(batch_size=5)
         gen.config.pipeline.enable_chapter_contracts = True
         gen.config.pipeline.enable_proactive_constraints = False

@@ -5,7 +5,7 @@ No real network or API keys required.
 """
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -13,14 +13,10 @@ from fastapi.testclient import TestClient
 
 from models.schemas import (
     AgentPost,
-    Chapter,
-    EnhancedStory,
     PipelineOutput,
-    SimulationResult,
-    StoryDraft,
 )
 from api.pipeline_routes import router
-from services.llm.client import LLMClient, WalletState
+from services.llm.client import LLMClient
 
 
 # ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -133,7 +129,6 @@ class TestFix3FallbackRotationOn404:
         # Under the fix, 404 on a fallback model calls _mark_model_rate_limited
         # and does NOT re-raise, allowing the chain to try the next entry.
         # We verify _mark_model_rate_limited sets a cooldown > now.
-        import time
         client._mark_model_rate_limited(fallback_model, api_key, cooldown=600.0)
         assert client._is_model_rate_limited(fallback_model, api_key), (
             "After 404, model must be marked rate-limited so chain skips it"
@@ -216,7 +211,6 @@ class TestFix4AgentPostTargetOptional:
 class TestFix5VoicePromptInSceneRewrite:
     def test_voice_prompt_in_scene_rewrite(self):
         """When voice_engine is set, enhanced scene prompt must include voice fingerprint text."""
-        from pipeline.layer2_enhance.scene_enhancer import SceneEnhancer, ENHANCE_SCENE
         from pipeline.layer2_enhance.voice_fingerprint import VoiceFingerprintEngine
         from models.schemas import VoiceProfile
 

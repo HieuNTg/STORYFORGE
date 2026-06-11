@@ -19,7 +19,7 @@ class DOCXExporter:
     ) -> str:
         try:
             from docx import Document
-            from docx.shared import Pt, Inches
+            from docx.shared import Pt
             from docx.enum.text import WD_ALIGN_PARAGRAPH
         except ImportError:
             logger.error("python-docx not installed. Run: pip install python-docx")

@@ -23,7 +23,6 @@ import mimetypes
 import os
 import stat
 from functools import lru_cache
-from typing import Tuple
 
 import anyio
 from starlette.datastructures import Headers
@@ -113,11 +112,9 @@ class GzippedStaticFiles(StaticFiles):
             # file is missing.  This also gives the upstream caching
             # response logic something to hash against.
             try:
-                orig_full_path, orig_stat = await anyio.to_thread.run_sync(
-                    self.lookup_path, path
-                )
+                await anyio.to_thread.run_sync(self.lookup_path, path)
             except (PermissionError, OSError):
-                orig_full_path, orig_stat = "", None
+                pass
 
             content_type = _guess_content_type(path)
             return await self._precompressed_response(
@@ -134,7 +131,7 @@ class GzippedStaticFiles(StaticFiles):
             )
         except PermissionError:
             raise HTTPException(status_code=401)
-        except OSError as exc:
+        except OSError:
             # Re-use the parent's 404/path-too-long handling.
             return await super().get_response(path, scope)
 

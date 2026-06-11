@@ -7,7 +7,6 @@ Covers:
 """
 from unittest.mock import MagicMock
 
-import pytest
 
 from api.pipeline_output_builder import build_output_summary
 
