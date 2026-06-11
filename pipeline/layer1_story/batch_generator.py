@@ -876,33 +876,34 @@ class BatchChapterGenerator:
                 )
             raise first_exc
 
-        # Contract validation with retry (#2 improvement)
-        if contracts and getattr(
-            self.config.pipeline, "enable_contract_validation", False
-        ):
-            chapters = await self._validate_and_retry_async(
-                chapters,
-                contracts,
-                batch,
-                frozen,
-                draft,
-                story_context,
-                frozen_threads,
-                sibling_summaries,
-                shared_enhancement,
-                title,
-                genre,
-                style,
-                characters,
-                world,
-                word_count,
-                macro_arcs,
-                conflict_web,
-                foreshadowing_plan,
-                progress_callback,
-                idea,
-                idea_summary,
-            )
+        # Contract validation with retry (#2 improvement) — the shared helper
+        # gates on contracts + enable_contract_validation itself; the whole
+        # sequential loop runs in one worker thread so the event loop stays free.
+        chapters = await asyncio.to_thread(
+            validate_and_retry_threaded,
+            self,
+            chapters=chapters,
+            contracts=contracts,
+            batch=batch,
+            frozen=frozen,
+            draft=draft,
+            story_context=story_context,
+            frozen_threads=frozen_threads,
+            sibling_summaries=sibling_summaries,
+            shared_enhancement=shared_enhancement,
+            title=title,
+            genre=genre,
+            style=style,
+            characters=characters,
+            world=world,
+            word_count=word_count,
+            macro_arcs=macro_arcs,
+            conflict_web=conflict_web,
+            foreshadowing_plan=foreshadowing_plan,
+            progress_callback=progress_callback,
+            idea=idea,
+            idea_summary=idea_summary,
+        )
 
         chapters_ordered = sorted(chapters, key=lambda c: c.chapter_number)
 
@@ -958,128 +959,6 @@ class BatchChapterGenerator:
             )
 
         return chapters_ordered
-
-    async def _validate_and_retry_async(
-        self,
-        chapters: list[Chapter],
-        contracts: dict,
-        batch: list[ChapterOutline],
-        frozen: FrozenContext,
-        draft: StoryDraft,
-        story_context: StoryContext,
-        frozen_threads: list,
-        sibling_summaries: str,
-        shared_enhancement: str,
-        title: str,
-        genre: str,
-        style: str,
-        characters: list,
-        world,
-        word_count: int,
-        macro_arcs,
-        conflict_web,
-        foreshadowing_plan,
-        progress_callback,
-        idea: str = "",
-        idea_summary: str = "",
-    ) -> list[Chapter]:
-        """Validate contracts and retry failed chapters (#2 improvement)."""
-        from pipeline.layer1_story.chapter_contract_builder import (
-            validate_contract_compliance,
-        )
-
-        outline_map = {o.chapter_number: o for o in batch}
-        chapter_map = {c.chapter_number: c for c in chapters}
-
-        for ch_num, contract in contracts.items():
-            chapter = chapter_map[ch_num]
-            outline = outline_map[ch_num]
-
-            try:
-                compliance = await asyncio.to_thread(
-                    validate_contract_compliance,
-                    self.llm,
-                    chapter.content,
-                    contract,
-                    model=self.gen._layer_model,
-                )
-                score = compliance.get("compliance_score", 0.0)
-                failures = compliance.get("failures", [])
-
-                retry_count = 0
-                while score < self.retry_threshold and retry_count < self.retry_max:
-                    retry_count += 1
-                    if progress_callback:
-                        progress_callback(
-                            f"⚠️ Ch{ch_num} compliance {score:.0%} < {self.retry_threshold:.0%}, "
-                            f"async retry {retry_count}/{self.retry_max}..."
-                        )
-
-                    # Rebuild contract with failures
-                    from pipeline.layer1_story.chapter_contract_builder import (
-                        build_contract,
-                    )
-
-                    new_contract = build_contract(
-                        ch_num,
-                        outline,
-                        threads=frozen_threads,
-                        macro_arcs=macro_arcs,
-                        conflicts=conflict_web,
-                        foreshadowing_plan=foreshadowing_plan,
-                        characters=characters,
-                        previous_failures=failures,
-                    )
-
-                    # Rewrite chapter
-                    new_chapter, _ = await asyncio.to_thread(
-                        self._write_chapter_parallel,
-                        outline,
-                        frozen,
-                        draft,
-                        story_context,
-                        frozen_threads,
-                        sibling_summaries,
-                        shared_enhancement,
-                        title,
-                        genre,
-                        style,
-                        characters,
-                        world,
-                        word_count,
-                        macro_arcs,
-                        conflict_web,
-                        foreshadowing_plan,
-                        progress_callback,
-                        None,
-                        idea,
-                        idea_summary,
-                        override_contract=new_contract,
-                    )
-
-                    chapter_map[ch_num] = new_chapter
-
-                    # Re-validate
-                    compliance = await asyncio.to_thread(
-                        validate_contract_compliance,
-                        self.llm,
-                        new_chapter.content,
-                        new_contract,
-                        model=self.gen._layer_model,
-                    )
-                    score = compliance.get("compliance_score", 0.0)
-                    failures = compliance.get("failures", [])
-
-                if progress_callback:
-                    status = f"Ch{ch_num} compliance: {score:.0%}"
-                    if retry_count > 0:
-                        status += f" (sau {retry_count} retry)"
-                    progress_callback(status)
-
-            except Exception as e:
-                logger.warning("Contract validation failed for ch%d: %s", ch_num, e)
-
-        return list(chapter_map.values())
 
     def _write_chapter_parallel(
         self,
