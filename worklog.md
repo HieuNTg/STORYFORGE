@@ -581,3 +581,15 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - `tests/test_character_service.py` (11 tests): language label mapping + system prompt pinning, name/role forced from request against LLM drift, retry-once on bad JSON with strict warning appended, raise after 2 failures, empty name/genre rejection, schema trait clamping, cheap-tier/json_mode call contract.
   - Test-only, no source touched. Gate: EXIT 0/0/0/5(expected)/0, 4588 passed (+27), coverage 72.01% (was 71.82, baseline 70.61).
 - **Stage Summary**: Coverage crosses 72%. 7 services still untested (gemini_model_discovery 189L, simulation_continue_service 179L, _config_repo_json 169L, ...).
+
+## Cycle #30 — Unit tests for the config repository trio
+- **Task ID**: 30-config-repo-tests
+- **Agent**: eng-loop (Claude)
+- **Task**: Cover the config-repo stack, untested since Sprint 7 (`_config_repo_base` 34L, `_config_repo_json` 169L, `_config_repo_pg` 57L, `infra/config_repository` 70L).
+- **Work Log**:
+  - `tests/test_config_repository.py` (17 tests, single file covers all four modules):
+    - JsonFileConfigRepository against tmp_path: set/get roundtrip, dotted-key nested structure verified on disk, missing key / non-dict leaf → {}, get_all, delete existing (True, parent survives) vs missing (False), corrupt JSON → {}, sibling-preserving overwrite, on-disk JSON validity after atomic write.
+    - PostgresConfigRepository stub: all 4 async methods raise NotImplementedError with the operation name in the message (parametrized).
+    - get_config_repository factory: autouse fixture saves/resets/restores module `_instance`; no DATABASE_URL → JsonFileConfigRepository, DATABASE_URL set → PostgresConfigRepository, repeated calls return the same singleton.
+  - Test-only, no source touched. Gate: EXIT 0/0/0/5(expected)/0, 4605 passed (+17), coverage 72.25% (was 72.01, baseline 70.61). Circular-import smoke ✓.
+- **Stage Summary**: Config persistence layer locked by tests. Untested services remaining: gemini_model_discovery (189L), simulation_continue_service (179L), kyma_model_discovery (121L). Commit `d5804c5`.
