@@ -593,3 +593,14 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
     - get_config_repository factory: autouse fixture saves/resets/restores module `_instance`; no DATABASE_URL → JsonFileConfigRepository, DATABASE_URL set → PostgresConfigRepository, repeated calls return the same singleton.
   - Test-only, no source touched. Gate: EXIT 0/0/0/5(expected)/0, 4605 passed (+17), coverage 72.25% (was 72.01, baseline 70.61). Circular-import smoke ✓.
 - **Stage Summary**: Config persistence layer locked by tests. Untested services remaining: gemini_model_discovery (189L), simulation_continue_service (179L), kyma_model_discovery (121L). Commit `d5804c5`.
+
+## Cycle #31 — Unit tests for gemini + kyma model discovery
+- **Task ID**: 31-model-discovery-tests
+- **Agent**: eng-loop (Claude)
+- **Task**: Cover the two untested model-discovery services (Serena-checked callers: `llm/client.py` fallback chain, `api/config_routes.py` provider models — public-function contracts only, test-only cycle safe).
+- **Work Log**:
+  - `tests/test_gemini_model_discovery.py` (16 tests): `_key_hash` (empty → "nokey", deterministic 16-hex), per-key cache roundtrip + key-mismatch + TTL expiry, fallback-list copy semantics, API-success → ordered + cached (second call hits disk), `_order_models` chain (stable>preview, newer first, flash-lite>flash>pro, gemini>gemma, canonical over `-latest`, dedupe), `_fetch_from_api` filtering against a faked `google.genai` in sys.modules (strips `models/` prefix, drops embedding/tts/non-generateContent/non-gemini-gemma/empty names, empty→None, SDK error→None).
+  - `tests/test_kyma_model_discovery.py` (14 tests): `_meets_requirements` (context_window + context_length alias, <8192 rejected, "coder" excluded), cache hit skips API, fetch filters + persists, force_refresh bypass, stale-cache fallback when API down, hardcoded fallback copy, `refresh_cache` delegation, `_fetch_from_api` urllib mock (parses `data`, sends `Authorization: Bearer`, OSError→None).
+  - Both autouse-redirect `_CACHE_FILE` to tmp_path — real `data/` caches untouched.
+  - Test-only, no source touched. Gate: EXIT 0/0/0/5(expected)/0, 4635 passed (+30), coverage 72.76% (was 72.25, baseline 70.61). Circular-import smoke ✓.
+- **Stage Summary**: Model-discovery layer locked. Last untested service: simulation_continue_service (179L). Commit `c3f884a`.
