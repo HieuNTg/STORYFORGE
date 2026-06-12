@@ -673,3 +673,15 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Targeted: 9/9 test_share_routes; circular-import smoke OK.
   - Gate: EXIT 0/0/0/5(expected)/0, 4653 passed (unchanged — pure refactor), coverage 72.86% = baseline (floor 70.61); _share_models.py 100%, share_routes.py per-file % dropped only because the well-covered conversion moved out — total unchanged.
 - **Stage Summary**: share_routes now respects the 200-line rule. Remaining 200–250L backlog: services/character_visual_profile.py (239), pipeline/layer1_story/timeline_validator.py (238), services/character_visual_extractor.py (231). Commit `c35da79`.
+
+## Cycle #38 — Split services/character_visual_profile.py into store + I/O helpers
+
+- **Task ID**: 38-visual-profile-split
+- **Agent**: eng-loop (Claude)
+- **Task**: Bring services/character_visual_profile.py (239L) under the 200-line rule with zero behavior change. Serena MCP still disconnected — impact scan via Grep (deviation noted): all callers (api/image_routes.py ×3, pipeline/orchestrator_media.py, services/handlers.py ×2) import only `CharacterVisualProfileStore` from `services.character_visual_profile`; tests patch `services.character_visual_profile.CharacterVisualProfileStore` (class-object patch, split-safe) and call `_safe_name` as a method (kept). No caplog assertions on the load warning.
+- **Work Log**:
+  - New `services/_visual_profile_io.py` (110L): resolve_profile_base_dir (the __init__ base-dir logic incl. deferred output_paths imports), store_reference_image (dedupes the copy block that appeared in both save_profile and save_enhanced_profile), write_profile_json, read_profile_json (keeps the "Failed to load profile for %s" warning), list_profile_jsons (silent-skip on corrupt files preserved), build_visual_description (self-free body moved; method delegates).
+  - `services/character_visual_profile.py` (239→197L): class + all public/private method signatures unchanged; methods delegate to the I/O helpers. First pass landed at 216L — needed the list_profiles scan + build_visual_description body moved too to clear 200.
+  - Targeted: 256/256 (test_character_visual_profile, test_handlers, test_image_routes, test_services_zero_coverage); circular-import smoke OK.
+  - Gate: EXIT 0/0/0/5(expected)/0, 4653 passed (unchanged — pure refactor), coverage 72.86% = baseline (floor 70.61); character_visual_profile.py 98.96%, _visual_profile_io.py 93.51%.
+- **Stage Summary**: visual-profile store now respects the 200-line rule with the duplicated reference-image copy block collapsed into one helper. Remaining 200–250L backlog: pipeline/layer1_story/timeline_validator.py (238), services/character_visual_extractor.py (231), pipeline/layer2_enhance/_agent.py (247), services/export/branch_epub_exporter.py (248). Commit `26ac570`.
