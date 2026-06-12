@@ -183,6 +183,14 @@ class PipelineConfig:
     # default so authored pacing (SPLASH for big beats, etc.) is preserved.
     comic_layout_mode: str = "shot_list"
 
+    # Library cover image. When a story is saved to the Library the frontend
+    # requests ONE cover illustration (POST /api/images/library/generate-cover)
+    # so the bookshelf card shows art instead of the gradient placeholder.
+    # Runs through FlowKit and is therefore ALSO gated by flowkit_enabled +
+    # flowkit_project_id; failures degrade silently to the placeholder.
+    # Defaults ON because it is inert while FlowKit is off.
+    cover_image_enabled: bool = True
+
     # HuggingFace Inference API (free tier)
     hf_token: str = ""
     hf_image_model: str = "black-forest-labs/FLUX.1-schnell"

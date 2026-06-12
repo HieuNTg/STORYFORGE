@@ -256,6 +256,30 @@ class LibraryGenerateImagesRequest(BaseModel):
     only_missing: bool = True
 
 
+class GenerateCoverRequest(BaseModel):
+    """Payload for ``POST /library/generate-cover``.
+
+    Library stories live only in localStorage, so the story's identity +
+    prompt material travel in the body. ``story_id`` scopes the on-disk output
+    folder (two same-title stories must not share a cover) and seeds
+    generation so retries are idempotent.
+    """
+
+    story_id: Optional[str] = None
+    title: str
+    genre: Optional[str] = None
+    synopsis: Optional[str] = None
+
+
+class GenerateCoverResponse(BaseModel):
+    """``cover_url`` is null (HTTP 200) when the provider is disabled or the
+    upstream call failed — the cover is a nice-to-have and must never turn a
+    successful library save into a client-visible error."""
+
+    cover_url: Optional[str] = None
+    message: str = ""
+
+
 class ChapterComicStatus(BaseModel):
     chapter_number: int
     title: str = ""
@@ -731,6 +755,57 @@ async def cancel_library_job(job_id: str):
         if job.state in ("queued", "running"):
             job.cancel = True
         return _job_to_status(job)
+
+
+@router.post(
+    "/library/generate-cover",
+    response_model=GenerateCoverResponse,
+    dependencies=[_CREATE_STORIES],
+)
+async def generate_library_cover(body: GenerateCoverRequest = Body(...)):
+    """Generate ONE cover image for a Library story — awaited inline (~25–30s).
+
+    Called by the frontend right after a story is saved to the localStorage
+    Library so the bookshelf card gets art. The cover is strictly best-effort:
+    when the feature/provider is disabled or generation fails, the response is
+    a 200 with ``cover_url=null`` and the card keeps its gradient placeholder.
+
+    Declared with the other literal ``library`` routes, BEFORE
+    ``/{session_id}/generate``, so path resolution never captures ``library``
+    as a session id (FastAPI resolves routes in declaration order).
+    """
+    title = (body.title or "").strip()
+    if not title:
+        raise HTTPException(
+            status_code=400, detail="Truyện chưa có tiêu đề để tạo ảnh bìa"
+        )
+
+    in_flight_key = f"library::cover::{body.story_id or title}"
+    async with _in_flight_lock:
+        if in_flight_key in _in_flight:
+            raise HTTPException(
+                status_code=409,
+                detail="Cover generation already in progress for this story",
+            )
+        _in_flight.add(in_flight_key)
+    try:
+        from services.cover_image import generate_story_cover
+
+        url = await generate_story_cover(
+            title,
+            genre=body.genre,
+            synopsis=body.synopsis,
+            story_id=body.story_id,
+        )
+        if not url:
+            return GenerateCoverResponse(
+                cover_url=None,
+                message="Cover generation unavailable (provider disabled or failed)",
+            )
+        return GenerateCoverResponse(cover_url=url, message="ok")
+    finally:
+        async with _in_flight_lock:
+            _in_flight.discard(in_flight_key)
 
 
 @router.post(

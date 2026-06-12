@@ -889,3 +889,77 @@ def test_library_generate_consistency_profile_scoped_to_title(
     assert (tmp_path / characters_dir("T") / "Hero" / "profile.json").exists()
     _, kwargs = prompt_gen.generate_from_chapter.call_args
     assert kwargs.get("visual_profiles") == {"Hero": "FROZEN_HERO"}
+
+
+# ---------------------------------------------------------------------------
+# POST /images/library/generate-cover — best-effort story cover
+# ---------------------------------------------------------------------------
+
+
+def test_generate_cover_400_when_title_empty(client):
+    r = client.post(
+        "/images/library/generate-cover",
+        json={"story_id": "story-1", "title": "   "},
+    )
+    assert r.status_code == 400
+
+
+def test_generate_cover_returns_null_when_service_declines(client):
+    """Provider off / unconfigured must surface as 200 + cover_url=null, never
+    an error — the cover is layered on top of an already-successful save."""
+    with patch(
+        "services.cover_image.generate_story_cover", return_value=None
+    ) as gen:
+        r = client.post(
+            "/images/library/generate-cover",
+            json={"story_id": "story-1", "title": "T", "genre": "Tiên Hiệp"},
+        )
+    assert r.status_code == 200
+    assert r.json()["cover_url"] is None
+    gen.assert_awaited_once()
+
+
+def test_generate_cover_success_returns_media_url(client):
+    with patch(
+        "services.cover_image.generate_story_cover",
+        return_value="/media/story-1/images/cover.png?v=123",
+    ):
+        r = client.post(
+            "/images/library/generate-cover",
+            json={
+                "story_id": "story-1",
+                "title": "T",
+                "genre": "Đô Thị",
+                "synopsis": "s",
+            },
+        )
+    assert r.status_code == 200
+    assert r.json()["cover_url"] == "/media/story-1/images/cover.png?v=123"
+
+
+def test_generate_cover_in_flight_guard(client):
+    _in_flight.add("library::cover::story-1")
+    try:
+        r = client.post(
+            "/images/library/generate-cover",
+            json={"story_id": "story-1", "title": "T"},
+        )
+        assert r.status_code == 409
+    finally:
+        _in_flight.discard("library::cover::story-1")
+
+
+def test_cover_service_skips_when_flag_disabled():
+    """generate_story_cover honours cover_image_enabled without touching FlowKit."""
+    import asyncio
+
+    from config import ConfigManager
+    from services.cover_image import generate_story_cover
+
+    cfg = ConfigManager().pipeline
+    prev = getattr(cfg, "cover_image_enabled", True)
+    cfg.cover_image_enabled = False
+    try:
+        assert asyncio.run(generate_story_cover("T", story_id="story-1")) is None
+    finally:
+        cfg.cover_image_enabled = prev

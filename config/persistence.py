@@ -252,6 +252,7 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
                 pipeline, "comic_font", "assets/fonts/BeVietnamPro-Bold.ttf"
             ),
             "comic_layout_mode": getattr(pipeline, "comic_layout_mode", "shot_list"),
+            "cover_image_enabled": getattr(pipeline, "cover_image_enabled", True),
             "rag_index_chapters": getattr(pipeline, "rag_index_chapters", True),
             "rag_multi_query": getattr(pipeline, "rag_multi_query", True),
             "rag_per_char_queries": getattr(pipeline, "rag_per_char_queries", 3),

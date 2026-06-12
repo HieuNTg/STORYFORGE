@@ -29,6 +29,7 @@ import {
   pipelineSummaryToStory,
   type PipelineDoneSummary,
 } from "@/lib/library/story-mappers";
+import { requestStoryCover } from "@/lib/library/cover";
 
 export default function ForgePage() {
   const t = useTranslations("forge");
@@ -67,6 +68,10 @@ export default function ForgePage() {
       setSavedStoryId(story.id);
       selectStory(story.id);
       toast.success(t("save_success"), { description: story.title });
+      // AFTER the save so a slow/down image provider can never delay
+      // "tạo xong = đã có trong thư viện". On success the store patch
+      // re-renders the bookshelf card with the cover art.
+      void requestStoryCover(story);
     },
     [addStory, selectStory, t],
   );
