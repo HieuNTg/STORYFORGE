@@ -648,3 +648,16 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Moved HTML_TEMPLATE → services/export/_html_template.py (129L); moved _md_to_html, _build_chapter_nav, _build_character_cards, _safe_media_urls, _build_comic_pages_html, _build_chapters_html → services/export/_html_render.py (128L). html_exporter.py keeps HTMLExporter + re-export block → 100L. Verbatim moves.
   - Gate invocation bug (self-inflicted): first gate run launched with `*> gate_chunks_output.txt` redirect — the script writes that same file itself ($out), so every Out-File hit "file in use" and the run produced no results. Lesson: run scripts/run_gate_chunks.ps1 WITHOUT output redirection; it owns gate_chunks_output.txt. Re-ran correctly.
 - **Stage Summary**: ruff clean; targeted 95/95 (test_html_exporter, test_export_coverage, test_concurrency, test_error_paths); smoke OK; gate 4653 passed (EXIT 0/0/0/5-expected/0); coverage 72.85% = baseline (touched files 98.45–100%); files 100/128/129 lines. Shipped e3892e1.
+
+## Cycle #36 — Split middleware/rbac.py into model + dependencies
+
+- **Task ID**: 36-rbac-split
+- **Agent**: eng-loop (Claude)
+- **Task**: Bring middleware/rbac.py (258L) under the 200-line rule with zero behavior change (Serena `find_referencing_symbols` on Role + Permission: 16 api/*.py route files import Permission/require_permission_if_enabled by name; tests/test_rbac.py, test_rbac_middleware.py, test_high_impact_coverage.py import Role/Permission/ROLE_PERMISSIONS/_ROLE_ORDER/_resolve_role; only patch target is `middleware.rbac.get_current_user`, which stays put).
+- **Work Log**:
+  - New `middleware/_rbac_model.py` (79L): Role, Permission, ROLE_PERMISSIONS, _ROLE_ORDER moved verbatim.
+  - `middleware/rbac.py` (258→199L): keeps _resolve_role, get_current_user_role, require_permission, auth_required, require_permission_if_enabled, require_role; imports + re-exports the model names (`__all__` added) so all consumer import paths are unchanged.
+  - Mid-cycle process note: the baseline gate was still in CHUNK1 when the edit landed — line numbers in rbac.py shifted, which would corrupt the coverage combine. Killed that run and re-ran the gate cleanly on final code; compared against cycle #35 recorded baseline instead.
+  - Targeted: 147/147 (test_rbac, test_rbac_middleware, test_high_impact_coverage); circular-import smoke OK.
+  - Gate: EXIT 0/0/0/5(expected)/0, 4653 passed (unchanged — pure refactor), coverage 72.86% (baseline 72.85, floor 70.61); rbac.py + _rbac_model.py both 100%.
+- **Stage Summary**: rbac now respects the 200-line rule with a stable re-export surface. Remaining 200–250L backlog: api/share_routes.py (243), services/character_visual_profile.py (239), pipeline/layer1_story/timeline_validator.py (238). Commit `4496345`.
