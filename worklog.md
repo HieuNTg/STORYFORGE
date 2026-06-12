@@ -685,3 +685,15 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Targeted: 256/256 (test_character_visual_profile, test_handlers, test_image_routes, test_services_zero_coverage); circular-import smoke OK.
   - Gate: EXIT 0/0/0/5(expected)/0, 4653 passed (unchanged — pure refactor), coverage 72.86% = baseline (floor 70.61); character_visual_profile.py 98.96%, _visual_profile_io.py 93.51%.
 - **Stage Summary**: visual-profile store now respects the 200-line rule with the duplicated reference-image copy block collapsed into one helper. Remaining 200–250L backlog: pipeline/layer1_story/timeline_validator.py (238), services/character_visual_extractor.py (231), pipeline/layer2_enhance/_agent.py (247), services/export/branch_epub_exporter.py (248). Commit `26ac570`.
+
+## Cycle #39 — Split pipeline/layer1_story/timeline_validator.py into validator + model
+
+- **Task ID**: 39-timeline-validator-split
+- **Agent**: eng-loop (Claude)
+- **Task**: Bring pipeline/layer1_story/timeline_validator.py (238L) under the 200-line rule with zero behavior change. Serena MCP still disconnected — impact scan via Grep (deviation noted): only 3 files reference the module — tests/test_l1_validation_context_behavior.py imports 6 names from `pipeline.layer1_story.timeline_validator`; pipeline/layer1_story/post_processing.py defers-imports validate_chapter_timeline + create_timeline_state; no other consumers of TIME_PATTERNS/RELATIVE_TIME/TIME_ORDER/TimelineState. No patch targets in the module.
+- **Work Log**:
+  - New `pipeline/layer1_story/_timeline_model.py` (113L): TIME_PATTERNS, RELATIVE_TIME, TIME_ORDER, TimelineEvent, TimelineState, extract_time_markers, detect_time_contradiction moved verbatim.
+  - `pipeline/layer1_story/timeline_validator.py` (238→155L): keeps validate_chapter_timeline, format_timeline_warning, create_timeline_state; imports + re-exports the model names (`__all__` added) so all consumer import paths are unchanged.
+  - Targeted-test miss: first run included nonexistent tests/test_post_processing.py → "no tests ran"; post_processing coverage actually lives in test_batch_generator*.py. Re-ran with the right files: 146/146 (test_l1_validation_context_behavior, test_batch_generator, test_batch_generator_behavior); circular-import smoke OK.
+  - Gate: EXIT 0/0/0/5(expected)/0, 4653 passed (unchanged — pure refactor), coverage 72.86% = baseline (floor 70.61); _timeline_model.py 100%, timeline_validator.py 92.86%.
+- **Stage Summary**: timeline_validator now respects the 200-line rule with a stable re-export surface. Remaining 200–250L backlog: services/character_visual_extractor.py (231), pipeline/layer2_enhance/_agent.py (247), services/export/branch_epub_exporter.py (248). Commit `e9fc2ae`.
