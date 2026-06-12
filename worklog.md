@@ -697,3 +697,15 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Targeted-test miss: first run included nonexistent tests/test_post_processing.py → "no tests ran"; post_processing coverage actually lives in test_batch_generator*.py. Re-ran with the right files: 146/146 (test_l1_validation_context_behavior, test_batch_generator, test_batch_generator_behavior); circular-import smoke OK.
   - Gate: EXIT 0/0/0/5(expected)/0, 4653 passed (unchanged — pure refactor), coverage 72.86% = baseline (floor 70.61); _timeline_model.py 100%, timeline_validator.py 92.86%.
 - **Stage Summary**: timeline_validator now respects the 200-line rule with a stable re-export surface. Remaining 200–250L backlog: services/character_visual_extractor.py (231), pipeline/layer2_enhance/_agent.py (247), services/export/branch_epub_exporter.py (248). Commit `e9fc2ae`.
+
+## Cycle #40 — Split services/character_visual_extractor.py into extractor + prompts
+
+- **Task ID**: 40-visual-extractor-split
+- **Agent**: eng-loop (Claude)
+- **Task**: Bring services/character_visual_extractor.py (231L) under the 200-line rule with zero behavior change. Impact scan via Grep (Serena reconnected mid-cycle; cross-checked post-hoc with `find_referencing_symbols` — lists match): api/image_routes.py, pipeline/orchestrator_media.py, services/handlers.py all defer-import only `CharacterVisualExtractor`; tests/test_services_zero_coverage.py imports the class + `_DEFAULT_ATTRIBUTES` (line 439) and patches the class object / `__init__` (split-safe). The `services.character_visual_extractor.LLMClient` patch target in test_init_imports_llm_client is dead code behind `if False`.
+- **Work Log**:
+  - New `services/_visual_extractor_prompts.py` (143L): `_DEFAULT_ATTRIBUTES`, `_SYSTEM_PROMPT`, `_USER_PROMPT_TEMPLATE`, and the 84-line attributes→English-prompt formatter moved verbatim as `build_frozen_prompt(attributes)`.
+  - `services/character_visual_extractor.py` (231→109L): class keeps `__init__` (deferred LLMClient import preserved), `extract_attributes` (Character/ForgeCharacter or-fallback comment preserved), `generate_frozen_prompt` (signature kept; delegates to build_frozen_prompt), `extract_and_generate`, `_fallback_attributes`; re-exports `_DEFAULT_ATTRIBUTES` via `__all__` for the existing test import.
+  - Targeted: 168/168 (test_services_zero_coverage, test_image_routes); ruff clean; circular-import smoke OK.
+  - Gate: EXIT 0/0/0/5(expected)/0, 4653 passed (unchanged — pure refactor), coverage 72.87% (baseline 72.86%, within noise band; floor 70.61).
+- **Stage Summary**: visual extractor now respects the 200-line rule with prompts isolated in an internal module. Serena MCP reconnected this cycle — Serena-first navigation resumes from cycle #41. Remaining 200–250L backlog: pipeline/layer2_enhance/_agent.py (247), services/export/branch_epub_exporter.py (248), services/infra/database.py (250), pipeline/layer1_story/dialogue_attribution_validator.py (250). Commit `d23f3f1`.
