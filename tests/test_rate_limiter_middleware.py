@@ -19,7 +19,10 @@ import pytest
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-# Reset module-level globals between tests that mutate them
+# Reset module-level globals between tests that mutate them. The Redis
+# client globals live in the backends module — _get_redis reads its own
+# module's globals, so rebinding must happen there, not on the re-export.
+import middleware._rate_limit_backends as rl_backends
 import middleware.rate_limiter as rl_mod
 from middleware.rate_limiter import (
     RateLimitMiddleware,
@@ -250,8 +253,8 @@ class TestCheckRateLimitRedis:
     def setup_method(self):
         _clear_state()
         # Reset Redis state so _get_redis() is re-evaluated
-        rl_mod._redis_client = None
-        rl_mod._redis_init_attempted = False
+        rl_backends._redis_client = None
+        rl_backends._redis_init_attempted = False
 
     def test_falls_back_to_memory_when_no_redis_url(self):
         """When REDIS_URL is absent, _get_redis returns None → memory fallback."""
@@ -261,7 +264,7 @@ class TestCheckRateLimitRedis:
         assert result is True
 
     def test_falls_back_to_memory_on_redis_connection_error(self):
-        rl_mod._redis_init_attempted = False
+        rl_backends._redis_init_attempted = False
         with patch.dict("os.environ", {"REDIS_URL": "redis://localhost:6379"}):
             with patch("redis.from_url", side_effect=Exception("connection refused")):
                 result = _check_rate_limit_redis("192.0.2.2", "default")
@@ -271,8 +274,8 @@ class TestCheckRateLimitRedis:
         mock_redis = MagicMock()
         mock_redis.ping.return_value = True
         mock_redis.eval.return_value = 1  # first request
-        rl_mod._redis_client = mock_redis
-        rl_mod._redis_init_attempted = True
+        rl_backends._redis_client = mock_redis
+        rl_backends._redis_init_attempted = True
 
         with patch.dict("os.environ", {"REDIS_URL": "redis://localhost:6379"}):
             result = _check_rate_limit_redis("192.0.2.3", "default")
@@ -283,8 +286,8 @@ class TestCheckRateLimitRedis:
         mock_redis = MagicMock()
         mock_redis.ping.return_value = True
         mock_redis.eval.return_value = _LIMITS["default"] + 1
-        rl_mod._redis_client = mock_redis
-        rl_mod._redis_init_attempted = True
+        rl_backends._redis_client = mock_redis
+        rl_backends._redis_init_attempted = True
 
         with patch.dict("os.environ", {"REDIS_URL": "redis://localhost:6379"}):
             result = _check_rate_limit_redis("192.0.2.4", "default")
@@ -294,8 +297,8 @@ class TestCheckRateLimitRedis:
         mock_redis = MagicMock()
         mock_redis.ping.return_value = True
         mock_redis.eval.side_effect = Exception("NOSCRIPT")
-        rl_mod._redis_client = mock_redis
-        rl_mod._redis_init_attempted = True
+        rl_backends._redis_client = mock_redis
+        rl_backends._redis_init_attempted = True
 
         with patch.dict("os.environ", {"REDIS_URL": "redis://localhost:6379"}):
             result = _check_rate_limit_redis("192.0.2.5", "default")
@@ -310,8 +313,8 @@ class TestCheckRateLimitRedis:
 class TestRateLimitMiddlewareDispatch:
     def setup_method(self):
         _clear_state()
-        rl_mod._redis_client = None
-        rl_mod._redis_init_attempted = False
+        rl_backends._redis_client = None
+        rl_backends._redis_init_attempted = False
 
     def _make_middleware(self):
         app = AsyncMock()
