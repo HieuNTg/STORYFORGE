@@ -1,12 +1,19 @@
 """Persistent character visual profile store for consistent image generation."""
 
 import os
-import json
 import logging
 import shutil
 from typing import Optional
 from datetime import datetime
 
+from services._visual_profile_io import (
+    build_visual_description as _build_visual_description,
+    list_profile_jsons,
+    read_profile_json,
+    resolve_profile_base_dir,
+    store_reference_image,
+    write_profile_json,
+)
 from services.safe_name import safe_character_name
 
 logger = logging.getLogger(__name__)
@@ -32,19 +39,13 @@ class CharacterVisualProfileStore:
         ``output/characters`` so pre-migration data and unscoped callers keep
         working.
         """
-        if base_dir is None:
-            if story_title or story_id or session_id:
-                from services.output_paths import characters_dir
-
-                base_dir = characters_dir(
-                    story_title, story_id=story_id, session_id=session_id
-                )
-            else:
-                from services.output_paths import OUTPUT_ROOT
-
-                base_dir = os.path.join(OUTPUT_ROOT, "characters")
-        self.base_dir = base_dir
-        os.makedirs(base_dir, exist_ok=True)
+        self.base_dir = resolve_profile_base_dir(
+            base_dir,
+            story_title=story_title,
+            story_id=story_id,
+            session_id=session_id,
+        )
+        os.makedirs(self.base_dir, exist_ok=True)
 
     def _safe_name(self, name: str) -> str:
         """Filesystem-safe directory name — delegates to the shared utility.
@@ -73,21 +74,13 @@ class CharacterVisualProfileStore:
         pdir = self._profile_dir(name)
         os.makedirs(pdir, exist_ok=True)
 
-        ref_stored = ""
-        if reference_image_path and os.path.exists(reference_image_path):
-            ext = os.path.splitext(reference_image_path)[1]
-            ref_stored = os.path.join(pdir, f"reference{ext}")
-            if os.path.abspath(reference_image_path) != os.path.abspath(ref_stored):
-                shutil.copy2(reference_image_path, ref_stored)
-
         profile = {
             "name": name,
             "description": appearance_desc,
-            "reference_image": ref_stored,
+            "reference_image": store_reference_image(pdir, reference_image_path),
             "created_at": datetime.now().isoformat(),
         }
-        with open(self._profile_path(name), "w", encoding="utf-8") as f:
-            json.dump(profile, f, ensure_ascii=False, indent=2)
+        write_profile_json(self._profile_path(name), profile)
         logger.info("Saved visual profile for: %s", name)
 
     def save_enhanced_profile(
@@ -102,12 +95,7 @@ class CharacterVisualProfileStore:
         pdir = self._profile_dir(name)
         os.makedirs(pdir, exist_ok=True)
 
-        ref_stored = ""
-        if reference_image_path and os.path.exists(reference_image_path):
-            ext = os.path.splitext(reference_image_path)[1]
-            ref_stored = os.path.join(pdir, f"reference{ext}")
-            if os.path.abspath(reference_image_path) != os.path.abspath(ref_stored):
-                shutil.copy2(reference_image_path, ref_stored)
+        ref_stored = store_reference_image(pdir, reference_image_path)
 
         # Preserve existing prompt_version if profile already exists
         existing = self.load_profile(name)
@@ -133,8 +121,7 @@ class CharacterVisualProfileStore:
             else datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
         }
-        with open(self._profile_path(name), "w", encoding="utf-8") as f:
-            json.dump(profile, f, ensure_ascii=False, indent=2)
+        write_profile_json(self._profile_path(name), profile)
         logger.info(
             "Saved enhanced visual profile for: %s (prompt_version=%d)",
             name,
@@ -143,15 +130,7 @@ class CharacterVisualProfileStore:
 
     def load_profile(self, name: str) -> Optional[dict]:
         """Load character visual profile. Returns None if not found."""
-        path = self._profile_path(name)
-        if not os.path.exists(path):
-            return None
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            logger.warning("Failed to load profile for %s: %s", name, e)
-            return None
+        return read_profile_json(self._profile_path(name), name)
 
     def set_reference_image(self, name: str, image_path: str) -> bool:
         """Update only the reference_image field on an existing profile.
@@ -165,8 +144,7 @@ class CharacterVisualProfileStore:
             return False
         profile["reference_image"] = image_path
         profile["updated_at"] = datetime.now().isoformat()
-        with open(self._profile_path(name), "w", encoding="utf-8") as f:
-            json.dump(profile, f, ensure_ascii=False, indent=2)
+        write_profile_json(self._profile_path(name), profile)
         return True
 
     def get_reference_image(self, name: str) -> Optional[str]:
@@ -204,31 +182,11 @@ class CharacterVisualProfileStore:
         Uses character.appearance if available, otherwise constructs from
         name + personality. This is a simple text-based description, not LLM-generated.
         """
-        parts = []
-        if hasattr(character, "appearance") and character.appearance:
-            parts.append(character.appearance)
-        if hasattr(character, "personality") and character.personality:
-            parts.append(character.personality)
-        if not parts:
-            parts.append(
-                character.name if hasattr(character, "name") else str(character)
-            )
-        return ". ".join(parts)
+        return _build_visual_description(character)
 
     def list_profiles(self) -> list:
         """List all saved character profiles."""
-        profiles = []
-        if not os.path.exists(self.base_dir):
-            return profiles
-        for dirname in os.listdir(self.base_dir):
-            ppath = os.path.join(self.base_dir, dirname, "profile.json")
-            if os.path.exists(ppath):
-                try:
-                    with open(ppath, "r", encoding="utf-8") as f:
-                        profiles.append(json.load(f))
-                except Exception:
-                    pass
-        return profiles
+        return list_profile_jsons(self.base_dir)
 
     def delete_profile(self, name: str) -> bool:
         """Delete a character profile and its reference image."""
