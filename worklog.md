@@ -604,3 +604,13 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Both autouse-redirect `_CACHE_FILE` to tmp_path — real `data/` caches untouched.
   - Test-only, no source touched. Gate: EXIT 0/0/0/5(expected)/0, 4635 passed (+30), coverage 72.76% (was 72.25, baseline 70.61). Circular-import smoke ✓.
 - **Stage Summary**: Model-discovery layer locked. Last untested service: simulation_continue_service (179L). Commit `c3f884a`.
+
+## Cycle #32 — simulation_continue_service covered + prompt-fidelity fix
+- **Task ID**: 32-sim-continue-tests
+- **Agent**: eng-loop (Claude)
+- **Task**: Cover the last untested services/ module (Serena: single caller `api/simulation_routes.py:continue_route` via asyncio.to_thread; TranscriptTurn schema checked — id/senderId/senderName min_length=1).
+- **Work Log**:
+  - `tests/test_simulation_continue_service.py` (18 tests): `_format_chars` (name+role lines, senderName fallback, non-dict skip, cap 10, placeholder), `_format_history` (TranscriptTurn+dict mix, last-6 window, unknown types skipped, placeholder), `continue_dialogue` (validated turn with `t-cont-` id, topic/characters required, unknown sender clamped to first character with deterministic order, known sender mirrored to senderId, vi-default system prompt + language pin, non-vi swap keeps lane contract "Do NOT comment on prose style", temperature/json_mode/tier/model contract, history rendered into prompt).
+  - **Source fix (test-found bug)**: `_safe()` escaped braces in `str.format()` *arguments* — but format only parses the template, so user topics like "luật {cấm}" reached the LLM doubled as "luật {{cấm}}". Removed the escape + corrected the comment (no KeyError is possible from arguments). File 179→177 lines.
+  - Targeted lane suites: `-k "simulator or simulation"` 108 passed. Gate: EXIT 0/0/0/5(expected)/0, 4653 passed (+18), coverage 72.85% (was 72.76, baseline 70.61). Circular-import smoke ✓.
+- **Stage Summary**: Zero untested services remain in services/. Next lever: 200–250-line file splits (share_routes 243, progress_tracker 238, timeline_validator 238, rate_limiter 236) or coverage lifts. Commit `a37d07b`.
