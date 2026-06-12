@@ -1080,8 +1080,9 @@ class DramaSimulator:
                 progress_callback=progress_callback,
             )
 
-            # Đánh giá kịch tính
-            evaluation = self.evaluate_drama(round_posts)
+            # Đánh giá kịch tính — sync LLM call, offload so the event loop
+            # (uvicorn /api/health) stays responsive during the simulator phase
+            evaluation = await asyncio.to_thread(self.evaluate_drama, round_posts)
             round_drama = evaluation.get("overall_drama_score", 0.5)
 
             # Trích xuất sự kiện + liên kết nhân quả
@@ -1128,7 +1129,10 @@ class DramaSimulator:
             )
             max_esc = self._intensity.get("max_escalations", 2)
             for pattern in escalations[:max_esc]:
-                esc_event = self._apply_escalation(pattern, round_num, genre)
+                # Sync LLM call — offload off the event loop
+                esc_event = await asyncio.to_thread(
+                    self._apply_escalation, pattern, round_num, genre
+                )
                 if esc_event:
                     all_events.append(esc_event)
                     if self.causal_graph is not None:
@@ -1148,7 +1152,8 @@ class DramaSimulator:
 
         # Tạo gợi ý kịch tính
         _log("Dang tao goi y tang cuong kich tinh...")
-        suggestions_result = self._generate_suggestions(genre)
+        # Sync LLM call — offload off the event loop
+        suggestions_result = await asyncio.to_thread(self._generate_suggestions, genre)
 
         # Xây dựng dữ liệu quỹ đạo cảm xúc
         emotional_trajectories = {
