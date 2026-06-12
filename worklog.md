@@ -625,3 +625,15 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - `tests/test_rate_limiter_middleware.py`: the only semantic-sensitive consumers were the Redis-global *rebinding* sites (`_redis_client`, `_redis_init_attempted`) — `_get_redis` reads its own module globals, so those now target `middleware._rate_limit_backends` directly (mechanical rename via `rl_backends` alias).
   - Targeted: 73/73 middleware tests pass; circular-import smoke ✓. Gate: EXIT 0/0/0/5(expected)/0, 4653 passed (unchanged — pure refactor), coverage 72.86% (was 72.85, baseline 70.61).
 - **Stage Summary**: Rate limiter now respects the 200-line rule with a stable re-export surface. Remaining 200–250L files: api/share_routes.py (243), services/progress_tracker.py (238). Commit `d093498`.
+
+## Cycle #34 — Extract ProgressEvent out of services/progress_tracker.py
+- **Task ID**: 34-progress-tracker-split
+- **Agent**: eng-loop (Claude)
+- **Task**: Bring services/progress_tracker.py (238L) under the 200-line rule with zero behavior change (Serena `find_referencing_symbols` on ProgressEvent + Grep on patch points: consumers are pipeline/orchestrator_layers.py and 3 test files, all importing via services.progress_tracker; tests patch `services.progress_tracker._make_redis_client`).
+- **Work Log**:
+  - New `services/_progress_event.py` (62L): ProgressEvent dataclass (to_log_prefix/to_dict/from_dict) moved verbatim.
+  - `services/progress_tracker.py` (238→186L): keeps ProgressTracker + `_make_redis_client` + `_session_key` (patch points must stay module-local) and re-exports ProgressEvent.
+  - Note: pipeline/orchestrator.py has its OWN `_session_key`/`_make_redis_client` copies — separate system, untouched.
+  - Targeted: 339/339 (progress_tracker, services_zero_coverage, high_impact, pipeline_core, pipeline_orchestrator suites); smoke ✓.
+  - Gate run 1: 4653 passed, coverage 72.84% (-0.02 vs #33) — touched files at 100%, drop located in unrelated modules. ITERATION re-run: 4653 passed, 72.85% (missed 7438 vs 7441) → confirmed run-to-run noise band ±0.02pp, not a real regression. Baseline floor 70.61 ✓.
+- **Stage Summary**: progress_tracker now respects the 200-line rule; coverage noise band (±0.02pp) documented for future gate comparisons. Remaining 200–260L backlog: middleware/rbac.py (258), api/share_routes.py (243). Commit `49f23d1`.
