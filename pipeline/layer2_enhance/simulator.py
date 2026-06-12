@@ -248,37 +248,52 @@ class DramaSimulator:
                 logger.warning(f"CausalGraph thất bại: {e}")
                 self.causal_graph = None
 
-        # Extract psychology for each agent in parallel (non-fatal)
+        # Extract psychology for each agent in parallel (non-fatal).
+        # Inside a running event loop (production path: run_simulation_async)
+        # the sync wrapper raises RuntimeError, so extraction + thread
+        # pressure are deferred to the async caller, which awaits
+        # _extract_all_psychology_async after setup_agents returns.
         if self._psychology_engine:
             try:
-                self._extract_all_psychology(characters)
-            except Exception as e:
-                logger.warning(
-                    f"Psychology extraction thất bại, tiếp tục không có tâm lý: {e}"
+                asyncio.get_running_loop()
+            except RuntimeError:
+                # No running loop — direct sync callers (tests, scripts)
+                try:
+                    self._extract_all_psychology(characters)
+                except Exception as e:
+                    logger.warning(
+                        f"Psychology extraction thất bại, tiếp tục không có tâm lý: {e}"
+                    )
+                self._apply_thread_pressure(current_chapter)
+            else:
+                logger.debug(
+                    "setup_agents trong event loop — psychology extraction deferred sang async caller"
                 )
 
-        # Phase C: thread-urgency → psychology pressure (pure-python, non-fatal)
-        if self._psychology_engine and self.threads:
+    def _apply_thread_pressure(self, current_chapter: int) -> None:
+        """Phase C: thread-urgency → psychology pressure (pure-python, non-fatal)."""
+        if not (self._psychology_engine and self.threads):
+            return
+        try:
+            _thread_pressure_on = True
             try:
-                _thread_pressure_on = True
-                try:
-                    from config import ConfigManager as _CM
+                from config import ConfigManager as _CM
 
-                    _thread_pressure_on = bool(
-                        getattr(_CM().load().pipeline, "l2_thread_pressure", True)
+                _thread_pressure_on = bool(
+                    getattr(_CM().load().pipeline, "l2_thread_pressure", True)
+                )
+            except Exception:
+                pass
+            if _thread_pressure_on:
+                for agent in self.agents.values():
+                    psych = getattr(agent, "psychology", None)
+                    if psych is None:
+                        continue
+                    self._psychology_engine.apply_thread_pressure(
+                        psych, self.threads, current_chapter
                     )
-                except Exception:
-                    pass
-                if _thread_pressure_on:
-                    for agent in self.agents.values():
-                        psych = getattr(agent, "psychology", None)
-                        if psych is None:
-                            continue
-                        self._psychology_engine.apply_thread_pressure(
-                            psych, self.threads, current_chapter
-                        )
-            except Exception as e:
-                logger.debug(f"apply_thread_pressure failed (non-fatal): {e}")
+        except Exception as e:
+            logger.debug(f"apply_thread_pressure failed (non-fatal): {e}")
 
     async def _extract_all_psychology_async(self, characters: list[Character]) -> None:
         """Trích xuất tâm lý cho tất cả nhân vật song song (async core)."""
@@ -1022,6 +1037,18 @@ class DramaSimulator:
             conflict_web=conflict_web,
             foreshadowing_plan=foreshadowing_plan,
         )
+        # setup_agents defers psychology extraction when a loop is running
+        # (the sync wrapper would raise RuntimeError). Run it here — its LLM
+        # calls are executor-offloaded internally (run_in_executor), so the
+        # uvicorn event loop stays responsive.
+        if self._psychology_engine:
+            try:
+                await self._extract_all_psychology_async(characters)
+            except Exception as e:
+                logger.warning(
+                    f"Psychology extraction thất bại, tiếp tục không có tâm lý: {e}"
+                )
+            self._apply_thread_pressure(current_chapter)
         all_events: list[SimulationEvent] = []
         all_drama_scores: list[float] = []
 
