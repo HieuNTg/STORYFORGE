@@ -637,3 +637,14 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Targeted: 339/339 (progress_tracker, services_zero_coverage, high_impact, pipeline_core, pipeline_orchestrator suites); smoke ✓.
   - Gate run 1: 4653 passed, coverage 72.84% (-0.02 vs #33) — touched files at 100%, drop located in unrelated modules. ITERATION re-run: 4653 passed, 72.85% (missed 7438 vs 7441) → confirmed run-to-run noise band ±0.02pp, not a real regression. Baseline floor 70.61 ✓.
 - **Stage Summary**: progress_tracker now respects the 200-line rule; coverage noise band (±0.02pp) documented for future gate comparisons. Remaining 200–260L backlog: middleware/rbac.py (258), api/share_routes.py (243). Commit `49f23d1`.
+
+## Cycle #35: HTML exporter split — template + render helpers
+
+- **Task ID**: 35-html-exporter-split
+- **Agent**: eng-loop (Claude)
+- **Task**: services/export/html_exporter.py (333 raw lines) over the 200-line rule — split into internal modules with re-exports.
+- **Work Log**:
+  - Serena: get_symbols_overview + find_referencing_symbols(HTML_TEMPLATE, HTMLExporter) → HTML_TEMPLATE internal-only (line 305); HTMLExporter imported only via services/export/__init__.py; tests import via the services.html_exporter sys.modules alias (services/__init__.py line 24), all name-based, plus patch on HTMLExporter.export (class-object patch, split-safe).
+  - Moved HTML_TEMPLATE → services/export/_html_template.py (129L); moved _md_to_html, _build_chapter_nav, _build_character_cards, _safe_media_urls, _build_comic_pages_html, _build_chapters_html → services/export/_html_render.py (128L). html_exporter.py keeps HTMLExporter + re-export block → 100L. Verbatim moves.
+  - Gate invocation bug (self-inflicted): first gate run launched with `*> gate_chunks_output.txt` redirect — the script writes that same file itself ($out), so every Out-File hit "file in use" and the run produced no results. Lesson: run scripts/run_gate_chunks.ps1 WITHOUT output redirection; it owns gate_chunks_output.txt. Re-ran correctly.
+- **Stage Summary**: ruff clean; targeted 95/95 (test_html_exporter, test_export_coverage, test_concurrency, test_error_paths); smoke OK; gate 4653 passed (EXIT 0/0/0/5-expected/0); coverage 72.85% = baseline (touched files 98.45–100%); files 100/128/129 lines. Shipped e3892e1.
