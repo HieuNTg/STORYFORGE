@@ -661,3 +661,15 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Targeted: 147/147 (test_rbac, test_rbac_middleware, test_high_impact_coverage); circular-import smoke OK.
   - Gate: EXIT 0/0/0/5(expected)/0, 4653 passed (unchanged — pure refactor), coverage 72.86% (baseline 72.85, floor 70.61); rbac.py + _rbac_model.py both 100%.
 - **Stage Summary**: rbac now respects the 200-line rule with a stable re-export surface. Remaining 200–250L backlog: api/share_routes.py (243), services/character_visual_profile.py (239), pipeline/layer1_story/timeline_validator.py (238). Commit `4496345`.
+
+## Cycle #37 — Split api/share_routes.py into routes + request models
+
+- **Task ID**: 37-share-routes-split
+- **Agent**: eng-loop (Claude)
+- **Task**: Bring api/share_routes.py (243L) under the 200-line rule with zero behavior change. Serena MCP was disconnected this cycle — impact scan done via Grep instead (deviation noted): the 4 request models are referenced only inside share_routes.py (export_routes.py has its own private _Library* copies — separate system); api/__init__.py imports only `router`; tests/test_share_routes.py imports `router` and patches `api.share_routes._share_manager` only.
+- **Work Log**:
+  - New `api/_share_models.py` (90L): CreateShareRequest, LibraryCharacterPayload, LibraryChapterPayload, LibraryShareRequest moved verbatim + `build_story_draft()` (the library-payload → StoryDraft conversion incl. the /media/-only safe_images filter, lifted from create_share_from_library so the handler stays thin).
+  - `api/share_routes.py` (243→170L): keeps router, _share_manager, _SHARES_DIR/_SHARE_ID_RE validation, and all 5 handlers; create_share_from_library now calls build_story_draft(req).
+  - Targeted: 9/9 test_share_routes; circular-import smoke OK.
+  - Gate: EXIT 0/0/0/5(expected)/0, 4653 passed (unchanged — pure refactor), coverage 72.86% = baseline (floor 70.61); _share_models.py 100%, share_routes.py per-file % dropped only because the well-covered conversion moved out — total unchanged.
+- **Stage Summary**: share_routes now respects the 200-line rule. Remaining 200–250L backlog: services/character_visual_profile.py (239), pipeline/layer1_story/timeline_validator.py (238), services/character_visual_extractor.py (231). Commit `c35da79`.
