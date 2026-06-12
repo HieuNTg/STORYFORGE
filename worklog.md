@@ -614,3 +614,14 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - **Source fix (test-found bug)**: `_safe()` escaped braces in `str.format()` *arguments* — but format only parses the template, so user topics like "luật {cấm}" reached the LLM doubled as "luật {{cấm}}". Removed the escape + corrected the comment (no KeyError is possible from arguments). File 179→177 lines.
   - Targeted lane suites: `-k "simulator or simulation"` 108 passed. Gate: EXIT 0/0/0/5(expected)/0, 4653 passed (+18), coverage 72.85% (was 72.76, baseline 70.61). Circular-import smoke ✓.
 - **Stage Summary**: Zero untested services remain in services/. Next lever: 200–250-line file splits (share_routes 243, progress_tracker 238, timeline_validator 238, rate_limiter 236) or coverage lifts. Commit `a37d07b`.
+
+## Cycle #33 — Split middleware/rate_limiter.py into middleware + backends
+- **Task ID**: 33-rate-limiter-split
+- **Agent**: eng-loop (Claude)
+- **Task**: Bring middleware/rate_limiter.py (236L) under the 200-line rule with zero behavior change (Serena `find_referencing_symbols` on `_get_redis` + `_check_rate_limit_memory`: lazy callers in api/character_routes, api/forge_routes, api/simulation_routes; audit_middleware imports `_TRUSTED_PROXIES`; app.py mounts the middleware; two test files import internals).
+- **Work Log**:
+  - New `middleware/_rate_limit_backends.py` (~122L): `_LIMITS`/`_WINDOW_SECONDS`/`_MAX_MEMORY_ENTRIES` config + in-memory backend (`_lock`, `_state`, `_evict_expired_entries`, `_check_rate_limit_memory`) + Redis backend (`_get_redis`, `_REDIS_RATE_LIMIT_SCRIPT`, `_check_rate_limit_redis`) moved verbatim.
+  - `middleware/rate_limiter.py` (236→~140L): keeps `_EXPENSIVE_PREFIXES`, `_TRUSTED_PROXIES` env parsing, `_get_ip`, `_get_tier`, `RateLimitMiddleware`; re-exports every backend name so all existing import paths and in-place patch points (`_state`, `_lock`, `_LIMITS`, `_TRUSTED_PROXIES`) keep working — mutable objects are shared by reference.
+  - `tests/test_rate_limiter_middleware.py`: the only semantic-sensitive consumers were the Redis-global *rebinding* sites (`_redis_client`, `_redis_init_attempted`) — `_get_redis` reads its own module globals, so those now target `middleware._rate_limit_backends` directly (mechanical rename via `rl_backends` alias).
+  - Targeted: 73/73 middleware tests pass; circular-import smoke ✓. Gate: EXIT 0/0/0/5(expected)/0, 4653 passed (unchanged — pure refactor), coverage 72.86% (was 72.85, baseline 70.61).
+- **Stage Summary**: Rate limiter now respects the 200-line rule with a stable re-export surface. Remaining 200–250L files: api/share_routes.py (243), services/progress_tracker.py (238). Commit `d093498`.
