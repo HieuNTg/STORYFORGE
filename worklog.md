@@ -709,3 +709,16 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Targeted: 168/168 (test_services_zero_coverage, test_image_routes); ruff clean; circular-import smoke OK.
   - Gate: EXIT 0/0/0/5(expected)/0, 4653 passed (unchanged — pure refactor), coverage 72.87% (baseline 72.86%, within noise band; floor 70.61).
 - **Stage Summary**: visual extractor now respects the 200-line rule with prompts isolated in an internal module. Serena MCP reconnected this cycle — Serena-first navigation resumes from cycle #41. Remaining 200–250L backlog: pipeline/layer2_enhance/_agent.py (247), services/export/branch_epub_exporter.py (248), services/infra/database.py (250), pipeline/layer1_story/dialogue_attribution_validator.py (250). Commit `d23f3f1`.
+
+## Cycle #41 — Split pipeline/layer1_story/dialogue_attribution_validator.py into parsing + validation
+
+- **Task ID**: 41-dialogue-attr-split
+- **Agent**: eng-loop (Claude)
+- **Task**: Bring pipeline/layer1_story/dialogue_attribution_validator.py (250L) under the 200-line rule with zero behavior change. Impact scan via Serena `find_referencing_symbols` (reconnected) + cross-checked with Grep: external consumers are pipeline/layer1_story/post_processing.py (defer-imports `validate_dialogue_attribution`, `detect_rapid_exchange`) and tests/test_l1_dialogue_style_behavior.py (imports `detect_rapid_exchange`, `extract_dialogue_lines`, `format_attribution_warning`, `get_attribution_enforcement_prompt`, `validate_dialogue_attribution`). No external `DialogueLine` import; no `patch()`/`monkeypatch` targets on the module's symbols (the `DialogueLine` in pipeline/layer2_enhance/dialogue_subtext.py is an unrelated Pydantic class). Split-safe.
+- **Work Log**:
+  - New `pipeline/layer1_story/_dialogue_attribution_parsing.py` (122L): regex constants (`DIALOGUE_PATTERN`, `ATTRIBUTION_PATTERN`, `TRAILING_ATTR`), the `DialogueLine` dataclass, and `extract_dialogue_lines` + `detect_rapid_exchange` moved verbatim (pure regex/parsing, no logger needed).
+  - `dialogue_attribution_validator.py` (250→161L): keeps the LLM/validation layer (`validate_dialogue_attribution`, `format_attribution_warning`, `get_attribution_enforcement_prompt`); imports the parsing helpers from the internal module and re-exports all moved names via `__all__` so existing import paths and test imports keep working.
+  - Targeted: tests/test_l1_dialogue_style_behavior.py 79 passed / 1 skipped; ruff check + format clean; circular-import smoke OK (all 6 public names import from the validator module).
+  - Gate: EXIT 0/0/0/5(expected)/0, 4658 passed (≥ baseline 4653; +5 from intervening master work, pure refactor adds 0), coverage 72.86% (baseline 72.87%, within ±0.02pp noise band; floor 70.61%).
+- **Loop retrospective**: Smooth cycle (~30 min). Friction: `gate_chunks_output.txt` is untracked and not in `.gitignore`, so it clutters `git status` every cycle — filing as P2 loop-hygiene.
+- **Stage Summary**: dialogue attribution validator now respects the 200-line rule with regex parsing isolated in an internal module. Remaining 200–250L backlog: pipeline/layer2_enhance/_agent.py (247), services/export/branch_epub_exporter.py (248), services/infra/database.py (250). New P2: gitignore gate_chunks_output.txt. Commit `<pending>`.
