@@ -722,3 +722,16 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Gate: EXIT 0/0/0/5(expected)/0, 4658 passed (≥ baseline 4653; +5 from intervening master work, pure refactor adds 0), coverage 72.86% (baseline 72.87%, within ±0.02pp noise band; floor 70.61%).
 - **Loop retrospective**: Smooth cycle (~30 min). Friction: `gate_chunks_output.txt` is untracked and not in `.gitignore`, so it clutters `git status` every cycle — filing as P2 loop-hygiene.
 - **Stage Summary**: dialogue attribution validator now respects the 200-line rule with regex parsing isolated in an internal module. Remaining 200–250L backlog: pipeline/layer2_enhance/_agent.py (247), services/export/branch_epub_exporter.py (248), services/infra/database.py (250). New P2: gitignore gate_chunks_output.txt. Commit `56bae55`.
+
+## Cycle #42 — Split pipeline/layer2_enhance/_agent.py into state primitives + CharacterAgent
+
+- **Task ID**: 42-agent-state-split
+- **Agent**: eng-loop (Claude)
+- **Task**: Bring pipeline/layer2_enhance/_agent.py (247L) under the 200-line rule with zero behavior change. Impact scan via Serena `get_symbols_overview`/`find_symbol` + Grep cross-check: external consumers are pipeline/layer2_enhance/simulator.py (`CharacterAgent`, `TENSION_DELTAS`), tests/test_layer2_upgrade.py (`EmotionalState`, `CharacterAgent`, `TrustEdge`), tests/test_l2_signal_integration.py (`CharacterAgent`). No `patch()`/`monkeypatch` on these symbols (all test patches target the unrelated `pipeline.agents.base_agent.LLMClient`). `CharacterAgent` references `EmotionalState`/`TrustEdge` but none of the constant tables directly (all constant use is inside `EmotionalState`). Split-safe.
+- **Work Log**:
+  - New `pipeline/layer2_enhance/_agent_state.py` (133L): constant tables (`TENSION_DELTAS`, `MOOD_DRAMA`, `MOOD_TRIGGERS`) + `EmotionalState` (55L) + `TrustEdge` (31L) moved verbatim (no imports needed — pure value objects).
+  - `_agent.py` (247→143L): keeps `CharacterAgent`; imports the constants + state classes from `_agent_state` and re-exports all five moved names via `__all__` alongside `CharacterAgent` so existing imports (incl. `simulator` → `TENSION_DELTAS`) keep working.
+  - Targeted: tests/test_layer2_upgrade.py + tests/test_l2_signal_integration.py 82 passed; ruff check + format clean; smoke OK incl. `import pipeline.layer2_enhance.simulator`.
+  - Gate: EXIT 0/0/0/5(expected)/0, 4658 passed (= baseline+5 from intervening work; pure refactor adds 0), coverage 72.86% (baseline 72.87%, within ±0.02pp noise band; floor 70.61%).
+- **Loop retrospective**: Smooth (~25 min). No new friction — `gate_chunks_output.txt` now gitignored (cycle #41 chore), git status stays clean.
+- **Stage Summary**: character agent now respects the 200-line rule with emotional-state primitives isolated in an internal module. Remaining 200–250L backlog: services/export/branch_epub_exporter.py (248), services/infra/database.py (250). Commit `<pending>`.
