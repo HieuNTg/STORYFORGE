@@ -26,7 +26,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 _READ_STORIES = Depends(require_permission_if_enabled(Permission.READ_STORIES))
 _CREATE_STORIES = Depends(require_permission_if_enabled(Permission.CREATE_STORIES))
-_DELETE_ANY_STORIES = Depends(require_permission_if_enabled(Permission.DELETE_ANY_STORIES))
+_DELETE_ANY_STORIES = Depends(
+    require_permission_if_enabled(Permission.DELETE_ANY_STORIES)
+)
 
 
 def _sanitize_summary(summary: dict) -> dict:
@@ -61,13 +63,19 @@ def _drain_and_coalesce(progress_queue: "_queue.Queue", first):
     for idx, item in enumerate(batch):
         # Skip a stream frame only when an immediately-following frame is also a
         # stream frame (it carries the newer, superseding snapshot).
-        if item[0] == "stream" and idx + 1 < len(batch) and batch[idx + 1][0] == "stream":
+        if (
+            item[0] == "stream"
+            and idx + 1 < len(batch)
+            and batch[idx + 1][0] == "stream"
+        ):
             continue
         out.append(item)
     return out
 
 
-def _error_reason_from_logs(logs, fallback: str = "Pipeline thất bại. Vui lòng thử lại.") -> str:
+def _error_reason_from_logs(
+    logs, fallback: str = "Pipeline thất bại. Vui lòng thử lại."
+) -> str:
     """Best-effort extraction of the failure reason an orchestrator logged right
     before aborting with ``status="error"``.
 
@@ -86,7 +94,9 @@ def _error_reason_from_logs(logs, fallback: str = "Pipeline thất bại. Vui l�
 # asyncio.Lock: concurrent SSE requests (different sessions) may interleave
 # within the same event loop when awaiting.
 # Single dict merges orchestrator + timestamp to eliminate race conditions in reaper.
-_sessions: dict[str, tuple[PipelineOrchestrator, float, str]] = {}  # (orch, ts, client_ip)
+_sessions: dict[
+    str, tuple[PipelineOrchestrator, float, str]
+] = {}  # (orch, ts, client_ip)
 _orchestrators_lock = asyncio.Lock()
 _SESSION_TTL = 3600  # 1 hour
 _REAPER_INTERVAL = 300  # check every 5 minutes
@@ -112,7 +122,9 @@ class _OrchestratorView:
 _orchestrators = _OrchestratorView()
 
 
-async def _try_reserve_session(session_id: str, orch: "PipelineOrchestrator", client_ip: str) -> bool:
+async def _try_reserve_session(
+    session_id: str, orch: "PipelineOrchestrator", client_ip: str
+) -> bool:
     """Atomically enforce the per-IP session cap and reserve a slot.
 
     The count and the insert MUST happen under a single lock acquire. The old
@@ -129,6 +141,7 @@ async def _try_reserve_session(session_id: str, orch: "PipelineOrchestrator", cl
         _sessions[session_id] = (orch, time.time(), client_ip)
         return True
 
+
 # Active pipeline tasks — tracked for graceful shutdown.
 _active_tasks: set[asyncio.Task] = set()
 
@@ -138,11 +151,15 @@ async def _session_reaper():
         await asyncio.sleep(_REAPER_INTERVAL)
         now = time.time()
         async with _orchestrators_lock:
-            expired = [k for k, (_, ts, _ip) in _sessions.items() if now - ts > _SESSION_TTL]
+            expired = [
+                k for k, (_, ts, _ip) in _sessions.items() if now - ts > _SESSION_TTL
+            ]
             for k in expired:
                 _sessions.pop(k, None)
         if expired:
-            logger.debug(f"Session reaper evicted {len(expired)} expired orchestrator(s)")
+            logger.debug(
+                f"Session reaper evicted {len(expired)} expired orchestrator(s)"
+            )
 
 
 # Strong reference to the session reaper so asyncio's weak task ref doesn't let
@@ -204,6 +221,7 @@ async def shutdown_pipeline_tasks(timeout: int = 30):
 # bugs). `/run` and `/resume` keep their inline loops — they are already shipped
 # and tested; these are a faithful copy for the endpoints being migrated.
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def make_progress_callbacks(job: "_jobs.PipelineJob", stream_interval: float = 0.3):
     """Build `(on_progress, on_stream)` callbacks bound to a job.
@@ -282,6 +300,7 @@ async def finalize_job(
     if output is not None and output_status != "error":
         try:
             from api.pipeline_output_builder import build_output_summary
+
             safe_output = output.model_copy(deep=True)
             final_summary = build_output_summary(safe_output)
             final_summary["session_id"] = session_id
@@ -331,7 +350,9 @@ async def stream_job_events(request: Request, job: "_jobs.PipelineJob", *, label
                 return
             try:
                 first = await asyncio.to_thread(job.progress_queue.get, timeout=0.2)
-                for msg_type, msg_data in _drain_and_coalesce(job.progress_queue, first):
+                for msg_type, msg_data in _drain_and_coalesce(
+                    job.progress_queue, first
+                ):
                     event = {"type": msg_type, "data": msg_data}
                     if msg_type == "log":
                         event["logs_count"] = len(job.logs)
@@ -387,13 +408,21 @@ def _t(key, **kw):
 
 class PipelineRequest(BaseModel):
     """Request body for running the pipeline."""
+
     idea: str = Field("", max_length=20000)
     title: str = Field("", max_length=200)
     genre: str = Field("Tiên Hiệp", max_length=100)
     style: str = Field("Miêu tả chi tiết", max_length=100)
     language: str = Field("vi", max_length=10)
-    num_chapters: int = Field(5, ge=1, le=50, description="Chapters to write in this session (preview batch)")
-    target_total_chapters: Optional[int] = Field(default=None, ge=1, le=500, description="Total chapters in the full story arc; if set, num_chapters must be <= this")
+    num_chapters: int = Field(
+        5, ge=1, le=50, description="Chapters to write in this session (preview batch)"
+    )
+    target_total_chapters: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=500,
+        description="Total chapters in the full story arc; if set, num_chapters must be <= this",
+    )
     num_characters: int = Field(5, ge=1, le=30)
     word_count: int = Field(2000, ge=100, le=20000)
     num_sim_rounds: int = Field(3, ge=1, le=10)
@@ -406,7 +435,9 @@ class PipelineRequest(BaseModel):
             return v
         session = info.data.get("num_chapters")
         if session is not None and v < session:
-            raise ValueError("target_total_chapters must be >= num_chapters (preview batch fits inside the story arc)")
+            raise ValueError(
+                "target_total_chapters must be >= num_chapters (preview batch fits inside the story arc)"
+            )
         return v
 
     @field_validator("drama_level")
@@ -424,11 +455,15 @@ class PipelineRequest(BaseModel):
             )
         # Gate "climax"/"đỉnh" behind feature flag.
         from config import ConfigManager
+
         if v.strip().lower() in {"climax", "đỉnh"}:
             cfg = ConfigManager()
             if not getattr(cfg.pipeline, "enable_drama_climax", False):
-                raise ValueError("drama_level 'climax' requires enable_drama_climax=True")
+                raise ValueError(
+                    "drama_level 'climax' requires enable_drama_climax=True"
+                )
         return v
+
     enable_agents: bool = True
     enable_scoring: bool = True
     enable_media: bool = False
@@ -459,17 +494,34 @@ class PipelineRequest(BaseModel):
 
 class ResumeRequest(BaseModel):
     """Request body for resuming from checkpoint."""
+
     checkpoint: str
 
 
 def _genre_keys():
     return [
-        "genre.tien_hiep", "genre.huyen_huyen", "genre.kiem_hiep", "genre.do_thi",
-        "genre.ngon_tinh", "genre.xuyen_khong", "genre.trong_sinh", "genre.he_thong",
-        "genre.khoa_huyen", "genre.dong_nhan", "genre.lich_su", "genre.quan_su",
-        "genre.linh_di", "genre.trinh_tham", "genre.hai_huoc", "genre.vong_du",
-        "genre.di_gioi", "genre.mat_the", "genre.dien_van", "genre.cung_dau",
-        "genre.kinh_di", "genre.the_thao",
+        "genre.tien_hiep",
+        "genre.huyen_huyen",
+        "genre.kiem_hiep",
+        "genre.do_thi",
+        "genre.ngon_tinh",
+        "genre.xuyen_khong",
+        "genre.trong_sinh",
+        "genre.he_thong",
+        "genre.khoa_huyen",
+        "genre.dong_nhan",
+        "genre.lich_su",
+        "genre.quan_su",
+        "genre.linh_di",
+        "genre.trinh_tham",
+        "genre.hai_huoc",
+        "genre.vong_du",
+        "genre.di_gioi",
+        "genre.mat_the",
+        "genre.dien_van",
+        "genre.cung_dau",
+        "genre.kinh_di",
+        "genre.the_thao",
     ]
 
 
@@ -478,10 +530,16 @@ def get_genres():
     """Return genre, style, drama level, and language choices."""
     return {
         "genres": [_t(k) for k in _genre_keys()],
-        "styles": [_t(k) for k in [
-            "style.descriptive", "style.dialogue", "style.action",
-            "style.romance", "style.dark",
-        ]],
+        "styles": [
+            _t(k)
+            for k in [
+                "style.descriptive",
+                "style.dialogue",
+                "style.action",
+                "style.romance",
+                "style.dark",
+            ]
+        ],
         "drama_levels": [_t(k) for k in ["drama.low", "drama.medium", "drama.high"]],
         "languages": [
             {"code": "vi", "label": "Tiếng Việt"},
@@ -495,7 +553,9 @@ def get_templates():
     """Return story templates grouped by genre."""
     templates_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "data", "templates", "story_templates.json",
+        "data",
+        "templates",
+        "story_templates.json",
     )
     if os.path.exists(templates_path):
         try:
@@ -513,26 +573,29 @@ def get_checkpoints():
     from services.continuation_history import latest_event
     from services.resume_status import derive_resume_status
     from services.usage_history import usage_summary
+
     ckpts = PipelineOrchestrator.list_checkpoints()
     items = []
     for c in ckpts:
         resume = derive_resume_status(c)
-        items.append({
-            "label": f"{c['file']} ({c['modified']}, {c['size_kb']}KB)",
-            "path": c['file'],
-            "title": c.get('title', ''),
-            "genre": c.get('genre', ''),
-            "chapter_count": c.get('chapter_count', 0),
-            "current_layer": c.get('current_layer', 0),
-            "size_kb": c['size_kb'],
-            "modified": c['modified'],
-            "latest_continuation": latest_event(c['file']),
-            "usage_summary": usage_summary(c['file']),
-            # Piece N: resume-from-chapter affordance.
-            "interrupted": resume["interrupted"],
-            "resume_from_chapter": resume["resume_from_chapter"],
-            "target_chapters": resume["target_chapters"],
-        })
+        items.append(
+            {
+                "label": f"{c['file']} ({c['modified']}, {c['size_kb']}KB)",
+                "path": c["file"],
+                "title": c.get("title", ""),
+                "genre": c.get("genre", ""),
+                "chapter_count": c.get("chapter_count", 0),
+                "current_layer": c.get("current_layer", 0),
+                "size_kb": c["size_kb"],
+                "modified": c["modified"],
+                "latest_continuation": latest_event(c["file"]),
+                "usage_summary": usage_summary(c["file"]),
+                # Piece N: resume-from-chapter affordance.
+                "interrupted": resume["interrupted"],
+                "resume_from_chapter": resume["resume_from_chapter"],
+                "target_chapters": resume["target_chapters"],
+            }
+        )
     return {"checkpoints": items}
 
 
@@ -541,6 +604,7 @@ def get_checkpoint(filename: str):
     """Load a single checkpoint and return formatted data for the reader."""
     import pathlib
     from pipeline.orchestrator_checkpoint import find_checkpoint_path
+
     safe_name = pathlib.Path(filename).name  # strips directory components
     if not safe_name or ".." in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
@@ -553,14 +617,18 @@ def get_checkpoint(filename: str):
 
     _MAX_CHECKPOINT_BYTES = 50 * 1024 * 1024  # 50 MB
     if checkpoint_path.stat().st_size > _MAX_CHECKPOINT_BYTES:
-        raise HTTPException(status_code=413, detail="Checkpoint file too large (max 50MB)")
+        raise HTTPException(
+            status_code=413, detail="Checkpoint file too large (max 50MB)"
+        )
 
     try:
         with open(str(checkpoint_path), "r", encoding="utf-8") as f:
             data = json.load(f)
         from models.schemas import PipelineOutput
+
         output = PipelineOutput(**data)
         from api.pipeline_output_builder import build_output_summary
+
         summary = build_output_summary(output)
         summary["source"] = "library"
         summary["filename"] = safe_name
@@ -575,6 +643,7 @@ def delete_checkpoint(filename: str):
     """Delete a checkpoint file."""
     import pathlib
     from pipeline.orchestrator_checkpoint import find_checkpoint_path
+
     safe_name = pathlib.Path(filename).name
     if not safe_name or ".." in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
@@ -604,11 +673,12 @@ def list_stories(limit: int = 20, offset: int = 0, enhanced_only: bool = True):
     Returns paginated story list with total count for client-side pagination.
     """
     from pipeline.orchestrator import PipelineOrchestrator
+
     all_checkpoints = PipelineOrchestrator.list_checkpoints()
     if enhanced_only:
         all_checkpoints = [c for c in all_checkpoints if "_layer2" in c.get("file", "")]
     total = len(all_checkpoints)
-    page = all_checkpoints[offset: offset + limit]
+    page = all_checkpoints[offset : offset + limit]
     items = [
         {
             "filename": c.get("file", ""),
@@ -630,8 +700,10 @@ async def run_pipeline(request: Request, body: PipelineRequest):
     # Validate input
     idea = (body.idea or "").strip()
     if not idea or len(idea) < 10:
+
         async def _error_stream():
             yield f"data: {json.dumps({'type': 'error', 'data': 'Story idea is too short. Please enter at least 10 characters.'})}\n\n"
+
         return StreamingResponse(
             _error_stream(),
             media_type="text/event-stream",
@@ -681,7 +753,10 @@ async def run_pipeline(request: Request, body: PipelineRequest):
 
         # Apply lite mode: switch debate to 3-agent fast path (~85% fewer API calls).
         # Enabled per-request via body.lite_mode, or globally via STORYFORGE_LITE_MODE=true.
-        if body.lite_mode or os.environ.get("STORYFORGE_LITE_MODE", "").lower() in ("1", "true"):
+        if body.lite_mode or os.environ.get("STORYFORGE_LITE_MODE", "").lower() in (
+            "1",
+            "true",
+        ):
             orch.config.pipeline.debate_mode = "lite"
 
         # Apply L1 consistency flags (Phase 5)
@@ -721,7 +796,9 @@ async def run_pipeline(request: Request, body: PipelineRequest):
         # P-A/B/C: Post-enhancement features
         orch.config.pipeline.enable_sensory_polish = body.enable_sensory_polish
         orch.config.pipeline.enable_reader_simulation = body.enable_reader_simulation
-        orch.config.pipeline.enable_incremental_publish = body.enable_incremental_publish
+        orch.config.pipeline.enable_incremental_publish = (
+            body.enable_incremental_publish
+        )
         # Language setting
         orch.config.pipeline.language = body.language
 
@@ -729,8 +806,11 @@ async def run_pipeline(request: Request, body: PipelineRequest):
         story_title = body.title.strip() if body.title else ""
         if not story_title:
             try:
-                from pipeline.layer1_story.outline_builder import generate_title_from_idea
+                from pipeline.layer1_story.outline_builder import (
+                    generate_title_from_idea,
+                )
                 from services.llm_client import LLMClient
+
                 llm = LLMClient()
                 story_title = generate_title_from_idea(llm, body.genre, idea)
                 logger.info(f"Auto-generated title: {story_title}")
@@ -766,7 +846,11 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                     enable_scoring=body.enable_scoring,
                     enable_media=body.enable_media,
                 )
-                result[0] = await _pipeline_coro if inspect.isawaitable(_pipeline_coro) else _pipeline_coro
+                result[0] = (
+                    await _pipeline_coro
+                    if inspect.isawaitable(_pipeline_coro)
+                    else _pipeline_coro
+                )
             except asyncio.CancelledError:
                 logger.info(f"Pipeline task cancelled (session={session_id})")
                 was_cancelled[0] = True
@@ -789,10 +873,13 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                 final_summary = None
                 final_error = None
                 output = result[0]
-                output_status = getattr(output, "status", None) if output is not None else None
+                output_status = (
+                    getattr(output, "status", None) if output is not None else None
+                )
                 if output is not None and output_status != "error":
                     try:
                         from api.pipeline_output_builder import build_output_summary
+
                         safe_output = output.model_copy(deep=True)
                         final_summary = build_output_summary(safe_output)
                         final_summary["session_id"] = session_id
@@ -839,7 +926,9 @@ async def run_pipeline(request: Request, body: PipelineRequest):
             # so the normal path is unaffected.
             _active_tasks.discard(t)
             if t.cancelled():
-                _jobs.mark_terminal_sync(sid, error="Run was cancelled.", status="cancelled")
+                _jobs.mark_terminal_sync(
+                    sid, error="Run was cancelled.", status="cancelled"
+                )
             elif t.exception() is not None:
                 _jobs.mark_terminal_sync(sid, error="Worker crashed unexpectedly.")
             else:
@@ -874,7 +963,9 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                     # Drain everything queued, coalescing only consecutive stream
                     # snapshots; logs/errors are preserved in order (the progress
                     # UX depends on every log line being delivered).
-                    for msg_type, msg_data in _drain_and_coalesce(progress_queue, first):
+                    for msg_type, msg_data in _drain_and_coalesce(
+                        progress_queue, first
+                    ):
                         event = {"type": msg_type, "data": msg_data}
                         if msg_type == "log":
                             event["logs_count"] = len(logs)
@@ -962,7 +1053,9 @@ async def get_run_status(session_id: str, since: int = 0):
     """
     job = _jobs.get(session_id)
     if job is None:
-        raise HTTPException(status_code=404, detail="Session không tồn tại hoặc đã hết hạn.")
+        raise HTTPException(
+            status_code=404, detail="Session không tồn tại hoặc đã hết hạn."
+        )
 
     total = len(job.logs)
     # Clamp the cursor: a negative or out-of-range `since` replays from 0 rather
@@ -989,12 +1082,15 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
     # Resolve checkpoint safely — accept filename only, prevent path traversal
     import pathlib
     from pipeline.orchestrator_checkpoint import find_checkpoint_path
+
     safe_name = pathlib.Path(body.checkpoint).name  # strips any directory components
     resolved = find_checkpoint_path(safe_name) if safe_name else None
     checkpoint_path = pathlib.Path(resolved) if resolved else None
     if checkpoint_path is None:
+
         def _error_stream():
             yield f"data: {json.dumps({'type': 'error', 'data': 'Checkpoint not found.'})}\n\n"
+
         return StreamingResponse(
             _error_stream(),
             media_type="text/event-stream",
@@ -1061,10 +1157,13 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
                 final_summary = None
                 final_error = None
                 output = result[0]
-                output_status = getattr(output, "status", None) if output is not None else None
+                output_status = (
+                    getattr(output, "status", None) if output is not None else None
+                )
                 if output is not None and output_status != "error":
                     try:
                         from api.pipeline_output_builder import build_output_summary
+
                         safe_output = output.model_copy(deep=True)
                         final_summary = build_output_summary(safe_output)
                         final_summary["session_id"] = session_id
@@ -1101,7 +1200,9 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
             # finally never ran. No-ops when the job is already terminal.
             _active_tasks.discard(t)
             if t.cancelled():
-                _jobs.mark_terminal_sync(sid, error="Resume was cancelled.", status="cancelled")
+                _jobs.mark_terminal_sync(
+                    sid, error="Resume was cancelled.", status="cancelled"
+                )
             elif t.exception() is not None:
                 _jobs.mark_terminal_sync(sid, error="Worker crashed unexpectedly.")
             else:
@@ -1128,7 +1229,9 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
                     first = await asyncio.to_thread(progress_queue.get, timeout=0.2)
                     # Same lossless drain as /run: coalesce consecutive stream
                     # snapshots, never drop log/error frames.
-                    for msg_type, msg_data in _drain_and_coalesce(progress_queue, first):
+                    for msg_type, msg_data in _drain_and_coalesce(
+                        progress_queue, first
+                    ):
                         event = {"type": msg_type, "data": msg_data}
                         if msg_type == "log":
                             event["logs_count"] = len(logs)
@@ -1169,7 +1272,9 @@ async def resume_pipeline(request: Request, body: ResumeRequest):
         except (ConnectionError, ConnectionResetError):
             logger.info(f"SSE /resume client connection lost (session={session_id})")
         except (ValueError, TypeError) as e:
-            logger.warning(f"SSE /resume serialization error (session={session_id}): {e}")
+            logger.warning(
+                f"SSE /resume serialization error (session={session_id}): {e}"
+            )
         except Exception:
             logger.exception(f"SSE /resume unexpected error (session={session_id})")
             raise

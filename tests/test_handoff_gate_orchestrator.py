@@ -53,9 +53,7 @@ def test_gate_default_mode_returns_envelope_with_warnings(monkeypatch, caplog):
     out = enforce_handoff(rehydrated)
 
     assert out is rehydrated
-    health_payload = {
-        sig: h.model_dump() for sig, h in out.signal_health.items()
-    }
+    health_payload = {sig: h.model_dump() for sig, h in out.signal_health.items()}
     assert health_payload["conflict_web"]["status"] == "extraction_failed"
     assert any("handoff_degraded" in rec.message for rec in caplog.records)
 

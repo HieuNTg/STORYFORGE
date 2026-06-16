@@ -15,8 +15,11 @@ from pipeline.layer2_enhance.contract_gate import (
 
 def _ch(num=1, content="", summary=None, contract=None):
     ch = Chapter(
-        chapter_number=num, title=f"C{num}", content=content,
-        word_count=len(content.split()), structured_summary=summary,
+        chapter_number=num,
+        title=f"C{num}",
+        content=content,
+        word_count=len(content.split()),
+        structured_summary=summary,
     )
     if contract is not None:
         ch.contract = contract
@@ -25,9 +28,13 @@ def _ch(num=1, content="", summary=None, contract=None):
 
 def _thread(tid, urgency=5, involved=("A",), status="open"):
     return PlotThread(
-        thread_id=tid, description="d", planted_chapter=1,
-        status=status, involved_characters=list(involved),
-        last_mentioned_chapter=1, urgency=urgency,
+        thread_id=tid,
+        description="d",
+        planted_chapter=1,
+        status=status,
+        involved_characters=list(involved),
+        last_mentioned_chapter=1,
+        urgency=urgency,
     )
 
 
@@ -62,11 +69,15 @@ def test_verify_must_plant_seeds_missing_is_warning():
 
 
 def test_must_advance_threads_urgency_gte_4_is_critical():
-    contract = ChapterContract(chapter_number=1, must_advance_threads=["thread_revenge"])
+    contract = ChapterContract(
+        chapter_number=1, must_advance_threads=["thread_revenge"]
+    )
     ch = _ch(content="Nội dung không liên quan.")
     threads = [_thread("thread_revenge", urgency=5)]
     fails = verify_contract(ch, contract, threads)
-    assert any(f.field == "must_advance_threads" and f.severity == "critical" for f in fails)
+    assert any(
+        f.field == "must_advance_threads" and f.severity == "critical" for f in fails
+    )
 
 
 def test_must_advance_threads_low_urgency_is_warning():
@@ -74,11 +85,15 @@ def test_must_advance_threads_low_urgency_is_warning():
     ch = _ch(content="Không đề cập.")
     threads = [_thread("thread_minor", urgency=2)]
     fails = verify_contract(ch, contract, threads)
-    assert any(f.field == "must_advance_threads" and f.severity == "warning" for f in fails)
+    assert any(
+        f.field == "must_advance_threads" and f.severity == "warning" for f in fails
+    )
 
 
 def test_must_advance_threads_satisfied_via_structured_summary():
-    contract = ChapterContract(chapter_number=1, must_advance_threads=["thread_revenge"])
+    contract = ChapterContract(
+        chapter_number=1, must_advance_threads=["thread_revenge"]
+    )
     summary = StructuredSummary(threads_advanced=["thread_revenge"])
     ch = _ch(content="x", summary=summary)
     threads = [_thread("thread_revenge", urgency=5)]
@@ -86,7 +101,9 @@ def test_must_advance_threads_satisfied_via_structured_summary():
 
 
 def test_must_advance_threads_satisfied_via_content_fallback():
-    contract = ChapterContract(chapter_number=1, must_advance_threads=["thread_revenge"])
+    contract = ChapterContract(
+        chapter_number=1, must_advance_threads=["thread_revenge"]
+    )
     ch = _ch(content="Kế hoạch revenge đang tiến triển.")
     threads = [_thread("thread_revenge", urgency=5)]
     assert verify_contract(ch, contract, threads) == []
@@ -174,7 +191,9 @@ def test_enforce_gate_reverts_when_rewrite_regresses():
         must_mention_characters=["Lan", "Bình"],
         must_payoff=["bí mật", "kho báu"],
     )
-    ch = _ch(content="Lan nói về kho báu.")  # partial: has Lan + kho báu (1 crit miss: Bình + bí mật = 2 miss pre)
+    ch = _ch(
+        content="Lan nói về kho báu."
+    )  # partial: has Lan + kho báu (1 crit miss: Bình + bí mật = 2 miss pre)
     fails = verify_contract(ch, contract)
     pre_crit = sum(1 for f in fails if f.severity == "critical")
     assert pre_crit >= 2

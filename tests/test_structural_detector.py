@@ -10,8 +10,6 @@ required to run this suite.
 
 from __future__ import annotations
 
-import os
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -27,6 +25,7 @@ from models.semantic_schemas import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_chapter(number: int = 1, content: str = "Nội dung chương bình thường."):
     ch = MagicMock()
     ch.chapter_number = number
@@ -41,6 +40,7 @@ def _make_contract(
     ch_num: int = 1,
 ):
     from models.handoff_schemas import NegotiatedChapterContract
+
     return NegotiatedChapterContract(
         chapter_num=ch_num,
         pacing_type=pacing_type,
@@ -65,12 +65,14 @@ def _unit_vec(dim: int = 4, seed: int = 0) -> np.ndarray:
 
 def _vec_bytes(v: np.ndarray) -> bytes:
     from services.embedding_service import vec_to_bytes
+
     return vec_to_bytes(v)
 
 
 # ---------------------------------------------------------------------------
 # Mock factories
 # ---------------------------------------------------------------------------
+
 
 def _mock_ner_service(persons: set[str]):
     """Return a mock NERService that always returns *persons*."""
@@ -114,32 +116,45 @@ def _mock_emb_unavailable():
 # Tests: MISSING_CHARACTER
 # ---------------------------------------------------------------------------
 
+
 class TestMissingCharacter:
     def test_all_present_via_ner_no_finding(self):
         """NER finds all must-mention chars → no findings."""
         ch = _make_chapter(content="Nguyễn Long và Minh đang chiến đấu.")
         contract = _make_contract(must_mention=["Nguyễn Long", "Minh"])
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service({"Nguyễn Long", "Minh"})),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_unavailable()),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service({"Nguyễn Long", "Minh"}),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_unavailable(),
+            ),
         ):
             from pipeline.semantic.structural_detector import detect_structural_issues
+
             findings = detect_structural_issues(ch, contract, [])
-        assert all(f.finding_type != StructuralFindingType.MISSING_CHARACTER for f in findings)
+        assert all(
+            f.finding_type != StructuralFindingType.MISSING_CHARACTER for f in findings
+        )
 
     def test_missing_one_character_is_critical(self):
         """One must-mention character absent → MISSING_CHARACTER severity=critical."""
         ch = _make_chapter(content="Đây là chương không nhắc đến ai.")
         contract = _make_contract(must_mention=["Nguyễn Long"])
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service(set())),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_unavailable()),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service(set()),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_unavailable(),
+            ),
         ):
             from pipeline.semantic.structural_detector import detect_structural_issues
+
             findings = detect_structural_issues(ch, contract, [])
         assert len(findings) == 1
         f = findings[0]
@@ -152,30 +167,46 @@ class TestMissingCharacter:
         ch = _make_chapter(content="Trong đêm tối, Long bước ra sân.")
         contract = _make_contract(must_mention=["Long"])
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service(set())),  # NER returns nothing
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_unavailable()),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service(set()),
+            ),  # NER returns nothing
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_unavailable(),
+            ),
         ):
             from pipeline.semantic.structural_detector import detect_structural_issues
+
             findings = detect_structural_issues(ch, contract, [])
         # Should find via substring fallback — no MISSING_CHARACTER finding
-        assert all(f.finding_type != StructuralFindingType.MISSING_CHARACTER for f in findings)
+        assert all(
+            f.finding_type != StructuralFindingType.MISSING_CHARACTER for f in findings
+        )
 
     def test_substring_word_boundary_does_not_match_partial(self):
         """'Long' should NOT match 'Long-form' due to word-boundary check."""
         ch = _make_chapter(content="Đây là một bài viết Long-form về triết học.")
         contract = _make_contract(must_mention=["Long"])
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service(set())),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_unavailable()),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service(set()),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_unavailable(),
+            ),
         ):
             from pipeline.semantic.structural_detector import detect_structural_issues
+
             findings = detect_structural_issues(ch, contract, [])
         # "Long" inside "Long-form" should NOT satisfy the check
-        missing = [f for f in findings if f.finding_type == StructuralFindingType.MISSING_CHARACTER]
+        missing = [
+            f
+            for f in findings
+            if f.finding_type == StructuralFindingType.MISSING_CHARACTER
+        ]
         assert len(missing) == 1
 
     def test_vietnamese_full_name_via_ner(self):
@@ -183,33 +214,48 @@ class TestMissingCharacter:
         ch = _make_chapter(content="Nguyễn Long đứng trước cửa nhà.")
         contract = _make_contract(must_mention=["Nguyễn Long"])
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service({"Nguyễn Long"})),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_unavailable()),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service({"Nguyễn Long"}),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_unavailable(),
+            ),
         ):
             from pipeline.semantic.structural_detector import detect_structural_issues
+
             findings = detect_structural_issues(ch, contract, [])
-        assert not any(f.finding_type == StructuralFindingType.MISSING_CHARACTER for f in findings)
+        assert not any(
+            f.finding_type == StructuralFindingType.MISSING_CHARACTER for f in findings
+        )
 
     def test_vietnamese_surname_only_fallback(self):
         """'Long' (first name only) found via substring when full name contract uses 'Long'."""
         ch = _make_chapter(content="Long cười và gật đầu.")
         contract = _make_contract(must_mention=["Long"])
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service(set())),  # NER misses bare first name
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_unavailable()),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service(set()),
+            ),  # NER misses bare first name
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_unavailable(),
+            ),
         ):
             from pipeline.semantic.structural_detector import detect_structural_issues
+
             findings = detect_structural_issues(ch, contract, [])
-        assert not any(f.finding_type == StructuralFindingType.MISSING_CHARACTER for f in findings)
+        assert not any(
+            f.finding_type == StructuralFindingType.MISSING_CHARACTER for f in findings
+        )
 
 
 # ---------------------------------------------------------------------------
 # Tests: DROPPED_THREAD (embedding)
 # ---------------------------------------------------------------------------
+
 
 class TestDroppedThread:
     def test_high_sim_thread_not_flagged(self):
@@ -224,15 +270,24 @@ class TestDroppedThread:
         text_to_vec = {thread_label: shared_vec, span: shared_vec}
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service(set())),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_service(text_to_vec)),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service(set()),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_service(text_to_vec),
+            ),
         ):
             from pipeline.semantic import structural_detector as sd
+
             # Reload to pick up mock
-            findings = sd.detect_structural_issues(ch, contract, [], thread_threshold=0.50)
-        assert not any(f.finding_type == StructuralFindingType.MISSING_KEY_EVENT for f in findings)
+            findings = sd.detect_structural_issues(
+                ch, contract, [], thread_threshold=0.50
+            )
+        assert not any(
+            f.finding_type == StructuralFindingType.MISSING_KEY_EVENT for f in findings
+        )
 
     def test_low_sim_thread_flagged(self):
         """Thread label embeds far from chapter spans → MISSING_KEY_EVENT finding."""
@@ -251,14 +306,25 @@ class TestDroppedThread:
         text_to_vec = {thread_label: vec_thread, span: vec_span}
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service(set())),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_service(text_to_vec)),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service(set()),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_service(text_to_vec),
+            ),
         ):
             from pipeline.semantic import structural_detector as sd
-            findings = sd.detect_structural_issues(ch, contract, [], thread_threshold=0.50)
-        dropped = [f for f in findings if f.finding_type == StructuralFindingType.MISSING_KEY_EVENT]
+
+            findings = sd.detect_structural_issues(
+                ch, contract, [], thread_threshold=0.50
+            )
+        dropped = [
+            f
+            for f in findings
+            if f.finding_type == StructuralFindingType.MISSING_KEY_EVENT
+        ]
         assert len(dropped) >= 1
 
     def test_empty_threads_no_embedding_call(self):
@@ -268,13 +334,20 @@ class TestDroppedThread:
         mock_emb = _mock_emb_service()
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service(set())),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=mock_emb),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service(set()),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=mock_emb,
+            ),
         ):
             from pipeline.semantic import structural_detector as sd
-            findings = sd.detect_structural_issues(ch, contract, [], thread_threshold=0.50)
+
+            findings = sd.detect_structural_issues(
+                ch, contract, [], thread_threshold=0.50
+            )
         mock_emb.embed_batch.assert_not_called()
         assert findings == []
 
@@ -284,20 +357,30 @@ class TestDroppedThread:
         contract = _make_contract(threads=["revenge plot"])
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service(set())),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_unavailable()),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service(set()),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_unavailable(),
+            ),
         ):
             from pipeline.semantic import structural_detector as sd
-            findings = sd.detect_structural_issues(ch, contract, [], thread_threshold=0.50)
+
+            findings = sd.detect_structural_issues(
+                ch, contract, [], thread_threshold=0.50
+            )
         # No thread findings (skipped), no crash
-        assert not any(f.finding_type == StructuralFindingType.MISSING_KEY_EVENT for f in findings)
+        assert not any(
+            f.finding_type == StructuralFindingType.MISSING_KEY_EVENT for f in findings
+        )
 
 
 # ---------------------------------------------------------------------------
 # Tests: DANGLING_REFERENCE
 # ---------------------------------------------------------------------------
+
 
 class TestDanglingReference:
     def test_unknown_person_is_dangling(self):
@@ -307,15 +390,21 @@ class TestDanglingReference:
         characters = [_make_character("Minh"), _make_character("Lan")]
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service({"Hoàng"})),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_unavailable()),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service({"Hoàng"}),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_unavailable(),
+            ),
         ):
             from pipeline.semantic import structural_detector as sd
+
             findings = sd.detect_structural_issues(ch, contract, characters)
         dangling = [
-            f for f in findings
+            f
+            for f in findings
             if f.finding_type == StructuralFindingType.MISSING_CHARACTER
             and "Dangling" in f.description
         ]
@@ -328,12 +417,17 @@ class TestDanglingReference:
         characters = [_make_character("Minh")]
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service({"Minh"})),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_unavailable()),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service({"Minh"}),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_unavailable(),
+            ),
         ):
             from pipeline.semantic import structural_detector as sd
+
             findings = sd.detect_structural_issues(ch, contract, characters)
         dangling = [f for f in findings if "Dangling" in f.description]
         assert dangling == []
@@ -344,12 +438,17 @@ class TestDanglingReference:
         contract = _make_contract()
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_unavailable()),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_unavailable()),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_unavailable(),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_unavailable(),
+            ),
         ):
             from pipeline.semantic import structural_detector as sd
+
             findings = sd.detect_structural_issues(ch, contract, [])
         assert findings == []
 
@@ -357,6 +456,7 @@ class TestDanglingReference:
 # ---------------------------------------------------------------------------
 # Tests: Strict mode
 # ---------------------------------------------------------------------------
+
 
 class TestStrictMode:
     def test_critical_finding_raises_in_strict_mode(self, monkeypatch):
@@ -366,13 +466,18 @@ class TestStrictMode:
         contract = _make_contract(must_mention=["Bí Ẩn"])
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service(set())),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_unavailable()),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service(set()),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_unavailable(),
+            ),
         ):
             from pipeline.semantic import structural_detector as sd
             from pipeline.semantic import SemanticVerificationError
+
             with pytest.raises(SemanticVerificationError) as exc_info:
                 sd.detect_structural_issues(ch, contract, [])
         assert exc_info.value.critical_findings
@@ -384,12 +489,17 @@ class TestStrictMode:
         contract = _make_contract()
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service(set())),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_unavailable()),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service(set()),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_unavailable(),
+            ),
         ):
             from pipeline.semantic import structural_detector as sd
+
             findings = sd.detect_structural_issues(ch, contract, [])
         # Should not raise
         assert isinstance(findings, list)
@@ -401,12 +511,17 @@ class TestStrictMode:
         contract = _make_contract(must_mention=["Nhân Vật Quan Trọng"])
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service(set())),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_unavailable()),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service(set()),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_unavailable(),
+            ),
         ):
             from pipeline.semantic import structural_detector as sd
+
             findings = sd.detect_structural_issues(ch, contract, [])
         assert len(findings) == 1
         assert findings[0].severity >= 0.80
@@ -416,12 +531,14 @@ class TestStrictMode:
 # Tests: Sprint 3 P7 regression — legacy adapter removed
 # ---------------------------------------------------------------------------
 
+
 class TestLegacyAdapterRemoved:
     """Sprint 3 P7: StructuralIssue dataclass + to_legacy_issue() are gone."""
 
     def test_structural_issue_not_importable(self):
         """StructuralIssue must no longer be importable from legacy module (P7)."""
         import pipeline.layer2_enhance.structural_detector as legacy_mod
+
         assert not hasattr(legacy_mod, "StructuralIssue"), (
             "StructuralIssue dataclass should have been removed in Sprint 3 P7"
         )
@@ -429,6 +546,7 @@ class TestLegacyAdapterRemoved:
     def test_structural_issue_type_not_importable(self):
         """StructuralIssueType enum must no longer be importable from legacy module (P7)."""
         import pipeline.layer2_enhance.structural_detector as legacy_mod
+
         assert not hasattr(legacy_mod, "StructuralIssueType"), (
             "StructuralIssueType enum should have been removed in Sprint 3 P7"
         )
@@ -444,12 +562,17 @@ class TestLegacyAdapterRemoved:
         ch = _make_chapter(content="Không có ai trong chương này.")
         contract = _make_contract(must_mention=["Nhân Vật"])
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service(set())),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_unavailable()),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service(set()),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_unavailable(),
+            ),
         ):
             from pipeline.semantic.structural_detector import detect_structural_issues
+
             findings = detect_structural_issues(ch, contract, [])
         assert all(isinstance(f, StructuralFinding) for f in findings)
 
@@ -458,6 +581,7 @@ class TestLegacyAdapterRemoved:
 # Tests: No-op / edge cases
 # ---------------------------------------------------------------------------
 
+
 class TestEdgeCases:
     def test_empty_content_chapter(self):
         """Chapter with empty content does not raise."""
@@ -465,15 +589,24 @@ class TestEdgeCases:
         contract = _make_contract(must_mention=["Minh"])
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service(set())),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_unavailable()),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service(set()),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_unavailable(),
+            ),
         ):
             from pipeline.semantic import structural_detector as sd
+
             findings = sd.detect_structural_issues(ch, contract, [])
         # Missing character should be flagged even on empty content
-        missing = [f for f in findings if f.finding_type == StructuralFindingType.MISSING_CHARACTER]
+        missing = [
+            f
+            for f in findings
+            if f.finding_type == StructuralFindingType.MISSING_CHARACTER
+        ]
         assert len(missing) == 1
 
     def test_none_content_safe(self):
@@ -484,12 +617,17 @@ class TestEdgeCases:
         contract = _make_contract()
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service(set())),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_unavailable()),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service(set()),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_unavailable(),
+            ),
         ):
             from pipeline.semantic import structural_detector as sd
+
             findings = sd.detect_structural_issues(ch, contract, [])
         assert isinstance(findings, list)
 
@@ -499,12 +637,77 @@ class TestEdgeCases:
         contract = _make_contract(must_mention=[])
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service",
-                  return_value=_mock_ner_service(set())),
-            patch("pipeline.semantic.structural_detector.get_embedding_service",
-                  return_value=_mock_emb_unavailable()),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=_mock_ner_service(set()),
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=_mock_emb_unavailable(),
+            ),
         ):
             from pipeline.semantic import structural_detector as sd
+
             findings = sd.detect_structural_issues(ch, contract, [])
-        missing = [f for f in findings if f.finding_type == StructuralFindingType.MISSING_CHARACTER]
+        missing = [
+            f
+            for f in findings
+            if f.finding_type == StructuralFindingType.MISSING_CHARACTER
+        ]
         assert missing == []
+
+
+class TestCanonicalNamesPlainStrings:
+    def test_accepts_plain_strings_and_drops_empties(self):
+        """A characters list may hold raw strings; they are NFC-normalised,
+        stripped, and empty entries dropped."""
+        from pipeline.semantic.structural_detector import _canonical_names
+
+        assert _canonical_names(["  Lý Huyền ", ""]) == ["Lý Huyền"]
+
+
+class TestCheckDroppedThreadsGuards:
+    def test_no_threads_returns_empty(self):
+        """No threads to advance -> nothing to check."""
+        from pipeline.semantic.structural_detector import _check_dropped_threads
+
+        assert _check_dropped_threads("nội dung", 1, [], 0.6, None) == []
+
+    def test_empty_chapter_drops_all_threads(self):
+        """An empty chapter yields one MISSING_KEY_EVENT finding per thread."""
+        from pipeline.semantic.structural_detector import _check_dropped_threads
+
+        findings = _check_dropped_threads("", 3, ["Long báo thù"], 0.6, None)
+        assert len(findings) == 1
+        assert findings[0].chapter_num == 3
+        assert "Long báo thù" in findings[0].description
+        assert findings[0].confidence == 1.0
+
+    def test_unavailable_embedder_skips_check(self):
+        """Without an embedder the thread check is skipped entirely."""
+        from pipeline.semantic.structural_detector import _check_dropped_threads
+
+        class _DeadSvc:
+            def is_available(self):
+                return False
+
+        findings = _check_dropped_threads(
+            "Một đoạn văn đủ dài để tách thành span.",
+            1,
+            ["Long báo thù"],
+            0.6,
+            _DeadSvc(),
+        )
+        assert findings == []
+
+
+class TestCheckDanglingReferencesThreadMention:
+    def test_entity_named_in_thread_label_is_not_dangling(self):
+        """A PERSON entity absent from the cast but present in a thread label
+        is not flagged."""
+        from pipeline.semantic.structural_detector import _check_dangling_references
+
+        findings = _check_dangling_references(
+            1, {"Phong"}, ["Lý Huyền"], ["bí mật thân thế của Phong"]
+        )
+        assert findings == []

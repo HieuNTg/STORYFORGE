@@ -1,4 +1,5 @@
 """Coverage tests for dashboard API routes."""
+
 from __future__ import annotations
 
 import json
@@ -15,6 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 try:
     from fastapi.testclient import TestClient
     from fastapi import FastAPI
+
     _HAS_FASTAPI = True
 except ImportError:
     _HAS_FASTAPI = False
@@ -23,8 +25,10 @@ except ImportError:
 def _make_client():
     # Reset cached HTML so tests are isolated
     import api.dashboard_routes as dr
+
     dr._DASHBOARD_CACHE = None
     from api.dashboard_routes import router
+
     app = FastAPI()
     app.include_router(router)
     return TestClient(app, raise_server_exceptions=False)
@@ -68,8 +72,7 @@ class TestDashboardSummary:
 
     def test_summary_llm_counts(self):
         prom_text = (
-            'llm_requests_total{model="gpt4"} 50\n'
-            'llm_errors_total{model="gpt4"} 3\n'
+            'llm_requests_total{model="gpt4"} 50\nllm_errors_total{model="gpt4"} 3\n'
         )
         with patch("services.metrics.format_metrics", return_value=prom_text):
             resp = self.client.get("/dashboard/summary")
@@ -107,6 +110,7 @@ class TestDashboardTestTimings:
 
     def test_timings_no_file_returns_empty(self):
         import api.dashboard_routes as dr
+
         orig = dr._TIMINGS_PATH
         dr._TIMINGS_PATH = Path("/nonexistent/timings.json")
         try:
@@ -121,6 +125,7 @@ class TestDashboardTestTimings:
 
     def test_timings_with_data(self):
         import api.dashboard_routes as dr
+
         sample = {
             "timestamp": 1000.0,
             "total_duration": 60.0,
@@ -149,7 +154,11 @@ class TestDashboardTestTimings:
 
     def test_timings_pagination(self):
         import api.dashboard_routes as dr
-        tests = [{"name": f"test_{i}", "duration": float(i), "status": "passed"} for i in range(10)]
+
+        tests = [
+            {"name": f"test_{i}", "duration": float(i), "status": "passed"}
+            for i in range(10)
+        ]
         sample = {"timestamp": 1.0, "total_duration": 10.0, "tests": tests}
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".json", delete=False, encoding="utf-8"
@@ -171,6 +180,7 @@ class TestDashboardTestTimings:
 
     def test_timings_invalid_json_returns_empty(self):
         import api.dashboard_routes as dr
+
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".json", delete=False, encoding="utf-8"
         ) as f:
@@ -198,6 +208,7 @@ class TestDashboardHTML:
 
     def test_serve_dashboard_returns_html(self):
         import api.dashboard_routes as dr
+
         orig_path = dr._DASHBOARD_PATH
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".html", delete=False, encoding="utf-8"
@@ -218,6 +229,7 @@ class TestDashboardHTML:
     def test_serve_dashboard_caches_html(self):
         """Second request uses cached content."""
         import api.dashboard_routes as dr
+
         dr._DASHBOARD_CACHE = "<html>Cached</html>"
         try:
             resp = self.client.get("/dashboard")
@@ -233,16 +245,19 @@ class TestParsePrometheus:
 
     def test_plain_metric(self):
         from api.dashboard_routes import _parse_prometheus
+
         result = _parse_prometheus("active_pipelines 3\n")
         assert result["active_pipelines"] == 3.0
 
     def test_labeled_metric(self):
         from api.dashboard_routes import _parse_prometheus
+
         result = _parse_prometheus('pipeline_runs_total{status="success"} 7\n')
         assert result['pipeline_runs_total{status="success"}'] == 7.0
 
     def test_skips_comments_and_blanks(self):
         from api.dashboard_routes import _parse_prometheus
+
         text = "# comment\n\nactive_pipelines 1\n"
         result = _parse_prometheus(text)
         assert "active_pipelines" in result
@@ -250,5 +265,6 @@ class TestParsePrometheus:
 
     def test_scientific_notation(self):
         from api.dashboard_routes import _parse_prometheus
+
         result = _parse_prometheus("some_metric 1.5e+2\n")
         assert result["some_metric"] == pytest.approx(150.0)

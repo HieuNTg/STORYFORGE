@@ -18,12 +18,18 @@ GOLDEN_TO_SCORER: dict[str, str] = {
 DIMENSIONS = list(GOLDEN_TO_SCORER.keys())
 
 # Weights for overall score
-_WEIGHTS = {"coherence": 0.3, "character_depth": 0.25, "drama_intensity": 0.25, "writing_quality": 0.2}
+_WEIGHTS = {
+    "coherence": 0.3,
+    "character_depth": 0.25,
+    "drama_intensity": 0.25,
+    "writing_quality": 0.2,
+}
 
 
 # ---------------------------------------------------------------------------
 # Statistics
 # ---------------------------------------------------------------------------
+
 
 def pearson(xs: list[float], ys: list[float]) -> float:
     """Pearson correlation; returns 0.0 for degenerate input."""
@@ -63,6 +69,7 @@ def distribution(scores: list[float]) -> dict[str, int]:
 # Mock scorer
 # ---------------------------------------------------------------------------
 
+
 def mock_score(example: dict[str, Any]) -> dict[str, float]:
     """Deterministic pseudo-score: adds slight positive bias for test coverage."""
     h = example["human_scores"]
@@ -77,6 +84,7 @@ def mock_score(example: dict[str, Any]) -> dict[str, float]:
 # ---------------------------------------------------------------------------
 # Core evaluation
 # ---------------------------------------------------------------------------
+
 
 def evaluate(
     examples: list[dict[str, Any]],
@@ -117,14 +125,16 @@ def evaluate(
         llm_overall.append(round(lv_overall, 4))
         human_overall.append(float(ex["human_overall"]))
 
-        per_example.append({
-            "id": ex["id"],
-            "genre": ex["genre"],
-            "llm_scores": ex_llm,
-            "human_scores": {k: float(human[k]) for k in DIMENSIONS},
-            "llm_overall": round(lv_overall, 4),
-            "human_overall": float(ex["human_overall"]),
-        })
+        per_example.append(
+            {
+                "id": ex["id"],
+                "genre": ex["genre"],
+                "llm_scores": ex_llm,
+                "human_scores": {k: float(human[k]) for k in DIMENSIONS},
+                "llm_overall": round(lv_overall, 4),
+                "human_overall": float(ex["human_overall"]),
+            }
+        )
 
     dim_metrics: dict[str, dict[str, float]] = {
         dim: {

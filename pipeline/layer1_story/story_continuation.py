@@ -47,29 +47,36 @@ def renumber_chapters(draft: StoryDraft, from_position: int, delta: int = 1) -> 
             event.chapter_number += delta
 
     # Update foreshadowing plant/payoff chapters
-    foreshadowing = getattr(draft, 'foreshadowing_plan', None) or []
+    foreshadowing = getattr(draft, "foreshadowing_plan", None) or []
     for f in foreshadowing:
-        if hasattr(f, 'plant_chapter') and f.plant_chapter >= from_position:
+        if hasattr(f, "plant_chapter") and f.plant_chapter >= from_position:
             f.plant_chapter += delta
-        if hasattr(f, 'payoff_chapter') and f.payoff_chapter >= from_position:
+        if hasattr(f, "payoff_chapter") and f.payoff_chapter >= from_position:
             f.payoff_chapter += delta
 
     # Update open_threads chapter references
-    threads = getattr(draft, 'open_threads', None) or []
+    threads = getattr(draft, "open_threads", None) or []
     for t in threads:
-        if hasattr(t, 'planted_chapter') and t.planted_chapter >= from_position:
+        if hasattr(t, "planted_chapter") and t.planted_chapter >= from_position:
             t.planted_chapter += delta
-        if hasattr(t, 'last_mentioned_chapter') and t.last_mentioned_chapter >= from_position:
+        if (
+            hasattr(t, "last_mentioned_chapter")
+            and t.last_mentioned_chapter >= from_position
+        ):
             t.last_mentioned_chapter += delta
-        if hasattr(t, 'resolution_chapter') and t.resolution_chapter and t.resolution_chapter >= from_position:
+        if (
+            hasattr(t, "resolution_chapter")
+            and t.resolution_chapter
+            and t.resolution_chapter >= from_position
+        ):
             t.resolution_chapter += delta
 
     # Update macro_arcs chapter ranges
-    arcs = getattr(draft, 'macro_arcs', None) or []
+    arcs = getattr(draft, "macro_arcs", None) or []
     for arc in arcs:
-        if hasattr(arc, 'start_chapter') and arc.start_chapter >= from_position:
+        if hasattr(arc, "start_chapter") and arc.start_chapter >= from_position:
             arc.start_chapter += delta
-        if hasattr(arc, 'end_chapter') and arc.end_chapter >= from_position:
+        if hasattr(arc, "end_chapter") and arc.end_chapter >= from_position:
             arc.end_chapter += delta
 
 
@@ -111,7 +118,9 @@ def insert_chapter_impl(
     # Validate position
     total_chapters = len(draft.chapters)
     if insert_after < 0 or insert_after > total_chapters:
-        raise ValueError(f"Invalid insert_after={insert_after}. Story has {total_chapters} chapters.")
+        raise ValueError(
+            f"Invalid insert_after={insert_after}. Story has {total_chapters} chapters."
+        )
 
     new_chapter_number = insert_after + 1
     _log(f"Inserting new chapter at position {new_chapter_number}...")
@@ -125,16 +134,22 @@ def insert_chapter_impl(
 
     if insert_after > 0:
         # Get summary of chapter(s) before insertion point
-        before_chapters = [ch for ch in draft.chapters if ch.chapter_number < new_chapter_number]
+        before_chapters = [
+            ch for ch in draft.chapters if ch.chapter_number < new_chapter_number
+        ]
         before_context = "\n".join(
-            f"Ch.{ch.chapter_number}: {ch.summary}" for ch in before_chapters[-context_window:]
+            f"Ch.{ch.chapter_number}: {ch.summary}"
+            for ch in before_chapters[-context_window:]
         )
 
     # After renumbering, chapters that were after insertion point now have +1 numbers
-    after_chapters = [ch for ch in draft.chapters if ch.chapter_number > new_chapter_number]
+    after_chapters = [
+        ch for ch in draft.chapters if ch.chapter_number > new_chapter_number
+    ]
     if after_chapters:
         after_context = "\n".join(
-            f"Ch.{ch.chapter_number}: {ch.summary}" for ch in after_chapters[:context_window]
+            f"Ch.{ch.chapter_number}: {ch.summary}"
+            for ch in after_chapters[:context_window]
         )
 
     # Generate outline for inserted chapter using bidirectional context
@@ -182,11 +197,11 @@ Trả về JSON: {{"chapter_number": {new_chapter_number}, "title": "...", "summ
     story_context.total_chapters = total_chapters + 1
 
     # Get narrative context
-    macro_arcs = getattr(draft, 'macro_arcs', None) or []
-    conflict_web = getattr(draft, 'conflict_web', None) or []
-    foreshadowing_plan = getattr(draft, 'foreshadowing_plan', None) or []
-    premise = getattr(draft, 'premise', None) or {}
-    voice_profiles = getattr(draft, 'voice_profiles', None) or []
+    macro_arcs = getattr(draft, "macro_arcs", None) or []
+    conflict_web = getattr(draft, "conflict_web", None) or []
+    foreshadowing_plan = getattr(draft, "foreshadowing_plan", None) or []
+    premise = getattr(draft, "premise", None) or {}
+    voice_profiles = getattr(draft, "voice_profiles", None) or []
 
     active_conflicts = []
     seeds = []
@@ -195,40 +210,65 @@ Trả về JSON: {{"chapter_number": {new_chapter_number}, "title": "...", "summ
     try:
         from pipeline.layer1_story.macro_outline_builder import get_arc_for_chapter
         from pipeline.layer1_story.conflict_web_builder import get_active_conflicts
-        from pipeline.layer1_story.foreshadowing_manager import get_seeds_to_plant, get_payoffs_due
+        from pipeline.layer1_story.foreshadowing_manager import (
+            get_seeds_to_plant,
+            get_payoffs_due,
+        )
         from pipeline.layer1_story.pacing_controller import validate_pacing
+
         current_arc = get_arc_for_chapter(macro_arcs, new_chapter_number)
         arc_num = current_arc.arc_number if current_arc else 1
         active_conflicts = get_active_conflicts(conflict_web, arc_num)
         seeds = get_seeds_to_plant(foreshadowing_plan, new_chapter_number)
         payoffs = get_payoffs_due(foreshadowing_plan, new_chapter_number)
-        pacing = validate_pacing(getattr(outline, 'pacing_type', '') or '')
+        pacing = validate_pacing(getattr(outline, "pacing_type", "") or "")
     except Exception as e:
-        logger.warning("Narrative context resolution failed for ch%d: %s", new_chapter_number, e)
+        logger.warning(
+            "Narrative context resolution failed for ch%d: %s", new_chapter_number, e
+        )
 
     # Build enhancement context
     enhancement_context = ""
     try:
-        from pipeline.layer1_story.enhancement_context_builder import build_enhancement_context
+        from pipeline.layer1_story.enhancement_context_builder import (
+            build_enhancement_context,
+        )
+
         enhancement_context = build_enhancement_context(
-            config=generator.config, llm=generator.llm,
-            genre=draft.genre, pacing=pacing,
-            premise=premise, voice_profiles=voice_profiles,
-            outline=outline, characters=draft.characters,
-            world=draft.world, layer_model=generator._layer_model,
+            config=generator.config,
+            llm=generator.llm,
+            genre=draft.genre,
+            pacing=pacing,
+            premise=premise,
+            voice_profiles=voice_profiles,
+            outline=outline,
+            characters=draft.characters,
+            world=draft.world,
+            layer_model=generator._layer_model,
         )
     except Exception as e:
-        logger.debug("Enhancement context build failed for ch%d: %s", new_chapter_number, e)
+        logger.debug(
+            "Enhancement context build failed for ch%d: %s", new_chapter_number, e
+        )
 
     # Write the chapter
     _log(f"Writing inserted chapter {new_chapter_number}: {outline.title}...")
-    all_chapter_texts = [ch.content for ch in draft.chapters if ch.chapter_number < new_chapter_number and ch.content]
+    all_chapter_texts = [
+        ch.content
+        for ch in draft.chapters
+        if ch.chapter_number < new_chapter_number and ch.content
+    ]
 
     if stream_callback:
         chapter = generator.write_chapter_stream(
-            draft.title, draft.genre, effective_style,
-            draft.characters, draft.world, outline,
-            word_count=word_count, context=story_context,
+            draft.title,
+            draft.genre,
+            effective_style,
+            draft.characters,
+            draft.world,
+            outline,
+            word_count=word_count,
+            context=story_context,
             stream_callback=stream_callback,
             open_threads=list(story_context.open_threads),
             active_conflicts=active_conflicts,
@@ -240,9 +280,15 @@ Trả về JSON: {{"chapter_number": {new_chapter_number}, "title": "...", "summ
         )
     else:
         chapter = generator._write_chapter_with_long_context(
-            draft.title, draft.genre, effective_style,
-            draft.characters, draft.world, outline,
-            word_count, story_context, all_chapter_texts,
+            draft.title,
+            draft.genre,
+            effective_style,
+            draft.characters,
+            draft.world,
+            outline,
+            word_count,
+            story_context,
+            all_chapter_texts,
             open_threads=list(story_context.open_threads),
             active_conflicts=active_conflicts,
             foreshadowing_to_plant=seeds,
@@ -259,18 +305,31 @@ Trả về JSON: {{"chapter_number": {new_chapter_number}, "title": "...", "summ
     draft.outlines.insert(insert_idx, outline)
 
     # Run post-processing
-    self_reviewer = generator._get_self_reviewer() if generator.config.pipeline.enable_self_review else None
+    self_reviewer = (
+        generator._get_self_reviewer()
+        if generator.config.pipeline.enable_self_review
+        else None
+    )
     with ThreadPoolExecutor(max_workers=3) as executor:
         _log(f"Extracting context for inserted chapter {new_chapter_number}...")
         process_chapter_post_write(
-            chapter, outline, story_context, draft.characters, context_window,
-            executor, generator.llm,
-            draft, generator.bible_manager,
-            progress_callback, draft.genre, word_count,
-            generator.config.pipeline.enable_self_review, self_reviewer,
+            chapter,
+            outline,
+            story_context,
+            draft.characters,
+            context_window,
+            executor,
+            generator.llm,
+            draft,
+            generator.bible_manager,
+            progress_callback,
+            draft.genre,
+            word_count,
+            generator.config.pipeline.enable_self_review,
+            self_reviewer,
             open_threads=list(story_context.open_threads),
             foreshadowing_plan=foreshadowing_plan,
-            world_rules=getattr(draft.world, 'rules', None) or [],
+            world_rules=getattr(draft.world, "rules", None) or [],
             voice_profiles=voice_profiles,
         )
 
@@ -280,7 +339,9 @@ Trả về JSON: {{"chapter_number": {new_chapter_number}, "title": "...", "summ
     if story_context.conflict_map:
         draft.conflict_web = list(story_context.conflict_map)
 
-    _log(f"Chapter {new_chapter_number} inserted successfully! Story now has {len(draft.chapters)} chapters.")
+    _log(
+        f"Chapter {new_chapter_number} inserted successfully! Story now has {len(draft.chapters)} chapters."
+    )
     return draft
 
 
@@ -306,56 +367,79 @@ def generate_continuation_outlines(
             progress_callback(msg)
 
     start_chapter = len(draft.chapters) + 1
-    _log(f"Generating outlines for chapters {start_chapter}-{start_chapter + additional_chapters - 1}...")
+    _log(
+        f"Generating outlines for chapters {start_chapter}-{start_chapter + additional_chapters - 1}..."
+    )
 
     chars_text = "\n".join(
         f"- {c.name} ({c.role}): {c.personality}, Động lực: {c.motivation}"
         for c in draft.characters
     )
     existing_outlines_text = "\n".join(
-        f"Ch.{o.chapter_number}: {o.title} — {o.summary}"
-        for o in draft.outlines
+        f"Ch.{o.chapter_number}: {o.title} — {o.summary}" for o in draft.outlines
     )
-    states_text = "\n".join(
-        f"- {s.name}: mood={s.mood}, arc={s.arc_position}, last={s.last_action}"
-        for s in draft.character_states
-    ) or "N/A"
-    events_text = "\n".join(
-        f"- Ch.{e.chapter_number}: {e.event}"
-        for e in draft.plot_events[-20:]
-    ) or "N/A"
-    world_text = f"{draft.world.name}: {draft.world.description}" if draft.world else "N/A"
+    states_text = (
+        "\n".join(
+            f"- {s.name}: mood={s.mood}, arc={s.arc_position}, last={s.last_action}"
+            for s in draft.character_states
+        )
+        or "N/A"
+    )
+    events_text = (
+        "\n".join(
+            f"- Ch.{e.chapter_number}: {e.event}" for e in draft.plot_events[-20:]
+        )
+        or "N/A"
+    )
+    world_text = (
+        f"{draft.world.name}: {draft.world.description}" if draft.world else "N/A"
+    )
 
-    _macro_arcs = getattr(draft, 'macro_arcs', None) or []
-    macro_arcs_text = "\n".join(
-        f"- Arc {getattr(a, 'arc_number', i+1)}: {getattr(a, 'title', 'N/A')} "
-        f"(ch.{getattr(a, 'start_chapter', '?')}-{getattr(a, 'end_chapter', '?')}): "
-        f"{getattr(a, 'description', '')}"
-        for i, a in enumerate(_macro_arcs)
-    ) or "N/A"
-    _conflict_web = getattr(draft, 'conflict_web', None) or []
-    conflict_web_text = "\n".join(
-        f"- {getattr(c, 'parties', 'N/A')}: {getattr(c, 'description', '')} "
-        f"[status={getattr(c, 'status', 'active')}, arc {getattr(c, 'arc_range', 'N/A')}]"
-        for c in _conflict_web
-    ) or "N/A"
-    _foreshadowing = getattr(draft, 'foreshadowing_plan', None) or []
-    foreshadowing_text = "\n".join(
-        f"- {getattr(f, 'description', '')}: plant ch.{getattr(f, 'plant_chapter', '?')}, "
-        f"payoff ch.{getattr(f, 'payoff_chapter', '?')} "
-        f"[planted={getattr(f, 'planted', False)}, paid_off={getattr(f, 'paid_off', False)}]"
-        for f in _foreshadowing
-    ) or "N/A"
-    _open_threads = getattr(draft, 'open_threads', None) or []
-    threads_text = "\n".join(
-        f"- {t.thread_id}: {t.description} [status={t.status}, planted ch.{t.planted_chapter}]"
-        for t in _open_threads if t.status != "resolved"
-    ) or "N/A"
+    _macro_arcs = getattr(draft, "macro_arcs", None) or []
+    macro_arcs_text = (
+        "\n".join(
+            f"- Arc {getattr(a, 'arc_number', i + 1)}: {getattr(a, 'title', 'N/A')} "
+            f"(ch.{getattr(a, 'start_chapter', '?')}-{getattr(a, 'end_chapter', '?')}): "
+            f"{getattr(a, 'description', '')}"
+            for i, a in enumerate(_macro_arcs)
+        )
+        or "N/A"
+    )
+    _conflict_web = getattr(draft, "conflict_web", None) or []
+    conflict_web_text = (
+        "\n".join(
+            f"- {getattr(c, 'parties', 'N/A')}: {getattr(c, 'description', '')} "
+            f"[status={getattr(c, 'status', 'active')}, arc {getattr(c, 'arc_range', 'N/A')}]"
+            for c in _conflict_web
+        )
+        or "N/A"
+    )
+    _foreshadowing = getattr(draft, "foreshadowing_plan", None) or []
+    foreshadowing_text = (
+        "\n".join(
+            f"- {getattr(f, 'description', '')}: plant ch.{getattr(f, 'plant_chapter', '?')}, "
+            f"payoff ch.{getattr(f, 'payoff_chapter', '?')} "
+            f"[planted={getattr(f, 'planted', False)}, paid_off={getattr(f, 'paid_off', False)}]"
+            for f in _foreshadowing
+        )
+        or "N/A"
+    )
+    _open_threads = getattr(draft, "open_threads", None) or []
+    threads_text = (
+        "\n".join(
+            f"- {t.thread_id}: {t.description} [status={t.status}, planted ch.{t.planted_chapter}]"
+            for t in _open_threads
+            if t.status != "resolved"
+        )
+        or "N/A"
+    )
 
     # Build base prompt
     base_prompt = prompts.CONTINUE_OUTLINE.format(
-        genre=draft.genre, title=draft.title,
-        characters=chars_text, world=world_text,
+        genre=draft.genre,
+        title=draft.title,
+        characters=chars_text,
+        world=world_text,
         existing_chapters=len(draft.chapters),
         synopsis=draft.synopsis,
         existing_outlines=existing_outlines_text,
@@ -373,7 +457,7 @@ def generate_continuation_outlines(
     if arc_directives:
         arc_text = "\n".join(
             f"- {d.character}: {d.from_state} → {d.to_state} trong {d.chapter_span} chương"
-            + (f" ({d.notes})" if getattr(d, 'notes', '') else "")
+            + (f" ({d.notes})" if getattr(d, "notes", "") else "")
             for d in arc_directives
         )
         base_prompt += f"""
@@ -434,11 +518,16 @@ def generate_continuation_paths(
         f"Ch.{o.chapter_number}: {o.title} — {o.summary}"
         for o in draft.outlines[-10:]  # Last 10 chapters for context
     )
-    states_text = "\n".join(
-        f"- {s.name}: mood={s.mood}, arc={s.arc_position}"
-        for s in draft.character_states
-    ) or "N/A"
-    world_text = f"{draft.world.name}: {draft.world.description}" if draft.world else "N/A"
+    states_text = (
+        "\n".join(
+            f"- {s.name}: mood={s.mood}, arc={s.arc_position}"
+            for s in draft.character_states
+        )
+        or "N/A"
+    )
+    world_text = (
+        f"{draft.world.name}: {draft.world.description}" if draft.world else "N/A"
+    )
 
     # Build arc directives text
     arc_text = ""
@@ -495,7 +584,9 @@ Trả về JSON:
     paths = result.get("paths", [])
     for p in paths:
         # Ensure outlines have proper structure
-        p["outlines"] = [ChapterOutline(**o).model_dump() for o in p.get("outlines", [])]
+        p["outlines"] = [
+            ChapterOutline(**o).model_dump() for o in p.get("outlines", [])
+        ]
 
     _log(f"Generated {len(paths)} alternative paths.")
     return paths
@@ -535,11 +626,15 @@ def write_from_outlines(
     story_context = generator.rebuild_context(draft)
     all_chapter_texts = [ch.content for ch in draft.chapters if ch.content]
     final_total = len(draft.chapters) + len(outlines)
-    self_reviewer = generator._get_self_reviewer() if generator.config.pipeline.enable_self_review else None
+    self_reviewer = (
+        generator._get_self_reviewer()
+        if generator.config.pipeline.enable_self_review
+        else None
+    )
 
-    macro_arcs = getattr(draft, 'macro_arcs', None) or []
-    conflict_web = getattr(draft, 'conflict_web', None) or []
-    foreshadowing_plan = getattr(draft, 'foreshadowing_plan', None) or []
+    macro_arcs = getattr(draft, "macro_arcs", None) or []
+    conflict_web = getattr(draft, "conflict_web", None) or []
+    foreshadowing_plan = getattr(draft, "foreshadowing_plan", None) or []
     premise = getattr(draft, "premise", None) or {}
     voice_profiles = getattr(draft, "voice_profiles", None) or []
 
@@ -556,10 +651,18 @@ def write_from_outlines(
             payoffs = []
             pacing = ""
             try:
-                from pipeline.layer1_story.macro_outline_builder import get_arc_for_chapter
-                from pipeline.layer1_story.conflict_web_builder import get_active_conflicts
-                from pipeline.layer1_story.foreshadowing_manager import get_seeds_to_plant, get_payoffs_due
+                from pipeline.layer1_story.macro_outline_builder import (
+                    get_arc_for_chapter,
+                )
+                from pipeline.layer1_story.conflict_web_builder import (
+                    get_active_conflicts,
+                )
+                from pipeline.layer1_story.foreshadowing_manager import (
+                    get_seeds_to_plant,
+                    get_payoffs_due,
+                )
                 from pipeline.layer1_story.pacing_controller import validate_pacing
+
                 current_arc = get_arc_for_chapter(macro_arcs, outline.chapter_number)
                 arc_num = current_arc.arc_number if current_arc else 1
                 active_conflicts = get_active_conflicts(conflict_web, arc_num)
@@ -567,44 +670,75 @@ def write_from_outlines(
                 payoffs = get_payoffs_due(foreshadowing_plan, outline.chapter_number)
                 pacing = validate_pacing(getattr(outline, "pacing_type", "") or "")
             except Exception as e:
-                logger.warning("Narrative context resolution failed for ch%d: %s", outline.chapter_number, e)
+                logger.warning(
+                    "Narrative context resolution failed for ch%d: %s",
+                    outline.chapter_number,
+                    e,
+                )
 
             # Build enhancement context
             enhancement_context = ""
             try:
-                from pipeline.layer1_story.enhancement_context_builder import build_enhancement_context
+                from pipeline.layer1_story.enhancement_context_builder import (
+                    build_enhancement_context,
+                )
+
                 enhancement_context = build_enhancement_context(
-                    config=generator.config, llm=generator.llm,
-                    genre=draft.genre, pacing=pacing,
-                    premise=premise, voice_profiles=voice_profiles,
-                    outline=outline, characters=draft.characters,
-                    world=draft.world, layer_model=generator._layer_model,
+                    config=generator.config,
+                    llm=generator.llm,
+                    genre=draft.genre,
+                    pacing=pacing,
+                    premise=premise,
+                    voice_profiles=voice_profiles,
+                    outline=outline,
+                    characters=draft.characters,
+                    world=draft.world,
+                    layer_model=generator._layer_model,
                 )
             except Exception as e:
-                logger.debug("Enhancement context build failed for ch%d: %s", outline.chapter_number, e)
+                logger.debug(
+                    "Enhancement context build failed for ch%d: %s",
+                    outline.chapter_number,
+                    e,
+                )
 
             # Add arc steering context if directives provided
             if arc_directives:
-                start_ch = len(draft.chapters) + 1 - len(outlines) + outlines.index(outline)
+                start_ch = (
+                    len(draft.chapters) + 1 - len(outlines) + outlines.index(outline)
+                )
                 arc_lines = []
                 for d in arc_directives:
                     ch_in_arc = outline.chapter_number - start_ch + 1
                     if 1 <= ch_in_arc <= d.chapter_span:
                         progress = ch_in_arc / d.chapter_span
-                        stage = "khởi đầu" if progress <= 0.3 else "giữa chặng" if progress <= 0.7 else "gần đạt"
+                        stage = (
+                            "khởi đầu"
+                            if progress <= 0.3
+                            else "giữa chặng"
+                            if progress <= 0.7
+                            else "gần đạt"
+                        )
                         arc_lines.append(
-                            f"- {d.character}: đang ở giai đoạn {stage} ({int(progress*100)}%) "
+                            f"- {d.character}: đang ở giai đoạn {stage} ({int(progress * 100)}%) "
                             f"từ '{d.from_state}' → '{d.to_state}'"
                         )
                 if arc_lines:
-                    enhancement_context += "\n\nCHỈ THỊ ARC NHÂN VẬT CHƯƠNG NÀY:\n" + "\n".join(arc_lines)
+                    enhancement_context += (
+                        "\n\nCHỈ THỊ ARC NHÂN VẬT CHƯƠNG NÀY:\n" + "\n".join(arc_lines)
+                    )
 
             _log(f"Writing chapter {outline.chapter_number}: {outline.title}...")
             if stream_callback:
                 chapter = generator.write_chapter_stream(
-                    draft.title, draft.genre, effective_style,
-                    draft.characters, draft.world, outline,
-                    word_count=word_count, context=story_context,
+                    draft.title,
+                    draft.genre,
+                    effective_style,
+                    draft.characters,
+                    draft.world,
+                    outline,
+                    word_count=word_count,
+                    context=story_context,
                     stream_callback=stream_callback,
                     open_threads=list(story_context.open_threads),
                     active_conflicts=active_conflicts,
@@ -616,9 +750,15 @@ def write_from_outlines(
                 )
             else:
                 chapter = generator._write_chapter_with_long_context(
-                    draft.title, draft.genre, effective_style,
-                    draft.characters, draft.world, outline,
-                    word_count, story_context, all_chapter_texts,
+                    draft.title,
+                    draft.genre,
+                    effective_style,
+                    draft.characters,
+                    draft.world,
+                    outline,
+                    word_count,
+                    story_context,
+                    all_chapter_texts,
                     open_threads=list(story_context.open_threads),
                     active_conflicts=active_conflicts,
                     foreshadowing_to_plant=seeds,
@@ -631,14 +771,23 @@ def write_from_outlines(
             all_chapter_texts.append(chapter.content)
             _log(f"Extracting context for chapter {outline.chapter_number}...")
             process_chapter_post_write(
-                chapter, outline, story_context, draft.characters, context_window,
-                executor, generator.llm,
-                draft, generator.bible_manager,
-                progress_callback, draft.genre, word_count,
-                generator.config.pipeline.enable_self_review, self_reviewer,
+                chapter,
+                outline,
+                story_context,
+                draft.characters,
+                context_window,
+                executor,
+                generator.llm,
+                draft,
+                generator.bible_manager,
+                progress_callback,
+                draft.genre,
+                word_count,
+                generator.config.pipeline.enable_self_review,
+                self_reviewer,
                 open_threads=list(story_context.open_threads),
                 foreshadowing_plan=foreshadowing_plan,
-                world_rules=getattr(draft.world, 'rules', None) or [],
+                world_rules=getattr(draft.world, "rules", None) or [],
                 voice_profiles=voice_profiles,
             )
 
@@ -652,9 +801,14 @@ def write_from_outlines(
     new_chapter_nums = [o.chapter_number for o in outlines]
     try:
         from pipeline.layer1_story.consistency_checker import check_consistency
-        report = check_consistency(draft, new_chapter_nums, generator.llm, progress_callback)
+
+        report = check_consistency(
+            draft, new_chapter_nums, generator.llm, progress_callback
+        )
         if report.issues:
-            _log(f"Consistency check: {report.warning_count} warnings, {report.error_count} errors")
+            _log(
+                f"Consistency check: {report.warning_count} warnings, {report.error_count} errors"
+            )
             for issue in report.issues[:3]:  # Log first 3 issues
                 _log(f"  - [{issue.severity}] {issue.description}")
         else:
@@ -698,7 +852,14 @@ def continue_story(
 
     # Step 2: Write chapters from outlines
     return write_from_outlines(
-        generator, draft, new_outlines, word_count, style, progress_callback, stream_callback, arc_directives
+        generator,
+        draft,
+        new_outlines,
+        word_count,
+        style,
+        progress_callback,
+        stream_callback,
+        arc_directives,
     )
 
 
@@ -736,18 +897,17 @@ def regenerate_chapter_impl(
     story_context = generator.rebuild_context(draft)
     # Limit context to chapters before target
     story_context.recent_summaries = [
-        ch.summary for ch in draft.chapters[:chapter_idx]
-        if ch.summary
+        ch.summary for ch in draft.chapters[:chapter_idx] if ch.summary
     ][-context_window:]
     story_context.current_chapter = chapter_number
     story_context.total_chapters = len(draft.chapters)
 
     # Get narrative context for this chapter
-    macro_arcs = getattr(draft, 'macro_arcs', None) or []
-    conflict_web = getattr(draft, 'conflict_web', None) or []
-    foreshadowing_plan = getattr(draft, 'foreshadowing_plan', None) or []
-    premise = getattr(draft, 'premise', None) or {}
-    voice_profiles = getattr(draft, 'voice_profiles', None) or []
+    macro_arcs = getattr(draft, "macro_arcs", None) or []
+    conflict_web = getattr(draft, "conflict_web", None) or []
+    foreshadowing_plan = getattr(draft, "foreshadowing_plan", None) or []
+    premise = getattr(draft, "premise", None) or {}
+    voice_profiles = getattr(draft, "voice_profiles", None) or []
 
     active_conflicts = []
     seeds = []
@@ -756,38 +916,59 @@ def regenerate_chapter_impl(
     try:
         from pipeline.layer1_story.macro_outline_builder import get_arc_for_chapter
         from pipeline.layer1_story.conflict_web_builder import get_active_conflicts
-        from pipeline.layer1_story.foreshadowing_manager import get_seeds_to_plant, get_payoffs_due
+        from pipeline.layer1_story.foreshadowing_manager import (
+            get_seeds_to_plant,
+            get_payoffs_due,
+        )
         from pipeline.layer1_story.pacing_controller import validate_pacing
+
         current_arc = get_arc_for_chapter(macro_arcs, chapter_number)
         arc_num = current_arc.arc_number if current_arc else 1
         active_conflicts = get_active_conflicts(conflict_web, arc_num)
         seeds = get_seeds_to_plant(foreshadowing_plan, chapter_number)
         payoffs = get_payoffs_due(foreshadowing_plan, chapter_number)
-        pacing = validate_pacing(getattr(outline, 'pacing_type', '') or '')
+        pacing = validate_pacing(getattr(outline, "pacing_type", "") or "")
     except Exception as e:
-        logger.warning("Narrative context resolution failed for ch%d: %s", chapter_number, e)
+        logger.warning(
+            "Narrative context resolution failed for ch%d: %s", chapter_number, e
+        )
 
     # Build enhancement context
     enhancement_context = ""
     try:
-        from pipeline.layer1_story.enhancement_context_builder import build_enhancement_context
+        from pipeline.layer1_story.enhancement_context_builder import (
+            build_enhancement_context,
+        )
+
         enhancement_context = build_enhancement_context(
-            config=generator.config, llm=generator.llm,
-            genre=draft.genre, pacing=pacing,
-            premise=premise, voice_profiles=voice_profiles,
-            outline=outline, characters=draft.characters,
-            world=draft.world, layer_model=generator._layer_model,
+            config=generator.config,
+            llm=generator.llm,
+            genre=draft.genre,
+            pacing=pacing,
+            premise=premise,
+            voice_profiles=voice_profiles,
+            outline=outline,
+            characters=draft.characters,
+            world=draft.world,
+            layer_model=generator._layer_model,
         )
     except Exception as e:
         logger.debug("Enhancement context build failed for ch%d: %s", chapter_number, e)
 
     # Write the chapter
-    all_chapter_texts = [ch.content for ch in draft.chapters[:chapter_idx] if ch.content]
+    all_chapter_texts = [
+        ch.content for ch in draft.chapters[:chapter_idx] if ch.content
+    ]
     if stream_callback:
         chapter = generator.write_chapter_stream(
-            draft.title, draft.genre, effective_style,
-            draft.characters, draft.world, outline,
-            word_count=word_count, context=story_context,
+            draft.title,
+            draft.genre,
+            effective_style,
+            draft.characters,
+            draft.world,
+            outline,
+            word_count=word_count,
+            context=story_context,
             stream_callback=stream_callback,
             open_threads=list(story_context.open_threads),
             active_conflicts=active_conflicts,
@@ -799,9 +980,15 @@ def regenerate_chapter_impl(
         )
     else:
         chapter = generator._write_chapter_with_long_context(
-            draft.title, draft.genre, effective_style,
-            draft.characters, draft.world, outline,
-            word_count, story_context, all_chapter_texts,
+            draft.title,
+            draft.genre,
+            effective_style,
+            draft.characters,
+            draft.world,
+            outline,
+            word_count,
+            story_context,
+            all_chapter_texts,
             open_threads=list(story_context.open_threads),
             active_conflicts=active_conflicts,
             foreshadowing_to_plant=seeds,
@@ -815,17 +1002,30 @@ def regenerate_chapter_impl(
     draft.chapters[chapter_idx] = chapter
 
     # Run post-processing to update context
-    self_reviewer = generator._get_self_reviewer() if generator.config.pipeline.enable_self_review else None
+    self_reviewer = (
+        generator._get_self_reviewer()
+        if generator.config.pipeline.enable_self_review
+        else None
+    )
     with ThreadPoolExecutor(max_workers=3) as executor:
         process_chapter_post_write(
-            chapter, outline, story_context, draft.characters, context_window,
-            executor, generator.llm,
-            draft, generator.bible_manager,
-            progress_callback, draft.genre, word_count,
-            generator.config.pipeline.enable_self_review, self_reviewer,
+            chapter,
+            outline,
+            story_context,
+            draft.characters,
+            context_window,
+            executor,
+            generator.llm,
+            draft,
+            generator.bible_manager,
+            progress_callback,
+            draft.genre,
+            word_count,
+            generator.config.pipeline.enable_self_review,
+            self_reviewer,
             open_threads=list(story_context.open_threads),
             foreshadowing_plan=foreshadowing_plan,
-            world_rules=getattr(draft.world, 'rules', None) or [],
+            world_rules=getattr(draft.world, "rules", None) or [],
             voice_profiles=voice_profiles,
         )
 
@@ -854,6 +1054,7 @@ def polish_chapter_impl(
     Returns:
         Modified StoryDraft with polished chapter
     """
+
     def _log(msg):
         logger.info(msg)
         if progress_callback:
@@ -863,15 +1064,17 @@ def polish_chapter_impl(
 
     # Get story context for consistency checking
     chars_text = "\n".join(
-        f"- {c.name} ({c.role}): {c.personality}"
-        for c in draft.characters
+        f"- {c.name} ({c.role}): {c.personality}" for c in draft.characters
     )
 
-    recent_summaries = "\n".join(
-        f"Ch.{ch.chapter_number}: {ch.summary}"
-        for ch in draft.chapters[-5:]
-        if ch.chapter_number < chapter_number
-    ) or "N/A"
+    recent_summaries = (
+        "\n".join(
+            f"Ch.{ch.chapter_number}: {ch.summary}"
+            for ch in draft.chapters[-5:]
+            if ch.chapter_number < chapter_number
+        )
+        or "N/A"
+    )
 
     # Build polish prompt based on level
     if polish_level == "light":

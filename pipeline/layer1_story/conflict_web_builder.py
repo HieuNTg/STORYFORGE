@@ -26,13 +26,16 @@ def generate_conflict_web(
         for c in characters
     )
     from pipeline.layer1_story.macro_outline_builder import format_arcs_for_prompt
+
     arcs_text = format_arcs_for_prompt(macro_arcs)
 
     result = llm.generate_json(
         system_prompt="Bạn là chuyên gia xây dựng xung đột truyện. BẮT BUỘC viết bằng tiếng Việt. Trả về JSON.",
         user_prompt=prompts.GENERATE_CONFLICT_WEB.format(
-            genre=genre, title=title,
-            characters=chars_text, macro_arcs=arcs_text,
+            genre=genre,
+            title=title,
+            characters=chars_text,
+            macro_arcs=arcs_text,
         ),
         temperature=0.85,
         model=model,
@@ -80,13 +83,27 @@ def format_conflicts_for_prompt(conflicts: list[ConflictEntry]) -> str:
     """Format active conflicts for chapter writing prompt, including intensity."""
     if not conflicts:
         return "Không có xung đột active."
-    _INTENSITY_LABELS = {1: "ngầm", 2: "căng thẳng", 3: "gay gắt", 4: "bùng nổ", 5: "đỉnh điểm"}
+    _INTENSITY_LABELS = {
+        1: "ngầm",
+        2: "căng thẳng",
+        3: "gay gắt",
+        4: "bùng nổ",
+        5: "đỉnh điểm",
+    }
     lines = []
     for c in conflicts:
-        chars = " vs ".join(c.characters) if c.conflict_type != "internal" else c.characters[0]
-        status_label = f"{c.status} (ESCALATING)" if c.status == "escalating" else c.status
+        chars = (
+            " vs ".join(c.characters)
+            if c.conflict_type != "internal"
+            else c.characters[0]
+        )
+        status_label = (
+            f"{c.status} (ESCALATING)" if c.status == "escalating" else c.status
+        )
         intensity_label = _INTENSITY_LABELS.get(c.intensity, f"lv{c.intensity}")
-        lines.append(f"- [{c.conflict_type}] {chars}: {c.description} ({status_label}, cường độ: {intensity_label} {c.intensity}/5)")
+        lines.append(
+            f"- [{c.conflict_type}] {chars}: {c.description} ({status_label}, cường độ: {intensity_label} {c.intensity}/5)"
+        )
     return "\n".join(lines)
 
 
@@ -99,7 +116,9 @@ def update_conflict_status(
     """Semantic conflict activation: LLM checks if trigger conditions are met."""
     content_lower = chapter_content.lower()
 
-    dormant_with_triggers = [c for c in conflicts if c.status == "dormant" and c.trigger_event]
+    dormant_with_triggers = [
+        c for c in conflicts if c.status == "dormant" and c.trigger_event
+    ]
 
     if dormant_with_triggers and llm is not None:
         # Batch check: single LLM call for all dormant conflicts
@@ -125,19 +144,39 @@ def update_conflict_status(
         for c in dormant_with_triggers:
             if c.conflict_id in activated_ids:
                 c.status = "active"
-                logger.info("Conflict %s semantically activated at chapter %d", c.conflict_id, chapter_number)
+                logger.info(
+                    "Conflict %s semantically activated at chapter %d",
+                    c.conflict_id,
+                    chapter_number,
+                )
     elif dormant_with_triggers:
         # Fallback: keyword matching when no LLM available
         for c in dormant_with_triggers:
-            trigger_words = [w.strip().lower() for w in c.trigger_event.split() if len(w) > 3]
+            trigger_words = [
+                w.strip().lower() for w in c.trigger_event.split() if len(w) > 3
+            ]
             match_count = sum(1 for w in trigger_words if w in content_lower)
             if trigger_words and match_count / len(trigger_words) > 0.4:
                 c.status = "active"
-                logger.info("Conflict %s keyword-activated at chapter %d", c.conflict_id, chapter_number)
+                logger.info(
+                    "Conflict %s keyword-activated at chapter %d",
+                    c.conflict_id,
+                    chapter_number,
+                )
 
     # Escalation check with intensity tracking
-    escalation_words = ["phản bội", "đối đầu", "bùng nổ", "không thể tha thứ", "quyết chiến",
-                        "giết", "chết", "máu", "chiến tranh", "phá hủy"]
+    escalation_words = [
+        "phản bội",
+        "đối đầu",
+        "bùng nổ",
+        "không thể tha thứ",
+        "quyết chiến",
+        "giết",
+        "chết",
+        "máu",
+        "chiến tranh",
+        "phá hủy",
+    ]
     for c in conflicts:
         if c.status in ("active", "escalating"):
             matched = sum(1 for w in escalation_words if w in content_lower)
@@ -148,6 +187,8 @@ def update_conflict_status(
                 c.intensity = min(5, c.intensity + 1)
                 if c.intensity >= 4:
                     c.status = "escalating"
-            c.escalation_timeline.append({"chapter": chapter_number, "intensity": c.intensity})
+            c.escalation_timeline.append(
+                {"chapter": chapter_number, "intensity": c.intensity}
+            )
 
     return conflicts

@@ -4,6 +4,7 @@ Keys auto-generated in STORYFORGE_JWT_KEY_DIR (default: data/jwt_keys/).
 Rotation: set STORYFORGE_JWT_KEY_ID to a new value; old public keys stay
 for verification. Revocation via jti claim + services.auth_revocation.
 """
+
 from __future__ import annotations
 
 import base64
@@ -26,19 +27,23 @@ logger = logging.getLogger(__name__)
 # JWT token TTL — configurable via env var, defaults to 24 hours.
 # Valid range: 300s (5 min) to 604800s (7 days). Out-of-range values are
 # clamped with a warning so misconfiguration doesn't silently break auth.
-_TOKEN_TTL_MIN = 300       # 5 minutes
-_TOKEN_TTL_MAX = 604_800   # 7 days
+_TOKEN_TTL_MIN = 300  # 5 minutes
+_TOKEN_TTL_MAX = 604_800  # 7 days
 _TOKEN_TTL = int(os.environ.get("STORYFORGE_JWT_TTL_SECONDS", "86400"))
 if _TOKEN_TTL < _TOKEN_TTL_MIN:
     logger.warning(
         "STORYFORGE_JWT_TTL_SECONDS=%d is below minimum %d — clamping to %d",
-        _TOKEN_TTL, _TOKEN_TTL_MIN, _TOKEN_TTL_MIN,
+        _TOKEN_TTL,
+        _TOKEN_TTL_MIN,
+        _TOKEN_TTL_MIN,
     )
     _TOKEN_TTL = _TOKEN_TTL_MIN
 elif _TOKEN_TTL > _TOKEN_TTL_MAX:
     logger.warning(
         "STORYFORGE_JWT_TTL_SECONDS=%d exceeds maximum %d — clamping to %d",
-        _TOKEN_TTL, _TOKEN_TTL_MAX, _TOKEN_TTL_MAX,
+        _TOKEN_TTL,
+        _TOKEN_TTL_MAX,
+        _TOKEN_TTL_MAX,
     )
     _TOKEN_TTL = _TOKEN_TTL_MAX
 
@@ -53,6 +58,7 @@ _cached_pubs: Optional[list[rsa.RSAPublicKey]] = None
 # Base64url helpers — public because tests import them directly
 def _b64url_encode(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
 
 def _b64url_decode(s: str) -> bytes:
     p = 4 - len(s) % 4
@@ -91,22 +97,31 @@ def _load_or_generate_rsa_keys() -> tuple[rsa.RSAPrivateKey, list[rsa.RSAPublicK
         logger.info(f"Generating RSA-4096 key pair in {key_dir}")
         priv_key = rsa.generate_private_key(65537, 4096, default_backend())
         priv_pem = priv_key.private_bytes(
-            serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL,
-            serialization.NoEncryption())
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.TraditionalOpenSSL,
+            serialization.NoEncryption(),
+        )
         priv_path.write_bytes(priv_pem)
         try:
             priv_path.chmod(0o600)
         except OSError:
             pass  # Windows doesn't support POSIX permissions
-        pub_path.write_bytes(priv_key.public_key().public_bytes(
-            serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo))
+        pub_path.write_bytes(
+            priv_key.public_key().public_bytes(
+                serialization.Encoding.PEM,
+                serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+        )
     else:
         priv_key = serialization.load_pem_private_key(
-            priv_path.read_bytes(), password=None, backend=default_backend())
+            priv_path.read_bytes(), password=None, backend=default_backend()
+        )
 
     # Current public key + up to _MAX_OLD_KEYS previous rotation keys
     pub_keys: list[rsa.RSAPublicKey] = [
-        serialization.load_pem_public_key(pub_path.read_bytes(), backend=default_backend())
+        serialization.load_pem_public_key(
+            pub_path.read_bytes(), backend=default_backend()
+        )
     ]
     old_count = 0
     for sibling in sorted(key_dir.parent.iterdir(), reverse=True):
@@ -116,8 +131,11 @@ def _load_or_generate_rsa_keys() -> tuple[rsa.RSAPrivateKey, list[rsa.RSAPublicK
             old_pub = sibling / "public.pem"
             if old_pub.exists():
                 try:
-                    pub_keys.append(serialization.load_pem_public_key(
-                        old_pub.read_bytes(), backend=default_backend()))
+                    pub_keys.append(
+                        serialization.load_pem_public_key(
+                            old_pub.read_bytes(), backend=default_backend()
+                        )
+                    )
                     old_count += 1
                 except Exception as exc:
                     logger.warning(f"Skipping old public key {old_pub}: {exc}")
@@ -132,11 +150,20 @@ def create_token(user_id: str, username: str) -> str:
     kid = os.environ.get("STORYFORGE_JWT_KEY_ID", "default")
     priv_key, _ = _load_or_generate_rsa_keys()
     now = int(time.time())
-    header = _b64url_encode(json.dumps({"alg": "RS256", "typ": "JWT", "kid": kid}).encode())
-    payload = _b64url_encode(json.dumps({
-        "sub": user_id, "username": username, "jti": secrets.token_hex(16),
-        "iat": now, "exp": now + _TOKEN_TTL,
-    }).encode())
+    header = _b64url_encode(
+        json.dumps({"alg": "RS256", "typ": "JWT", "kid": kid}).encode()
+    )
+    payload = _b64url_encode(
+        json.dumps(
+            {
+                "sub": user_id,
+                "username": username,
+                "jti": secrets.token_hex(16),
+                "iat": now,
+                "exp": now + _TOKEN_TTL,
+            }
+        ).encode()
+    )
     signing_input = f"{header}.{payload}"
     sig = priv_key.sign(signing_input.encode(), padding.PKCS1v15(), hashes.SHA256())
     return f"{signing_input}.{_b64url_encode(sig)}"
@@ -159,7 +186,9 @@ def verify_token(token: str) -> dict:
 
     alg = header.get("alg", "")
     if alg != "RS256":
-        raise ValueError(f"Unsupported token algorithm: {alg!r} (only RS256 is accepted)")
+        raise ValueError(
+            f"Unsupported token algorithm: {alg!r} (only RS256 is accepted)"
+        )
     return _verify_rs256(header_b64, payload_b64, sig_b64)
 
 
@@ -173,7 +202,9 @@ def _verify_rs256(header_b64: str, payload_b64: str, sig_b64: str) -> dict:
     last_exc: Optional[Exception] = None
     for pub_key in pub_keys:
         try:
-            pub_key.verify(sig_bytes, signing_input.encode(), padding.PKCS1v15(), hashes.SHA256())
+            pub_key.verify(
+                sig_bytes, signing_input.encode(), padding.PKCS1v15(), hashes.SHA256()
+            )
             return _decode_and_validate(payload_b64)
         except Exception as exc:
             last_exc = exc

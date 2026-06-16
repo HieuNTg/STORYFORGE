@@ -43,7 +43,9 @@ from models.schemas import (
 )
 
 
-def _make_review(agent_name: str = "agent_a", score: float = 0.8, approved: bool = True) -> AgentReview:
+def _make_review(
+    agent_name: str = "agent_a", score: float = 0.8, approved: bool = True
+) -> AgentReview:
     return AgentReview(
         agent_role="critic",
         agent_name=agent_name,
@@ -76,25 +78,30 @@ def _make_debate_entry(
 # debate_orchestrator.py
 # ===========================================================================
 
+
 class TestDebateOrchestratorModule:
     """Tests for _find_review, _merge_debate_into_reviews, _estimate helpers."""
 
     def test_find_review_found(self):
         from pipeline.agents.debate_orchestrator import _find_review
+
         reviews = [_make_review("agent_a"), _make_review("agent_b")]
         assert _find_review(reviews, "agent_a").agent_name == "agent_a"
 
     def test_find_review_not_found(self):
         from pipeline.agents.debate_orchestrator import _find_review
+
         reviews = [_make_review("agent_a")]
         assert _find_review(reviews, "agent_z") is None
 
     def test_find_review_empty_list(self):
         from pipeline.agents.debate_orchestrator import _find_review
+
         assert _find_review([], "x") is None
 
     def test_merge_no_entries(self):
         from pipeline.agents.debate_orchestrator import _merge_debate_into_reviews
+
         reviews = [_make_review("agent_a", score=0.8)]
         result = _merge_debate_into_reviews(reviews, [])
         assert len(result) == 1
@@ -102,6 +109,7 @@ class TestDebateOrchestratorModule:
 
     def test_merge_revised_score_averaged(self):
         from pipeline.agents.debate_orchestrator import _merge_debate_into_reviews
+
         reviews = [_make_review("agent_a", score=0.8)]
         entry = _make_debate_entry("agent_b", "agent_a", revised_score=0.4)
         result = _merge_debate_into_reviews(reviews, [entry])
@@ -109,6 +117,7 @@ class TestDebateOrchestratorModule:
 
     def test_merge_reasoning_appended(self):
         from pipeline.agents.debate_orchestrator import _merge_debate_into_reviews
+
         reviews = [_make_review("agent_a")]
         entry = _make_debate_entry("challenger", "agent_a", reasoning="bad writing")
         result = _merge_debate_into_reviews(reviews, [entry])
@@ -116,6 +125,7 @@ class TestDebateOrchestratorModule:
 
     def test_merge_unknown_target_ignored(self):
         from pipeline.agents.debate_orchestrator import _merge_debate_into_reviews
+
         reviews = [_make_review("agent_a")]
         entry = _make_debate_entry("agent_x", "agent_nonexistent", revised_score=0.1)
         result = _merge_debate_into_reviews(reviews, [entry])
@@ -124,24 +134,30 @@ class TestDebateOrchestratorModule:
 
     def test_merge_no_revised_score(self):
         from pipeline.agents.debate_orchestrator import _merge_debate_into_reviews
+
         reviews = [_make_review("agent_a", score=0.7)]
-        entry = _make_debate_entry("agent_b", "agent_a", revised_score=None, reasoning="ok")
+        entry = _make_debate_entry(
+            "agent_b", "agent_a", revised_score=None, reasoning="ok"
+        )
         result = _merge_debate_into_reviews(reviews, [entry])
         assert result[0].score == pytest.approx(0.7)
 
     def test_estimate_agent_tokens_default(self):
         from pipeline.agents.debate_orchestrator import _estimate_agent_tokens
+
         agent = MagicMock(spec=[])
         assert _estimate_agent_tokens(agent) == 300
 
     def test_estimate_agent_tokens_with_usage(self):
         from pipeline.agents.debate_orchestrator import _estimate_agent_tokens
+
         agent = MagicMock()
         agent._last_token_usage = {"total_tokens": 500}
         assert _estimate_agent_tokens(agent) == 500
 
     def test_estimate_agent_tokens_bad_usage(self):
         from pipeline.agents.debate_orchestrator import _estimate_agent_tokens
+
         agent = MagicMock()
         agent._last_token_usage = "garbage"
         # Should fall back to default
@@ -149,12 +165,17 @@ class TestDebateOrchestratorModule:
 
     def test_estimate_agent_cost_no_tracker(self):
         from pipeline.agents.debate_orchestrator import _estimate_agent_cost
-        with patch("pipeline.agents.debate_orchestrator._get_agent_model", side_effect=Exception("no")):
+
+        with patch(
+            "pipeline.agents.debate_orchestrator._get_agent_model",
+            side_effect=Exception("no"),
+        ):
             cost = _estimate_agent_cost(300, MagicMock())
         assert cost == 0.0
 
     def test_get_agent_model_fallback(self):
         from pipeline.agents.debate_orchestrator import _get_agent_model
+
         # ConfigManager is imported lazily inside the function, so patch via config module
         with patch("config.ConfigManager", side_effect=Exception("no cfg")):
             result = _get_agent_model(MagicMock())
@@ -162,6 +183,7 @@ class TestDebateOrchestratorModule:
 
     def test_get_agent_model_success(self):
         from pipeline.agents.debate_orchestrator import _get_agent_model
+
         mock_cfg = MagicMock()
         mock_cfg.return_value.llm.model = "gpt-4"
         with patch("config.ConfigManager", mock_cfg):
@@ -174,6 +196,7 @@ class TestDebateOrchestrator:
 
     def _make_orchestrator(self, **kwargs):
         from pipeline.agents.debate_orchestrator import DebateOrchestrator
+
         return DebateOrchestrator(**kwargs)
 
     def _make_agent(self, name: str, role: str = "critic", review_entry=None):
@@ -210,7 +233,9 @@ class TestDebateOrchestrator:
         orch = self._make_orchestrator(debate_mode="lite")
         agent = self._make_agent("drama_critic", role="drama_critic")
         reviews = [_make_review("drama_critic", score=0.7)]
-        challenge = _make_debate_entry("drama_critic", "drama_critic", stance=DebateStance.CHALLENGE)
+        challenge = _make_debate_entry(
+            "drama_critic", "drama_critic", stance=DebateStance.CHALLENGE
+        )
         agent.debate_response.return_value = [challenge]
         result = orch.run_debate([agent], {}, 2, reviews)
         assert result.debate_skipped is False
@@ -242,9 +267,13 @@ class TestDebateOrchestrator:
         orch = self._make_orchestrator(debate_mode="full")
         agent = self._make_agent("agent_a")
         reviews = [_make_review("agent_a", score=0.8)]
-        challenge = _make_debate_entry("agent_a", "agent_a", stance=DebateStance.CHALLENGE)
+        challenge = _make_debate_entry(
+            "agent_a", "agent_a", stance=DebateStance.CHALLENGE
+        )
         # Round 2 returns challenge; Round 3 (rebuttal) returns neutral
-        rebuttal = _make_debate_entry("agent_a", "agent_a", stance=DebateStance.SUPPORT, round_number=3)
+        rebuttal = _make_debate_entry(
+            "agent_a", "agent_a", stance=DebateStance.SUPPORT, round_number=3
+        )
         agent.debate_response.side_effect = [[challenge], [rebuttal]]
         result = orch.run_debate([agent], {}, 2, reviews)
         assert result.debate_skipped is False
@@ -254,7 +283,9 @@ class TestDebateOrchestrator:
         orch = self._make_orchestrator(debate_mode="full")
         agent = self._make_agent("agent_a")
         reviews = [_make_review("agent_a", score=0.8)]
-        challenge = _make_debate_entry("agent_a", "agent_a", stance=DebateStance.CHALLENGE)
+        challenge = _make_debate_entry(
+            "agent_a", "agent_a", stance=DebateStance.CHALLENGE
+        )
         rebuttal = _make_debate_entry("agent_a", "agent_a", stance=DebateStance.SUPPORT)
         agent.debate_response.side_effect = [[challenge], [rebuttal]]
         msgs = []
@@ -296,6 +327,7 @@ class TestDebateOrchestrator:
 
     def test_budget_exceeded_abort_raises(self):
         from pipeline.agents.debate_orchestrator import BudgetExceededError
+
         orch = self._make_orchestrator(budget_action="abort", max_total_tokens=100)
         orch._session_tokens = 500
         with pytest.raises(BudgetExceededError):
@@ -315,6 +347,7 @@ class TestDebateOrchestrator:
 
     def test_token_budget_per_round_exceeded_aborts_round2(self):
         from pipeline.agents.debate_orchestrator import BudgetExceededError
+
         orch = self._make_orchestrator(
             budget_action="abort",
             max_tokens_per_round=1,  # tiny — any non-empty prompt will exceed
@@ -350,10 +383,14 @@ class TestDebateOrchestrator:
         assert result.debate_skipped is True
 
     def test_run_debate_budget_skip_before_round3(self):
-        orch = self._make_orchestrator(debate_mode="full", budget_action="skip", max_total_tokens=1000)
+        orch = self._make_orchestrator(
+            debate_mode="full", budget_action="skip", max_total_tokens=1000
+        )
         agent = self._make_agent("agent_a")
         reviews = [_make_review("agent_a", score=0.8)]
-        challenge = _make_debate_entry("agent_a", "agent_a", stance=DebateStance.CHALLENGE)
+        challenge = _make_debate_entry(
+            "agent_a", "agent_a", stance=DebateStance.CHALLENGE
+        )
         agent.debate_response.return_value = [challenge]
         # Artificially exhaust budget before round 3
         orch._session_tokens = 2000
@@ -372,6 +409,7 @@ class TestDebateOrchestrator:
 
     def test_round3_budget_abort_raises(self):
         from pipeline.agents.debate_orchestrator import BudgetExceededError
+
         # Use a mid-range per-round limit: pass round2 (1 agent * ~300 tokens default),
         # but set session tokens high so _budget_exceeded returns abort before round3.
         orch = self._make_orchestrator(
@@ -381,7 +419,9 @@ class TestDebateOrchestrator:
         )
         agent = self._make_agent("agent_a")
         review = _make_review("agent_a", score=0.8)
-        challenge = _make_debate_entry("agent_a", "agent_a", stance=DebateStance.CHALLENGE)
+        challenge = _make_debate_entry(
+            "agent_a", "agent_a", stance=DebateStance.CHALLENGE
+        )
         agent.debate_response.return_value = [challenge]
         # After round2 agent call, _session_tokens will be 300 (default), exceeding max_total_tokens=1
         # _budget_exceeded("Round 3") with budget_action="abort" will raise
@@ -393,19 +433,24 @@ class TestDebateOrchestrator:
 # agent_registry.py
 # ===========================================================================
 
+
 class TestAgentRegistry:
     """Tests for AgentRegistry singleton."""
 
     def setup_method(self):
         # Reset singleton between tests
         from pipeline.agents.agent_registry import AgentRegistry
+
         AgentRegistry._instance = None
 
     def _make_registry(self):
         from pipeline.agents.agent_registry import AgentRegistry
+
         return AgentRegistry()
 
-    def _make_agent(self, name: str = "test_agent", role: str = "critic", layers: list = None):
+    def _make_agent(
+        self, name: str = "test_agent", role: str = "critic", layers: list = None
+    ):
         agent = MagicMock()
         agent.name = name
         agent.role = role
@@ -489,8 +534,10 @@ class TestAgentRegistry:
         reg.register(agent)
         output = PipelineOutput()
 
-        with patch("pipeline.agents.agent_registry.AgentDAG") as MockDAG, \
-             patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg:
+        with (
+            patch("pipeline.agents.agent_registry.AgentDAG") as MockDAG,
+            patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg,
+        ):
             MockCfg.return_value.pipeline.enable_agent_debate = False
             dag_instance = MockDAG.return_value
             dag_instance.get_agents_by_tier.return_value = [[agent]]
@@ -509,12 +556,16 @@ class TestAgentRegistry:
         output = PipelineOutput()
         msgs = []
 
-        with patch("pipeline.agents.agent_registry.AgentDAG") as MockDAG, \
-             patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg:
+        with (
+            patch("pipeline.agents.agent_registry.AgentDAG") as MockDAG,
+            patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg,
+        ):
             MockCfg.return_value.pipeline.enable_agent_debate = False
             dag_instance = MockDAG.return_value
             dag_instance.get_agents_by_tier.return_value = [[agent]]
-            reg.run_review_cycle(output, layer=1, max_iterations=1, progress_callback=msgs.append)
+            reg.run_review_cycle(
+                output, layer=1, max_iterations=1, progress_callback=msgs.append
+            )
 
         assert len(msgs) > 0
 
@@ -526,8 +577,10 @@ class TestAgentRegistry:
         reg.register(agent)
         output = PipelineOutput()
 
-        with patch("pipeline.agents.agent_registry.AgentDAG") as MockDAG, \
-             patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg:
+        with (
+            patch("pipeline.agents.agent_registry.AgentDAG") as MockDAG,
+            patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg,
+        ):
             MockCfg.return_value.pipeline.enable_agent_debate = False
             MockDAG.return_value.validate.side_effect = ValueError("cycle!")
             result = reg.run_review_cycle(output, layer=1, max_iterations=1)
@@ -542,8 +595,13 @@ class TestAgentRegistry:
         reg.register(agent)
         output = PipelineOutput()
 
-        with patch("pipeline.agents.agent_registry.AgentDAG", side_effect=Exception("build fail")), \
-             patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg:
+        with (
+            patch(
+                "pipeline.agents.agent_registry.AgentDAG",
+                side_effect=Exception("build fail"),
+            ),
+            patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg,
+        ):
             MockCfg.return_value.pipeline.enable_agent_debate = False
             result = reg.run_review_cycle(output, layer=1, max_iterations=1)
 
@@ -564,9 +622,11 @@ class TestAgentRegistry:
             total_challenges=0,
         )
 
-        with patch("pipeline.agents.agent_registry.AgentDAG") as MockDAG, \
-             patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg, \
-             patch("pipeline.agents.debate_orchestrator.DebateOrchestrator") as MockOrch:
+        with (
+            patch("pipeline.agents.agent_registry.AgentDAG") as MockDAG,
+            patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg,
+            patch("pipeline.agents.debate_orchestrator.DebateOrchestrator") as MockOrch,
+        ):
             MockCfg.return_value.pipeline.enable_agent_debate = True
             MockCfg.return_value.pipeline.max_debate_rounds = 3
             MockCfg.return_value.pipeline.debate_mode = "full"
@@ -587,11 +647,15 @@ class TestAgentRegistry:
         output = PipelineOutput()
         msgs = []
 
-        with patch("pipeline.agents.agent_registry.AgentDAG") as MockDAG, \
-             patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg:
+        with (
+            patch("pipeline.agents.agent_registry.AgentDAG") as MockDAG,
+            patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg,
+        ):
             MockCfg.return_value.pipeline.enable_agent_debate = False
             MockDAG.return_value.validate.side_effect = ValueError("cycle")
-            result = reg.run_review_cycle(output, layer=1, max_iterations=2, progress_callback=msgs.append)
+            result = reg.run_review_cycle(
+                output, layer=1, max_iterations=2, progress_callback=msgs.append
+            )
 
         assert len(result) == 2  # two iterations ran
 
@@ -609,9 +673,11 @@ class TestAgentRegistry:
 # batch_generator.py
 # ===========================================================================
 
+
 class TestFrozenContext:
     def test_frozen_context_copies_lists(self):
         from pipeline.layer1_story.batch_generator import FrozenContext
+
         ctx = StoryContext(total_chapters=5)
         ctx.recent_summaries = ["s1", "s2"]
         ctx.character_states = []
@@ -627,6 +693,7 @@ class TestFrozenContext:
 class TestBatchChapterGenerator:
     def _make_generator(self, parallel=False, batch_size=3):
         from pipeline.layer1_story.batch_generator import BatchChapterGenerator
+
         gen = MagicMock()
         config = MagicMock()
         config.pipeline.chapter_batch_size = batch_size
@@ -649,7 +716,9 @@ class TestBatchChapterGenerator:
         )
 
     def _make_chapter(self, num: int) -> Chapter:
-        return Chapter(chapter_number=num, title=f"Chapter {num}", content="Content " * 50)
+        return Chapter(
+            chapter_number=num, title=f"Chapter {num}", content="Content " * 50
+        )
 
     def test_split_batches_basic(self):
         bg = self._make_generator(batch_size=2)
@@ -668,12 +737,14 @@ class TestBatchChapterGenerator:
 
     def test_build_sibling_context_single(self):
         from pipeline.layer1_story.batch_generator import BatchChapterGenerator
+
         outline = self._make_outline(1)
         result = BatchChapterGenerator._build_sibling_context([outline])
         assert result == ""
 
     def test_build_sibling_context_multiple(self):
         from pipeline.layer1_story.batch_generator import BatchChapterGenerator
+
         outlines = [self._make_outline(1), self._make_outline(2)]
         result = BatchChapterGenerator._build_sibling_context(outlines)
         assert "Ch1" in result
@@ -688,7 +759,9 @@ class TestBatchChapterGenerator:
         chapters = [self._make_chapter(i) for i in range(1, 4)]
         bg.gen._write_chapter_with_long_context.side_effect = chapters
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             result = bg.generate_chapters(
                 draft, outlines, ctx, "Title", "fantasy", "style", [], None
             )
@@ -702,9 +775,18 @@ class TestBatchChapterGenerator:
         bg.gen._write_chapter_with_long_context.return_value = self._make_chapter(1)
         msgs = []
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             bg.generate_chapters(
-                draft, outlines, ctx, "Title", "g", "s", [], None,
+                draft,
+                outlines,
+                ctx,
+                "Title",
+                "g",
+                "s",
+                [],
+                None,
                 progress_callback=msgs.append,
             )
         assert len(msgs) > 0
@@ -717,10 +799,19 @@ class TestBatchChapterGenerator:
         chapter = self._make_chapter(3)
         bg.gen._write_chapter_with_long_context.return_value = chapter
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             result = bg.generate_chapters(
-                draft, outlines, ctx, "T", "g", "s", [], None,
-                resume_from_batch=2  # skip first 2 batches
+                draft,
+                outlines,
+                ctx,
+                "T",
+                "g",
+                "s",
+                [],
+                None,
+                resume_from_batch=2,  # skip first 2 batches
             )
         # Only batch 3 should run
         assert len(result) == 1
@@ -731,14 +822,26 @@ class TestBatchChapterGenerator:
         draft = StoryDraft(title="T", genre="g")
         ctx = StoryContext(total_chapters=2)
         bg.gen._write_chapter_with_long_context.side_effect = [
-            self._make_chapter(1), self._make_chapter(2)
+            self._make_chapter(1),
+            self._make_chapter(2),
         ]
         checkpoint_calls = []
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             bg.generate_chapters(
-                draft, outlines, ctx, "T", "g", "s", [], None,
-                batch_checkpoint_callback=lambda idx, total: checkpoint_calls.append((idx, total)),
+                draft,
+                outlines,
+                ctx,
+                "T",
+                "g",
+                "s",
+                [],
+                None,
+                batch_checkpoint_callback=lambda idx, total: checkpoint_calls.append(
+                    (idx, total)
+                ),
             )
         assert len(checkpoint_calls) == 1
         assert checkpoint_calls[0] == (1, 1)
@@ -753,24 +856,44 @@ class TestBatchChapterGenerator:
         def bad_callback(idx, total):
             raise RuntimeError("checkpoint boom")
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             # Should not propagate the exception
             result = bg.generate_chapters(
-                draft, outlines, ctx, "T", "g", "s", [], None,
+                draft,
+                outlines,
+                ctx,
+                "T",
+                "g",
+                "s",
+                [],
+                None,
                 batch_checkpoint_callback=bad_callback,
             )
         assert len(result) == 1
 
     def test_generate_chapters_stream_callback_uses_sequential(self):
-        bg = self._make_generator(parallel=True, batch_size=2)  # parallel=True but stream given
+        bg = self._make_generator(
+            parallel=True, batch_size=2
+        )  # parallel=True but stream given
         outlines = [self._make_outline(1)]
         draft = StoryDraft(title="T", genre="g")
         ctx = StoryContext(total_chapters=1)
         bg.gen.write_chapter_stream.return_value = self._make_chapter(1)
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             result = bg.generate_chapters(
-                draft, outlines, ctx, "T", "g", "s", [], None,
+                draft,
+                outlines,
+                ctx,
+                "T",
+                "g",
+                "s",
+                [],
+                None,
                 stream_callback=lambda tok: None,
             )
         # stream_callback forces sequential path
@@ -787,7 +910,9 @@ class TestBatchChapterGenerator:
         chapter.content = "x" * 400  # 100 estimated tokens >> budget of 10
         bg.gen._write_chapter_with_long_context.return_value = chapter
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             result = bg.generate_chapters(draft, outlines, ctx, "T", "g", "s", [], None)
         assert len(result) == 1
 
@@ -795,18 +920,36 @@ class TestBatchChapterGenerator:
         bg = self._make_generator(parallel=True, batch_size=2)
         from pipeline.layer1_story.batch_generator import FrozenContext
         from concurrent.futures import ThreadPoolExecutor
+
         outlines = [self._make_outline(1), self._make_outline(2)]
         draft = StoryDraft(title="T", genre="g")
         ctx = StoryContext(total_chapters=2)
         frozen = FrozenContext(ctx, [])
         bg.gen._write_chapter_with_long_context.side_effect = [
-            self._make_chapter(1), self._make_chapter(2)
+            self._make_chapter(1),
+            self._make_chapter(2),
         ]
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             with ThreadPoolExecutor(max_workers=3) as ex:
                 chapters = bg._run_batch_parallel(
-                    outlines, frozen, draft, ctx, [], "T", "g", "s", [], None,
-                    2000, 5, False, ex, None, None,
+                    outlines,
+                    frozen,
+                    draft,
+                    ctx,
+                    [],
+                    "T",
+                    "g",
+                    "s",
+                    [],
+                    None,
+                    2000,
+                    5,
+                    False,
+                    ex,
+                    None,
+                    None,
                 )
         assert len(chapters) == 2
         assert chapters[0].chapter_number <= chapters[1].chapter_number
@@ -815,18 +958,37 @@ class TestBatchChapterGenerator:
         bg = self._make_generator(parallel=True, batch_size=2)
         from pipeline.layer1_story.batch_generator import FrozenContext
         from concurrent.futures import ThreadPoolExecutor
+
         outlines = [self._make_outline(1)]
         draft = StoryDraft(title="T", genre="g")
         ctx = StoryContext(total_chapters=1)
         frozen = FrozenContext(ctx, [])
-        bg.gen._write_chapter_with_long_context.side_effect = RuntimeError("write failed")
+        bg.gen._write_chapter_with_long_context.side_effect = RuntimeError(
+            "write failed"
+        )
 
-        with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+        with patch(
+            "pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"
+        ):
             with ThreadPoolExecutor(max_workers=3) as ex:
                 with pytest.raises(RuntimeError, match="write failed"):
                     bg._run_batch_parallel(
-                        outlines, frozen, draft, ctx, [], "T", "g", "s", [], None,
-                        2000, 5, False, ex, None, None,
+                        outlines,
+                        frozen,
+                        draft,
+                        ctx,
+                        [],
+                        "T",
+                        "g",
+                        "s",
+                        [],
+                        None,
+                        2000,
+                        5,
+                        False,
+                        ex,
+                        None,
+                        None,
                     )
 
 
@@ -834,15 +996,19 @@ class TestBatchChapterGenerator:
 # services/story_brancher.py
 # ===========================================================================
 
+
 class TestStoryBrancher:
     def setup_method(self):
         self.mock_llm = MagicMock()
         with patch("services.story_brancher.LLMClient", return_value=self.mock_llm):
             from services.story_brancher import StoryBrancher
+
             self.brancher = StoryBrancher()
 
     def _make_chapter(self, num: int = 1) -> Chapter:
-        return Chapter(chapter_number=num, title="Chapter One", content="Long content here " * 100)
+        return Chapter(
+            chapter_number=num, title="Chapter One", content="Long content here " * 100
+        )
 
     def test_create_tree_from_chapter(self):
         ch = self._make_chapter()
@@ -894,7 +1060,9 @@ class TestStoryBrancher:
             self.brancher.generate_branch(tree, "missing_parent", choice)
 
     def test_generate_branch_success(self):
-        node = StoryNode(node_id="root", chapter_number=1, title="C1", content="root text " * 200)
+        node = StoryNode(
+            node_id="root", chapter_number=1, title="C1", content="root text " * 200
+        )
         tree = StoryTree(root_id="root", nodes={"root": node}, title="T", genre="g")
         self.mock_llm.generate.return_value = "Branch content goes here"
         choice = BranchChoice(
@@ -921,7 +1089,9 @@ class TestStoryBrancher:
 
     def test_save_and_load_tree(self):
         node = StoryNode(node_id="root", chapter_number=1, title="C1", content="text")
-        tree = StoryTree(root_id="root", nodes={"root": node}, title="TestTitle", genre="g")
+        tree = StoryTree(
+            root_id="root", nodes={"root": node}, title="TestTitle", genre="g"
+        )
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("services.story_brancher.BRANCHES_DIR", tmpdir):
                 path = self.brancher.save_tree(tree, "test_tree.json")
@@ -931,6 +1101,7 @@ class TestStoryBrancher:
 
     def test_load_tree_corrupt_json(self):
         from services.story_brancher import StoryBrancher
+
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write("{bad json}")
             fname = f.name
@@ -942,6 +1113,7 @@ class TestStoryBrancher:
 
     def test_load_tree_missing_root_id(self):
         from services.story_brancher import StoryBrancher
+
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump({"nodes": {}}, f)
             fname = f.name
@@ -953,7 +1125,9 @@ class TestStoryBrancher:
 
     def test_save_tree_auto_filename(self):
         node = StoryNode(node_id="root", chapter_number=1, title="C1", content="text")
-        tree = StoryTree(root_id="root", nodes={"root": node}, title="My Story", genre="g")
+        tree = StoryTree(
+            root_id="root", nodes={"root": node}, title="My Story", genre="g"
+        )
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("services.story_brancher.BRANCHES_DIR", tmpdir):
                 path = self.brancher.save_tree(tree)  # no filename
@@ -963,14 +1137,18 @@ class TestStoryBrancher:
 
     def test_list_saved_trees_no_dir(self):
         from services.story_brancher import StoryBrancher
+
         with patch("services.story_brancher.BRANCHES_DIR", "/nonexistent/path/xyz"):
             result = StoryBrancher.list_saved_trees()
         assert result == []
 
     def test_list_saved_trees_with_files(self):
         from services.story_brancher import StoryBrancher
+
         node = StoryNode(node_id="root", chapter_number=1, title="C1", content="text")
-        tree = StoryTree(root_id="root", nodes={"root": node}, title="TestStory", genre="g")
+        tree = StoryTree(
+            root_id="root", nodes={"root": node}, title="TestStory", genre="g"
+        )
         with tempfile.TemporaryDirectory() as tmpdir:
             tree_path = os.path.join(tmpdir, "story_123.json")
             with open(tree_path, "w", encoding="utf-8") as f:
@@ -983,6 +1161,7 @@ class TestStoryBrancher:
 
     def test_list_saved_trees_corrupt_file(self):
         from services.story_brancher import StoryBrancher
+
         with tempfile.TemporaryDirectory() as tmpdir:
             bad = os.path.join(tmpdir, "bad.json")
             with open(bad, "w") as f:
@@ -998,9 +1177,11 @@ class TestStoryBrancher:
 # services/_rate_limiter_base.py
 # ===========================================================================
 
+
 class TestRateLimiterBase:
     def test_abstract_methods_enforced(self):
         from services._rate_limiter_base import RateLimiterBase
+
         with pytest.raises(TypeError):
             RateLimiterBase()  # type: ignore
 
@@ -1010,6 +1191,7 @@ class TestRateLimiterBase:
         class ConcreteRL(RateLimiterBase):
             def is_allowed(self, key, limit, window_seconds):
                 return True
+
             def get_remaining(self, key, limit, window_seconds):
                 return limit
 
@@ -1022,9 +1204,11 @@ class TestRateLimiterBase:
 # services/_rate_limiter_inmemory.py
 # ===========================================================================
 
+
 class TestInMemoryRateLimiter:
     def setup_method(self):
         from services._rate_limiter_inmemory import InMemoryRateLimiter
+
         self.rl = InMemoryRateLimiter()
 
     def test_first_request_allowed(self):
@@ -1070,6 +1254,7 @@ class TestInMemoryRateLimiter:
 
     def test_thread_safe(self):
         errors = []
+
         def make_requests():
             try:
                 for _ in range(20):
@@ -1095,6 +1280,7 @@ class TestInMemoryRateLimiter:
 # services/_rate_limiter_redis_impl.py
 # ===========================================================================
 
+
 class TestRedisRateLimiter:
     """Test RedisRateLimiter with mocked Redis."""
 
@@ -1104,10 +1290,14 @@ class TestRedisRateLimiter:
         mock_client.script_load.return_value = "abc123sha"
         mock_client.evalsha.return_value = 1  # count=1 → allowed
 
-        with patch.dict("sys.modules", {"redis": MagicMock(from_url=MagicMock(return_value=mock_client))}):
+        with patch.dict(
+            "sys.modules",
+            {"redis": MagicMock(from_url=MagicMock(return_value=mock_client))},
+        ):
             if not redis_available:
                 mock_client.ping.side_effect = ConnectionError("no redis")
             from services._rate_limiter_redis_impl import RedisRateLimiter
+
             rl = RedisRateLimiter("redis://localhost:6379")
             rl._client = mock_client
             rl._script_sha = "abc123sha"
@@ -1123,6 +1313,7 @@ class TestRedisRateLimiter:
 
         with patch.dict("sys.modules", {"redis": mock_redis_module}):
             from services._rate_limiter_redis_impl import RedisRateLimiter
+
             rl = RedisRateLimiter("redis://localhost")
         assert rl._healthy is True
 
@@ -1134,6 +1325,7 @@ class TestRedisRateLimiter:
 
         with patch.dict("sys.modules", {"redis": mock_redis_module}):
             from services._rate_limiter_redis_impl import RedisRateLimiter
+
             rl = RedisRateLimiter("redis://localhost")
         assert rl._healthy is False
 
@@ -1191,18 +1383,22 @@ class TestRedisRateLimiter:
 # services/rate_limiter_redis.py  (factory module)
 # ===========================================================================
 
+
 class TestRateLimiterFactory:
     def setup_method(self):
         # Reset singleton
         import services.rate_limiter_redis as mod
+
         mod._instance = None
 
     def teardown_method(self):
         import services.rate_limiter_redis as mod
+
         mod._instance = None
 
     def test_get_rate_limiter_no_redis_url(self):
         from services.rate_limiter_redis import get_rate_limiter, InMemoryRateLimiter
+
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("REDIS_URL", None)
             rl = get_rate_limiter()
@@ -1210,6 +1406,7 @@ class TestRateLimiterFactory:
 
     def test_get_rate_limiter_singleton(self):
         from services.rate_limiter_redis import get_rate_limiter
+
         os.environ.pop("REDIS_URL", None)
         r1 = get_rate_limiter()
         r2 = get_rate_limiter()
@@ -1217,32 +1414,42 @@ class TestRateLimiterFactory:
 
     def test_get_rate_limiter_with_redis_url(self):
         import services.rate_limiter_redis as mod
+
         mod._instance = None
         mock_redis_rl = MagicMock()
-        with patch("services.rate_limiter_redis.RedisRateLimiter", return_value=mock_redis_rl), \
-             patch.dict(os.environ, {"REDIS_URL": "redis://localhost:6379"}):
+        with (
+            patch(
+                "services.rate_limiter_redis.RedisRateLimiter",
+                return_value=mock_redis_rl,
+            ),
+            patch.dict(os.environ, {"REDIS_URL": "redis://localhost:6379"}),
+        ):
             from services.rate_limiter_redis import get_rate_limiter
+
             rl = get_rate_limiter()
         assert rl is mock_redis_rl
 
     def test_exports(self):
-        from services.rate_limiter_redis import (
-            get_rate_limiter
-        )
+        from services.rate_limiter_redis import get_rate_limiter
+
         assert callable(get_rate_limiter)
 
     def test_thread_safe_singleton(self):
         import services.rate_limiter_redis as mod
+
         mod._instance = None
         os.environ.pop("REDIS_URL", None)
         results = []
         errors = []
+
         def get():
             try:
                 from services.rate_limiter_redis import get_rate_limiter
+
                 results.append(get_rate_limiter())
             except Exception as e:
                 errors.append(e)
+
         threads = [threading.Thread(target=get) for _ in range(5)]
         for t in threads:
             t.start()
@@ -1257,11 +1464,15 @@ class TestRateLimiterFactory:
 # services/seedream_client.py
 # ===========================================================================
 
+
 class TestSeedreamClient:
     def setup_method(self):
         with patch("services.seedream_client.os.makedirs"):
             from services.seedream_client import SeedreamClient
-            self.client = SeedreamClient(api_key="test-key", base_url="https://api.test.com")
+
+            self.client = SeedreamClient(
+                api_key="test-key", base_url="https://api.test.com"
+            )
 
     def test_is_configured_with_key(self):
         assert self.client.is_configured() is True
@@ -1269,6 +1480,7 @@ class TestSeedreamClient:
     def test_is_configured_without_key(self):
         with patch("services.seedream_client.os.makedirs"):
             from services.seedream_client import SeedreamClient
+
             c = SeedreamClient(api_key="", base_url="https://api.test.com")
         with patch.dict(os.environ, {}, clear=True):
             assert c.is_configured() is False
@@ -1276,13 +1488,16 @@ class TestSeedreamClient:
     def test_generate_character_reference_not_configured(self):
         with patch("services.seedream_client.os.makedirs"):
             from services.seedream_client import SeedreamClient
+
             c = SeedreamClient(api_key="", base_url="")
         result = c.generate_character_reference("Alice", "tall woman")
         assert result is None
 
     def test_generate_character_reference_success(self):
         self.client._text_to_image = MagicMock(return_value="/output/alice.png")
-        result = self.client.generate_character_reference("Alice", "tall woman with blue eyes")
+        result = self.client.generate_character_reference(
+            "Alice", "tall woman with blue eyes"
+        )
         assert result == "/output/alice.png"
 
     def test_generate_scene_no_references(self):
@@ -1291,13 +1506,18 @@ class TestSeedreamClient:
         assert result == "/output/scene.png"
 
     def test_generate_scene_with_references(self):
-        self.client._edit_sequential = MagicMock(return_value="/output/scene_with_chars.png")
-        result = self.client.generate_scene("A forest scene", ["/refs/char1.png"], "scene.png")
+        self.client._edit_sequential = MagicMock(
+            return_value="/output/scene_with_chars.png"
+        )
+        result = self.client.generate_scene(
+            "A forest scene", ["/refs/char1.png"], "scene.png"
+        )
         assert result == "/output/scene_with_chars.png"
 
     def test_generate_scene_not_configured(self):
         with patch("services.seedream_client.os.makedirs"):
             from services.seedream_client import SeedreamClient
+
             c = SeedreamClient(api_key="", base_url="")
         result = c.generate_scene("A scene", [], "f.png")
         assert result is None
@@ -1305,15 +1525,23 @@ class TestSeedreamClient:
     def test_text_to_image_success(self):
         mock_resp = MagicMock()
         mock_resp.raise_for_status.return_value = None
-        mock_resp.json.return_value = {"data": [{"b64_json": base64.b64encode(b"fakeimage").decode()}]}
+        mock_resp.json.return_value = {
+            "data": [{"b64_json": base64.b64encode(b"fakeimage").decode()}]
+        }
 
-        with patch("services.seedream_client.requests.post", return_value=mock_resp), \
-             patch.object(self.client, "_save_response_image", return_value="/out/img.png"):
+        with (
+            patch("services.seedream_client.requests.post", return_value=mock_resp),
+            patch.object(
+                self.client, "_save_response_image", return_value="/out/img.png"
+            ),
+        ):
             result = self.client._text_to_image("A scene", "/out/img.png")
         assert result == "/out/img.png"
 
     def test_text_to_image_request_failure(self):
-        with patch("services.seedream_client.requests.post", side_effect=Exception("timeout")):
+        with patch(
+            "services.seedream_client.requests.post", side_effect=Exception("timeout")
+        ):
             result = self.client._text_to_image("A scene", "/out/img.png")
         assert result is None
 
@@ -1365,7 +1593,9 @@ class TestSeedreamClient:
 
     def test_edit_sequential_no_valid_refs_falls_back(self):
         self.client._text_to_image = MagicMock(return_value="/out/fallback.png")
-        result = self.client._edit_sequential("prompt", ["/nonexistent/ref.png"], "/out/img.png")
+        result = self.client._edit_sequential(
+            "prompt", ["/nonexistent/ref.png"], "/out/img.png"
+        )
         self.client._text_to_image.assert_called_once()
         assert result == "/out/fallback.png"
 
@@ -1377,10 +1607,16 @@ class TestSeedreamClient:
 
             mock_resp = MagicMock()
             mock_resp.raise_for_status.return_value = None
-            mock_resp.json.return_value = {"data": [{"b64_json": base64.b64encode(b"img").decode()}]}
+            mock_resp.json.return_value = {
+                "data": [{"b64_json": base64.b64encode(b"img").decode()}]
+            }
 
-            with patch("services.seedream_client.requests.post", return_value=mock_resp), \
-                 patch.object(self.client, "_save_response_image", return_value=ref_path):
+            with (
+                patch("services.seedream_client.requests.post", return_value=mock_resp),
+                patch.object(
+                    self.client, "_save_response_image", return_value=ref_path
+                ),
+            ):
                 result = self.client._edit_sequential("scene", [ref_path], ref_path)
         assert result == ref_path
 
@@ -1390,8 +1626,12 @@ class TestSeedreamClient:
             with open(ref_path, "wb") as f:
                 f.write(b"PNG")
             self.client._text_to_image = MagicMock(return_value="/fallback.png")
-            with patch("services.seedream_client.requests.post", side_effect=Exception("fail")):
-                result = self.client._edit_sequential("scene", [ref_path], "/out/img.png")
+            with patch(
+                "services.seedream_client.requests.post", side_effect=Exception("fail")
+            ):
+                result = self.client._edit_sequential(
+                    "scene", [ref_path], "/out/img.png"
+                )
         assert result == "/fallback.png"
 
     def test_edit_sequential_skips_large_refs(self):
@@ -1401,8 +1641,13 @@ class TestSeedreamClient:
                 f.write(b"PNG")
             self.client._text_to_image = MagicMock(return_value="/fallback.png")
             # Mock os.path.getsize to return > MAX_REF_SIZE
-            with patch("services.seedream_client.os.path.getsize", return_value=20 * 1024 * 1024):
-                result = self.client._edit_sequential("scene", [ref_path], "/out/img.png")
+            with patch(
+                "services.seedream_client.os.path.getsize",
+                return_value=20 * 1024 * 1024,
+            ):
+                result = self.client._edit_sequential(
+                    "scene", [ref_path], "/out/img.png"
+                )
         # All refs skipped → falls back to text_to_image
         assert result == "/fallback.png"
 
@@ -1424,6 +1669,7 @@ class TestSeedreamClient:
             if "scene2" in kwargs.get("scene_prompt", ""):
                 raise Exception("gen failed")
             return "/out/scene.png"
+
         self.client.generate_scene = gen
         reqs = [
             {"scene_prompt": "scene1", "reference_images": [], "filename": "s1.png"},
@@ -1441,30 +1687,40 @@ class TestSeedreamClient:
 # services/replicate_ip_adapter.py
 # ===========================================================================
 
+
 class TestReplicateIPAdapter:
     def setup_method(self):
-        with patch("services.replicate_ip_adapter.ConfigManager") as MockCfg, \
-             patch("services.replicate_ip_adapter.os.makedirs"):
+        with (
+            patch("services.replicate_ip_adapter.ConfigManager") as MockCfg,
+            patch("services.replicate_ip_adapter.os.makedirs"),
+        ):
             MockCfg.return_value.pipeline.replicate_api_key = "test-key"
             from services.replicate_ip_adapter import ReplicateIPAdapter
+
             self.adapter = ReplicateIPAdapter(api_key="test-key")
 
     def test_is_configured_with_key(self):
         assert self.adapter.is_configured() is True
 
     def test_is_configured_without_key(self):
-        with patch("services.replicate_ip_adapter.ConfigManager") as MockCfg, \
-             patch("services.replicate_ip_adapter.os.makedirs"):
+        with (
+            patch("services.replicate_ip_adapter.ConfigManager") as MockCfg,
+            patch("services.replicate_ip_adapter.os.makedirs"),
+        ):
             MockCfg.return_value.pipeline.replicate_api_key = ""
             from services.replicate_ip_adapter import ReplicateIPAdapter
+
             a = ReplicateIPAdapter(api_key="")
         assert a.is_configured() is False
 
     def test_generate_not_configured(self):
-        with patch("services.replicate_ip_adapter.ConfigManager") as MockCfg, \
-             patch("services.replicate_ip_adapter.os.makedirs"):
+        with (
+            patch("services.replicate_ip_adapter.ConfigManager") as MockCfg,
+            patch("services.replicate_ip_adapter.os.makedirs"),
+        ):
             MockCfg.return_value.pipeline.replicate_api_key = ""
             from services.replicate_ip_adapter import ReplicateIPAdapter
+
             a = ReplicateIPAdapter(api_key="")
         result = a.generate("prompt", "ref.png")
         assert result is None
@@ -1500,11 +1756,23 @@ class TestReplicateIPAdapter:
             os.makedirs(output_dir, exist_ok=True)
             self.adapter.output_dir = output_dir
 
-            with patch("services.replicate_ip_adapter.requests.post", return_value=create_resp), \
-                 patch("services.replicate_ip_adapter.requests.get", side_effect=[poll_resp, img_resp]), \
-                 patch("services.replicate_ip_adapter.time.sleep"), \
-                 patch("services.replicate_ip_adapter.time.time", side_effect=[0, 5, 10]):
-                result = self.adapter.generate("A portrait", ref, "output.png", timeout=120)
+            with (
+                patch(
+                    "services.replicate_ip_adapter.requests.post",
+                    return_value=create_resp,
+                ),
+                patch(
+                    "services.replicate_ip_adapter.requests.get",
+                    side_effect=[poll_resp, img_resp],
+                ),
+                patch("services.replicate_ip_adapter.time.sleep"),
+                patch(
+                    "services.replicate_ip_adapter.time.time", side_effect=[0, 5, 10]
+                ),
+            ):
+                result = self.adapter.generate(
+                    "A portrait", ref, "output.png", timeout=120
+                )
 
         assert result is not None
 
@@ -1523,11 +1791,22 @@ class TestReplicateIPAdapter:
             poll_resp.raise_for_status.return_value = None
             poll_resp.json.return_value = {"status": "failed", "error": "GPU error"}
 
-            with patch("services.replicate_ip_adapter.requests.post", return_value=create_resp), \
-                 patch("services.replicate_ip_adapter.requests.get", return_value=poll_resp), \
-                 patch("services.replicate_ip_adapter.time.sleep"), \
-                 patch("services.replicate_ip_adapter.time.time", side_effect=[0, 5, 10]):
-                result = self.adapter.generate("A portrait", ref, "output.png", timeout=120)
+            with (
+                patch(
+                    "services.replicate_ip_adapter.requests.post",
+                    return_value=create_resp,
+                ),
+                patch(
+                    "services.replicate_ip_adapter.requests.get", return_value=poll_resp
+                ),
+                patch("services.replicate_ip_adapter.time.sleep"),
+                patch(
+                    "services.replicate_ip_adapter.time.time", side_effect=[0, 5, 10]
+                ),
+            ):
+                result = self.adapter.generate(
+                    "A portrait", ref, "output.png", timeout=120
+                )
 
         assert result is None
 
@@ -1541,7 +1820,9 @@ class TestReplicateIPAdapter:
             create_resp.raise_for_status.return_value = None
             create_resp.json.return_value = {"urls": {}}  # no 'get' key
 
-            with patch("services.replicate_ip_adapter.requests.post", return_value=create_resp):
+            with patch(
+                "services.replicate_ip_adapter.requests.post", return_value=create_resp
+            ):
                 result = self.adapter.generate("prompt", ref)
         assert result is None
 
@@ -1562,10 +1843,19 @@ class TestReplicateIPAdapter:
 
             # Return 0 for start, then 999 for all subsequent calls (exceeds timeout=5)
             _time_values = iter([0] + [999] * 100)
-            with patch("services.replicate_ip_adapter.requests.post", return_value=create_resp), \
-                 patch("services.replicate_ip_adapter.requests.get", return_value=poll_resp), \
-                 patch("services.replicate_ip_adapter.time.sleep"), \
-                 patch("services.replicate_ip_adapter.time.time", side_effect=_time_values):
+            with (
+                patch(
+                    "services.replicate_ip_adapter.requests.post",
+                    return_value=create_resp,
+                ),
+                patch(
+                    "services.replicate_ip_adapter.requests.get", return_value=poll_resp
+                ),
+                patch("services.replicate_ip_adapter.time.sleep"),
+                patch(
+                    "services.replicate_ip_adapter.time.time", side_effect=_time_values
+                ),
+            ):
                 result = self.adapter.generate("prompt", ref, timeout=5)
         assert result is None
 
@@ -1574,7 +1864,10 @@ class TestReplicateIPAdapter:
             ref = os.path.join(tmpdir, "ref.png")
             with open(ref, "wb") as f:
                 f.write(b"PNG")
-            with patch("services.replicate_ip_adapter.requests.post", side_effect=Exception("network")):
+            with patch(
+                "services.replicate_ip_adapter.requests.post",
+                side_effect=Exception("network"),
+            ):
                 result = self.adapter.generate("prompt", ref)
         assert result is None
 
@@ -1604,10 +1897,20 @@ class TestReplicateIPAdapter:
             os.makedirs(output_dir)
             self.adapter.output_dir = output_dir
 
-            with patch("services.replicate_ip_adapter.requests.post", return_value=create_resp), \
-                 patch("services.replicate_ip_adapter.requests.get", side_effect=[poll_resp, img_resp]), \
-                 patch("services.replicate_ip_adapter.time.sleep"), \
-                 patch("services.replicate_ip_adapter.time.time", side_effect=[0, 5, 10]):
+            with (
+                patch(
+                    "services.replicate_ip_adapter.requests.post",
+                    return_value=create_resp,
+                ),
+                patch(
+                    "services.replicate_ip_adapter.requests.get",
+                    side_effect=[poll_resp, img_resp],
+                ),
+                patch("services.replicate_ip_adapter.time.sleep"),
+                patch(
+                    "services.replicate_ip_adapter.time.time", side_effect=[0, 5, 10]
+                ),
+            ):
                 result = self.adapter.generate("prompt", ref, timeout=120)
         assert result is not None
 
@@ -1629,10 +1932,19 @@ class TestReplicateIPAdapter:
                 "output": {"unexpected": "dict"},  # neither list nor str
             }
 
-            with patch("services.replicate_ip_adapter.requests.post", return_value=create_resp), \
-                 patch("services.replicate_ip_adapter.requests.get", return_value=poll_resp), \
-                 patch("services.replicate_ip_adapter.time.sleep"), \
-                 patch("services.replicate_ip_adapter.time.time", side_effect=[0, 5, 10]):
+            with (
+                patch(
+                    "services.replicate_ip_adapter.requests.post",
+                    return_value=create_resp,
+                ),
+                patch(
+                    "services.replicate_ip_adapter.requests.get", return_value=poll_resp
+                ),
+                patch("services.replicate_ip_adapter.time.sleep"),
+                patch(
+                    "services.replicate_ip_adapter.time.time", side_effect=[0, 5, 10]
+                ),
+            ):
                 result = self.adapter.generate("prompt", ref, timeout=120)
         assert result is None
 
@@ -1647,7 +1959,9 @@ class TestReplicateIPAdapter:
             create_resp.raise_for_status.return_value = None
             create_resp.json.return_value = {"urls": {}}
 
-            with patch("services.replicate_ip_adapter.requests.post", return_value=create_resp):
+            with patch(
+                "services.replicate_ip_adapter.requests.post", return_value=create_resp
+            ):
                 result = self.adapter.generate("prompt", ref)
         # No poll URL → None, but mime detection shouldn't crash
         assert result is None
@@ -1658,8 +1972,16 @@ class TestReplicateIPAdapter:
     def test_batch_generate_success(self):
         self.adapter.generate = MagicMock(return_value="/out/img.png")
         reqs = [
-            {"prompt": "p1", "reference_image_path": "/refs/r1.png", "filename": "f1.png"},
-            {"prompt": "p2", "reference_image_path": "/refs/r2.png", "filename": "f2.png"},
+            {
+                "prompt": "p1",
+                "reference_image_path": "/refs/r1.png",
+                "filename": "f1.png",
+            },
+            {
+                "prompt": "p2",
+                "reference_image_path": "/refs/r2.png",
+                "filename": "f2.png",
+            },
         ]
         results = self.adapter.batch_generate(reqs)
         assert len(results) == 2
@@ -1670,6 +1992,7 @@ class TestReplicateIPAdapter:
             if "p2" in kwargs.get("prompt", ""):
                 raise Exception("failed")
             return "/out/img.png"
+
         self.adapter.generate = gen
         reqs = [
             {"prompt": "p1", "reference_image_path": "/r1.png"},

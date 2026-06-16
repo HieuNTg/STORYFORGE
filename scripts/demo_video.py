@@ -119,7 +119,9 @@ async def run_demo():
         await nav_and_capture("Create Story", "13-back-to-create", 1500)
 
         # ── 10. Toggle dark/light mode ──
-        theme_btn = page.locator("[aria-label='Switch to light mode'], [aria-label='Switch to dark mode']")
+        theme_btn = page.locator(
+            "[aria-label='Switch to light mode'], [aria-label='Switch to dark mode']"
+        )
         if await theme_btn.count() > 0:
             await theme_btn.first.click()
             await asyncio.sleep(1)

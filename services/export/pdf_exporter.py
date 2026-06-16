@@ -1,4 +1,5 @@
 """Export story as PDF with book-quality typography and Vietnamese support."""
+
 import logging
 import os
 from datetime import datetime
@@ -18,29 +19,29 @@ MARGIN_B = 22
 
 # Body typography — serif body for book feel
 BODY_SIZE = 11
-BODY_LEADING = 6.0           # mm line-height at 11pt (~1.5 leading)
-PARA_INDENT = 5.5            # first-line indent (mm)
-DROPCAP_SIZE = 26            # drop cap point size on chapter openers
+BODY_LEADING = 6.0  # mm line-height at 11pt (~1.5 leading)
+PARA_INDENT = 5.5  # first-line indent (mm)
+DROPCAP_SIZE = 26  # drop cap point size on chapter openers
 
 # Font file names on disk (under services/assets/fonts/)
 # Body uses NotoSerif (book-grade Vietnamese serif). Display elements use NotoSans.
 _FONT_FILES = {
     "serif_regular": "NotoSerif-Regular.ttf",
-    "serif_bold":    "NotoSerif-Bold.ttf",
-    "serif_italic":  "NotoSerif-Italic.ttf",
-    "sans_regular":  "NotoSans-Regular.ttf",
-    "sans_bold":     "NotoSans-Bold.ttf",
-    "sans_italic":   "NotoSans-Italic.ttf",
+    "serif_bold": "NotoSerif-Bold.ttf",
+    "serif_italic": "NotoSerif-Italic.ttf",
+    "sans_regular": "NotoSans-Regular.ttf",
+    "sans_bold": "NotoSans-Bold.ttf",
+    "sans_italic": "NotoSans-Italic.ttf",
 }
 
 # Remote source: Google Fonts repository (static files — stable parsing for fpdf2)
 _FONT_URLS = {
     "serif_regular": "https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSerif/NotoSerif-Regular.ttf",
-    "serif_bold":    "https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSerif/NotoSerif-Bold.ttf",
-    "serif_italic":  "https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSerif/NotoSerif-Italic.ttf",
-    "sans_regular":  "https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Regular.ttf",
-    "sans_bold":     "https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Bold.ttf",
-    "sans_italic":   "https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Italic.ttf",
+    "serif_bold": "https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSerif/NotoSerif-Bold.ttf",
+    "serif_italic": "https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSerif/NotoSerif-Italic.ttf",
+    "sans_regular": "https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Regular.ttf",
+    "sans_bold": "https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Bold.ttf",
+    "sans_italic": "https://raw.githubusercontent.com/googlefonts/noto-fonts/main/hinted/ttf/NotoSans/NotoSans-Italic.ttf",
 }
 
 SERIF = "NotoSerif"
@@ -137,7 +138,9 @@ class PDFExporter:
         else:
             body_family = "Helvetica"
             display_family = "Helvetica"
-            logger.warning("Vietnamese fonts not found — falling back to Helvetica (diacritics may be missing)")
+            logger.warning(
+                "Vietnamese fonts not found — falling back to Helvetica (diacritics may be missing)"
+            )
 
         # ── 1. Title page ───────────────────────────────────────────────────
         PDFExporter._render_title_page(pdf, body_family, display_family, story)
@@ -151,7 +154,9 @@ class PDFExporter:
         _toc_entries = len(story.chapters) + (1 if characters else 0)
         _toc_pages = max(1, (_toc_entries + 23) // 24)
         pdf.insert_toc_placeholder(
-            lambda p, outline: PDFExporter._render_toc(p, body_family, outline, _toc_pages),
+            lambda p, outline: PDFExporter._render_toc(
+                p, body_family, outline, _toc_pages
+            ),
             pages=_toc_pages,
         )
 
@@ -206,8 +211,14 @@ class PDFExporter:
         pdf.set_y(MARGIN_T + 4)
         pdf.set_font(display_family, "", 8)
         pdf.set_text_color(150, 150, 150)
-        pdf.cell(0, 5, "STORYFORGE  ·  AI STORY STUDIO", align="C",
-                 new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(
+            0,
+            5,
+            "STORYFORGE  ·  AI STORY STUDIO",
+            align="C",
+            new_x="LMARGIN",
+            new_y="NEXT",
+        )
         pdf.set_text_color(0, 0, 0)
 
         # Vertical anchor ~36% down for title block
@@ -291,7 +302,9 @@ class PDFExporter:
         pdf.add_page()
         pdf.show_chrome = True
         # Section entry for outline + TOC
-        pdf.start_section(f"Chương {ch.chapter_number}: {ch.title or ''}".strip(" :"), level=0)
+        pdf.start_section(
+            f"Chương {ch.chapter_number}: {ch.title or ''}".strip(" :"), level=0
+        )
 
         # Top spacing to give the chapter head room
         pdf.ln(14)
@@ -299,8 +312,14 @@ class PDFExporter:
         # "CHƯƠNG N" — small caps via uppercase, display sans, muted colour
         pdf.set_font(display_family, "", 9)
         pdf.set_text_color(150, 150, 150)
-        pdf.cell(0, 6, f"C H Ư Ơ N G   {ch.chapter_number}", align="C",
-                 new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(
+            0,
+            6,
+            f"C H Ư Ơ N G   {ch.chapter_number}",
+            align="C",
+            new_x="LMARGIN",
+            new_y="NEXT",
+        )
         pdf.set_text_color(0, 0, 0)
         pdf.ln(3)
 
@@ -331,8 +350,9 @@ class PDFExporter:
             else:
                 pdf.set_font(body_family, "", BODY_SIZE)
                 pdf.set_x(MARGIN_L + PARA_INDENT)
-                pdf.multi_cell(0, BODY_LEADING, para, align="J",
-                               new_x="LMARGIN", new_y="NEXT")
+                pdf.multi_cell(
+                    0, BODY_LEADING, para, align="J", new_x="LMARGIN", new_y="NEXT"
+                )
             pdf.ln(0.8)
 
     @staticmethod
@@ -347,8 +367,9 @@ class PDFExporter:
         first = para[0]
         if first in ('"', "'", "“", "”", "‘", "’", "—", "-", "–"):
             pdf.set_font(body_family, "", BODY_SIZE)
-            pdf.multi_cell(0, BODY_LEADING, para, align="J",
-                           new_x="LMARGIN", new_y="NEXT")
+            pdf.multi_cell(
+                0, BODY_LEADING, para, align="J", new_x="LMARGIN", new_y="NEXT"
+            )
             return
 
         rest = para[1:]
@@ -380,8 +401,14 @@ class PDFExporter:
         # Move cursor below the drop cap block
         pdf.set_xy(MARGIN_L, y0 + max(len(beside), 1) * BODY_LEADING)
         if below:
-            pdf.multi_cell(0, BODY_LEADING, " ".join(below), align="J",
-                           new_x="LMARGIN", new_y="NEXT")
+            pdf.multi_cell(
+                0,
+                BODY_LEADING,
+                " ".join(below),
+                align="J",
+                new_x="LMARGIN",
+                new_y="NEXT",
+            )
 
     @staticmethod
     def _wrap_text(pdf, text: str, max_w: float) -> list[str]:
@@ -402,7 +429,9 @@ class PDFExporter:
         return lines
 
     @staticmethod
-    def _render_colophon(pdf, body_family: str, display_family: str, story, stats: ReadingStats) -> None:
+    def _render_colophon(
+        pdf, body_family: str, display_family: str, story, stats: ReadingStats
+    ) -> None:
         """Closing page with reading stats — quiet typography."""
         pdf.add_page()
         pdf.show_chrome = False
@@ -474,12 +503,14 @@ class PDFExporter:
         """
         sans_ok = PDFExporter._ensure_and_register(pdf, SANS, "sans_regular", style="")
         if sans_ok:
-            PDFExporter._ensure_and_register(pdf, SANS, "sans_bold",   style="B")
+            PDFExporter._ensure_and_register(pdf, SANS, "sans_bold", style="B")
             PDFExporter._ensure_and_register(pdf, SANS, "sans_italic", style="I")
 
-        serif_ok = PDFExporter._ensure_and_register(pdf, SERIF, "serif_regular", style="")
+        serif_ok = PDFExporter._ensure_and_register(
+            pdf, SERIF, "serif_regular", style=""
+        )
         if serif_ok:
-            PDFExporter._ensure_and_register(pdf, SERIF, "serif_bold",   style="B")
+            PDFExporter._ensure_and_register(pdf, SERIF, "serif_bold", style="B")
             PDFExporter._ensure_and_register(pdf, SERIF, "serif_italic", style="I")
 
         if serif_ok:
@@ -506,6 +537,7 @@ class PDFExporter:
     def _download_font(url: str, dest_path: str) -> bool:
         """Download a font file. Returns True on success."""
         import urllib.request
+
         try:
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
             logger.info(f"Downloading font: {os.path.basename(dest_path)}")

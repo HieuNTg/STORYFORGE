@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import uuid
 import pytest
-import pytest_asyncio
 from unittest.mock import patch, MagicMock
 
 
 # ---------------------------------------------------------------------------
 # 1. Unit tests: build_handoff_diagnostics
 # ---------------------------------------------------------------------------
+
 
 class TestBuildHandoffDiagnostics:
     """Unit tests for services.diagnostics_service.build_handoff_diagnostics."""
@@ -27,11 +26,36 @@ class TestBuildHandoffDiagnostics:
             "threads": [],
             "voice_fingerprints": [],
             "signal_health": {
-                "conflict_web": {"status": "ok", "item_count": 2, "reason": None, "last_error": None},
-                "foreshadowing_plan": {"status": "ok", "item_count": 3, "reason": None, "last_error": None},
-                "arc_waypoints": {"status": "empty", "item_count": 0, "reason": "no waypoints found", "last_error": None},
-                "threads": {"status": "ok", "item_count": 1, "reason": None, "last_error": None},
-                "voice_fingerprints": {"status": "ok", "item_count": 2, "reason": None, "last_error": None},
+                "conflict_web": {
+                    "status": "ok",
+                    "item_count": 2,
+                    "reason": None,
+                    "last_error": None,
+                },
+                "foreshadowing_plan": {
+                    "status": "ok",
+                    "item_count": 3,
+                    "reason": None,
+                    "last_error": None,
+                },
+                "arc_waypoints": {
+                    "status": "empty",
+                    "item_count": 0,
+                    "reason": "no waypoints found",
+                    "last_error": None,
+                },
+                "threads": {
+                    "status": "ok",
+                    "item_count": 1,
+                    "reason": None,
+                    "last_error": None,
+                },
+                "voice_fingerprints": {
+                    "status": "ok",
+                    "item_count": 2,
+                    "reason": None,
+                    "last_error": None,
+                },
             },
         }
 
@@ -54,7 +78,9 @@ class TestBuildHandoffDiagnostics:
             # Use context manager mock
             engine_instance = MagicMock()
             engine_instance.connect.return_value.__enter__ = lambda s: conn
-            engine_instance.connect.return_value.__exit__ = MagicMock(return_value=False)
+            engine_instance.connect.return_value.__exit__ = MagicMock(
+                return_value=False
+            )
             mock_eng.return_value = engine_instance
 
             result = build_handoff_diagnostics("nonexistent-story-id")
@@ -71,11 +97,13 @@ class TestBuildHandoffDiagnostics:
             # story exists
             conn.execute.return_value.fetchone.side_effect = [
                 MagicMock(),  # story row
-                None,         # no pipeline run with envelope
+                None,  # no pipeline run with envelope
             ]
             engine_instance = MagicMock()
             engine_instance.connect.return_value.__enter__ = lambda s: conn
-            engine_instance.connect.return_value.__exit__ = MagicMock(return_value=False)
+            engine_instance.connect.return_value.__exit__ = MagicMock(
+                return_value=False
+            )
             mock_eng.return_value = engine_instance
 
             result = build_handoff_diagnostics(story_id)
@@ -97,14 +125,24 @@ class TestBuildHandoffDiagnostics:
             ch_row_null = (3, None, None)  # chapter without contract
 
             conn.execute.return_value.fetchone.side_effect = [
-                MagicMock(),            # story row
-                (envelope, None, "1.0.0"),  # pipeline_run row (envelope, health, version)
+                MagicMock(),  # story row
+                (
+                    envelope,
+                    None,
+                    "1.0.0",
+                ),  # pipeline_run row (envelope, health, version)
             ]
-            conn.execute.return_value.fetchall.return_value = [ch_row_1, ch_row_2, ch_row_null]
+            conn.execute.return_value.fetchall.return_value = [
+                ch_row_1,
+                ch_row_2,
+                ch_row_null,
+            ]
 
             engine_instance = MagicMock()
             engine_instance.connect.return_value.__enter__ = lambda s: conn
-            engine_instance.connect.return_value.__exit__ = MagicMock(return_value=False)
+            engine_instance.connect.return_value.__exit__ = MagicMock(
+                return_value=False
+            )
             mock_eng.return_value = engine_instance
 
             result = build_handoff_diagnostics(story_id)
@@ -124,6 +162,7 @@ class TestBuildHandoffDiagnostics:
 # ---------------------------------------------------------------------------
 # 2. API integration tests
 # ---------------------------------------------------------------------------
+
 
 class TestDiagnosticsRoute:
     """Integration tests for GET /api/diagnostics/handoff/{story_id}."""
@@ -180,6 +219,7 @@ class TestDiagnosticsRoute:
 # 3. Alembic migration test — upgrade + downgrade on in-memory SQLite
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_migration_upgrade_and_downgrade():
     """Run migration 003 forward then backward on an in-memory SQLite DB."""
@@ -187,39 +227,57 @@ async def test_migration_upgrade_and_downgrade():
     from sqlalchemy import create_engine, inspect
 
     # Build a minimal DB with the pre-003 schema
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    engine = create_engine(
+        "sqlite:///:memory:", connect_args={"check_same_thread": False}
+    )
 
     with engine.begin() as conn:
-        conn.execute(sa.text(
-            "CREATE TABLE pipeline_runs ("
-            "  id TEXT PRIMARY KEY,"
-            "  story_id TEXT,"
-            "  genre TEXT DEFAULT '',"
-            "  status TEXT DEFAULT 'running',"
-            "  layer_reached INTEGER DEFAULT 1,"
-            "  token_usage INTEGER DEFAULT 0,"
-            "  created_at DATETIME DEFAULT CURRENT_TIMESTAMP"
-            ")"
-        ))
-        conn.execute(sa.text(
-            "CREATE TABLE chapters ("
-            "  id TEXT PRIMARY KEY,"
-            "  story_id TEXT,"
-            "  chapter_number INTEGER,"
-            "  title TEXT DEFAULT '',"
-            "  content TEXT DEFAULT '',"
-            "  word_count INTEGER DEFAULT 0,"
-            "  quality_score REAL DEFAULT 0"
-            ")"
-        ))
+        conn.execute(
+            sa.text(
+                "CREATE TABLE pipeline_runs ("
+                "  id TEXT PRIMARY KEY,"
+                "  story_id TEXT,"
+                "  genre TEXT DEFAULT '',"
+                "  status TEXT DEFAULT 'running',"
+                "  layer_reached INTEGER DEFAULT 1,"
+                "  token_usage INTEGER DEFAULT 0,"
+                "  created_at DATETIME DEFAULT CURRENT_TIMESTAMP"
+                ")"
+            )
+        )
+        conn.execute(
+            sa.text(
+                "CREATE TABLE chapters ("
+                "  id TEXT PRIMARY KEY,"
+                "  story_id TEXT,"
+                "  chapter_number INTEGER,"
+                "  title TEXT DEFAULT '',"
+                "  content TEXT DEFAULT '',"
+                "  word_count INTEGER DEFAULT 0,"
+                "  quality_score REAL DEFAULT 0"
+                ")"
+            )
+        )
 
     # Simulate upgrade
     with engine.begin() as conn:
-        conn.execute(sa.text("ALTER TABLE pipeline_runs ADD COLUMN handoff_envelope TEXT"))
-        conn.execute(sa.text("ALTER TABLE pipeline_runs ADD COLUMN handoff_health TEXT"))
-        conn.execute(sa.text("ALTER TABLE pipeline_runs ADD COLUMN handoff_signals_version TEXT"))
-        conn.execute(sa.text("ALTER TABLE chapters ADD COLUMN negotiated_contract TEXT"))
-        conn.execute(sa.text("ALTER TABLE chapters ADD COLUMN contract_reconciliation_warnings TEXT"))
+        conn.execute(
+            sa.text("ALTER TABLE pipeline_runs ADD COLUMN handoff_envelope TEXT")
+        )
+        conn.execute(
+            sa.text("ALTER TABLE pipeline_runs ADD COLUMN handoff_health TEXT")
+        )
+        conn.execute(
+            sa.text("ALTER TABLE pipeline_runs ADD COLUMN handoff_signals_version TEXT")
+        )
+        conn.execute(
+            sa.text("ALTER TABLE chapters ADD COLUMN negotiated_contract TEXT")
+        )
+        conn.execute(
+            sa.text(
+                "ALTER TABLE chapters ADD COLUMN contract_reconciliation_warnings TEXT"
+            )
+        )
 
     # Verify columns exist after upgrade
     insp = inspect(engine)
@@ -235,25 +293,31 @@ async def test_migration_upgrade_and_downgrade():
     # Simulate downgrade: SQLite doesn't support DROP COLUMN in older versions
     # so we just verify the columns are nullable (can be NULL)
     with engine.begin() as conn:
-        conn.execute(sa.text(
-            "INSERT INTO pipeline_runs (id, story_id) VALUES ('pr1', 's1')"
-        ))
-        conn.execute(sa.text(
-            "INSERT INTO chapters (id, story_id, chapter_number) VALUES ('ch1', 's1', 1)"
-        ))
+        conn.execute(
+            sa.text("INSERT INTO pipeline_runs (id, story_id) VALUES ('pr1', 's1')")
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO chapters (id, story_id, chapter_number) VALUES ('ch1', 's1', 1)"
+            )
+        )
     with engine.connect() as conn:
-        row = conn.execute(sa.text(
-            "SELECT handoff_envelope, handoff_health, handoff_signals_version "
-            "FROM pipeline_runs WHERE id = 'pr1'"
-        )).fetchone()
+        row = conn.execute(
+            sa.text(
+                "SELECT handoff_envelope, handoff_health, handoff_signals_version "
+                "FROM pipeline_runs WHERE id = 'pr1'"
+            )
+        ).fetchone()
         assert row[0] is None
         assert row[1] is None
         assert row[2] is None
 
-        ch_row = conn.execute(sa.text(
-            "SELECT negotiated_contract, contract_reconciliation_warnings "
-            "FROM chapters WHERE id = 'ch1'"
-        )).fetchone()
+        ch_row = conn.execute(
+            sa.text(
+                "SELECT negotiated_contract, contract_reconciliation_warnings "
+                "FROM chapters WHERE id = 'ch1'"
+            )
+        ).fetchone()
         assert ch_row[0] is None
         assert ch_row[1] is None
 
@@ -263,6 +327,7 @@ async def test_migration_upgrade_and_downgrade():
 # ---------------------------------------------------------------------------
 # 4. VoiceFingerprint register_ alias test
 # ---------------------------------------------------------------------------
+
 
 def test_voice_fingerprint_register_alias():
     """register_ field accepts both 'register' (alias) and 'register_' (field name)."""

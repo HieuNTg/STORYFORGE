@@ -21,7 +21,9 @@ class TestRevisePreambleStripping:
             with patch.object(reviewer, "llm", create=True) as mock_llm:
                 mock_llm.generate.return_value = bad
                 out = reviewer.revise(
-                    content="seed", weaknesses=["pacing chậm"], word_count=2000,
+                    content="seed",
+                    weaknesses=["pacing chậm"],
+                    word_count=2000,
                 )
         assert out.startswith("Hùng nín thở")
         assert "phiên bản" not in out.lower()
@@ -37,7 +39,9 @@ class TestRevisePreambleStripping:
             with patch.object(reviewer, "llm", create=True) as mock_llm:
                 mock_llm.generate.return_value = bad
                 out = reviewer.revise(
-                    content="seed", weaknesses=["voice"], word_count=2000,
+                    content="seed",
+                    weaknesses=["voice"],
+                    word_count=2000,
                 )
         assert out.startswith("The mountain")
 
@@ -48,7 +52,9 @@ class TestRevisePreambleStripping:
             with patch.object(reviewer, "llm", create=True) as mock_llm:
                 mock_llm.generate.return_value = clean
                 out = reviewer.revise(
-                    content="seed", weaknesses=["x"], word_count=2000,
+                    content="seed",
+                    weaknesses=["x"],
+                    word_count=2000,
                 )
         assert out == clean
 
@@ -59,6 +65,8 @@ class TestRevisePreambleStripping:
             with patch.object(reviewer, "llm", create=True) as mock_llm:
                 mock_llm.generate.side_effect = RuntimeError("LLM down")
                 out = reviewer.revise(
-                    content=original, weaknesses=["x"], word_count=2000,
+                    content=original,
+                    weaknesses=["x"],
+                    word_count=2000,
                 )
         assert out == original

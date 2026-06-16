@@ -1,4 +1,5 @@
 """Coverage tests for services: LLM providers, text_utils, llm_cache, retry logic."""
+
 from __future__ import annotations
 
 import os
@@ -13,21 +14,25 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 # text_utils
 # ============================================================
 
+
 class TestTextUtils:
     """Tests for text utility functions."""
 
     def test_sanitize_story_html_empty_string(self):
         from services.text_utils import sanitize_story_html
+
         assert sanitize_story_html("") == ""
 
     def test_sanitize_story_html_none_equivalent(self):
         from services.text_utils import sanitize_story_html
+
         # Empty string falsy case
         result = sanitize_story_html("")
         assert result == ""
 
     def test_sanitize_story_html_plain_text(self):
         from services.text_utils import sanitize_story_html, _HAS_NH3
+
         if not _HAS_NH3:
             pytest.skip("nh3 not installed")
         result = sanitize_story_html("Hello world")
@@ -35,6 +40,7 @@ class TestTextUtils:
 
     def test_sanitize_story_html_strips_script(self):
         from services.text_utils import sanitize_story_html, _HAS_NH3
+
         try:
             result = sanitize_story_html("<script>alert(1)</script>Hello")
             if _HAS_NH3:
@@ -44,6 +50,7 @@ class TestTextUtils:
 
     def test_sanitize_story_html_allows_basic_tags(self):
         from services.text_utils import sanitize_story_html
+
         try:
             result = sanitize_story_html("<strong>Bold</strong> text")
             assert "Bold" in result
@@ -52,6 +59,7 @@ class TestTextUtils:
 
     def test_sanitize_story_html_strips_onclick(self):
         from services.text_utils import sanitize_story_html, _HAS_NH3
+
         try:
             result = sanitize_story_html('<p onclick="evil()">text</p>')
             if _HAS_NH3:
@@ -61,12 +69,14 @@ class TestTextUtils:
 
     def test_excerpt_text_short_text(self):
         from services.text_utils import excerpt_text
+
         text = "Short text"
         result = excerpt_text(text, max_chars=4000)
         assert result == text
 
     def test_excerpt_text_long_text(self):
         from services.text_utils import excerpt_text
+
         long_text = "A" * 5000
         result = excerpt_text(long_text, max_chars=4000)
         assert len(result) <= 4000 + 10  # +10 for ellipsis
@@ -74,6 +84,7 @@ class TestTextUtils:
 
     def test_excerpt_text_head_ratio(self):
         from services.text_utils import excerpt_text
+
         long_text = "H" * 3000 + "T" * 3000  # 6000 chars
         result = excerpt_text(long_text, max_chars=1000, head_ratio=0.5)
         # Should have head + tail
@@ -82,6 +93,7 @@ class TestTextUtils:
 
     def test_excerpt_text_exact_limit(self):
         from services.text_utils import excerpt_text
+
         text = "X" * 4000
         result = excerpt_text(text, max_chars=4000)
         assert result == text  # Exactly at limit, no truncation
@@ -91,11 +103,13 @@ class TestTextUtils:
 # LLM Retry Logic
 # ============================================================
 
+
 class TestLLMRetry:
     """Tests for LLM retry utilities."""
 
     def test_redact_api_key(self):
         from services.llm.retry import _redact
+
         msg = "Authorization: sk-abc123def456"
         result = _redact(msg)
         assert "sk-abc123def456" not in result
@@ -103,90 +117,108 @@ class TestLLMRetry:
 
     def test_redact_bearer_token(self):
         from services.llm.retry import _redact
+
         msg = "Bearer: mytoken123456789"
         result = _redact(msg)
         assert "mytoken123456789" not in result
 
     def test_redact_plain_text(self):
         from services.llm.retry import _redact
+
         msg = "Normal error message"
         result = _redact(msg)
         assert result == "Normal error message"
 
     def test_is_transient_timeout(self):
         from services.llm.retry import _is_transient
+
         exc = Exception("connection timeout occurred")
         assert _is_transient(exc) is True
 
     def test_is_transient_429(self):
         from services.llm.retry import _is_transient
+
         exc = Exception("HTTP 429 rate limit exceeded")
         assert _is_transient(exc) is True
 
     def test_is_transient_503(self):
         from services.llm.retry import _is_transient
+
         exc = Exception("503 service unavailable")
         assert _is_transient(exc) is True
 
     def test_is_transient_auth_error(self):
         from services.llm.retry import _is_transient
+
         exc = Exception("401 authentication failed")
         assert _is_transient(exc) is False
 
     def test_detect_provider_openai(self):
         from services.llm.retry import _detect_provider
+
         assert _detect_provider("https://api.openai.com/v1") == "openai"
 
     def test_detect_provider_openrouter(self):
         from services.llm.retry import _detect_provider
+
         assert _detect_provider("https://openrouter.ai/api/v1") == "openrouter"
 
     def test_detect_provider_anthropic(self):
         from services.llm.retry import _detect_provider
+
         assert _detect_provider("https://api.anthropic.com/v1") == "anthropic"
 
     def test_detect_provider_gemini(self):
         from services.llm.retry import _detect_provider
+
         assert _detect_provider("https://generativelanguage.googleapis.com") == "google"
 
     def test_detect_provider_ollama(self):
         from services.llm.retry import _detect_provider
+
         assert _detect_provider("http://localhost:11434") == "ollama"
 
     def test_detect_provider_empty(self):
         from services.llm.retry import _detect_provider
+
         assert _detect_provider("") == "openai"
 
     def test_detect_provider_custom(self):
         from services.llm.retry import _detect_provider
+
         assert _detect_provider("https://myprovider.example.com") == "custom"
 
     def test_parse_retry_after_no_response(self):
         from services.llm.retry import _parse_retry_after
+
         exc = Exception("simple error")
         result = _parse_retry_after(exc)
         assert result is None
 
     def test_should_retry_transient_timeout(self):
         from services.llm.retry import _should_retry
+
         exc = Exception("connection timeout")
         should_retry, delay = _should_retry(exc, provider="openai")
         assert should_retry is True
 
     def test_should_retry_429(self):
         from services.llm.retry import _should_retry
+
         exc = Exception("429 rate limit exceeded")
         should_retry, delay = _should_retry(exc, provider="openai")
         assert should_retry is True
 
     def test_should_retry_non_transient_quota(self):
         from services.llm.retry import _should_retry
+
         exc = Exception("quota exceeded")
         should_retry, delay = _should_retry(exc, provider="openai")
         assert should_retry is False
 
     def test_should_retry_openrouter_429(self):
         from services.llm.retry import _should_retry
+
         exc = Exception("429 rate limit")
         should_retry, delay = _should_retry(exc, provider="openrouter")
         assert should_retry is True
@@ -197,46 +229,63 @@ class TestLLMRetry:
 # LLM Provider Factory
 # ============================================================
 
+
 class TestLLMProviderFactory:
     """Tests for provider auto-detection."""
 
     def test_get_provider_openai_default(self):
         from services.llm.providers import get_provider
+
         with patch("openai.OpenAI") as mock_openai:
             mock_openai.return_value = MagicMock()
-            provider = get_provider(base_url="https://api.openai.com/v1", api_key="sk-test")
+            provider = get_provider(
+                base_url="https://api.openai.com/v1", api_key="sk-test"
+            )
         from services.llm.providers.openai_provider import OpenAIProvider
+
         assert isinstance(provider, OpenAIProvider)
 
     def test_get_provider_openrouter(self):
         from services.llm.providers import get_provider
+
         with patch("openai.OpenAI") as mock_openai:
             mock_openai.return_value = MagicMock()
-            provider = get_provider(base_url="https://openrouter.ai/api/v1", api_key="sk-test")
+            provider = get_provider(
+                base_url="https://openrouter.ai/api/v1", api_key="sk-test"
+            )
         from services.llm.providers.openai_provider import OpenAIProvider
+
         assert isinstance(provider, OpenAIProvider)  # OpenRouter is OpenAI-compatible
 
     def test_get_provider_anthropic(self):
         from services.llm.providers import get_provider
+
         mock_anthropic = MagicMock()
         with patch.dict(sys.modules, {"anthropic": mock_anthropic}):
             try:
-                provider = get_provider(base_url="https://api.anthropic.com/v1", api_key="sk-ant-test")
+                provider = get_provider(
+                    base_url="https://api.anthropic.com/v1", api_key="sk-ant-test"
+                )
                 from services.llm.providers.anthropic_provider import AnthropicProvider
+
                 assert isinstance(provider, AnthropicProvider)
             except ImportError:
                 pytest.skip("anthropic SDK not installed")
 
     def test_get_provider_gemini(self):
         from services.llm.providers import get_provider
+
         mock_genai = MagicMock()
-        with patch.dict(sys.modules, {"google": MagicMock(), "google.genai": mock_genai}):
+        with patch.dict(
+            sys.modules, {"google": MagicMock(), "google.genai": mock_genai}
+        ):
             try:
                 provider = get_provider(
                     base_url="https://generativelanguage.googleapis.com",
-                    api_key="ai-test"
+                    api_key="ai-test",
                 )
                 from services.llm.providers.gemini_provider import GeminiProvider
+
                 assert isinstance(provider, GeminiProvider)
             except ImportError:
                 pytest.skip("google-genai SDK not installed")
@@ -246,18 +295,22 @@ class TestLLMProviderFactory:
 # OpenAI Provider
 # ============================================================
 
+
 class TestOpenAIProvider:
     """Tests for OpenAIProvider."""
 
     def test_complete_returns_string(self):
         from services.llm.providers.openai_provider import OpenAIProvider
+
         mock_openai_client = MagicMock()
         mock_response = MagicMock()
         mock_response.choices[0].message.content = "Test response"
         mock_openai_client.chat.completions.create.return_value = mock_response
 
         with patch("openai.OpenAI", return_value=mock_openai_client):
-            provider = OpenAIProvider(api_key="sk-test", base_url="https://api.openai.com/v1")
+            provider = OpenAIProvider(
+                api_key="sk-test", base_url="https://api.openai.com/v1"
+            )
 
         provider.client = mock_openai_client
         result = provider.complete(
@@ -270,13 +323,16 @@ class TestOpenAIProvider:
 
     def test_complete_with_json_mode(self):
         from services.llm.providers.openai_provider import OpenAIProvider
+
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.choices[0].message.content = '{"key": "value"}'
         mock_client.chat.completions.create.return_value = mock_response
 
         with patch("openai.OpenAI", return_value=mock_client):
-            provider = OpenAIProvider(api_key="sk-test", base_url="https://api.openai.com/v1")
+            provider = OpenAIProvider(
+                api_key="sk-test", base_url="https://api.openai.com/v1"
+            )
 
         provider.client = mock_client
         result = provider.complete(
@@ -293,6 +349,7 @@ class TestOpenAIProvider:
 
     def test_stream_yields_chunks(self):
         from services.llm.providers.openai_provider import OpenAIProvider
+
         mock_client = MagicMock()
 
         chunk1 = MagicMock()
@@ -305,29 +362,37 @@ class TestOpenAIProvider:
         mock_client.chat.completions.create.return_value = [chunk1, chunk2, chunk3]
 
         with patch("openai.OpenAI", return_value=mock_client):
-            provider = OpenAIProvider(api_key="sk-test", base_url="https://api.openai.com/v1")
+            provider = OpenAIProvider(
+                api_key="sk-test", base_url="https://api.openai.com/v1"
+            )
 
         provider.client = mock_client
-        chunks = list(provider.stream(
-            messages=[{"role": "user", "content": "test"}],
-            model="gpt-4o-mini",
-            temperature=0.5,
-            max_tokens=100,
-        ))
+        chunks = list(
+            provider.stream(
+                messages=[{"role": "user", "content": "test"}],
+                model="gpt-4o-mini",
+                temperature=0.5,
+                max_tokens=100,
+            )
+        )
         assert "Hello" in chunks
         assert " World" in chunks
 
     def test_base_url_property(self):
         from services.llm.providers.openai_provider import OpenAIProvider
+
         mock_client = MagicMock()
         with patch("openai.OpenAI", return_value=mock_client):
-            provider = OpenAIProvider(api_key="sk-test", base_url="https://test.example.com")
+            provider = OpenAIProvider(
+                api_key="sk-test", base_url="https://test.example.com"
+            )
         assert provider.base_url == "https://test.example.com"
 
 
 # ============================================================
 # Anthropic Provider
 # ============================================================
+
 
 class TestAnthropicProvider:
     """Tests for AnthropicProvider."""
@@ -343,10 +408,12 @@ class TestAnthropicProvider:
             mock_anthropic.Anthropic.return_value = MagicMock()
             provider = AnthropicProvider.__new__(AnthropicProvider)
             provider._base_url = ""
-            result = provider._split_messages([
-                {"role": "system", "content": "You are helpful"},
-                {"role": "user", "content": "Hello"},
-            ])
+            result = provider._split_messages(
+                [
+                    {"role": "system", "content": "You are helpful"},
+                    {"role": "user", "content": "Hello"},
+                ]
+            )
         system, messages = result
         assert system == "You are helpful"
         assert len(messages) == 1
@@ -360,9 +427,11 @@ class TestAnthropicProvider:
 
         provider = AnthropicProvider.__new__(AnthropicProvider)
         provider._base_url = ""
-        system, messages = provider._split_messages([
-            {"role": "user", "content": "Hello"},
-        ])
+        system, messages = provider._split_messages(
+            [
+                {"role": "user", "content": "Hello"},
+            ]
+        )
         assert system == ""
         assert len(messages) == 1
 
@@ -370,6 +439,7 @@ class TestAnthropicProvider:
 # ============================================================
 # Generation Mixin
 # ============================================================
+
 
 class TestGenerationMixin:
     """Tests for JSON parsing in GenerationMixin."""
@@ -412,6 +482,7 @@ class TestGenerationMixin:
 # LLM Cache
 # ============================================================
 
+
 class TestLLMCache:
     """Tests for LLM cache (SQLite backend) using in-memory SQLite."""
 
@@ -435,12 +506,16 @@ class TestLLMCache:
 
     def test_cache_get_miss(self):
         cache = self._make_in_memory_cache()
-        result = cache.get(system="sys", user="user", model="gpt", temperature=0.7, max_tokens=100)
+        result = cache.get(
+            system="sys", user="user", model="gpt", temperature=0.7, max_tokens=100
+        )
         assert result is None
 
     def test_cache_put_and_get(self):
         cache = self._make_in_memory_cache()
-        params = dict(system="sys", user="user", model="gpt", temperature=0.7, max_tokens=100)
+        params = dict(
+            system="sys", user="user", model="gpt", temperature=0.7, max_tokens=100
+        )
         cache.put("test_value", **params)
         result = cache.get(**params)
         assert result == "test_value"
@@ -477,17 +552,20 @@ class TestLLMCache:
 # services.llm.model_fallback
 # ============================================================
 
+
 class TestModelFallback:
     """Tests for model fallback manager."""
 
     def test_fallback_manager_init(self):
         from services.llm.model_fallback import ModelFallbackManager
+
         manager = ModelFallbackManager()
         assert manager is not None
         assert manager._max_latency_ms > 0
 
     def test_select_model_primary_only(self):
         from services.llm.model_fallback import ModelFallbackManager
+
         manager = ModelFallbackManager()
         result = manager.select_model(
             primary_model="gpt-4o-mini",
@@ -498,6 +576,7 @@ class TestModelFallback:
 
     def test_select_model_with_fallback(self):
         from services.llm.model_fallback import ModelFallbackManager
+
         manager = ModelFallbackManager()
         # Mark primary as unhealthy
         manager._health_cache["gpt-4o-mini"] = {
@@ -506,13 +585,16 @@ class TestModelFallback:
         }
         result = manager.select_model(
             primary_model="gpt-4o-mini",
-            fallback_models=[{"model": "gpt-3.5-turbo", "base_url": "https://api.openai.com/v1"}],
+            fallback_models=[
+                {"model": "gpt-3.5-turbo", "base_url": "https://api.openai.com/v1"}
+            ],
         )
         # Should fall back to gpt-3.5-turbo or still use primary
         assert "model" in result
 
     def test_record_latency(self):
         from services.llm.model_fallback import ModelFallbackManager
+
         manager = ModelFallbackManager()
         manager.record_latency("gpt-4o-mini", 100.0)
         manager.record_latency("gpt-4o-mini", 200.0)
@@ -520,6 +602,7 @@ class TestModelFallback:
 
     def test_should_skip_model_healthy(self):
         from services.llm.model_fallback import ModelFallbackManager
+
         manager = ModelFallbackManager(max_latency_ms=5000, max_cost_per_1k=0.01)
         skip, reason = manager.should_skip_model("gpt-4o-mini")
         assert skip is False
@@ -527,6 +610,7 @@ class TestModelFallback:
 
     def test_should_skip_model_unhealthy(self):
         from services.llm.model_fallback import ModelFallbackManager
+
         manager = ModelFallbackManager()
         manager.mark_unhealthy("gpt-4o-mini")
         skip, reason = manager.should_skip_model("gpt-4o-mini")
@@ -535,6 +619,7 @@ class TestModelFallback:
 
     def test_should_skip_model_high_latency(self):
         from services.llm.model_fallback import ModelFallbackManager
+
         manager = ModelFallbackManager(max_latency_ms=1000)
         # Record high latency samples
         for _ in range(10):
@@ -545,6 +630,7 @@ class TestModelFallback:
 
     def test_should_skip_model_high_cost(self):
         from services.llm.model_fallback import ModelFallbackManager
+
         manager = ModelFallbackManager(max_cost_per_1k=0.01)
         skip, reason = manager.should_skip_model("expensive-model", cost_per_1k=0.05)
         assert skip is True
@@ -552,6 +638,7 @@ class TestModelFallback:
 
     def test_update_thresholds(self):
         from services.llm.model_fallback import ModelFallbackManager
+
         manager = ModelFallbackManager(max_latency_ms=5000, max_cost_per_1k=0.01)
         manager.update_thresholds(max_latency_ms=10000, max_cost_per_1k=0.02)
         assert manager._max_latency_ms == 10000
@@ -559,6 +646,7 @@ class TestModelFallback:
 
     def test_get_stats(self):
         from services.llm.model_fallback import ModelFallbackManager
+
         manager = ModelFallbackManager()
         manager.record_latency("test-model", 100.0)
         manager.mark_healthy("test-model")
@@ -568,7 +656,11 @@ class TestModelFallback:
         assert "max_latency_ms" in stats
 
     def test_singleton_get_fallback_manager(self):
-        from services.llm.model_fallback import get_fallback_manager, reset_fallback_manager
+        from services.llm.model_fallback import (
+            get_fallback_manager,
+            reset_fallback_manager,
+        )
+
         reset_fallback_manager()
         fm1 = get_fallback_manager()
         fm2 = get_fallback_manager()
@@ -579,12 +671,14 @@ class TestModelFallback:
 # services.structured_output
 # ============================================================
 
+
 class TestStructuredOutput:
     """Tests for structured output utilities."""
 
     def test_import(self):
         try:
             import services.structured_output as so
+
             assert so is not None
         except ImportError:
             pytest.skip("structured_output not available")
@@ -594,11 +688,13 @@ class TestStructuredOutput:
 # services.prometheus_metrics
 # ============================================================
 
+
 class TestPrometheusMetrics:
     """Tests for prometheus metrics singleton."""
 
     def test_record_request(self):
         from services.prometheus_metrics import prometheus_metrics
+
         # Should not raise
         prometheus_metrics.record_request(
             method="GET",
@@ -609,6 +705,7 @@ class TestPrometheusMetrics:
 
     def test_record_llm_call(self):
         from services.prometheus_metrics import prometheus_metrics
+
         try:
             prometheus_metrics.record_llm_call(
                 model="gpt-4o-mini",
@@ -622,4 +719,5 @@ class TestPrometheusMetrics:
     def test_singleton(self):
         from services.prometheus_metrics import prometheus_metrics as m1
         from services.prometheus_metrics import prometheus_metrics as m2
+
         assert m1 is m2

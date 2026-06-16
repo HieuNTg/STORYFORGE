@@ -1,4 +1,5 @@
 """Test PDFExporter service."""
+
 import os
 from models.schemas import StoryDraft, Chapter, Character
 from services.pdf_exporter import PDFExporter
@@ -7,8 +8,13 @@ from services.pdf_exporter import PDFExporter
 def _make_story(word_count=1000):
     content = "word " * word_count
     return StoryDraft(
-        title="Test Story", genre="Fantasy",
-        chapters=[Chapter(chapter_number=1, title="Ch1", content=content, word_count=word_count)],
+        title="Test Story",
+        genre="Fantasy",
+        chapters=[
+            Chapter(
+                chapter_number=1, title="Ch1", content=content, word_count=word_count
+            )
+        ],
     )
 
 
@@ -22,10 +28,14 @@ def test_compute_reading_stats():
 
 
 def test_compute_stats_multi_chapter():
-    story = StoryDraft(title="T", genre="G", chapters=[
-        Chapter(chapter_number=i, title=f"Ch{i}", content="word " * 500)
-        for i in range(1, 4)
-    ])
+    story = StoryDraft(
+        title="T",
+        genre="G",
+        chapters=[
+            Chapter(chapter_number=i, title=f"Ch{i}", content="word " * 500)
+            for i in range(1, 4)
+        ],
+    )
     stats = PDFExporter.compute_reading_stats(story)
     assert stats.total_chapters == 3
     assert stats.total_words == 1500
@@ -40,7 +50,15 @@ def test_export_creates_file(tmp_path):
 
 def test_export_with_characters(tmp_path):
     story = _make_story(50)
-    chars = [Character(name="Minh", role="protagonist", personality="brave", background="bg", motivation="m")]
+    chars = [
+        Character(
+            name="Minh",
+            role="protagonist",
+            personality="brave",
+            background="bg",
+            motivation="m",
+        )
+    ]
     path = PDFExporter.export(story, str(tmp_path / "test2.pdf"), characters=chars)
     assert os.path.exists(path)
 

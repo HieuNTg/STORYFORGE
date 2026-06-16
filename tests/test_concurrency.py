@@ -1,4 +1,5 @@
 """Concurrency tests — ThreadPoolExecutor cap, future timeouts, concurrent exports."""
+
 import os
 import threading
 import time
@@ -10,8 +11,8 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 # 1. ThreadPoolExecutor max_workers cap
 # ---------------------------------------------------------------------------
 
-class TestThreadPoolMaxWorkersCap:
 
+class TestThreadPoolMaxWorkersCap:
     def test_max_workers_respected_cap_at_config_value(self):
         """Workers must not exceed configured maximum."""
         MAX_CAP = 3
@@ -70,6 +71,7 @@ class TestThreadPoolMaxWorkersCap:
     def test_llm_config_max_parallel_workers_is_respected(self):
         """LLMConfig.max_parallel_workers controls thread cap (default 3)."""
         from config import LLMConfig
+
         cfg = LLMConfig()
         # Default is 3 — should be positive and reasonable
         assert cfg.max_parallel_workers > 0
@@ -80,10 +82,11 @@ class TestThreadPoolMaxWorkersCap:
 # 2. Future timeout handling
 # ---------------------------------------------------------------------------
 
-class TestFutureTimeoutHandling:
 
+class TestFutureTimeoutHandling:
     def test_slow_task_raises_timeout_error_when_waited_too_short(self):
         """result(timeout=...) raises TimeoutError for slow tasks."""
+
         def slow_task():
             time.sleep(5)
             return "done"
@@ -97,6 +100,7 @@ class TestFutureTimeoutHandling:
 
     def test_timeout_does_not_crash_the_executor(self):
         """TimeoutError from one future leaves executor healthy for other tasks."""
+
         def slow():
             time.sleep(5)
             return "slow"
@@ -118,6 +122,7 @@ class TestFutureTimeoutHandling:
 
     def test_timeout_error_can_be_caught_gracefully(self):
         """Pattern: catch TimeoutError, continue with default value."""
+
         def slow():
             time.sleep(5)
             return "real result"
@@ -136,6 +141,7 @@ class TestFutureTimeoutHandling:
 
     def test_completed_task_returns_before_timeout(self):
         """Fast task returns result well before timeout expires."""
+
         def fast():
             return 42
 
@@ -150,10 +156,11 @@ class TestFutureTimeoutHandling:
 # 3. Multiple concurrent export operations don't corrupt files
 # ---------------------------------------------------------------------------
 
-class TestConcurrentExportIntegrity:
 
+class TestConcurrentExportIntegrity:
     def _make_story(self, title="Story", content="Content"):
         from models.schemas import StoryDraft, Chapter
+
         return StoryDraft(
             title=title,
             genre="test",
@@ -163,12 +170,15 @@ class TestConcurrentExportIntegrity:
     def test_concurrent_html_exports_produce_distinct_valid_files(self, tmp_path):
         """Multiple threads exporting HTML simultaneously produce valid, distinct files."""
         from services.html_exporter import HTMLExporter
+
         errors = []
         outputs = []
         lock = threading.Lock()
 
         def do_export(i):
-            story = self._make_story(title=f"Story {i}", content=f"Content for story {i}. " * 20)
+            story = self._make_story(
+                title=f"Story {i}", content=f"Content for story {i}. " * 20
+            )
             out = str(tmp_path / f"story_{i}.html")
             try:
                 HTMLExporter.export(story, out)
@@ -194,6 +204,7 @@ class TestConcurrentExportIntegrity:
     def test_concurrent_html_exports_no_content_cross_contamination(self, tmp_path):
         """Each exported HTML file contains only its own story title."""
         from services.html_exporter import HTMLExporter
+
         n = 6
         lock = threading.Lock()
         file_map = {}
@@ -223,7 +234,9 @@ class TestConcurrentExportIntegrity:
 
         shares_dir = str(tmp_path / "shares")
         monkeypatch.setattr(ShareManager, "SHARES_DIR", shares_dir)
-        monkeypatch.setattr(ShareManager, "SHARES_INDEX", os.path.join(shares_dir, "index.json"))
+        monkeypatch.setattr(
+            ShareManager, "SHARES_INDEX", os.path.join(shares_dir, "index.json")
+        )
 
         mgr = ShareManager()
         share_ids = []
@@ -231,10 +244,13 @@ class TestConcurrentExportIntegrity:
 
         def create_share(i):
             from models.schemas import StoryDraft, Chapter
+
             story = StoryDraft(
                 title=f"Story {i}",
                 genre="test",
-                chapters=[Chapter(chapter_number=1, title="Ch1", content=f"Content {i}")],
+                chapters=[
+                    Chapter(chapter_number=1, title="Ch1", content=f"Content {i}")
+                ],
             )
             share = mgr.create_share(story)
             with lock:
@@ -246,21 +262,27 @@ class TestConcurrentExportIntegrity:
                 f.result()
 
         # All share IDs must be unique
-        assert len(share_ids) == len(set(share_ids)), "Duplicate share IDs found in concurrent creation"
+        assert len(share_ids) == len(set(share_ids)), (
+            "Duplicate share IDs found in concurrent creation"
+        )
 
     def test_concurrent_web_reader_generation_is_thread_safe(self):
         """WebReaderGenerator.generate() is safe to call from multiple threads."""
         from services.web_reader_generator import WebReaderGenerator
+
         results = []
         errors = []
         lock = threading.Lock()
 
         def generate(i):
             from models.schemas import StoryDraft, Chapter
+
             story = StoryDraft(
                 title=f"Story {i}",
                 genre="test",
-                chapters=[Chapter(chapter_number=1, title="Ch1", content=f"Content {i} " * 50)],
+                chapters=[
+                    Chapter(chapter_number=1, title="Ch1", content=f"Content {i} " * 50)
+                ],
             )
             try:
                 html = WebReaderGenerator.generate(story)

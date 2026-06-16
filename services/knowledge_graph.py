@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # Try NetworkX, fallback to pure Python
 try:
     import networkx as nx
+
     HAS_NETWORKX = True
 except ImportError:
     HAS_NETWORKX = False
@@ -89,7 +90,9 @@ class StoryKnowledgeGraph:
         else:
             # Pure Python fallback: adjacency dict
             self._nodes = {}  # {node_id: {type, name, attributes}}
-            self._edges = defaultdict(list)  # {(src, dst): [{type, chapter, strength, ...}]}
+            self._edges = defaultdict(
+                list
+            )  # {(src, dst): [{type, chapter, strength, ...}]}
 
     def add_character(self, name: str, attributes: dict = None):
         """Add or update a character node."""
@@ -111,7 +114,9 @@ class StoryKnowledgeGraph:
             else:
                 self._nodes[node_id] = attrs
 
-    def add_event(self, event_id: str, description: str, chapter: int, characters: list = None):
+    def add_event(
+        self, event_id: str, description: str, chapter: int, characters: list = None
+    ):
         """Add a plot event node linked to involved characters."""
         node_id = f"event:{event_id}"
         attrs = {"type": "event", "description": description, "chapter": chapter}
@@ -122,9 +127,10 @@ class StoryKnowledgeGraph:
                 self._nodes[node_id] = attrs
 
             # Link characters to event
-            for char_name in (characters or []):
-                self.add_relationship(f"char:{char_name}", node_id,
-                                      EdgeType.INVOLVED_IN.value, chapter)
+            for char_name in characters or []:
+                self.add_relationship(
+                    f"char:{char_name}", node_id, EdgeType.INVOLVED_IN.value, chapter
+                )
 
     def add_thread(self, thread_id: str, attributes: dict = None):
         """Add or update a narrative-thread node (open plot thread)."""
@@ -156,8 +162,15 @@ class StoryKnowledgeGraph:
             else:
                 self._nodes[node_id] = attrs
 
-    def add_relationship(self, source_id: str, target_id: str, rel_type: str,
-                         chapter: int = 0, strength: float = 1.0, description: str = ""):
+    def add_relationship(
+        self,
+        source_id: str,
+        target_id: str,
+        rel_type: str,
+        chapter: int = 0,
+        strength: float = 1.0,
+        description: str = "",
+    ):
         """Add a directed relationship edge between two nodes.
 
         rel_type is normalized through EdgeType — unknown values fall back to
@@ -220,11 +233,13 @@ class StoryKnowledgeGraph:
                     event_data = self._graph.nodes.get(target, {})
                 else:
                     event_data = self._nodes.get(target, {})
-                timeline.append({
-                    "event_id": target,
-                    "chapter": event_data.get("chapter", 0),
-                    "description": event_data.get("description", ""),
-                })
+                timeline.append(
+                    {
+                        "event_id": target,
+                        "chapter": event_data.get("chapter", 0),
+                        "description": event_data.get("description", ""),
+                    }
+                )
         return sorted(timeline, key=lambda x: x["chapter"])
 
     def get_all_characters(self) -> list[dict]:
@@ -257,18 +272,25 @@ class StoryKnowledgeGraph:
         """
         # Add characters
         for char in getattr(story_draft, "characters", []):
-            self.add_character(char.name, {
-                "role": getattr(char, "role", ""),
-                "personality": getattr(char, "personality", ""),
-                "background": getattr(char, "background", ""),
-            })
+            self.add_character(
+                char.name,
+                {
+                    "role": getattr(char, "role", ""),
+                    "personality": getattr(char, "personality", ""),
+                    "background": getattr(char, "background", ""),
+                },
+            )
             # Character relationships from schema
             for rel in getattr(char, "relationships", []):
                 if isinstance(rel, str) and ":" in rel:
                     parts = rel.split(":", 1)
                     if len(parts) == 2:
-                        self.add_relationship(f"char:{char.name}", f"char:{parts[0].strip()}",
-                                              "related_to", description=parts[1].strip())
+                        self.add_relationship(
+                            f"char:{char.name}",
+                            f"char:{parts[0].strip()}",
+                            "related_to",
+                            description=parts[1].strip(),
+                        )
 
         # Add plot events from story context
         context = getattr(story_draft, "story_context", None)
@@ -283,11 +305,14 @@ class StoryKnowledgeGraph:
             for state in getattr(context, "character_states", []):
                 name = getattr(state, "name", "")
                 if name:
-                    self.add_character(name, {
-                        "mood": getattr(state, "mood", ""),
-                        "arc_position": getattr(state, "arc_position", ""),
-                        "last_action": getattr(state, "last_action", ""),
-                    })
+                    self.add_character(
+                        name,
+                        {
+                            "mood": getattr(state, "mood", ""),
+                            "arc_position": getattr(state, "arc_position", ""),
+                            "last_action": getattr(state, "last_action", ""),
+                        },
+                    )
 
         # Also ingest top-level plot_events on StoryDraft itself
         for i, event in enumerate(getattr(story_draft, "plot_events", [])):
@@ -313,34 +338,50 @@ class StoryKnowledgeGraph:
             cid = getattr(c, "conflict_id", None) or getattr(c, "id", None)
             if not cid:
                 continue
-            self.add_conflict(cid, {
-                "conflict_type": getattr(c, "conflict_type", ""),
-                "description": getattr(c, "description", ""),
-                "arc_range": getattr(c, "arc_range", ""),
-                "status": getattr(c, "status", ""),
-            })
+            self.add_conflict(
+                cid,
+                {
+                    "conflict_type": getattr(c, "conflict_type", ""),
+                    "description": getattr(c, "description", ""),
+                    "arc_range": getattr(c, "arc_range", ""),
+                    "status": getattr(c, "status", ""),
+                },
+            )
             for char_name in getattr(c, "characters", []) or []:
-                self.add_relationship(f"char:{char_name}", f"conflict:{cid}",
-                                      EdgeType.PART_OF_CONFLICT.value)
+                self.add_relationship(
+                    f"char:{char_name}",
+                    f"conflict:{cid}",
+                    EdgeType.PART_OF_CONFLICT.value,
+                )
 
         # Open threads — characters → thread nodes (advances / resolves)
         for t in getattr(story_draft, "open_threads", []) or []:
             tid = getattr(t, "thread_id", None)
             if not tid:
                 continue
-            self.add_thread(tid, {
-                "description": getattr(t, "description", ""),
-                "status": getattr(t, "status", "open"),
-                "planted_chapter": getattr(t, "planted_chapter", 0),
-                "last_mentioned_chapter": getattr(t, "last_mentioned_chapter", 0),
-                "resolution_chapter": getattr(t, "resolution_chapter", 0),
-            })
+            self.add_thread(
+                tid,
+                {
+                    "description": getattr(t, "description", ""),
+                    "status": getattr(t, "status", "open"),
+                    "planted_chapter": getattr(t, "planted_chapter", 0),
+                    "last_mentioned_chapter": getattr(t, "last_mentioned_chapter", 0),
+                    "resolution_chapter": getattr(t, "resolution_chapter", 0),
+                },
+            )
             status = getattr(t, "status", "open")
-            edge = (EdgeType.RESOLVES_THREAD.value if status == "resolved"
-                    else EdgeType.ADVANCES_THREAD.value)
+            edge = (
+                EdgeType.RESOLVES_THREAD.value
+                if status == "resolved"
+                else EdgeType.ADVANCES_THREAD.value
+            )
             for char_name in getattr(t, "involved_characters", []) or []:
-                self.add_relationship(f"char:{char_name}", f"thread:{tid}", edge,
-                                      chapter=getattr(t, "last_mentioned_chapter", 0))
+                self.add_relationship(
+                    f"char:{char_name}",
+                    f"thread:{tid}",
+                    edge,
+                    chapter=getattr(t, "last_mentioned_chapter", 0),
+                )
 
         # Foreshadowing — plant/payoff edges from involved characters to synthetic event ids
         for i, fs in enumerate(getattr(story_draft, "foreshadowing_plan", []) or []):
@@ -348,20 +389,33 @@ class StoryKnowledgeGraph:
             payoff_ch = getattr(fs, "payoff_chapter", 0)
             fs_id = f"fs{i}"
             # Use an event-like node (type=event) to stay compatible with chapter-events lookups
-            self.add_event(f"plant_{fs_id}",
-                           getattr(fs, "hint", ""), plant_ch,
-                           getattr(fs, "characters_involved", []) or [])
+            self.add_event(
+                f"plant_{fs_id}",
+                getattr(fs, "hint", ""),
+                plant_ch,
+                getattr(fs, "characters_involved", []) or [],
+            )
             if payoff_ch and payoff_ch != plant_ch:
-                self.add_event(f"payoff_{fs_id}",
-                               getattr(fs, "hint", ""), payoff_ch,
-                               getattr(fs, "characters_involved", []) or [])
+                self.add_event(
+                    f"payoff_{fs_id}",
+                    getattr(fs, "hint", ""),
+                    payoff_ch,
+                    getattr(fs, "characters_involved", []) or [],
+                )
                 # Link plant → payoff
-                self.add_relationship(f"event:plant_{fs_id}",
-                                      f"event:payoff_{fs_id}",
-                                      EdgeType.PAYS_OFF.value, chapter=payoff_ch)
+                self.add_relationship(
+                    f"event:plant_{fs_id}",
+                    f"event:payoff_{fs_id}",
+                    EdgeType.PAYS_OFF.value,
+                    chapter=payoff_ch,
+                )
             for char_name in getattr(fs, "characters_involved", []) or []:
-                self.add_relationship(f"char:{char_name}", f"event:plant_{fs_id}",
-                                      EdgeType.PLANTS.value, chapter=plant_ch)
+                self.add_relationship(
+                    f"char:{char_name}",
+                    f"event:plant_{fs_id}",
+                    EdgeType.PLANTS.value,
+                    chapter=plant_ch,
+                )
 
         # Macro arcs — characters → synthetic arc event nodes
         for arc in getattr(story_draft, "macro_arcs", []) or []:
@@ -369,14 +423,19 @@ class StoryKnowledgeGraph:
             if arc_num is None:
                 continue
             arc_eid = f"arc_{arc_num}"
-            self.add_event(arc_eid,
-                           getattr(arc, "name", "") or f"Arc {arc_num}",
-                           getattr(arc, "chapter_start", 0),
-                           getattr(arc, "character_focus", []) or [])
+            self.add_event(
+                arc_eid,
+                getattr(arc, "name", "") or f"Arc {arc_num}",
+                getattr(arc, "chapter_start", 0),
+                getattr(arc, "character_focus", []) or [],
+            )
             for char_name in getattr(arc, "character_focus", []) or []:
-                self.add_relationship(f"char:{char_name}", f"event:{arc_eid}",
-                                      EdgeType.PART_OF_ARC.value,
-                                      chapter=getattr(arc, "chapter_start", 0))
+                self.add_relationship(
+                    f"char:{char_name}",
+                    f"event:{arc_eid}",
+                    EdgeType.PART_OF_ARC.value,
+                    chapter=getattr(arc, "chapter_start", 0),
+                )
 
         return self
 
@@ -409,9 +468,11 @@ class StoryKnowledgeGraph:
             elif node_type == "location":
                 kg.add_location(name, attrs)
             elif node_type == "event":
-                kg.add_event(node_id.replace("event:", ""),
-                             attrs.get("description", ""),
-                             attrs.get("chapter", 0))
+                kg.add_event(
+                    node_id.replace("event:", ""),
+                    attrs.get("description", ""),
+                    attrs.get("chapter", 0),
+                )
             elif node_type == "thread":
                 kg.add_thread(name, attrs)
             elif node_type == "item":
@@ -420,21 +481,27 @@ class StoryKnowledgeGraph:
                 kg.add_conflict(name, attrs)
             else:
                 # Unknown node type — store raw via character-like node so it's not lost
-                logger.debug("Unknown node type %r for %s — storing as-is", node_type, node_id)
+                logger.debug(
+                    "Unknown node type %r for %s — storing as-is", node_type, node_id
+                )
                 with kg._lock:
                     if HAS_NETWORKX:
                         kg._graph.add_node(node_id, **attrs)
                     else:
                         kg._nodes[node_id] = dict(attrs)
-        for edge in (data.get("edges") or []):
+        for edge in data.get("edges") or []:
             edge = dict(edge)
             src = edge.pop("source", "")
             dst = edge.pop("target", "")
             rel_type = edge.pop("type", EdgeType.RELATED_TO.value)
-            kg.add_relationship(src, dst, rel_type,
-                                chapter=edge.get("chapter", 0),
-                                strength=edge.get("strength", 1.0),
-                                description=edge.get("description", ""))
+            kg.add_relationship(
+                src,
+                dst,
+                rel_type,
+                chapter=edge.get("chapter", 0),
+                strength=edge.get("strength", 1.0),
+                description=edge.get("description", ""),
+            )
         return kg
 
     def get_entity_context(self, char_names: list[str], max_chars: int = 1000) -> str:
@@ -445,7 +512,11 @@ class StoryKnowledgeGraph:
             if rels:
                 rel_strs = []
                 for r in rels[:5]:
-                    target = r.get("target", r.get("source", "")).replace("char:", "").replace("event:", "")
+                    target = (
+                        r.get("target", r.get("source", ""))
+                        .replace("char:", "")
+                        .replace("event:", "")
+                    )
                     rel_strs.append(f"{r.get('type', '?')}→{target}")
                 lines.append(f"- {name}: {', '.join(rel_strs)}")
         summary = "\n".join(lines)
@@ -455,14 +526,20 @@ class StoryKnowledgeGraph:
         """Export graph as compact text summary for LLM context injection."""
         lines = []
         chars = self.get_all_characters()
-        lines.append(f"KNOWLEDGE GRAPH: {len(chars)} nhân vật, {self.node_count()} nodes, {self.edge_count()} edges")
+        lines.append(
+            f"KNOWLEDGE GRAPH: {len(chars)} nhân vật, {self.node_count()} nodes, {self.edge_count()} edges"
+        )
 
         for c in chars[:10]:  # Cap at 10 characters
             name = c.get("name", "?")
             rels = self.get_character_relationships(name)
             rel_strs = []
             for r in rels[:5]:  # Cap at 5 relationships per char
-                target = r.get("target", r.get("source", "")).replace("char:", "").replace("event:", "")
+                target = (
+                    r.get("target", r.get("source", ""))
+                    .replace("char:", "")
+                    .replace("event:", "")
+                )
                 rel_strs.append(f"{r.get('type', '?')}→{target}")
             line = f"- {name}: {', '.join(rel_strs)}" if rel_strs else f"- {name}"
             lines.append(line)
@@ -473,7 +550,10 @@ class StoryKnowledgeGraph:
     def save(self, filepath: str):
         """Save graph to JSON file."""
         data = self.to_dict()
-        os.makedirs(os.path.dirname(filepath) if os.path.dirname(filepath) else ".", exist_ok=True)
+        os.makedirs(
+            os.path.dirname(filepath) if os.path.dirname(filepath) else ".",
+            exist_ok=True,
+        )
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 

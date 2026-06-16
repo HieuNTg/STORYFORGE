@@ -5,6 +5,7 @@ Tests:
     - EPUB export metadata correctness
     - HTML export structure validation
 """
+
 from __future__ import annotations
 
 import os
@@ -12,7 +13,14 @@ import tempfile
 
 import pytest
 
-from models.schemas import Chapter, Character, StoryDraft, EnhancedStory, WorldSetting, ChapterOutline
+from models.schemas import (
+    Chapter,
+    Character,
+    StoryDraft,
+    EnhancedStory,
+    WorldSetting,
+    ChapterOutline,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -175,14 +183,17 @@ class TestEPUBExporter:
             result = EPUBExporter.export(story_draft, out)
             assert result == out or result == ""
 
-    def test_epub_export_with_characters_and_language(self, story_draft, viet_characters):
+    def test_epub_export_with_characters_and_language(
+        self, story_draft, viet_characters
+    ):
         """EPUB export accepts language and author overrides."""
         from services.epub_exporter import EPUBExporter  # noqa: PLC0415
 
         with tempfile.TemporaryDirectory() as tmpdir:
             out = os.path.join(tmpdir, "story_vi.epub")
             result = EPUBExporter.export(
-                story_draft, out,
+                story_draft,
+                out,
                 characters=viet_characters,
                 language="vi",
                 author="StoryForge AI",

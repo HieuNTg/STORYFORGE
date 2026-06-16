@@ -22,12 +22,17 @@ def extract_plot_threads(
 
     Returns dict with keys: new_threads, progressed_threads, resolved_threads.
     """
-    threads_text = "\n".join(
-        f"- [{t.thread_id}] {t.description} (status: {t.status})"
-        for t in existing_threads if t.status != "resolved"
-    ) or "Chưa có threads nào."
+    threads_text = (
+        "\n".join(
+            f"- [{t.thread_id}] {t.description} (status: {t.status})"
+            for t in existing_threads
+            if t.status != "resolved"
+        )
+        or "Chưa có threads nào."
+    )
 
     from services.text_utils import excerpt_text
+
     result = llm.generate_json(
         system_prompt="Trích xuất tuyến truyện. Trả về JSON bằng tiếng Việt.",
         user_prompt=prompts.EXTRACT_PLOT_THREADS.format(
@@ -60,7 +65,9 @@ def update_threads(
     # Mark resolved threads (with dependency validation)
     for tid in extraction_result.get("resolved_threads", []):
         if tid in thread_map:
-            allowed, reason = validate_thread_resolution(thread_map[tid], list(thread_map.values()))
+            allowed, reason = validate_thread_resolution(
+                thread_map[tid], list(thread_map.values())
+            )
             if allowed:
                 thread_map[tid].status = "resolved"
                 thread_map[tid].resolution_chapter = chapter_number
@@ -97,7 +104,9 @@ def format_threads_for_prompt(threads: list[PlotThread], max_threads: int = 15) 
     """
     open_threads = [t for t in threads if t.status != "resolved"]
     # Sort: urgency desc, then staleness desc (least recently mentioned first)
-    open_threads.sort(key=lambda t: (t.urgency, -(t.last_mentioned_chapter or 0)), reverse=True)
+    open_threads.sort(
+        key=lambda t: (t.urgency, -(t.last_mentioned_chapter or 0)), reverse=True
+    )
     open_threads = open_threads[:max_threads]
 
     if not open_threads:
@@ -107,21 +116,27 @@ def format_threads_for_prompt(threads: list[PlotThread], max_threads: int = 15) 
     for t in open_threads:
         deps = f" [chờ: {', '.join(t.depends_on)}]" if t.depends_on else ""
         urg = f" ⚡{t.urgency}" if t.urgency >= 4 else ""
-        lines.append(f"- [{t.thread_id}] {t.description} (từ ch.{t.planted_chapter}, {t.status}{urg}{deps})")
+        lines.append(
+            f"- [{t.thread_id}] {t.description} (từ ch.{t.planted_chapter}, {t.status}{urg}{deps})"
+        )
     return "\n".join(lines)
 
 
-def get_stale_threads(threads: list[PlotThread], current_chapter: int, stale_gap: int = 10) -> list[PlotThread]:
+def get_stale_threads(
+    threads: list[PlotThread], current_chapter: int, stale_gap: int = 10
+) -> list[PlotThread]:
     """Find threads that haven't been mentioned in `stale_gap` chapters."""
     return [
-        t for t in threads
+        t
+        for t in threads
         if t.status != "resolved"
         and (current_chapter - t.last_mentioned_chapter) >= stale_gap
     ]
 
 
 def validate_thread_resolution(
-    thread: PlotThread, all_threads: list[PlotThread],
+    thread: PlotThread,
+    all_threads: list[PlotThread],
 ) -> tuple[bool, str]:
     """Check if a thread can be resolved (all dependencies met).
 
@@ -152,9 +167,11 @@ def format_mandatory_threads(
     Returns Vietnamese-formatted block or empty string if no stale threads.
     """
     stale = [
-        t for t in threads
+        t
+        for t in threads
         if t.status != "resolved"
-        and (current_chapter - (t.last_mentioned_chapter or t.planted_chapter)) >= gap_threshold
+        and (current_chapter - (t.last_mentioned_chapter or t.planted_chapter))
+        >= gap_threshold
     ]
     if not stale:
         return ""
@@ -162,15 +179,21 @@ def format_mandatory_threads(
     lines = [f"⚠️ YÊU CẦU BẮT BUỘC (threads bị bỏ quên {gap_threshold}+ chương):"]
     for t in stale:
         lines.append(f"• [{t.thread_id}] {t.description} (từ Ch.{t.planted_chapter})")
-    lines.append("Phải nhắc lại hoặc giải quyết ÍT NHẤT 1 thread trên trong chương này.")
+    lines.append(
+        "Phải nhắc lại hoặc giải quyết ÍT NHẤT 1 thread trên trong chương này."
+    )
     return "\n".join(lines)
 
 
-def escalate_urgency(threads: list[PlotThread], current_chapter: int, gap: int = 5) -> None:
+def escalate_urgency(
+    threads: list[PlotThread], current_chapter: int, gap: int = 5
+) -> None:
     """Auto-escalate urgency for threads not mentioned in `gap` chapters. In-place."""
     for t in threads:
         if t.status == "resolved":
             continue
-        chapters_since = current_chapter - (t.last_mentioned_chapter or t.planted_chapter)
+        chapters_since = current_chapter - (
+            t.last_mentioned_chapter or t.planted_chapter
+        )
         if chapters_since >= gap and t.urgency < 5:
             t.urgency = min(5, t.urgency + 1)

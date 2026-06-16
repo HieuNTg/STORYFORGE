@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 try:
     import redis as _redis_lib
+
     _REDIS_AVAILABLE = True
 except ImportError:
     _redis_lib = None  # type: ignore[assignment]
@@ -23,6 +24,7 @@ except ImportError:
 # ---------------------------------------------------------------------------
 # Deployment safety check
 # ---------------------------------------------------------------------------
+
 
 def _check_deployment_safety() -> None:
     """Fail fast when cache config is unsafe for the deployment context.
@@ -41,7 +43,9 @@ def _check_deployment_safety() -> None:
     if num_workers <= 1:
         web_concurrency_raw = os.environ.get("WEB_CONCURRENCY", "").strip()
         try:
-            num_workers = int(web_concurrency_raw) if web_concurrency_raw else num_workers
+            num_workers = (
+                int(web_concurrency_raw) if web_concurrency_raw else num_workers
+            )
         except ValueError:
             pass
 
@@ -66,6 +70,7 @@ _check_deployment_safety()
 # SQLite backend
 # ---------------------------------------------------------------------------
 
+
 class LLMCache:
     """Cache LLM responses in SQLite. Thread-safe via thread-local connections + WAL mode.
 
@@ -75,6 +80,7 @@ class LLMCache:
 
     def __init__(self, db_path: str = "data/llm_cache.db", ttl_days: int = 7):
         import sqlite3
+
         self._sqlite3 = sqlite3
         if ttl_days < 1:
             logger.warning(f"Cache TTL {ttl_days} days invalid, defaulting to 7")
@@ -137,6 +143,7 @@ class LLMCache:
 
     def put(self, response: str, **params) -> None:
         import sqlite3
+
         key = self._make_key(**params)
         conn = self._get_conn()
         try:
@@ -146,7 +153,9 @@ class LLMCache:
             )
             conn.commit()
         except sqlite3.OperationalError as e:
-            logger.error("Cache put failed (OperationalError — possible DB corruption): %s", e)
+            logger.error(
+                "Cache put failed (OperationalError — possible DB corruption): %s", e
+            )
             raise
         except sqlite3.Error as e:
             logger.error("Cache put failed: %s", e)
@@ -192,6 +201,7 @@ class LLMCache:
 # Redis backend
 # ---------------------------------------------------------------------------
 
+
 class RedisCache:
     """Cache LLM responses in Redis. Same interface as LLMCache.
 
@@ -203,9 +213,7 @@ class RedisCache:
 
     def __init__(self, redis_url: str, ttl_days: int = 7):
         if not _REDIS_AVAILABLE:
-            raise RuntimeError(
-                "redis package is not installed. Run: pip install redis"
-            )
+            raise RuntimeError("redis package is not installed. Run: pip install redis")
         if ttl_days < 1:
             logger.warning(f"Cache TTL {ttl_days} days invalid, defaulting to 7")
             ttl_days = 7
@@ -290,6 +298,7 @@ class RedisCache:
 # ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
+
 
 def create_cache(
     redis_url: str = "",

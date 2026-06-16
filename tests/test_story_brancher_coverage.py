@@ -1,4 +1,5 @@
 """Tests for services/story_brancher.py — coverage for StoryBrancher class."""
+
 import json
 import os
 import pytest
@@ -11,7 +12,10 @@ from services.story_brancher import StoryBrancher
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_chapter(number: int = 1, title: str = "Test Ch", content: str = "Chapter content here.") -> Chapter:
+
+def _make_chapter(
+    number: int = 1, title: str = "Test Ch", content: str = "Chapter content here."
+) -> Chapter:
     return Chapter(chapter_number=number, title=title, content=content)
 
 
@@ -37,6 +41,7 @@ def _make_brancher_with_mock_llm():
 # create_tree_from_chapter
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestCreateTreeFromChapter:
     def test_creates_tree_with_root(self):
@@ -61,6 +66,7 @@ class TestCreateTreeFromChapter:
 # ---------------------------------------------------------------------------
 # generate_choices
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestGenerateChoices:
@@ -129,6 +135,7 @@ class TestGenerateChoices:
 # generate_branch
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestGenerateBranch:
     def test_creates_new_node(self):
@@ -150,7 +157,9 @@ class TestGenerateBranch:
     def test_raises_on_missing_parent(self):
         brancher, _ = _make_brancher_with_mock_llm()
         tree = _make_tree()
-        choice = BranchChoice(choice_id="x_c0", text="X", next_node_id="", state_delta={})
+        choice = BranchChoice(
+            choice_id="x_c0", text="X", next_node_id="", state_delta={}
+        )
         with pytest.raises(ValueError, match="not found"):
             brancher.generate_branch(tree, "nonexistent", choice)
 
@@ -158,7 +167,9 @@ class TestGenerateBranch:
         brancher, mock_llm = _make_brancher_with_mock_llm()
         mock_llm.generate.side_effect = Exception("LLM error")
         tree = _make_tree()
-        choice = BranchChoice(choice_id="root_c0", text="Go", next_node_id="", state_delta={})
+        choice = BranchChoice(
+            choice_id="root_c0", text="Go", next_node_id="", state_delta={}
+        )
         new_node = brancher.generate_branch(tree, "root", choice)
         assert "Loi" in new_node.content or "loi" in new_node.content.lower()
 
@@ -166,7 +177,9 @@ class TestGenerateBranch:
         brancher, mock_llm = _make_brancher_with_mock_llm()
         mock_llm.generate.return_value = "Content"
         tree = _make_tree()
-        choice = BranchChoice(choice_id="root_c0", text="Go", next_node_id="", state_delta={})
+        choice = BranchChoice(
+            choice_id="root_c0", text="Go", next_node_id="", state_delta={}
+        )
         new_node = brancher.generate_branch(tree, "root", choice)
         assert tree.current_node_id == new_node.node_id
         assert choice.next_node_id == new_node.node_id
@@ -175,6 +188,7 @@ class TestGenerateBranch:
 # ---------------------------------------------------------------------------
 # save_tree / load_tree
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestSaveLoadTree:
@@ -214,6 +228,7 @@ class TestSaveLoadTree:
 # ---------------------------------------------------------------------------
 # list_saved_trees
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestListSavedTrees:

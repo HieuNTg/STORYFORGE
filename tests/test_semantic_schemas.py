@@ -225,9 +225,7 @@ class TestChapterSemanticFindings:
 
     def test_extra_field_forbidden(self) -> None:
         with pytest.raises(ValidationError):
-            ChapterSemanticFindings(
-                chapter_num=1, embedding_model="m", junk="x"
-            )
+            ChapterSemanticFindings(chapter_num=1, embedding_model="m", junk="x")
 
     def test_holds_match_and_finding(self) -> None:
         match = SemanticPayoffMatch(

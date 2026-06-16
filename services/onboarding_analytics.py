@@ -28,7 +28,7 @@ class OnboardingTracker:
         with self._lock:
             self._events.append(event)
             if len(self._events) > self._max_events:
-                self._events = self._events[-self._max_events:]
+                self._events = self._events[-self._max_events :]
 
     def track_dropout(self, session_id: str, step: str) -> None:
         """Record a dropout at a wizard step."""
@@ -42,7 +42,7 @@ class OnboardingTracker:
         with self._lock:
             self._events.append(event)
             if len(self._events) > self._max_events:
-                self._events = self._events[-self._max_events:]
+                self._events = self._events[-self._max_events :]
 
     def get_funnel(self) -> Dict[str, Dict]:
         """Return per-step completion funnel data.

@@ -1,4 +1,5 @@
 """Character endpoint tests — flag gating, rate limit, mocked LLM, parse errors."""
+
 from __future__ import annotations
 
 import asyncio
@@ -55,7 +56,9 @@ def _mock_llm(payload):
         llm.generate.side_effect = payload
     else:
         llm.generate.return_value = (
-            payload if isinstance(payload, str) else json.dumps(payload, ensure_ascii=False)
+            payload
+            if isinstance(payload, str)
+            else json.dumps(payload, ensure_ascii=False)
         )
     return llm
 
@@ -70,7 +73,9 @@ def _req():
 
 
 def test_character_happy_path(client):
-    with patch.object(character_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)):
+    with patch.object(
+        character_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)
+    ):
         resp = client.post("/api/characters/generate", json=_req())
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -88,21 +93,27 @@ def test_character_returns_404_when_flag_off(client):
 
 
 def test_character_rejects_empty_name(client):
-    with patch.object(character_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)):
+    with patch.object(
+        character_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)
+    ):
         bad = _req() | {"name": ""}
         resp = client.post("/api/characters/generate", json=bad)
     assert resp.status_code == 422
 
 
 def test_character_rejects_invalid_role(client):
-    with patch.object(character_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)):
+    with patch.object(
+        character_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)
+    ):
         bad = _req() | {"role": "villain"}
         resp = client.post("/api/characters/generate", json=bad)
     assert resp.status_code == 422
 
 
 def test_character_rate_limit_429(client):
-    with patch.object(character_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)):
+    with patch.object(
+        character_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)
+    ):
         for _ in range(character_routes.CHARACTER_LIMIT_PER_MIN):
             r = client.post("/api/characters/generate", json=_req())
             assert r.status_code == 200
@@ -207,11 +218,12 @@ def test_extract_story_returns_characters_and_backgrounds_avatars(client):
     # The fix: avatar generation is fire-and-forget. The response must come
     # back with the extracted characters and delegate avatars to the background
     # helper rather than awaiting FlowKit inline (which caused the 500).
-    with patch.object(
-        character_routes, "_get_llm", return_value=_mock_llm(EXTRACT_LLM_PAYLOAD)
-    ), patch.object(
-        character_routes, "_generate_avatars_bg", new=AsyncMock()
-    ) as bg:
+    with (
+        patch.object(
+            character_routes, "_get_llm", return_value=_mock_llm(EXTRACT_LLM_PAYLOAD)
+        ),
+        patch.object(character_routes, "_generate_avatars_bg", new=AsyncMock()) as bg,
+    ):
         resp = client.post("/api/characters/extract-story", json=_extract_req())
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -229,10 +241,11 @@ def test_extract_story_does_not_block_response_on_slow_avatar(client):
         return None
 
     start = time.monotonic()
-    with patch.object(
-        character_routes, "_get_llm", return_value=_mock_llm(EXTRACT_LLM_PAYLOAD)
-    ), patch(
-        "services.character_avatar.generate_character_avatar", new=_slow_avatar
+    with (
+        patch.object(
+            character_routes, "_get_llm", return_value=_mock_llm(EXTRACT_LLM_PAYLOAD)
+        ),
+        patch("services.character_avatar.generate_character_avatar", new=_slow_avatar),
     ):
         resp = client.post("/api/characters/extract-story", json=_extract_req())
     elapsed = time.monotonic() - start
@@ -251,9 +264,10 @@ def test_extract_story_does_not_block_response_on_slow_avatar(client):
 
 def test_extract_story_parses_fenced_json_list(client):
     fenced = "```json\n" + json.dumps(EXTRACT_LLM_PAYLOAD, ensure_ascii=False) + "\n```"
-    with patch.object(
-        character_routes, "_get_llm", return_value=_mock_llm(fenced)
-    ), patch.object(character_routes, "_generate_avatars_bg", new=AsyncMock()):
+    with (
+        patch.object(character_routes, "_get_llm", return_value=_mock_llm(fenced)),
+        patch.object(character_routes, "_generate_avatars_bg", new=AsyncMock()),
+    ):
         resp = client.post("/api/characters/extract-story", json=_extract_req())
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -300,7 +314,9 @@ def test_avatar_url_for_builds_media_url_with_cache_buster():
 def test_avatar_url_for_returns_none_when_missing():
     from services import character_avatar
 
-    assert character_avatar.avatar_url_for("Nobody Here", "story-does-not-exist") is None
+    assert (
+        character_avatar.avatar_url_for("Nobody Here", "story-does-not-exist") is None
+    )
 
 
 def test_lookup_avatars_returns_only_existing(client):
@@ -337,11 +353,12 @@ def _regen_req():
 
 def test_regenerate_avatar_returns_fresh_url(client):
     gen = AsyncMock(return_value="/media/avatars/x/Lý_Trầm.png")
-    with patch(
-        "services.character_avatar.generate_character_avatar", new=gen
-    ), patch(
-        "services.character_avatar.avatar_url_for",
-        new=lambda *_a, **_k: "/media/avatars/x/Lý_Trầm.png?v=99",
+    with (
+        patch("services.character_avatar.generate_character_avatar", new=gen),
+        patch(
+            "services.character_avatar.avatar_url_for",
+            new=lambda *_a, **_k: "/media/avatars/x/Lý_Trầm.png?v=99",
+        ),
     ):
         resp = client.post("/api/characters/avatar", json=_regen_req())
     assert resp.status_code == 200, resp.text

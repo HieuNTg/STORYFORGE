@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+import pytest
 
 from config import ConfigManager, PipelineConfig
 from services.token_counter import estimate_tokens, fits_in_context
@@ -11,7 +12,17 @@ from services.token_counter import estimate_tokens, fits_in_context
 # token_counter tests
 # ---------------------------------------------------------------------------
 
+
 class TestEstimateTokens:
+    """estimate_tokens prefers tiktoken (exact); the heuristic path is pinned
+    by disabling tiktoken so the assertions stay deterministic either way."""
+
+    @pytest.fixture(autouse=True)
+    def _force_heuristic(self, monkeypatch):
+        import services.token_counter as token_counter
+
+        monkeypatch.setattr(token_counter, "_TIKTOKEN_AVAILABLE", False)
+
     def test_empty_string(self):
         assert estimate_tokens("") == 0
 
@@ -20,14 +31,14 @@ class TestEstimateTokens:
         assert estimate_tokens("") == 0
 
     def test_rough_estimate(self):
-        text = "a" * 350  # 350 chars / 3.5 = 100 tokens
+        text = "a" * 400  # 400 chars / 4.0 = 100 tokens (Latin heuristic)
         assert estimate_tokens(text) == 100
 
     def test_single_char(self):
-        assert estimate_tokens("x") == 0  # int(1/3.5) == 0
+        assert estimate_tokens("x") == 1  # max(1, int(1/4.0)) — never 0 for non-empty
 
     def test_longer_text(self):
-        text = "x" * 3500
+        text = "x" * 4000
         assert estimate_tokens(text) == 1000
 
 
@@ -62,9 +73,13 @@ class TestFitsInContext:
 # LongContextClient.is_configured tests
 # ---------------------------------------------------------------------------
 
+
 class TestLongContextClientIsConfigured:
-    def _make_client(self, provider="", model="", api_key="", base_url="", max_tokens=1000000):
+    def _make_client(
+        self, provider="", model="", api_key="", base_url="", max_tokens=1000000
+    ):
         from services.long_context_client import LongContextClient
+
         client = LongContextClient.__new__(LongContextClient)
         client.provider = provider
         client.model = model
@@ -95,6 +110,7 @@ class TestLongContextClientIsConfigured:
 # PipelineConfig long-context fields
 # ---------------------------------------------------------------------------
 
+
 class TestLongContextConfig:
     def test_default_values(self):
         pc = PipelineConfig()
@@ -123,9 +139,11 @@ class TestLongContextConfig:
 # _format_context with full_chapter_texts
 # ---------------------------------------------------------------------------
 
+
 class TestFormatContextLongMode:
     def _make_generator(self):
         from pipeline.layer1_story.generator import StoryGenerator
+
         gen = StoryGenerator.__new__(StoryGenerator)
         gen.config = ConfigManager.__new__(ConfigManager)
         gen.config._initialized = True
@@ -153,12 +171,15 @@ class TestFormatContextLongMode:
 # Mock-based integration: long-context generate call in generate_full_story
 # ---------------------------------------------------------------------------
 
+
 class TestLongContextIntegration:
     def test_generate_uses_long_context_client_when_configured(self):
         """When use_long_context=True and client is_configured, second chapter uses LC client."""
         from pipeline.layer1_story.generator import StoryGenerator
         from models.schemas import (
-            Character, WorldSetting, ChapterOutline,
+            Character,
+            WorldSetting,
+            ChapterOutline,
         )
 
         gen = StoryGenerator.__new__(StoryGenerator)
@@ -174,6 +195,10 @@ class TestLongContextIntegration:
             context_window_chapters=5,
             rag_enabled=False,
             enable_self_review=False,
+            # Serial generation: within a parallel batch siblings only see the
+            # frozen chapter texts from PRIOR batches, so with the default
+            # batch size chapter 2 would see no prior text and skip the LC path.
+            chapter_batch_size=1,
         )
 
         # Mock normal LLM client
@@ -190,15 +215,37 @@ class TestLongContextIntegration:
         gen.bible_manager = MagicMock()
         gen._layer_model = None  # No layer-specific model override
 
-        chars = [Character(name="Hero", role="protagonist", personality="brave",
-                           background="unknown", motivation="save world")]
-        world = WorldSetting(name="Test World", description="A test world",
-                             rules=[], locations=[], history="")
+        chars = [
+            Character(
+                name="Hero",
+                role="protagonist",
+                personality="brave",
+                background="unknown",
+                motivation="save world",
+            )
+        ]
+        world = WorldSetting(
+            name="Test World",
+            description="A test world",
+            rules=[],
+            locations=[],
+            history="",
+        )
         outlines = [
-            ChapterOutline(chapter_number=1, title="Ch1", summary="summary1",
-                           key_events=["event1"], emotional_arc="rising"),
-            ChapterOutline(chapter_number=2, title="Ch2", summary="summary2",
-                           key_events=["event2"], emotional_arc="peak"),
+            ChapterOutline(
+                chapter_number=1,
+                title="Ch1",
+                summary="summary1",
+                key_events=["event1"],
+                emotional_arc="rising",
+            ),
+            ChapterOutline(
+                chapter_number=2,
+                title="Ch2",
+                summary="summary2",
+                key_events=["event2"],
+                emotional_arc="peak",
+            ),
         ]
 
         gen.generate_characters = MagicMock(return_value=chars)
@@ -209,8 +256,11 @@ class TestLongContextIntegration:
         gen.extract_plot_events = MagicMock(return_value=[])
 
         draft = gen.generate_full_story(
-            title="Test", genre="Fantasy", idea="A test story",
-            num_chapters=2, word_count=100,
+            title="Test",
+            genre="Fantasy",
+            idea="A test story",
+            num_chapters=2,
+            word_count=100,
         )
 
         # First chapter uses normal LLM (no prior chapter texts)

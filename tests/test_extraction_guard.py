@@ -1,4 +1,5 @@
 """Unit tests for Context Health Monitor (Sprint 1 Task 1)."""
+
 from __future__ import annotations
 
 import pytest
@@ -42,6 +43,7 @@ def test_records_duration_ms():
     ctx = StoryContext()
     with tracked_extraction(ctx, 1, "summary"):
         import time
+
         time.sleep(0.01)
     assert ctx.extraction_health[0].duration_ms >= 10
 
@@ -89,12 +91,14 @@ class TestHealthScore:
 class TestFailedExtractionsInChapter:
     def test_filters_by_chapter_and_failure(self):
         ctx = StoryContext()
-        ctx.extraction_health.extend([
-            ExtractionHealth(chapter_number=1, extraction_type="a", success=False),
-            ExtractionHealth(chapter_number=1, extraction_type="b", success=True),
-            ExtractionHealth(chapter_number=1, extraction_type="c", success=False),
-            ExtractionHealth(chapter_number=2, extraction_type="a", success=False),
-        ])
+        ctx.extraction_health.extend(
+            [
+                ExtractionHealth(chapter_number=1, extraction_type="a", success=False),
+                ExtractionHealth(chapter_number=1, extraction_type="b", success=True),
+                ExtractionHealth(chapter_number=1, extraction_type="c", success=False),
+                ExtractionHealth(chapter_number=2, extraction_type="a", success=False),
+            ]
+        )
         assert len(ctx.failed_extractions_in_last_chapter(1)) == 2
         assert len(ctx.failed_extractions_in_last_chapter(2)) == 1
         assert len(ctx.failed_extractions_in_last_chapter(99)) == 0

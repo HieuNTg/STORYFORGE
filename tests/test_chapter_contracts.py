@@ -12,7 +12,9 @@ from pipeline.layer1_story.chapter_contract_builder import (
 )
 
 
-def _make_outline(ch=1, chars=None, pacing="rising", emotional="", plants=None, payoffs=None):
+def _make_outline(
+    ch=1, chars=None, pacing="rising", emotional="", plants=None, payoffs=None
+):
     return ChapterOutline(
         chapter_number=ch,
         title=f"Chapter {ch}",
@@ -45,14 +47,19 @@ def _make_thread(tid="t1", status="open", planted=1, last_mentioned=1, chars=Non
 
 def _make_foreshadow(hint="dark omen", plant=3, payoff=8, planted=False, paid=False):
     return ForeshadowingEntry(
-        hint=hint, plant_chapter=plant, payoff_chapter=payoff,
-        planted=planted, paid_off=paid,
+        hint=hint,
+        plant_chapter=plant,
+        payoff_chapter=payoff,
+        planted=planted,
+        paid_off=paid,
     )
 
 
 class TestBuildContract:
     def test_basic_contract(self):
-        outline = _make_outline(ch=5, chars=["Alice", "Bob"], pacing="climax", emotional="tense")
+        outline = _make_outline(
+            ch=5, chars=["Alice", "Bob"], pacing="climax", emotional="tense"
+        )
         contract = build_contract(5, outline)
         assert contract.chapter_number == 5
         assert contract.pacing_type == "climax"
@@ -63,18 +70,28 @@ class TestBuildContract:
     def test_thread_advancement(self):
         outline = _make_outline(ch=10, chars=["Alice"])
         threads = [
-            _make_thread("t1", status="open", planted=1, last_mentioned=4, chars=["Alice"]),
-            _make_thread("t2", status="open", planted=8, last_mentioned=9, chars=["Bob"]),
-            _make_thread("t3", status="resolved", planted=1, last_mentioned=1, chars=["Alice"]),
+            _make_thread(
+                "t1", status="open", planted=1, last_mentioned=4, chars=["Alice"]
+            ),
+            _make_thread(
+                "t2", status="open", planted=8, last_mentioned=9, chars=["Bob"]
+            ),
+            _make_thread(
+                "t3", status="resolved", planted=1, last_mentioned=1, chars=["Alice"]
+            ),
         ]
         contract = build_contract(10, outline, threads=threads)
-        assert "t1" in contract.must_advance_threads  # stale (10-4=6>=5) + involves Alice
+        assert (
+            "t1" in contract.must_advance_threads
+        )  # stale (10-4=6>=5) + involves Alice
         assert "t3" not in contract.must_advance_threads  # resolved
 
     def test_stale_thread_prioritized(self):
         outline = _make_outline(ch=20, chars=["Carol"])
         threads = [
-            _make_thread("stale", status="open", planted=1, last_mentioned=5, chars=["Dave"]),
+            _make_thread(
+                "stale", status="open", planted=1, last_mentioned=5, chars=["Dave"]
+            ),
         ]
         contract = build_contract(20, outline, threads=threads)
         assert "stale" in contract.must_advance_threads  # 20-5=15 >= 5
@@ -93,8 +110,10 @@ class TestBuildContract:
 
     def test_arc_targets_from_waypoints(self):
         wp = ArcWaypoint(
-            stage_name="crisis", chapter_range=[4, 8],
-            progress_pct=0.6, emotional_state="anxious",
+            stage_name="crisis",
+            chapter_range=[4, 8],
+            progress_pct=0.6,
+            emotional_state="anxious",
         )
         char = _make_char("Alice", waypoints=[wp])
         outline = _make_outline(ch=5)
@@ -111,7 +130,9 @@ class TestBuildContract:
     def test_thread_cap(self):
         outline = _make_outline(ch=50, chars=["Alice"])
         threads = [
-            _make_thread(f"t{i}", status="open", planted=1, last_mentioned=1, chars=["Alice"])
+            _make_thread(
+                f"t{i}", status="open", planted=1, last_mentioned=1, chars=["Alice"]
+            )
             for i in range(20)
         ]
         contract = build_contract(50, outline, threads=threads)
@@ -139,7 +160,7 @@ class TestFormatContract:
             previous_contract_failures=["missed omen", "thread t1 not advanced"],
         )
         text = format_contract_for_prompt(contract)
-        assert "CHƯƠNG TRƯỚC ĐÃ BỎ LỠ" in text
+        assert "LẦN VIẾT TRƯỚC CỦA CHƯƠNG 5 ĐÃ BỎ LỠ" in text
         assert "missed omen" in text
 
     def test_cap_at_800_chars(self):
@@ -162,24 +183,30 @@ class TestFormatContract:
 class TestValidateCompliance:
     def test_successful_validation(self):
         mock_llm = MagicMock()
-        mock_llm.generate.return_value = json.dumps({
-            "compliance_score": 0.85,
-            "met": ["thread advanced", "seed planted"],
-            "failures": ["arc target missed"],
-        })
+        mock_llm.generate.return_value = json.dumps(
+            {
+                "compliance_score": 0.85,
+                "met": ["thread advanced", "seed planted"],
+                "failures": ["arc target missed"],
+            }
+        )
         contract = ChapterContract(
             chapter_number=1,
             must_advance_threads=["t1"],
             must_plant_seeds=["omen"],
         )
-        result = validate_contract_compliance(mock_llm, "Chapter content here...", contract)
+        result = validate_contract_compliance(
+            mock_llm, "Chapter content here...", contract
+        )
         assert result["compliance_score"] == 0.85
         assert len(result["met"]) == 2
         assert len(result["failures"]) == 1
 
     def test_markdown_json_extraction(self):
         mock_llm = MagicMock()
-        mock_llm.generate.return_value = '```json\n{"compliance_score": 0.9, "met": [], "failures": []}\n```'
+        mock_llm.generate.return_value = (
+            '```json\n{"compliance_score": 0.9, "met": [], "failures": []}\n```'
+        )
         contract = ChapterContract(chapter_number=1)
         result = validate_contract_compliance(mock_llm, "content", contract)
         assert result["compliance_score"] == 0.9

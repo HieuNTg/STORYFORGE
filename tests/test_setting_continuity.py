@@ -11,7 +11,12 @@ def test_extract_handles_null_owner_from_llm():
     payload = {
         "locations": [],
         "objects": [
-            {"name": "thanh kiếm cổ", "description": "kiếm bí ẩn", "location": "hang động", "owner": None}
+            {
+                "name": "thanh kiếm cổ",
+                "description": "kiếm bí ẩn",
+                "location": "hang động",
+                "owner": None,
+            }
         ],
         "time_markers": [],
         "characters_at_locations": {},

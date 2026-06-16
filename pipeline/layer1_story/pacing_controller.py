@@ -18,7 +18,9 @@ def validate_pacing(pacing_type: str) -> str:
     return "rising"  # safe default
 
 
-def detect_pacing_issues(pacing_history: list[str], max_consecutive: int = 3) -> list[str]:
+def detect_pacing_issues(
+    pacing_history: list[str], max_consecutive: int = 3
+) -> list[str]:
     """Detect pacing rhythm issues. Returns list of warnings."""
     warnings = []
     if len(pacing_history) < 2:
@@ -40,12 +42,16 @@ def detect_pacing_issues(pacing_history: list[str], max_consecutive: int = 3) ->
     recent = pacing_history[-5:]
     climax_count = recent.count("climax")
     if climax_count >= 3:
-        warnings.append("Cảnh báo: quá nhiều climax liên tiếp — người đọc sẽ mệt, cần cooldown")
+        warnings.append(
+            "Cảnh báo: quá nhiều climax liên tiếp — người đọc sẽ mệt, cần cooldown"
+        )
 
     # Check no cooldown after climax
     for i in range(1, len(pacing_history)):
         if pacing_history[i - 1] == "climax" and pacing_history[i] == "climax":
-            warnings.append(f"Cảnh báo: climax liên tiếp tại vị trí {i-1}-{i} — nên có cooldown xen kẽ")
+            warnings.append(
+                f"Cảnh báo: climax liên tiếp tại vị trí {i - 1}-{i} — nên có cooldown xen kẽ"
+            )
             break
 
     return warnings
@@ -86,7 +92,9 @@ def compare_pacing(intended: str, actual: str) -> str | None:
     return f"Dự kiến '{intended_n}' nhưng thực tế '{actual_n}'"
 
 
-def compute_pacing_adjustment(intended: str, actual: str, history: list[str] | None = None) -> str:
+def compute_pacing_adjustment(
+    intended: str, actual: str, history: list[str] | None = None
+) -> str:
     """Compute a Vietnamese pacing correction directive for next chapter. Pure Python."""
     mismatch = compare_pacing(intended, actual)
     if not mismatch:
@@ -104,7 +112,9 @@ def compute_pacing_adjustment(intended: str, actual: str, history: list[str] | N
     else:
         direction = "GIỮ NHỊP — duy trì cường độ hiện tại"
     # Cap adjustment: max 1 level jump
-    target = _level_to_pacing(min(actual_level + 1, 4) if diff > 0 else max(actual_level - 1, 0))
+    target = _level_to_pacing(
+        min(actual_level + 1, 4) if diff > 0 else max(actual_level - 1, 0)
+    )
     return (
         f"[ĐIỀU CHỈNH NHỊP ĐỘ] Chương trước {mismatch}. "
         f"Chương này PHẢI: {direction}. Nhắm đến nhịp '{target}'."
@@ -116,13 +126,26 @@ def compute_pacing_adjustment(intended: str, actual: str, history: list[str] | N
 _PACING_LEVELS = {"setup": 0, "cooldown": 1, "rising": 2, "twist": 3, "climax": 4}
 
 _EMOTIONAL_ARC_MAP = {
-    "bình lặng": "setup", "giới thiệu": "setup", "khởi đầu": "setup",
-    "phát triển": "rising", "tăng dần": "rising", "leo thang": "rising",
-    "căng thẳng": "rising", "hồi hộp": "rising",
-    "cao trào": "climax", "đỉnh điểm": "climax", "bùng nổ": "climax",
-    "hạ nhiệt": "cooldown", "phản ánh": "cooldown", "nghỉ ngơi": "cooldown",
-    "bất ngờ": "twist", "lật ngược": "twist", "twist": "twist",
-    "setup": "setup", "rising": "rising", "climax": "climax",
+    "bình lặng": "setup",
+    "giới thiệu": "setup",
+    "khởi đầu": "setup",
+    "phát triển": "rising",
+    "tăng dần": "rising",
+    "leo thang": "rising",
+    "căng thẳng": "rising",
+    "hồi hộp": "rising",
+    "cao trào": "climax",
+    "đỉnh điểm": "climax",
+    "bùng nổ": "climax",
+    "hạ nhiệt": "cooldown",
+    "phản ánh": "cooldown",
+    "nghỉ ngơi": "cooldown",
+    "bất ngờ": "twist",
+    "lật ngược": "twist",
+    "twist": "twist",
+    "setup": "setup",
+    "rising": "rising",
+    "climax": "climax",
     "cooldown": "cooldown",
 }
 
@@ -149,10 +172,10 @@ def _level_to_pacing(level: int) -> str:
 def get_word_count_modifier(pacing_type: str) -> float:
     """Return word count multiplier based on pacing type."""
     modifiers = {
-        "setup": 1.1,     # slightly longer for world-building
-        "rising": 1.0,    # standard
-        "climax": 1.2,    # longer for big scenes
-        "cooldown": 0.85, # shorter, reflective
-        "twist": 0.95,    # slightly shorter, punchy
+        "setup": 1.1,  # slightly longer for world-building
+        "rising": 1.0,  # standard
+        "climax": 1.2,  # longer for big scenes
+        "cooldown": 0.85,  # shorter, reflective
+        "twist": 0.95,  # slightly shorter, punchy
     }
     return modifiers.get(pacing_type, 1.0)

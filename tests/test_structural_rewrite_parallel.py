@@ -3,9 +3,10 @@
 Covers: semaphore cap, per-chapter failure isolation, batch_size=1 degradation,
 empty input, and pipeline_stats counters.
 """
+
 import asyncio
 import types
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -15,6 +16,7 @@ from pipeline.orchestrator_layers import _run_structural_rewrites
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_self(chapter_batch_size=2):
     """Build a minimal orchestrator-like namespace accepted by _run_structural_rewrites."""
@@ -32,6 +34,8 @@ def _make_self(chapter_batch_size=2):
     self_ns = types.SimpleNamespace(
         config=cfg,
         story_gen=story_gen,
+        # The duplicate-rewrite guard asserts against enhancer._rewritten_chapters.
+        enhancer=types.SimpleNamespace(_rewritten_chapters=set()),
     )
     return self_ns
 
@@ -65,6 +69,7 @@ def _make_issues(chapter_number):
 # ---------------------------------------------------------------------------
 # Test 1: concurrency cap with chapter_batch_size=2
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_semaphore_cap_at_batch_size():
@@ -102,7 +107,9 @@ async def test_semaphore_cap_at_batch_size():
             async with lock:
                 concurrent_count -= 1
 
-    with patch("pipeline.orchestrator_layers.asyncio.to_thread", side_effect=tracking_to_thread):
+    with patch(
+        "pipeline.orchestrator_layers.asyncio.to_thread", side_effect=tracking_to_thread
+    ):
         rewritten, failed = await _run_structural_rewrites(
             self_ns,
             issues_by_chapter=issues_by_chapter,
@@ -122,6 +129,7 @@ async def test_semaphore_cap_at_batch_size():
 # ---------------------------------------------------------------------------
 # Test 2: one chapter raises — siblings complete, failed list is correct
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_one_failure_does_not_cancel_siblings():
@@ -165,6 +173,7 @@ async def test_one_failure_does_not_cancel_siblings():
 # Test 3: chapter_batch_size=1 — effectively serial, helper still works
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_batch_size_1_is_serial():
     """batch_size=1 → concurrency never exceeds 1; all chapters complete."""
@@ -191,7 +200,9 @@ async def test_batch_size_1_is_serial():
             async with lock:
                 concurrent_count -= 1
 
-    with patch("pipeline.orchestrator_layers.asyncio.to_thread", side_effect=tracking_to_thread):
+    with patch(
+        "pipeline.orchestrator_layers.asyncio.to_thread", side_effect=tracking_to_thread
+    ):
         rewritten, failed = await _run_structural_rewrites(
             self_ns,
             issues_by_chapter=issues_by_chapter,
@@ -211,6 +222,7 @@ async def test_batch_size_1_is_serial():
 # ---------------------------------------------------------------------------
 # Test 4: empty input returns ([], []) without calling writer
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_empty_input_returns_empty():
@@ -237,6 +249,7 @@ async def test_empty_input_returns_empty():
 # ---------------------------------------------------------------------------
 # Test 5: pipeline_stats counters — attempted=5, succeeded=4, failed=1
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_pipeline_stats_via_caller_logic():
@@ -274,13 +287,19 @@ async def test_pipeline_stats_via_caller_logic():
 
     # Replicate the counter accumulation from orchestrator
     _sr_attempted = len(issues_by_chapter)  # 5
-    _sr_succeeded = len(rewritten_pairs)    # 4
-    _sr_failed = len(failed_pairs)          # 1
+    _sr_succeeded = len(rewritten_pairs)  # 4
+    _sr_failed = len(failed_pairs)  # 1
 
     stats: dict = {}
-    stats["structural_rewrites_attempted"] = stats.get("structural_rewrites_attempted", 0) + _sr_attempted
-    stats["structural_rewrites_succeeded"] = stats.get("structural_rewrites_succeeded", 0) + _sr_succeeded
-    stats["structural_rewrites_failed"] = stats.get("structural_rewrites_failed", 0) + _sr_failed
+    stats["structural_rewrites_attempted"] = (
+        stats.get("structural_rewrites_attempted", 0) + _sr_attempted
+    )
+    stats["structural_rewrites_succeeded"] = (
+        stats.get("structural_rewrites_succeeded", 0) + _sr_succeeded
+    )
+    stats["structural_rewrites_failed"] = (
+        stats.get("structural_rewrites_failed", 0) + _sr_failed
+    )
 
     assert stats["structural_rewrites_attempted"] == 5
     assert stats["structural_rewrites_succeeded"] == 4

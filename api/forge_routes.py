@@ -18,6 +18,7 @@ import asyncio
 import json
 import logging
 import os
+import threading
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -40,8 +41,6 @@ FORGE_LIMIT_PER_MIN = int(os.environ.get("STORYFORGE_FORGE_RATE_LIMIT", "5"))
 _FORGE_WINDOW = 60.0
 
 # In-memory fallback (per-process). Redis path mirrors middleware/rate_limiter.
-import threading
-
 _forge_lock = threading.Lock()
 _forge_state: dict[str, list[float]] = {}
 
@@ -67,6 +66,7 @@ def _check_forge_rate(ip: str) -> bool:
     if os.environ.get("REDIS_URL"):
         try:
             from middleware.rate_limiter import _get_redis  # type: ignore
+
             r = _get_redis()
             if r is not None:
                 key = f"sf:ratelimit:forge:{ip}"
@@ -111,6 +111,7 @@ def _get_llm():
     Tests monkey-patch this module attribute to inject a mock LLM.
     """
     from services.llm_client import LLMClient
+
     return LLMClient()
 
 
@@ -202,7 +203,9 @@ async def forge_sentence_stream(
                 yield _sse("forge.final", result.model_dump())
             except Exception as e:  # noqa: BLE001
                 logger.exception("forge stream failed")
-                yield _sse("forge.error", {"error": type(e).__name__, "message": str(e)[:200]})
+                yield _sse(
+                    "forge.error", {"error": type(e).__name__, "message": str(e)[:200]}
+                )
         except asyncio.CancelledError:
             task.cancel()
             raise

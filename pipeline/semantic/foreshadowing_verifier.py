@@ -33,7 +33,7 @@ from typing import Union
 from models.semantic_schemas import SemanticPayoffMatch
 from models.handoff_schemas import ForeshadowingSeed
 from models.schemas import ForeshadowingEntry
-from services.embedding_service import get_embedding_service, bytes_to_vec
+from services.embedding_service import get_embedding_service
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +163,9 @@ def verify_payoffs(
             # Chapter not written yet — skip silently
             continue
 
-        match = _verify_single(seed, ch_num, content, threshold, role, use_embedding, svc)
+        match = _verify_single(
+            seed, ch_num, content, threshold, role, use_embedding, svc
+        )
         results.append(match)
 
         # Mutate seed in place (ForeshadowingEntry has planted_confidence; ForeshadowingSeed does not)
@@ -199,12 +201,20 @@ def verify_payoffs(
         if m.status == "missed":
             logger.warning(
                 "semantic_payoff missed seed_id=%s ch=%d confidence=%.3f threshold=%.3f method=%s",
-                m.seed_id, m.chapter_num, m.confidence, m.threshold_used, m.method,
+                m.seed_id,
+                m.chapter_num,
+                m.confidence,
+                m.threshold_used,
+                m.method,
             )
         elif m.status == "weak":
             logger.warning(
                 "semantic_payoff weak seed_id=%s ch=%d confidence=%.3f threshold=%.3f method=%s",
-                m.seed_id, m.chapter_num, m.confidence, m.threshold_used, m.method,
+                m.seed_id,
+                m.chapter_num,
+                m.confidence,
+                m.threshold_used,
+                m.method,
             )
 
     n_matched = sum(1 for m in results if m.status == "matched")
@@ -212,7 +222,9 @@ def verify_payoffs(
     n_missed = sum(1 for m in results if m.status == "missed")
     logger.info(
         "foreshadowing_verified matched=%d weak=%d missed=%d",
-        n_matched, n_weak, n_missed,
+        n_matched,
+        n_weak,
+        n_missed,
     )
 
     return results
@@ -256,7 +268,9 @@ def verify_seeds(
         if content is None:
             continue
 
-        match = _verify_single(seed, ch_num, content, threshold, "seed", use_embedding, svc)
+        match = _verify_single(
+            seed, ch_num, content, threshold, "seed", use_embedding, svc
+        )
         results.append(match)
 
         if match.matched:
@@ -280,7 +294,11 @@ def verify_seeds(
         if m.status in ("missed", "weak"):
             logger.warning(
                 "semantic_seed %s seed_id=%s ch=%d confidence=%.3f threshold=%.3f",
-                m.status, m.seed_id, m.chapter_num, m.confidence, m.threshold_used,
+                m.status,
+                m.seed_id,
+                m.chapter_num,
+                m.confidence,
+                m.threshold_used,
             )
 
     return results
@@ -337,7 +355,11 @@ def _verify_single(
             best_span = span
 
     matched = max_sim >= threshold
-    matched_span = (best_span[:280] if best_span else None) if matched or max_sim >= _WEAK_FLOOR else None
+    matched_span = (
+        (best_span[:280] if best_span else None)
+        if matched or max_sim >= _WEAK_FLOOR
+        else None
+    )
 
     # Log cache debug stats (once per call via embed_batch; cache stats from service cache)
     _log_cache_debug(svc, ch_num, len(spans))
@@ -386,6 +408,7 @@ def _keyword_match(
 # Cache observability helper
 # ---------------------------------------------------------------------------
 
+
 def _log_cache_debug(svc, ch_num: int, n_spans: int) -> None:
     """Log debug-level cache stats once per chapter verification call.
 
@@ -398,7 +421,8 @@ def _log_cache_debug(svc, ch_num: int, n_spans: int) -> None:
             st = cache.stats()
             logger.debug(
                 "embedding_cache ch=%d spans=%d backend=%s total_entries=%d",
-                ch_num, n_spans,
+                ch_num,
+                n_spans,
                 st.get("backend", "?"),
                 st.get("total_entries", 0),
             )

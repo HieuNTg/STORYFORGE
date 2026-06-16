@@ -10,6 +10,7 @@ import unicodedata
 # Attempt to import tiktoken once at module load
 try:
     import tiktoken as _tiktoken
+
     _enc = _tiktoken.get_encoding("cl100k_base")  # GPT-4 / most modern LLMs
     _TIKTOKEN_AVAILABLE = True
 except Exception:

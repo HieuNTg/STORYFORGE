@@ -1,4 +1,5 @@
 """Agent Chuyên Gia Nhân Vật - kiểm tra tính nhất quán của nhân vật."""
+
 import json
 import logging
 
@@ -16,7 +17,9 @@ class CharacterSpecialistAgent(BaseAgent):
     layers = [1, 2]
     depends_on: list[str] = []  # Foundation agent — no dependencies
 
-    def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
+    def review(
+        self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None
+    ) -> AgentReview:
         # Lấy danh sách nhân vật và nội dung chương theo layer
         characters_info, chapters_content = self._extract_data(output, layer)
 
@@ -27,6 +30,7 @@ class CharacterSpecialistAgent(BaseAgent):
 
         try:
             from services.rag_knowledge_base import RAGKnowledgeBase
+
             rag = RAGKnowledgeBase()
             context_results = rag.query(characters_info[:500], n_results=3)
             if context_results:
@@ -43,10 +47,14 @@ class CharacterSpecialistAgent(BaseAgent):
         )
         return self._parse_review_json(result, layer, iteration)
 
-    def debate_response(self, story_draft, layer, own_review, all_reviews, round2_entries=None):
+    def debate_response(
+        self, story_draft, layer, own_review, all_reviews, round2_entries=None
+    ):
         """Challenge reviews that sacrifice character consistency. LLM-backed with fallback."""
         try:
-            return self._llm_debate(story_draft, own_review, all_reviews, round2_entries=round2_entries)
+            return self._llm_debate(
+                story_draft, own_review, all_reviews, round2_entries=round2_entries
+            )
         except Exception as e:
             logger.warning(f"LLM debate failed, using rule-based fallback: {e}")
             return self._rule_based_debate(all_reviews)
@@ -54,9 +62,14 @@ class CharacterSpecialistAgent(BaseAgent):
     def _llm_debate(self, story_draft, own_review, all_reviews, round2_entries=None):
         """LLM-powered debate analysis."""
         other_reviews = [
-            {"agent_name": r.agent_name, "score": r.score,
-             "issues": r.issues, "suggestions": [str(s) for s in r.suggestions]}
-            for r in all_reviews if r.agent_name != self.name
+            {
+                "agent_name": r.agent_name,
+                "score": r.score,
+                "issues": r.issues,
+                "suggestions": [str(s) for s in r.suggestions],
+            }
+            for r in all_reviews
+            if r.agent_name != self.name
         ]
         if not other_reviews:
             return []
@@ -68,7 +81,9 @@ class CharacterSpecialistAgent(BaseAgent):
         prompt = agent_prompts.CHARACTER_DEBATE.format(
             own_score=own_review.score,
             own_issues=json.dumps(own_review.issues, ensure_ascii=False),
-            own_suggestions=json.dumps([str(s) for s in own_review.suggestions], ensure_ascii=False),
+            own_suggestions=json.dumps(
+                [str(s) for s in own_review.suggestions], ensure_ascii=False
+            ),
             other_reviews_json=json.dumps(other_reviews, ensure_ascii=False, indent=2),
             characters_info=characters_info,
             chapter_excerpt=chapter_excerpt,
@@ -88,25 +103,33 @@ class CharacterSpecialistAgent(BaseAgent):
     def _rule_based_debate(self, all_reviews):
         """Fallback: keyword-based challenge detection."""
         entries = []
-        break_char_keywords = ["thay đổi tính cách", "bất ngờ", "plot twist", "phản bội"]
+        break_char_keywords = [
+            "thay đổi tính cách",
+            "bất ngờ",
+            "plot twist",
+            "phản bội",
+        ]
         for review in all_reviews:
             if review.agent_name == self.name:
                 continue
             for issue in review.issues:
                 if any(kw in issue.lower() for kw in break_char_keywords):
-                    entries.append(DebateEntry(
-                        agent_name=self.name, round_number=2,
-                        stance=DebateStance.CHALLENGE,
-                        target_agent=review.agent_name,
-                        target_issue=issue[:100],
-                        reasoning="Character behavior change needs proper foreshadowing and motivation buildup.",
-                    ))
+                    entries.append(
+                        DebateEntry(
+                            agent_name=self.name,
+                            round_number=2,
+                            stance=DebateStance.CHALLENGE,
+                            target_agent=review.agent_name,
+                            target_issue=issue[:100],
+                            reasoning="Character behavior change needs proper foreshadowing and motivation buildup.",
+                        )
+                    )
         return entries
 
     def _get_characters_info(self, story_draft):
         """Extract character info from PipelineOutput or StoryDraft."""
-        draft = getattr(story_draft, 'story_draft', story_draft)
-        if not hasattr(draft, 'characters') or not draft.characters:
+        draft = getattr(story_draft, "story_draft", story_draft)
+        if not hasattr(draft, "characters") or not draft.characters:
             return "Không có thông tin nhân vật."
         return "\n".join(
             f"- {c.name} ({c.role}): {c.personality}. Động lực: {c.motivation}"
@@ -148,9 +171,13 @@ class CharacterSpecialistAgent(BaseAgent):
         draft = output.story_draft
         lines = []
         for c in draft.characters:
-            lines.append(f"[{c.name}] Role={c.role}, Tính cách={c.personality}, Động lực={c.motivation}")
+            lines.append(
+                f"[{c.name}] Role={c.role}, Tính cách={c.personality}, Động lực={c.motivation}"
+            )
             if c.relationships:
                 lines.append(f"  Quan hệ: {', '.join(c.relationships[:3])}")
         for s in draft.character_states:
-            lines.append(f"[{s.name}] Mood={s.mood}, Arc={s.arc_position}, Last={s.last_action}")
+            lines.append(
+                f"[{s.name}] Mood={s.mood}, Arc={s.arc_position}, Last={s.last_action}"
+            )
         return "\n".join(lines)

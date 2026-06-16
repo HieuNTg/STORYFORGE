@@ -78,8 +78,9 @@ class TestLocationTransitions:
 
     def test_change_without_travel_warns(self):
         result = validate_location_transitions(
-            {"Alice": "lâu đài"}, {"Alice": "hòn đảo xa"},
-            "Alice nhìn ra biển và thấy hòn đảo xa."
+            {"Alice": "lâu đài"},
+            {"Alice": "hòn đảo xa"},
+            "Alice nhìn ra biển và thấy hòn đảo xa.",
         )
         assert len(result) == 1
         assert "VỊ TRÍ" in result[0]
@@ -87,22 +88,23 @@ class TestLocationTransitions:
 
     def test_change_with_travel_no_warning(self):
         result = validate_location_transitions(
-            {"Alice": "lâu đài"}, {"Alice": "hòn đảo"},
-            "Alice lên đường di chuyển đến hòn đảo bằng thuyền."
+            {"Alice": "lâu đài"},
+            {"Alice": "hòn đảo"},
+            "Alice lên đường di chuyển đến hòn đảo bằng thuyền.",
         )
         assert result == []
 
     def test_time_skip_no_warning(self):
         result = validate_location_transitions(
-            {"Bob": "thành phố A"}, {"Bob": "thành phố B"},
-            "Một tuần sau, Bob đã ở thành phố B."
+            {"Bob": "thành phố A"},
+            {"Bob": "thành phố B"},
+            "Một tuần sau, Bob đã ở thành phố B.",
         )
         assert result == []
 
     def test_unknown_char_no_warning(self):
         result = validate_location_transitions(
-            {"Alice": "castle"}, {"Bob": "town"},
-            "Bob appeared in town."
+            {"Alice": "castle"}, {"Bob": "town"}, "Bob appeared in town."
         )
         assert result == []
 
@@ -132,6 +134,7 @@ class TestSelectiveCritique:
         class FakeArc:
             chapter_start = 30
             chapter_end = 60
+
         assert should_critique(30, 100, macro_arcs=[FakeArc()]) is True
         assert should_critique(60, 100, macro_arcs=[FakeArc()]) is True
 
@@ -139,6 +142,7 @@ class TestSelectiveCritique:
         class FakeArc:
             chapter_start = 30
             chapter_end = 60
+
         assert should_critique(31, 100, macro_arcs=[FakeArc()]) is True
         assert should_critique(59, 100, macro_arcs=[FakeArc()]) is True
 
@@ -146,18 +150,22 @@ class TestSelectiveCritique:
         class FakeArc:
             chapter_start = 30
             chapter_end = 60
+
         assert should_critique(45, 100, macro_arcs=[FakeArc()]) is False
 
     def test_coverage_estimate(self):
         """Verify ~15-25% critique rate for 100-chapter story with 3 arcs."""
+
         class Arc:
             def __init__(self, s, e):
                 self.chapter_start = s
                 self.chapter_end = e
+
         arcs = [Arc(1, 33), Arc(34, 66), Arc(67, 100)]
         pacings = ["setup", "rising", "rising", "climax", "cooldown"] * 20
         critiqued = sum(
-            1 for i in range(1, 101)
+            1
+            for i in range(1, 101)
             if should_critique(i, 100, macro_arcs=arcs, pacing_type=pacings[i - 1])
         )
         assert 10 <= critiqued <= 35, f"Expected 10-35 critiqued, got {critiqued}"

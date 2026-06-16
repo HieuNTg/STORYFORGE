@@ -18,7 +18,9 @@ from services.safe_name import safe_character_name
 logger = logging.getLogger(__name__)
 
 _AVATAR_SUBDIR = "avatars"
-_AVATAR_ASPECT = "1:1"  # square frame composes cleanly into both portrait & landscape scenes
+_AVATAR_ASPECT = (
+    "1:1"  # square frame composes cleanly into both portrait & landscape scenes
+)
 _SEED_MOD = 2_147_483_647
 
 # Genre-specific style anchors. Layered on top of the anime baseline so the
@@ -73,9 +75,7 @@ def _style_anchor_for(genre: Optional[str]) -> str:
     """
     if not genre or not genre.strip():
         return _DEFAULT_STYLE_ANCHOR
-    return _GENRE_STYLE_ANCHORS_CF.get(
-        genre.strip().casefold(), _DEFAULT_STYLE_ANCHOR
-    )
+    return _GENRE_STYLE_ANCHORS_CF.get(genre.strip().casefold(), _DEFAULT_STYLE_ANCHOR)
 
 
 def _build_avatar_prompt(char: ForgeCharacter, genre: Optional[str] = None) -> str:
@@ -178,13 +178,15 @@ async def generate_character_avatar(
         # flag was off.
         logger.info(
             "avatar skip: flowkit_enabled=false (char=%s, story_id=%s)",
-            char.name, story_id,
+            char.name,
+            story_id,
         )
         return None
     if not (getattr(cfg, "flowkit_project_id", "") or "").strip():
         logger.info(
             "avatar skip: flowkit_project_id empty (char=%s, story_id=%s)",
-            char.name, story_id,
+            char.name,
+            story_id,
         )
         return None
 
@@ -218,7 +220,8 @@ async def generate_character_avatar(
                 # mode that historically left no trace in the logs.
                 logger.warning(
                     "avatar attempt %d returned empty path for %s",
-                    attempt, char.name,
+                    attempt,
+                    char.name,
                 )
                 if attempt == 2:
                     return None
@@ -261,7 +264,9 @@ def find_existing_avatar(name: str, story_id: Optional[str] = None) -> Optional[
         candidates.append(os.path.join(avatars_dir(story_id=story_id), f"{safe}.png"))
         safe_story = safe_character_name(story_id)
         candidates.append(
-            os.path.join(OUTPUT_ROOT, "images", _AVATAR_SUBDIR, safe_story, f"{safe}.png")
+            os.path.join(
+                OUTPUT_ROOT, "images", _AVATAR_SUBDIR, safe_story, f"{safe}.png"
+            )
         )
     candidates.append(
         os.path.join(OUTPUT_ROOT, "images", _AVATAR_SUBDIR, f"{safe}.png")

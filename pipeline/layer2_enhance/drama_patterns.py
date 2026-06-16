@@ -62,7 +62,13 @@ GENRE_DRAMA_RULES: dict[str, dict] = {
         "red_herring_rate": 0.3,
         "tension_curve": "ascending_steps",  # Build to revelation
         "revelation_pacing": "delayed",
-        "key_patterns": ["manh_mối", "nghi_phạm", "tiết_lộ_bí_mật", "plot_twist", "điều_tra"],
+        "key_patterns": [
+            "manh_mối",
+            "nghi_phạm",
+            "tiết_lộ_bí_mật",
+            "plot_twist",
+            "điều_tra",
+        ],
         "avoid_patterns": ["giải_thích_quá_sớm", "hung_thủ_rõ_ràng"],
     },
     "Kinh Dị": {
@@ -71,7 +77,12 @@ GENRE_DRAMA_RULES: dict[str, dict] = {
         "dread_buildup_rate": 0.2,
         "tension_curve": "escalating_spiral",  # Slow burn with spikes
         "atmosphere_priority": True,
-        "key_patterns": ["ám_ảnh", "bí_ẩn_rùng_rợn", "nỗi_sợ_tiềm_ẩn", "kinh_hoàng_tiết_lộ"],
+        "key_patterns": [
+            "ám_ảnh",
+            "bí_ẩn_rùng_rợn",
+            "nỗi_sợ_tiềm_ẩn",
+            "kinh_hoàng_tiết_lộ",
+        ],
         "avoid_patterns": ["jump_scare_liên_tục", "giải_thích_siêu_nhiên"],
     },
     "Hài Hước": {
@@ -80,7 +91,12 @@ GENRE_DRAMA_RULES: dict[str, dict] = {
         "timing_precision": True,
         "tension_curve": "wave",  # Light tension, quick release
         "stakes_level": "low",
-        "key_patterns": ["hiểu_lầm_hài", "tình_huống_ngớ_ngẩn", "phản_ứng_bất_ngờ", "châm_biếm"],
+        "key_patterns": [
+            "hiểu_lầm_hài",
+            "tình_huống_ngớ_ngẩn",
+            "phản_ứng_bất_ngờ",
+            "châm_biếm",
+        ],
         "avoid_patterns": ["bi_kịch_hóa", "drama_nặng_nề"],
     },
     "Thể Thao": {
@@ -89,7 +105,14 @@ GENRE_DRAMA_RULES: dict[str, dict] = {
         "training_arc": True,
         "rivalry_dynamics": True,
         "tension_curve": "ascending",  # Tournament arc structure
-        "key_patterns": ["thi_đấu", "huấn_luyện", "đối_thủ", "chiến_thắng", "thất_bại", "vượt_qua_giới_hạn"],
+        "key_patterns": [
+            "thi_đấu",
+            "huấn_luyện",
+            "đối_thủ",
+            "chiến_thắng",
+            "thất_bại",
+            "vượt_qua_giới_hạn",
+        ],
         "team_dynamics": True,
     },
     "Quân Sự": {
@@ -97,7 +120,14 @@ GENRE_DRAMA_RULES: dict[str, dict] = {
         "battle_interval": 8,
         "strategy_focus": True,
         "tension_curve": "ascending",
-        "key_patterns": ["chiến_thuật", "trận_chiến", "hy_sinh", "đồng_đội", "chỉ_huy", "phục_kích"],
+        "key_patterns": [
+            "chiến_thuật",
+            "trận_chiến",
+            "hy_sinh",
+            "đồng_đội",
+            "chỉ_huy",
+            "phục_kích",
+        ],
         "hierarchy_dynamics": True,
         "moral_dilemmas": True,
     },
@@ -106,7 +136,14 @@ GENRE_DRAMA_RULES: dict[str, dict] = {
         "discovery_interval": 6,
         "tech_escalation": True,
         "tension_curve": "ascending",
-        "key_patterns": ["phát_minh", "khám_phá", "công_nghệ", "ngoài_hành_tinh", "tương_lai", "AI"],
+        "key_patterns": [
+            "phát_minh",
+            "khám_phá",
+            "công_nghệ",
+            "ngoài_hành_tinh",
+            "tương_lai",
+            "AI",
+        ],
         "worldbuilding_focus": True,
         "hard_sf_elements": False,  # Default to soft sci-fi
     },
@@ -130,6 +167,7 @@ def get_tension_modifier(genre: str, position: float) -> float:
     Trả về <1.0 để leo thang dễ hơn (ngưỡng thấp hơn), >1.0 để khó hơn.
     """
     import math
+
     rules = get_genre_rules(genre)
     curve = rules.get("tension_curve", "ascending")
 
@@ -171,7 +209,9 @@ def get_genre_escalation_prompt(genre: str, round_num: int, total_rounds: int) -
 
     # Classic genre rules
     if rules.get("power_escalation") and progress > 0.3:
-        parts.append("Nhân vật chính cần đột phá sức mạnh hoặc đối mặt thử thách lớn hơn.")
+        parts.append(
+            "Nhân vật chính cần đột phá sức mạnh hoặc đối mặt thử thách lớn hơn."
+        )
 
     if rules.get("faction_dynamics") and progress > 0.2:
         parts.append("Cần thay đổi liên minh hoặc xuất hiện thế lực mới.")
@@ -190,7 +230,9 @@ def get_genre_escalation_prompt(genre: str, round_num: int, total_rounds: int) -
 
     if rules.get("horror_system"):
         if progress < 0.4:
-            parts.append("Xây dựng bầu không khí — gợi ý mối đe dọa, không tiết lộ hết.")
+            parts.append(
+                "Xây dựng bầu không khí — gợi ý mối đe dọa, không tiết lộ hết."
+            )
         elif progress < 0.8:
             parts.append("Leo thang dần — mối đe dọa rõ ràng hơn, nhưng vẫn giữ bí ẩn.")
         else:
@@ -220,7 +262,9 @@ def get_genre_escalation_prompt(genre: str, round_num: int, total_rounds: int) -
             parts.append("Mở rộng thế giới — giới thiệu công nghệ/khái niệm mới.")
 
     if progress > 0.7:
-        parts.append("Giai đoạn cao trào — tăng cường xung đột, đẩy mâu thuẫn đến đỉnh điểm.")
+        parts.append(
+            "Giai đoạn cao trào — tăng cường xung đột, đẩy mâu thuẫn đến đỉnh điểm."
+        )
 
     return " ".join(parts)
 
@@ -232,21 +276,21 @@ def get_genre_escalation_prompt(genre: str, round_num: int, total_rounds: int) -
 # Drama ceiling per genre — prevents over-the-top melodrama
 # Scale: 0.0-1.0 where 1.0 = maximum possible drama
 GENRE_DRAMA_CEILING: dict[str, float] = {
-    "Tiên Hiệp": 0.85,      # High drama expected
-    "Cung Đấu": 0.80,       # Political intrigue, moderate ceiling
-    "Ngôn Tình": 0.70,      # Romance, lower ceiling to avoid melodrama
-    "Huyền Huyễn": 0.85,    # Fantasy, high drama OK
-    "Đô Thị": 0.75,         # Modern setting, more grounded
-    "Kiếm Hiệp": 0.82,      # Martial arts, honor duels
-    "Xuyên Không": 0.80,    # Isekai
-    "Trọng Sinh": 0.78,     # Rebirth revenge
-    "Hài Hước": 0.60,       # Comedy — much lower ceiling
-    "Trinh Thám": 0.72,     # Mystery — tension not melodrama
-    "Kinh Dị": 0.75,        # Horror — atmospheric not hysterical
+    "Tiên Hiệp": 0.85,  # High drama expected
+    "Cung Đấu": 0.80,  # Political intrigue, moderate ceiling
+    "Ngôn Tình": 0.70,  # Romance, lower ceiling to avoid melodrama
+    "Huyền Huyễn": 0.85,  # Fantasy, high drama OK
+    "Đô Thị": 0.75,  # Modern setting, more grounded
+    "Kiếm Hiệp": 0.82,  # Martial arts, honor duels
+    "Xuyên Không": 0.80,  # Isekai
+    "Trọng Sinh": 0.78,  # Rebirth revenge
+    "Hài Hước": 0.60,  # Comedy — much lower ceiling
+    "Trinh Thám": 0.72,  # Mystery — tension not melodrama
+    "Kinh Dị": 0.75,  # Horror — atmospheric not hysterical
     # ═══ NEW GENRES ═══
-    "Thể Thao": 0.78,       # Sports — competition excitement but grounded
-    "Quân Sự": 0.80,        # Military — battle tension, strategic
-    "Khoa Học": 0.72,       # Sci-fi — wonder over drama
+    "Thể Thao": 0.78,  # Sports — competition excitement but grounded
+    "Quân Sự": 0.80,  # Military — battle tension, strategic
+    "Khoa Học": 0.72,  # Sci-fi — wonder over drama
 }
 
 # Melodrama indicators — phrases that signal over-dramatic writing

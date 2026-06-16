@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ArcValidationResult:
     """Result of validating a character's arc execution in a chapter."""
+
     character: str
     chapter_number: int
     expected_stage: str
@@ -37,14 +38,43 @@ class ArcValidationResult:
 _EMOTION_KEYWORDS = {
     "sợ hãi": ["sợ", "lo sợ", "khiếp", "hoảng", "run rẩy", "e ngại", "kinh hãi"],
     "tức giận": ["giận", "tức", "phẫn nộ", "căm hận", "bực", "điên tiết", "cuồng nộ"],
-    "buồn": ["buồn", "đau khổ", "sầu", "tuyệt vọng", "bi thương", "thất vọng", "chán nản"],
-    "vui": ["vui", "hạnh phúc", "hân hoan", "phấn khởi", "mừng", "hớn hở", "sung sướng"],
-    "can đảm": ["can đảm", "dũng cảm", "mạnh mẽ", "quyết tâm", "kiên định", "bất khuất"],
+    "buồn": [
+        "buồn",
+        "đau khổ",
+        "sầu",
+        "tuyệt vọng",
+        "bi thương",
+        "thất vọng",
+        "chán nản",
+    ],
+    "vui": [
+        "vui",
+        "hạnh phúc",
+        "hân hoan",
+        "phấn khởi",
+        "mừng",
+        "hớn hở",
+        "sung sướng",
+    ],
+    "can đảm": [
+        "can đảm",
+        "dũng cảm",
+        "mạnh mẽ",
+        "quyết tâm",
+        "kiên định",
+        "bất khuất",
+    ],
     "do dự": ["do dự", "phân vân", "lưỡng lự", "ngập ngừng", "không quyết", "bối rối"],
     "cô đấp": ["cố chấp", "khăng khăng", "bướng bỉnh", "ngoan cố", "ương ngạnh"],
     "yêu": ["yêu", "thương", "mến", "si mê", "đắm đuối", "trìu mến"],
     "hối hận": ["hối hận", "ân hận", "day dứt", "tự trách", "hối tiếc", "ray rứt"],
-    "quyết tâm": ["quyết tâm", "kiên quyết", "dứt khoát", "cương quyết", "bất di bất dịch"],
+    "quyết tâm": [
+        "quyết tâm",
+        "kiên quyết",
+        "dứt khoát",
+        "cương quyết",
+        "bất di bất dịch",
+    ],
     "phủ nhận": ["phủ nhận", "từ chối", "không chấp nhận", "chối bỏ", "khước từ"],
     "chấp nhận": ["chấp nhận", "đón nhận", "tiếp nhận", "cam chịu", "thuận theo"],
 }
@@ -65,18 +95,22 @@ _STAGE_KEYWORDS = {
 
 def _find_character_mentions(content: str, char_name: str) -> list[str]:
     """Extract sentences mentioning a character."""
-    sentences = re.split(r'[.!?。]\s*', content)
+    sentences = re.split(r"[.!?。]\s*", content)
     mentions = []
     name_lower = char_name.lower()
     name_parts = name_lower.split()
     for sent in sentences:
         sent_lower = sent.lower()
-        if name_lower in sent_lower or any(p in sent_lower for p in name_parts if len(p) > 2):
+        if name_lower in sent_lower or any(
+            p in sent_lower for p in name_parts if len(p) > 2
+        ):
             mentions.append(sent.strip())
     return mentions[:20]  # Cap for performance
 
 
-def _heuristic_emotion_match(text: str, expected_emotion: str) -> tuple[bool, float, str]:
+def _heuristic_emotion_match(
+    text: str, expected_emotion: str
+) -> tuple[bool, float, str]:
     """Check if text contains expected emotion keywords. Returns (found, confidence, evidence)."""
     text_lower = text.lower()
     expected_lower = expected_emotion.lower()
@@ -296,7 +330,12 @@ def validate_arc_execution_llm(
             severity=severity,
         )
     except Exception as e:
-        logger.warning("Arc LLM validation failed for %s ch%d: %s", character.name, chapter_number, e)
+        logger.warning(
+            "Arc LLM validation failed for %s ch%d: %s",
+            character.name,
+            chapter_number,
+            e,
+        )
         # Fallback to heuristic
         return validate_arc_execution_heuristic(chapter, character, chapter_number)
 
@@ -381,10 +420,12 @@ def _group_by_character(results: list[ArcValidationResult]) -> dict:
     for r in results:
         if r.character not in grouped:
             grouped[r.character] = []
-        grouped[r.character].append({
-            "chapter": r.chapter_number,
-            "stage": r.expected_stage,
-            "found": r.found,
-            "severity": r.severity,
-        })
+        grouped[r.character].append(
+            {
+                "chapter": r.chapter_number,
+                "stage": r.expected_stage,
+                "found": r.found,
+                "severity": r.severity,
+            }
+        )
     return grouped

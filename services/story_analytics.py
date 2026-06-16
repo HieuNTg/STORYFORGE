@@ -1,4 +1,5 @@
 """Reading analytics for Vietnamese stories — readability, pacing, emotion arcs."""
+
 import logging
 import re
 from typing import Union
@@ -31,7 +32,9 @@ class StoryAnalytics:
             "total_chapters": len(chapters),
             "total_sentences": total_sentences,
             "total_paragraphs": total_paragraphs,
-            "reading_time_minutes": max(1, total_words // StoryAnalytics.VIETNAMESE_WPM),
+            "reading_time_minutes": max(
+                1, total_words // StoryAnalytics.VIETNAMESE_WPM
+            ),
             "avg_words_per_chapter": total_words // max(1, len(chapters)),
             "avg_sentence_length": total_words / max(1, total_sentences),
             "dialogue_ratio": total_dialogues / max(1, total_sentences),
@@ -41,7 +44,9 @@ class StoryAnalytics:
                 "chapter_numbers": [s["chapter_number"] for s in chapter_stats],
                 "word_counts": [s["word_count"] for s in chapter_stats],
                 "dialogue_ratios": [s["dialogue_ratio"] for s in chapter_stats],
-                "avg_sentence_lengths": [s["avg_sentence_length"] for s in chapter_stats],
+                "avg_sentence_lengths": [
+                    s["avg_sentence_length"] for s in chapter_stats
+                ],
             },
         }
 
@@ -53,7 +58,7 @@ class StoryAnalytics:
         word_count = len(words)
 
         # Sentence detection (Vietnamese uses same punctuation)
-        sentences = [s.strip() for s in re.split(r'[.!?…]+', content) if s.strip()]
+        sentences = [s.strip() for s in re.split(r"[.!?…]+", content) if s.strip()]
         sentence_count = max(1, len(sentences))
 
         # Paragraph count
@@ -62,15 +67,15 @@ class StoryAnalytics:
 
         # Dialogue detection (Vietnamese uses — or "", supports many typography styles)
         dialogue_pattern = (
-            r'(?:'
-            r'[—–\-]\s*[^:\n]+?:\s*.+?'  # em-dash/en-dash/hyphen dialogue: — Name: text
-            r'|"[^"]*"'                    # smart double quotes
-            r'|"[^"]*"'                    # straight double quotes
-            r"|'[^']*'"                    # smart single quotes
-            r'|«[^»]*»'                   # guillemets
-            r'|「[^」]*」'                 # CJK brackets
-            r'|『[^』]*』'                 # CJK double brackets
-            r')'
+            r"(?:"
+            r"[—–\-]\s*[^:\n]+?:\s*.+?"  # em-dash/en-dash/hyphen dialogue: — Name: text
+            r'|"[^"]*"'  # smart double quotes
+            r'|"[^"]*"'  # straight double quotes
+            r"|'[^']*'"  # smart single quotes
+            r"|«[^»]*»"  # guillemets
+            r"|「[^」]*」"  # CJK brackets
+            r"|『[^』]*』"  # CJK double brackets
+            r")"
         )
         dialogues = re.findall(dialogue_pattern, content)
         dialogue_count = len(dialogues)
@@ -102,19 +107,60 @@ class StoryAnalytics:
         """
         # Vietnamese emotion keyword lexicon
         POSITIVE_KEYWORDS = {
-            "vui", "hạnh phúc", "mỉm cười", "cười", "hân hoan", "phấn khởi",
-            "yêu", "thương", "ấm áp", "hy vọng", "tự hào", "chiến thắng",
-            "hào hứng", "rạng rỡ", "sung sướng", "mãn nguyện", "bình yên",
+            "vui",
+            "hạnh phúc",
+            "mỉm cười",
+            "cười",
+            "hân hoan",
+            "phấn khởi",
+            "yêu",
+            "thương",
+            "ấm áp",
+            "hy vọng",
+            "tự hào",
+            "chiến thắng",
+            "hào hứng",
+            "rạng rỡ",
+            "sung sướng",
+            "mãn nguyện",
+            "bình yên",
         }
         NEGATIVE_KEYWORDS = {
-            "buồn", "khóc", "đau", "tức giận", "sợ", "lo lắng", "thất vọng",
-            "tuyệt vọng", "chết", "máu", "chiến tranh", "hận", "thù",
-            "đau khổ", "cô đơn", "bất lực", "tàn nhẫn", "phản bội",
+            "buồn",
+            "khóc",
+            "đau",
+            "tức giận",
+            "sợ",
+            "lo lắng",
+            "thất vọng",
+            "tuyệt vọng",
+            "chết",
+            "máu",
+            "chiến tranh",
+            "hận",
+            "thù",
+            "đau khổ",
+            "cô đơn",
+            "bất lực",
+            "tàn nhẫn",
+            "phản bội",
         }
         TENSION_KEYWORDS = {
-            "nguy hiểm", "chiến đấu", "đối đầu", "khẩn cấp", "bí mật",
-            "âm mưu", "phát hiện", "bất ngờ", "sốc", "kinh hoàng",
-            "trốn chạy", "tấn công", "phục kích", "đuổi theo", "bùng nổ",
+            "nguy hiểm",
+            "chiến đấu",
+            "đối đầu",
+            "khẩn cấp",
+            "bí mật",
+            "âm mưu",
+            "phát hiện",
+            "bất ngờ",
+            "sốc",
+            "kinh hoàng",
+            "trốn chạy",
+            "tấn công",
+            "phục kích",
+            "đuổi theo",
+            "bùng nổ",
         }
 
         arc_data = {
@@ -130,8 +176,12 @@ class StoryAnalytics:
             words = content_lower.split()
             total = max(1, len(words))
 
-            pos_count = sum(1 for w in words if any(kw in w for kw in POSITIVE_KEYWORDS))
-            neg_count = sum(1 for w in words if any(kw in w for kw in NEGATIVE_KEYWORDS))
+            pos_count = sum(
+                1 for w in words if any(kw in w for kw in POSITIVE_KEYWORDS)
+            )
+            neg_count = sum(
+                1 for w in words if any(kw in w for kw in NEGATIVE_KEYWORDS)
+            )
             ten_count = sum(1 for w in words if any(kw in w for kw in TENSION_KEYWORDS))
 
             pos_ratio = pos_count / total * 100
@@ -148,7 +198,9 @@ class StoryAnalytics:
         return arc_data
 
     @staticmethod
-    def extract_emotion_arc_llm(chapters: list[Chapter], max_chapters: int = 50) -> dict:
+    def extract_emotion_arc_llm(
+        chapters: list[Chapter], max_chapters: int = 50
+    ) -> dict:
         """Extract emotion arc using LLM for higher accuracy.
 
         Falls back to keyword method if LLM fails.
@@ -160,8 +212,13 @@ class StoryAnalytics:
         llm = LLMClient()
         arc_data = {
             "chapter_numbers": [],
-            "joy": [], "sadness": [], "anger": [],
-            "fear": [], "surprise": [], "tension": [], "romance": [],
+            "joy": [],
+            "sadness": [],
+            "anger": [],
+            "fear": [],
+            "surprise": [],
+            "tension": [],
+            "romance": [],
             "dominant_emotions": [],
             "summaries": [],
         }
@@ -203,11 +260,15 @@ class StoryAnalytics:
                 arc_data["surprise"].append(_clamp(result.get("surprise", 5)))
                 arc_data["tension"].append(_clamp(result.get("tension", 5)))
                 arc_data["romance"].append(_clamp(result.get("romance", 0)))
-                arc_data["dominant_emotions"].append(str(result.get("dominant_emotion", "")))
+                arc_data["dominant_emotions"].append(
+                    str(result.get("dominant_emotion", ""))
+                )
                 arc_data["summaries"].append(str(result.get("emotional_summary", "")))
 
             except Exception as e:
-                logger.warning(f"LLM emotion extraction failed for ch {ch.chapter_number}: {e}")
+                logger.warning(
+                    f"LLM emotion extraction failed for ch {ch.chapter_number}: {e}"
+                )
                 # Fallback: use keyword method for this chapter
                 keyword_arc = StoryAnalytics.extract_emotion_arc([ch])
                 arc_data["chapter_numbers"].append(ch.chapter_number)

@@ -37,6 +37,7 @@ def usage_sidecar_path_for(checkpoint_filename: str, title: Optional[str] = None
     the existing checkpoint by filename, falling back to the legacy flat dir.
     """
     import pathlib
+
     safe = pathlib.Path(checkpoint_filename).name
     if safe.endswith(".json"):
         safe = safe[: -len(".json")]
@@ -44,9 +45,11 @@ def usage_sidecar_path_for(checkpoint_filename: str, title: Optional[str] = None
 
     if title:
         from services.output_paths import checkpoints_dir
+
         return pathlib.Path(checkpoints_dir(title)) / sidecar_name
 
     from pipeline.orchestrator_checkpoint import find_checkpoint_path
+
     found = find_checkpoint_path(pathlib.Path(checkpoint_filename).name)
     if found:
         return pathlib.Path(found).parent / sidecar_name
@@ -71,7 +74,11 @@ def read_usage(checkpoint_filename: str) -> Optional[dict]:
         if not isinstance(data, dict):
             return None
         events = data.get("events") if isinstance(data.get("events"), list) else []
-        totals = data.get("totals") if isinstance(data.get("totals"), dict) else _empty_totals()
+        totals = (
+            data.get("totals")
+            if isinstance(data.get("totals"), dict)
+            else _empty_totals()
+        )
         # Defensive: ensure required keys exist with sane defaults.
         for k, v in _empty_totals().items():
             totals.setdefault(k, v)
@@ -137,7 +144,9 @@ def record_usage(
             totals = dict(existing["totals"])
 
         # Update totals BEFORE rotation so we never lose aggregate data.
-        totals["total_tokens"] = int(totals.get("total_tokens", 0)) + event["total_tokens"]
+        totals["total_tokens"] = (
+            int(totals.get("total_tokens", 0)) + event["total_tokens"]
+        )
         totals["total_cost_usd"] = round(
             float(totals.get("total_cost_usd", 0.0)) + event["cost_usd"], 8
         )
@@ -149,9 +158,15 @@ def record_usage(
 
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({"events": events, "totals": totals}, f, ensure_ascii=False, indent=2)
-        logger.debug("Usage sidecar appended: %s (+%d tokens, $%.6f)",
-                     path.name, event["total_tokens"], event["cost_usd"])
+            json.dump(
+                {"events": events, "totals": totals}, f, ensure_ascii=False, indent=2
+            )
+        logger.debug(
+            "Usage sidecar appended: %s (+%d tokens, $%.6f)",
+            path.name,
+            event["total_tokens"],
+            event["cost_usd"],
+        )
         return str(path)
     except OSError as e:
         logger.warning("Usage sidecar write failed (%s): %s", path.name, e)

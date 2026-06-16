@@ -26,8 +26,12 @@ class BranchManager:
     # ── helpers ────────────────────────────────────────────────────────────
 
     def _make_node(
-        self, node_id: str, text: str, choices: list[str],
-        parent: Optional[str], character_states: Optional[dict] = None,
+        self,
+        node_id: str,
+        text: str,
+        choices: list[str],
+        parent: Optional[str],
+        character_states: Optional[dict] = None,
         state_changes: Optional[dict] = None,
         choice_conditions: Optional[list[dict]] = None,
     ) -> dict:
@@ -35,11 +39,12 @@ class BranchManager:
             "id": node_id,
             "text": text,
             "choices": choices,
-            "children": {},   # choice_index (str) -> node_id
+            "children": {},  # choice_index (str) -> node_id
             "parent": parent,
             "character_states": character_states or {},
             "state_changes": state_changes or {},  # {"gold": 10, "reputation": -5}
-            "choice_conditions": choice_conditions or [],  # [{"index": 0, "requires": {"gold": 50}}]
+            "choice_conditions": choice_conditions
+            or [],  # [{"index": 0, "requires": {"gold": 50}}]
         }
 
     def _get_session(self, session_id: str) -> dict:
@@ -60,7 +65,9 @@ class BranchManager:
     # ── public API ─────────────────────────────────────────────────────────
 
     def start_session(
-        self, story_text: str, choices: Optional[list[str]] = None,
+        self,
+        story_text: str,
+        choices: Optional[list[str]] = None,
         context: Optional[dict] = None,
     ) -> dict:
         """Parse story text, create root node, return session data."""
@@ -112,7 +119,11 @@ class BranchManager:
         return None  # needs LLM generation
 
     def add_generated_node(
-        self, session_id: str, choice_index: int, text: str, choices: list[str],
+        self,
+        session_id: str,
+        choice_index: int,
+        text: str,
+        choices: list[str],
         character_states: Optional[dict] = None,
     ) -> dict:
         """Add LLM-generated continuation as child node; move current pointer."""
@@ -124,7 +135,9 @@ class BranchManager:
             # Push current to undo stack before moving
             self._push_undo(session_id, node["id"])
             new_id = str(uuid.uuid4())
-            new_node = self._make_node(new_id, text, choices, node["id"], character_states)
+            new_node = self._make_node(
+                new_id, text, choices, node["id"], character_states
+            )
             tree["nodes"][new_id] = new_node
             node["children"][str(choice_index)] = new_id
             tree["current"] = new_id
@@ -226,11 +239,13 @@ class BranchManager:
             path = []
             current = node
             while current is not None:
-                path.append({
-                    "id": current["id"],
-                    "text": current["text"],
-                    "depth": _depth(current, tree["nodes"]),
-                })
+                path.append(
+                    {
+                        "id": current["id"],
+                        "text": current["text"],
+                        "depth": _depth(current, tree["nodes"]),
+                    }
+                )
                 if current["parent"] is None:
                     break
                 current = tree["nodes"].get(current["parent"])
@@ -264,7 +279,7 @@ class BranchManager:
                 excerpt = text[:300] + "..." if len(text) > 300 else text
             else:
                 # Early nodes: minimal summary
-                first_line = text.split('\n')[0][:100]
+                first_line = text.split("\n")[0][:100]
                 excerpt = f"[Earlier: {first_line}...]"
 
             part = f"[Depth {depth}] {excerpt}"
@@ -329,13 +344,14 @@ class BranchManager:
                 "stats": {
                     "total_nodes": len(nodes),
                     "max_depth": max_y,
-                    "leaf_count": sum(1 for n in nodes.values() if not n.get("children")),
+                    "leaf_count": sum(
+                        1 for n in nodes.values() if not n.get("children")
+                    ),
                 },
             }
 
     def _compute_layout(
-        self, node_id: str, nodes: dict, layout: dict,
-        x: int, y: int, x_offset: list
+        self, node_id: str, nodes: dict, layout: dict, x: int, y: int, x_offset: list
     ) -> int:
         """Recursively compute node positions. Returns width of subtree."""
         node = nodes.get(node_id)
@@ -384,24 +400,27 @@ class BranchManager:
                 node = all_nodes.get(node_id)
                 if not node:
                     continue
-                nodes.append({
-                    "id": node_id,
-                    "x": pos["x"],
-                    "y": pos["y"],
-                    "is_current": node_id == tree["current"],
-                    "is_leaf": not node.get("children"),
-                    "has_bookmark": node_id in [
-                        b["node_id"] for b in tree.get("bookmarks", {}).values()
-                    ],
-                })
+                nodes.append(
+                    {
+                        "id": node_id,
+                        "x": pos["x"],
+                        "y": pos["y"],
+                        "is_current": node_id == tree["current"],
+                        "is_leaf": not node.get("children"),
+                        "has_bookmark": node_id
+                        in [b["node_id"] for b in tree.get("bookmarks", {}).values()],
+                    }
+                )
 
                 # Add edges to children
                 for child_id in node.get("children", {}).values():
                     if child_id in layout_data["layout"]:
-                        edges.append({
-                            "from": node_id,
-                            "to": child_id,
-                        })
+                        edges.append(
+                            {
+                                "from": node_id,
+                                "to": child_id,
+                            }
+                        )
 
         return {
             "nodes": nodes,
@@ -474,10 +493,14 @@ class BranchManager:
 
             if strategy == "prefer_a":
                 merged_text = node_a["text"]
-                resolved = [{"conflict": c, "resolution": "Used version A"} for c in conflicts]
+                resolved = [
+                    {"conflict": c, "resolution": "Used version A"} for c in conflicts
+                ]
             elif strategy == "prefer_b":
                 merged_text = node_b["text"]
-                resolved = [{"conflict": c, "resolution": "Used version B"} for c in conflicts]
+                resolved = [
+                    {"conflict": c, "resolution": "Used version B"} for c in conflicts
+                ]
             elif strategy == "auto" and llm:
                 merge_result = self._llm_merge(node_a, node_b, conflicts, llm)
                 merged_text = merge_result["text"]
@@ -491,7 +514,10 @@ class BranchManager:
             # Create merged node
             new_id = str(uuid.uuid4())
             merged_choices = list(set(node_a["choices"] + node_b["choices"]))[:3]
-            merged_states = {**node_a.get("character_states", {}), **node_b.get("character_states", {})}
+            merged_states = {
+                **node_a.get("character_states", {}),
+                **node_b.get("character_states", {}),
+            }
             merged_node = self._make_node(
                 new_id, merged_text, merged_choices, common_ancestor, merged_states
             )
@@ -513,9 +539,7 @@ class BranchManager:
 
     # ── Bookmarks ──────────────────────────────────────────────────────────
 
-    def add_bookmark(
-        self, session_id: str, node_id: str, label: str = ""
-    ) -> dict:
+    def add_bookmark(self, session_id: str, node_id: str, label: str = "") -> dict:
         """Bookmark a node for later reference."""
         with self._lock:
             tree = self._get_session(session_id)
@@ -529,7 +553,8 @@ class BranchManager:
             tree["bookmarks"][bookmark_id] = {
                 "id": bookmark_id,
                 "node_id": node_id,
-                "label": label or f"Bookmark at depth {_depth(tree['nodes'][node_id], tree['nodes'])}",
+                "label": label
+                or f"Bookmark at depth {_depth(tree['nodes'][node_id], tree['nodes'])}",
                 "created_at": time.time(),
             }
             self._save_session(session_id, tree)
@@ -555,11 +580,15 @@ class BranchManager:
             for bm in bookmarks.values():
                 node = tree["nodes"].get(bm["node_id"])
                 if node:
-                    result.append({
-                        **bm,
-                        "preview": node["text"][:100] + "..." if len(node["text"]) > 100 else node["text"],
-                        "depth": _depth(node, tree["nodes"]),
-                    })
+                    result.append(
+                        {
+                            **bm,
+                            "preview": node["text"][:100] + "..."
+                            if len(node["text"]) > 100
+                            else node["text"],
+                            "depth": _depth(node, tree["nodes"]),
+                        }
+                    )
             return sorted(result, key=lambda x: x["created_at"], reverse=True)
 
     def goto_bookmark(self, session_id: str, bookmark_id: str) -> dict:
@@ -622,7 +651,7 @@ class BranchManager:
 
         paths = []
         for i in range(num_paths):
-            choice_text = choices[i] if i < len(choices) else f"Choice {i+1}"
+            choice_text = choices[i] if i < len(choices) else f"Choice {i + 1}"
             path_nodes = []
             current_text = start_node["text"]
 
@@ -630,44 +659,56 @@ class BranchManager:
                 try:
                     result = llm.generate_json(
                         system_prompt=f"You are a creative storyteller. Genre: {context.get('genre', 'general')}. "
-                                      "Return JSON with 'continuation' (200-300 words) and 'choices' (2-3 options).",
+                        "Return JSON with 'continuation' (200-300 words) and 'choices' (2-3 options).",
                         user_prompt=f"Story so far:\n{current_text[-2000:]}\n\n"
-                                    f"The reader chose: {choice_text}\n\nContinue the story.",
+                        f"The reader chose: {choice_text}\n\nContinue the story.",
                         temperature=0.9,
                         expect="dict",
                     )
                     continuation = result.get("continuation") or result.get("text", "")
-                    new_choices = result.get("choices", ["Continue", "Take a different path"])
+                    new_choices = result.get(
+                        "choices", ["Continue", "Take a different path"]
+                    )
                     if not isinstance(new_choices, list):
                         new_choices = ["Continue", "Take a different path"]
 
-                    path_nodes.append({
-                        "depth": d + 1,
-                        "choice_made": choice_text,
-                        "text": continuation,
-                        "preview": continuation[:150] + "..." if len(continuation) > 150 else continuation,
-                        "choices": new_choices[:3],
-                    })
+                    path_nodes.append(
+                        {
+                            "depth": d + 1,
+                            "choice_made": choice_text,
+                            "text": continuation,
+                            "preview": continuation[:150] + "..."
+                            if len(continuation) > 150
+                            else continuation,
+                            "choices": new_choices[:3],
+                        }
+                    )
                     current_text = continuation
                     choice_text = new_choices[0] if new_choices else "Continue"
                 except Exception as e:
-                    path_nodes.append({
-                        "depth": d + 1,
-                        "choice_made": choice_text,
-                        "text": f"[Generation failed: {e}]",
-                        "preview": "[Generation failed]",
-                        "choices": [],
-                    })
+                    path_nodes.append(
+                        {
+                            "depth": d + 1,
+                            "choice_made": choice_text,
+                            "text": f"[Generation failed: {e}]",
+                            "preview": "[Generation failed]",
+                            "choices": [],
+                        }
+                    )
                     break
 
-            paths.append({
-                "path_id": f"path_{i}",
-                "initial_choice": choices[i] if i < len(choices) else f"Choice {i+1}",
-                "initial_choice_index": i,
-                "nodes": path_nodes,
-                "final_preview": path_nodes[-1]["preview"] if path_nodes else "",
-                "total_depth": len(path_nodes),
-            })
+            paths.append(
+                {
+                    "path_id": f"path_{i}",
+                    "initial_choice": choices[i]
+                    if i < len(choices)
+                    else f"Choice {i + 1}",
+                    "initial_choice_index": i,
+                    "nodes": path_nodes,
+                    "final_preview": path_nodes[-1]["preview"] if path_nodes else "",
+                    "total_depth": len(path_nodes),
+                }
+            )
 
         return paths
 
@@ -761,15 +802,20 @@ class BranchManager:
                     current_value = current_state.get(key, 0)
                     if current_value < required_value:
                         available = False
-                        missing[key] = {"required": required_value, "current": current_value}
+                        missing[key] = {
+                            "required": required_value,
+                            "current": current_value,
+                        }
 
-                result.append({
-                    "index": i,
-                    "text": choice_text,
-                    "available": available,
-                    "requires": requires,
-                    "missing": missing,
-                })
+                result.append(
+                    {
+                        "index": i,
+                        "text": choice_text,
+                        "available": available,
+                        "requires": requires,
+                        "missing": missing,
+                    }
+                )
 
             return result
 
@@ -804,13 +850,17 @@ class BranchManager:
                 choices = node.get("choices", [])
                 for idx, count in data["choices"].items():
                     if idx < len(choices):
-                        popular_choices.append({
-                            "node_id": node_id,
-                            "choice_index": idx,
-                            "choice_text": choices[idx],
-                            "count": count,
-                            "percentage": round(count / data["total"] * 100, 1) if data["total"] > 0 else 0,
-                        })
+                        popular_choices.append(
+                            {
+                                "node_id": node_id,
+                                "choice_index": idx,
+                                "choice_text": choices[idx],
+                                "count": count,
+                                "percentage": round(count / data["total"] * 100, 1)
+                                if data["total"] > 0
+                                else 0,
+                            }
+                        )
 
             popular_choices.sort(key=lambda x: x["count"], reverse=True)
 
@@ -851,8 +901,16 @@ class BranchManager:
                     break
 
             # Get paths from common ancestor to each node
-            path_a = self._get_path_from(common_ancestor_id, node_a_id, tree["nodes"]) if common_ancestor_id else []
-            path_b = self._get_path_from(common_ancestor_id, node_b_id, tree["nodes"]) if common_ancestor_id else []
+            path_a = (
+                self._get_path_from(common_ancestor_id, node_a_id, tree["nodes"])
+                if common_ancestor_id
+                else []
+            )
+            path_b = (
+                self._get_path_from(common_ancestor_id, node_b_id, tree["nodes"])
+                if common_ancestor_id
+                else []
+            )
 
             # Detect conflicts
             conflicts = self._detect_conflicts(node_a, node_b, tree.get("context", {}))
@@ -874,25 +932,35 @@ class BranchManager:
                 },
                 "common_ancestor": {
                     "id": common_ancestor_id,
-                    "text": tree["nodes"][common_ancestor_id]["text"][:200] + "..." if common_ancestor_id else None,
-                } if common_ancestor_id else None,
+                    "text": tree["nodes"][common_ancestor_id]["text"][:200] + "..."
+                    if common_ancestor_id
+                    else None,
+                }
+                if common_ancestor_id
+                else None,
                 "path_a": path_a,
                 "path_b": path_b,
                 "conflicts": conflicts,
                 "can_merge": True,
             }
 
-    def _get_path_from(self, from_id: str | None, to_id: str, all_nodes: dict) -> list[dict]:
+    def _get_path_from(
+        self, from_id: str | None, to_id: str, all_nodes: dict
+    ) -> list[dict]:
         """Get path from one node to another (via parent chain)."""
         if from_id is None:
             return []
         path = []
         current = all_nodes.get(to_id)
         while current and current["id"] != from_id:
-            path.append({
-                "id": current["id"],
-                "preview": current["text"][:80] + "..." if len(current["text"]) > 80 else current["text"],
-            })
+            path.append(
+                {
+                    "id": current["id"],
+                    "preview": current["text"][:80] + "..."
+                    if len(current["text"]) > 80
+                    else current["text"],
+                }
+            )
             if current["parent"] is None:
                 break
             current = all_nodes.get(current["parent"])
@@ -907,7 +975,9 @@ class BranchManager:
             current = all_nodes.get(current["parent"], {"parent": None})
         return ancestors
 
-    def _detect_conflicts(self, node_a: dict, node_b: dict, context: dict) -> list[dict]:
+    def _detect_conflicts(
+        self, node_a: dict, node_b: dict, context: dict
+    ) -> list[dict]:
         """Detect narrative conflicts between two nodes."""
         conflicts = []
         states_a = node_a.get("character_states", {})
@@ -917,12 +987,14 @@ class BranchManager:
         for char in set(states_a.keys()) | set(states_b.keys()):
             if char in states_a and char in states_b:
                 if states_a[char] != states_b[char]:
-                    conflicts.append({
-                        "conflict_type": "character_state",
-                        "description": f"{char} has different states",
-                        "source_a": str(states_a[char]),
-                        "source_b": str(states_b[char]),
-                    })
+                    conflicts.append(
+                        {
+                            "conflict_type": "character_state",
+                            "description": f"{char} has different states",
+                            "source_a": str(states_a[char]),
+                            "source_b": str(states_b[char]),
+                        }
+                    )
 
         return conflicts
 
@@ -931,10 +1003,10 @@ class BranchManager:
         prompt = f"""Merge these two story branches into a coherent narrative.
 
 BRANCH A:
-{node_a['text']}
+{node_a["text"]}
 
 BRANCH B:
-{node_b['text']}
+{node_b["text"]}
 
 DETECTED CONFLICTS:
 {conflicts}

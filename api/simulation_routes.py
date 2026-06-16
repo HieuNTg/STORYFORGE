@@ -45,6 +45,7 @@ _continue_state: dict[str, list[float]] = {}
 def _client_ip(request: Request) -> str:
     try:
         from middleware.rate_limiter import _get_ip  # type: ignore
+
         return _get_ip(request)
     except Exception:  # noqa: BLE001
         return request.client.host if request.client else "unknown"
@@ -54,6 +55,7 @@ def _check_continue_rate(ip: str) -> bool:
     if os.environ.get("REDIS_URL"):
         try:
             from middleware.rate_limiter import _get_redis  # type: ignore
+
             r = _get_redis()
             if r is not None:
                 key = f"sf:ratelimit:simulation:{ip}"
@@ -99,12 +101,15 @@ def _rate_limit_dep(request: Request) -> None:
 
 def _get_llm():
     from services.llm_client import LLMClient
+
     return LLMClient()
 
 
 def _resolve_model() -> str | None:
     cfg = ConfigManager()
-    override = (getattr(cfg.pipeline, "simulation_continue_cheap_model_override", "") or "").strip()
+    override = (
+        getattr(cfg.pipeline, "simulation_continue_cheap_model_override", "") or ""
+    ).strip()
     if override:
         return override
     cheap = (getattr(cfg.llm, "cheap_model", "") or "").strip()

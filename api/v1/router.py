@@ -80,10 +80,10 @@ async def list_feedback():
     return {"message": "Feedback listing coming soon.", "version": _API_VERSION}
 
 
-
 # ---------------------------------------------------------------------------
 # v1 router assembly
 # ---------------------------------------------------------------------------
+
 
 def build_v1_router() -> APIRouter:
     """Construct and return the /api/v1 router with all sub-groups included.

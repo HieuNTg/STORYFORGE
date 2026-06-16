@@ -39,6 +39,7 @@ class _DoneTask:
 
 # --- H2: stuck-running eviction (pure predicate) ----------------------------
 
+
 def test_should_evict_terminal_past_retention():
     now = time.time()
     job = PipelineJob(session_id="s", status="done")
@@ -81,6 +82,7 @@ def test_should_keep_recent_stuck_running():
 
 
 # --- M-cancelled + M-lock: mark_done -----------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_mark_done_explicit_cancelled_status():
@@ -158,6 +160,7 @@ async def test_mark_done_missing_job_is_noop():
 
 # --- Belt: mark_terminal_sync ------------------------------------------------
 
+
 def test_mark_terminal_sync_forces_running_job_terminal():
     reg.JOBS["s"] = PipelineJob(session_id="s", status="running")
     reg.mark_terminal_sync("s", error="Worker crashed unexpectedly.")
@@ -175,9 +178,7 @@ def test_mark_terminal_sync_cancelled_status():
 
 def test_mark_terminal_sync_noop_when_already_terminal():
     """Normal path: finally already marked the job done — belt must not clobber."""
-    reg.JOBS["s"] = PipelineJob(
-        session_id="s", status="done", summary={"title": "ok"}
-    )
+    reg.JOBS["s"] = PipelineJob(session_id="s", status="done", summary={"title": "ok"})
     reg.mark_terminal_sync("s", error="should be ignored")
     job = reg.JOBS["s"]
     assert job.status == "done"

@@ -5,7 +5,13 @@ from services.credit_manager import CreditManager, TIER_LIMITS
 
 
 def make_profile(**kwargs) -> UserProfile:
-    defaults = dict(user_id="test1", username="tester", credits=20, tier="free", total_stories_created=0)
+    defaults = dict(
+        user_id="test1",
+        username="tester",
+        credits=20,
+        tier="free",
+        total_stories_created=0,
+    )
     defaults.update(kwargs)
     return UserProfile(**defaults)
 

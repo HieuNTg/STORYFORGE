@@ -5,7 +5,7 @@ No real network or API keys required.
 """
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -13,17 +13,14 @@ from fastapi.testclient import TestClient
 
 from models.schemas import (
     AgentPost,
-    Chapter,
-    EnhancedStory,
     PipelineOutput,
-    SimulationResult,
-    StoryDraft,
 )
 from api.pipeline_routes import router
-from services.llm.client import LLMClient, WalletState
+from services.llm.client import LLMClient
 
 
 # ─── Shared helpers ───────────────────────────────────────────────────────────
+
 
 def _parse_sse(raw_bytes: bytes) -> list[dict]:
     events = []
@@ -46,14 +43,19 @@ def api_client():
 # ─── Fix #1: /pipeline/run returns session event without TypeError ─────────────
 # Root cause: test used MagicMock (sync) for an async method. AsyncMock is required.
 
+
 class TestFix1PipelineRunRouteSessionEvent:
     def test_pipeline_run_route_returns_session_event(self, api_client):
         """SSE stream starts with session event; no TypeError from awaiting sync mock."""
-        long_idea = "A hero emerges to challenge the dark empire ruling the ancient land."
+        long_idea = (
+            "A hero emerges to challenge the dark empire ruling the ancient land."
+        )
         mock_output = PipelineOutput(status="completed", current_layer=2, progress=1.0)
 
-        with patch("api.pipeline_routes.PipelineOrchestrator") as mock_cls, \
-             patch("services.llm_client.LLMClient") as mock_llm_cls:
+        with (
+            patch("api.pipeline_routes.PipelineOrchestrator") as mock_cls,
+            patch("services.llm_client.LLMClient") as mock_llm_cls,
+        ):
             mock_llm = MagicMock()
             mock_llm.check_connection.return_value = (True, "ok")
             mock_llm_cls.return_value = mock_llm
@@ -63,22 +65,28 @@ class TestFix1PipelineRunRouteSessionEvent:
             mock_orch.run_full_pipeline = AsyncMock(return_value=mock_output)
             mock_cls.return_value = mock_orch
 
-            resp = api_client.post("/pipeline/run", json={
-                "idea": long_idea,
-                "genre": "tien_hiep",
-                "num_chapters": 1,
-                "enable_agents": False,
-                "enable_scoring": False,
-            })
+            resp = api_client.post(
+                "/pipeline/run",
+                json={
+                    "idea": long_idea,
+                    "genre": "tien_hiep",
+                    "num_chapters": 1,
+                    "enable_agents": False,
+                    "enable_scoring": False,
+                },
+            )
 
         events = _parse_sse(resp.content)
         assert events, "Expected at least one SSE event"
-        assert events[0]["type"] == "session", f"First event must be 'session', got {events[0]}"
+        assert events[0]["type"] == "session", (
+            f"First event must be 'session', got {events[0]}"
+        )
         assert "session_id" in events[0], "session event must carry session_id"
 
 
 # ─── Fix #2: character_generator handles string-list response ─────────────────
 # Root cause: LLM returned {"characters": ["Alice", "Bob"]} — string entries not coerced.
+
 
 class TestFix2CharacterGeneratorHandlesStringList:
     def test_character_generator_handles_string_list(self):
@@ -101,7 +109,9 @@ class TestFix2CharacterGeneratorHandlesStringList:
             ]
         }
 
-        result = generate_characters(mock_llm, title="Test", genre="tien_hiep", idea="test idea")
+        result = generate_characters(
+            mock_llm, title="Test", genre="tien_hiep", idea="test idea"
+        )
         # Should not raise — string entries coerced to minimal Character
         names = [c.name for c in result]
         assert "Alice" in names, "String 'Alice' must be coerced to Character"
@@ -109,12 +119,14 @@ class TestFix2CharacterGeneratorHandlesStringList:
         assert "Charlie" in names, "Dict character Charlie must be included"
         # All items must be Character instances
         from models.schemas import Character
+
         for c in result:
             assert isinstance(c, Character), f"Expected Character, got {type(c)}"
 
 
 # ─── Fix #3: 404 from any provider triggers fallback rotation ────────────────
 # Root cause: 404 conditional only checked openrouter; other providers skipped.
+
 
 class TestFix3FallbackRotationOn404:
     def test_404_triggers_fallback_rotation(self):
@@ -133,7 +145,6 @@ class TestFix3FallbackRotationOn404:
         # Under the fix, 404 on a fallback model calls _mark_model_rate_limited
         # and does NOT re-raise, allowing the chain to try the next entry.
         # We verify _mark_model_rate_limited sets a cooldown > now.
-        import time
         client._mark_model_rate_limited(fallback_model, api_key, cooldown=600.0)
         assert client._is_model_rate_limited(fallback_model, api_key), (
             "After 404, model must be marked rate-limited so chain skips it"
@@ -156,12 +167,20 @@ class TestFix3FallbackRotationOn404:
 
         # Build a fake 2-entry chain
         fake_chain = [
-            {"label": "primary", "model": "primary-model", "_api_key": "k1",
-             "provider": MagicMock(base_url="https://api.example.com"),
-             "client": MagicMock()},
-            {"label": "fallback", "model": "fallback-model", "_api_key": "k2",
-             "provider": MagicMock(base_url="https://api.example.com"),
-             "client": MagicMock()},
+            {
+                "label": "primary",
+                "model": "primary-model",
+                "_api_key": "k1",
+                "provider": MagicMock(base_url="https://api.example.com"),
+                "client": MagicMock(),
+            },
+            {
+                "label": "fallback",
+                "model": "fallback-model",
+                "_api_key": "k2",
+                "provider": MagicMock(base_url="https://api.example.com"),
+                "client": MagicMock(),
+            },
         ]
 
         call_count = {"n": 0}
@@ -172,20 +191,27 @@ class TestFix3FallbackRotationOn404:
                 raise RuntimeError("404 Not Found: model unavailable")
             return "fallback-response"
 
-        with patch.object(LLMClient, "_build_fallback_chain", return_value=fake_chain), \
-             patch.object(LLMClient, "_try_provider", side_effect=fake_try_provider):
+        with (
+            patch.object(LLMClient, "_build_fallback_chain", return_value=fake_chain),
+            patch.object(LLMClient, "_try_provider", side_effect=fake_try_provider),
+        ):
             result = client.generate(
                 system_prompt="sys",
                 user_prompt="hi",
                 temperature=0.5,
             )
 
-        assert result == "fallback-response", f"chain should rotate on 404, got: {result!r}"
-        assert call_count["n"] == 2, f"both entries must be tried, got {call_count['n']} calls"
+        assert result == "fallback-response", (
+            f"chain should rotate on 404, got: {result!r}"
+        )
+        assert call_count["n"] == 2, (
+            f"both entries must be tried, got {call_count['n']} calls"
+        )
 
 
 # ─── Fix #4: AgentPost.target accepts None ───────────────────────────────────
 # Root cause: target field was non-optional str → Pydantic ValidationError on None.
+
 
 class TestFix4AgentPostTargetOptional:
     def test_agentpost_accepts_null_target(self):
@@ -213,10 +239,10 @@ class TestFix4AgentPostTargetOptional:
 # ─── Fix #5: Voice prompt in scene rewrite contains fingerprint markers ───────
 # Root cause: placeholder {voice_block_prepend} / {voice_block_append} left blank.
 
+
 class TestFix5VoicePromptInSceneRewrite:
     def test_voice_prompt_in_scene_rewrite(self):
         """When voice_engine is set, enhanced scene prompt must include voice fingerprint text."""
-        from pipeline.layer2_enhance.scene_enhancer import SceneEnhancer, ENHANCE_SCENE
         from pipeline.layer2_enhance.voice_fingerprint import VoiceFingerprintEngine
         from models.schemas import VoiceProfile
 
@@ -230,24 +256,33 @@ class TestFix5VoicePromptInSceneRewrite:
         )
 
         # build_voice_enforcement_prompt should return non-empty text
-        from pipeline.layer2_enhance.voice_fingerprint import build_voice_enforcement_prompt
+        from pipeline.layer2_enhance.voice_fingerprint import (
+            build_voice_enforcement_prompt,
+        )
         from models.schemas import Character
+
         char = Character(name="Lan", role="protagonist", personality="Gentle")
         voice_block = build_voice_enforcement_prompt(engine, [char])
-        assert voice_block, "Voice enforcement prompt must be non-empty when profiles exist"
-        # Check that it references the character name or profile content
-        assert "Lan" in voice_block or "simple" in voice_block or "casual" in voice_block, (
-            "Voice block must reference character voice data"
+        assert voice_block, (
+            "Voice enforcement prompt must be non-empty when profiles exist"
         )
+        # Check that it references the character name or profile content
+        assert (
+            "Lan" in voice_block or "simple" in voice_block or "casual" in voice_block
+        ), "Voice block must reference character voice data"
 
 
 # ─── Fix #6: enforce_voice_preservation called without extra kwargs ───────────
 # Root cause: enhancer was calling enforce_voice_preservation with wrong/missing args.
 
+
 class TestFix6DriftThresholdDefaultApplied:
     def test_drift_threshold_default_applied(self):
         """enforce_voice_preservation uses default drift_threshold=0.25 when not overridden."""
-        from pipeline.layer2_enhance.voice_fingerprint import enforce_voice_preservation, VoiceFingerprintEngine
+        from pipeline.layer2_enhance.voice_fingerprint import (
+            enforce_voice_preservation,
+            VoiceFingerprintEngine,
+        )
         from models.schemas import Character, VoiceProfile
 
         engine = VoiceFingerprintEngine()
@@ -270,6 +305,7 @@ class TestFix6DriftThresholdDefaultApplied:
 
 # ─── Fix #7: adaptive rounds clamped to [min_rounds, max_rounds] ─────────────
 # Root cause: calculate_adaptive_rounds returned values outside the configured bounds.
+
 
 class TestFix7AdaptiveRoundsClamped:
     def test_adaptive_rounds_clamped_to_max(self):
@@ -321,6 +357,7 @@ class TestFix7AdaptiveRoundsClamped:
 
 # ─── Fix #8: per-run wallet isolation ─────────────────────────────────────────
 # Root cause: class-level counters shared across runs → concurrent run corruption.
+
 
 class TestFix8WalletIsolatedPerRun:
     @pytest.fixture(autouse=True)
@@ -392,6 +429,7 @@ class TestFix8WalletIsolatedPerRun:
 # ─── Fix #9: structural rewrite capped per-chapter ───────────────────────────
 # Root cause: cap was _max_rewrites * len(chapters) instead of min(_max_rewrites, len(issues)).
 
+
 class TestFix9StructuralRewriteCappedPerChapter:
     def test_structural_rewrite_capped(self):
         """With _max_rewrites=1 and 5 chapters with issues, only 1 chapter entry in capped dict."""
@@ -407,7 +445,9 @@ class TestFix9StructuralRewriteCappedPerChapter:
             5: ["issue_e"],
         }
         _capped_issues = dict(
-            list(sorted(issues_by_chapter.items()))[:min(_max_rewrites, len(issues_by_chapter))]
+            list(sorted(issues_by_chapter.items()))[
+                : min(_max_rewrites, len(issues_by_chapter))
+            ]
         )
         assert len(_capped_issues) == 1, (
             f"With _max_rewrites=1, only 1 chapter should be in capped dict, got {len(_capped_issues)}"
@@ -420,13 +460,16 @@ class TestFix9StructuralRewriteCappedPerChapter:
         _max_rewrites = 3
         issues_by_chapter = {}
         _capped_issues = dict(
-            list(sorted(issues_by_chapter.items()))[:min(_max_rewrites, len(issues_by_chapter))]
+            list(sorted(issues_by_chapter.items()))[
+                : min(_max_rewrites, len(issues_by_chapter))
+            ]
         )
         assert len(_capped_issues) == 0
 
 
 # ─── Fix #10: contract_gate reverts on voice score drop ──────────────────────
 # Root cause: gate applied contract fixes but skipped voice re-validation → silent drift.
+
 
 class TestFix10ContractGateRevalidatesVoice:
     """_post_gate_validate uses VoiceContract from chapter_contract.py.
@@ -460,7 +503,9 @@ class TestFix10ContractGateRevalidatesVoice:
         from pipeline.layer2_enhance.contract_gate import _post_gate_validate
         from pipeline.layer2_enhance.chapter_contract import VoiceValidation
 
-        original_ch = self._make_ns(1, "Anh ấy nói: xin chào, tôi tên là Minh.", with_voice_contract=False)
+        original_ch = self._make_ns(
+            1, "Anh ấy nói: xin chào, tôi tên là Minh.", with_voice_contract=False
+        )
         new_ch = self._make_ns(1, "He said: hello, my name is Minh.")
 
         # Low compliance — gate must revert
@@ -486,7 +531,9 @@ class TestFix10ContractGateRevalidatesVoice:
         from pipeline.layer2_enhance.contract_gate import _post_gate_validate
         from pipeline.layer2_enhance.chapter_contract import VoiceValidation
 
-        original_ch = self._make_ns(2, "Nàng khẽ nói: đây là sự thật.", with_voice_contract=False)
+        original_ch = self._make_ns(
+            2, "Nàng khẽ nói: đây là sự thật.", with_voice_contract=False
+        )
         new_ch = self._make_ns(2, "Nàng nói rõ hơn: đây chính là sự thật hiển nhiên.")
 
         # High compliance — gate must keep the rewrite

@@ -8,14 +8,22 @@ not the stale prior-batch tail shared across siblings in parallel mode.
 from unittest.mock import MagicMock, patch
 
 from pipeline.layer1_story.batch_generator import BatchChapterGenerator
-from models.schemas import StoryContext, StoryDraft, ChapterOutline, Chapter, WorldSetting
+from models.schemas import (
+    StoryContext,
+    StoryDraft,
+    ChapterOutline,
+    Chapter,
+    WorldSetting,
+)
 
 
 _WORLD = WorldSetting(name="TestWorld", description="A test world")
 
 
 def _make_outline(num: int) -> ChapterOutline:
-    return ChapterOutline(chapter_number=num, title=f"Chapter {num}", summary=f"Summary {num}")
+    return ChapterOutline(
+        chapter_number=num, title=f"Chapter {num}", summary=f"Summary {num}"
+    )
 
 
 def _make_chapter(num: int) -> Chapter:
@@ -60,21 +68,33 @@ def _captured_anchors_for(strict: bool) -> dict[int, list[str]]:
     gen._write_chapter_with_long_context.side_effect = fake_write
     # Strict mode routes through sequential path which can also call write_chapter_stream;
     # parallel path only uses _write_chapter_with_long_context.
-    gen.write_chapter_stream.side_effect = lambda *a, **kw: _make_chapter(a[5].chapter_number)
+    gen.write_chapter_stream.side_effect = lambda *a, **kw: _make_chapter(
+        a[5].chapter_number
+    )
 
     bg = BatchChapterGenerator(gen)
     draft = StoryDraft(
-        title="T", genre="G", synopsis="S",
-        characters=[], world=_WORLD, outlines=[],
+        title="T",
+        genre="G",
+        synopsis="S",
+        characters=[],
+        world=_WORLD,
+        outlines=[],
     )
     outlines = [_make_outline(i) for i in range(1, 4)]  # single batch of 3
     ctx = StoryContext(total_chapters=3)
 
-    with patch("pipeline.layer1_story.batch_generator.process_chapter_post_write"):
+    with patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write"):
         bg.generate_chapters(
-            draft=draft, outlines=outlines, story_context=ctx,
-            title="T", genre="G", style="S",
-            characters=[], world=_WORLD, word_count=2000,
+            draft=draft,
+            outlines=outlines,
+            story_context=ctx,
+            title="T",
+            genre="G",
+            style="S",
+            characters=[],
+            world=_WORLD,
+            word_count=2000,
         )
     return captured
 
@@ -82,6 +102,7 @@ def _captured_anchors_for(strict: bool) -> dict[int, list[str]]:
 class TestStrictContinuityFlag:
     def test_default_is_false(self):
         from config import PipelineConfig
+
         pc = PipelineConfig()
         assert pc.l1_strict_chapter_continuity is False
 

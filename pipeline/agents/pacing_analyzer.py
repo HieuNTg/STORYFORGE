@@ -1,4 +1,5 @@
 """Agent Phân Tích Nhịp Truyện - đánh giá nhịp điệu, tốc độ hành động, cân bằng hành động/đối thoại."""
+
 from models.schemas import AgentReview, PipelineOutput
 from pipeline.agents.base_agent import BaseAgent
 from pipeline.agents import agent_prompts
@@ -12,7 +13,9 @@ class PacingAnalyzerAgent(BaseAgent):
     layers = [1, 2]
     depends_on: list[str] = ["Chuyên Gia Nhân Vật"]
 
-    def review(self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None) -> AgentReview:
+    def review(
+        self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None
+    ) -> AgentReview:
         pacing_data = self._extract_pacing_data(output, layer)
 
         prompt = agent_prompts.PACING_REVIEW.format(

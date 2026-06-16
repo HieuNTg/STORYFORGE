@@ -35,7 +35,9 @@ _ERROR_MAP = [
 ]
 
 
-def _friendly_error(exc: Exception, t, fallback_key: str = "error.story_create_fail") -> str:
+def _friendly_error(
+    exc: Exception, t, fallback_key: str = "error.story_create_fail"
+) -> str:
     """Map a technical exception to a user-friendly i18n message.
 
     Keeps the original detail in logs; returns a localised string for the UI.
@@ -51,6 +53,7 @@ def _friendly_error(exc: Exception, t, fallback_key: str = "error.story_create_f
 
 # ── Login / Register ──────────────────────────────────────────────────────────
 
+
 def handle_login(username: str, password: str, t) -> tuple:
     """Authenticate user and return (profile_dict, status_msg, library_table)."""
     if not username or not password:
@@ -60,7 +63,11 @@ def handle_login(username: str, password: str, t) -> tuple:
     if profile:
         stories = um.list_stories(profile.user_id)
         table = [[s["story_id"], s["title"], s.get("saved_at", "")] for s in stories]
-        return profile.model_dump(), f"{t('msg.login_success')} ({profile.username})", table
+        return (
+            profile.model_dump(),
+            f"{t('msg.login_success')} ({profile.username})",
+            table,
+        )
     return None, t("msg.login_fail"), []
 
 
@@ -97,6 +104,7 @@ def handle_save_story(user_state: Optional[dict], orch_state, title: str, t) -> 
 
 # ── Export handlers ────────────────────────────────────────────────────────────
 
+
 def handle_export_pdf(orch_state, t) -> tuple:
     """Export story as PDF and return (file_list, reading_stats_dict)."""
     if orch_state is None:
@@ -105,7 +113,11 @@ def handle_export_pdf(orch_state, t) -> tuple:
         story = orch_state.output.enhanced_story or orch_state.output.story_draft
         if not story:
             return None, t("msg.no_story")
-        chars = orch_state.output.story_draft.characters if orch_state.output.story_draft else []
+        chars = (
+            orch_state.output.story_draft.characters
+            if orch_state.output.story_draft
+            else []
+        )
         path = PDFExporter.export(story, "output/story.pdf", characters=chars)
         stats = PDFExporter.compute_reading_stats(story).model_dump()
         return [path] if path else None, stats
@@ -120,10 +132,15 @@ def handle_export_epub(orch_state, t) -> tuple:
         return None, t("msg.no_story")
     try:
         from services.epub_exporter import EPUBExporter
+
         story = orch_state.output.enhanced_story or orch_state.output.story_draft
         if not story:
             return None, t("msg.no_story")
-        chars = orch_state.output.story_draft.characters if orch_state.output.story_draft else []
+        chars = (
+            orch_state.output.story_draft.characters
+            if orch_state.output.story_draft
+            else []
+        )
         path = EPUBExporter.export(story, "output/story.epub", characters=chars)
         stats = PDFExporter.compute_reading_stats(story).model_dump()
         return [path] if path else None, stats
@@ -140,7 +157,11 @@ def handle_share_story(orch_state, t) -> tuple:
         story = orch_state.output.enhanced_story or orch_state.output.story_draft
         if not story:
             return "", t("msg.no_story")
-        chars = orch_state.output.story_draft.characters if orch_state.output.story_draft else []
+        chars = (
+            orch_state.output.story_draft.characters
+            if orch_state.output.story_draft
+            else []
+        )
         mgr = ShareManager()
         share = mgr.create_share(story, characters=chars)
         base = ConfigManager().pipeline.share_base_url or "file://"
@@ -152,6 +173,7 @@ def handle_share_story(orch_state, t) -> tuple:
 
 
 # ── File export helpers ────────────────────────────────────────────────────────
+
 
 def handle_export_files(orch_state, formats) -> Optional[list]:
     """Export story files in given formats and return file paths."""
@@ -177,9 +199,8 @@ def handle_export_zip(orch_state, formats, t) -> Optional[list]:
         return None
 
 
-
-
 # ── Checkpoint helpers ─────────────────────────────────────────────────────────
+
 
 def get_checkpoint_choices() -> list[str]:
     """List available checkpoints formatted for Dropdown."""
@@ -196,6 +217,7 @@ def resolve_checkpoint_path(ckpt_choice: str) -> Optional[str]:
 
 
 # ── Continuation helpers ───────────────────────────────────────────────────────
+
 
 def handle_load_checkpoint(ckpt_choice: str, orch, t) -> tuple:
     """Load checkpoint into orchestrator and return (summary, orch)."""
@@ -225,7 +247,9 @@ def handle_add_chapters(orch, n_chapters: int, w_count: int, t) -> tuple:
         word_count=int(w_count),
         progress_callback=lambda m: logs.append(m),
     )
-    return "\n".join(logs) + "\n" + t("continue.chapters_added", count=int(n_chapters)), orch
+    return "\n".join(logs) + "\n" + t(
+        "continue.chapters_added", count=int(n_chapters)
+    ), orch
 
 
 def handle_delete_chapters(orch, from_ch: int, t) -> tuple:
@@ -236,7 +260,9 @@ def handle_delete_chapters(orch, from_ch: int, t) -> tuple:
     return t("continue.chapters_deleted", from_ch=int(from_ch)), orch
 
 
-def handle_update_character(orch, name: str, personality: str, motivation: str, t) -> tuple:
+def handle_update_character(
+    orch, name: str, personality: str, motivation: str, t
+) -> tuple:
     """Update character attributes and return (log, orch)."""
     if orch is None or not orch.output.story_draft:
         return t("continue.no_story"), orch
@@ -248,12 +274,16 @@ def handle_update_character(orch, name: str, personality: str, motivation: str, 
     if motivation:
         updates["motivation"] = motivation
     if not updates:
-        return t("continue.char_personality") + " / " + t("continue.char_motivation"), orch
+        return t("continue.char_personality") + " / " + t(
+            "continue.char_motivation"
+        ), orch
     orch.update_character(name, updates)
     return t("continue.char_updated", name=name), orch
 
 
-def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_number: int | None = None) -> tuple:
+def handle_generate_images(
+    orch_state, provider: str = "none", t=None, chapter_number: int | None = None
+) -> tuple:
     """Generate one image per chapter, persist filenames onto chapter.images.
 
     If ``chapter_number`` is provided, only that single chapter is regenerated
@@ -264,7 +294,11 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
         msg = t("msg.no_story") if t else "No story loaded."
         return [], msg
     try:
-        story = orch_state.output.enhanced_story or orch_state.output.story_draft if orch_state.output else None
+        story = (
+            orch_state.output.enhanced_story or orch_state.output.story_draft
+            if orch_state.output
+            else None
+        )
         if not story or not story.chapters:
             msg = t("msg.no_story") if t else "No story loaded."
             return [], msg
@@ -279,7 +313,10 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
         character_references: dict[str, str] = {}
         try:
             from services.character_visual_profile import CharacterVisualProfileStore
-            store = CharacterVisualProfileStore(story_title=getattr(draft, "title", None))
+
+            store = CharacterVisualProfileStore(
+                story_title=getattr(draft, "title", None)
+            )
             missing = []
             for c in characters:
                 fp = store.get_frozen_prompt(c.name)
@@ -297,15 +334,20 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
                     len(missing),
                 )
                 from services.character_visual_extractor import CharacterVisualExtractor
+
                 extractor = CharacterVisualExtractor()
                 for c in missing:
                     try:
                         attributes, frozen_prompt = extractor.extract_and_generate(c)
                         desc = store.build_visual_description(c)
-                        store.save_enhanced_profile(c.name, desc, attributes, frozen_prompt, "")
+                        store.save_enhanced_profile(
+                            c.name, desc, attributes, frozen_prompt, ""
+                        )
                         visual_profiles[c.name] = frozen_prompt
                     except Exception as e:
-                        logger.warning("Auto-build visual profile failed for %s: %s", c.name, e)
+                        logger.warning(
+                            "Auto-build visual profile failed for %s: %s", c.name, e
+                        )
         except Exception as _vp_e:
             logger.debug("Visual profile lookup skipped: %s", _vp_e)
 
@@ -319,7 +361,9 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
         )
 
         if chapter_number is not None:
-            target_chapters = [c for c in story.chapters if c.chapter_number == chapter_number]
+            target_chapters = [
+                c for c in story.chapters if c.chapter_number == chapter_number
+            ]
             if not target_chapters:
                 msg = f"Chapter {chapter_number} not found."
                 return [], msg
@@ -327,6 +371,7 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
             target_chapters = list(story.chapters)
 
         from config import ConfigManager
+
         _pipeline_cfg = ConfigManager().pipeline
         # Per-chapter panel count. With ``panels_auto`` on, each chapter is paneled
         # to its OWN length — a long chapter gets more panels, a short one fewer —
@@ -347,13 +392,17 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
                 return _panels_fixed
             words = len((getattr(chapter, "content", "") or "").split())
             return max(_panels_min, min(_panels_max, round(words / _words_per_panel)))
+
         # Comic Phase 2: Beat→Shot-list stage. Gated dark by default so it can be
         # A/B'd and rolled back safely; image generation is unchanged when off.
-        _shot_list_enabled = bool(getattr(_pipeline_cfg, "comic_shot_list_enabled", False))
+        _shot_list_enabled = bool(
+            getattr(_pipeline_cfg, "comic_shot_list_enabled", False)
+        )
         _shot_extractor = None
         if _shot_list_enabled:
             try:
                 from services.shot_list import ShotListExtractor
+
                 _shot_extractor = ShotListExtractor()
             except Exception as _sl_e:
                 logger.warning("Shot-list stage unavailable, skipping: %s", _sl_e)
@@ -366,7 +415,9 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
         # returned paths) so the frontend reader surfaces pages with no contract
         # change. Loose panels stay on disk alongside. Gated dark; any failure
         # degrades to loose panels.
-        _compositor_enabled = bool(getattr(_pipeline_cfg, "comic_compositor_enabled", False))
+        _compositor_enabled = bool(
+            getattr(_pipeline_cfg, "comic_compositor_enabled", False)
+        )
 
         # Provider branch: Codex/ChatGPT renders in-image Vietnamese text well,
         # so for that provider we bake the speech bubbles + dialogue INTO each
@@ -385,14 +436,20 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
         _REF_CAPABLE = {"flowkit", "codex", "seedream", "replicate"}
         if _shot_list_enabled and provider in _REF_CAPABLE and characters:
             import re as _re
+
             _portrait_store = None
             try:
-                from services.character_visual_profile import CharacterVisualProfileStore
+                from services.character_visual_profile import (
+                    CharacterVisualProfileStore,
+                )
+
                 _portrait_store = CharacterVisualProfileStore(story_title=_story_title)
             except Exception as _ps_e:
                 logger.debug("Portrait store unavailable: %s", _ps_e)
             try:
-                os.makedirs(os.path.join(image_gen.output_dir, "avatars"), exist_ok=True)
+                os.makedirs(
+                    os.path.join(image_gen.output_dir, "avatars"), exist_ok=True
+                )
             except Exception:
                 pass
             _made = 0
@@ -420,7 +477,9 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
                         filename=os.path.join("avatars", f"{_safe}.png"),
                     )
                 except Exception as _ge:
-                    logger.warning("Character portrait gen failed for %s: %s", c.name, _ge)
+                    logger.warning(
+                        "Character portrait gen failed for %s: %s", c.name, _ge
+                    )
                     _ref_path = None
                 if _ref_path and os.path.exists(_ref_path):
                     character_references[c.name] = _ref_path
@@ -433,7 +492,8 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
             if _made or character_references:
                 logger.info(
                     "Comic: %d character reference portrait(s) ready (%d total refs)",
-                    _made, len(character_references),
+                    _made,
+                    len(character_references),
                 )
 
         _coverage_check = bool(
@@ -478,7 +538,8 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
                 except Exception as _sl_e:
                     logger.warning(
                         "Shot-list extraction failed for ch %s, continuing without: %s",
-                        ch.chapter_number, _sl_e,
+                        ch.chapter_number,
+                        _sl_e,
                     )
             if not prompts:
                 # Legacy path: scenes extracted from prose, independent of any
@@ -494,6 +555,7 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
             if _chapter_shot_list is not None:
                 try:
                     from services.shot_list import apply_shot_list_to_prompts
+
                     apply_shot_list_to_prompts(prompts, _chapter_shot_list)
                     if _is_codex:
                         # Codex draws the bubbles itself — rewrite the prompts
@@ -502,11 +564,13 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
                         from services.image_prompt_generator import (
                             bake_dialogue_into_prompts,
                         )
+
                         bake_dialogue_into_prompts(prompts)
                 except Exception as _sl_e:
                     logger.warning(
                         "Shot-list threading failed for ch %s, continuing without: %s",
-                        ch.chapter_number, _sl_e,
+                        ch.chapter_number,
+                        _sl_e,
                     )
             ch_paths = image_gen.generate_story_images(
                 prompts,
@@ -525,8 +589,12 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
                 and not _is_codex  # codex panels already carry baked-in bubbles
             ):
                 try:
-                    from services.media.page_compositor import compose_chapter, PageGeometry
+                    from services.media.page_compositor import (
+                        compose_chapter,
+                        PageGeometry,
+                    )
                     import os as _os
+
                     _pages_dir = _os.path.join(image_gen.output_dir, "pages")
                     _geom = PageGeometry.from_canvas_spec(
                         getattr(_pipeline_cfg, "comic_page_canvas", None)
@@ -547,17 +615,21 @@ def handle_generate_images(orch_state, provider: str = "none", t=None, chapter_n
                 except Exception as _comp_e:
                     logger.warning(
                         "Page compositor failed for ch %s, using loose panels: %s",
-                        ch.chapter_number, _comp_e,
+                        ch.chapter_number,
+                        _comp_e,
                     )
             # Store paths relative to the output root so the ``/media`` mount
             # (which serves OUTPUT_ROOT) resolves them as ``/media/<rel>``.
             # Panels live at ``output/<story-slug>/images/...`` under the
             # per-story layout.
             from services.output_paths import rel_to_output_root
+
             ch.images = [rel_to_output_root(p) for p in ch_paths]
             all_paths.extend(ch_paths)
 
-        msg = t("msg_images_generated") if t else f"Generated {len(all_paths)} image(s)."
+        msg = (
+            t("msg_images_generated") if t else f"Generated {len(all_paths)} image(s)."
+        )
         return all_paths, msg
     except Exception as e:
         logger.error("Image generation error: %s", e)
@@ -581,14 +653,46 @@ def handle_enhance(orch, n_sim: int, w_count: int, t) -> tuple:
 # ── Genre presets ──────────────────────────────────────────────────────────────
 
 GENRE_PRESETS = {
-    "Tiên Hiệp": {"num_chapters": 50, "words_per_chapter": 3000, "writing_style": "Miêu tả chi tiết"},
-    "Huyền Huyễn": {"num_chapters": 40, "words_per_chapter": 3000, "writing_style": "Miêu tả chi tiết"},
-    "Ngôn Tình": {"num_chapters": 30, "words_per_chapter": 2500, "writing_style": "Trữ tình lãng mạn"},
-    "Cung Đấu": {"num_chapters": 40, "words_per_chapter": 2800, "writing_style": "Miêu tả chi tiết"},
-    "Đô Thị": {"num_chapters": 30, "words_per_chapter": 2500, "writing_style": "Đối thoại sắc bén"},
-    "Kiếm Hiệp": {"num_chapters": 40, "words_per_chapter": 3000, "writing_style": "Miêu tả chi tiết"},
-    "Xuyên Không": {"num_chapters": 40, "words_per_chapter": 2800, "writing_style": "Miêu tả chi tiết"},
-    "Trọng Sinh": {"num_chapters": 40, "words_per_chapter": 2800, "writing_style": "Miêu tả chi tiết"},
+    "Tiên Hiệp": {
+        "num_chapters": 50,
+        "words_per_chapter": 3000,
+        "writing_style": "Miêu tả chi tiết",
+    },
+    "Huyền Huyễn": {
+        "num_chapters": 40,
+        "words_per_chapter": 3000,
+        "writing_style": "Miêu tả chi tiết",
+    },
+    "Ngôn Tình": {
+        "num_chapters": 30,
+        "words_per_chapter": 2500,
+        "writing_style": "Trữ tình lãng mạn",
+    },
+    "Cung Đấu": {
+        "num_chapters": 40,
+        "words_per_chapter": 2800,
+        "writing_style": "Miêu tả chi tiết",
+    },
+    "Đô Thị": {
+        "num_chapters": 30,
+        "words_per_chapter": 2500,
+        "writing_style": "Đối thoại sắc bén",
+    },
+    "Kiếm Hiệp": {
+        "num_chapters": 40,
+        "words_per_chapter": 3000,
+        "writing_style": "Miêu tả chi tiết",
+    },
+    "Xuyên Không": {
+        "num_chapters": 40,
+        "words_per_chapter": 2800,
+        "writing_style": "Miêu tả chi tiết",
+    },
+    "Trọng Sinh": {
+        "num_chapters": 40,
+        "words_per_chapter": 2800,
+        "writing_style": "Miêu tả chi tiết",
+    },
 }
 
 
@@ -597,10 +701,15 @@ def handle_genre_autofill(genre_value: str) -> tuple:
     preset = GENRE_PRESETS.get(genre_value)
     if not preset:
         return (None, None, None)
-    return (preset["num_chapters"], preset["words_per_chapter"], preset["writing_style"])
+    return (
+        preset["num_chapters"],
+        preset["words_per_chapter"],
+        preset["writing_style"],
+    )
 
 
 # ── Character gallery handler ──────────────────────────────────────────────────
+
 
 def handle_export_wattpad(orch_state, t) -> tuple:
     """Export story in Wattpad-ready format. Returns (zip_file_list, metadata_dict)."""
@@ -611,6 +720,7 @@ def handle_export_wattpad(orch_state, t) -> tuple:
         return None, {"error": "No story data"}
     try:
         from services.wattpad_exporter import PlatformExporter
+
         result = PlatformExporter.export_wattpad(story)
         zip_path = result.get("zip_path")
         return [zip_path] if zip_path else result["files"], result["metadata"]
@@ -630,7 +740,11 @@ def handle_character_gallery(orch_state) -> list:
         char_refs = getattr(output, "character_refs", None)
         if not char_refs:
             return []
-        return [(path, name) for name, path in char_refs.items() if path and os.path.exists(path)]
+        return [
+            (path, name)
+            for name, path in char_refs.items()
+            if path and os.path.exists(path)
+        ]
     except Exception as e:
         logger.error("Character gallery error: %s", e)
         return []

@@ -41,6 +41,7 @@ Backward-compatible: initialises a new key store if none exists.
 Usage:
     from services.jwt_manager import sign_token, verify_token, rotate_key
 """
+
 import hashlib
 import hmac
 import json
@@ -66,10 +67,14 @@ _ENV_SECRET_KEY = "STORYFORGE_SECRET_KEY"
 # ---------------------------------------------------------------------------
 
 # How frequently the active signing key is replaced (seconds).
-TOKEN_ROTATION_INTERVAL: int = int(os.environ.get("JWT_KEY_ROTATION_DAYS", "1")) * 86_400
+TOKEN_ROTATION_INTERVAL: int = (
+    int(os.environ.get("JWT_KEY_ROTATION_DAYS", "1")) * 86_400
+)
 
 # Whether verify_token callers should check a revocation store for `jti`.
-TOKEN_REVOCATION_CHECK: bool = os.environ.get("JWT_REVOCATION_CHECK", "true").lower() != "false"
+TOKEN_REVOCATION_CHECK: bool = (
+    os.environ.get("JWT_REVOCATION_CHECK", "true").lower() != "false"
+)
 
 # Hard upper bound on accepted token age (seconds). Tokens older than this
 # are rejected even if the `exp` claim has not yet elapsed.
@@ -101,7 +106,9 @@ class _JWTKeyStore:
         env_secret = os.environ.get(_ENV_SECRET_KEY, "")
         if env_secret:
             # Use env var directly — no file I/O needed
-            self._env_key: Optional[bytes] = hashlib.sha256(env_secret.encode()).digest()
+            self._env_key: Optional[bytes] = hashlib.sha256(
+                env_secret.encode()
+            ).digest()
             self._store = {}
             return
 
@@ -114,9 +121,12 @@ class _JWTKeyStore:
 
         if not os.path.exists(_KEY_STORE_PATH):
             logger.info("JWT key store not found — initialising")
-            self._store = {"current_key": secrets.token_hex(32),
-                           "current_created": int(time.time()),
-                           "previous_key": None, "previous_created": None}
+            self._store = {
+                "current_key": secrets.token_hex(32),
+                "current_created": int(time.time()),
+                "previous_key": None,
+                "previous_created": None,
+            }
             self._persist()
         else:
             data = load_encrypted(_KEY_STORE_PATH)
@@ -124,9 +134,12 @@ class _JWTKeyStore:
                 self._store = data
             else:
                 logger.warning("JWT key store corrupt — reinitialising")
-                self._store = {"current_key": secrets.token_hex(32),
-                               "current_created": int(time.time()),
-                               "previous_key": None, "previous_created": None}
+                self._store = {
+                    "current_key": secrets.token_hex(32),
+                    "current_created": int(time.time()),
+                    "previous_key": None,
+                    "previous_created": None,
+                }
                 self._persist()
 
     def _persist(self) -> None:
@@ -170,7 +183,9 @@ class _JWTKeyStore:
         with self._lock:
             self._ensure_loaded()
             if self._env_key is not None:
-                logger.info("Key rotation skipped — using env var key (%s)", _ENV_SECRET_KEY)
+                logger.info(
+                    "Key rotation skipped — using env var key (%s)", _ENV_SECRET_KEY
+                )
                 return
             self._store["previous_key"] = self._store["current_key"]
             self._store["previous_created"] = self._store["current_created"]
@@ -185,7 +200,10 @@ class _JWTKeyStore:
             self._ensure_loaded()
             if self._env_key is not None:
                 return False  # Static env key — no rotation needed
-            needs = time.time() - self._store.get("current_created", 0) >= _ROTATION_INTERVAL_SEC
+            needs = (
+                time.time() - self._store.get("current_created", 0)
+                >= _ROTATION_INTERVAL_SEC
+            )
         if needs:
             self.rotate_key()
         return needs
@@ -197,6 +215,7 @@ _store = _JWTKeyStore()
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def generate_key() -> str:
     """Create a new random 32-byte hex signing key (not yet active)."""
@@ -261,7 +280,9 @@ def verify_token(token: str) -> dict:
         raise ValueError("Invalid token signature encoding")
 
     for key_bytes in _store.get_valid_keys():
-        expected_sig = hmac.new(key_bytes, signing_input.encode(), hashlib.sha256).digest()
+        expected_sig = hmac.new(
+            key_bytes, signing_input.encode(), hashlib.sha256
+        ).digest()
         if hmac.compare_digest(expected_sig, provided_sig):
             try:
                 payload = json.loads(b64url_decode(payload_b64))

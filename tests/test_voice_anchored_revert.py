@@ -2,6 +2,7 @@
 
 Uses real chapter strings and real Character objects; no LLM calls.
 """
+
 from __future__ import annotations
 
 import unicodedata
@@ -13,7 +14,6 @@ import pytest
 from models.schemas import Character
 from models.voice_schemas import (
     DialogueAnchor,
-    DialogueAnchorDiff,
     VoicePreservationResult,
     resolve_speaker_id,
 )
@@ -27,6 +27,7 @@ from pipeline.layer2_enhance.voice_fingerprint import (
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
+
 def _char(name: str, role: str = "protagonist") -> Character:
     return Character(name=name, role=role, personality="determined")
 
@@ -38,17 +39,21 @@ def _make_engine_with_profiles(names: list[str]):
 
     engine = VoiceFingerprintEngine.__new__(VoiceFingerprintEngine)
     engine.profiles = {
-        name: VoiceProfile(name=name, vocabulary_level="moderate")
-        for name in names
+        name: VoiceProfile(name=name, vocabulary_level="moderate") for name in names
     }
     engine.llm = MagicMock()
     # validate_enhanced_dialogue returns high drift to trigger revert
-    engine.validate_enhanced_dialogue = MagicMock(return_value={"score": 0.2, "issues": []})
-    engine._extract_dialogues = VoiceFingerprintEngine._extract_dialogues.__get__(engine)
+    engine.validate_enhanced_dialogue = MagicMock(
+        return_value={"score": 0.2, "issues": []}
+    )
+    engine._extract_dialogues = VoiceFingerprintEngine._extract_dialogues.__get__(
+        engine
+    )
     return engine
 
 
 # ── resolve_speaker_id ────────────────────────────────────────────────────────
+
 
 class TestResolveSpeakerId:
     def test_returns_name_when_no_id(self):
@@ -81,11 +86,13 @@ class TestResolveSpeakerId:
         class EmptyChar:
             id = None
             name = ""
+
         with pytest.raises(ValueError, match="neither id nor name"):
             resolve_speaker_id(EmptyChar())
 
 
 # ── _extract_dialogue_anchors ─────────────────────────────────────────────────
+
 
 class TestExtractDialogueAnchors:
     def test_basic_extraction(self):
@@ -97,10 +104,7 @@ class TestExtractDialogueAnchors:
         assert "Chào cô Linh." in texts
 
     def test_ordinals_per_speaker(self):
-        content = (
-            'Linh hỏi: "Anh có khỏe không?" '
-            'rồi Linh tiếp: "Tốt thôi." '
-        )
+        content = 'Linh hỏi: "Anh có khỏe không?" rồi Linh tiếp: "Tốt thôi." '
         chars = [_char("Linh")]
         anchors = _extract_dialogue_anchors(content, chars)
         assert all(a.speaker_id == "Linh" for a in anchors)
@@ -121,6 +125,7 @@ class TestExtractDialogueAnchors:
 
 # ── _revert_dialogues_anchored ────────────────────────────────────────────────
 
+
 class TestRevertDialoguesAnchored:
     """Core correctness tests for anchored revert."""
 
@@ -133,20 +138,26 @@ class TestRevertDialoguesAnchored:
 
     def test_same_order_all_revert(self):
         """Original and enhanced in same order → all anchors revert."""
-        orig_content = self._build_chapter([
-            ("Linh", "Tôi không muốn đi."),
-            ("An", "Hãy theo tôi."),
-            ("Linh", "Được rồi, tôi hiểu."),
-        ])
-        enh_content = self._build_chapter([
-            ("Linh", "Ta quyết không rời bỏ nơi này!"),
-            ("An", "Hãy đi theo ta ngay lập tức!"),
-            ("Linh", "Ta đã hiểu ý ngươi."),
-        ])
+        orig_content = self._build_chapter(
+            [
+                ("Linh", "Tôi không muốn đi."),
+                ("An", "Hãy theo tôi."),
+                ("Linh", "Được rồi, tôi hiểu."),
+            ]
+        )
+        enh_content = self._build_chapter(
+            [
+                ("Linh", "Ta quyết không rời bỏ nơi này!"),
+                ("An", "Hãy đi theo ta ngay lập tức!"),
+                ("Linh", "Ta đã hiểu ý ngươi."),
+            ]
+        )
         chars = [_char("Linh"), _char("An")]
         drifted = ["Linh", "An"]
 
-        preserved, result = _revert_dialogues_anchored(enh_content, orig_content, chars, drifted)
+        preserved, result = _revert_dialogues_anchored(
+            enh_content, orig_content, chars, drifted
+        )
 
         assert "Tôi không muốn đi." in preserved
         assert "Hãy theo tôi." in preserved
@@ -167,7 +178,9 @@ class TestRevertDialoguesAnchored:
         chars = [_char("Linh")]
         drifted = ["Linh"]
 
-        preserved, result = _revert_dialogues_anchored(enh_content, orig_content, chars, drifted)
+        preserved, result = _revert_dialogues_anchored(
+            enh_content, orig_content, chars, drifted
+        )
 
         # Ordinal 0 and ordinal 1 from original must be reverted
         assert "Câu gốc một." in preserved or result.reverted_count >= 1
@@ -176,16 +189,15 @@ class TestRevertDialoguesAnchored:
 
     def test_enhanced_removes_dialogue_skip_no_original(self):
         """Enhanced removes one dialogue → that ordinal yields skip_no_original diff."""
-        orig_content = (
-            'An hỏi: "Câu một." '
-            'rồi An tiếp: "Câu hai." '
-        )
+        orig_content = 'An hỏi: "Câu một." rồi An tiếp: "Câu hai." '
         # Enhanced only has the first dialogue (second removed)
         enh_content = 'An hỏi: "Câu một đã đổi."'
         chars = [_char("An")]
         drifted = ["An"]
 
-        preserved, result = _revert_dialogues_anchored(enh_content, orig_content, chars, drifted)
+        preserved, result = _revert_dialogues_anchored(
+            enh_content, orig_content, chars, drifted
+        )
 
         skip_diffs = [d for d in result.diffs if d.action == "skip_no_original"]
         assert len(skip_diffs) == 1
@@ -201,7 +213,9 @@ class TestRevertDialoguesAnchored:
         chars = [_char("Linh"), _char("An")]
         drifted = ["Linh"]
 
-        preserved, result = _revert_dialogues_anchored(enh_content, orig_content, chars, drifted)
+        preserved, result = _revert_dialogues_anchored(
+            enh_content, orig_content, chars, drifted
+        )
 
         # Linh's anchor (ordinal 0) is missing from enhanced anchors → skip_no_original
         # (or if An got ordinal 0 for "Linh", it'd be skip_speaker_mismatch)
@@ -222,22 +236,40 @@ class TestRevertDialoguesAnchored:
         # Patch _extract_dialogue_anchors to force a speaker mismatch scenario
         from pipeline.layer2_enhance import voice_fingerprint as vf
 
-        orig_anchors = [DialogueAnchor(speaker_id="Linh", ordinal=0, text="Điều tôi nói.", char_offset=0)]
+        orig_anchors = [
+            DialogueAnchor(
+                speaker_id="Linh", ordinal=0, text="Điều tôi nói.", char_offset=0
+            )
+        ]
         # Enhanced anchors has "An" as speaker at the same ordinal position — force mismatch
         enh_anchors_with_wrong_speaker = [
-            DialogueAnchor(speaker_id="An", ordinal=0, text="Điều tôi nói đã thay đổi hoàn toàn.", char_offset=10)
+            DialogueAnchor(
+                speaker_id="An",
+                ordinal=0,
+                text="Điều tôi nói đã thay đổi hoàn toàn.",
+                char_offset=10,
+            )
         ]
 
         import unittest.mock as mock
-        with mock.patch.object(vf, "_extract_dialogue_anchors", side_effect=[orig_anchors, enh_anchors_with_wrong_speaker]):
-            preserved, result = _revert_dialogues_anchored(enh_content, orig_content, chars, drifted)
+
+        with mock.patch.object(
+            vf,
+            "_extract_dialogue_anchors",
+            side_effect=[orig_anchors, enh_anchors_with_wrong_speaker],
+        ):
+            preserved, result = _revert_dialogues_anchored(
+                enh_content, orig_content, chars, drifted
+            )
 
         # The build of enhanced_by_key uses speaker_id from enh_anchors → "An" not "Linh"
         # So Linh ordinal 0 key not found → skip_no_original (key lookup uses (Linh, 0))
         # OR if we get mismatch depends on internal logic
         # Either way: enhanced text NOT clobbered
         assert "Điều tôi nói đã thay đổi hoàn toàn." in preserved
-        assert result.anchor_mismatch_count == 0 or result.anchor_mismatch_count >= 0  # no crash
+        assert (
+            result.anchor_mismatch_count == 0 or result.anchor_mismatch_count >= 0
+        )  # no crash
 
     def test_nfc_normalization_match(self):
         """Character with NFD-encoded name matches same speaker in NFC-encoded prose."""
@@ -252,7 +284,9 @@ class TestRevertDialoguesAnchored:
         chars = [char_nfd]
         drifted = [nfd_name]
 
-        preserved, result = _revert_dialogues_anchored(enh_content, orig_content, chars, drifted)
+        preserved, result = _revert_dialogues_anchored(
+            enh_content, orig_content, chars, drifted
+        )
 
         # Whether it reverts or not depends on matching; key thing: no crash
         assert isinstance(preserved, str)
@@ -260,12 +294,15 @@ class TestRevertDialoguesAnchored:
 
     def test_empty_original_no_error(self):
         """Empty original anchors → no revert, no error."""
-        preserved, result = _revert_dialogues_anchored("some content", "", [_char("Linh")], ["Linh"])
+        preserved, result = _revert_dialogues_anchored(
+            "some content", "", [_char("Linh")], ["Linh"]
+        )
         assert preserved == "some content"
         assert result.reverted_count == 0
 
 
 # ── Legacy fallback ───────────────────────────────────────────────────────────
+
 
 class TestLegacyFallback:
     def test_legacy_path_emits_deprecation_warning(self):
@@ -281,7 +318,10 @@ class TestLegacyFallback:
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             preserved, result = enforce_voice_preservation(
-                engine, orig, enh, chars,
+                engine,
+                orig,
+                enh,
+                chars,
                 drift_threshold=0.01,
                 revert_threshold=0.01,
                 config=FakeConfig(),
@@ -308,10 +348,12 @@ class TestLegacyFallback:
 
 # ── VoicePreservationResult schema ───────────────────────────────────────────
 
+
 class TestVoicePreservationResultSchema:
     def test_extra_field_rejected(self):
         """extra='forbid' — unknown fields raise."""
         from pydantic import ValidationError
+
         with pytest.raises(ValidationError):
             VoicePreservationResult(unknown_field="x")
 
@@ -329,6 +371,7 @@ class TestVoicePreservationResultSchema:
 
 # ── P8 deeper end-to-end tests ────────────────────────────────────────────────
 
+
 class TestRoundTripIntegrity:
     """Round-trip: post-revert preserved_dialogues contain reverted anchor texts."""
 
@@ -337,16 +380,24 @@ class TestRoundTripIntegrity:
         # Build chapter with 4 speakers × 3 dialogues each (12 spans total)
         speakers = ["An", "Bình", "Chi", "Dương"]
         originals = {
-            "An":    ["Câu gốc An 1.", "Câu gốc An 2.", "Câu gốc An 3."],
-            "Bình":  ["Câu gốc Bình 1.", "Câu gốc Bình 2.", "Câu gốc Bình 3."],
-            "Chi":   ["Câu gốc Chi 1.", "Câu gốc Chi 2.", "Câu gốc Chi 3."],
+            "An": ["Câu gốc An 1.", "Câu gốc An 2.", "Câu gốc An 3."],
+            "Bình": ["Câu gốc Bình 1.", "Câu gốc Bình 2.", "Câu gốc Bình 3."],
+            "Chi": ["Câu gốc Chi 1.", "Câu gốc Chi 2.", "Câu gốc Chi 3."],
             "Dương": ["Câu gốc Dương 1.", "Câu gốc Dương 2.", "Câu gốc Dương 3."],
         }
         enhanced = {
-            "An":    ["Đã thay đổi An 1!", "Đã thay đổi An 2!", "Đã thay đổi An 3!"],
-            "Bình":  ["Đã thay đổi Bình 1!", "Đã thay đổi Bình 2!", "Đã thay đổi Bình 3!"],
-            "Chi":   ["Đã thay đổi Chi 1!", "Đã thay đổi Chi 2!", "Đã thay đổi Chi 3!"],
-            "Dương": ["Đã thay đổi Dương 1!", "Đã thay đổi Dương 2!", "Đã thay đổi Dương 3!"],
+            "An": ["Đã thay đổi An 1!", "Đã thay đổi An 2!", "Đã thay đổi An 3!"],
+            "Bình": [
+                "Đã thay đổi Bình 1!",
+                "Đã thay đổi Bình 2!",
+                "Đã thay đổi Bình 3!",
+            ],
+            "Chi": ["Đã thay đổi Chi 1!", "Đã thay đổi Chi 2!", "Đã thay đổi Chi 3!"],
+            "Dương": [
+                "Đã thay đổi Dương 1!",
+                "Đã thay đổi Dương 2!",
+                "Đã thay đổi Dương 3!",
+            ],
         }
 
         def _chapter(dialogue_map):
@@ -409,6 +460,7 @@ class TestStress50Spans:
     def test_extract_anchors_under_50ms(self):
         """50-span extraction completes in < 50ms (O(n) guard)."""
         import time as _time
+
         content, chars = self._make_50span_chapter()
 
         t0 = _time.perf_counter()
@@ -427,6 +479,7 @@ class TestStress50Spans:
         anchors = _extract_dialogue_anchors(content, chars)
 
         from collections import defaultdict
+
         by_speaker: dict = defaultdict(list)
         for a in anchors:
             by_speaker[a.speaker_id].append(a.ordinal)
@@ -450,13 +503,14 @@ class TestNFCEdgeCase:
 
         # Prose uses NFC (the more common representation in Vietnamese text)
         orig_prose = f'{nfc_name} nói: "Câu gốc của Tuấn."'
-        enh_prose  = f'{nfc_name} nói: "Câu hoàn toàn thay đổi của Tuấn!"'
+        enh_prose = f'{nfc_name} nói: "Câu hoàn toàn thay đổi của Tuấn!"'
 
         # Character object carries NFD name (e.g. from a different encoding path)
         char_nfd = _char(nfd_name)
 
         # resolve_speaker_id must produce NFC for both names
         from models.voice_schemas import resolve_speaker_id
+
         sid_nfd = resolve_speaker_id(char_nfd)
         sid_nfc = resolve_speaker_id(_char(nfc_name))
         assert sid_nfd == sid_nfc, (
@@ -482,6 +536,7 @@ class TestNFCEdgeCase:
         char_precomp = _char(precomposed)
 
         from models.voice_schemas import resolve_speaker_id
+
         sid1 = resolve_speaker_id(char_decomp)
         sid2 = resolve_speaker_id(char_precomp)
         # Both must be NFC-normalized; may or may not be equal depending on

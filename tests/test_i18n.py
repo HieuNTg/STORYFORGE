@@ -1,4 +1,5 @@
 """Tests for services/i18n.py — I18n singleton, t(), set_language(), fallback chain."""
+
 from unittest.mock import patch, mock_open
 import json
 import threading
@@ -8,6 +9,7 @@ from services.i18n import I18n, SUPPORTED_LANGUAGES
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _reset_singleton():
     """Reset the I18n singleton between tests."""
@@ -48,6 +50,7 @@ def _make_i18n_with_mocked_locales(vi_data=None, en_data=None):
 # Singleton behaviour
 # ---------------------------------------------------------------------------
 
+
 class TestI18nSingleton:
     def test_same_instance_returned(self):
         _reset_singleton()
@@ -71,6 +74,7 @@ class TestI18nSingleton:
 # ---------------------------------------------------------------------------
 # t() — translation and interpolation
 # ---------------------------------------------------------------------------
+
 
 class TestTranslate:
     def test_known_key_returns_string(self):
@@ -124,6 +128,7 @@ class TestTranslate:
 # ---------------------------------------------------------------------------
 # set_language()
 # ---------------------------------------------------------------------------
+
 
 class TestSetLanguage:
     def test_set_to_en_switches_language(self):
@@ -182,6 +187,7 @@ class TestSetLanguage:
 # available_languages()
 # ---------------------------------------------------------------------------
 
+
 class TestAvailableLanguages:
     def test_returns_dict(self):
         langs = I18n.available_languages()
@@ -206,6 +212,7 @@ class TestAvailableLanguages:
 # _read_locale() — file loading
 # ---------------------------------------------------------------------------
 
+
 class TestReadLocale:
     def test_missing_file_returns_empty_dict(self):
         _reset_singleton()
@@ -217,8 +224,10 @@ class TestReadLocale:
 
     def test_malformed_json_returns_empty_dict(self):
         _reset_singleton()
-        with patch("os.path.exists", return_value=True), \
-             patch("builtins.open", mock_open(read_data="not valid json {{")):
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data="not valid json {{")),
+        ):
             i18n = I18n.__new__(I18n)
             i18n._initialized = False
             result = i18n._read_locale("vi")
@@ -227,8 +236,10 @@ class TestReadLocale:
     def test_valid_json_returns_parsed_dict(self):
         _reset_singleton()
         data = {"key": "value"}
-        with patch("os.path.exists", return_value=True), \
-             patch("builtins.open", mock_open(read_data=json.dumps(data))):
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data=json.dumps(data))),
+        ):
             i18n = I18n.__new__(I18n)
             i18n._initialized = False
             result = i18n._read_locale("vi")
@@ -238,6 +249,7 @@ class TestReadLocale:
 # ---------------------------------------------------------------------------
 # Thread safety (basic smoke test)
 # ---------------------------------------------------------------------------
+
 
 class TestThreadSafety:
     def test_concurrent_instantiation_returns_same_instance(self):

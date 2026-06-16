@@ -17,6 +17,7 @@ class AuthRequest(BaseModel):
 def login(body: AuthRequest):
     """Login and return user profile."""
     from services.user_manager import UserManager
+
     um = UserManager()
     profile = um.login(body.username, body.password)
     if profile:
@@ -28,6 +29,7 @@ def login(body: AuthRequest):
 def register(body: AuthRequest):
     """Register a new account."""
     from services.user_manager import UserManager
+
     um = UserManager()
     profile = um.register(body.username, body.password)
     if profile:

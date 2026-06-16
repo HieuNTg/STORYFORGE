@@ -1,4 +1,5 @@
 """Tests for ReplicateIPAdapter client."""
+
 import os
 import pytest
 from unittest.mock import patch, MagicMock
@@ -8,6 +9,7 @@ from services.replicate_ip_adapter import ReplicateIPAdapter
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture()
 def adapter(tmp_path):
@@ -61,6 +63,7 @@ def _make_image_download_response(content=b"IMGDATA"):
 # is_configured
 # ---------------------------------------------------------------------------
 
+
 def test_is_configured_with_key():
     with patch("services.replicate_ip_adapter.ConfigManager") as mock_cm:
         mock_cm.return_value.pipeline.replicate_api_key = ""
@@ -78,6 +81,7 @@ def test_is_configured_without_key():
 # generate — missing reference image
 # ---------------------------------------------------------------------------
 
+
 def test_generate_missing_reference_image(adapter, tmp_path):
     result = adapter.generate("a scene", "/nonexistent/path/ref.png")
     assert result is None
@@ -86,6 +90,7 @@ def test_generate_missing_reference_image(adapter, tmp_path):
 # ---------------------------------------------------------------------------
 # generate — not configured (no api_key)
 # ---------------------------------------------------------------------------
+
 
 def test_generate_not_configured(tmp_path, ref_image):
     with patch("services.replicate_ip_adapter.ConfigManager") as mock_cm:
@@ -102,14 +107,22 @@ def test_generate_not_configured(tmp_path, ref_image):
 # generate — successful flow (list output)
 # ---------------------------------------------------------------------------
 
+
 def test_generate_success_list_output(adapter, ref_image, tmp_path):
     pred_resp = _make_prediction_response()
-    poll_resp = _make_poll_response(status="succeeded", output=["https://cdn.replicate.com/img.png"])
+    poll_resp = _make_poll_response(
+        status="succeeded", output=["https://cdn.replicate.com/img.png"]
+    )
     img_resp = _make_image_download_response(b"IMAGEDATA")
 
-    with patch("services.replicate_ip_adapter.requests.post", return_value=pred_resp), \
-         patch("services.replicate_ip_adapter.requests.get", side_effect=[poll_resp, img_resp]), \
-         patch("services.replicate_ip_adapter.time.sleep"):
+    with (
+        patch("services.replicate_ip_adapter.requests.post", return_value=pred_resp),
+        patch(
+            "services.replicate_ip_adapter.requests.get",
+            side_effect=[poll_resp, img_resp],
+        ),
+        patch("services.replicate_ip_adapter.time.sleep"),
+    ):
         result = adapter.generate("a scene", ref_image, filename="out.png")
 
     assert result is not None
@@ -122,14 +135,22 @@ def test_generate_success_list_output(adapter, ref_image, tmp_path):
 # generate — successful flow (string output)
 # ---------------------------------------------------------------------------
 
+
 def test_generate_success_string_output(adapter, ref_image, tmp_path):
     pred_resp = _make_prediction_response()
-    poll_resp = _make_poll_response(status="succeeded", output="https://cdn.replicate.com/img.png")
+    poll_resp = _make_poll_response(
+        status="succeeded", output="https://cdn.replicate.com/img.png"
+    )
     img_resp = _make_image_download_response(b"STRDATA")
 
-    with patch("services.replicate_ip_adapter.requests.post", return_value=pred_resp), \
-         patch("services.replicate_ip_adapter.requests.get", side_effect=[poll_resp, img_resp]), \
-         patch("services.replicate_ip_adapter.time.sleep"):
+    with (
+        patch("services.replicate_ip_adapter.requests.post", return_value=pred_resp),
+        patch(
+            "services.replicate_ip_adapter.requests.get",
+            side_effect=[poll_resp, img_resp],
+        ),
+        patch("services.replicate_ip_adapter.time.sleep"),
+    ):
         result = adapter.generate("prompt", ref_image, filename="str_out.png")
 
     assert result is not None
@@ -140,13 +161,16 @@ def test_generate_success_string_output(adapter, ref_image, tmp_path):
 # generate — Replicate failure status
 # ---------------------------------------------------------------------------
 
+
 def test_generate_failed_status(adapter, ref_image):
     pred_resp = _make_prediction_response()
     poll_resp = _make_poll_response(status="failed", error="out of memory")
 
-    with patch("services.replicate_ip_adapter.requests.post", return_value=pred_resp), \
-         patch("services.replicate_ip_adapter.requests.get", return_value=poll_resp), \
-         patch("services.replicate_ip_adapter.time.sleep"):
+    with (
+        patch("services.replicate_ip_adapter.requests.post", return_value=pred_resp),
+        patch("services.replicate_ip_adapter.requests.get", return_value=poll_resp),
+        patch("services.replicate_ip_adapter.time.sleep"),
+    ):
         result = adapter.generate("prompt", ref_image)
 
     assert result is None
@@ -155,6 +179,7 @@ def test_generate_failed_status(adapter, ref_image):
 # ---------------------------------------------------------------------------
 # generate — no poll URL in response
 # ---------------------------------------------------------------------------
+
 
 def test_generate_no_poll_url(adapter, ref_image):
     pred_resp = MagicMock()
@@ -171,16 +196,19 @@ def test_generate_no_poll_url(adapter, ref_image):
 # generate — timeout
 # ---------------------------------------------------------------------------
 
+
 def test_generate_timeout(adapter, ref_image):
     pred_resp = _make_prediction_response()
     # Always return "processing" to force timeout
     poll_resp = _make_poll_response(status="processing")
 
     # Patch time so loop expires immediately
-    with patch("services.replicate_ip_adapter.requests.post", return_value=pred_resp), \
-         patch("services.replicate_ip_adapter.requests.get", return_value=poll_resp), \
-         patch("services.replicate_ip_adapter.time.sleep"), \
-         patch("services.replicate_ip_adapter.time.time", side_effect=[0, 200, 200]):
+    with (
+        patch("services.replicate_ip_adapter.requests.post", return_value=pred_resp),
+        patch("services.replicate_ip_adapter.requests.get", return_value=poll_resp),
+        patch("services.replicate_ip_adapter.time.sleep"),
+        patch("services.replicate_ip_adapter.time.time", side_effect=[0, 200, 200]),
+    ):
         result = adapter.generate("prompt", ref_image, timeout=120)
 
     assert result is None
@@ -190,13 +218,16 @@ def test_generate_timeout(adapter, ref_image):
 # generate — unexpected output format (not list/str)
 # ---------------------------------------------------------------------------
 
+
 def test_generate_unexpected_output_format(adapter, ref_image):
     pred_resp = _make_prediction_response()
     poll_resp = _make_poll_response(status="succeeded", output={"url": "..."})
 
-    with patch("services.replicate_ip_adapter.requests.post", return_value=pred_resp), \
-         patch("services.replicate_ip_adapter.requests.get", return_value=poll_resp), \
-         patch("services.replicate_ip_adapter.time.sleep"):
+    with (
+        patch("services.replicate_ip_adapter.requests.post", return_value=pred_resp),
+        patch("services.replicate_ip_adapter.requests.get", return_value=poll_resp),
+        patch("services.replicate_ip_adapter.time.sleep"),
+    ):
         result = adapter.generate("prompt", ref_image)
 
     assert result is None
@@ -206,8 +237,12 @@ def test_generate_unexpected_output_format(adapter, ref_image):
 # generate — requests exception
 # ---------------------------------------------------------------------------
 
+
 def test_generate_request_exception(adapter, ref_image):
-    with patch("services.replicate_ip_adapter.requests.post", side_effect=Exception("network error")):
+    with patch(
+        "services.replicate_ip_adapter.requests.post",
+        side_effect=Exception("network error"),
+    ):
         result = adapter.generate("prompt", ref_image)
 
     assert result is None

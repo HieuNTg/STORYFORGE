@@ -113,7 +113,10 @@ def build_output_summary(output) -> dict:
                 }
                 for e in s.events[:20]
             ],
-            "suggestions": [_san(sg) for sg in (s.drama_suggestions[:5] if s.drama_suggestions else [])],
+            "suggestions": [
+                _san(sg)
+                for sg in (s.drama_suggestions[:5] if s.drama_suggestions else [])
+            ],
         }
 
     if output.quality_scores:

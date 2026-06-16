@@ -1,4 +1,5 @@
 """Integration test for Context Health circuit breaker (Sprint 1 Task 1)."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -21,7 +22,9 @@ def _make_gen() -> BatchChapterGenerator:
 def _fail_chapter(ctx: StoryContext, ch: int, n_fail: int = 3) -> None:
     for i in range(n_fail):
         ctx.extraction_health.append(
-            ExtractionHealth(chapter_number=ch, extraction_type=f"t{i}", success=False, error="mock")
+            ExtractionHealth(
+                chapter_number=ch, extraction_type=f"t{i}", success=False, error="mock"
+            )
         )
     # add one success so chapter is visible in recent_chapters
     ctx.extraction_health.append(
@@ -71,7 +74,9 @@ def test_single_failure_per_chapter_no_halt():
     ctx = StoryContext()
     for ch in range(1, 6):
         ctx.extraction_health.append(
-            ExtractionHealth(chapter_number=ch, extraction_type="x", success=False, error="e")
+            ExtractionHealth(
+                chapter_number=ch, extraction_type="x", success=False, error="e"
+            )
         )
         for _ in range(4):
             ctx.extraction_health.append(

@@ -3,6 +3,7 @@
 Backstops the idea-fidelity fix: schema must carry `original_idea` and
 `idea_summary_for_chapters`, defaults remain backward-compatible.
 """
+
 from __future__ import annotations
 
 from models.schemas import StoryDraft
@@ -10,8 +11,12 @@ from models.schemas import StoryDraft
 
 def _mk_draft(**kw):
     base = dict(
-        title="t", genre="g", synopsis="s",
-        characters=[], world={"name": "x", "description": "y"}, outlines=[],
+        title="t",
+        genre="g",
+        synopsis="s",
+        characters=[],
+        world={"name": "x", "description": "y"},
+        outlines=[],
     )
     base.update(kw)
     return StoryDraft(**base)

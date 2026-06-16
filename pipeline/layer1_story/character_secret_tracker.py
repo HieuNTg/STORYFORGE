@@ -17,10 +17,11 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SecretEntry:
     """A character secret to track."""
+
     character: str
     secret: str
     reveal_chapter: int | None = None  # Planned reveal chapter
-    actual_reveal: int | None = None   # When actually revealed
+    actual_reveal: int | None = None  # When actually revealed
     revealed_to: list[str] = field(default_factory=list)
     partial_hints: list[dict] = field(default_factory=list)  # [{chapter, hint}]
 
@@ -28,6 +29,7 @@ class SecretEntry:
 @dataclass
 class SecretRegistry:
     """Track all character secrets across story."""
+
     secrets: list[SecretEntry] = field(default_factory=list)
 
     def add_secret(
@@ -37,18 +39,21 @@ class SecretRegistry:
         reveal_chapter: int | None = None,
     ) -> None:
         """Register a character secret."""
-        self.secrets.append(SecretEntry(
-            character=character,
-            secret=secret,
-            reveal_chapter=reveal_chapter,
-        ))
+        self.secrets.append(
+            SecretEntry(
+                character=character,
+                secret=secret,
+                reveal_chapter=reveal_chapter,
+            )
+        )
 
     def get_unrevealed(self, by_chapter: int | None = None) -> list[SecretEntry]:
         """Get secrets not yet revealed, optionally filtered by deadline."""
         unrevealed = [s for s in self.secrets if s.actual_reveal is None]
         if by_chapter:
             unrevealed = [
-                s for s in unrevealed
+                s
+                for s in unrevealed
                 if s.reveal_chapter is None or s.reveal_chapter >= by_chapter
             ]
         return unrevealed
@@ -56,7 +61,8 @@ class SecretRegistry:
     def get_overdue(self, current_chapter: int) -> list[SecretEntry]:
         """Get secrets past their planned reveal chapter."""
         return [
-            s for s in self.secrets
+            s
+            for s in self.secrets
             if s.reveal_chapter
             and s.reveal_chapter < current_chapter
             and s.actual_reveal is None
@@ -95,7 +101,8 @@ def initialize_secrets(characters: list["Character"]) -> SecretRegistry:
             reveal_ch = None
             if "(reveal ch" in secret.lower() or "(tiết lộ ch" in secret.lower():
                 import re
-                match = re.search(r'ch(?:apter)?\s*(\d+)', secret, re.IGNORECASE)
+
+                match = re.search(r"ch(?:apter)?\s*(\d+)", secret, re.IGNORECASE)
                 if match:
                     reveal_ch = int(match.group(1))
 
@@ -129,8 +136,7 @@ def check_secret_reveal(
 
     # Build prompt with secrets to check
     secrets_text = "\n".join(
-        f"- {s.character}: {s.secret[:100]}"
-        for s in unrevealed[:5]
+        f"- {s.character}: {s.secret[:100]}" for s in unrevealed[:5]
     )
 
     result = llm.generate_json(
@@ -168,14 +174,17 @@ Kiểm tra:
         for s in unrevealed:
             if s.character == char:
                 if s.reveal_chapter and chapter_number < s.reveal_chapter:
-                    premature.append({
-                        "character": char,
-                        "secret": s.secret[:50],
-                        "planned_chapter": s.reveal_chapter,
-                        "actual_chapter": chapter_number,
-                    })
+                    premature.append(
+                        {
+                            "character": char,
+                            "secret": s.secret[:50],
+                            "planned_chapter": s.reveal_chapter,
+                            "actual_chapter": chapter_number,
+                        }
+                    )
                 registry.mark_revealed(
-                    char, chapter_number,
+                    char,
+                    chapter_number,
                     r.get("revealed_to", []),
                 )
                 break
@@ -256,7 +265,8 @@ def audit_secrets(
     unrevealed = [s for s in registry.secrets if s.actual_reveal is None]
     overdue = registry.get_overdue(final_chapter + 1)
     premature = [
-        s for s in revealed
+        s
+        for s in revealed
         if s.reveal_chapter and s.actual_reveal and s.actual_reveal < s.reveal_chapter
     ]
 

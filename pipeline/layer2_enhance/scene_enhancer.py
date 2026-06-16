@@ -16,6 +16,7 @@ from services.text_utils import strip_llm_scaffolding, build_idea_header
 
 try:
     from pipeline.layer2_enhance.voice_fingerprint import build_voice_enforcement_prompt
+
     _VOICE_ENFORCEMENT_AVAILABLE = True
 except ImportError:
     _VOICE_ENFORCEMENT_AVAILABLE = False
@@ -27,14 +28,18 @@ logger = logging.getLogger(__name__)
 # #3: Cross-chapter drama curve balancing
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class DramaCurveTarget:
     """Target drama curves for different story structures."""
+
     RISING = "rising"  # Linear increase toward climax
     CLIMAX_AT_END = "climax_at_end"  # Build up to final chapter
     WAVE = "wave"  # Multiple peaks and valleys
 
     @staticmethod
-    def get_target_score(chapter_num: int, total_chapters: int, curve_type: str) -> float:
+    def get_target_score(
+        chapter_num: int, total_chapters: int, curve_type: str
+    ) -> float:
         """Return target drama score (0-1) for given chapter position."""
         if total_chapters <= 1:
             return 0.7
@@ -54,6 +59,7 @@ class DramaCurveTarget:
         elif curve_type == DramaCurveTarget.WAVE:
             # 3 peaks: 25%, 60%, 95%
             import math
+
             base = 0.5
             amplitude = 0.3
             # Create wave with peaks at specific points
@@ -108,7 +114,9 @@ class DramaCurveBalancer:
             return delta, "tone_down"
         return 0.0, ""
 
-    def get_min_drama_for_chapter(self, chapter_num: int, base_min: float = 0.6) -> float:
+    def get_min_drama_for_chapter(
+        self, chapter_num: int, base_min: float = 0.6
+    ) -> float:
         """Adjust minimum drama threshold based on curve target."""
         target = self.target_scores.get(chapter_num, 0.6)
         # Set min_drama slightly below target (allow some tolerance)
@@ -122,7 +130,9 @@ class DramaCurveBalancer:
         avg_actual = sum(self.chapter_scores.values()) / len(self.chapter_scores)
         avg_target = sum(self.target_scores.values()) / len(self.target_scores)
         chapters_need_boost = [ch for ch, d in self.adjustments.items() if d > 0.15]
-        chapters_need_reduction = [ch for ch, d in self.adjustments.items() if d < -0.15]
+        chapters_need_reduction = [
+            ch for ch, d in self.adjustments.items() if d < -0.15
+        ]
 
         return {
             "curve_type": self.curve_type,
@@ -139,6 +149,7 @@ def _format_events_with_causality(sim_result: SimulationResult) -> str:
     try:
         if sim_result.causal_chains:
             from pipeline.layer2_enhance.causal_chain import CausalGraph
+
             graph = CausalGraph()
             for event in sim_result.events:
                 graph.add_event(event, getattr(event, "cause_event_id", ""))
@@ -147,9 +158,11 @@ def _format_events_with_causality(sim_result: SimulationResult) -> str:
                 return text
     except Exception:
         pass
-    return "\n".join(
-        f"- {e.description}" for e in sim_result.events[:5]
-    ) or "Không có sự kiện cụ thể."
+    return (
+        "\n".join(f"- {e.description}" for e in sim_result.events[:5])
+        or "Không có sự kiện cụ thể."
+    )
+
 
 DECOMPOSE_CHAPTER_CONTENT = """Chia nội dung chương sau thành 3-5 cảnh riêng biệt.
 Mỗi cảnh là một đơn vị hành động/đối thoại có ranh giới rõ ràng.
@@ -251,7 +264,11 @@ def _build_thread_status(thread_state) -> str:
     try:
         lines: list[str] = []
         for th in list(thread_state)[:8]:
-            name = getattr(th, "name", None) or getattr(th, "thread_id", "") or getattr(th, "description", "")
+            name = (
+                getattr(th, "name", None)
+                or getattr(th, "thread_id", "")
+                or getattr(th, "description", "")
+            )
             status = getattr(th, "status", "open")
             urgency = getattr(th, "urgency", 3)
             if name:
@@ -278,6 +295,7 @@ class SceneEnhancer:
         # Load config for new features
         try:
             from config import ConfigManager
+
             cfg = ConfigManager().pipeline
             self.parallel_enabled = getattr(cfg, "l2_parallel_scenes", True)
             self.retry_max = getattr(cfg, "l2_scene_retry_max", 2)
@@ -292,7 +310,9 @@ class SceneEnhancer:
         try:
             result = self.llm.generate_json(
                 system_prompt="Phân tách văn bản thành các cảnh. Trả về JSON.",
-                user_prompt=DECOMPOSE_CHAPTER_CONTENT.format(content=chapter.content[:5000]),
+                user_prompt=DECOMPOSE_CHAPTER_CONTENT.format(
+                    content=chapter.content[:5000]
+                ),
                 temperature=0.2,
                 max_tokens=4096,
                 model_tier="cheap",
@@ -305,7 +325,13 @@ class SceneEnhancer:
             scenes = []
         if not scenes:
             # Fallback: treat entire chapter as one scene
-            return [{"scene_number": 1, "content": chapter.content, "characters_present": []}]
+            return [
+                {
+                    "scene_number": 1,
+                    "content": chapter.content,
+                    "characters_present": [],
+                }
+            ]
         return scenes
 
     def score_scenes(
@@ -317,7 +343,9 @@ class SceneEnhancer:
     ) -> list[SceneScore]:
         """Chấm điểm kịch tính từng cảnh, đánh dấu cảnh yếu."""
         scores: list[SceneScore] = []
-        threshold = min_drama_override if min_drama_override is not None else self.MIN_DRAMA
+        threshold = (
+            min_drama_override if min_drama_override is not None else self.MIN_DRAMA
+        )
         for scene in scenes:
             try:
                 result = self.llm.generate_json(
@@ -370,12 +398,16 @@ class SceneEnhancer:
         weak_scenes = [
             (scene, score_map.get(scene.get("scene_number", 1)))
             for scene in scenes
-            if score_map.get(scene.get("scene_number", 1), SceneScore(scene_number=1)).needs_enhancement
+            if score_map.get(
+                scene.get("scene_number", 1), SceneScore(scene_number=1)
+            ).needs_enhancement
         ]
 
         if not weak_scenes:
             # No weak scenes, return original
-            stitched = "\n\n".join(strip_llm_scaffolding(s.get("content", "")) for s in scenes)
+            stitched = "\n\n".join(
+                strip_llm_scaffolding(s.get("content", "")) for s in scenes
+            )
             return Chapter(
                 chapter_number=chapter.chapter_number,
                 title=chapter.title,
@@ -387,11 +419,19 @@ class SceneEnhancer:
 
         # Build voice enforcement block (prepend + append for recency-bias compliance)
         _voice_block = ""
-        if _VOICE_ENFORCEMENT_AVAILABLE and self.voice_engine is not None and characters:
+        if (
+            _VOICE_ENFORCEMENT_AVAILABLE
+            and self.voice_engine is not None
+            and characters
+        ):
             try:
-                _voice_block = build_voice_enforcement_prompt(self.voice_engine, characters)
+                _voice_block = build_voice_enforcement_prompt(
+                    self.voice_engine, characters
+                )
             except Exception as _ve:
-                logger.debug(f"build_voice_enforcement_prompt failed (non-fatal): {_ve}")
+                logger.debug(
+                    f"build_voice_enforcement_prompt failed (non-fatal): {_ve}"
+                )
         _voice_prepend = (_voice_block + "\n\n") if _voice_block else ""
         _voice_append = ("\n\n" + _voice_block) if _voice_block else ""
 
@@ -453,16 +493,18 @@ class SceneEnhancer:
                     result = await loop.run_in_executor(
                         None,
                         self._enhance_single_scene_with_retry,
-                        scene, score, context,
+                        scene,
+                        score,
+                        context,
                     )
                     return snum, result
                 except Exception as e:
                     logger.warning(f"Parallel enhance scene {snum} failed: {e}")
                     return snum, content
 
-            pairs = await asyncio.gather(*[
-                _enhance_one(scene, score) for scene, score in weak_scenes
-            ])
+            pairs = await asyncio.gather(
+                *[_enhance_one(scene, score) for scene, score in weak_scenes]
+            )
             return dict(pairs)
 
         try:
@@ -473,6 +515,7 @@ class SceneEnhancer:
         if loop and loop.is_running():
             # Already in async context — run in thread pool
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor() as pool:
                 future = pool.submit(asyncio.run, _enhance_all())
                 return future.result()
@@ -489,7 +532,9 @@ class SceneEnhancer:
         for scene, score in weak_scenes:
             snum = scene.get("scene_number", 1)
             try:
-                results[snum] = self._enhance_single_scene_with_retry(scene, score, context)
+                results[snum] = self._enhance_single_scene_with_retry(
+                    scene, score, context
+                )
             except Exception as e:
                 logger.warning(f"Sequential enhance scene {snum} failed: {e}")
                 results[snum] = scene.get("content", "")
@@ -527,7 +572,9 @@ class SceneEnhancer:
                         "dấu '***' hay bất kỳ siêu dữ liệu nào."
                     ),
                     user_prompt=ENHANCE_SCENE.format(
-                        user_story_idea_header=context.get("user_story_idea_header", ""),
+                        user_story_idea_header=context.get(
+                            "user_story_idea_header", ""
+                        ),
                         voice_block_prepend=context.get("voice_block_prepend", ""),
                         genre=context["genre"],
                         weak_points=weak_text,
@@ -579,14 +626,18 @@ class SceneEnhancer:
                         weak_points = rescore.get("weak_points", ["Kịch tính chưa đủ"])
 
                     except Exception as e:
-                        logger.debug(f"Re-score scene {snum} failed, accepting result: {e}")
+                        logger.debug(
+                            f"Re-score scene {snum} failed, accepting result: {e}"
+                        )
                         return new_content
                 else:
                     # Last attempt, return whatever we have
                     return new_content
 
             except Exception as e:
-                logger.warning(f"Enhance scene {snum} attempt {attempt + 1} failed: {e}")
+                logger.warning(
+                    f"Enhance scene {snum} attempt {attempt + 1} failed: {e}"
+                )
                 if attempt == self.retry_max:
                     return content  # Return original on final failure
 
@@ -612,7 +663,9 @@ class SceneEnhancer:
         Args:
             curve_balancer: Optional DramaCurveBalancer for cross-chapter optimization (#3)
         """
-        summary = chapter_summary  # caller decides whether to pass; None = skip signal reuse
+        summary = (
+            chapter_summary  # caller decides whether to pass; None = skip signal reuse
+        )
         preserve_facts = _build_preserve_facts(summary)
         thread_text = _build_thread_status(thread_state)
         arc_text = arc_context or "Không có"
@@ -622,9 +675,16 @@ class SceneEnhancer:
 
         # L2-E: Per-chapter drama intensity based on pacing_type from outline
         _PACING_DRAMA_TARGETS = {
-            "climax": 0.85, "twist": 0.80, "rising": 0.70, "fast": 0.75,
-            "setup": 0.45, "cooldown": 0.50, "falling": 0.50, "slow": 0.45,
-            "resolution": 0.55, "": 0.60,  # default
+            "climax": 0.85,
+            "twist": 0.80,
+            "rising": 0.70,
+            "fast": 0.75,
+            "setup": 0.45,
+            "cooldown": 0.50,
+            "falling": 0.50,
+            "slow": 0.45,
+            "resolution": 0.55,
+            "": 0.60,  # default
         }
         try:
             # Try to get pacing_type from chapter's outline if attached
@@ -633,10 +693,16 @@ class SceneEnhancer:
                 _ch_pacing = getattr(chapter, "pacing_type", "") or ""
             if not _ch_pacing and pacing_directive:
                 # pacing_directive is sometimes the pacing_type
-                _ch_pacing = pacing_directive if pacing_directive in _PACING_DRAMA_TARGETS else ""
+                _ch_pacing = (
+                    pacing_directive
+                    if pacing_directive in _PACING_DRAMA_TARGETS
+                    else ""
+                )
             if _ch_pacing in _PACING_DRAMA_TARGETS:
                 min_drama = _PACING_DRAMA_TARGETS[_ch_pacing]
-                logger.debug(f"Ch{chapter.chapter_number}: pacing='{_ch_pacing}' → min_drama={min_drama:.2f}")
+                logger.debug(
+                    f"Ch{chapter.chapter_number}: pacing='{_ch_pacing}' → min_drama={min_drama:.2f}"
+                )
         except Exception:
             pass
 
@@ -648,8 +714,12 @@ class SceneEnhancer:
 
         # Apply curve balancer adjustments (#3 improvement)
         if curve_balancer:
-            curve_min = curve_balancer.get_min_drama_for_chapter(chapter.chapter_number, min_drama)
-            _, curve_directive = curve_balancer.get_chapter_adjustment(chapter.chapter_number)
+            curve_min = curve_balancer.get_min_drama_for_chapter(
+                chapter.chapter_number, min_drama
+            )
+            _, curve_directive = curve_balancer.get_chapter_adjustment(
+                chapter.chapter_number
+            )
             if curve_directive:
                 logger.info(
                     f"Chapter {chapter.chapter_number}: curve adjustment '{curve_directive}' "
@@ -661,9 +731,13 @@ class SceneEnhancer:
         if not scenes:
             scenes = self.decompose_chapter_content(chapter)
         else:
-            logger.info(f"[L2] Chapter {chapter.chapter_number}: structured_summary reused, decompose skipped")
+            logger.info(
+                f"[L2] Chapter {chapter.chapter_number}: structured_summary reused, decompose skipped"
+            )
 
-        scores = self.score_scenes(scenes, genre, preserve_facts=preserve_facts, min_drama_override=min_drama)
+        scores = self.score_scenes(
+            scenes, genre, preserve_facts=preserve_facts, min_drama_override=min_drama
+        )
 
         weak_count = sum(1 for s in scores if s.needs_enhancement)
         parallel_note = "parallel" if self.parallel_enabled else "sequential"
@@ -673,7 +747,9 @@ class SceneEnhancer:
         )
 
         if weak_count == 0:
-            logger.info(f"Chapter {chapter.chapter_number}: all scenes strong, skipping")
+            logger.info(
+                f"Chapter {chapter.chapter_number}: all scenes strong, skipping"
+            )
             return chapter
 
         # Pull author's original idea from draft so L2 enhancement preserves
@@ -686,10 +762,16 @@ class SceneEnhancer:
                 _idea_header = build_idea_header(_idea, _idea_summary)
 
         # Extract characters list from draft for voice enforcement
-        _characters = list(getattr(draft, "characters", []) or []) if draft is not None else []
+        _characters = (
+            list(getattr(draft, "characters", []) or []) if draft is not None else []
+        )
 
         return self.enhance_weak_scenes(
-            chapter, scenes, scores, sim_result, genre,
+            chapter,
+            scenes,
+            scores,
+            sim_result,
+            genre,
             subtext_guidance=subtext_guidance,
             thematic_guidance=thematic_guidance,
             preserve_facts=preserve_facts,
@@ -721,11 +803,13 @@ class SceneEnhancer:
                 piece = content[start:end].strip()
                 if not piece:
                     continue
-                scenes.append({
-                    "scene_number": idx + 1,
-                    "content": piece,
-                    "characters_present": [],
-                })
+                scenes.append(
+                    {
+                        "scene_number": idx + 1,
+                        "content": piece,
+                        "characters_present": [],
+                    }
+                )
             return scenes if len(scenes) >= 3 else []
         except Exception:
             return []

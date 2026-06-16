@@ -1,4 +1,5 @@
 """Integration: enhancer drama-contract validation + retry path."""
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -24,7 +25,9 @@ def _chapter(num: int = 1, content: str = "Enhanced text") -> Chapter:
 
 def _contract_dict(num: int = 1, target: float = 0.7) -> dict:
     return NegotiatedChapterContract(
-        chapter_num=num, pacing_type="rising", drama_target=target,
+        chapter_num=num,
+        pacing_type="rising",
+        drama_target=target,
         escalation_events=["confrontation"],
     ).model_dump()
 
@@ -36,10 +39,18 @@ class TestContractValidationPath:
         orig = _chapter(1, "original")
         enhanced = _chapter(1, "enhanced")
         result = enhancer._apply_contract_validation(
-            enhanced_chapter=enhanced, original=orig, sim_result=sim,
-            genre="", draft=None, subtext_guidance="", thematic_guidance="",
-            chapter_summary=None, thread_state=None, arc_context="",
-            pacing_directive="", consistency_constraints="",
+            enhanced_chapter=enhanced,
+            original=orig,
+            sim_result=sim,
+            genre="",
+            draft=None,
+            subtext_guidance="",
+            thematic_guidance="",
+            chapter_summary=None,
+            thread_state=None,
+            arc_context="",
+            pacing_directive="",
+            consistency_constraints="",
         )
         assert result is enhanced
         assert result.contract_validation is None
@@ -55,10 +66,18 @@ class TestContractValidationPath:
             "reason": "good",
         }
         result = enhancer._apply_contract_validation(
-            enhanced_chapter=_chapter(1, "x"), original=_chapter(1, "o"),
-            sim_result=sim, genre="", draft=None, subtext_guidance="",
-            thematic_guidance="", chapter_summary=None, thread_state=None,
-            arc_context="", pacing_directive="", consistency_constraints="",
+            enhanced_chapter=_chapter(1, "x"),
+            original=_chapter(1, "o"),
+            sim_result=sim,
+            genre="",
+            draft=None,
+            subtext_guidance="",
+            thematic_guidance="",
+            chapter_summary=None,
+            thread_state=None,
+            arc_context="",
+            pacing_directive="",
+            consistency_constraints="",
         )
         assert result.contract_validation is not None
         assert result.contract_validation["passed"] is True
@@ -73,13 +92,17 @@ class TestContractValidationPath:
             {
                 "drama_actual": 0.3,
                 "missing_escalations": ["confrontation"],
-                "missing_subtext": [], "missing_causal_refs": [],
-                "violated_patterns": [], "reason": "weak",
+                "missing_subtext": [],
+                "missing_causal_refs": [],
+                "violated_patterns": [],
+                "reason": "weak",
             },
             {
                 "drama_actual": 0.82,
-                "missing_escalations": [], "missing_subtext": [],
-                "missing_causal_refs": [], "violated_patterns": [],
+                "missing_escalations": [],
+                "missing_subtext": [],
+                "missing_causal_refs": [],
+                "violated_patterns": [],
                 "reason": "fixed",
             },
         ]
@@ -90,10 +113,18 @@ class TestContractValidationPath:
             instance.enhance_chapter_by_scenes.return_value = retried_chapter
 
             result = enhancer._apply_contract_validation(
-                enhanced_chapter=_chapter(1, "weak"), original=_chapter(1, "o"),
-                sim_result=sim, genre="", draft=None, subtext_guidance="base",
-                thematic_guidance="", chapter_summary=None, thread_state=None,
-                arc_context="", pacing_directive="", consistency_constraints="",
+                enhanced_chapter=_chapter(1, "weak"),
+                original=_chapter(1, "o"),
+                sim_result=sim,
+                genre="",
+                draft=None,
+                subtext_guidance="base",
+                thematic_guidance="",
+                chapter_summary=None,
+                thread_state=None,
+                arc_context="",
+                pacing_directive="",
+                consistency_constraints="",
             )
 
         # Retry happened
@@ -113,23 +144,37 @@ class TestContractValidationPath:
             {
                 "drama_actual": 0.6,
                 "missing_escalations": ["confrontation"],
-                "missing_subtext": [], "missing_causal_refs": [],
-                "violated_patterns": [], "reason": "partial",
+                "missing_subtext": [],
+                "missing_causal_refs": [],
+                "violated_patterns": [],
+                "reason": "partial",
             },
             {
                 "drama_actual": 0.1,
                 "missing_escalations": ["confrontation", "reveal"],
-                "missing_subtext": ["subtext"], "missing_causal_refs": [],
-                "violated_patterns": ["hero dies"], "reason": "worse",
+                "missing_subtext": ["subtext"],
+                "missing_causal_refs": [],
+                "violated_patterns": ["hero dies"],
+                "reason": "worse",
             },
         ]
         with patch("pipeline.layer2_enhance.scene_enhancer.SceneEnhancer") as MockSE2:
-            MockSE2.return_value.enhance_chapter_by_scenes.return_value = _chapter(1, "worse")
+            MockSE2.return_value.enhance_chapter_by_scenes.return_value = _chapter(
+                1, "worse"
+            )
             first_enhanced = _chapter(1, "first")
             result = enhancer._apply_contract_validation(
-                enhanced_chapter=first_enhanced, original=_chapter(1, "o"),
-                sim_result=sim, genre="", draft=None, subtext_guidance="",
-                thematic_guidance="", chapter_summary=None, thread_state=None,
-                arc_context="", pacing_directive="", consistency_constraints="",
+                enhanced_chapter=first_enhanced,
+                original=_chapter(1, "o"),
+                sim_result=sim,
+                genre="",
+                draft=None,
+                subtext_guidance="",
+                thematic_guidance="",
+                chapter_summary=None,
+                thread_state=None,
+                arc_context="",
+                pacing_directive="",
+                consistency_constraints="",
             )
         assert result.content == "first"  # retry was worse, kept original enhanced

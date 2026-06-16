@@ -27,8 +27,6 @@ import pytest
 from models.schemas import Character, ChapterOutline, ConflictEntry, ForeshadowingEntry
 from models.semantic_schemas import OUTLINE_METRIC_WEIGHTS, OutlineMetrics
 from pipeline.layer1_story.outline_metrics import (
-    BEAT_COVERAGE_THRESHOLD,
-    PACING_TARGET,
     _gini,
     _shannon_entropy,
     compute_arc_trajectory_variance,
@@ -49,6 +47,7 @@ EMBED_SVC_PATCH = "pipeline.layer1_story.outline_metrics.get_embedding_service"
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 def _wp(*stages: str) -> list[dict]:
     """Helper: build arc_waypoints list[dict]."""
     return [{"stage": s} for s in stages]
@@ -56,7 +55,9 @@ def _wp(*stages: str) -> list[dict]:
 
 def _char(name: str, role: str = "phụ", arc_waypoints: list | None = None) -> Character:
     return Character(
-        name=name, role=role, personality="default",
+        name=name,
+        role=role,
+        personality="default",
         arc_waypoints=arc_waypoints or [],
     )
 
@@ -91,6 +92,7 @@ def _conflict(chars: list[str], cid: str = "c1") -> ConflictEntry:
 # Reference Gini
 # ---------------------------------------------------------------------------
 
+
 def _gini_ref(values: list[float]) -> float:
     n = len(values)
     if n == 0 or sum(values) == 0:
@@ -104,6 +106,7 @@ def _gini_ref(values: list[float]) -> float:
 # ===========================================================================
 # Section 1: _gini
 # ===========================================================================
+
 
 class TestGiniHelper:
     def test_equal_distribution(self):
@@ -135,6 +138,7 @@ class TestGiniHelper:
 # Section 2: _shannon_entropy
 # ===========================================================================
 
+
 class TestShannonEntropy:
     def test_uniform_two(self):
         e = _shannon_entropy({"a": 1, "b": 1})
@@ -153,6 +157,7 @@ class TestShannonEntropy:
 # ===========================================================================
 # Section 3: compute_conflict_web_density
 # ===========================================================================
+
 
 class TestConflictWebDensity:
     def test_empty_conflict_web_returns_zero(self):
@@ -197,6 +202,7 @@ class TestConflictWebDensity:
 # ===========================================================================
 # Section 4: compute_arc_trajectory_variance
 # ===========================================================================
+
 
 class TestArcTrajectoryVariance:
     def test_no_waypoints(self):
@@ -245,6 +251,7 @@ class TestArcTrajectoryVariance:
 # Section 5: compute_pacing_distribution_skew
 # ===========================================================================
 
+
 class TestPacingDistributionSkew:
     def test_empty_outline(self):
         skew, ev = compute_pacing_distribution_skew([])
@@ -262,7 +269,9 @@ class TestPacingDistributionSkew:
         assert skew > 0.95
 
     def test_two_types(self):
-        outlines = [_outline(i + 1, "rising" if i % 2 == 0 else "climax") for i in range(10)]
+        outlines = [
+            _outline(i + 1, "rising" if i % 2 == 0 else "climax") for i in range(10)
+        ]
         skew, _ = compute_pacing_distribution_skew(outlines)
         expected = math.log(2) / math.log(5)
         assert skew == pytest.approx(expected, abs=1e-5)
@@ -274,9 +283,12 @@ class TestPacingDistributionSkew:
         assert any("unknown" in e.lower() for e in ev)
 
     def test_result_in_range(self):
-        outlines = [_outline(i + 1, p) for i, p in enumerate(
-            ["setup", "rising", "rising", "climax", "twist", "cooldown", "rising"]
-        )]
+        outlines = [
+            _outline(i + 1, p)
+            for i, p in enumerate(
+                ["setup", "rising", "rising", "climax", "twist", "cooldown", "rising"]
+            )
+        ]
         skew, _ = compute_pacing_distribution_skew(outlines)
         assert 0.0 <= skew <= 1.0
 
@@ -288,6 +300,7 @@ class TestPacingDistributionSkew:
 # ===========================================================================
 # Section 6: compute_beat_coverage_ratio
 # ===========================================================================
+
 
 class TestBeatCoverageRatio:
     def test_no_key_events_vacuous_truth(self):
@@ -356,7 +369,10 @@ class TestBeatCoverageRatio:
         with patch(EMBED_SVC_PATCH) as mock_svc:
             mock_svc_inst = MagicMock()
             mock_svc_inst.is_available.return_value = True
-            mock_svc_inst.embed_batch.return_value = [vec_to_bytes(beat_vec), vec_to_bytes(ch_vec)]
+            mock_svc_inst.embed_batch.return_value = [
+                vec_to_bytes(beat_vec),
+                vec_to_bytes(ch_vec),
+            ]
             mock_svc.return_value = mock_svc_inst
 
             r, ev = compute_beat_coverage_ratio([outline])
@@ -367,7 +383,9 @@ class TestBeatCoverageRatio:
         """Exception in embedding → string fallback, no crash."""
         with patch(EMBED_SVC_PATCH) as mock_svc:
             mock_svc.return_value.is_available.return_value = True
-            mock_svc.return_value.embed_batch.side_effect = RuntimeError("model offline")
+            mock_svc.return_value.embed_batch.side_effect = RuntimeError(
+                "model offline"
+            )
             outline = _outline(1, key_events=["event A"], summary="event A happens")
             r, ev = compute_beat_coverage_ratio([outline])
         assert r == pytest.approx(1.0)
@@ -376,6 +394,7 @@ class TestBeatCoverageRatio:
 # ===========================================================================
 # Section 7: compute_character_screen_time_gini
 # ===========================================================================
+
 
 class TestCharacterScreenTimeGini:
     def test_no_characters(self):
@@ -414,10 +433,21 @@ class TestCharacterScreenTimeGini:
 # Section 8: compute_outline_metrics (composite)
 # ===========================================================================
 
+
 class TestComputeOutlineMetrics:
     def _make_outlines(self, n: int = 10) -> list[ChapterOutline]:
-        types = ["setup", "rising", "rising", "rising", "rising",
-                 "climax", "cooldown", "twist", "rising", "cooldown"]
+        types = [
+            "setup",
+            "rising",
+            "rising",
+            "rising",
+            "rising",
+            "climax",
+            "cooldown",
+            "twist",
+            "rising",
+            "cooldown",
+        ]
         return [
             _outline(
                 i + 1,
@@ -431,7 +461,10 @@ class TestComputeOutlineMetrics:
 
     def test_returns_outline_metrics_type(self):
         outlines = self._make_outlines(5)
-        chars = [_char("A", arc_waypoints=_wp("s1", "s2")), _char("B", arc_waypoints=_wp("s1"))]
+        chars = [
+            _char("A", arc_waypoints=_wp("s1", "s2")),
+            _char("B", arc_waypoints=_wp("s1")),
+        ]
         with patch(EMBED_SVC_PATCH) as ms:
             ms.return_value.is_available.return_value = False
             metrics = compute_outline_metrics(outlines, [], chars)
@@ -456,8 +489,10 @@ class TestComputeOutlineMetrics:
         balance = 1.0 - m.character_screen_time_gini
         expected = (
             OUTLINE_METRIC_WEIGHTS["conflict_web_density"] * m.conflict_web_density
-            + OUTLINE_METRIC_WEIGHTS["arc_trajectory_variance"] * m.arc_trajectory_variance
-            + OUTLINE_METRIC_WEIGHTS["pacing_distribution_skew"] * m.pacing_distribution_skew
+            + OUTLINE_METRIC_WEIGHTS["arc_trajectory_variance"]
+            * m.arc_trajectory_variance
+            + OUTLINE_METRIC_WEIGHTS["pacing_distribution_skew"]
+            * m.pacing_distribution_skew
             + OUTLINE_METRIC_WEIGHTS["beat_coverage_ratio"] * m.beat_coverage_ratio
             + OUTLINE_METRIC_WEIGHTS["character_screen_time_balance"] * balance
         )
@@ -502,10 +537,13 @@ class TestComputeOutlineMetrics:
 # Section 9: Vietnamese smoke test
 # ===========================================================================
 
+
 class TestVietnameseSmoke:
     def test_vietnamese_names_and_content(self):
         chars = [
-            _char("Nguyễn Minh Anh", "chính", arc_waypoints=_wp("bắt đầu", "phát triển")),
+            _char(
+                "Nguyễn Minh Anh", "chính", arc_waypoints=_wp("bắt đầu", "phát triển")
+            ),
             _char("Trần Long", "phụ", arc_waypoints=_wp("xuất hiện")),
             _char("Lý Thiên", "phản diện"),
         ]
@@ -514,10 +552,22 @@ class TestVietnameseSmoke:
             _conflict(["Nguyễn Minh Anh", "Lý Thiên"], "c2"),
         ]
         outlines = [
-            _outline(1, "setup", ["Nguyễn Minh Anh"], ["Long tìm thấy kiếm"], "Long tìm thấy kiếm"),
-            _outline(2, "rising", ["Trần Long", "Nguyễn Minh Anh"], ["Trận đấu"], "Trận đấu"),
-            _outline(3, "climax", ["Nguyễn Minh Anh", "Lý Thiên"], ["Chiến đấu"], "Chiến đấu"),
-            _outline(4, "cooldown", ["Nguyễn Minh Anh"], ["Hòa bình"], "Hòa bình lập lại"),
+            _outline(
+                1,
+                "setup",
+                ["Nguyễn Minh Anh"],
+                ["Long tìm thấy kiếm"],
+                "Long tìm thấy kiếm",
+            ),
+            _outline(
+                2, "rising", ["Trần Long", "Nguyễn Minh Anh"], ["Trận đấu"], "Trận đấu"
+            ),
+            _outline(
+                3, "climax", ["Nguyễn Minh Anh", "Lý Thiên"], ["Chiến đấu"], "Chiến đấu"
+            ),
+            _outline(
+                4, "cooldown", ["Nguyễn Minh Anh"], ["Hòa bình"], "Hòa bình lập lại"
+            ),
         ]
         with patch(EMBED_SVC_PATCH) as ms:
             ms.return_value.is_available.return_value = False
@@ -529,6 +579,7 @@ class TestVietnameseSmoke:
 
     def test_unicode_normalisation_no_crash(self):
         import unicodedata
+
         name_nfd = unicodedata.normalize("NFD", "Minh Ánh")
         chars = [_char("Minh Ánh")]
         outlines = [_outline(1, chars=[name_nfd])]
@@ -540,13 +591,16 @@ class TestVietnameseSmoke:
 # Section 10: Determinism
 # ===========================================================================
 
+
 class TestDeterminism:
     def _run(self) -> OutlineMetrics:
         outlines = [
             _outline(
                 i + 1,
                 ["setup", "rising", "climax", "cooldown", "twist"][i % 5],
-                ["A", "B"], [f"event {i}"], f"event {i}",
+                ["A", "B"],
+                [f"event {i}"],
+                f"event {i}",
             )
             for i in range(10)
         ]
@@ -574,12 +628,16 @@ class TestDeterminism:
         m2 = self._run()
         j1 = json.dumps(m1.model_dump(), sort_keys=True)
         j2 = json.dumps(m2.model_dump(), sort_keys=True)
-        assert hashlib.sha256(j1.encode()).hexdigest() == hashlib.sha256(j2.encode()).hexdigest()
+        assert (
+            hashlib.sha256(j1.encode()).hexdigest()
+            == hashlib.sha256(j2.encode()).hexdigest()
+        )
 
 
 # ===========================================================================
 # Section 11: Strict-mode raise
 # ===========================================================================
+
 
 class TestStrictMode:
     def _poor_outlines(self):
@@ -600,6 +658,7 @@ class TestStrictMode:
                     ms.return_value.is_available.return_value = False
                     from pipeline.layer1_story.outline_critic import score_outline
                     from pipeline.semantic import SemanticVerificationError
+
                     with pytest.raises(SemanticVerificationError) as exc_info:
                         score_outline(outlines, chars)
                     assert "strict floor" in str(exc_info.value)
@@ -609,6 +668,7 @@ class TestStrictMode:
                 with patch(EMBED_SVC_PATCH) as ms:
                     ms.return_value.is_available.return_value = False
                     from pipeline.layer1_story.outline_critic import score_outline
+
                     metrics, _, _ = score_outline(outlines, chars)
                     assert isinstance(metrics, OutlineMetrics)
 
@@ -619,6 +679,7 @@ class TestStrictMode:
             with patch(EMBED_SVC_PATCH) as ms:
                 ms.return_value.is_available.return_value = False
                 from pipeline.layer1_story.outline_critic import score_outline
+
                 metrics, _, _ = score_outline(outlines, chars)
                 assert isinstance(metrics, OutlineMetrics)
 
@@ -630,6 +691,7 @@ class TestStrictMode:
             with patch(EMBED_SVC_PATCH) as ms:
                 ms.return_value.is_available.return_value = False
                 from pipeline.layer1_story.outline_critic import score_outline
+
                 metrics, _, _ = score_outline(outlines, chars)
                 assert isinstance(metrics, OutlineMetrics)
 
@@ -637,6 +699,7 @@ class TestStrictMode:
 # ===========================================================================
 # Section 12: Persistence
 # ===========================================================================
+
 
 class TestPersistence:
     """Persistence tests use sqlalchemy.orm.Session patch since
@@ -668,9 +731,17 @@ class TestPersistence:
         mock_session = MagicMock()
         mock_session.query.return_value.filter.return_value.order_by.return_value.first.return_value = mock_run
 
-        with patch("sqlalchemy.create_engine"):
+        # Patch the engine seam, NOT sqlalchemy.create_engine: _get_sync_engine
+        # registers a sqlite "connect" event listener, which blows up on a
+        # MagicMock engine and leaves the module-level singleton poisoned for
+        # every later test in the process.
+        with patch(
+            "pipeline.orchestrator_layers._get_sync_engine", return_value=MagicMock()
+        ):
             with patch("sqlalchemy.orm.Session") as mock_sess_cls:
-                mock_sess_cls.return_value.__enter__ = MagicMock(return_value=mock_session)
+                mock_sess_cls.return_value.__enter__ = MagicMock(
+                    return_value=mock_session
+                )
                 mock_sess_cls.return_value.__exit__ = MagicMock(return_value=False)
 
                 persist_outline_metrics("story-abc", metrics_dict)
@@ -682,9 +753,13 @@ class TestPersistence:
         """Session-level exception is swallowed; no raise propagates."""
         from pipeline.orchestrator_layers import persist_outline_metrics
 
-        with patch("sqlalchemy.create_engine"):
+        with patch(
+            "pipeline.orchestrator_layers._get_sync_engine", return_value=MagicMock()
+        ):
             with patch("sqlalchemy.orm.Session") as mock_sess_cls:
-                mock_sess_cls.return_value.__enter__ = MagicMock(side_effect=Exception("DB down"))
+                mock_sess_cls.return_value.__enter__ = MagicMock(
+                    side_effect=Exception("DB down")
+                )
                 mock_sess_cls.return_value.__exit__ = MagicMock(return_value=False)
                 persist_outline_metrics("story-xyz", {"overall_score": 0.5})
 
@@ -695,9 +770,13 @@ class TestPersistence:
         mock_session = MagicMock()
         mock_session.query.return_value.filter.return_value.order_by.return_value.first.return_value = None
 
-        with patch("sqlalchemy.create_engine"):
+        with patch(
+            "pipeline.orchestrator_layers._get_sync_engine", return_value=MagicMock()
+        ):
             with patch("sqlalchemy.orm.Session") as mock_sess_cls:
-                mock_sess_cls.return_value.__enter__ = MagicMock(return_value=mock_session)
+                mock_sess_cls.return_value.__enter__ = MagicMock(
+                    return_value=mock_session
+                )
                 mock_sess_cls.return_value.__exit__ = MagicMock(return_value=False)
                 persist_outline_metrics("nonexistent", {"overall_score": 0.5})
 
@@ -706,11 +785,17 @@ class TestPersistence:
 # Section 13: LLM signal isolation
 # ===========================================================================
 
+
 class TestLLMSignalIsolation:
     def test_garbage_llm_does_not_change_primary_score(self):
         outlines = [
-            _outline(i + 1, ["setup", "rising", "rising", "climax", "cooldown"][i % 5],
-                     ["A", "B"], [f"ev{i}"], f"ev{i}")
+            _outline(
+                i + 1,
+                ["setup", "rising", "rising", "climax", "cooldown"][i % 5],
+                ["A", "B"],
+                [f"ev{i}"],
+                f"ev{i}",
+            )
             for i in range(10)
         ]
         chars = [
@@ -725,7 +810,8 @@ class TestLLMSignalIsolation:
 
         mock_llm = MagicMock()
         mock_llm.generate_json.return_value = {
-            "overall_score": "GARBAGE", "plot_holes": ["GARBAGE"],
+            "overall_score": "GARBAGE",
+            "plot_holes": ["GARBAGE"],
         }
         mock_world = MagicMock()
         mock_world.name = "World"
@@ -734,14 +820,21 @@ class TestLLMSignalIsolation:
         with patch(EMBED_SVC_PATCH) as ms:
             ms.return_value.is_available.return_value = False
             from pipeline.layer1_story.outline_critic import critique_and_revise
+
             _, result_dict = critique_and_revise(
-                mock_llm, outlines, chars, mock_world,
-                synopsis="test", genre="action",
+                mock_llm,
+                outlines,
+                chars,
+                mock_world,
+                synopsis="test",
+                genre="action",
                 conflict_web=cw,
                 enable_llm_critic=True,
             )
 
-        assert result_dict["composite_score"] == pytest.approx(ref.overall_score, abs=1e-5)
+        assert result_dict["composite_score"] == pytest.approx(
+            ref.overall_score, abs=1e-5
+        )
         assert result_dict["llm_signal"] is not None
 
     def test_llm_unavailable_no_crash(self):
@@ -756,9 +849,14 @@ class TestLLMSignalIsolation:
         with patch(EMBED_SVC_PATCH) as ms:
             ms.return_value.is_available.return_value = False
             from pipeline.layer1_story.outline_critic import critique_and_revise
+
             _, result_dict = critique_and_revise(
-                mock_llm, outlines, chars, mock_world,
-                synopsis="s", genre="g",
+                mock_llm,
+                outlines,
+                chars,
+                mock_world,
+                synopsis="s",
+                genre="g",
                 enable_llm_critic=True,
             )
 
@@ -772,8 +870,18 @@ class TestLLMSignalIsolation:
         We verify llm_signal=None in result, confirming critique was not run.
         """
         # Use a high-scoring outline (diverse pacing, conflict) to prevent rewrite
-        types = ["setup", "rising", "rising", "climax", "cooldown",
-                 "twist", "rising", "rising", "climax", "cooldown"]
+        types = [
+            "setup",
+            "rising",
+            "rising",
+            "climax",
+            "cooldown",
+            "twist",
+            "rising",
+            "rising",
+            "climax",
+            "cooldown",
+        ]
         chars = [_char("A"), _char("B")]
         cw = [_conflict(["A", "B"])]
         outlines = [
@@ -788,9 +896,14 @@ class TestLLMSignalIsolation:
         with patch(EMBED_SVC_PATCH) as ms:
             ms.return_value.is_available.return_value = False
             from pipeline.layer1_story.outline_critic import critique_and_revise
+
             _, result_dict = critique_and_revise(
-                mock_llm, outlines, chars, mock_world,
-                synopsis="s", genre="g",
+                mock_llm,
+                outlines,
+                chars,
+                mock_world,
+                synopsis="s",
+                genre="g",
                 conflict_web=cw,
                 enable_llm_critic=False,
             )
@@ -803,6 +916,7 @@ class TestLLMSignalIsolation:
 # Section 14: score_outline function
 # ===========================================================================
 
+
 class TestScoreOutline:
     def test_returns_metrics_and_bool(self):
         outlines = [_outline(i + 1) for i in range(5)]
@@ -810,6 +924,7 @@ class TestScoreOutline:
         with patch(EMBED_SVC_PATCH) as ms:
             ms.return_value.is_available.return_value = False
             from pipeline.layer1_story.outline_critic import score_outline
+
             metrics, should_rw, failing = score_outline(outlines, chars)
 
         assert isinstance(metrics, OutlineMetrics)
@@ -817,8 +932,18 @@ class TestScoreOutline:
         assert isinstance(failing, list)
 
     def test_high_score_metrics_valid(self):
-        types = ["setup", "rising", "rising", "rising", "rising",
-                 "climax", "cooldown", "twist", "rising", "cooldown"]
+        types = [
+            "setup",
+            "rising",
+            "rising",
+            "rising",
+            "rising",
+            "climax",
+            "cooldown",
+            "twist",
+            "rising",
+            "cooldown",
+        ]
         chars = [
             _char("A", arc_waypoints=_wp("s1", "s2", "s3")),
             _char("B", arc_waypoints=_wp("s1", "s2", "s3")),
@@ -831,6 +956,7 @@ class TestScoreOutline:
         with patch(EMBED_SVC_PATCH) as ms:
             ms.return_value.is_available.return_value = False
             from pipeline.layer1_story.outline_critic import score_outline
+
             metrics, _, _ = score_outline(outlines, chars, conflict_web=cw)
 
         assert isinstance(metrics, OutlineMetrics)
@@ -843,6 +969,7 @@ class TestScoreOutline:
         with patch(EMBED_SVC_PATCH) as ms:
             ms.return_value.is_available.return_value = False
             from pipeline.layer1_story.outline_critic import score_outline
+
             metrics, should_rw, failing = score_outline(outlines, chars)
 
         # pacing_distribution_skew = 0 < floor 0.30 → should_rw=True
@@ -854,6 +981,7 @@ class TestScoreOutline:
 # ===========================================================================
 # Section 15: outline_critic backward compat
 # ===========================================================================
+
 
 class TestOutlineCriticBackwardCompat:
     def test_critique_and_revise_returns_tuple(self):
@@ -868,6 +996,7 @@ class TestOutlineCriticBackwardCompat:
         with patch(EMBED_SVC_PATCH) as ms:
             ms.return_value.is_available.return_value = False
             from pipeline.layer1_story.outline_critic import critique_and_revise
+
             result = critique_and_revise(
                 mock_llm, outlines, chars, mock_world, "synopsis", "action"
             )
@@ -892,9 +1021,9 @@ class TestOutlineCriticBackwardCompat:
         mock_world.description = "d"
 
         from pipeline.layer1_story.outline_critic import critique_outline
+
         result = critique_outline(
-            mock_llm, [_outline(1)], [_char("A")],
-            mock_world, "synopsis", "genre"
+            mock_llm, [_outline(1)], [_char("A")], mock_world, "synopsis", "genre"
         )
         assert isinstance(result, dict)
 
@@ -902,8 +1031,13 @@ class TestOutlineCriticBackwardCompat:
         mock_llm = MagicMock()
         mock_llm.generate_json.return_value = {
             "outlines": [
-                {"chapter_number": 1, "title": "T", "summary": "S",
-                 "pacing_type": "rising", "arc_id": 1}
+                {
+                    "chapter_number": 1,
+                    "title": "T",
+                    "summary": "S",
+                    "pacing_type": "rising",
+                    "arc_id": 1,
+                }
             ]
         }
         mock_world = MagicMock()
@@ -911,9 +1045,14 @@ class TestOutlineCriticBackwardCompat:
         mock_world.description = "d"
 
         from pipeline.layer1_story.outline_critic import revise_outline_from_critique
+
         result = revise_outline_from_critique(
-            mock_llm, [_outline(1)], {"overall_score": 1},
-            [_char("A")], mock_world, "genre"
+            mock_llm,
+            [_outline(1)],
+            {"overall_score": 1},
+            [_char("A")],
+            mock_world,
+            "genre",
         )
         assert isinstance(result, list)
 
@@ -921,6 +1060,7 @@ class TestOutlineCriticBackwardCompat:
 # ===========================================================================
 # Section 16: Sprint 3 P7 regressions — OUTLINE_METRIC_FLOORS dedup (Item B)
 # ===========================================================================
+
 
 class TestOutlineMetricFloorsDedup:
     """Sprint 3 P7: OUTLINE_METRIC_FLOORS is the single canonical definition.
@@ -933,6 +1073,7 @@ class TestOutlineMetricFloorsDedup:
         """METRIC_FLOORS in outline_critic IS OUTLINE_METRIC_FLOORS (not a copy)."""
         from pipeline.layer1_story.outline_metrics import OUTLINE_METRIC_FLOORS
         from pipeline.layer1_story.outline_critic import METRIC_FLOORS
+
         assert METRIC_FLOORS is OUTLINE_METRIC_FLOORS, (
             "METRIC_FLOORS must be the same object as OUTLINE_METRIC_FLOORS "
             "(import alias, not a copy)"
@@ -942,20 +1083,38 @@ class TestOutlineMetricFloorsDedup:
         """Values are equal regardless of import path."""
         from pipeline.layer1_story.outline_metrics import OUTLINE_METRIC_FLOORS
         from pipeline.layer1_story.outline_critic import METRIC_FLOORS
+
         assert METRIC_FLOORS == OUTLINE_METRIC_FLOORS
 
     def test_floors_expected_keys(self):
         """All five metric keys are present with correct floor values."""
         from pipeline.layer1_story.outline_metrics import OUTLINE_METRIC_FLOORS
+
         assert OUTLINE_METRIC_FLOORS["conflict_web_density"] == pytest.approx(0.10)
         assert OUTLINE_METRIC_FLOORS["arc_trajectory_variance"] == pytest.approx(0.10)
         assert OUTLINE_METRIC_FLOORS["pacing_distribution_skew"] == pytest.approx(0.30)
         assert OUTLINE_METRIC_FLOORS["beat_coverage_ratio"] == pytest.approx(0.50)
-        assert OUTLINE_METRIC_FLOORS["character_screen_time_balance"] == pytest.approx(0.30)
+        assert OUTLINE_METRIC_FLOORS["character_screen_time_balance"] == pytest.approx(
+            0.30
+        )
 
     def test_floors_key_matches_weights_schema(self):
         """Floor key 'character_screen_time_balance' matches OUTLINE_METRIC_WEIGHTS."""
         from pipeline.layer1_story.outline_metrics import OUTLINE_METRIC_FLOORS
         from models.semantic_schemas import OUTLINE_METRIC_WEIGHTS
+
         assert "character_screen_time_balance" in OUTLINE_METRIC_FLOORS
         assert "character_screen_time_balance" in OUTLINE_METRIC_WEIGHTS
+
+
+class TestBeatCoverageStringFallback:
+    def test_reports_uncovered_beats_in_evidence(self):
+        """Uncovered beats are listed in the evidence (string fallback path)."""
+        from pipeline.layer1_story.outline_metrics import _beat_coverage_string
+
+        ratio, evidence = _beat_coverage_string(
+            ["kiếm tổ tiên", "beat không hề xuất hiện trong truyện"],
+            ["Long tìm thấy kiếm tổ tiên trong hang động."],
+        )
+        assert ratio == 0.5
+        assert any("uncovered beats" in e for e in evidence)

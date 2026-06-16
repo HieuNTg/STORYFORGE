@@ -10,19 +10,21 @@ MAX_RETRIES = 3
 BASE_DELAY = 1.0
 
 # OpenRouter embeds X-RateLimit-Reset (ms since epoch) in 429 error bodies.
-_OPENROUTER_RESET_RE = re.compile(r"['\"]X-RateLimit-Reset['\"]\s*:\s*['\"]?(\d{10,})['\"]?", re.IGNORECASE)
+_OPENROUTER_RESET_RE = re.compile(
+    r"['\"]X-RateLimit-Reset['\"]\s*:\s*['\"]?(\d{10,})['\"]?", re.IGNORECASE
+)
 
 # Patterns that may expose credentials in error messages
 _REDACT_PATTERNS = re.compile(
-    r'((?:Authorization|Bearer|api[_-]?key|x-api-key)\s*[:=]\s*)'
-    r'([A-Za-z0-9\-_.~+/]{8,})',
+    r"((?:Authorization|Bearer|api[_-]?key|x-api-key)\s*[:=]\s*)"
+    r"([A-Za-z0-9\-_.~+/]{8,})",
     re.IGNORECASE,
 )
 
 
 def _redact(message: str) -> str:
     """Strip API keys, bearer tokens, and auth headers from a string before logging."""
-    return _REDACT_PATTERNS.sub(r'\1[REDACTED]', str(message))
+    return _REDACT_PATTERNS.sub(r"\1[REDACTED]", str(message))
 
 
 # Transient error indicators
@@ -35,12 +37,16 @@ _AUTH_ERROR_CODES = {401, 403}
 def _is_auth_error(exc: Exception) -> bool:
     """Check if exception is an auth/credential error (not a model health issue)."""
     exc_str = str(exc).lower()
-    return any(str(code) in exc_str for code in _AUTH_ERROR_CODES) or "no cookie" in exc_str
+    return (
+        any(str(code) in exc_str for code in _AUTH_ERROR_CODES)
+        or "no cookie" in exc_str
+    )
 
 
 def _is_transient(exc: Exception) -> bool:
     """Check if exception is transient (worth retrying)."""
     import json
+
     if isinstance(exc, json.JSONDecodeError):
         return True
     if isinstance(exc, RuntimeError) and (
@@ -50,7 +56,16 @@ def _is_transient(exc: Exception) -> bool:
     exc_str = str(exc).lower()
     if any(str(code) in exc_str for code in _TRANSIENT_CODES):
         return True
-    if any(kw in exc_str for kw in ("timeout", "connection", "reset", "broken pipe", "incomplete chunked")):
+    if any(
+        kw in exc_str
+        for kw in (
+            "timeout",
+            "connection",
+            "reset",
+            "broken pipe",
+            "incomplete chunked",
+        )
+    ):
         return True
     return False
 
@@ -79,7 +94,9 @@ def _parse_retry_after(exc: Exception) -> float | None:
     """Extract Retry-After delay from HTTP error response, if available."""
     resp = getattr(exc, "response", None)
     if resp is not None:
-        header = getattr(resp, "headers", {}).get("retry-after") or getattr(resp, "headers", {}).get("Retry-After")
+        header = getattr(resp, "headers", {}).get("retry-after") or getattr(
+            resp, "headers", {}
+        ).get("Retry-After")
         if header:
             try:
                 return float(header)
@@ -117,7 +134,9 @@ def _should_retry(exc: Exception, provider: str) -> tuple[bool, float]:
     exc_str = str(exc).lower()
 
     # Ollama: model not loaded = unrecoverable
-    if provider == "ollama" and ("model" in exc_str and ("not found" in exc_str or "not loaded" in exc_str)):
+    if provider == "ollama" and (
+        "model" in exc_str and ("not found" in exc_str or "not loaded" in exc_str)
+    ):
         return False, 0
 
     # OpenAI: org quota exceeded = unrecoverable

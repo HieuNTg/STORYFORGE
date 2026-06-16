@@ -51,7 +51,9 @@ def assign_variant(experiment_id: str, body: AssignBody):
 
 
 @router.post("/experiments/{experiment_id}/result", status_code=201)
-def record_result(experiment_id: str, body: ResultBody, _user=Depends(get_current_user)):
+def record_result(
+    experiment_id: str, body: ResultBody, _user=Depends(get_current_user)
+):
     """Record an outcome for a session."""
     try:
         manager.record_result(experiment_id, body.session_id, body.metric, body.value)

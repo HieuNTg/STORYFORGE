@@ -14,10 +14,6 @@ P7 follow-up: calibration test with real model on 30-pair Vietnamese set.
 from __future__ import annotations
 
 import hashlib
-import os
-import sqlite3
-import tempfile
-from typing import Generator
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -25,7 +21,6 @@ import pytest
 
 from models.handoff_schemas import ForeshadowingSeed
 from models.schemas import Chapter, ForeshadowingEntry
-from models.semantic_schemas import ChapterSemanticFindings, SemanticPayoffMatch
 from pipeline.semantic.foreshadowing_verifier import (
     SemanticVerificationError,
     _keyword_match,
@@ -98,7 +93,9 @@ def test_split_spans_vietnamese_ellipsis():
 
 
 def test_split_spans_deduplication():
-    text = "Lặp lại câu này nhiều lần. Lặp lại câu này nhiều lần. Câu hoàn toàn khác biệt."
+    text = (
+        "Lặp lại câu này nhiều lần. Lặp lại câu này nhiều lần. Câu hoàn toàn khác biệt."
+    )
     spans = _split_spans(text)
     # Deduplicated: only 2 unique spans (the repeated one collapsed + the different one)
     assert len(spans) == 2
@@ -121,13 +118,27 @@ def test_split_spans_empty():
 
 
 def test_keyword_match_hit():
-    m = _keyword_match("id1", 3, "payoff", "thanh kiếm truyền gia", "thanh kiếm truyền lại gia tộc", threshold=0.62)
+    m = _keyword_match(
+        "id1",
+        3,
+        "payoff",
+        "thanh kiếm truyền gia",
+        "thanh kiếm truyền lại gia tộc",
+        threshold=0.62,
+    )
     assert m.matched is True
     assert m.method == "keyword_fallback"
 
 
 def test_keyword_match_miss():
-    m = _keyword_match("id1", 3, "payoff", "thanh kiếm truyền gia", "mặt trời mọc trên đỉnh núi", threshold=0.62)
+    m = _keyword_match(
+        "id1",
+        3,
+        "payoff",
+        "thanh kiếm truyền gia",
+        "mặt trời mọc trên đỉnh núi",
+        threshold=0.62,
+    )
     assert m.matched is False
 
 
@@ -171,7 +182,10 @@ def test_verify_payoffs_matched(monkeypatch):
     entry = _make_entry("thanh kiếm", 1, 3)
     chapter = _make_chapter(3, "Thanh kiếm sáng ngời. Một vật khác hoàn toàn.")
 
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
         results = verify_payoffs([entry], [chapter], threshold=0.62)
 
     assert len(results) == 1
@@ -194,7 +208,10 @@ def test_verify_payoffs_weak(monkeypatch):
     entry = _make_entry("bí mật", 1, 5)
     chapter = _make_chapter(5, "Một điều gì đó ẩn giấu sau màn đêm.")
 
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
         results = verify_payoffs([entry], [chapter], threshold=0.62)
 
     assert results[0].matched is False
@@ -211,7 +228,10 @@ def test_verify_payoffs_missed(monkeypatch):
     entry = _make_entry("kiếm thuật", 1, 4)
     chapter = _make_chapter(4, "Ngày xuân ấm áp trong khu vườn hoa.")
 
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
         results = verify_payoffs([entry], [chapter], threshold=0.62)
 
     assert results[0].matched is False
@@ -237,10 +257,15 @@ def test_threshold_boundary(monkeypatch):
         entry = _make_entry("test hint here", 1, 2)
         chapter = _make_chapter(2, "Content long enough to pass span filter easily.")
 
-        with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+        with patch(
+            "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+            return_value=svc,
+        ):
             results = verify_payoffs([entry], [chapter], threshold=threshold)
 
-        assert results[0].matched is expect_matched, f"Expected matched={expect_matched} at {'above' if expect_matched else 'below'}"
+        assert results[0].matched is expect_matched, (
+            f"Expected matched={expect_matched} at {'above' if expect_matched else 'below'}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -257,7 +282,10 @@ def test_planted_confidence_matches_max_sim(monkeypatch):
     entry = _make_entry("kiếm", 1, 2)
     chapter = _make_chapter(2, "Kiếm sáng ngời trong bóng tối. Một cảnh khác.")
 
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
         results = verify_payoffs([entry], [chapter], threshold=0.62)
 
     # max sim should be the highest of the two spans
@@ -281,7 +309,10 @@ def test_legacy_entry_uses_hint(monkeypatch):
 
     chapter = _make_chapter(3, "Bí ẩn gia tộc cuối cùng được hé lộ trong đêm tối.")
 
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
         results = verify_payoffs([entry], [chapter], threshold=0.62)
 
     assert results[0].seed_id == expected_id
@@ -300,7 +331,10 @@ def test_seed_uses_semantic_anchor(monkeypatch):
     seed = _make_seed("seed-001", "thanh kiếm tổ tiên", plant=1, payoff=2)
     chapter = _make_chapter(2, "Thanh kiếm của tổ tiên cuối cùng được tìm thấy.")
 
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
         results = verify_payoffs([seed], [chapter], threshold=0.62)
 
     assert results[0].seed_id == "seed-001"
@@ -330,13 +364,16 @@ def test_vietnamese_paraphrase_matched(monkeypatch):
     anchor = _unit_vec([1.0, 0.0, 0.0])
     # Simulate cos = 0.75
     sim_target = 0.75
-    span = _unit_vec([sim_target, (1 - sim_target ** 2) ** 0.5, 0.0])
+    span = _unit_vec([sim_target, (1 - sim_target**2) ** 0.5, 0.0])
 
     svc = _mock_svc_with_vectors(anchor, [span])
     seed = _make_seed("viet-001", "Long mất kiếm gia truyền", plant=1, payoff=3)
     chapter = _make_chapter(3, "thanh kiếm tổ tiên đã biến mất")
 
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
         results = verify_payoffs([seed], [chapter], threshold=0.62)
 
     assert results[0].matched is True, (
@@ -361,7 +398,10 @@ def test_strict_mode_raises_on_missed(monkeypatch):
     entry = _make_entry("kiếm thuật bí truyền", 1, 4)
     chapter = _make_chapter(4, "Ngày xuân ấm áp trong khu vườn hoa.")
 
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
         with pytest.raises(SemanticVerificationError) as exc_info:
             verify_payoffs([entry], [chapter], threshold=0.62)
 
@@ -380,9 +420,15 @@ def test_strict_mode_off_warns_not_raises(monkeypatch, caplog):
     entry = _make_entry("kiếm thuật bí truyền", 1, 4)
     chapter = _make_chapter(4, "Ngày xuân ấm áp trong khu vườn hoa.")
 
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
         import logging
-        with caplog.at_level(logging.WARNING, logger="pipeline.semantic.foreshadowing_verifier"):
+
+        with caplog.at_level(
+            logging.WARNING, logger="pipeline.semantic.foreshadowing_verifier"
+        ):
             results = verify_payoffs([entry], [chapter], threshold=0.62)
 
     assert len(results) == 1
@@ -404,7 +450,10 @@ def test_fallback_to_keyword_when_unavailable(monkeypatch):
     # content contains "thanh kiếm" and "gia" → keyword match
     chapter = _make_chapter(3, "Thanh kiếm gia truyền sáng lên trong bóng tối.")
 
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
         results = verify_payoffs([entry], [chapter], threshold=0.62)
 
     # verify_payoffs skips chapters whose match requires embedding when unavailable
@@ -441,7 +490,10 @@ def test_verify_seeds_plants_seed(monkeypatch):
     entry = _make_entry("bóng ma", 2, 8)
     chapter = _make_chapter(2, "Bóng ma từ quá khứ hiện về trong giấc mơ.")
 
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
         results = verify_seeds([entry], [chapter], threshold=0.55)
 
     assert results[0].matched is True
@@ -465,7 +517,10 @@ def test_semantic_findings_written_to_chapter(monkeypatch):
     entry = _make_entry("kiếm thuật", 1, 2)
     chapter = _make_chapter(2, "Kiếm thuật được truyền thụ trong bóng đêm.")
 
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
         results = verify_payoffs([entry], [chapter], threshold=0.62)
 
     # Findings returned correctly
@@ -478,9 +533,6 @@ def test_chapter_semantic_findings_sqlite(tmp_path, monkeypatch):
     import uuid
     import sqlalchemy as sa
     from sqlalchemy import create_engine
-    from sqlalchemy.orm import Session, DeclarativeBase, Mapped, mapped_column
-    from sqlalchemy import String, Integer, Text, JSON, ForeignKey, func
-    from typing import Optional
     from pipeline.orchestrator_layers import persist_chapter_semantic_findings
 
     db_path = str(tmp_path / "test.db")
@@ -489,7 +541,8 @@ def test_chapter_semantic_findings_sqlite(tmp_path, monkeypatch):
 
     # Create minimal tables directly (avoid importing full db_models which has JSONB/PostgreSQL types)
     with engine.connect() as conn:
-        conn.execute(sa.text("""
+        conn.execute(
+            sa.text("""
             CREATE TABLE IF NOT EXISTS stories (
                 id TEXT PRIMARY KEY,
                 title TEXT NOT NULL DEFAULT '',
@@ -503,8 +556,10 @@ def test_chapter_semantic_findings_sqlite(tmp_path, monkeypatch):
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """))
-        conn.execute(sa.text("""
+        """)
+        )
+        conn.execute(
+            sa.text("""
             CREATE TABLE IF NOT EXISTS chapters (
                 id TEXT PRIMARY KEY,
                 story_id TEXT NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
@@ -518,38 +573,58 @@ def test_chapter_semantic_findings_sqlite(tmp_path, monkeypatch):
                 contract_reconciliation_warnings JSON,
                 semantic_findings JSON
             )
-        """))
+        """)
+        )
         conn.commit()
 
-    # UUID(as_uuid=False) strips dashes when querying — insert without dashes to match
-    raw_story_id = uuid.uuid4().hex  # no dashes
-    raw_chapter_id = uuid.uuid4().hex
-    # story_id with dashes (as ORM would return)
-    story_id = str(uuid.UUID(raw_story_id))
+    # Chapter.story_id is String(36) storing str(uuid4()) WITH dashes —
+    # insert and query with the same dashed form the ORM uses.
+    story_id = str(uuid.uuid4())
+    chapter_id = str(uuid.uuid4())
 
     with engine.connect() as conn:
-        conn.execute(sa.text(
-            "INSERT INTO stories (id, title, genre) VALUES (:id, :title, :genre)"
-        ), {"id": raw_story_id, "title": "Test", "genre": "Fantasy"})
-        conn.execute(sa.text(
-            "INSERT INTO chapters (id, story_id, chapter_number, title, content, word_count)"
-            " VALUES (:id, :story_id, :num, :title, :content, :wc)"
-        ), {"id": raw_chapter_id, "story_id": raw_story_id, "num": 3,
-            "title": "Ch3", "content": "Content", "wc": 1})
+        conn.execute(
+            sa.text(
+                "INSERT INTO stories (id, title, genre) VALUES (:id, :title, :genre)"
+            ),
+            {"id": story_id, "title": "Test", "genre": "Fantasy"},
+        )
+        conn.execute(
+            sa.text(
+                "INSERT INTO chapters (id, story_id, chapter_number, title, content, word_count)"
+                " VALUES (:id, :story_id, :num, :title, :content, :wc)"
+            ),
+            {
+                "id": chapter_id,
+                "story_id": story_id,
+                "num": 3,
+                "title": "Ch3",
+                "content": "Content",
+                "wc": 1,
+            },
+        )
         conn.commit()
 
-    # persist_chapter_semantic_findings uses ORM (UUID strips dashes on query)
+    # _get_sync_engine caches a module-level singleton; reset it so the
+    # DATABASE_URL monkeypatch actually takes effect for this call.
+    import pipeline.orchestrator_layers as _ol
+
+    monkeypatch.setattr(_ol, "_sync_engine", None)
     monkeypatch.setenv("DATABASE_URL", db_url)
     findings = {"schema_version": "1.0.0", "chapter_num": 3, "payoff_matches": []}
     persist_chapter_semantic_findings(story_id, 3, findings)
 
     # Verify via raw SQL
     with engine.connect() as conn:
-        row = conn.execute(sa.text(
-            "SELECT semantic_findings FROM chapters WHERE story_id=:sid AND chapter_number=3"
-        ), {"sid": raw_story_id}).fetchone()
+        row = conn.execute(
+            sa.text(
+                "SELECT semantic_findings FROM chapters WHERE story_id=:sid AND chapter_number=3"
+            ),
+            {"sid": story_id},
+        ).fetchone()
     assert row is not None
     import json as _json
+
     sf = _json.loads(row[0]) if isinstance(row[0], str) else row[0]
     assert sf is not None
     assert sf["schema_version"] == "1.0.0"
@@ -565,7 +640,7 @@ def test_chapter_semantic_findings_sqlite(tmp_path, monkeypatch):
 def test_post_processing_no_llm_call(monkeypatch):
     """verify_payoffs in post_processing does not call the LLM client."""
     from pipeline.layer1_story.post_processing import process_chapter_post_write
-    from models.schemas import StoryContext, ChapterOutline, Character
+    from models.schemas import StoryContext, ChapterOutline
     from concurrent.futures import ThreadPoolExecutor
 
     anchor = _unit_vec([1.0, 0.0, 0.0])
@@ -607,7 +682,10 @@ def test_post_processing_no_llm_call(monkeypatch):
 
     draft_mock = MagicMock()
 
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
         with ThreadPoolExecutor(max_workers=1) as executor:
             try:
                 process_chapter_post_write(
@@ -648,7 +726,10 @@ def test_verify_payoffs_skips_missing_chapter(monkeypatch):
     entry = _make_entry("kiếm", 1, 99)  # payoff at ch 99
     chapter = _make_chapter(3, "Some content that has nothing to do with chapter 99.")
 
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
         results = verify_payoffs([entry], [chapter], threshold=0.62)
 
     # Chapter 99 doesn't exist → no result emitted
@@ -666,7 +747,10 @@ def test_verify_seeds_strict_mode_raises(monkeypatch):
     entry = _make_entry("bí ẩn gia tộc lớn", 2, 5)
     chapter = _make_chapter(2, "Ngày tháng bình yên trôi qua trong im lặng.")
 
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
         with pytest.raises(SemanticVerificationError):
             verify_seeds([entry], [chapter], threshold=0.55)
 
@@ -678,16 +762,22 @@ def test_verify_seeds_warn_on_weak(monkeypatch, caplog):
     anchor = _unit_vec([1.0, 0.0, 0.0])
     # sim ~0.52 (weak: >= 0.5 = floor, < 0.55 = threshold)
     weak_sim = 0.52
-    span = _unit_vec([weak_sim, (1 - weak_sim ** 2) ** 0.5, 0.0])
+    span = _unit_vec([weak_sim, (1 - weak_sim**2) ** 0.5, 0.0])
 
     svc = _mock_svc_with_vectors(anchor, [span])
     entry = _make_entry("thanh kiếm gia truyền", 2, 5)
     chapter = _make_chapter(2, "Có một thứ gì đó ẩn giấu trong bóng tối sâu thẳm.")
 
     import logging
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
-        with caplog.at_level(logging.WARNING, logger="pipeline.semantic.foreshadowing_verifier"):
-            results = verify_seeds([entry], [chapter], threshold=0.55)
+
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
+        with caplog.at_level(
+            logging.WARNING, logger="pipeline.semantic.foreshadowing_verifier"
+        ):
+            verify_seeds([entry], [chapter], threshold=0.55)
 
     assert any("weak" in r.message for r in caplog.records)
 
@@ -702,7 +792,10 @@ def test_frozen_seed_planted_confidence_not_raised(monkeypatch):
     chapter = _make_chapter(2, "Thanh kiếm xuất hiện trong đêm tối bí ẩn.")
 
     # Should not raise even though ForeshadowingSeed has no planted_confidence field
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
         results = verify_payoffs([seed], [chapter], threshold=0.62)
 
     assert len(results) == 1
@@ -711,6 +804,7 @@ def test_frozen_seed_planted_confidence_not_raised(monkeypatch):
 def test_cache_debug_no_cache_attr(monkeypatch):
     """_log_cache_debug works when svc has no _cache attr (no-op)."""
     from pipeline.semantic.foreshadowing_verifier import _log_cache_debug
+
     svc = MagicMock(spec=[])  # no _cache attribute
     _log_cache_debug(svc, 1, 5)  # should not raise
 
@@ -718,6 +812,7 @@ def test_cache_debug_no_cache_attr(monkeypatch):
 def test_cache_debug_stats_exception(monkeypatch):
     """_log_cache_debug suppresses exceptions from stats()."""
     from pipeline.semantic.foreshadowing_verifier import _log_cache_debug
+
     svc = MagicMock()
     svc._cache = MagicMock()
     svc._cache.stats.side_effect = RuntimeError("db gone")
@@ -764,14 +859,19 @@ def test_microbenchmark_10_chapters(monkeypatch, capsys):
     content = "Câu truyện tiếp tục với nhiều sự kiện diễn ra. " * 30  # ~50 sentences
 
     start = time.perf_counter()
-    with patch("pipeline.semantic.foreshadowing_verifier.get_embedding_service", return_value=svc):
+    with patch(
+        "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
+        return_value=svc,
+    ):
         for ch_num in range(1, CHAPTERS + 1):
             entries = [_make_entry(f"hint {i}", 1, ch_num) for i in range(SEEDS_PER_CH)]
             chapter = _make_chapter(ch_num, content)
             verify_payoffs(entries, [chapter], threshold=0.62)
     elapsed = time.perf_counter() - start
 
-    print(f"\nMicrobenchmark (mocked): 10 chapters x {SEEDS_PER_CH} seeds = {elapsed*1000:.1f}ms")
+    print(
+        f"\nMicrobenchmark (mocked): 10 chapters x {SEEDS_PER_CH} seeds = {elapsed * 1000:.1f}ms"
+    )
     # With mocked embedder this should be well under 1s
     assert elapsed < 2.0, f"Overhead too high: {elapsed:.2f}s (target <2s)"
 
@@ -802,12 +902,16 @@ class TestChapterNumberNoneHandling:
         svc = MagicMock()
         svc.is_available.return_value = False  # keyword fallback
 
-        with caplog.at_level(logging.WARNING, logger="pipeline.semantic.foreshadowing_verifier"):
+        with caplog.at_level(
+            logging.WARNING, logger="pipeline.semantic.foreshadowing_verifier"
+        ):
             with patch(
                 "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
                 return_value=svc,
             ):
-                results = verify_payoffs([entry], [bad_chapter, good_chapter], threshold=0.30)
+                results = verify_payoffs(
+                    [entry], [bad_chapter, good_chapter], threshold=0.30
+                )
 
         warned = any(
             "chapter_number" in r.message or "no chapter_number" in r.message
@@ -834,12 +938,16 @@ class TestChapterNumberNoneHandling:
         svc = MagicMock()
         svc.is_available.return_value = False
 
-        with caplog.at_level(logging.WARNING, logger="pipeline.semantic.foreshadowing_verifier"):
+        with caplog.at_level(
+            logging.WARNING, logger="pipeline.semantic.foreshadowing_verifier"
+        ):
             with patch(
                 "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
                 return_value=svc,
             ):
-                results = verify_seeds([seed], [bad_chapter, good_chapter], threshold=0.30)
+                results = verify_seeds(
+                    [seed], [bad_chapter, good_chapter], threshold=0.30
+                )
 
         warned = any(
             "chapter_number" in r.message or "no chapter_number" in r.message
@@ -848,7 +956,9 @@ class TestChapterNumberNoneHandling:
         assert warned, "Expected a warning about missing chapter_number"
         assert len(results) == 1
 
-    def test_verify_payoffs_none_chapter_does_not_collide_with_real_chapter(self, caplog):
+    def test_verify_payoffs_none_chapter_does_not_collide_with_real_chapter(
+        self, caplog
+    ):
         """None chapter must not map to key 0 and shadow a real chapter entry."""
         import logging
         from unittest.mock import MagicMock, patch
@@ -866,12 +976,16 @@ class TestChapterNumberNoneHandling:
         svc = MagicMock()
         svc.is_available.return_value = False  # keyword fallback
 
-        with caplog.at_level(logging.WARNING, logger="pipeline.semantic.foreshadowing_verifier"):
+        with caplog.at_level(
+            logging.WARNING, logger="pipeline.semantic.foreshadowing_verifier"
+        ):
             with patch(
                 "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
                 return_value=svc,
             ):
-                results = verify_payoffs([entry], [null_chapter, target_chapter], threshold=0.30)
+                results = verify_payoffs(
+                    [entry], [null_chapter, target_chapter], threshold=0.30
+                )
 
         assert len(results) == 1
         assert results[0].chapter_num == 3

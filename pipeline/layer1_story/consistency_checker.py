@@ -41,6 +41,7 @@ class ConsistencyChecker:
         Returns:
             ConsistencyReport with detected issues
         """
+
         def _log(msg: str):
             logger.info(msg)
             if progress_callback:
@@ -52,12 +53,10 @@ class ConsistencyChecker:
 
         # Get chapters to check against (all previous chapters)
         previous_chapters = [
-            ch for ch in draft.chapters
-            if ch.chapter_number not in new_chapter_numbers
+            ch for ch in draft.chapters if ch.chapter_number not in new_chapter_numbers
         ]
         new_chapters = [
-            ch for ch in draft.chapters
-            if ch.chapter_number in new_chapter_numbers
+            ch for ch in draft.chapters if ch.chapter_number in new_chapter_numbers
         ]
 
         if not previous_chapters:
@@ -111,16 +110,19 @@ class ConsistencyChecker:
             if char_name not in facts["character_states"]:
                 facts["character_states"][char_name] = []
             # Use mood and arc_position from CharacterState schema
-            state_desc = f"{cs.mood} ({cs.arc_position})" if cs.mood else cs.arc_position
+            state_desc = (
+                f"{cs.mood} ({cs.arc_position})" if cs.mood else cs.arc_position
+            )
             facts["character_states"][char_name].append(
-                (0, state_desc)  # Chapter 0 as default since CharacterState doesn't track chapter
+                (
+                    0,
+                    state_desc,
+                )  # Chapter 0 as default since CharacterState doesn't track chapter
             )
 
         # Use plot_events from draft
         for pe in draft.plot_events:
-            facts["timeline_events"].append(
-                (pe.chapter_number, pe.event, "")
-            )
+            facts["timeline_events"].append((pe.chapter_number, pe.event, ""))
             # Track character involvement
             for char in pe.characters_involved:
                 if char not in facts["character_states"]:
@@ -263,8 +265,14 @@ class ConsistencyChecker:
         for issue in issues:
             try:
                 # Get relevant chapter content
-                ch_a = next((c for c in draft.chapters if c.chapter_number == issue.chapter_a), None)
-                ch_b = next((c for c in draft.chapters if c.chapter_number == issue.chapter_b), None)
+                ch_a = next(
+                    (c for c in draft.chapters if c.chapter_number == issue.chapter_a),
+                    None,
+                )
+                ch_b = next(
+                    (c for c in draft.chapters if c.chapter_number == issue.chapter_b),
+                    None,
+                )
 
                 if not ch_a or not ch_b:
                     enhanced.append(issue)
@@ -343,6 +351,7 @@ Return JSON:
 
         Performs pairwise comparison of all chapters.
         """
+
         def _log(msg: str):
             logger.info(msg)
             if progress_callback:
@@ -352,17 +361,16 @@ Return JSON:
 
         if len(draft.chapters) < 2:
             _log("Not enough chapters to check")
-            return self._build_report(
-                [ch.chapter_number for ch in draft.chapters],
-                []
-            )
+            return self._build_report([ch.chapter_number for ch in draft.chapters], [])
 
         issues = []
 
         # Check each chapter against all previous
         for i, chapter in enumerate(draft.chapters[1:], start=1):
             previous = draft.chapters[:i]
-            _log(f"Checking chapter {chapter.chapter_number} against {len(previous)} previous chapters...")
+            _log(
+                f"Checking chapter {chapter.chapter_number} against {len(previous)} previous chapters..."
+            )
 
             facts = self._extract_facts_from_chapters(previous, draft)
             chapter_issues = self._check_chapter_consistency(chapter, facts, draft)
@@ -373,10 +381,7 @@ Return JSON:
             _log("Running deep semantic analysis...")
             issues = self._enhance_issues_with_llm(issues, draft)
 
-        return self._build_report(
-            [ch.chapter_number for ch in draft.chapters],
-            issues
-        )
+        return self._build_report([ch.chapter_number for ch in draft.chapters], issues)
 
 
 def check_consistency(

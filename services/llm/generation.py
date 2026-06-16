@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 def _config_manager():
     """Lazy-resolve ConfigManager through compat hub for test mock support."""
     import services.llm_client as m
+
     return m.ConfigManager
 
 
@@ -47,7 +48,12 @@ class GenerationMixin:
         ``list_key`` is only meaningful when ``expect="dict"``.
         """
         result = self._parse_json_with_repair(
-            system_prompt, user_prompt, temperature, max_tokens, model_tier, model,
+            system_prompt,
+            user_prompt,
+            temperature,
+            max_tokens,
+            model_tier,
+            model,
         )
 
         if expect is None:
@@ -60,7 +66,8 @@ class GenerationMixin:
         # Shape mismatch — one retry with a shape hint appended.
         logger.warning(
             "generate_json: shape mismatch (expected %s, got %s); retrying with hint",
-            expect, type(result).__name__,
+            expect,
+            type(result).__name__,
         )
         hint = (
             "\n\nIMPORTANT: Your output MUST be a JSON "
@@ -69,7 +76,12 @@ class GenerationMixin:
         if expect == "dict" and list_key:
             hint += f' Use the key "{list_key}" for the list of items.'
         retry_result = self._parse_json_with_repair(
-            system_prompt, user_prompt + hint, temperature, max_tokens, model_tier, model,
+            system_prompt,
+            user_prompt + hint,
+            temperature,
+            max_tokens,
+            model_tier,
+            model,
         )
         coerced, ok = _coerce_to_shape(retry_result, expect, list_key)
         if ok:
@@ -92,8 +104,12 @@ class GenerationMixin:
     ):
         """Run the LLM and parse JSON with the existing 3-attempt repair flow."""
         text = self._generate_json_text(
-            system_prompt, user_prompt, temperature, max_tokens,
-            model_tier, model,
+            system_prompt,
+            user_prompt,
+            temperature,
+            max_tokens,
+            model_tier,
+            model,
         )
 
         # Attempt 1: direct parse
@@ -159,8 +175,13 @@ class GenerationMixin:
         if not text and not _retried:
             logger.warning("LLM returned empty response for JSON request, retrying")
             return self._generate_json_text(
-                system_prompt, user_prompt, temperature, max_tokens,
-                model_tier, model, _retried=True,
+                system_prompt,
+                user_prompt,
+                temperature,
+                max_tokens,
+                model_tier,
+                model,
+                _retried=True,
             )
 
         # Strip markdown code block
@@ -190,9 +211,12 @@ class GenerationMixin:
         re-raise (can't safely retry without duplicating already-yielded tokens).
         """
         config = _config_manager()()
-        effective_temp = temperature if temperature is not None else config.llm.temperature
+        effective_temp = (
+            temperature if temperature is not None else config.llm.temperature
+        )
 
         from services.prompts import localize_prompt
+
         lang = config.pipeline.language
         system_prompt = localize_prompt(system_prompt, lang)
         user_prompt = localize_prompt(user_prompt, lang)
@@ -205,10 +229,16 @@ class GenerationMixin:
         eff_max_tokens = max_tokens or config.llm.max_tokens
         chain = self._build_fallback_chain(config, model_tier, model_override=model)
         if not chain:
-            raise RuntimeError("LLM fallback chain is empty — check config/model availability")
+            raise RuntimeError(
+                "LLM fallback chain is empty — check config/model availability"
+            )
 
         from services.llm.retry import (
-            _redact, _detect_provider, _should_retry, _is_transient, _is_auth_error,
+            _redact,
+            _detect_provider,
+            _should_retry,
+            _is_transient,
+            _is_auth_error,
         )
         from services.llm.model_fallback import get_fallback_manager
 
@@ -234,7 +264,9 @@ class GenerationMixin:
                     entry_yielded += 1
                     total_yielded += 1
                     yield chunk
-                logger.info(f"Stream success via {entry['label']} ({entry_yielded} chunks)")
+                logger.info(
+                    f"Stream success via {entry['label']} ({entry_yielded} chunks)"
+                )
                 return
             except Exception as e:
                 all_errors.append(f"{entry['label']}: {_redact(e)}")
@@ -253,7 +285,9 @@ class GenerationMixin:
                 # Rate-limit marking on 429
                 err_str = str(e)
                 if entry_key and "429" in err_str:
-                    if provider_type == "openrouter" and self._is_account_rate_limit(err_str):
+                    if provider_type == "openrouter" and self._is_account_rate_limit(
+                        err_str
+                    ):
                         self._mark_rate_limited(entry_key, 300.0)
                     elif provider_type in ("openrouter", "kyma"):
                         self._mark_model_rate_limited(entry_model, entry_key, 90.0)
@@ -263,7 +297,9 @@ class GenerationMixin:
 
                 should_try_next, _ = _should_retry(e, provider_type)
                 if not should_try_next and not _is_transient(e):
-                    logger.error(f"FATAL streaming error on {entry['label']}: {_redact(e)}")
+                    logger.error(
+                        f"FATAL streaming error on {entry['label']}: {_redact(e)}"
+                    )
                     raise
                 logger.warning(
                     f"Stream {entry['label']} failed before first chunk, trying next: {_redact(e)}"
@@ -286,14 +322,19 @@ class GenerationMixin:
         except Exception as e:
             return False, f"Lỗi kết nối: {str(e)}"
 
-    def check_provider(self, base_url: str, api_key: str, model: str) -> tuple[bool, str]:
+    def check_provider(
+        self, base_url: str, api_key: str, model: str
+    ) -> tuple[bool, str]:
         """Check connection to a specific provider."""
         from services.llm.providers import get_provider
+
         try:
             provider = get_provider(base_url=base_url, api_key=api_key)
             provider.complete(
                 messages=[{"role": "user", "content": "ping"}],
-                model=model, temperature=0.0, max_tokens=5,
+                model=model,
+                temperature=0.0,
+                max_tokens=5,
             )
             return True, "OK"
         except Exception as e:
@@ -333,16 +374,16 @@ def _repair_json(text: str) -> str:
     """Fix common JSON issues: trailing commas, single quotes, truncation."""
     if not text or len(text) < 2:
         return text
-    text = re.sub(r',\s*([}\]])', r'\1', text)
+    text = re.sub(r",\s*([}\]])", r"\1", text)
     text = re.sub(r"(?<=[\[{,:])\s*'([^']*?)'\s*(?=[,}\]:])", r' "\1" ', text)
     # Extract JSON boundaries
-    starts = [text.find(c) for c in ('{', '[') if text.find(c) >= 0]
-    ends = [text.rfind(c) for c in ('}', ']') if text.rfind(c) >= 0]
+    starts = [text.find(c) for c in ("{", "[") if text.find(c) >= 0]
+    ends = [text.rfind(c) for c in ("}", "]") if text.rfind(c) >= 0]
     if starts and ends:
-        text = text[min(starts):max(ends) + 1]
+        text = text[min(starts) : max(ends) + 1]
     elif starts:
         # Truncated — no closing bracket found; attempt to close
-        text = text[min(starts):]
+        text = text[min(starts) :]
         text = _close_truncated_json(text)
     return text
 
@@ -356,7 +397,7 @@ def _close_truncated_json(text: str) -> str:
         if escape:
             escape = False
             continue
-        if ch == '\\' and in_string:
+        if ch == "\\" and in_string:
             escape = True
             continue
         if ch == '"':
@@ -364,16 +405,16 @@ def _close_truncated_json(text: str) -> str:
             continue
         if in_string:
             continue
-        if ch in ('{', '['):
-            stack.append('}' if ch == '{' else ']')
-        elif ch in ('}', ']'):
+        if ch in ("{", "["):
+            stack.append("}" if ch == "{" else "]")
+        elif ch in ("}", "]"):
             if stack:
                 stack.pop()
     # Close unclosed string
     if in_string:
         text += '"'
     # Remove trailing comma before we close
-    text = re.sub(r',\s*$', '', text)
+    text = re.sub(r",\s*$", "", text)
     # Close unclosed brackets in reverse order
-    text += ''.join(reversed(stack))
+    text += "".join(reversed(stack))
     return text

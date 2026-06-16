@@ -25,11 +25,15 @@ from services.media._util import slug_session_dir
 from services.safe_name import safe_character_name
 
 
-def _drop_avatar(root: str, story_id: str | None, name: str, size_bytes: int = 4096) -> str:
+def _drop_avatar(
+    root: str, story_id: str | None, name: str, size_bytes: int = 4096
+) -> str:
     """Write a >1KB placeholder avatar (find_existing_avatar's threshold)."""
     safe = safe_character_name(name)
     if story_id:
-        scoped = os.path.join(root, "output", "images", "avatars", safe_character_name(story_id))
+        scoped = os.path.join(
+            root, "output", "images", "avatars", safe_character_name(story_id)
+        )
     else:
         scoped = os.path.join(root, "output", "images", "avatars")
     os.makedirs(scoped, exist_ok=True)
@@ -97,7 +101,9 @@ class AvatarStoryScopingSmoke(unittest.TestCase):
         returned — downstream callers need a chance to regenerate."""
         story_id = "story-corrupt"
         safe = safe_character_name("Hùng")
-        scoped = os.path.join(self.tmp, "output", "images", "avatars", safe_character_name(story_id))
+        scoped = os.path.join(
+            self.tmp, "output", "images", "avatars", safe_character_name(story_id)
+        )
         os.makedirs(scoped, exist_ok=True)
         bad = os.path.join(scoped, f"{safe}.png")
         with open(bad, "wb"):

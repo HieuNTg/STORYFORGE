@@ -4,6 +4,7 @@ import unittest
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
+
 def _t(k, **kw):
     return k  # dummy translation callable
 
@@ -11,6 +12,7 @@ def _t(k, **kw):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_character(name="Alice"):
     c = MagicMock()
@@ -66,22 +68,25 @@ def _make_user_profile(user_id="u1", username="testuser"):
 # Tests: handle_login
 # ---------------------------------------------------------------------------
 
-class TestHandleLogin(unittest.TestCase):
 
+class TestHandleLogin(unittest.TestCase):
     def test_empty_username_returns_fail(self):
         from services.handlers import handle_login
+
         result = handle_login("", "pass", _t)
         self.assertIsNone(result[0])
         self.assertEqual(result[1], "msg.login_fail")
 
     def test_empty_password_returns_fail(self):
         from services.handlers import handle_login
+
         result = handle_login("user", "", _t)
         self.assertIsNone(result[0])
 
     @patch("services.handlers.UserManager")
     def test_successful_login_returns_profile(self, MockUM):
         from services.handlers import handle_login
+
         profile = _make_user_profile()
         um = MockUM.return_value
         um.login.return_value = profile
@@ -97,6 +102,7 @@ class TestHandleLogin(unittest.TestCase):
     @patch("services.handlers.UserManager")
     def test_failed_login_returns_none(self, MockUM):
         from services.handlers import handle_login
+
         um = MockUM.return_value
         um.login.return_value = None
         result = handle_login("user", "wrongpass", _t)
@@ -108,16 +114,18 @@ class TestHandleLogin(unittest.TestCase):
 # Tests: handle_register
 # ---------------------------------------------------------------------------
 
-class TestHandleRegister(unittest.TestCase):
 
+class TestHandleRegister(unittest.TestCase):
     def test_empty_inputs_returns_fail(self):
         from services.handlers import handle_register
+
         result = handle_register("", "", _t)
         self.assertIsNone(result[0])
 
     @patch("services.handlers.UserManager")
     def test_successful_register(self, MockUM):
         from services.handlers import handle_register
+
         profile = _make_user_profile()
         um = MockUM.return_value
         um.register.return_value = profile
@@ -128,6 +136,7 @@ class TestHandleRegister(unittest.TestCase):
     @patch("services.handlers.UserManager")
     def test_duplicate_register_returns_fail(self, MockUM):
         from services.handlers import handle_register
+
         um = MockUM.return_value
         um.register.side_effect = ValueError("exists")
         result = handle_register("user", "pass", _t)
@@ -139,22 +148,25 @@ class TestHandleRegister(unittest.TestCase):
 # Tests: handle_save_story
 # ---------------------------------------------------------------------------
 
-class TestHandleSaveStory(unittest.TestCase):
 
+class TestHandleSaveStory(unittest.TestCase):
     def test_no_user_returns_no_login(self):
         from services.handlers import handle_save_story
+
         msg, table = handle_save_story(None, None, "title", _t)
         self.assertEqual(msg, "msg.no_login")
         self.assertEqual(table, [])
 
     def test_no_orch_state_returns_no_story(self):
         from services.handlers import handle_save_story
+
         msg, table = handle_save_story({"user_id": "u1"}, None, "title", _t)
         self.assertEqual(msg, "msg.no_story")
 
     @patch("services.handlers.UserManager")
     def test_successful_save(self, MockUM):
         from services.handlers import handle_save_story
+
         um = MockUM.return_value
         um.save_story.return_value = "story123"
         um.list_stories.return_value = [
@@ -168,6 +180,7 @@ class TestHandleSaveStory(unittest.TestCase):
     @patch("services.handlers.UserManager")
     def test_exception_returns_error(self, MockUM):
         from services.handlers import handle_save_story
+
         um = MockUM.return_value
         um.save_story.side_effect = Exception("DB error")
         orch = _make_orch_state(story_draft=_make_story_draft())
@@ -179,15 +192,17 @@ class TestHandleSaveStory(unittest.TestCase):
 # Tests: handle_export_pdf
 # ---------------------------------------------------------------------------
 
-class TestHandleExportPdf(unittest.TestCase):
 
+class TestHandleExportPdf(unittest.TestCase):
     def test_no_orch_returns_none(self):
         from services.handlers import handle_export_pdf
+
         result = handle_export_pdf(None, _t)
         self.assertIsNone(result[0])
 
     def test_no_story_returns_none(self):
         from services.handlers import handle_export_pdf
+
         orch = _make_orch_state()
         result = handle_export_pdf(orch, _t)
         self.assertIsNone(result[0])
@@ -195,6 +210,7 @@ class TestHandleExportPdf(unittest.TestCase):
     @patch("services.handlers.PDFExporter")
     def test_export_returns_path(self, MockPDF):
         from services.handlers import handle_export_pdf
+
         MockPDF.export.return_value = "output/story.pdf"
         stats_mock = MagicMock()
         stats_mock.model_dump.return_value = {"total_words": 100}
@@ -209,6 +225,7 @@ class TestHandleExportPdf(unittest.TestCase):
     @patch("services.handlers.PDFExporter")
     def test_export_exception_returns_error_dict(self, MockPDF):
         from services.handlers import handle_export_pdf
+
         MockPDF.export.side_effect = Exception("pdf fail")
         orch = _make_orch_state(enhanced_story=_make_enhanced_story())
         paths, stats = handle_export_pdf(orch, _t)
@@ -220,15 +237,17 @@ class TestHandleExportPdf(unittest.TestCase):
 # Tests: handle_share_story
 # ---------------------------------------------------------------------------
 
-class TestHandleShareStory(unittest.TestCase):
 
+class TestHandleShareStory(unittest.TestCase):
     def test_no_orch_returns_empty_link(self):
         from services.handlers import handle_share_story
+
         link, _ = handle_share_story(None, _t)
         self.assertEqual(link, "")
 
     def test_no_story_returns_empty_link(self):
         from services.handlers import handle_share_story
+
         orch = _make_orch_state()
         link, _ = handle_share_story(orch, _t)
         self.assertEqual(link, "")
@@ -237,12 +256,15 @@ class TestHandleShareStory(unittest.TestCase):
     @patch("services.handlers.ShareManager")
     def test_share_returns_link(self, MockShare, MockConfig):
         from services.handlers import handle_share_story
+
         share = MagicMock()
         share.html_path = "output/share.html"
         MockShare.return_value.create_share.return_value = share
         cfg = MockConfig.return_value
         cfg.pipeline.share_base_url = "http://example.com/"
-        orch = _make_orch_state(story_draft=_make_story_draft(), enhanced_story=_make_enhanced_story())
+        orch = _make_orch_state(
+            story_draft=_make_story_draft(), enhanced_story=_make_enhanced_story()
+        )
         link, _ = handle_share_story(orch, _t)
         self.assertIn("output/share.html", link)
 
@@ -250,6 +272,7 @@ class TestHandleShareStory(unittest.TestCase):
     @patch("services.handlers.ConfigManager")
     def test_share_exception_returns_error(self, MockConfig, MockShare):
         from services.handlers import handle_share_story
+
         MockShare.return_value.create_share.side_effect = Exception("share fail")
         MockConfig.return_value.pipeline.share_base_url = ""
         orch = _make_orch_state(enhanced_story=_make_enhanced_story())
@@ -261,14 +284,16 @@ class TestHandleShareStory(unittest.TestCase):
 # Tests: handle_export_files / handle_export_zip / handle_export_video_assets
 # ---------------------------------------------------------------------------
 
-class TestHandleExportFiles(unittest.TestCase):
 
+class TestHandleExportFiles(unittest.TestCase):
     def test_no_orch_returns_none(self):
         from services.handlers import handle_export_files
+
         self.assertIsNone(handle_export_files(None, ["json"]))
 
     def test_export_returns_paths(self):
         from services.handlers import handle_export_files
+
         orch = MagicMock()
         orch.export_output.return_value = ["file1.json"]
         result = handle_export_files(orch, ["json"])
@@ -276,6 +301,7 @@ class TestHandleExportFiles(unittest.TestCase):
 
     def test_export_exception_returns_none(self):
         from services.handlers import handle_export_files
+
         orch = MagicMock()
         orch.export_output.side_effect = Exception("fail")
         result = handle_export_files(orch, ["json"])
@@ -283,6 +309,7 @@ class TestHandleExportFiles(unittest.TestCase):
 
     def test_empty_paths_returns_none(self):
         from services.handlers import handle_export_files
+
         orch = MagicMock()
         orch.export_output.return_value = []
         result = handle_export_files(orch, ["json"])
@@ -290,13 +317,14 @@ class TestHandleExportFiles(unittest.TestCase):
 
 
 class TestHandleExportZip(unittest.TestCase):
-
     def test_no_orch_returns_none(self):
         from services.handlers import handle_export_zip
+
         self.assertIsNone(handle_export_zip(None, [], _t))
 
     def test_export_zip_returns_list(self):
         from services.handlers import handle_export_zip
+
         orch = MagicMock()
         orch.export_zip.return_value = "output/story.zip"
         result = handle_export_zip(orch, ["json"], _t)
@@ -304,6 +332,7 @@ class TestHandleExportZip(unittest.TestCase):
 
     def test_export_zip_none_returns_none(self):
         from services.handlers import handle_export_zip
+
         orch = MagicMock()
         orch.export_zip.return_value = None
         result = handle_export_zip(orch, ["json"], _t)
@@ -311,6 +340,7 @@ class TestHandleExportZip(unittest.TestCase):
 
     def test_export_zip_exception_returns_none(self):
         from services.handlers import handle_export_zip
+
         orch = MagicMock()
         orch.export_zip.side_effect = Exception("zip fail")
         result = handle_export_zip(orch, ["json"], _t)
@@ -321,11 +351,12 @@ class TestHandleExportZip(unittest.TestCase):
 # Tests: get_checkpoint_choices / resolve_checkpoint_path
 # ---------------------------------------------------------------------------
 
-class TestCheckpointHelpers(unittest.TestCase):
 
+class TestCheckpointHelpers(unittest.TestCase):
     @patch("services.handlers.PipelineOrchestrator")
     def test_get_checkpoint_choices_formats(self, MockOrch):
         from services.handlers import get_checkpoint_choices
+
         MockOrch.list_checkpoints.return_value = [
             {"file": "story_layer1.json", "modified": "2024-01-01 10:00", "size_kb": 5}
         ]
@@ -337,21 +368,25 @@ class TestCheckpointHelpers(unittest.TestCase):
     @patch("services.handlers.PipelineOrchestrator")
     def test_get_checkpoint_choices_empty(self, MockOrch):
         from services.handlers import get_checkpoint_choices
+
         MockOrch.list_checkpoints.return_value = []
         choices = get_checkpoint_choices()
         self.assertEqual(choices, [])
 
     def test_resolve_checkpoint_path_none_returns_none(self):
         from services.handlers import resolve_checkpoint_path
+
         self.assertIsNone(resolve_checkpoint_path(None))
 
     def test_resolve_checkpoint_path_empty_returns_none(self):
         from services.handlers import resolve_checkpoint_path
+
         self.assertIsNone(resolve_checkpoint_path(""))
 
     @patch("services.handlers.PipelineOrchestrator")
     def test_resolve_checkpoint_path_extracts_filename(self, MockOrch):
         from services.handlers import resolve_checkpoint_path
+
         MockOrch.CHECKPOINT_DIR = "output/checkpoints"
         path = resolve_checkpoint_path("story_layer1.json (2024-01-01, 5KB)")
         self.assertIn("story_layer1.json", path)
@@ -361,28 +396,35 @@ class TestCheckpointHelpers(unittest.TestCase):
 # Tests: handle_load_checkpoint
 # ---------------------------------------------------------------------------
 
-class TestHandleLoadCheckpoint(unittest.TestCase):
 
+class TestHandleLoadCheckpoint(unittest.TestCase):
     def test_no_choice_returns_no_checkpoint(self):
         from services.handlers import handle_load_checkpoint
+
         msg, orch = handle_load_checkpoint("", None, _t)
         self.assertEqual(msg, "continue.no_checkpoint")
 
     @patch("services.handlers.PipelineOrchestrator")
     def test_loads_checkpoint_with_story(self, MockOrch):
         from services.handlers import handle_load_checkpoint
+
         MockOrch.CHECKPOINT_DIR = "output/checkpoints"
         orch_instance = MagicMock()
         MockOrch.return_value = orch_instance
-        draft = _make_story_draft(title="Loaded", synopsis="syn", characters=[_make_character()])
+        draft = _make_story_draft(
+            title="Loaded", synopsis="syn", characters=[_make_character()]
+        )
         draft.chapters = [_make_chapter()]
         orch_instance.output.story_draft = draft
-        msg, returned_orch = handle_load_checkpoint("story_layer1.json (2024-01-01, 5KB)", None, _t)
+        msg, returned_orch = handle_load_checkpoint(
+            "story_layer1.json (2024-01-01, 5KB)", None, _t
+        )
         self.assertIn("continue.loaded", msg)
 
     @patch("services.handlers.PipelineOrchestrator")
     def test_load_no_story_returns_no_story(self, MockOrch):
         from services.handlers import handle_load_checkpoint
+
         MockOrch.CHECKPOINT_DIR = "output/checkpoints"
         orch_instance = MagicMock()
         MockOrch.return_value = orch_instance
@@ -395,15 +437,17 @@ class TestHandleLoadCheckpoint(unittest.TestCase):
 # Tests: handle_add_chapters / handle_delete_chapters / handle_update_character
 # ---------------------------------------------------------------------------
 
-class TestHandleAddChapters(unittest.TestCase):
 
+class TestHandleAddChapters(unittest.TestCase):
     def test_no_orch_returns_no_story(self):
         from services.handlers import handle_add_chapters
+
         msg, orch = handle_add_chapters(None, 5, 2000, _t)
         self.assertEqual(msg, "continue.no_story")
 
     def test_no_draft_returns_no_story(self):
         from services.handlers import handle_add_chapters
+
         orch = MagicMock()
         orch.output.story_draft = None
         msg, _ = handle_add_chapters(orch, 5, 2000, _t)
@@ -411,6 +455,7 @@ class TestHandleAddChapters(unittest.TestCase):
 
     def test_add_chapters_calls_continue(self):
         from services.handlers import handle_add_chapters
+
         orch = MagicMock()
         orch.output.story_draft = _make_story_draft()
         orch.continue_story = MagicMock()
@@ -420,14 +465,15 @@ class TestHandleAddChapters(unittest.TestCase):
 
 
 class TestHandleDeleteChapters(unittest.TestCase):
-
     def test_no_orch_returns_no_story(self):
         from services.handlers import handle_delete_chapters
+
         msg, orch = handle_delete_chapters(None, 3, _t)
         self.assertEqual(msg, "continue.no_story")
 
     def test_no_draft_returns_no_story(self):
         from services.handlers import handle_delete_chapters
+
         orch = MagicMock()
         orch.output.story_draft = None
         msg, _ = handle_delete_chapters(orch, 3, _t)
@@ -435,6 +481,7 @@ class TestHandleDeleteChapters(unittest.TestCase):
 
     def test_delete_calls_remove_chapters(self):
         from services.handlers import handle_delete_chapters
+
         orch = MagicMock()
         orch.output.story_draft = _make_story_draft()
         msg, returned = handle_delete_chapters(orch, 5, _t)
@@ -443,14 +490,15 @@ class TestHandleDeleteChapters(unittest.TestCase):
 
 
 class TestHandleUpdateCharacter(unittest.TestCase):
-
     def test_no_orch_returns_no_story(self):
         from services.handlers import handle_update_character
+
         msg, orch = handle_update_character(None, "Alice", "brave", "save world", _t)
         self.assertEqual(msg, "continue.no_story")
 
     def test_no_draft_returns_no_story(self):
         from services.handlers import handle_update_character
+
         orch = MagicMock()
         orch.output.story_draft = None
         msg, _ = handle_update_character(orch, "Alice", "brave", "save world", _t)
@@ -458,6 +506,7 @@ class TestHandleUpdateCharacter(unittest.TestCase):
 
     def test_empty_name_returns_char_name_msg(self):
         from services.handlers import handle_update_character
+
         orch = MagicMock()
         orch.output.story_draft = _make_story_draft()
         msg, _ = handle_update_character(orch, "", "brave", "save world", _t)
@@ -465,6 +514,7 @@ class TestHandleUpdateCharacter(unittest.TestCase):
 
     def test_no_updates_returns_hint(self):
         from services.handlers import handle_update_character
+
         orch = MagicMock()
         orch.output.story_draft = _make_story_draft()
         msg, _ = handle_update_character(orch, "Alice", "", "", _t)
@@ -472,9 +522,12 @@ class TestHandleUpdateCharacter(unittest.TestCase):
 
     def test_update_calls_orch_update(self):
         from services.handlers import handle_update_character
+
         orch = MagicMock()
         orch.output.story_draft = _make_story_draft()
-        msg, returned = handle_update_character(orch, "Alice", "brave", "save world", _t)
+        msg, returned = handle_update_character(
+            orch, "Alice", "brave", "save world", _t
+        )
         orch.update_character.assert_called_once()
         self.assertIn("continue.char_updated", msg)
 
@@ -483,15 +536,17 @@ class TestHandleUpdateCharacter(unittest.TestCase):
 # Tests: handle_enhance
 # ---------------------------------------------------------------------------
 
-class TestHandleEnhance(unittest.TestCase):
 
+class TestHandleEnhance(unittest.TestCase):
     def test_no_orch_returns_no_story(self):
         from services.handlers import handle_enhance
+
         msg, orch = handle_enhance(None, 3, 2000, _t)
         self.assertEqual(msg, "continue.no_story")
 
     def test_no_draft_returns_no_story(self):
         from services.handlers import handle_enhance
+
         orch = MagicMock()
         orch.output.story_draft = None
         msg, _ = handle_enhance(orch, 3, 2000, _t)
@@ -499,6 +554,7 @@ class TestHandleEnhance(unittest.TestCase):
 
     def test_calls_enhance_chapters(self):
         from services.handlers import handle_enhance
+
         orch = MagicMock()
         orch.output.story_draft = _make_story_draft()
         msg, returned = handle_enhance(orch, 3, 2000, _t)
@@ -510,10 +566,11 @@ class TestHandleEnhance(unittest.TestCase):
 # Tests: handle_genre_autofill
 # ---------------------------------------------------------------------------
 
-class TestHandleGenreAutofill(unittest.TestCase):
 
+class TestHandleGenreAutofill(unittest.TestCase):
     def test_known_genre_returns_preset(self):
         from services.handlers import handle_genre_autofill
+
         result = handle_genre_autofill("Tiên Hiệp")
         self.assertEqual(result[0], 50)
         self.assertEqual(result[1], 3000)
@@ -521,22 +578,26 @@ class TestHandleGenreAutofill(unittest.TestCase):
 
     def test_unknown_genre_returns_none_tuple(self):
         from services.handlers import handle_genre_autofill
+
         result = handle_genre_autofill("Unknown Genre")
         self.assertEqual(result, (None, None, None))
 
     def test_empty_genre_returns_none_tuple(self):
         from services.handlers import handle_genre_autofill
+
         result = handle_genre_autofill("")
         self.assertEqual(result, (None, None, None))
 
     def test_ngon_tinh_preset(self):
         from services.handlers import handle_genre_autofill
+
         result = handle_genre_autofill("Ngôn Tình")
         self.assertEqual(result[0], 30)
         self.assertEqual(result[1], 2500)
 
     def test_do_thi_preset(self):
         from services.handlers import handle_genre_autofill
+
         result = handle_genre_autofill("Đô Thị")
         self.assertEqual(result[2], "Đối thoại sắc bén")
 
@@ -545,15 +606,17 @@ class TestHandleGenreAutofill(unittest.TestCase):
 # Tests: handle_character_gallery
 # ---------------------------------------------------------------------------
 
-class TestHandleCharacterGallery(unittest.TestCase):
 
+class TestHandleCharacterGallery(unittest.TestCase):
     def test_no_orch_returns_empty(self):
         from services.handlers import handle_character_gallery
+
         result = handle_character_gallery(None)
         self.assertEqual(result, [])
 
     def test_no_output_returns_empty(self):
         from services.handlers import handle_character_gallery
+
         orch = MagicMock()
         orch.output = None
         result = handle_character_gallery(orch)
@@ -561,6 +624,7 @@ class TestHandleCharacterGallery(unittest.TestCase):
 
     def test_no_char_refs_returns_empty(self):
         from services.handlers import handle_character_gallery
+
         orch = MagicMock()
         orch.output.character_refs = None
         result = handle_character_gallery(orch)
@@ -569,6 +633,7 @@ class TestHandleCharacterGallery(unittest.TestCase):
     @patch("os.path.exists")
     def test_char_refs_with_existing_paths(self, mock_exists):
         from services.handlers import handle_character_gallery
+
         mock_exists.return_value = True
         orch = MagicMock()
         orch.output.character_refs = {"Alice": "path/alice.png", "Bob": "path/bob.png"}
@@ -580,6 +645,7 @@ class TestHandleCharacterGallery(unittest.TestCase):
     @patch("os.path.exists")
     def test_char_refs_with_missing_paths_excluded(self, mock_exists):
         from services.handlers import handle_character_gallery
+
         mock_exists.return_value = False
         orch = MagicMock()
         orch.output.character_refs = {"Alice": "path/alice.png"}
@@ -591,15 +657,17 @@ class TestHandleCharacterGallery(unittest.TestCase):
 # Tests: handle_generate_images
 # ---------------------------------------------------------------------------
 
-class TestHandleGenerateImages(unittest.TestCase):
 
+class TestHandleGenerateImages(unittest.TestCase):
     def test_no_orch_returns_empty(self):
         from services.handlers import handle_generate_images
+
         paths, msg = handle_generate_images(None, t=_t)
         self.assertEqual(paths, [])
 
     def test_no_story_returns_empty(self):
         from services.handlers import handle_generate_images
+
         orch = _make_orch_state()
         paths, msg = handle_generate_images(orch, t=_t)
         self.assertEqual(paths, [])
@@ -613,6 +681,7 @@ class TestHandleGenerateImages(unittest.TestCase):
         compositor stages rewrite the panel paths and write composed pages
         under the mocked output_dir (a stray ``MagicMock/`` directory)."""
         from config import ConfigManager
+
         cfg = ConfigManager().pipeline
         prev = (cfg.comic_shot_list_enabled, cfg.comic_compositor_enabled)
         cfg.comic_shot_list_enabled = False
@@ -626,11 +695,18 @@ class TestHandleGenerateImages(unittest.TestCase):
         """Legacy contract: with the comic pipeline OFF, loose panel paths
         pass through untouched."""
         from services.handlers import handle_generate_images
+
         orch = _make_orch_state(enhanced_story=_make_enhanced_story())
-        with self._comic_flags_off(), \
-             patch("services.image_generator.ImageGenerator") as MockImgGen, \
-             patch("services.image_prompt_generator.ImagePromptGenerator") as MockPromptGen:
-            MockPromptGen.return_value.generate_from_chapter.return_value = [MagicMock()]
+        with (
+            self._comic_flags_off(),
+            patch("services.image_generator.ImageGenerator") as MockImgGen,
+            patch(
+                "services.image_prompt_generator.ImagePromptGenerator"
+            ) as MockPromptGen,
+        ):
+            MockPromptGen.return_value.generate_from_chapter.return_value = [
+                MagicMock()
+            ]
             MockImgGen.return_value.generate_story_images.return_value = ["img1.png"]
             paths, msg = handle_generate_images(orch, provider="dalle", t=_t)
             self.assertEqual(paths, ["img1.png"])
@@ -638,6 +714,7 @@ class TestHandleGenerateImages(unittest.TestCase):
     def test_passes_reference_paths_when_character_has_one(self):
         """When a character profile has a reference image, it must reach generate_story_images."""
         from services.handlers import handle_generate_images
+
         orch = _make_orch_state(
             story_draft=_make_story_draft(characters=[_make_character("Hero")]),
             enhanced_story=_make_enhanced_story(),
@@ -645,19 +722,31 @@ class TestHandleGenerateImages(unittest.TestCase):
         fake_store = MagicMock()
         fake_store.get_frozen_prompt.return_value = "FP"
         fake_store.get_reference_image.return_value = "/path/hero.png"
-        with self._comic_flags_off(), \
-             patch("services.image_generator.ImageGenerator") as MockImgGen, \
-             patch("services.image_prompt_generator.ImagePromptGenerator") as MockPromptGen, \
-             patch("services.character_visual_profile.CharacterVisualProfileStore", return_value=fake_store):
-            MockPromptGen.return_value.generate_from_chapter.return_value = [MagicMock()]
+        with (
+            self._comic_flags_off(),
+            patch("services.image_generator.ImageGenerator") as MockImgGen,
+            patch(
+                "services.image_prompt_generator.ImagePromptGenerator"
+            ) as MockPromptGen,
+            patch(
+                "services.character_visual_profile.CharacterVisualProfileStore",
+                return_value=fake_store,
+            ),
+        ):
+            MockPromptGen.return_value.generate_from_chapter.return_value = [
+                MagicMock()
+            ]
             MockImgGen.return_value.generate_story_images.return_value = ["img1.png"]
             handle_generate_images(orch, provider="seedream", t=_t)
             _, kwargs = MockImgGen.return_value.generate_story_images.call_args
-            self.assertEqual(kwargs.get("character_references"), {"Hero": "/path/hero.png"})
+            self.assertEqual(
+                kwargs.get("character_references"), {"Hero": "/path/hero.png"}
+            )
 
     def test_no_references_passes_none(self):
         """No character has a reference → character_references kwarg is None (backward compat)."""
         from services.handlers import handle_generate_images
+
         orch = _make_orch_state(
             story_draft=_make_story_draft(characters=[_make_character("Hero")]),
             enhanced_story=_make_enhanced_story(),
@@ -665,11 +754,20 @@ class TestHandleGenerateImages(unittest.TestCase):
         fake_store = MagicMock()
         fake_store.get_frozen_prompt.return_value = "FP"
         fake_store.get_reference_image.return_value = None
-        with self._comic_flags_off(), \
-             patch("services.image_generator.ImageGenerator") as MockImgGen, \
-             patch("services.image_prompt_generator.ImagePromptGenerator") as MockPromptGen, \
-             patch("services.character_visual_profile.CharacterVisualProfileStore", return_value=fake_store):
-            MockPromptGen.return_value.generate_from_chapter.return_value = [MagicMock()]
+        with (
+            self._comic_flags_off(),
+            patch("services.image_generator.ImageGenerator") as MockImgGen,
+            patch(
+                "services.image_prompt_generator.ImagePromptGenerator"
+            ) as MockPromptGen,
+            patch(
+                "services.character_visual_profile.CharacterVisualProfileStore",
+                return_value=fake_store,
+            ),
+        ):
+            MockPromptGen.return_value.generate_from_chapter.return_value = [
+                MagicMock()
+            ]
             MockImgGen.return_value.generate_story_images.return_value = ["img1.png"]
             handle_generate_images(orch, provider="dalle", t=_t)
             _, kwargs = MockImgGen.return_value.generate_story_images.call_args
@@ -682,13 +780,16 @@ class TestHandleGenerateImages(unittest.TestCase):
         'extract character → make character image → feed into comic' contract."""
         from services.handlers import handle_generate_images
         from config import ConfigManager
+
         orch = _make_orch_state(
             story_draft=_make_story_draft(characters=[_make_character("Hero")]),
             enhanced_story=_make_enhanced_story(),
         )
         fake_store = MagicMock()
         fake_store.get_frozen_prompt.return_value = "FP appearance"
-        fake_store.get_reference_image.return_value = None  # no existing ref → must build
+        fake_store.get_reference_image.return_value = (
+            None  # no existing ref → must build
+        )
         fake_shot = MagicMock()
         fake_shot.extract.return_value.pages = []  # skip shot-list/bake; isolate the portrait stage
         cfg = ConfigManager().pipeline
@@ -696,16 +797,29 @@ class TestHandleGenerateImages(unittest.TestCase):
         cfg.comic_shot_list_enabled = True
         cfg.comic_compositor_enabled = False
         try:
-            with patch("services.image_generator.ImageGenerator") as MockImgGen, \
-                 patch("services.image_prompt_generator.ImagePromptGenerator") as MockPromptGen, \
-                 patch("services.character_visual_profile.CharacterVisualProfileStore", return_value=fake_store), \
-                 patch("services.shot_list.ShotListExtractor", return_value=fake_shot), \
-                 patch("services.handlers.os.makedirs"), \
-                 patch("services.handlers.os.path.exists", return_value=True):
+            with (
+                patch("services.image_generator.ImageGenerator") as MockImgGen,
+                patch(
+                    "services.image_prompt_generator.ImagePromptGenerator"
+                ) as MockPromptGen,
+                patch(
+                    "services.character_visual_profile.CharacterVisualProfileStore",
+                    return_value=fake_store,
+                ),
+                patch("services.shot_list.ShotListExtractor", return_value=fake_shot),
+                patch("services.handlers.os.makedirs"),
+                patch("services.handlers.os.path.exists", return_value=True),
+            ):
                 MockImgGen.return_value.output_dir = "out/images"
-                MockImgGen.return_value.generate.return_value = "out/images/avatars/Hero.png"
-                MockPromptGen.return_value.generate_from_chapter.return_value = [MagicMock()]
-                MockImgGen.return_value.generate_story_images.return_value = ["img1.png"]
+                MockImgGen.return_value.generate.return_value = (
+                    "out/images/avatars/Hero.png"
+                )
+                MockPromptGen.return_value.generate_from_chapter.return_value = [
+                    MagicMock()
+                ]
+                MockImgGen.return_value.generate_story_images.return_value = [
+                    "img1.png"
+                ]
                 handle_generate_images(orch, provider="seedream", t=_t)
                 # A portrait was rendered for the character...
                 MockImgGen.return_value.generate.assert_called_once()
@@ -716,7 +830,8 @@ class TestHandleGenerateImages(unittest.TestCase):
                 # ...and threaded into panel generation for visual consistency.
                 _, kwargs = MockImgGen.return_value.generate_story_images.call_args
                 self.assertEqual(
-                    kwargs.get("character_references"), {"Hero": "out/images/avatars/Hero.png"}
+                    kwargs.get("character_references"),
+                    {"Hero": "out/images/avatars/Hero.png"},
                 )
         finally:
             cfg.comic_shot_list_enabled = prev_sl
@@ -727,6 +842,7 @@ class TestHandleGenerateImages(unittest.TestCase):
         plain per-chapter image regen keeps its old behavior."""
         from services.handlers import handle_generate_images
         from config import ConfigManager
+
         orch = _make_orch_state(
             story_draft=_make_story_draft(characters=[_make_character("Hero")]),
             enhanced_story=_make_enhanced_story(),
@@ -738,12 +854,23 @@ class TestHandleGenerateImages(unittest.TestCase):
         prev_sl = cfg.comic_shot_list_enabled
         cfg.comic_shot_list_enabled = False
         try:
-            with patch("services.image_generator.ImageGenerator") as MockImgGen, \
-                 patch("services.image_prompt_generator.ImagePromptGenerator") as MockPromptGen, \
-                 patch("services.character_visual_profile.CharacterVisualProfileStore", return_value=fake_store):
+            with (
+                patch("services.image_generator.ImageGenerator") as MockImgGen,
+                patch(
+                    "services.image_prompt_generator.ImagePromptGenerator"
+                ) as MockPromptGen,
+                patch(
+                    "services.character_visual_profile.CharacterVisualProfileStore",
+                    return_value=fake_store,
+                ),
+            ):
                 MockImgGen.return_value.output_dir = "out/images"
-                MockPromptGen.return_value.generate_from_chapter.return_value = [MagicMock()]
-                MockImgGen.return_value.generate_story_images.return_value = ["img1.png"]
+                MockPromptGen.return_value.generate_from_chapter.return_value = [
+                    MagicMock()
+                ]
+                MockImgGen.return_value.generate_story_images.return_value = [
+                    "img1.png"
+                ]
                 handle_generate_images(orch, provider="seedream", t=_t)
                 MockImgGen.return_value.generate.assert_not_called()
                 fake_store.set_reference_image.assert_not_called()

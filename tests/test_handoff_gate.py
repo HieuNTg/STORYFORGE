@@ -24,7 +24,10 @@ from pipeline.handoff_gate import (
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _envelope(signal_statuses: dict[str, str], story_id: str = "ly-huyen-saga") -> L1Handoff:
+
+def _envelope(
+    signal_statuses: dict[str, str], story_id: str = "ly-huyen-saga"
+) -> L1Handoff:
     return L1Handoff(
         story_id=story_id,
         num_chapters=3,
@@ -51,6 +54,7 @@ def _all_ok() -> L1Handoff:
 # validate_handoff
 # ---------------------------------------------------------------------------
 
+
 def test_validate_handoff_clean_envelope_returns_ok():
     ok, blockers, warnings = validate_handoff(_all_ok())
     assert ok is True
@@ -62,9 +66,9 @@ def test_validate_handoff_separates_blockers_from_warnings():
     env = _envelope(
         {
             "conflict_web": "ok",
-            "foreshadowing_plan": "empty",         # warning
+            "foreshadowing_plan": "empty",  # warning
             "arc_waypoints": "extraction_failed",  # blocker
-            "threads": "malformed",                # blocker
+            "threads": "malformed",  # blocker
             "voice_fingerprints": "ok",
         }
     )
@@ -77,6 +81,7 @@ def test_validate_handoff_separates_blockers_from_warnings():
 # ---------------------------------------------------------------------------
 # enforce_handoff
 # ---------------------------------------------------------------------------
+
 
 def test_enforce_handoff_strict_raises_on_blockers():
     env = _envelope(
@@ -157,6 +162,7 @@ def test_enforce_handoff_env_strict_off_warns(monkeypatch, caplog):
 # reconcile_contract
 # ---------------------------------------------------------------------------
 
+
 def _contract(**overrides) -> NegotiatedChapterContract:
     base = dict(chapter_num=1, pacing_type="setup", drama_target=0.3)
     base.update(overrides)
@@ -191,7 +197,9 @@ def test_reconcile_contract_warns_payoffs_without_causal_refs():
     out = reconcile_contract(c)
     assert out.drama_target == pytest.approx(0.55)
     assert out.reconciled is True
-    assert any("payoffs_required" in w and "seed_1" in w for w in out.reconciliation_warnings)
+    assert any(
+        "payoffs_required" in w and "seed_1" in w for w in out.reconciliation_warnings
+    )
 
 
 def test_reconcile_contract_clean_inputs_no_warnings():
@@ -227,6 +235,7 @@ def test_reconcile_contract_payoff_with_matching_causal_ref_no_warning():
 # Sprint 3 P1 — drama_ceiling derivation + reconciliation warning
 # ---------------------------------------------------------------------------
 
+
 def test_compute_drama_ceiling_boundary():
     assert _compute_drama_ceiling(0.5, 0.15) == pytest.approx(0.65)
 
@@ -240,20 +249,26 @@ def test_compute_drama_ceiling_zero_target_returns_zero_sentinel():
 
 
 def test_reconcile_contract_fills_drama_ceiling_from_target_plus_tolerance():
-    c = _contract(chapter_num=2, pacing_type="rising", drama_target=0.5, drama_tolerance=0.15)
+    c = _contract(
+        chapter_num=2, pacing_type="rising", drama_target=0.5, drama_tolerance=0.15
+    )
     out = reconcile_contract(c)
     assert out.drama_ceiling == pytest.approx(0.65)
     assert "drama_ceiling_unset_no_target" not in out.reconciliation_warnings
 
 
 def test_reconcile_contract_drama_ceiling_clamps_at_one():
-    c = _contract(chapter_num=8, pacing_type="climax", drama_target=0.95, drama_tolerance=0.20)
+    c = _contract(
+        chapter_num=8, pacing_type="climax", drama_target=0.95, drama_tolerance=0.20
+    )
     out = reconcile_contract(c)
     assert out.drama_ceiling == pytest.approx(1.0)
 
 
 def test_reconcile_contract_warns_when_drama_target_zero_post_simulation():
-    c = _contract(chapter_num=1, pacing_type="setup", drama_target=0.0, drama_tolerance=0.15)
+    c = _contract(
+        chapter_num=1, pacing_type="setup", drama_target=0.0, drama_tolerance=0.15
+    )
     out = reconcile_contract(c)
     assert out.drama_ceiling == 0.0
     assert "drama_ceiling_unset_no_target" in out.reconciliation_warnings

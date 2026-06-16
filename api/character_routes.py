@@ -52,6 +52,7 @@ def _check_character_rate(ip: str) -> bool:
     if os.environ.get("REDIS_URL"):
         try:
             from middleware.rate_limiter import _get_redis  # type: ignore
+
             r = _get_redis()
             if r is not None:
                 key = f"sf:ratelimit:character:{ip}"
@@ -95,12 +96,15 @@ def _rate_limit_dep(request: Request) -> None:
 def _get_llm():
     """Lazy import + return the LLMClient singleton. Tests monkey-patch this."""
     from services.llm_client import LLMClient
+
     return LLMClient()
 
 
 def _resolve_model() -> str | None:
     cfg = ConfigManager()
-    override = (getattr(cfg.pipeline, "character_traits_cheap_model_override", "") or "").strip()
+    override = (
+        getattr(cfg.pipeline, "character_traits_cheap_model_override", "") or ""
+    ).strip()
     if override:
         return override
     cheap = (getattr(cfg.llm, "cheap_model", "") or "").strip()
@@ -145,7 +149,6 @@ async def generate_character_route(
             status_code=502,
             detail=f"character generation failed: {type(e).__name__}",
         )
-
 
 
 class CharacterExtractRequest(BaseModel):
@@ -206,7 +209,9 @@ async def _generate_avatars_bg(
     response_model=list[ForgeCharacter],
     dependencies=[Depends(_rate_limit_dep)],
 )
-async def extract_story_characters_route(req: CharacterExtractRequest) -> list[ForgeCharacter]:
+async def extract_story_characters_route(
+    req: CharacterExtractRequest,
+) -> list[ForgeCharacter]:
     llm = _get_llm()
     model = _resolve_model()
 
@@ -215,6 +220,7 @@ async def extract_story_characters_route(req: CharacterExtractRequest) -> list[F
     # conflict). Without this, English-leaning base models can drift to
     # English even when the input is Vietnamese.
     from services.character_service import _language_label
+
     language_label = _language_label(req.language)
 
     prompt = f"""
@@ -264,8 +270,14 @@ REMINDER: All description / backstory / secret / conflict text MUST be in {langu
     )
     try:
         raw_json = await asyncio.wait_for(
-            asyncio.to_thread(llm.generate, system_prompt=system_prompt, user_prompt=prompt, model=model, temperature=0.7),
-            timeout=45.0
+            asyncio.to_thread(
+                llm.generate,
+                system_prompt=system_prompt,
+                user_prompt=prompt,
+                model=model,
+                temperature=0.7,
+            ),
+            timeout=45.0,
         )
         if "```json" in raw_json:
             raw_json = raw_json.split("```json")[1].split("```")[0].strip()
@@ -273,6 +285,7 @@ REMINDER: All description / backstory / secret / conflict text MUST be in {langu
             raw_json = raw_json.split("```")[1].strip()
 
         import json
+
         data = json.loads(raw_json)
         if not isinstance(data, list):
             data = [data]
@@ -304,7 +317,9 @@ REMINDER: All description / backstory / secret / conflict text MUST be in {langu
         raise HTTPException(status_code=504, detail="character extraction timeout")
     except Exception as e:
         logger.exception("Failed to extract characters")
-        raise HTTPException(status_code=500, detail=f"Failed to extract characters: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to extract characters: {str(e)}"
+        )
 
 
 # --- Story-scoped avatar lookup + regeneration -----------------------------
@@ -434,9 +449,7 @@ async def generate_all_character_avatars_route(
     if not chars:
         return AvatarBulkGenerateResponse(accepted=0)
 
-    task = asyncio.create_task(
-        _generate_avatars_bg(chars, req.story_id, req.genre)
-    )
+    task = asyncio.create_task(_generate_avatars_bg(chars, req.story_id, req.genre))
     _avatar_tasks.add(task)
     task.add_done_callback(_avatar_tasks.discard)
 

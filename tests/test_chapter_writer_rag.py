@@ -1,4 +1,5 @@
 """Sprint 2 Task 1 — chapter_writer RAG integration tests."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -35,17 +36,30 @@ def _mk_config(rag_enabled=True, multi_query=True):
 
 def _mk_outline(ch=5, summary="Linh gặp An tại bến tàu."):
     return ChapterOutline(
-        chapter_number=ch, title=f"Ch{ch}", summary=summary,
-        key_events=["meeting"], emotional_arc="tension",
+        chapter_number=ch,
+        title=f"Ch{ch}",
+        summary=summary,
+        key_events=["meeting"],
+        emotional_arc="tension",
     )
 
 
 def _mk_chars():
     return [
-        Character(name="Linh", role="protagonist", personality="determined",
-                  background="từ miền quê", motivation="tìm sự thật"),
-        Character(name="An", role="antagonist", personality="mysterious",
-                  background="nhà giàu", motivation="giữ bí mật"),
+        Character(
+            name="Linh",
+            role="protagonist",
+            personality="determined",
+            background="từ miền quê",
+            motivation="tìm sự thật",
+        ),
+        Character(
+            name="An",
+            role="antagonist",
+            personality="mysterious",
+            background="nhà giàu",
+            motivation="giữ bí mật",
+        ),
     ]
 
 
@@ -68,19 +82,38 @@ class _FakeRagKB:
 class TestChapterWriterRag:
     def test_multi_query_path_injects_rag_block(self):
         from pipeline.layer1_story.chapter_writer import build_chapter_prompt
-        results = [{
-            "text": "Chương 2: Linh phát hiện bức thư cũ.",
-            "metadata": {"chapter_number": 2, "chunk_index": 0, "characters": "Linh"},
-            "distance": 0.1,
-        }]
+
+        results = [
+            {
+                "text": "Chương 2: Linh phát hiện bức thư cũ.",
+                "metadata": {
+                    "chapter_number": 2,
+                    "chunk_index": 0,
+                    "characters": "Linh",
+                },
+                "distance": 0.1,
+            }
+        ]
         kb = _FakeRagKB(results=results)
         _, user = build_chapter_prompt(
             config=_mk_config(rag_enabled=True, multi_query=True),
-            title="t", genre="g", style="s",
-            characters=_mk_chars(), world=WorldSetting(name="W", description="d"),
-            outline=_mk_outline(ch=5), word_count=1000,
-            context=None, rag_kb=kb,
-            open_threads=[PlotThread(thread_id="t1", title="letter_mystery", description="Bức thư bí ẩn", planted_chapter=1)],
+            title="t",
+            genre="g",
+            style="s",
+            characters=_mk_chars(),
+            world=WorldSetting(name="W", description="d"),
+            outline=_mk_outline(ch=5),
+            word_count=1000,
+            context=None,
+            rag_kb=kb,
+            open_threads=[
+                PlotThread(
+                    thread_id="t1",
+                    title="letter_mystery",
+                    description="Bức thư bí ẩn",
+                    planted_chapter=1,
+                )
+            ],
         )
         assert "bức thư cũ" in user
         # multi-query path hits query_structured, not legacy query
@@ -89,14 +122,20 @@ class TestChapterWriterRag:
 
     def test_legacy_single_query_path(self):
         from pipeline.layer1_story.chapter_writer import build_chapter_prompt
+
         results = [{"text": "Ch1 content snippet.", "metadata": {}, "distance": 0.0}]
         kb = _FakeRagKB(results=results)
         _, user = build_chapter_prompt(
             config=_mk_config(rag_enabled=True, multi_query=False),
-            title="t", genre="g", style="s",
-            characters=_mk_chars(), world=WorldSetting(name="W", description="d"),
-            outline=_mk_outline(), word_count=1000,
-            context=None, rag_kb=kb,
+            title="t",
+            genre="g",
+            style="s",
+            characters=_mk_chars(),
+            world=WorldSetting(name="W", description="d"),
+            outline=_mk_outline(),
+            word_count=1000,
+            context=None,
+            rag_kb=kb,
         )
         assert "Ch1 content snippet." in user
         assert kb.query_calls == 1
@@ -104,26 +143,40 @@ class TestChapterWriterRag:
 
     def test_rag_disabled_skips_retrieval(self):
         from pipeline.layer1_story.chapter_writer import build_chapter_prompt
+
         kb = _FakeRagKB(results=[{"text": "x", "metadata": {}, "distance": 0.0}])
         _, user = build_chapter_prompt(
             config=_mk_config(rag_enabled=False),
-            title="t", genre="g", style="s",
-            characters=_mk_chars(), world=WorldSetting(name="W", description="d"),
-            outline=_mk_outline(), word_count=1000,
-            context=None, rag_kb=kb,
+            title="t",
+            genre="g",
+            style="s",
+            characters=_mk_chars(),
+            world=WorldSetting(name="W", description="d"),
+            outline=_mk_outline(),
+            word_count=1000,
+            context=None,
+            rag_kb=kb,
         )
         assert kb.query_structured_calls == 0
         assert kb.query_calls == 0
 
     def test_kb_unavailable_skips(self):
         from pipeline.layer1_story.chapter_writer import build_chapter_prompt
-        kb = _FakeRagKB(available=False, results=[{"text": "x", "metadata": {}, "distance": 0}])
+
+        kb = _FakeRagKB(
+            available=False, results=[{"text": "x", "metadata": {}, "distance": 0}]
+        )
         _, user = build_chapter_prompt(
             config=_mk_config(rag_enabled=True),
-            title="t", genre="g", style="s",
-            characters=_mk_chars(), world=WorldSetting(name="W", description="d"),
-            outline=_mk_outline(), word_count=1000,
-            context=None, rag_kb=kb,
+            title="t",
+            genre="g",
+            style="s",
+            characters=_mk_chars(),
+            world=WorldSetting(name="W", description="d"),
+            outline=_mk_outline(),
+            word_count=1000,
+            context=None,
+            rag_kb=kb,
         )
         assert kb.query_structured_calls == 0
         assert kb.query_calls == 0
@@ -147,10 +200,16 @@ class TestBatchGeneratorIndexing:
 
         class _KB:
             is_available = True
-            def index_chapter(self, chapter_number, content, characters, threads, summary):
+
+            def index_chapter(
+                self, chapter_number, content, characters, threads, summary
+            ):
                 indexed.update(
-                    chapter_number=chapter_number, content=content,
-                    characters=characters, threads=threads, summary=summary,
+                    chapter_number=chapter_number,
+                    content=content,
+                    characters=characters,
+                    threads=threads,
+                    summary=summary,
                 )
                 return 3
 
@@ -162,8 +221,17 @@ class TestBatchGeneratorIndexing:
         config = _mk_config(rag_enabled=True)
         ch = Chapter(chapter_number=7, title="t", content="some text.", word_count=2)
         outline = _mk_outline(ch=7, summary="meeting by the dock")
-        threads = [PlotThread(thread_id="t1", title="letter_mystery", description="d", planted_chapter=1)]
-        n = batch_generator._index_chapter_into_rag(config, ch, outline, _mk_chars(), threads)
+        threads = [
+            PlotThread(
+                thread_id="t1",
+                title="letter_mystery",
+                description="d",
+                planted_chapter=1,
+            )
+        ]
+        n = batch_generator._index_chapter_into_rag(
+            config, ch, outline, _mk_chars(), threads
+        )
         assert n == 3
         assert indexed["chapter_number"] == 7
         assert "Linh" in indexed["characters"]
@@ -177,6 +245,7 @@ class TestBatchGeneratorIndexing:
 
         class _KB:
             is_available = True
+
             def index_chapter(self, **kwargs):
                 raise RuntimeError("boom")
 
@@ -187,6 +256,13 @@ class TestBatchGeneratorIndexing:
         config = _mk_config(rag_enabled=True)
         ch = Chapter(chapter_number=1, title="t", content="x", word_count=1)
         # Should not raise
-        assert batch_generator._index_chapter_into_rag(
-            config, ch, _mk_outline(ch=1), _mk_chars(), None,
-        ) == 0
+        assert (
+            batch_generator._index_chapter_into_rag(
+                config,
+                ch,
+                _mk_outline(ch=1),
+                _mk_chars(),
+                None,
+            )
+            == 0
+        )

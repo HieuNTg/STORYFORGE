@@ -47,6 +47,7 @@ class NERService:
                 return
             try:
                 import spacy  # noqa: PLC0415 — intentional lazy import
+
                 self._nlp = spacy.load("xx_ent_wiki_sm")
                 self._available = True
                 logger.info("NER model loaded: xx_ent_wiki_sm")

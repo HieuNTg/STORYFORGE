@@ -80,6 +80,7 @@ class TestGetSyncEngine:
         monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_db}")
         # Reset module singleton before test
         import pipeline.orchestrator_layers as ol
+
         ol._sync_engine = None
         eng = ol._get_sync_engine()
         assert eng is not None
@@ -87,6 +88,7 @@ class TestGetSyncEngine:
     def test_singleton_same_object(self, tmp_db, monkeypatch):
         monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_db}")
         import pipeline.orchestrator_layers as ol
+
         ol._sync_engine = None
         e1 = ol._get_sync_engine()
         e2 = ol._get_sync_engine()
@@ -95,6 +97,7 @@ class TestGetSyncEngine:
     def test_wal_pragma_applied(self, tmp_db, monkeypatch):
         monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_db}")
         import pipeline.orchestrator_layers as ol
+
         ol._sync_engine = None
         eng = ol._get_sync_engine()
         with eng.connect() as conn:
@@ -105,6 +108,7 @@ class TestGetSyncEngine:
         """Two threads calling concurrently get the same engine."""
         monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_db}")
         import pipeline.orchestrator_layers as ol
+
         ol._sync_engine = None
         engines = []
 
@@ -129,6 +133,7 @@ class TestPersistHandoffToDb:
     def _setup(self, tmp_db, monkeypatch):
         monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_db}")
         import pipeline.orchestrator_layers as ol
+
         ol._sync_engine = None
         eng = _make_engine(tmp_db)
         return ol, eng
@@ -156,6 +161,7 @@ class TestPersistHandoffToDb:
         # No rows inserted — story_id doesn't exist
         missing_id = str(uuid.uuid4())
         import logging
+
         with caplog.at_level(logging.WARNING, logger="pipeline.orchestrator_layers"):
             ol._persist_handoff_to_db(missing_id, {}, {}, "v1")
         assert "no pipeline_run found" in caplog.text.lower()
@@ -163,6 +169,7 @@ class TestPersistHandoffToDb:
     def test_most_recent_run_updated(self, tmp_db, monkeypatch):
         """When multiple runs exist, only the most recent (by created_at) is updated."""
         from datetime import datetime, timedelta
+
         ol, eng = self._setup(tmp_db, monkeypatch)
         sid = str(uuid.uuid4())
         now = datetime.utcnow()
@@ -171,12 +178,16 @@ class TestPersistHandoffToDb:
             s.add(story)
             # older run: created 10 seconds ago
             r1 = PipelineRun(
-                id=str(uuid.uuid4()), story_id=sid, genre="g",
+                id=str(uuid.uuid4()),
+                story_id=sid,
+                genre="g",
                 created_at=now - timedelta(seconds=10),
             )
             # newer run: created now
             r2 = PipelineRun(
-                id=str(uuid.uuid4()), story_id=sid, genre="g",
+                id=str(uuid.uuid4()),
+                story_id=sid,
+                genre="g",
                 created_at=now,
             )
             s.add_all([r1, r2])
@@ -202,6 +213,7 @@ class TestPersistChapterContractToDb:
     def _setup(self, tmp_db, monkeypatch):
         monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_db}")
         import pipeline.orchestrator_layers as ol
+
         ol._sync_engine = None
         eng = _make_engine(tmp_db)
         return ol, eng
@@ -227,6 +239,7 @@ class TestPersistChapterContractToDb:
     def test_missing_chapter_logs_warning(self, tmp_db, monkeypatch, caplog):
         ol, eng = self._setup(tmp_db, monkeypatch)
         import logging
+
         with caplog.at_level(logging.WARNING, logger="pipeline.orchestrator_layers"):
             ol._persist_chapter_contract_to_db(
                 story_id=str(uuid.uuid4()),
@@ -246,6 +259,7 @@ class TestPersistChapterSemanticFindings:
     def _setup(self, tmp_db, monkeypatch):
         monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_db}")
         import pipeline.orchestrator_layers as ol
+
         ol._sync_engine = None
         eng = _make_engine(tmp_db)
         return ol, eng
@@ -270,8 +284,10 @@ class TestPersistChapterSemanticFindings:
         """Persist failure must not raise — just logs warning."""
         monkeypatch.setenv("DATABASE_URL", "sqlite:////nonexistent/path/test.db")
         import pipeline.orchestrator_layers as ol
+
         ol._sync_engine = None  # force re-init with bad path
         import logging
+
         with caplog.at_level(logging.WARNING, logger="pipeline.orchestrator_layers"):
             # Should not raise
             ol.persist_chapter_semantic_findings("any-id", 1, {"x": 1})
@@ -280,6 +296,7 @@ class TestPersistChapterSemanticFindings:
         ol, eng = self._setup(tmp_db, monkeypatch)
         # DB exists but no chapter
         import logging
+
         with caplog.at_level(logging.WARNING, logger="pipeline.orchestrator_layers"):
             ol.persist_chapter_semantic_findings(
                 story_id=str(uuid.uuid4()),
@@ -298,6 +315,7 @@ class TestPersistOutlineMetrics:
     def _setup(self, tmp_db, monkeypatch):
         monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_db}")
         import pipeline.orchestrator_layers as ol
+
         ol._sync_engine = None
         eng = _make_engine(tmp_db)
         return ol, eng
@@ -319,6 +337,7 @@ class TestPersistOutlineMetrics:
     def test_non_fatal_on_missing_story(self, tmp_db, monkeypatch, caplog):
         ol, eng = self._setup(tmp_db, monkeypatch)
         import logging
+
         with caplog.at_level(logging.WARNING, logger="pipeline.orchestrator_layers"):
             ol.persist_outline_metrics(
                 story_id=str(uuid.uuid4()),
@@ -329,6 +348,7 @@ class TestPersistOutlineMetrics:
     def test_non_fatal_engine_error(self, monkeypatch):
         monkeypatch.setenv("DATABASE_URL", "sqlite:////nonexistent/path/nope.db")
         import pipeline.orchestrator_layers as ol
+
         ol._sync_engine = None
         # Must not raise
         ol.persist_outline_metrics("any-id", {"overall_score": 0.1})
@@ -386,7 +406,9 @@ class TestRunStructuralRewrites:
         # write_chapter returns quickly
         rewritten, failed = await _run_structural_rewrites(
             self_obj,
-            issues_by_chapter=dict(list(sorted(issues_by_chapter.items()))[:3]),  # already capped by caller
+            issues_by_chapter=dict(
+                list(sorted(issues_by_chapter.items()))[:3]
+            ),  # already capped by caller
             draft=draft,
             genre="fantasy",
             style="plain",
@@ -447,7 +469,9 @@ class TestRunStructuralRewrites:
         draft = self._make_draft(n_chapters=8)
         self_obj = self._make_self(batch_size=3)
         # Patch asyncio.to_thread to call directly
-        with patch("pipeline.orchestrator_layers.asyncio.to_thread", side_effect=_slow_write):
+        with patch(
+            "pipeline.orchestrator_layers.asyncio.to_thread", side_effect=_slow_write
+        ):
             issues = {i: [self._make_issue()] for i in range(1, 9)}
             await _run_structural_rewrites(
                 self_obj,
@@ -479,10 +503,17 @@ class TestRunLayer1Only:
 
     def test_delegates_to_story_gen(self):
         from pipeline.orchestrator_layers import run_layer1_only
+
         orch = self._make_orch()
         result = run_layer1_only(
-            orch, title="T", genre="G", idea="I",
-            style="S", num_chapters=3, num_characters=4, word_count=1000,
+            orch,
+            title="T",
+            genre="G",
+            idea="I",
+            style="S",
+            num_chapters=3,
+            num_characters=4,
+            word_count=1000,
         )
         orch.story_gen.generate_full_story.assert_called_once()
         call_kwargs = orch.story_gen.generate_full_story.call_args
@@ -492,11 +523,18 @@ class TestRunLayer1Only:
 
     def test_passes_progress_callback(self):
         from pipeline.orchestrator_layers import run_layer1_only
+
         orch = self._make_orch()
         cb = MagicMock()
         run_layer1_only(
-            orch, title="T", genre="G", idea="I",
-            style="S", num_chapters=1, num_characters=1, word_count=100,
+            orch,
+            title="T",
+            genre="G",
+            idea="I",
+            style="S",
+            num_chapters=1,
+            num_characters=1,
+            word_count=100,
             progress_callback=cb,
         )
         kwargs = orch.story_gen.generate_full_story.call_args.kwargs
@@ -530,6 +568,7 @@ class TestRunLayer2Only:
 
     def _make_draft(self, conflict_web=None, foreshadowing_plan=None):
         from models.schemas import Character, StoryDraft
+
         char = Character(name="A", role="chính", personality="brave")
         draft = StoryDraft(title="T", genre="fantasy")
         draft.characters = [char]
@@ -541,6 +580,7 @@ class TestRunLayer2Only:
 
     def _make_conflict_entry(self):
         from models.schemas import ConflictEntry
+
         return ConflictEntry(
             conflict_id="c1",
             conflict_type="external",
@@ -550,6 +590,7 @@ class TestRunLayer2Only:
 
     def _make_foreshadowing_entry(self):
         from models.schemas import ForeshadowingEntry
+
         return ForeshadowingEntry(
             hint="a subtle clue",
             plant_chapter=1,
@@ -558,6 +599,7 @@ class TestRunLayer2Only:
 
     def test_conflict_web_forwarded_to_simulator(self):
         from pipeline.orchestrator_layers import run_layer2_only
+
         cw = [self._make_conflict_entry()]
         draft = self._make_draft(conflict_web=cw)
         orch = self._make_orch()
@@ -568,6 +610,7 @@ class TestRunLayer2Only:
 
     def test_foreshadowing_plan_forwarded_to_simulator(self):
         from pipeline.orchestrator_layers import run_layer2_only
+
         fp = [self._make_foreshadowing_entry()]
         draft = self._make_draft(foreshadowing_plan=fp)
         orch = self._make_orch()
@@ -578,6 +621,7 @@ class TestRunLayer2Only:
 
     def test_signals_disabled_sends_none(self):
         from pipeline.orchestrator_layers import run_layer2_only
+
         cw = [self._make_conflict_entry()]
         fp = [self._make_foreshadowing_entry()]
         draft = self._make_draft(conflict_web=cw, foreshadowing_plan=fp)
@@ -589,6 +633,7 @@ class TestRunLayer2Only:
 
     def test_returns_enhanced_story(self):
         from pipeline.orchestrator_layers import run_layer2_only
+
         draft = self._make_draft()
         orch = self._make_orch()
         result = run_layer2_only(orch, draft=draft)
@@ -596,11 +641,16 @@ class TestRunLayer2Only:
 
     def test_analyzer_called_with_conflict_web(self):
         from pipeline.orchestrator_layers import run_layer2_only
+
         cw = [self._make_conflict_entry()]
         draft = self._make_draft(conflict_web=cw)
         orch = self._make_orch()
         run_layer2_only(orch, draft=draft)
         call_args = orch.analyzer.analyze.call_args
         # second positional arg is the conflict_web
-        passed_cw = call_args.args[1] if len(call_args.args) >= 2 else call_args.kwargs.get("conflict_web")
+        passed_cw = (
+            call_args.args[1]
+            if len(call_args.args) >= 2
+            else call_args.kwargs.get("conflict_web")
+        )
         assert passed_cw is not None

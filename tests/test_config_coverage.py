@@ -1,4 +1,5 @@
 """Coverage tests for config/ package: defaults, validation, persistence, presets."""
+
 from __future__ import annotations
 
 import json
@@ -16,6 +17,7 @@ class TestLLMConfigDefaults:
 
     def test_llm_config_default_values(self):
         from config.defaults import LLMConfig
+
         cfg = LLMConfig()
         assert cfg.api_key == ""
         assert "openai.com" in cfg.base_url
@@ -25,6 +27,7 @@ class TestLLMConfigDefaults:
 
     def test_llm_config_custom_values(self):
         from config.defaults import LLMConfig
+
         cfg = LLMConfig(api_key="sk-abc", model="gpt-4o", temperature=0.5)
         assert cfg.api_key == "sk-abc"
         assert cfg.model == "gpt-4o"
@@ -32,12 +35,14 @@ class TestLLMConfigDefaults:
 
     def test_llm_config_fallback_models_empty_by_default(self):
         from config.defaults import LLMConfig
+
         cfg = LLMConfig()
         assert isinstance(cfg.fallback_models, list)
         assert len(cfg.fallback_models) == 0
 
     def test_llm_config_layer_models_empty_by_default(self):
         from config.defaults import LLMConfig
+
         cfg = LLMConfig()
         assert cfg.layer1_model == ""
         assert cfg.layer2_model == ""
@@ -48,6 +53,7 @@ class TestPipelineConfigDefaults:
 
     def test_pipeline_config_default_values(self):
         from config.defaults import PipelineConfig
+
         cfg = PipelineConfig()
         assert cfg.num_chapters > 0
         assert cfg.words_per_chapter > 0
@@ -55,11 +61,13 @@ class TestPipelineConfigDefaults:
 
     def test_pipeline_config_image_provider_default(self):
         from config.defaults import PipelineConfig
+
         cfg = PipelineConfig()
         assert cfg.image_provider == "none"
 
     def test_pipeline_config_sub_genres_empty(self):
         from config.defaults import PipelineConfig
+
         cfg = PipelineConfig()
         assert isinstance(cfg.sub_genres, list)
 
@@ -70,6 +78,7 @@ class TestConfigValidation:
     def test_validate_empty_api_key(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.validation import validate_config
+
         llm = LLMConfig()
         pipeline = PipelineConfig()
         errors = validate_config(llm, pipeline)
@@ -78,6 +87,7 @@ class TestConfigValidation:
     def test_validate_valid_config(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.validation import validate_config
+
         llm = LLMConfig(api_key="sk-test1234")
         pipeline = PipelineConfig()
         errors = validate_config(llm, pipeline)
@@ -88,6 +98,7 @@ class TestConfigValidation:
     def test_validate_invalid_num_chapters(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.validation import validate_config
+
         llm = LLMConfig(api_key="sk-test")
         pipeline = PipelineConfig(num_chapters=0)
         errors = validate_config(llm, pipeline)
@@ -96,6 +107,7 @@ class TestConfigValidation:
     def test_validate_invalid_words_per_chapter(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.validation import validate_config
+
         llm = LLMConfig(api_key="sk-test")
         pipeline = PipelineConfig(words_per_chapter=10)
         errors = validate_config(llm, pipeline)
@@ -104,7 +116,12 @@ class TestConfigValidation:
     def test_validate_openrouter_model_format(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.validation import validate_config
-        llm = LLMConfig(api_key="sk-test", base_url="https://openrouter.ai/api/v1", model="bad-model")
+
+        llm = LLMConfig(
+            api_key="sk-test",
+            base_url="https://openrouter.ai/api/v1",
+            model="bad-model",
+        )
         pipeline = PipelineConfig()
         errors = validate_config(llm, pipeline)
         # Should warn about OpenRouter model format
@@ -113,13 +130,13 @@ class TestConfigValidation:
         assert isinstance(errors, list)
 
 
-
 class TestConfigPersistence:
     """Tests for config load/save."""
 
     def test_load_config_missing_file(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.persistence import load_config
+
         llm = LLMConfig()
         pipeline = PipelineConfig()
         # Load from non-existent file — should not raise
@@ -131,6 +148,7 @@ class TestConfigPersistence:
     def test_save_and_load_config(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.persistence import save_config, load_config
+
         with tempfile.TemporaryDirectory() as tmpdir:
             config_file = os.path.join(tmpdir, "config.json")
             with patch("config.persistence.CONFIG_FILE", config_file):
@@ -146,10 +164,13 @@ class TestConfigPersistence:
     def test_save_config_includes_api_key(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.persistence import save_config
+
         with tempfile.TemporaryDirectory() as tmpdir:
             config_file = os.path.join(tmpdir, "config.json")
-            with patch("config.persistence.CONFIG_FILE", config_file), \
-                 patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": ""}, clear=False):
+            with (
+                patch("config.persistence.CONFIG_FILE", config_file),
+                patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": ""}, clear=False),
+            ):
                 llm = LLMConfig(api_key="sk-test-key")
                 pipeline = PipelineConfig()
                 save_config(llm, pipeline)
@@ -160,11 +181,21 @@ class TestConfigPersistence:
     def test_save_config_encrypts_sensitive_fields_when_secret_set(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.persistence import save_config, load_config
+
         with tempfile.TemporaryDirectory() as tmpdir:
             config_file = os.path.join(tmpdir, "config.json")
-            with patch("config.persistence.CONFIG_FILE", config_file), \
-                 patch("config.persistence._SECRETS_FILE", os.path.join(tmpdir, "secrets.json")), \
-                 patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": "unit-test-secret"}, clear=False):
+            with (
+                patch("config.persistence.CONFIG_FILE", config_file),
+                patch(
+                    "config.persistence._SECRETS_FILE",
+                    os.path.join(tmpdir, "secrets.json"),
+                ),
+                patch.dict(
+                    os.environ,
+                    {"STORYFORGE_SECRET_KEY": "unit-test-secret"},
+                    clear=False,
+                ),
+            ):
                 llm = LLMConfig(
                     api_key="sk-test-key",
                     api_keys=["sk-extra-key"],
@@ -197,10 +228,16 @@ class TestConfigPersistence:
         character refs)."""
         from config.defaults import LLMConfig, PipelineConfig
         from config.persistence import save_config, load_config
+
         with tempfile.TemporaryDirectory() as tmpdir:
             config_file = os.path.join(tmpdir, "config.json")
-            with patch("config.persistence.CONFIG_FILE", config_file), \
-                 patch("config.persistence._SECRETS_FILE", os.path.join(tmpdir, "secrets.json")):
+            with (
+                patch("config.persistence.CONFIG_FILE", config_file),
+                patch(
+                    "config.persistence._SECRETS_FILE",
+                    os.path.join(tmpdir, "secrets.json"),
+                ),
+            ):
                 pipeline = PipelineConfig(
                     comic_shot_list_enabled=True,
                     comic_compositor_enabled=True,
@@ -240,23 +277,31 @@ class TestConfigPersistence:
         from config.defaults import LLMConfig, PipelineConfig
         from config.persistence import save_config
         from api.config_routes import ConfigUpdate
+
         with tempfile.TemporaryDirectory() as tmpdir:
             config_file = os.path.join(tmpdir, "config.json")
-            with patch("config.persistence.CONFIG_FILE", config_file), \
-                 patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": ""}, clear=False):
+            with (
+                patch("config.persistence.CONFIG_FILE", config_file),
+                patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": ""}, clear=False),
+            ):
                 save_config(LLMConfig(), PipelineConfig())
                 with open(config_file, encoding="utf-8") as f:
                     data = json.load(f)
         saved = set(data["llm"]) | set(data["pipeline"])
-        model_fields = getattr(ConfigUpdate, "model_fields", None) or ConfigUpdate.__fields__
+        model_fields = (
+            getattr(ConfigUpdate, "model_fields", None) or ConfigUpdate.__fields__
+        )
         # append_api_keys is a PUT verb (merged into api_keys), not a stored field
         api_fields = set(model_fields) - {"append_api_keys"}
         missing = api_fields - saved
-        assert not missing, f"Settings-API fields dropped by save_config: {sorted(missing)}"
+        assert not missing, (
+            f"Settings-API fields dropped by save_config: {sorted(missing)}"
+        )
 
     def test_env_override_api_key(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.persistence import load_config
+
         llm = LLMConfig()
         pipeline = PipelineConfig()
         with patch.dict(os.environ, {"STORYFORGE_API_KEY": "env-override-key"}):
@@ -267,6 +312,7 @@ class TestConfigPersistence:
     def test_env_override_temperature(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.persistence import load_config
+
         llm = LLMConfig()
         pipeline = PipelineConfig()
         with patch.dict(os.environ, {"STORYFORGE_TEMPERATURE": "0.3"}):
@@ -277,6 +323,7 @@ class TestConfigPersistence:
     def test_env_override_bool_field(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.persistence import load_config
+
         llm = LLMConfig()
         pipeline = PipelineConfig()
         with patch.dict(os.environ, {"STORYFORGE_RAG_ENABLED": "true"}):
@@ -287,6 +334,7 @@ class TestConfigPersistence:
     def test_load_config_invalid_json(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.persistence import load_config
+
         llm = LLMConfig()
         pipeline = PipelineConfig()
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
@@ -305,12 +353,14 @@ class TestConfigPresets:
 
     def test_pipeline_presets_keys(self):
         from config.presets import PIPELINE_PRESETS
+
         assert "beginner" in PIPELINE_PRESETS
         assert "advanced" in PIPELINE_PRESETS
         assert "pro" in PIPELINE_PRESETS
 
     def test_pipeline_preset_has_label(self):
         from config.presets import PIPELINE_PRESETS
+
         for key, preset in PIPELINE_PRESETS.items():
             assert "label" in preset, f"Preset {key} missing label"
 
@@ -320,35 +370,41 @@ class TestConfigManagerSingleton:
 
     def test_singleton_returns_same_instance(self):
         from config import ConfigManager
+
         cm1 = ConfigManager()
         cm2 = ConfigManager()
         assert cm1 is cm2
 
     def test_config_manager_has_llm(self):
         from config import ConfigManager
+
         cm = ConfigManager()
         assert hasattr(cm, "llm")
         assert hasattr(cm.llm, "api_key")
 
     def test_config_manager_has_pipeline(self):
         from config import ConfigManager
+
         cm = ConfigManager()
         assert hasattr(cm, "pipeline")
         assert hasattr(cm.pipeline, "num_chapters")
 
     def test_config_manager_load_returns_self(self):
         from config import ConfigManager
+
         cm = ConfigManager()
         assert cm.load() is cm
 
     def test_config_manager_validate_returns_list(self):
         from config import ConfigManager
+
         cm = ConfigManager()
         result = cm.validate()
         assert isinstance(result, list)
 
     def test_config_manager_save_raises_on_critical(self):
         from config import ConfigManager
+
         cm = ConfigManager()
         original_key = cm.llm.api_key
         original_fallbacks = cm.llm.fallback_models
@@ -356,7 +412,9 @@ class TestConfigManagerSingleton:
         # clobber the developer's real data/config.json with the gutted
         # singleton state.
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("config.persistence.CONFIG_FILE", os.path.join(tmpdir, "config.json")):
+            with patch(
+                "config.persistence.CONFIG_FILE", os.path.join(tmpdir, "config.json")
+            ):
                 try:
                     cm.llm.api_key = ""
                     cm.llm.fallback_models = []

@@ -1,4 +1,5 @@
 """Tests for CharacterVisualProfileStore."""
+
 import os
 import pytest
 from services.character_visual_profile import CharacterVisualProfileStore
@@ -7,6 +8,7 @@ from services.character_visual_profile import CharacterVisualProfileStore
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture()
 def store(tmp_path):
@@ -31,6 +33,7 @@ class FakeCharacter:
 # _safe_name
 # ---------------------------------------------------------------------------
 
+
 def test_safe_name_basic(store):
     assert store._safe_name("Minh") == "Minh"
 
@@ -52,6 +55,7 @@ def test_safe_name_only_specials(store):
 # has_profile
 # ---------------------------------------------------------------------------
 
+
 def test_has_profile_false_when_absent(store):
     assert store.has_profile("Nobody") is False
 
@@ -64,6 +68,7 @@ def test_has_profile_true_after_save(store):
 # ---------------------------------------------------------------------------
 # save_profile + load_profile roundtrip
 # ---------------------------------------------------------------------------
+
 
 def test_save_load_roundtrip_no_image(store):
     store.save_profile("Alice", "short blonde hair, blue eyes")
@@ -94,6 +99,7 @@ def test_load_profile_missing_returns_none(store):
 # get_reference_image
 # ---------------------------------------------------------------------------
 
+
 def test_get_reference_image_with_image(store, ref_image):
     store.save_profile("Carol", "red hair", reference_image_path=ref_image)
     ref = store.get_reference_image("Carol")
@@ -115,6 +121,7 @@ def test_get_reference_image_nonexistent_char(store):
 # get_visual_description
 # ---------------------------------------------------------------------------
 
+
 def test_get_visual_description(store):
     store.save_profile("Eve", "tall with green eyes")
     desc = store.get_visual_description("Eve")
@@ -129,6 +136,7 @@ def test_get_visual_description_missing_returns_empty(store):
 # build_visual_description
 # ---------------------------------------------------------------------------
 
+
 def test_build_visual_description_appearance_only(store):
     char = FakeCharacter("Frank", appearance="muscular build, scar on left cheek")
     desc = store.build_visual_description(char)
@@ -136,7 +144,9 @@ def test_build_visual_description_appearance_only(store):
 
 
 def test_build_visual_description_appearance_and_personality(store):
-    char = FakeCharacter("Grace", appearance="petite frame", personality="stern expression")
+    char = FakeCharacter(
+        "Grace", appearance="petite frame", personality="stern expression"
+    )
     desc = store.build_visual_description(char)
     assert "petite frame" in desc
     assert "stern expression" in desc
@@ -151,6 +161,7 @@ def test_build_visual_description_fallback_to_name(store):
 def test_build_visual_description_non_character_object(store):
     class Minimal:
         name = "Ivy"
+
     desc = store.build_visual_description(Minimal())
     assert "Ivy" in desc
 
@@ -158,6 +169,7 @@ def test_build_visual_description_non_character_object(store):
 # ---------------------------------------------------------------------------
 # list_profiles
 # ---------------------------------------------------------------------------
+
 
 def test_list_profiles_empty(store):
     assert store.list_profiles() == []
@@ -177,6 +189,7 @@ def test_list_profiles_multiple(store):
 # delete_profile
 # ---------------------------------------------------------------------------
 
+
 def test_delete_profile(store):
     store.save_profile("Zara", "tall")
     assert store.has_profile("Zara") is True
@@ -193,6 +206,7 @@ def test_delete_profile_nonexistent_returns_false(store):
 # ---------------------------------------------------------------------------
 # save_profile idempotent (overwrite)
 # ---------------------------------------------------------------------------
+
 
 def test_save_profile_overwrite(store):
     store.save_profile("Nora", "old description")

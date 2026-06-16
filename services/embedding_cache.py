@@ -85,14 +85,15 @@ class EmbeddingCache:
 
     def get(self, key: str) -> bytes | None:
         """Return stored float32 LE bytes for `key`, or None on miss."""
-        row = self._conn().execute(
-            "SELECT vec FROM embedding_cache WHERE key = ?", (key,)
-        ).fetchone()
+        row = (
+            self._conn()
+            .execute("SELECT vec FROM embedding_cache WHERE key = ?", (key,))
+            .fetchone()
+        )
         return row[0] if row else None
 
     def put(self, key: str, model_id: str, vec_bytes: bytes) -> None:
         """Persist `vec_bytes` under `key`. Idempotent — duplicate keys are ignored."""
-        import numpy as np
 
         # Derive dim from byte length (float32 = 4 bytes each)
         dim = len(vec_bytes) // 4
@@ -111,10 +112,14 @@ class EmbeddingCache:
         if not keys:
             return {}
         placeholders = ",".join("?" * len(keys))
-        rows = self._conn().execute(
-            f"SELECT key, vec FROM embedding_cache WHERE key IN ({placeholders})",
-            keys,
-        ).fetchall()
+        rows = (
+            self._conn()
+            .execute(
+                f"SELECT key, vec FROM embedding_cache WHERE key IN ({placeholders})",
+                keys,
+            )
+            .fetchall()
+        )
         return {row[0]: row[1] for row in rows}
 
     # -- Diagnostics -------------------------------------------------------

@@ -52,8 +52,12 @@ class QualityScorer:
             dialogue_depth=_clamp(result.get("dialogue_depth", 0), 0.0, 5.0),
             notes=str(result.get("notes", "")),
         )
-        score.overall = (score.coherence + score.character_consistency +
-                         score.drama + score.writing_quality) / 4
+        score.overall = (
+            score.coherence
+            + score.character_consistency
+            + score.drama
+            + score.writing_quality
+        ) / 4
         return score
 
     def score_story(self, chapters: list[Chapter], layer: int = 1) -> StoryScore:
@@ -106,6 +110,10 @@ class QualityScorer:
             weakest_chapter=min(scores, key=lambda s: s.overall).chapter_number,
             scoring_layer=layer,
         )
-        story_score.overall = (story_score.avg_coherence + story_score.avg_character +
-                               story_score.avg_drama + story_score.avg_writing) / 4
+        story_score.overall = (
+            story_score.avg_coherence
+            + story_score.avg_character
+            + story_score.avg_drama
+            + story_score.avg_writing
+        ) / 4
         return story_score

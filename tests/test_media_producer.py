@@ -1,4 +1,5 @@
 """Tests for media producer error recovery paths."""
+
 from unittest.mock import MagicMock, patch
 
 
@@ -20,7 +21,7 @@ class TestMediaProducerErrorRecovery:
         mock_enhanced = MagicMock()
         mock_enhanced.chapters = []
 
-        with patch.object(producer, 'config') as mock_cfg:
+        with patch.object(producer, "config") as mock_cfg:
             mock_cfg.pipeline.seedream_api_key = ""
             mock_cfg.pipeline.seedream_api_url = ""
             mock_cfg.pipeline.enable_character_consistency = False
@@ -46,8 +47,9 @@ class TestMediaProducerErrorRecovery:
         mock_enhanced = MagicMock()
         mock_enhanced.chapters = []
 
-        result = producer.run(mock_draft, mock_enhanced,
-                             progress_callback=lambda m: None)
+        result = producer.run(
+            mock_draft, mock_enhanced, progress_callback=lambda m: None
+        )
         assert isinstance(result, dict)
         assert result["scene_images"] == []
 

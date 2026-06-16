@@ -5,10 +5,16 @@ from unittest.mock import MagicMock
 from datetime import datetime
 
 from models.schemas import (
-    StoryDraft, Chapter, Character, CharacterState, ConsistencyIssue, ConsistencyReport,
+    StoryDraft,
+    Chapter,
+    Character,
+    CharacterState,
+    ConsistencyIssue,
+    ConsistencyReport,
 )
 from pipeline.layer1_story.consistency_checker import (
-    ConsistencyChecker, check_consistency,
+    ConsistencyChecker,
+    check_consistency,
 )
 
 
@@ -55,20 +61,32 @@ class TestConsistencySchemas:
         """Report should count issues by severity."""
         issues = [
             ConsistencyIssue(
-                issue_type="fact", severity="error", description="Error 1",
-                chapter_a=1, chapter_b=2,
+                issue_type="fact",
+                severity="error",
+                description="Error 1",
+                chapter_a=1,
+                chapter_b=2,
             ),
             ConsistencyIssue(
-                issue_type="timeline", severity="warning", description="Warning 1",
-                chapter_a=1, chapter_b=2,
+                issue_type="timeline",
+                severity="warning",
+                description="Warning 1",
+                chapter_a=1,
+                chapter_b=2,
             ),
             ConsistencyIssue(
-                issue_type="character_state", severity="warning", description="Warning 2",
-                chapter_a=2, chapter_b=3,
+                issue_type="character_state",
+                severity="warning",
+                description="Warning 2",
+                chapter_a=2,
+                chapter_b=3,
             ),
             ConsistencyIssue(
-                issue_type="object", severity="info", description="Info 1",
-                chapter_a=1, chapter_b=3,
+                issue_type="object",
+                severity="info",
+                description="Info 1",
+                chapter_a=1,
+                chapter_b=3,
             ),
         ]
         report = ConsistencyReport(
@@ -101,12 +119,14 @@ class TestConsistencyChecker:
             genre="Fantasy",
             chapters=[
                 Chapter(
-                    chapter_number=1, title="Beginning",
+                    chapter_number=1,
+                    title="Beginning",
                     content="The hero walked through the forest. He was happy and brave.",
                     summary="Hero explores forest",
                 ),
                 Chapter(
-                    chapter_number=2, title="Conflict",
+                    chapter_number=2,
+                    title="Conflict",
                     content="The hero was suddenly in the castle. He felt sad now.",
                     summary="Hero in castle",
                 ),
@@ -160,10 +180,18 @@ class TestConsistencyChecker:
             title="Test",
             genre="Fantasy",
             chapters=[
-                Chapter(chapter_number=1, title="Ch1", content="Hero was happy and smiling."),
-                Chapter(chapter_number=2, title="Ch2", content="Hero was extremely sad and crying."),
+                Chapter(
+                    chapter_number=1, title="Ch1", content="Hero was happy and smiling."
+                ),
+                Chapter(
+                    chapter_number=2,
+                    title="Ch2",
+                    content="Hero was extremely sad and crying.",
+                ),
             ],
-            characters=[Character(name="Hero", role="protagonist", personality="brave")],
+            characters=[
+                Character(name="Hero", role="protagonist", personality="brave")
+            ],
             character_states=[
                 CharacterState(name="Hero", mood="vui", arc_position="rising"),
             ],
@@ -192,7 +220,8 @@ class TestConsistencyChecker:
         progress_msgs = []
 
         checker.check_chapters(
-            sample_draft, [2],
+            sample_draft,
+            [2],
             progress_callback=lambda m: progress_msgs.append(m),
         )
 
@@ -343,7 +372,9 @@ class TestConsistencyInContinueFlow:
         draft = StoryDraft(
             title="Test",
             genre="Fantasy",
-            chapters=[Chapter(chapter_number=1, title="Ch1", content="Existing content")],
+            chapters=[
+                Chapter(chapter_number=1, title="Ch1", content="Existing content")
+            ],
             characters=[],
             outlines=[],
         )
@@ -353,8 +384,12 @@ class TestConsistencyInContinueFlow:
         mock_gen.config.pipeline.writing_style = ""
         mock_gen.config.pipeline.enable_self_review = False
         mock_gen.rebuild_context.return_value = MagicMock(
-            character_states=[], plot_events=[], open_threads=[], conflict_map=[],
-            current_chapter=2, total_chapters=2,
+            character_states=[],
+            plot_events=[],
+            open_threads=[],
+            conflict_map=[],
+            current_chapter=2,
+            total_chapters=2,
         )
         mock_gen.llm.generate.return_value = "Generated chapter content"
         mock_gen._write_chapter_with_long_context.return_value = Chapter(
@@ -374,5 +409,7 @@ class TestConsistencyInContinueFlow:
         )
 
         # Check that consistency check message appeared
-        consistency_msgs = [m for m in progress_msgs if "Consistency" in m or "consistency" in m]
+        consistency_msgs = [
+            m for m in progress_msgs if "Consistency" in m or "consistency" in m
+        ]
         assert len(consistency_msgs) > 0

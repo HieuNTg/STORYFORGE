@@ -19,8 +19,12 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from models.schemas import (
-    Chapter, SimulationResult, SimulationEvent, StoryDraft,
-    EnhancedStory, Character,
+    Chapter,
+    SimulationResult,
+    SimulationEvent,
+    StoryDraft,
+    EnhancedStory,
+    Character,
 )
 from pipeline.layer2_enhance.enhancer import (
     StoryEnhancer,
@@ -36,6 +40,7 @@ from pipeline.layer2_enhance.enhancer import (
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def _chapter(num: int, content: str = "some content here") -> Chapter:
     return Chapter(chapter_number=num, title=f"Ch{num}", content=content, word_count=10)
@@ -69,6 +74,7 @@ def _mock_llm(generate_return="enhanced text", generate_json_return=None):
 # _build_arc_context
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestBuildArcContext:
     def test_empty_characters_returns_empty(self):
         draft = _draft(characters=[])
@@ -95,7 +101,9 @@ class TestBuildArcContext:
 
     def test_missing_stage_name_skipped(self):
         char = Character(name="Lý Minh", role="chính", personality="dũng cảm")
-        char.arc_waypoints = [{"chapter_range": "1-5", "stage_name": "", "progress_pct": 0.0}]
+        char.arc_waypoints = [
+            {"chapter_range": "1-5", "stage_name": "", "progress_pct": 0.0}
+        ]
         draft = _draft(characters=[char])
         assert _build_arc_context(draft, 2) == ""
 
@@ -107,8 +115,12 @@ class TestBuildArcContext:
     def test_output_truncated_to_400(self):
         chars = []
         for i in range(30):
-            c = Character(name=f"Char{'X' * 20}{i}", role="phụ", personality="bình thường")
-            c.arc_waypoints = [{"chapter_range": "1-5", "stage_name": f"Stage{i}", "progress_pct": 0.1}]
+            c = Character(
+                name=f"Char{'X' * 20}{i}", role="phụ", personality="bình thường"
+            )
+            c.arc_waypoints = [
+                {"chapter_range": "1-5", "stage_name": f"Stage{i}", "progress_pct": 0.1}
+            ]
             chars.append(c)
         draft = _draft(characters=chars)
         result = _build_arc_context(draft, 3)
@@ -118,6 +130,7 @@ class TestBuildArcContext:
 # ──────────────────────────────────────────────────────────────────────────────
 # _extract_pacing_directive / _extract_pacing_type
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestExtractPacingDirective:
     def test_none_draft_returns_empty(self):
@@ -130,6 +143,7 @@ class TestExtractPacingDirective:
         # The only reliable path is via draft.context.
         # Test: chapter in outlines → falls through to context path
         from models.schemas import StoryContext
+
         ctx = StoryContext(pacing_adjustment="slow down")
         draft = _draft(chapters=[_chapter(2)])
         draft.context = ctx
@@ -143,6 +157,7 @@ class TestExtractPacingDirective:
 
     def test_context_fallback(self):
         from models.schemas import StoryContext
+
         ctx = StoryContext(pacing_adjustment="speed up")
         draft = _draft(chapters=[])
         draft.context = ctx
@@ -155,20 +170,31 @@ class TestExtractPacingType:
 
     def test_matching_outline_returns_type(self):
         from models.schemas import ChapterOutline
+
         draft = _draft()
-        draft.outlines = [ChapterOutline(chapter_number=3, title="T", summary="s", pacing_type="climax")]
+        draft.outlines = [
+            ChapterOutline(
+                chapter_number=3, title="T", summary="s", pacing_type="climax"
+            )
+        ]
         assert _extract_pacing_type(draft, 3) == "climax"
 
     def test_non_matching_outline_returns_empty(self):
         from models.schemas import ChapterOutline
+
         draft = _draft()
-        draft.outlines = [ChapterOutline(chapter_number=3, title="T", summary="s", pacing_type="climax")]
+        draft.outlines = [
+            ChapterOutline(
+                chapter_number=3, title="T", summary="s", pacing_type="climax"
+            )
+        ]
         assert _extract_pacing_type(draft, 7) == ""
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # _build_knowledge_constraints
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 class TestBuildKnowledgeConstraints:
     def test_empty_knowledge_state_returns_empty(self):
@@ -211,6 +237,7 @@ class TestBuildKnowledgeConstraints:
 # _precheck_coherence
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestPrecheckCoherence:
     def test_no_prev_chapters_returns_empty(self):
         llm = _mock_llm()
@@ -219,7 +246,9 @@ class TestPrecheckCoherence:
         llm.generate_json.assert_not_called()
 
     def test_with_issues_returns_constraint_block(self):
-        llm = _mock_llm(generate_json_return={"issues": ["nhân vật A ở hai nơi cùng lúc"]})
+        llm = _mock_llm(
+            generate_json_return={"issues": ["nhân vật A ở hai nơi cùng lúc"]}
+        )
         ch = _chapter(2, "Chương 2 content")
         prev = [_chapter(1, "Chương 1 content")]
         draft = _draft(chapters=[_chapter(1), _chapter(2)])
@@ -243,9 +272,11 @@ class TestPrecheckCoherence:
         assert result == ""
 
     def test_at_most_3_issues_returned(self):
-        llm = _mock_llm(generate_json_return={
-            "issues": ["issue1", "issue2", "issue3", "issue4", "issue5"]
-        })
+        llm = _mock_llm(
+            generate_json_return={
+                "issues": ["issue1", "issue2", "issue3", "issue4", "issue5"]
+            }
+        )
         ch = _chapter(2)
         prev = [_chapter(1)]
         result = _precheck_coherence(llm, ch, _draft(), prev)
@@ -256,9 +287,12 @@ class TestPrecheckCoherence:
 # StoryEnhancer.detect_structural_issues
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestDetectStructuralIssues:
     def test_returns_empty_when_detector_unavailable(self):
-        with patch("pipeline.layer2_enhance.enhancer._STRUCTURAL_DETECTOR_AVAILABLE", False):
+        with patch(
+            "pipeline.layer2_enhance.enhancer._STRUCTURAL_DETECTOR_AVAILABLE", False
+        ):
             enhancer = StoryEnhancer.__new__(StoryEnhancer)
             enhancer._rewritten_chapters = set()
             result = enhancer.detect_structural_issues(_draft())
@@ -266,8 +300,12 @@ class TestDetectStructuralIssues:
 
     def test_skips_rewritten_chapters(self):
         """Chapters in _rewritten_chapters must be skipped."""
-        with patch("pipeline.layer2_enhance.enhancer._STRUCTURAL_DETECTOR_AVAILABLE", True):
-            with patch("pipeline.layer2_enhance.enhancer._detect_structural_issues") as mock_det:
+        with patch(
+            "pipeline.layer2_enhance.enhancer._STRUCTURAL_DETECTOR_AVAILABLE", True
+        ):
+            with patch(
+                "pipeline.layer2_enhance.enhancer._detect_structural_issues"
+            ) as mock_det:
                 mock_det.return_value = []
                 enhancer = StoryEnhancer.__new__(StoryEnhancer)
                 enhancer._rewritten_chapters = {1}
@@ -276,7 +314,9 @@ class TestDetectStructuralIssues:
                 # Only chapter 2 should trigger the detector call
                 # Verify chapter 1 was never passed
                 for call_args in mock_det.call_args_list:
-                    chapter_arg = call_args.kwargs.get("chapter") or (call_args.args[0] if call_args.args else None)
+                    chapter_arg = call_args.kwargs.get("chapter") or (
+                        call_args.args[0] if call_args.args else None
+                    )
                     if chapter_arg is not None:
                         assert chapter_arg.chapter_number != 1
 
@@ -285,17 +325,22 @@ class TestDetectStructuralIssues:
 # StoryEnhancer.enhance_chapter — scene-enhancer failure fallback
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestEnhanceChapterFallback:
     """If SceneEnhancer raises, enhance_chapter must return the original chapter."""
 
     def test_scene_enhancer_failure_returns_original(self):
-        with patch("pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()):
+        with patch(
+            "pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()
+        ):
             enhancer = StoryEnhancer()
         ch = _chapter(1, "original content")
         sim = _sim_result()
 
         with patch("pipeline.layer2_enhance.scene_enhancer.SceneEnhancer") as MockSE:
-            MockSE.return_value.enhance_chapter_by_scenes.side_effect = RuntimeError("scene bomb")
+            MockSE.return_value.enhance_chapter_by_scenes.side_effect = RuntimeError(
+                "scene bomb"
+            )
             result = enhancer.enhance_chapter(ch, sim)
 
         assert result is ch
@@ -305,7 +350,9 @@ class TestEnhanceChapterFallback:
         """When SceneEnhancer succeeds, result must differ from raw fallback."""
         enhanced_ch = _chapter(1, "ENHANCED content")
 
-        with patch("pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()):
+        with patch(
+            "pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()
+        ):
             enhancer = StoryEnhancer()
         sim = _sim_result()
 
@@ -320,9 +367,12 @@ class TestEnhanceChapterFallback:
 # StoryEnhancer._apply_contract_validation
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestApplyContractValidation:
     def _enhancer(self):
-        with patch("pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()):
+        with patch(
+            "pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()
+        ):
             return StoryEnhancer()
 
     def _call(self, enhancer, enhanced_ch, sim):
@@ -350,21 +400,29 @@ class TestApplyContractValidation:
 
     def test_contract_passed_stores_validation(self):
         from models.handoff_schemas import NegotiatedChapterContract
+
         enhancer = self._enhancer()
         ch = _chapter(1, "content")
         contract = NegotiatedChapterContract(
-            chapter_num=1, pacing_type="rising",
-            drama_target=0.5, drama_tolerance=0.15,
+            chapter_num=1,
+            pacing_type="rising",
+            drama_target=0.5,
+            drama_tolerance=0.15,
         )
         sim = _sim_result()
         sim.chapter_contracts = {1: contract.model_dump()}
 
-        with patch("pipeline.layer2_enhance.chapter_contract.validate_chapter_against_contract") as mock_val:
+        with patch(
+            "pipeline.layer2_enhance.chapter_contract.validate_chapter_against_contract"
+        ) as mock_val:
             mock_result = MagicMock()
             mock_result.passed = True
             mock_result.compliance_score = 0.9
             mock_result.drama_actual = 0.55
-            mock_result.model_dump.return_value = {"passed": True, "compliance_score": 0.9}
+            mock_result.model_dump.return_value = {
+                "passed": True,
+                "compliance_score": 0.9,
+            }
             mock_val.return_value = mock_result
 
             result = self._call(enhancer, ch, sim)
@@ -375,13 +433,16 @@ class TestApplyContractValidation:
 
     def test_contract_failed_no_retry_when_disabled(self):
         from models.handoff_schemas import NegotiatedChapterContract
+
         enhancer = self._enhancer()
         ch = _chapter(1, "content")
         contract = NegotiatedChapterContract(chapter_num=1, pacing_type="rising")
         sim = _sim_result()
         sim.chapter_contracts = {1: contract.model_dump()}
 
-        with patch("pipeline.layer2_enhance.chapter_contract.validate_chapter_against_contract") as mock_val:
+        with patch(
+            "pipeline.layer2_enhance.chapter_contract.validate_chapter_against_contract"
+        ) as mock_val:
             with patch("pipeline.layer2_enhance.enhancer.ConfigManager") as mock_cfg:
                 cfg_pipeline = MagicMock()
                 cfg_pipeline.contract_drama_tolerance = 0.15
@@ -408,9 +469,12 @@ class TestApplyContractValidation:
 # StoryEnhancer._apply_voice_validation
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestApplyVoiceValidation:
     def _enhancer(self):
-        with patch("pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()):
+        with patch(
+            "pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()
+        ):
             return StoryEnhancer()
 
     def _call(self, enhancer, enhanced_ch, sim):
@@ -442,7 +506,9 @@ class TestApplyVoiceValidation:
         sim = _sim_result()
         sim.voice_contracts = {1: {"chapter_number": 1, "min_compliance": 0.75}}
 
-        with patch("pipeline.layer2_enhance.chapter_contract.validate_chapter_voice") as mock_val:
+        with patch(
+            "pipeline.layer2_enhance.chapter_contract.validate_chapter_voice"
+        ) as mock_val:
             mock_result = MagicMock()
             mock_result.passed = True
             mock_result.overall_compliance = 0.9
@@ -460,9 +526,12 @@ class TestApplyVoiceValidation:
 # StoryEnhancer.enhance_story_async — drama score mapping, signal consumption
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestEnhanceStoryAsync:
     def _make_enhancer(self):
-        with patch("pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()):
+        with patch(
+            "pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()
+        ):
             e = StoryEnhancer()
         return e
 
@@ -472,17 +541,25 @@ class TestEnhanceStoryAsync:
         enhancer = self._make_enhancer()
         events = [
             SimulationEvent(
-                round_number=1, event_type="xung_đột",
-                characters_involved=["A"], description="fight",
+                round_number=1,
+                event_type="xung_đột",
+                characters_involved=["A"],
+                description="fight",
                 drama_score=0.5,
             )
         ]
         sim = _sim_result(events=events, drama_suggestions=["suggestion1"])
         draft = _draft(chapters=[_chapter(1)])
 
-        with patch.object(enhancer, "enhance_chapter", return_value=_chapter(1, "enhanced")):
-            with patch("pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", False):
-                with patch("pipeline.layer2_enhance.enhancer.ConfigManager") as mock_cfg:
+        with patch.object(
+            enhancer, "enhance_chapter", return_value=_chapter(1, "enhanced")
+        ):
+            with patch(
+                "pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", False
+            ):
+                with patch(
+                    "pipeline.layer2_enhance.enhancer.ConfigManager"
+                ) as mock_cfg:
                     pipeline_cfg = MagicMock()
                     pipeline_cfg.l2_consistency_engine = False
                     pipeline_cfg.l2_voice_preservation = False
@@ -504,9 +581,15 @@ class TestEnhanceStoryAsync:
         sim = _sim_result(drama_suggestions=["add more tension", "better ending"])
         draft = _draft(chapters=[_chapter(1)])
 
-        with patch.object(enhancer, "enhance_chapter", return_value=_chapter(1, "enhanced")):
-            with patch("pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", False):
-                with patch("pipeline.layer2_enhance.enhancer.ConfigManager") as mock_cfg:
+        with patch.object(
+            enhancer, "enhance_chapter", return_value=_chapter(1, "enhanced")
+        ):
+            with patch(
+                "pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", False
+            ):
+                with patch(
+                    "pipeline.layer2_enhance.enhancer.ConfigManager"
+                ) as mock_cfg:
                     p = MagicMock()
                     p.l2_consistency_engine = False
                     p.l2_voice_preservation = False
@@ -534,8 +617,12 @@ class TestEnhanceStoryAsync:
             return enhanced_map[ch.chapter_number]
 
         with patch.object(enhancer, "enhance_chapter", side_effect=fake_enhance):
-            with patch("pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", False):
-                with patch("pipeline.layer2_enhance.enhancer.ConfigManager") as mock_cfg:
+            with patch(
+                "pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", False
+            ):
+                with patch(
+                    "pipeline.layer2_enhance.enhancer.ConfigManager"
+                ) as mock_cfg:
                     p = MagicMock()
                     p.l2_consistency_engine = False
                     p.l2_voice_preservation = False
@@ -558,8 +645,12 @@ class TestEnhanceStoryAsync:
         draft = _draft(chapters=[ch_orig])
 
         with patch.object(enhancer, "enhance_chapter", side_effect=Exception("boom")):
-            with patch("pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", False):
-                with patch("pipeline.layer2_enhance.enhancer.ConfigManager") as mock_cfg:
+            with patch(
+                "pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", False
+            ):
+                with patch(
+                    "pipeline.layer2_enhance.enhancer.ConfigManager"
+                ) as mock_cfg:
                     p = MagicMock()
                     p.l2_consistency_engine = False
                     p.l2_voice_preservation = False
@@ -580,9 +671,15 @@ class TestEnhanceStoryAsync:
         draft = _draft(chapters=[_chapter(1)])
         messages = []
 
-        with patch.object(enhancer, "enhance_chapter", return_value=_chapter(1, "done")):
-            with patch("pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", False):
-                with patch("pipeline.layer2_enhance.enhancer.ConfigManager") as mock_cfg:
+        with patch.object(
+            enhancer, "enhance_chapter", return_value=_chapter(1, "done")
+        ):
+            with patch(
+                "pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", False
+            ):
+                with patch(
+                    "pipeline.layer2_enhance.enhancer.ConfigManager"
+                ) as mock_cfg:
                     p = MagicMock()
                     p.l2_consistency_engine = False
                     p.l2_voice_preservation = False
@@ -603,9 +700,12 @@ class TestEnhanceStoryAsync:
 # Sync guard: enhance_story / enhance_with_feedback
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestSyncGuards:
     def _enhancer(self):
-        with patch("pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()):
+        with patch(
+            "pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()
+        ):
             return StoryEnhancer()
 
     @pytest.mark.asyncio
@@ -630,9 +730,12 @@ class TestSyncGuards:
 # Feature flags
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestFeatureFlags:
     def _enhancer(self):
-        with patch("pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()):
+        with patch(
+            "pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()
+        ):
             return StoryEnhancer()
 
     def _disable_all_features(self, mock_cfg):
@@ -655,8 +758,12 @@ class TestFeatureFlags:
 
         with patch("pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", True):
             with patch("pipeline.layer2_enhance.enhancer.ConsistencyEngine") as MockCE:
-                with patch.object(enhancer, "enhance_chapter", return_value=_chapter(1)):
-                    with patch("pipeline.layer2_enhance.enhancer.ConfigManager") as mock_cfg:
+                with patch.object(
+                    enhancer, "enhance_chapter", return_value=_chapter(1)
+                ):
+                    with patch(
+                        "pipeline.layer2_enhance.enhancer.ConfigManager"
+                    ) as mock_cfg:
                         self._disable_all_features(mock_cfg)
                         await enhancer.enhance_story_async(draft, sim)
 
@@ -669,9 +776,15 @@ class TestFeatureFlags:
         sim = _sim_result()
 
         with patch("pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", False):
-            with patch("pipeline.layer2_enhance.voice_fingerprint.VoiceFingerprintEngine") as MockVFE:
-                with patch.object(enhancer, "enhance_chapter", return_value=_chapter(1)):
-                    with patch("pipeline.layer2_enhance.enhancer.ConfigManager") as mock_cfg:
+            with patch(
+                "pipeline.layer2_enhance.voice_fingerprint.VoiceFingerprintEngine"
+            ) as MockVFE:
+                with patch.object(
+                    enhancer, "enhance_chapter", return_value=_chapter(1)
+                ):
+                    with patch(
+                        "pipeline.layer2_enhance.enhancer.ConfigManager"
+                    ) as mock_cfg:
                         self._disable_all_features(mock_cfg)
                         await enhancer.enhance_story_async(draft, sim)
 
@@ -684,9 +797,15 @@ class TestFeatureFlags:
         sim = _sim_result()
 
         with patch("pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", False):
-            with patch("pipeline.layer2_enhance.scene_enhancer.DramaCurveBalancer") as MockDCB:
-                with patch.object(enhancer, "enhance_chapter", return_value=_chapter(1)):
-                    with patch("pipeline.layer2_enhance.enhancer.ConfigManager") as mock_cfg:
+            with patch(
+                "pipeline.layer2_enhance.scene_enhancer.DramaCurveBalancer"
+            ) as MockDCB:
+                with patch.object(
+                    enhancer, "enhance_chapter", return_value=_chapter(1)
+                ):
+                    with patch(
+                        "pipeline.layer2_enhance.enhancer.ConfigManager"
+                    ) as mock_cfg:
                         self._disable_all_features(mock_cfg)
                         await enhancer.enhance_story_async(draft, sim)
 
@@ -697,9 +816,12 @@ class TestFeatureFlags:
 # _find_weak_chapters
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestFindWeakChapters:
     def _enhancer(self):
-        with patch("pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()):
+        with patch(
+            "pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()
+        ):
             return StoryEnhancer()
 
     def test_weak_chapter_identified(self):
@@ -719,7 +841,9 @@ class TestFindWeakChapters:
 
     def test_strong_chapter_not_returned(self):
         enhancer = self._enhancer()
-        enhanced = EnhancedStory(title="T", genre="g", chapters=[_chapter(1, "exciting content")])
+        enhanced = EnhancedStory(
+            title="T", genre="g", chapters=[_chapter(1, "exciting content")]
+        )
         enhancer.llm.generate_json.return_value = {
             "drama_score": 0.9,
             "weak_points": [],
@@ -729,7 +853,9 @@ class TestFindWeakChapters:
 
     def test_llm_exception_per_chapter_skipped(self):
         enhancer = self._enhancer()
-        enhanced = EnhancedStory(title="T", genre="g", chapters=[_chapter(1), _chapter(2)])
+        enhanced = EnhancedStory(
+            title="T", genre="g", chapters=[_chapter(1), _chapter(2)]
+        )
         enhancer.llm.generate_json.side_effect = Exception("LLM error")
         # Must not raise; returns empty
         weak = enhancer._find_weak_chapters(enhanced)
@@ -748,9 +874,12 @@ class TestFindWeakChapters:
 # enhance_with_feedback_async — idempotency + knowledge registry init
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 class TestEnhanceWithFeedbackAsync:
     def _enhancer(self):
-        with patch("pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()):
+        with patch(
+            "pipeline.layer2_enhance.enhancer.LLMClient", return_value=_mock_llm()
+        ):
             return StoryEnhancer()
 
     def _cfg_patch(self, mock_cfg):
@@ -773,12 +902,20 @@ class TestEnhanceWithFeedbackAsync:
         draft = _draft(chapters=[_chapter(1)])
         sim = _sim_result()
 
-        with patch.object(enhancer, "enhance_story_async", return_value=EnhancedStory(
-            title="T", genre="g", chapters=[_chapter(1, "done")]
-        )):
+        with patch.object(
+            enhancer,
+            "enhance_story_async",
+            return_value=EnhancedStory(
+                title="T", genre="g", chapters=[_chapter(1, "done")]
+            ),
+        ):
             with patch.object(enhancer, "_find_weak_chapters", return_value=[]):
-                with patch("pipeline.layer2_enhance.enhancer.ConfigManager") as mock_cfg:
-                    with patch("pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", False):
+                with patch(
+                    "pipeline.layer2_enhance.enhancer.ConfigManager"
+                ) as mock_cfg:
+                    with patch(
+                        "pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", False
+                    ):
                         self._cfg_patch(mock_cfg)
                         result = await enhancer.enhance_with_feedback_async(draft, sim)
 
@@ -792,12 +929,18 @@ class TestEnhanceWithFeedbackAsync:
         sim = _sim_result()
         assert getattr(draft, "_knowledge_registry", None) is None
 
-        with patch.object(enhancer, "enhance_story_async", return_value=EnhancedStory(
-            title="T", genre="g", chapters=[_chapter(1)]
-        )):
+        with patch.object(
+            enhancer,
+            "enhance_story_async",
+            return_value=EnhancedStory(title="T", genre="g", chapters=[_chapter(1)]),
+        ):
             with patch.object(enhancer, "_find_weak_chapters", return_value=[]):
-                with patch("pipeline.layer2_enhance.enhancer.ConfigManager") as mock_cfg:
-                    with patch("pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", False):
+                with patch(
+                    "pipeline.layer2_enhance.enhancer.ConfigManager"
+                ) as mock_cfg:
+                    with patch(
+                        "pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", False
+                    ):
                         self._cfg_patch(mock_cfg)
                         await enhancer.enhance_with_feedback_async(draft, sim)
 
@@ -814,11 +957,20 @@ class TestEnhanceWithFeedbackAsync:
             draft = _draft(chapters=[_chapter(1)])
             sim = _sim_result()
 
-            with patch.object(enhancer, "enhance_story_async", return_value=fixed_story):
+            with patch.object(
+                enhancer, "enhance_story_async", return_value=fixed_story
+            ):
                 with patch.object(enhancer, "_find_weak_chapters", return_value=[]):
-                    with patch("pipeline.layer2_enhance.enhancer.ConfigManager") as mock_cfg:
-                        with patch("pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE", False):
+                    with patch(
+                        "pipeline.layer2_enhance.enhancer.ConfigManager"
+                    ) as mock_cfg:
+                        with patch(
+                            "pipeline.layer2_enhance.enhancer._CONSISTENCY_AVAILABLE",
+                            False,
+                        ):
                             self._cfg_patch(mock_cfg)
-                            result = await enhancer.enhance_with_feedback_async(draft, sim)
+                            result = await enhancer.enhance_with_feedback_async(
+                                draft, sim
+                            )
 
             assert result.chapters[0].content == "deterministic output"

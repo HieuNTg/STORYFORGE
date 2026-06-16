@@ -27,6 +27,7 @@ _TIMINGS_PATH = Path(__file__).parent.parent / "data" / "test_timings.json"
 # Prometheus text parser helpers
 # ---------------------------------------------------------------------------
 
+
 def _parse_prometheus(text: str) -> dict:
     """Parse Prometheus text exposition into a plain dict."""
     data: dict = {}
@@ -35,7 +36,7 @@ def _parse_prometheus(text: str) -> dict:
         if not line or line.startswith("#"):
             continue
         # metric_name{labels} value  OR  metric_name value
-        match = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)(\{[^}]*\})?\s+([\d.e+\-]+)$', line)
+        match = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)(\{[^}]*\})?\s+([\d.e+\-]+)$", line)
         if not match:
             continue
         name, labels_str, value = match.group(1), match.group(2) or "", match.group(3)
@@ -52,6 +53,7 @@ def _label_val(key: str, label: str) -> str | None:
 # ---------------------------------------------------------------------------
 # Summary endpoint
 # ---------------------------------------------------------------------------
+
 
 @router.get("/summary", dependencies=[_ACCESS_ANALYTICS])
 def dashboard_summary():
@@ -104,6 +106,7 @@ def dashboard_summary():
 # Test timings endpoint
 # ---------------------------------------------------------------------------
 
+
 @router.get("/test-timings", dependencies=[_ACCESS_ANALYTICS])
 def get_test_timings(
     limit: int = Query(50, ge=1, le=200),
@@ -111,13 +114,19 @@ def get_test_timings(
 ):
     """Return CI test timing data with pagination, or empty defaults if unavailable."""
     if not _TIMINGS_PATH.exists():
-        return {"items": [], "total": 0, "limit": limit, "offset": offset, "timestamp": None}
+        return {
+            "items": [],
+            "total": 0,
+            "limit": limit,
+            "offset": offset,
+            "timestamp": None,
+        }
     try:
         data = json.loads(_TIMINGS_PATH.read_text(encoding="utf-8"))
         all_tests = data.get("tests", [])
         total = len(all_tests)
         return {
-            "items": all_tests[offset: offset + limit],
+            "items": all_tests[offset : offset + limit],
             "total": total,
             "limit": limit,
             "offset": offset,
@@ -125,12 +134,19 @@ def get_test_timings(
             "total_duration": data.get("total_duration"),
         }
     except (OSError, json.JSONDecodeError):
-        return {"items": [], "total": 0, "limit": limit, "offset": offset, "timestamp": None}
+        return {
+            "items": [],
+            "total": 0,
+            "limit": limit,
+            "offset": offset,
+            "timestamp": None,
+        }
 
 
 # ---------------------------------------------------------------------------
 # Dashboard HTML
 # ---------------------------------------------------------------------------
+
 
 @router.get("", response_class=HTMLResponse, dependencies=[_ACCESS_ANALYTICS])
 async def serve_dashboard():

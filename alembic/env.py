@@ -75,9 +75,12 @@ target_metadata = Base.metadata
 # Resolve DATABASE_URL
 # ---------------------------------------------------------------------------
 
+
 def _get_url() -> str:
     """Return async DATABASE_URL from env, falling back to alembic.ini."""
-    return os.environ.get("DATABASE_URL") or config.get_main_option("sqlalchemy.url", "")
+    return os.environ.get("DATABASE_URL") or config.get_main_option(
+        "sqlalchemy.url", ""
+    )
 
 
 def _sync_url(async_url: str) -> str:
@@ -88,6 +91,7 @@ def _sync_url(async_url: str) -> str:
 # ---------------------------------------------------------------------------
 # Offline migration mode (generates SQL without a live DB connection)
 # ---------------------------------------------------------------------------
+
 
 def run_migrations_offline() -> None:
     """Emit migration SQL to stdout / file without connecting to the database."""
@@ -106,6 +110,7 @@ def run_migrations_offline() -> None:
 # ---------------------------------------------------------------------------
 # Online async migration mode (connects and runs migrations directly)
 # ---------------------------------------------------------------------------
+
 
 def do_run_migrations(connection: Connection) -> None:
     context.configure(

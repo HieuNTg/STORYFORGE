@@ -1,10 +1,12 @@
 """FastAPI exception handlers for consistent error responses."""
+
 import logging
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from errors.exceptions import StoryForgeError
 
 logger = logging.getLogger(__name__)
+
 
 async def storyforge_error_handler(request: Request, exc: StoryForgeError):
     logger.warning(f"{exc.code}: {exc.message}")
@@ -19,4 +21,7 @@ async def storyforge_error_handler(request: Request, exc: StoryForgeError):
         "STORAGE_ERROR": 500,
     }
     status = status_map.get(exc.code, 500)
-    return JSONResponse(status_code=status, content={"error": {"code": exc.code, "message": exc.message}})
+    return JSONResponse(
+        status_code=status,
+        content={"error": {"code": exc.code, "message": exc.message}},
+    )

@@ -21,6 +21,7 @@ def _comic_flags_off():
     ``generate_from_chapter`` these tests assert on is never called (and the
     real extractor would issue live LLM calls from a unit test)."""
     from config import ConfigManager
+
     cfg = ConfigManager().pipeline
     prev = (cfg.comic_shot_list_enabled, cfg.comic_compositor_enabled)
     cfg.comic_shot_list_enabled = False
@@ -37,7 +38,9 @@ def _build_orch(num_chapters: int = 2, characters=None):
         for i in range(1, num_chapters + 1)
     ]
     draft = StoryDraft(
-        title="T", genre="g", synopsis="s",
+        title="T",
+        genre="g",
+        synopsis="s",
         chapters=chapters,
         characters=list(characters or []),
     )
@@ -46,6 +49,7 @@ def _build_orch(num_chapters: int = 2, characters=None):
     class _Wrap:
         def __init__(self, out):
             self.output = out
+
     return _Wrap(output)
 
 
@@ -72,6 +76,7 @@ def inline_jobs():
     lets the worker finish within a single loop turn so polling observes a
     terminal state. Production behaviour is unchanged (it uses the real loop).
     """
+
     async def _inline(fn, *args, **kwargs):
         return fn(*args, **kwargs)
 
@@ -87,8 +92,12 @@ def test_generate_404_when_session_missing(client):
 
 def test_generate_provider_none_short_circuits(client):
     orch = _build_orch(2)
-    with patch("api.image_routes._get_story_data", return_value=orch), \
-         patch("services.handlers.handle_generate_images", return_value=([], "no provider")):
+    with (
+        patch("api.image_routes._get_story_data", return_value=orch),
+        patch(
+            "services.handlers.handle_generate_images", return_value=([], "no provider")
+        ),
+    ):
         r = client.post("/images/sess-1/generate", json={"provider": "none"})
     assert r.status_code == 200
     body = r.json()
@@ -104,15 +113,18 @@ def test_generate_persists_chapter_images(client, tmp_path, monkeypatch):
         # Mirror the real handler: when chapter_number is set, only that chapter
         # is touched (incremental mode loops one call per missing chapter).
         targets = [
-            ch for ch in orch_state.output.story_draft.chapters
+            ch
+            for ch in orch_state.output.story_draft.chapters
             if chapter_number is None or ch.chapter_number == chapter_number
         ]
         for ch in targets:
             ch.images = [f"ch{ch.chapter_number:02d}_panel01.png"]
         return [ch.images[0] for ch in targets], "ok"
 
-    with patch("api.image_routes._get_story_data", return_value=orch), \
-         patch("services.handlers.handle_generate_images", side_effect=fake_handler):
+    with (
+        patch("api.image_routes._get_story_data", return_value=orch),
+        patch("services.handlers.handle_generate_images", side_effect=fake_handler),
+    ):
         r = client.post("/images/sess-2/generate", json={"provider": "dalle"})
 
     assert r.status_code == 200
@@ -149,9 +161,13 @@ def test_generate_single_chapter_scope(client):
                 ch.images = [f"ch{ch.chapter_number:02d}_panel01.png"]
         return ["ch02_panel01.png"], "ok"
 
-    with patch("api.image_routes._get_story_data", return_value=orch), \
-         patch("services.handlers.handle_generate_images", side_effect=fake_handler):
-        r = client.post("/images/sess-3/generate", json={"chapter": 2, "provider": "dalle"})
+    with (
+        patch("api.image_routes._get_story_data", return_value=orch),
+        patch("services.handlers.handle_generate_images", side_effect=fake_handler),
+    ):
+        r = client.post(
+            "/images/sess-3/generate", json={"chapter": 2, "provider": "dalle"}
+        )
 
     assert r.status_code == 200
     assert captured["chapter_number"] == 2
@@ -162,7 +178,9 @@ def test_generate_single_chapter_scope(client):
 
 def test_auto_builds_visual_profiles_on_first_call(client, tmp_path, monkeypatch):
     """First call on checkpoint with no profiles → extractor invoked & profiles persisted."""
-    char = Character(name="Hero", role="chính", appearance="tall, dark hair", personality="brave")
+    char = Character(
+        name="Hero", role="chính", appearance="tall, dark hair", personality="brave"
+    )
     orch = _build_orch(num_chapters=1, characters=[char])
 
     # Isolate the on-disk profile store to a temp dir
@@ -171,7 +189,8 @@ def test_auto_builds_visual_profiles_on_first_call(client, tmp_path, monkeypatch
     # Mock extractor so we don't hit the LLM
     fake_extractor = MagicMock()
     fake_extractor.extract_and_generate.return_value = (
-        {"hair": {"color": "dark"}}, "FROZEN_PROMPT_HERO"
+        {"hair": {"color": "dark"}},
+        "FROZEN_PROMPT_HERO",
     )
     extractor_cls = MagicMock(return_value=fake_extractor)
 
@@ -182,11 +201,19 @@ def test_auto_builds_visual_profiles_on_first_call(client, tmp_path, monkeypatch
     prompt_gen = MagicMock()
     prompt_gen.generate_from_chapter.return_value = ["a prompt"]
 
-    with _comic_flags_off(), \
-         patch("api.image_routes._get_story_data", return_value=orch), \
-         patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls), \
-         patch("services.image_generator.ImageGenerator", return_value=image_gen), \
-         patch("services.image_prompt_generator.ImagePromptGenerator", return_value=prompt_gen):
+    with (
+        _comic_flags_off(),
+        patch("api.image_routes._get_story_data", return_value=orch),
+        patch(
+            "services.character_visual_extractor.CharacterVisualExtractor",
+            extractor_cls,
+        ),
+        patch("services.image_generator.ImageGenerator", return_value=image_gen),
+        patch(
+            "services.image_prompt_generator.ImagePromptGenerator",
+            return_value=prompt_gen,
+        ),
+    ):
         r = client.post("/images/sess-auto/generate", json={"provider": "dalle"})
 
     assert r.status_code == 200, r.text
@@ -197,6 +224,7 @@ def test_auto_builds_visual_profiles_on_first_call(client, tmp_path, monkeypatch
     assert kwargs.get("visual_profiles") == {"Hero": "FROZEN_PROMPT_HERO"}
     # Profile persisted under the per-story characters dir (title-scoped to "T").
     from services.output_paths import characters_dir
+
     assert (tmp_path / characters_dir("T") / "Hero" / "profile.json").exists()
 
 
@@ -222,11 +250,19 @@ def test_auto_build_skipped_when_profile_exists(client, tmp_path, monkeypatch):
     prompt_gen = MagicMock()
     prompt_gen.generate_from_chapter.return_value = ["a prompt"]
 
-    with _comic_flags_off(), \
-         patch("api.image_routes._get_story_data", return_value=orch), \
-         patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls), \
-         patch("services.image_generator.ImageGenerator", return_value=image_gen), \
-         patch("services.image_prompt_generator.ImagePromptGenerator", return_value=prompt_gen):
+    with (
+        _comic_flags_off(),
+        patch("api.image_routes._get_story_data", return_value=orch),
+        patch(
+            "services.character_visual_extractor.CharacterVisualExtractor",
+            extractor_cls,
+        ),
+        patch("services.image_generator.ImageGenerator", return_value=image_gen),
+        patch(
+            "services.image_prompt_generator.ImagePromptGenerator",
+            return_value=prompt_gen,
+        ),
+    ):
         r = client.post("/images/sess-cached/generate", json={"provider": "dalle"})
 
     assert r.status_code == 200, r.text
@@ -254,8 +290,13 @@ def test_profiles_returns_stored_profiles(client):
         "prompt_version": 2,
         "reference_image": "",
     }
-    with patch("api.image_routes._get_story_data", return_value=orch), \
-         patch("services.character_visual_profile.CharacterVisualProfileStore", return_value=fake_store):
+    with (
+        patch("api.image_routes._get_story_data", return_value=orch),
+        patch(
+            "services.character_visual_profile.CharacterVisualProfileStore",
+            return_value=fake_store,
+        ),
+    ):
         r = client.get("/images/sess-p1/profiles")
 
     assert r.status_code == 200, r.text
@@ -277,8 +318,13 @@ def test_profiles_empty_when_no_profiles_stored(client):
 
     fake_store = MagicMock()
     fake_store.load_profile.return_value = None
-    with patch("api.image_routes._get_story_data", return_value=orch), \
-         patch("services.character_visual_profile.CharacterVisualProfileStore", return_value=fake_store):
+    with (
+        patch("api.image_routes._get_story_data", return_value=orch),
+        patch(
+            "services.character_visual_profile.CharacterVisualProfileStore",
+            return_value=fake_store,
+        ),
+    ):
         r = client.get("/images/sess-p2/profiles")
 
     assert r.status_code == 200
@@ -307,12 +353,18 @@ def test_rebuild_profile_success(client, tmp_path, monkeypatch):
 
     fake_extractor = MagicMock()
     fake_extractor.extract_and_generate.return_value = (
-        {"hair": {"color": "dark"}}, "REBUILT_PROMPT"
+        {"hair": {"color": "dark"}},
+        "REBUILT_PROMPT",
     )
     extractor_cls = MagicMock(return_value=fake_extractor)
 
-    with patch("api.image_routes._get_story_data", return_value=orch), \
-         patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls):
+    with (
+        patch("api.image_routes._get_story_data", return_value=orch),
+        patch(
+            "services.character_visual_extractor.CharacterVisualExtractor",
+            extractor_cls,
+        ),
+    ):
         r = client.post("/images/sess-r2/profiles/Hero/rebuild")
 
     assert r.status_code == 200, r.text
@@ -325,6 +377,7 @@ def test_rebuild_profile_success(client, tmp_path, monkeypatch):
     assert fake_extractor.extract_and_generate.call_count == 1
     # Profile persisted under the per-story characters dir (title-scoped to "T").
     from services.output_paths import characters_dir
+
     assert (tmp_path / characters_dir("T") / "Hero" / "profile.json").exists()
 
 
@@ -337,8 +390,13 @@ def test_rebuild_profile_case_insensitive_match(client, tmp_path, monkeypatch):
     fake_extractor.extract_and_generate.return_value = ({}, "P")
     extractor_cls = MagicMock(return_value=fake_extractor)
 
-    with patch("api.image_routes._get_story_data", return_value=orch), \
-         patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls):
+    with (
+        patch("api.image_routes._get_story_data", return_value=orch),
+        patch(
+            "services.character_visual_extractor.CharacterVisualExtractor",
+            extractor_cls,
+        ),
+    ):
         r = client.post("/images/sess-r3/profiles/hero/rebuild")
     assert r.status_code == 200
     # Response uses canonical character name from the story
@@ -361,7 +419,9 @@ def test_rebuild_profile_concurrent_different_characters(client, tmp_path, monke
     """An in-flight rebuild for one character must NOT block another character."""
     chars = [
         Character(name="Hero", role="chính", appearance="tall", personality="brave"),
-        Character(name="Villain", role="phản diện", appearance="dark", personality="cruel"),
+        Character(
+            name="Villain", role="phản diện", appearance="dark", personality="cruel"
+        ),
     ]
     orch = _build_orch(num_chapters=1, characters=chars)
     monkeypatch.chdir(tmp_path)
@@ -373,8 +433,13 @@ def test_rebuild_profile_concurrent_different_characters(client, tmp_path, monke
     # Pretend Hero is already being rebuilt — Villain should still succeed
     _in_flight.add("sess-r5::profile::Hero")
     try:
-        with patch("api.image_routes._get_story_data", return_value=orch), \
-             patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls):
+        with (
+            patch("api.image_routes._get_story_data", return_value=orch),
+            patch(
+                "services.character_visual_extractor.CharacterVisualExtractor",
+                extractor_cls,
+            ),
+        ):
             r = client.post("/images/sess-r5/profiles/Villain/rebuild")
         assert r.status_code == 200, r.text
         assert r.json()["name"] == "Villain"
@@ -384,7 +449,9 @@ def test_rebuild_profile_concurrent_different_characters(client, tmp_path, monke
 
 def test_rebuild_profile_url_decoded_name(client, tmp_path, monkeypatch):
     """Character names with spaces/unicode arrive URL-encoded — must decode."""
-    char = Character(name="Anh Hùng", role="chính", appearance="tall", personality="brave")
+    char = Character(
+        name="Anh Hùng", role="chính", appearance="tall", personality="brave"
+    )
     orch = _build_orch(num_chapters=1, characters=[char])
     monkeypatch.chdir(tmp_path)
 
@@ -393,8 +460,13 @@ def test_rebuild_profile_url_decoded_name(client, tmp_path, monkeypatch):
     extractor_cls = MagicMock(return_value=fake_extractor)
 
     encoded = "Anh%20H%C3%B9ng"
-    with patch("api.image_routes._get_story_data", return_value=orch), \
-         patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls):
+    with (
+        patch("api.image_routes._get_story_data", return_value=orch),
+        patch(
+            "services.character_visual_extractor.CharacterVisualExtractor",
+            extractor_cls,
+        ),
+    ):
         r = client.post(f"/images/sess-r6/profiles/{encoded}/rebuild")
     assert r.status_code == 200, r.text
     assert r.json()["name"] == "Anh Hùng"
@@ -487,6 +559,7 @@ def test_upload_reference_success_writes_file_and_updates_profile(
     profile_path = tmp_path / characters_dir("T") / "Hero" / "profile.json"
     assert profile_path.exists()
     import json as _json
+
     profile = _json.loads(profile_path.read_text(encoding="utf-8"))
     assert profile["reference_image"].endswith("Hero.png")
 
@@ -512,14 +585,17 @@ def test_generate_single_chapter_in_flight_isolated_from_full(client):
     # Pretend a full-story regen is already running for sess-4
     _in_flight.add("sess-4")
     try:
+
         def fake_handler(orch_state, provider="none", t=None, chapter_number=None):
             for ch in orch_state.output.story_draft.chapters:
                 if ch.chapter_number == chapter_number:
                     ch.images = ["ch01_panel01.png"]
             return ["ch01_panel01.png"], "ok"
 
-        with patch("api.image_routes._get_story_data", return_value=orch), \
-             patch("services.handlers.handle_generate_images", side_effect=fake_handler):
+        with (
+            patch("api.image_routes._get_story_data", return_value=orch),
+            patch("services.handlers.handle_generate_images", side_effect=fake_handler),
+        ):
             r = client.post("/images/sess-4/generate", json={"chapter": 1})
         # Single-chapter request should NOT be blocked by full-story in-flight key
         assert r.status_code == 200
@@ -533,7 +609,9 @@ def test_generate_single_chapter_in_flight_isolated_from_full(client):
 # ---------------------------------------------------------------------------
 
 
-def _library_payload(num_chapters: int = 2, *, chapters_with_images=None, characters=None):
+def _library_payload(
+    num_chapters: int = 2, *, chapters_with_images=None, characters=None
+):
     """Build a localStorage-shape Story payload for the library image endpoint.
 
     ``chapters_with_images`` is a set of 1-based chapter numbers that should
@@ -549,7 +627,11 @@ def _library_payload(num_chapters: int = 2, *, chapters_with_images=None, charac
                 "summary": "",
                 # Already-illustrated chapters carry the /media URLs a prior
                 # response returned (what the client stores + re-sends).
-                "images": ([f"/media/t/images/ch{i:02d}_panel01.png"] if i in with_images else []),
+                "images": (
+                    [f"/media/t/images/ch{i:02d}_panel01.png"]
+                    if i in with_images
+                    else []
+                ),
             }
         )
     return {
@@ -594,7 +676,9 @@ def test_library_generate_400_when_no_chapters(client):
 
 def test_library_generate_provider_none_completes_with_no_images(client, inline_jobs):
     """provider=none → job still runs to `done` but produces zero panels."""
-    with patch("services.handlers.handle_generate_images", return_value=([], "no provider")):
+    with patch(
+        "services.handlers.handle_generate_images", return_value=([], "no provider")
+    ):
         r = client.post(
             "/images/library/generate",
             json={"story": _library_payload(2), "provider": "none"},
@@ -624,7 +708,10 @@ def test_library_generate_incremental_skips_chapters_with_images(client, inline_
     with patch("services.handlers.handle_generate_images", side_effect=fake_handler):
         r = client.post(
             "/images/library/generate",
-            json={"story": _library_payload(3, chapters_with_images={1}), "provider": "dalle"},
+            json={
+                "story": _library_payload(3, chapters_with_images={1}),
+                "provider": "dalle",
+            },
         )
         assert r.status_code == 202, r.text
         accepted = r.json()
@@ -743,13 +830,18 @@ def test_library_generate_dedup_returns_existing_and_conflicts(client):
     assert conflict.status_code == 409
 
 
-def test_library_generate_consistency_profile_scoped_to_title(client, tmp_path, monkeypatch, inline_jobs):
+def test_library_generate_consistency_profile_scoped_to_title(
+    client, tmp_path, monkeypatch, inline_jobs
+):
     """The payload path must auto-build profiles under the TITLE-scoped store —
     the same slug the checkpoint path uses — so Continue chapters stay consistent."""
     monkeypatch.chdir(tmp_path)
 
     fake_extractor = MagicMock()
-    fake_extractor.extract_and_generate.return_value = ({"hair": {"color": "dark"}}, "FROZEN_HERO")
+    fake_extractor.extract_and_generate.return_value = (
+        {"hair": {"color": "dark"}},
+        "FROZEN_HERO",
+    )
     extractor_cls = MagicMock(return_value=fake_extractor)
     image_gen = MagicMock()
     image_gen.generate_story_images.return_value = ["output/t/images/ch01_panel01.png"]
@@ -757,14 +849,35 @@ def test_library_generate_consistency_profile_scoped_to_title(client, tmp_path, 
     prompt_gen.generate_from_chapter.return_value = ["a prompt"]
 
     payload = _library_payload(
-        1, characters=[{"name": "Hero", "role": "protagonist", "traits": {"strength": 50, "wisdom": 50, "agility": 50, "scheme": 50}, "description": "brave", "backstory": "", "secret": "", "conflict": ""}]
+        1,
+        characters=[
+            {
+                "name": "Hero",
+                "role": "protagonist",
+                "traits": {"strength": 50, "wisdom": 50, "agility": 50, "scheme": 50},
+                "description": "brave",
+                "backstory": "",
+                "secret": "",
+                "conflict": "",
+            }
+        ],
     )
 
-    with _comic_flags_off(), \
-         patch("services.character_visual_extractor.CharacterVisualExtractor", extractor_cls), \
-         patch("services.image_generator.ImageGenerator", return_value=image_gen), \
-         patch("services.image_prompt_generator.ImagePromptGenerator", return_value=prompt_gen):
-        r = client.post("/images/library/generate", json={"story": payload, "provider": "dalle"})
+    with (
+        _comic_flags_off(),
+        patch(
+            "services.character_visual_extractor.CharacterVisualExtractor",
+            extractor_cls,
+        ),
+        patch("services.image_generator.ImageGenerator", return_value=image_gen),
+        patch(
+            "services.image_prompt_generator.ImagePromptGenerator",
+            return_value=prompt_gen,
+        ),
+    ):
+        r = client.post(
+            "/images/library/generate", json={"story": payload, "provider": "dalle"}
+        )
         assert r.status_code == 202, r.text
         final = _poll_library_job(client, r.json()["job_id"])
 
@@ -772,6 +885,81 @@ def test_library_generate_consistency_profile_scoped_to_title(client, tmp_path, 
     # Profile persisted under the per-story characters dir, title-scoped to "T" —
     # identical slug to the checkpoint path (no session suffix).
     from services.output_paths import characters_dir
+
     assert (tmp_path / characters_dir("T") / "Hero" / "profile.json").exists()
     _, kwargs = prompt_gen.generate_from_chapter.call_args
     assert kwargs.get("visual_profiles") == {"Hero": "FROZEN_HERO"}
+
+
+# ---------------------------------------------------------------------------
+# POST /images/library/generate-cover — best-effort story cover
+# ---------------------------------------------------------------------------
+
+
+def test_generate_cover_400_when_title_empty(client):
+    r = client.post(
+        "/images/library/generate-cover",
+        json={"story_id": "story-1", "title": "   "},
+    )
+    assert r.status_code == 400
+
+
+def test_generate_cover_returns_null_when_service_declines(client):
+    """Provider off / unconfigured must surface as 200 + cover_url=null, never
+    an error — the cover is layered on top of an already-successful save."""
+    with patch(
+        "services.cover_image.generate_story_cover", return_value=None
+    ) as gen:
+        r = client.post(
+            "/images/library/generate-cover",
+            json={"story_id": "story-1", "title": "T", "genre": "Tiên Hiệp"},
+        )
+    assert r.status_code == 200
+    assert r.json()["cover_url"] is None
+    gen.assert_awaited_once()
+
+
+def test_generate_cover_success_returns_media_url(client):
+    with patch(
+        "services.cover_image.generate_story_cover",
+        return_value="/media/story-1/images/cover.png?v=123",
+    ):
+        r = client.post(
+            "/images/library/generate-cover",
+            json={
+                "story_id": "story-1",
+                "title": "T",
+                "genre": "Đô Thị",
+                "synopsis": "s",
+            },
+        )
+    assert r.status_code == 200
+    assert r.json()["cover_url"] == "/media/story-1/images/cover.png?v=123"
+
+
+def test_generate_cover_in_flight_guard(client):
+    _in_flight.add("library::cover::story-1")
+    try:
+        r = client.post(
+            "/images/library/generate-cover",
+            json={"story_id": "story-1", "title": "T"},
+        )
+        assert r.status_code == 409
+    finally:
+        _in_flight.discard("library::cover::story-1")
+
+
+def test_cover_service_skips_when_flag_disabled():
+    """generate_story_cover honours cover_image_enabled without touching FlowKit."""
+    import asyncio
+
+    from config import ConfigManager
+    from services.cover_image import generate_story_cover
+
+    cfg = ConfigManager().pipeline
+    prev = getattr(cfg, "cover_image_enabled", True)
+    cfg.cover_image_enabled = False
+    try:
+        assert asyncio.run(generate_story_cover("T", story_id="story-1")) is None
+    finally:
+        cfg.cover_image_enabled = prev

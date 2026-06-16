@@ -58,7 +58,9 @@ def test_generate_with_reference_seedream_calls_seedream_with_ref(tmp_path):
     """Seedream provider must delegate to _seedream_with_ref."""
     gen = ImageGenerator(provider="seedream")
     gen.output_dir = str(tmp_path)
-    with patch.object(gen, "_seedream_with_ref", return_value="/seedream/out.png") as mock_sr:
+    with patch.object(
+        gen, "_seedream_with_ref", return_value="/seedream/out.png"
+    ) as mock_sr:
         result = gen.generate_with_reference("prompt", ["/ref.png"], "out.png")
     mock_sr.assert_called_once_with("prompt", ["/ref.png"], "out.png")
     assert result == "/seedream/out.png"
@@ -68,8 +70,12 @@ def test_generate_with_reference_replicate_calls_replicate_with_ref(tmp_path):
     """Replicate provider must delegate to _replicate_with_ref with first ref only."""
     gen = ImageGenerator(provider="replicate")
     gen.output_dir = str(tmp_path)
-    with patch.object(gen, "_replicate_with_ref", return_value="/rep/out.png") as mock_rr:
-        result = gen.generate_with_reference("prompt", ["/ref1.png", "/ref2.png"], "out.png")
+    with patch.object(
+        gen, "_replicate_with_ref", return_value="/rep/out.png"
+    ) as mock_rr:
+        result = gen.generate_with_reference(
+            "prompt", ["/ref1.png", "/ref2.png"], "out.png"
+        )
     mock_rr.assert_called_once_with("prompt", "/ref1.png", "out.png")
     assert result == "/rep/out.png"
 
@@ -82,6 +88,7 @@ def test_generate_with_reference_replicate_calls_replicate_with_ref(tmp_path):
 def test_seedream_with_ref_not_configured_falls_back(tmp_path):
     """When Seedream is not configured, fall back to text-only generate()."""
     import sys
+
     gen = ImageGenerator(provider="seedream")
     gen.output_dir = str(tmp_path)
 
@@ -103,6 +110,7 @@ def test_seedream_with_ref_not_configured_falls_back(tmp_path):
 
 def test_seedream_with_ref_configured_calls_generate_scene(tmp_path):
     import sys
+
     gen = ImageGenerator(provider="seedream")
     gen.output_dir = str(tmp_path)
 
@@ -113,6 +121,7 @@ def test_seedream_with_ref_configured_calls_generate_scene(tmp_path):
     mock_seedream_module.SeedreamClient = MagicMock(return_value=mock_client)
 
     import os
+
     expected_filepath = os.path.join(str(tmp_path), "out.png")
 
     sys.modules["services.seedream_client"] = mock_seedream_module
@@ -121,7 +130,9 @@ def test_seedream_with_ref_configured_calls_generate_scene(tmp_path):
     finally:
         del sys.modules["services.seedream_client"]
 
-    mock_client.generate_scene.assert_called_once_with("prompt", ["/r.png"], expected_filepath)
+    mock_client.generate_scene.assert_called_once_with(
+        "prompt", ["/r.png"], expected_filepath
+    )
     assert result == "/seedream/scene.png"
 
 
@@ -132,6 +143,7 @@ def test_seedream_with_ref_configured_calls_generate_scene(tmp_path):
 
 def test_replicate_with_ref_not_configured_falls_back(tmp_path):
     import sys
+
     gen = ImageGenerator(provider="replicate")
     gen.output_dir = str(tmp_path)
 
@@ -152,6 +164,7 @@ def test_replicate_with_ref_not_configured_falls_back(tmp_path):
 
 def test_replicate_with_ref_configured_calls_client_generate(tmp_path):
     import sys
+
     gen = ImageGenerator(provider="replicate")
     gen.output_dir = str(tmp_path)
 
@@ -192,8 +205,10 @@ def test_generate_story_images_routes_through_reference_when_ref_available(tmp_p
     ref_path.write_bytes(b"\x89PNG")
 
     prompt = _make_prompt(["Hero"])
-    with patch.object(gen, "generate_with_reference", return_value="/scene.png") as gwr, \
-         patch.object(gen, "generate") as g:
+    with (
+        patch.object(gen, "generate_with_reference", return_value="/scene.png") as gwr,
+        patch.object(gen, "generate") as g,
+    ):
         paths = gen.generate_story_images(
             [prompt],
             chapter_number=1,
@@ -210,8 +225,10 @@ def test_generate_story_images_no_refs_uses_text_only(tmp_path):
     gen.output_dir = str(tmp_path)
 
     prompt = _make_prompt(["Hero"])
-    with patch.object(gen, "generate_with_reference") as gwr, \
-         patch.object(gen, "generate", return_value="/text.png") as g:
+    with (
+        patch.object(gen, "generate_with_reference") as gwr,
+        patch.object(gen, "generate", return_value="/text.png") as g,
+    ):
         paths = gen.generate_story_images([prompt], chapter_number=1)
     gwr.assert_not_called()
     g.assert_called_once()
@@ -224,8 +241,10 @@ def test_generate_story_images_skips_missing_files(tmp_path):
     gen.output_dir = str(tmp_path)
 
     prompt = _make_prompt(["Hero"])
-    with patch.object(gen, "generate_with_reference") as gwr, \
-         patch.object(gen, "generate", return_value="/text.png") as g:
+    with (
+        patch.object(gen, "generate_with_reference") as gwr,
+        patch.object(gen, "generate", return_value="/text.png") as g,
+    ):
         paths = gen.generate_story_images(
             [prompt],
             chapter_number=1,
@@ -247,8 +266,10 @@ def test_generate_story_images_falls_back_to_main_char_ref_when_no_name_match(tm
 
     # Panel mentions "Villager" — not in the reference map (only "Hero" is).
     prompt = _make_prompt(["Villager"])
-    with patch.object(gen, "generate_with_reference", return_value="/scene.png") as gwr, \
-         patch.object(gen, "generate") as g:
+    with (
+        patch.object(gen, "generate_with_reference", return_value="/scene.png") as gwr,
+        patch.object(gen, "generate") as g,
+    ):
         paths = gen.generate_story_images(
             [prompt],
             chapter_number=1,
@@ -264,9 +285,12 @@ def test_generate_story_images_falls_back_to_main_char_ref_when_no_name_match(tm
 def test_generate_with_reference_unsupported_provider_logs_and_drops(tmp_path, caplog):
     """Unsupported provider logs a single info line and drops refs."""
     import logging
+
     gen = ImageGenerator(provider="dalle")
     gen.output_dir = str(tmp_path)
-    with caplog.at_level(logging.INFO, logger="services.media.image_generator"), \
-         patch.object(gen, "generate", return_value="/out.png"):
+    with (
+        caplog.at_level(logging.INFO, logger="services.media.image_generator"),
+        patch.object(gen, "generate", return_value="/out.png"),
+    ):
         gen.generate_with_reference("prompt", ["/r.png"], "out.png")
     assert any("does not support reference" in rec.message for rec in caplog.records)

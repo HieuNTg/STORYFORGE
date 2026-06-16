@@ -42,9 +42,7 @@ def generate_title_from_idea(
     """Generate a creative title based on story idea."""
     result = llm.generate_json(
         system_prompt="Bạn là nhà văn sáng tạo. BẮT BUỘC viết bằng tiếng Việt. Trả về JSON.",
-        user_prompt=prompts.GENERATE_TITLE_FROM_IDEA.format(
-            genre=genre, idea=idea
-        ),
+        user_prompt=prompts.GENERATE_TITLE_FROM_IDEA.format(genre=genre, idea=idea),
         model=model,
     )
     if isinstance(result, str):
@@ -66,7 +64,9 @@ def generate_world(
         f"- {c.name} ({c.role}): {c.personality}" for c in characters
     )
     world_prompt = prompts.GENERATE_WORLD.format(
-        genre=genre, title=title, characters=chars_text,
+        genre=genre,
+        title=title,
+        characters=chars_text,
         naming_instruction=get_naming_instruction(genre),
     )
 
@@ -92,7 +92,10 @@ def _parse_outline_response(result) -> tuple[str, list[ChapterOutline]]:
     """Parse LLM response into synopsis and outlines, handling various formats."""
     # Handle LLM returning list directly instead of {synopsis, outlines} dict
     if isinstance(result, list):
-        logger.warning("LLM returned list instead of dict, assuming direct outlines array (len=%d)", len(result))
+        logger.warning(
+            "LLM returned list instead of dict, assuming direct outlines array (len=%d)",
+            len(result),
+        )
         synopsis = ""
         outline_data = result
     else:
@@ -115,11 +118,20 @@ def _parse_outline_response(result) -> tuple[str, list[ChapterOutline]]:
                 o["summary"] = o.get("description", o.get("content", ""))
             outlines.append(ChapterOutline(**o))
         except Exception as e:
-            logger.warning("Failed to parse outline %d: %s. Keys: %s", i, e, list(o.keys()) if isinstance(o, dict) else "N/A")
+            logger.warning(
+                "Failed to parse outline %d: %s. Keys: %s",
+                i,
+                e,
+                list(o.keys()) if isinstance(o, dict) else "N/A",
+            )
 
     # Debug: log raw data if we got 0 outlines from non-empty input
     if not outlines and outline_data:
-        logger.error("Got 0 valid outlines from %d items. Sample: %s", len(outline_data), str(outline_data[0])[:500])
+        logger.error(
+            "Got 0 valid outlines from %d items. Sample: %s",
+            len(outline_data),
+            str(outline_data[0])[:500],
+        )
 
     return synopsis, outlines
 
@@ -141,13 +153,19 @@ def generate_outline(
         for c in characters
     )
     user_prompt = prompts.GENERATE_OUTLINE.format(
-        genre=genre, title=title, characters=chars_text,
+        genre=genre,
+        title=title,
+        characters=chars_text,
         world=f"{world.name}: {world.description}",
-        idea=idea, num_chapters=num_chapters,
+        idea=idea,
+        num_chapters=num_chapters,
     )
     if macro_arcs:
         try:
-            from pipeline.layer1_story.macro_outline_builder import format_arcs_for_prompt
+            from pipeline.layer1_story.macro_outline_builder import (
+                format_arcs_for_prompt,
+            )
+
             arcs_context = (
                 "## CẤU TRÚC MACRO ARC (cần bám sát khi tạo dàn ý):\n"
                 + format_arcs_for_prompt(macro_arcs)
@@ -167,10 +185,12 @@ def generate_outline(
 
     # Retry once with lower temp if we got nothing
     if not outlines:
-        logger.warning("First outline attempt returned 0 valid outlines, retrying with lower temperature")
+        logger.warning(
+            "First outline attempt returned 0 valid outlines, retrying with lower temperature"
+        )
         synopsis, outlines = _parse_outline_response(
             llm.generate_json(
-                system_prompt="Bạn là biên kịch tài năng. BẮT BUỘC viết bằng tiếng Việt. Trả về JSON với cấu trúc {\"synopsis\": \"...\", \"outlines\": [...]}",
+                system_prompt='Bạn là biên kịch tài năng. BẮT BUỘC viết bằng tiếng Việt. Trả về JSON với cấu trúc {"synopsis": "...", "outlines": [...]}',
                 user_prompt=user_prompt,
                 temperature=0.7,
                 model=model,
@@ -181,15 +201,26 @@ def generate_outline(
     if len(outlines) < num_chapters:
         logger.warning(
             "LLM returned %d outlines but %d requested. Requesting missing chapters...",
-            len(outlines), num_chapters,
+            len(outlines),
+            num_chapters,
         )
         outlines = _fill_missing_outlines(
-            llm, outlines, num_chapters, title, genre, characters, world, idea, synopsis, model,
+            llm,
+            outlines,
+            num_chapters,
+            title,
+            genre,
+            characters,
+            world,
+            idea,
+            synopsis,
+            model,
         )
     elif len(outlines) > num_chapters:
         logger.warning(
             "LLM returned %d outlines but only %d requested. Trimming...",
-            len(outlines), num_chapters,
+            len(outlines),
+            num_chapters,
         )
         outlines = outlines[:num_chapters]
 
@@ -235,7 +266,7 @@ Bối cảnh: {world.name}: {world.description}
 Các chương đã có:
 {existing_text}
 
-Hãy tạo dàn ý cho các chương còn thiếu: {', '.join(f'chương {n}' for n in missing_nums)}
+Hãy tạo dàn ý cho các chương còn thiếu: {", ".join(f"chương {n}" for n in missing_nums)}
 BẮT BUỘC: Viết bằng tiếng Việt. Đảm bảo logic với các chương đã có.
 
 Trả về JSON:
@@ -261,17 +292,22 @@ Trả về JSON:
         final_nums = {o.chapter_number for o in all_outlines}
         still_missing = [i for i in range(1, num_chapters + 1) if i not in final_nums]
         if still_missing:
-            logger.warning("Still missing chapters after fill: %s. Creating placeholder outlines.", still_missing)
+            logger.warning(
+                "Still missing chapters after fill: %s. Creating placeholder outlines.",
+                still_missing,
+            )
             for ch_num in still_missing:
-                all_outlines.append(ChapterOutline(
-                    chapter_number=ch_num,
-                    title=f"Chương {ch_num}",
-                    summary=f"Tiếp tục câu chuyện (chương {ch_num})",
-                    key_events=[],
-                    characters_involved=[c.name for c in characters[:2]],
-                    emotional_arc="rising",
-                    pacing_type="rising",
-                ))
+                all_outlines.append(
+                    ChapterOutline(
+                        chapter_number=ch_num,
+                        title=f"Chương {ch_num}",
+                        summary=f"Tiếp tục câu chuyện (chương {ch_num})",
+                        key_events=[],
+                        characters_involved=[c.name for c in characters[:2]],
+                        emotional_arc="rising",
+                        pacing_type="rising",
+                    )
+                )
             all_outlines.sort(key=lambda x: x.chapter_number)
 
         return all_outlines[:num_chapters]
@@ -279,14 +315,16 @@ Trả về JSON:
         logger.error("Failed to fill missing outlines: %s. Creating placeholders.", e)
         all_outlines = list(existing_outlines)
         for ch_num in missing_nums:
-            all_outlines.append(ChapterOutline(
-                chapter_number=ch_num,
-                title=f"Chương {ch_num}",
-                summary=f"Tiếp tục câu chuyện (chương {ch_num})",
-                key_events=[],
-                characters_involved=[c.name for c in characters[:2]],
-                emotional_arc="rising",
-                pacing_type="rising",
-            ))
+            all_outlines.append(
+                ChapterOutline(
+                    chapter_number=ch_num,
+                    title=f"Chương {ch_num}",
+                    summary=f"Tiếp tục câu chuyện (chương {ch_num})",
+                    key_events=[],
+                    characters_involved=[c.name for c in characters[:2]],
+                    emotional_arc="rising",
+                    pacing_type="rising",
+                )
+            )
         all_outlines.sort(key=lambda x: x.chapter_number)
         return all_outlines[:num_chapters]

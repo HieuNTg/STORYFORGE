@@ -1,8 +1,9 @@
 """Tests for chapter_writer directive injection (Sprint 3 P2)."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from models.handoff_schemas import NegotiatedChapterContract
 from models.schemas import Character, ChapterOutline, WorldSetting
@@ -33,15 +34,24 @@ def _mk_world():
 
 
 def _mk_outline(num=1):
-    return ChapterOutline(chapter_number=num, title="Chapter One", summary="Things happen")
+    return ChapterOutline(
+        chapter_number=num, title="Chapter One", summary="Things happen"
+    )
 
 
 def _mk_character():
-    return Character(name="Hùng", role="protagonist", personality="brave", background="hero")
+    return Character(
+        name="Hùng", role="protagonist", personality="brave", background="hero"
+    )
 
 
-def _mk_contract(drama_target=0.7, drama_tolerance=0.15, drama_ceiling=0.85,
-                  required_subtext=None, forbidden_patterns=None):
+def _mk_contract(
+    drama_target=0.7,
+    drama_tolerance=0.15,
+    drama_ceiling=0.85,
+    required_subtext=None,
+    forbidden_patterns=None,
+):
     return NegotiatedChapterContract(
         chapter_num=1,
         pacing_type="rising",
@@ -59,12 +69,25 @@ def _build(negotiated_contract=None):
     world = _mk_world()
     characters = [_mk_character()]
 
-    with patch("pipeline.layer1_story.chapter_writer.build_adaptive_write_prompt", side_effect=lambda p, *a, **kw: p), \
-         patch("pipeline.layer1_story.narrative_context_block.build_narrative_block") as mock_nb:
+    with (
+        patch(
+            "pipeline.layer1_story.chapter_writer.build_adaptive_write_prompt",
+            side_effect=lambda p, *a, **kw: p,
+        ),
+        patch(
+            "pipeline.layer1_story.narrative_context_block.build_narrative_block"
+        ) as mock_nb,
+    ):
         mock_nb.return_value.render.return_value = ""
         _, user_prompt = build_chapter_prompt(
-            config, "Story", "fantasy", "vivid",
-            characters, world, outline, 2000,
+            config,
+            "Story",
+            "fantasy",
+            "vivid",
+            characters,
+            world,
+            outline,
+            2000,
             negotiated_contract=negotiated_contract,
         )
     return user_prompt
@@ -72,7 +95,9 @@ def _build(negotiated_contract=None):
 
 class TestDramaDirectiveInjection:
     def test_directive_present_when_ceiling_positive(self):
-        contract = _mk_contract(drama_target=0.7, drama_tolerance=0.15, drama_ceiling=0.85)
+        contract = _mk_contract(
+            drama_target=0.7, drama_tolerance=0.15, drama_ceiling=0.85
+        )
         prompt = _build(negotiated_contract=contract)
         assert "## RÀNG BUỘC KỊCH TÍNH" in prompt
         assert "0.70" in prompt
@@ -83,13 +108,17 @@ class TestDramaDirectiveInjection:
         assert "## RÀNG BUỘC KỊCH TÍNH" not in prompt
 
     def test_directive_absent_when_ceiling_zero(self):
-        contract = _mk_contract(drama_target=0.0, drama_tolerance=0.15, drama_ceiling=0.0)
+        contract = _mk_contract(
+            drama_target=0.0, drama_tolerance=0.15, drama_ceiling=0.0
+        )
         prompt = _build(negotiated_contract=contract)
         assert "## RÀNG BUỘC KỊCH TÍNH" not in prompt
 
     def test_directive_fields_correct(self):
         contract = _mk_contract(
-            drama_target=0.6, drama_tolerance=0.10, drama_ceiling=0.70,
+            drama_target=0.6,
+            drama_tolerance=0.10,
+            drama_ceiling=0.70,
             required_subtext=["betrayal", "regret"],
             forbidden_patterns=["sudden_death"],
         )
@@ -111,7 +140,9 @@ class TestDramaDirectiveInjection:
 
     def test_golden_diff_only_directive(self):
         """Directive is the only diff between with- and without-contract prompts."""
-        contract = _mk_contract(drama_target=0.5, drama_tolerance=0.15, drama_ceiling=0.65)
+        contract = _mk_contract(
+            drama_target=0.5, drama_tolerance=0.15, drama_ceiling=0.65
+        )
         prompt_with = _build(negotiated_contract=contract)
         prompt_without = _build(negotiated_contract=None)
 
@@ -144,16 +175,20 @@ class TestDramaDirectiveInjection:
         prompt_without = _build(negotiated_contract=None)
         directive_len = len(prompt_with) - len(prompt_without)
         estimated_tokens = directive_len // 4
-        assert estimated_tokens <= 80, f"Directive ~{estimated_tokens} tokens exceeds 80-token budget"
+        assert estimated_tokens <= 80, (
+            f"Directive ~{estimated_tokens} tokens exceeds 80-token budget"
+        )
 
 
 # ---------------------------------------------------------------------------
 # Bug 1: LLM preamble stripper
 # ---------------------------------------------------------------------------
 
+
 class TestPreambleStripper:
     def _strip(self, content: str) -> str:
         from pipeline.layer1_story.chapter_writer import strip_llm_preamble
+
         return strip_llm_preamble(content)
 
     def test_strips_exact_reported_example(self):
@@ -204,18 +239,32 @@ class TestPreambleStripper:
 # Bug 2: Continuity anchor
 # ---------------------------------------------------------------------------
 
+
 class TestContinuityAnchor:
     def _build_with_tail(self, chapter_number: int, tail: str) -> str:
         config = _mk_config()
         outline = _mk_outline(num=chapter_number)
         world = _mk_world()
         characters = [_mk_character()]
-        with patch("pipeline.layer1_story.chapter_writer.build_adaptive_write_prompt", side_effect=lambda p, *a, **kw: p), \
-             patch("pipeline.layer1_story.narrative_context_block.build_narrative_block") as mock_nb:
+        with (
+            patch(
+                "pipeline.layer1_story.chapter_writer.build_adaptive_write_prompt",
+                side_effect=lambda p, *a, **kw: p,
+            ),
+            patch(
+                "pipeline.layer1_story.narrative_context_block.build_narrative_block"
+            ) as mock_nb,
+        ):
             mock_nb.return_value.render.return_value = ""
             _, user_prompt = build_chapter_prompt(
-                config, "Story", "fantasy", "vivid",
-                characters, world, outline, 2000,
+                config,
+                "Story",
+                "fantasy",
+                "vivid",
+                characters,
+                world,
+                outline,
+                2000,
                 previous_chapter_tail=tail,
             )
         return user_prompt

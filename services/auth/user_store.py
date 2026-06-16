@@ -1,4 +1,5 @@
 """SQLite-backed user storage with password hashing. Thread-safe singleton."""
+
 import hashlib
 import hmac as _hmac
 import logging
@@ -9,7 +10,9 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
-_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "users.db")
+_DB_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "data", "users.db"
+)
 _LOCK = threading.Lock()
 _instance = None
 
@@ -51,7 +54,9 @@ class UserStore:
             )
             # Migrate existing databases that predate the role column.
             try:
-                conn.execute("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'creator'")
+                conn.execute(
+                    "ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'creator'"
+                )
             except Exception:
                 pass  # Column already exists — ignore.
             conn.commit()
@@ -90,9 +95,14 @@ class UserStore:
 
     def authenticate(self, username: str, password: str) -> "str | None":
         """Verify credentials. Returns user_id on success, None on failure."""
-        row = self._conn().execute(
-            "SELECT user_id, pw_hash, pw_salt FROM users WHERE username=?", (username,)
-        ).fetchone()
+        row = (
+            self._conn()
+            .execute(
+                "SELECT user_id, pw_hash, pw_salt FROM users WHERE username=?",
+                (username,),
+            )
+            .fetchone()
+        )
         if not row:
             return None
         expected = self._hash_password(password, row["pw_salt"])
@@ -102,9 +112,14 @@ class UserStore:
 
     def get_user(self, user_id: str) -> "dict | None":
         """Return user dict {user_id, username, role, created_at} or None."""
-        row = self._conn().execute(
-            "SELECT user_id, username, role, created_at FROM users WHERE user_id=?", (user_id,)
-        ).fetchone()
+        row = (
+            self._conn()
+            .execute(
+                "SELECT user_id, username, role, created_at FROM users WHERE user_id=?",
+                (user_id,),
+            )
+            .fetchone()
+        )
         return dict(row) if row else None
 
     def set_role(self, user_id: str, role: str) -> bool:

@@ -1,4 +1,5 @@
 """Tests for services/structured_output.py."""
+
 import pytest
 from unittest.mock import MagicMock, patch
 from services.structured_output import (
@@ -12,6 +13,7 @@ from services.structured_output import (
 # ---------------------------------------------------------------------------
 # _detect_provider
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestDetectProvider:
@@ -37,7 +39,9 @@ class TestDetectProvider:
         assert _detect_provider("https://api.anthropic.com") == "anthropic"
 
     def test_gemini_url(self):
-        assert _detect_provider("https://generativelanguage.googleapis.com/v1") == "google"
+        assert (
+            _detect_provider("https://generativelanguage.googleapis.com/v1") == "google"
+        )
 
     def test_googleapis_url(self):
         assert _detect_provider("https://gemini.googleapis.com") == "google"
@@ -52,6 +56,7 @@ class TestDetectProvider:
 # ---------------------------------------------------------------------------
 # _extract_json
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestExtractJson:
@@ -85,6 +90,7 @@ class TestExtractJson:
         # Then the regex picks the first {...} block.
         # Since the array parses fine as JSON, the result is the list itself.
         import json as _json
+
         raw = '[1, 2, {"x": 3}]'
         _json.loads(raw)
         # Either the full array comes back (direct parse succeeds), or the inner object
@@ -100,6 +106,7 @@ class TestExtractJson:
 # ---------------------------------------------------------------------------
 # _validate_schema
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestValidateSchema:
@@ -128,6 +135,7 @@ class TestValidateSchema:
 # generate_structured
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestGenerateStructured:
     """ConfigManager and LLMClient are imported inside the function body.
@@ -141,8 +149,10 @@ class TestGenerateStructured:
 
     def test_json_mode_provider(self):
         """OpenAI provider uses json_object mode."""
-        with patch("config.ConfigManager") as MockConfig, \
-             patch("services.llm_client.LLMClient") as MockLLM:
+        with (
+            patch("config.ConfigManager") as MockConfig,
+            patch("services.llm_client.LLMClient") as MockLLM,
+        ):
             MockConfig.return_value = self._mock_config("https://api.openai.com/v1")
             mock_client = MockLLM.return_value
             mock_client.generate.return_value = '{"title": "Story", "score": 8}'
@@ -159,11 +169,15 @@ class TestGenerateStructured:
 
     def test_regex_fallback_provider(self):
         """Anthropic provider uses regex extraction fallback."""
-        with patch("config.ConfigManager") as MockConfig, \
-             patch("services.llm_client.LLMClient") as MockLLM:
+        with (
+            patch("config.ConfigManager") as MockConfig,
+            patch("services.llm_client.LLMClient") as MockLLM,
+        ):
             MockConfig.return_value = self._mock_config("https://api.anthropic.com")
             mock_client = MockLLM.return_value
-            mock_client.generate.return_value = 'Here is the result: {"name": "Test", "value": 5}'
+            mock_client.generate.return_value = (
+                'Here is the result: {"name": "Test", "value": 5}'
+            )
 
             result = generate_structured(
                 prompt="Extract data",
@@ -175,8 +189,10 @@ class TestGenerateStructured:
         assert call_kwargs.get("json_mode") is False
 
     def test_strict_mode_raises_on_missing_key(self):
-        with patch("config.ConfigManager") as MockConfig, \
-             patch("services.llm_client.LLMClient") as MockLLM:
+        with (
+            patch("config.ConfigManager") as MockConfig,
+            patch("services.llm_client.LLMClient") as MockLLM,
+        ):
             MockConfig.return_value = self._mock_config("https://api.openai.com/v1")
             mock_client = MockLLM.return_value
             mock_client.generate.return_value = '{"only_key": "value"}'
@@ -189,8 +205,10 @@ class TestGenerateStructured:
                 )
 
     def test_non_strict_mode_warns_but_returns(self):
-        with patch("config.ConfigManager") as MockConfig, \
-             patch("services.llm_client.LLMClient") as MockLLM:
+        with (
+            patch("config.ConfigManager") as MockConfig,
+            patch("services.llm_client.LLMClient") as MockLLM,
+        ):
             MockConfig.return_value = self._mock_config("https://api.openai.com/v1")
             mock_client = MockLLM.return_value
             mock_client.generate.return_value = '{"only_key": "value"}'
@@ -203,8 +221,10 @@ class TestGenerateStructured:
         assert result["only_key"] == "value"
 
     def test_custom_temperature_and_max_tokens_passed_through(self):
-        with patch("config.ConfigManager") as MockConfig, \
-             patch("services.llm_client.LLMClient") as MockLLM:
+        with (
+            patch("config.ConfigManager") as MockConfig,
+            patch("services.llm_client.LLMClient") as MockLLM,
+        ):
             MockConfig.return_value = self._mock_config("https://api.openai.com/v1")
             mock_client = MockLLM.return_value
             mock_client.generate.return_value = '{"result": "ok"}'
@@ -221,8 +241,10 @@ class TestGenerateStructured:
         assert call_kwargs["max_tokens"] == 512
 
     def test_openrouter_uses_json_mode(self):
-        with patch("config.ConfigManager") as MockConfig, \
-             patch("services.llm_client.LLMClient") as MockLLM:
+        with (
+            patch("config.ConfigManager") as MockConfig,
+            patch("services.llm_client.LLMClient") as MockLLM,
+        ):
             MockConfig.return_value = self._mock_config("https://openrouter.ai/api/v1")
             mock_client = MockLLM.return_value
             mock_client.generate.return_value = '{"x": 1}'
@@ -233,8 +255,10 @@ class TestGenerateStructured:
         assert call_kwargs.get("json_mode") is True
 
     def test_ollama_uses_regex_fallback(self):
-        with patch("config.ConfigManager") as MockConfig, \
-             patch("services.llm_client.LLMClient") as MockLLM:
+        with (
+            patch("config.ConfigManager") as MockConfig,
+            patch("services.llm_client.LLMClient") as MockLLM,
+        ):
             MockConfig.return_value = self._mock_config("http://localhost:11434")
             mock_client = MockLLM.return_value
             mock_client.generate.return_value = '{"x": 1}'

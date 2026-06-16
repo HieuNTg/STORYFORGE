@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Regex to extract dialogue
 DIALOGUE_PATTERN = re.compile(r'[""「]([^""」]+)[""」]')
-SPEAKER_PATTERN = re.compile(r'(\w+)\s*(?:nói|hỏi|đáp|thì thầm|gào|la|cười|trả lời)')
+SPEAKER_PATTERN = re.compile(r"(\w+)\s*(?:nói|hỏi|đáp|thì thầm|gào|la|cười|trả lời)")
 
 
 def extract_dialogue_by_character(
@@ -30,7 +30,7 @@ def extract_dialogue_by_character(
     char_names = {c.name.lower(): c.name for c in characters}
     result = {c.name: [] for c in characters}
 
-    lines = content.split('\n')
+    lines = content.split("\n")
     current_speaker = None
 
     for line in lines:
@@ -72,12 +72,13 @@ def check_voice_consistency(
 
     # Filter to characters with voice profiles
     chars_with_voice = [
-        c for c in characters
-        if getattr(c, 'speech_pattern', '') or getattr(c, 'voice_profile', '')
+        c
+        for c in characters
+        if getattr(c, "speech_pattern", "") or getattr(c, "voice_profile", "")
     ]
 
     if not chars_with_voice:
-        return {'consistent': True, 'violations': [], 'score': 1.0}
+        return {"consistent": True, "violations": [], "score": 1.0}
 
     violations = []
     total_checked = 0
@@ -87,7 +88,9 @@ def check_voice_consistency(
         if not dialogues:
             continue
 
-        voice_profile = getattr(char, 'speech_pattern', '') or getattr(char, 'voice_profile', '')
+        voice_profile = getattr(char, "speech_pattern", "") or getattr(
+            char, "voice_profile", ""
+        )
 
         # Check each dialogue sample (max 5 per character)
         for dialogue in dialogues[:5]:
@@ -107,37 +110,37 @@ Dialogue: "{dialogue}"
                     expect="dict",
                 )
 
-                if not result.get('match', True):
-                    violations.append({
-                        'character': char.name,
-                        'dialogue': dialogue[:100],
-                        'expected_pattern': voice_profile[:100],
-                        'issue': result.get('issue', 'Không khớp voice profile'),
-                        'confidence': result.get('confidence', 0.5),
-                    })
+                if not result.get("match", True):
+                    violations.append(
+                        {
+                            "character": char.name,
+                            "dialogue": dialogue[:100],
+                            "expected_pattern": voice_profile[:100],
+                            "issue": result.get("issue", "Không khớp voice profile"),
+                            "confidence": result.get("confidence", 0.5),
+                        }
+                    )
             except Exception as e:
                 logger.debug(f"Voice check failed for {char.name}: {e}")
 
     score = 1.0 - (len(violations) / max(total_checked, 1))
 
     return {
-        'consistent': len(violations) == 0,
-        'violations': violations,
-        'score': score,
-        'total_checked': total_checked,
+        "consistent": len(violations) == 0,
+        "violations": violations,
+        "score": score,
+        "total_checked": total_checked,
     }
 
 
 def format_voice_warnings(check_result: dict) -> str:
     """Format voice consistency issues as warning text."""
-    if check_result.get('consistent', True):
+    if check_result.get("consistent", True):
         return ""
 
     lines = ["## ⚠️ CẢNH BÁO GIỌNG NÓI NHÂN VẬT:"]
-    for v in check_result.get('violations', [])[:5]:
-        lines.append(
-            f"- {v['character']}: \"{v['dialogue'][:50]}...\" → {v['issue']}"
-        )
+    for v in check_result.get("violations", [])[:5]:
+        lines.append(f'- {v["character"]}: "{v["dialogue"][:50]}..." → {v["issue"]}')
     lines.append("PHẢI duy trì voice profile đã định nghĩa cho mỗi nhân vật.")
     return "\n".join(lines)
 
@@ -155,12 +158,14 @@ def dialogue_consistency_check(
     """
     result = check_voice_consistency(llm, chapter_content, characters, model)
 
-    if result['score'] >= threshold:
+    if result["score"] >= threshold:
         return True, ""
 
     warning = format_voice_warnings(result)
     logger.warning(
         "Dialogue consistency score %.2f < %.2f threshold, %d violations",
-        result['score'], threshold, len(result['violations'])
+        result["score"],
+        threshold,
+        len(result["violations"]),
     )
     return False, warning

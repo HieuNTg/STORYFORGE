@@ -43,7 +43,11 @@ def build_tiered_context(
 
     # Identify chapters to promote (share chars/threads with current outline)
     promoted = _get_promoted_chapters(
-        chapter_num, outline, chapters_by_num, open_threads, max_promotions,
+        chapter_num,
+        outline,
+        chapters_by_num,
+        open_threads,
+        max_promotions,
     )
 
     parts = []
@@ -136,7 +140,9 @@ def build_tiered_context(
 
     logger.debug(
         "Tiered context for ch%d: ~%d tokens, %d promoted chapters",
-        chapter_num, est_tokens, len(promoted),
+        chapter_num,
+        est_tokens,
+        len(promoted),
     )
     return "\n\n".join(parts) if parts else ""
 
@@ -176,7 +182,11 @@ def _get_promoted_chapters(
 
     # Find chapters that last advanced active threads
     for t in open_threads:
-        if t.status != "resolved" and t.last_mentioned_chapter and t.last_mentioned_chapter < chapter_num:
+        if (
+            t.status != "resolved"
+            and t.last_mentioned_chapter
+            and t.last_mentioned_chapter < chapter_num
+        ):
             promoted.add(t.last_mentioned_chapter)
         if len(promoted) >= max_promotions:
             break
@@ -194,7 +204,9 @@ def _get_emotional_bridge(prev_chapter: "Chapter | None") -> str:
     ss = getattr(prev_chapter, "structured_summary", None)
     if ss is None:
         return ""
-    emotional_shift = getattr(ss, "emotional_shift", None) or getattr(ss, "actual_emotional_arc", None)
+    emotional_shift = getattr(ss, "emotional_shift", None) or getattr(
+        ss, "actual_emotional_arc", None
+    )
     if emotional_shift:
         return f"[CẦU NỐI CẢM XÚC] Chương trước kết thúc với: {emotional_shift}. Tiếp nối tâm trạng này."
     return ""
@@ -285,7 +297,10 @@ def build_compressed_context(
     tier2_budget = int(max_tokens * 0.30)
     current_arc = _get_current_arc(chapter_num, macro_arcs)
     same_arc_chapters = _get_same_arc_chapters(
-        chapter_num, current_arc, chapters_by_num, tier_config["tier1_start"],
+        chapter_num,
+        current_arc,
+        chapters_by_num,
+        tier_config["tier1_start"],
     )
     tier2_texts = []
     for ch_num in same_arc_chapters[:8]:  # Cap at 8 same-arc chapters
@@ -297,7 +312,10 @@ def build_compressed_context(
     if tier2_texts:
         block = "\n\n".join(tier2_texts)
         if est_tokens + len(block) // 4 <= tier2_budget:
-            parts.append(f"## TIER 2 — Arc hiện tại ({current_arc.name if current_arc else 'unknown'})\n" + block)
+            parts.append(
+                f"## TIER 2 — Arc hiện tại ({current_arc.name if current_arc else 'unknown'})\n"
+                + block
+            )
             est_tokens += len(block) // 4
 
     # --- Tier 3: Cross-arc pivots (arc boundaries only) ---
@@ -321,10 +339,17 @@ def build_compressed_context(
     tier4_parts = []
 
     # Active threads (urgent/stale only)
-    urgent_threads = [t for t in open_threads if t.urgency >= 4 or
-                      (t.status == "open" and chapter_num - t.last_mentioned_chapter >= 5)]
+    urgent_threads = [
+        t
+        for t in open_threads
+        if t.urgency >= 4
+        or (t.status == "open" and chapter_num - t.last_mentioned_chapter >= 5)
+    ]
     if urgent_threads:
-        thread_strs = [f"- {t.description[:50]} (từ ch.{t.planted_chapter})" for t in urgent_threads[:5]]
+        thread_strs = [
+            f"- {t.description[:50]} (từ ch.{t.planted_chapter})"
+            for t in urgent_threads[:5]
+        ]
         tier4_parts.append("Tuyến cần giải quyết:\n" + "\n".join(thread_strs))
 
     # Bible essentials
@@ -335,7 +360,9 @@ def build_compressed_context(
             tier4_parts.append(f"Quy tắc: {'; '.join(story_bible.world_rules[:4])}")
         if story_bible.milestone_events:
             # Only last few milestones
-            tier4_parts.append("Mốc gần: " + "; ".join(story_bible.milestone_events[-4:]))
+            tier4_parts.append(
+                "Mốc gần: " + "; ".join(story_bible.milestone_events[-4:])
+            )
 
     if tier4_parts:
         block = "\n".join(tier4_parts)
@@ -345,7 +372,11 @@ def build_compressed_context(
 
     logger.debug(
         "Compressed context for ch%d/%d: ~%d tokens, %d pivots, %d same-arc",
-        chapter_num, total_chapters, est_tokens, len(pivot_chapters), len(same_arc_chapters),
+        chapter_num,
+        total_chapters,
+        est_tokens,
+        len(pivot_chapters),
+        len(same_arc_chapters),
     )
     return "\n\n".join(parts) if parts else ""
 
@@ -422,7 +453,10 @@ def _get_arc_pivot_chapters(
             events = ch.structured_summary.plot_critical_events or []
             # Check for "critical" keywords
             for e in events:
-                if any(kw in e.lower() for kw in ["chết", "phản bội", "tiết lộ", "kết thúc", "hy sinh"]):
+                if any(
+                    kw in e.lower()
+                    for kw in ["chết", "phản bội", "tiết lộ", "kết thúc", "hy sinh"]
+                ):
                     pivots.add(ch_num)
                     break
 
@@ -437,7 +471,10 @@ def _get_compressed_summary(chapter: "Chapter", level: str = "detailed") -> str:
       - minimal: ~100 chars, critical events only
     """
     if level == "minimal":
-        if chapter.structured_summary and chapter.structured_summary.plot_critical_events:
+        if (
+            chapter.structured_summary
+            and chapter.structured_summary.plot_critical_events
+        ):
             return "; ".join(chapter.structured_summary.plot_critical_events[:2])[:100]
         elif chapter.summary:
             return chapter.summary[:100]

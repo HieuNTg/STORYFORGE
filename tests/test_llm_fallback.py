@@ -8,65 +8,77 @@ from unittest.mock import MagicMock, patch
 # Tests: _is_transient helper
 # ---------------------------------------------------------------------------
 
-class TestIsTransient(unittest.TestCase):
 
+class TestIsTransient(unittest.TestCase):
     def test_429_is_transient(self):
         from services.llm_client import _is_transient
+
         exc = Exception("rate limit 429 exceeded")
         self.assertTrue(_is_transient(exc))
 
     def test_500_is_transient(self):
         from services.llm_client import _is_transient
+
         exc = Exception("internal server error 500")
         self.assertTrue(_is_transient(exc))
 
     def test_502_is_transient(self):
         from services.llm_client import _is_transient
+
         exc = Exception("bad gateway 502")
         self.assertTrue(_is_transient(exc))
 
     def test_503_is_transient(self):
         from services.llm_client import _is_transient
+
         exc = Exception("service unavailable 503")
         self.assertTrue(_is_transient(exc))
 
     def test_504_is_transient(self):
         from services.llm_client import _is_transient
+
         exc = Exception("gateway timeout 504")
         self.assertTrue(_is_transient(exc))
 
     def test_timeout_is_transient(self):
         from services.llm_client import _is_transient
+
         exc = Exception("request timeout")
         self.assertTrue(_is_transient(exc))
 
     def test_connection_error_is_transient(self):
         from services.llm_client import _is_transient
+
         exc = Exception("connection refused")
         self.assertTrue(_is_transient(exc))
 
     def test_reset_is_transient(self):
         from services.llm_client import _is_transient
+
         exc = Exception("connection reset by peer")
         self.assertTrue(_is_transient(exc))
 
     def test_broken_pipe_is_transient(self):
         from services.llm_client import _is_transient
+
         exc = Exception("broken pipe")
         self.assertTrue(_is_transient(exc))
 
     def test_401_not_transient(self):
         from services.llm_client import _is_transient
+
         exc = Exception("unauthorized 401 invalid api key")
         self.assertFalse(_is_transient(exc))
 
     def test_404_not_transient(self):
         from services.llm_client import _is_transient
+
         exc = Exception("not found 404")
         self.assertFalse(_is_transient(exc))
 
     def test_generic_error_not_transient(self):
         from services.llm_client import _is_transient
+
         exc = ValueError("bad value")
         self.assertFalse(_is_transient(exc))
 
@@ -74,6 +86,7 @@ class TestIsTransient(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Helpers to build config mocks
 # ---------------------------------------------------------------------------
+
 
 def _make_llm_config(
     api_key="key",
@@ -107,6 +120,7 @@ def _make_llm_config(
 def _reset_llm_singleton():
     """Reset LLMClient singleton between tests."""
     from services import llm_client
+
     llm_client.LLMClient._instance = None
 
 
@@ -114,8 +128,8 @@ def _reset_llm_singleton():
 # Tests: _build_fallback_chain
 # ---------------------------------------------------------------------------
 
-class TestBuildFallbackChain(unittest.TestCase):
 
+class TestBuildFallbackChain(unittest.TestCase):
     def setUp(self):
         _reset_llm_singleton()
 
@@ -126,6 +140,7 @@ class TestBuildFallbackChain(unittest.TestCase):
     @patch("services.llm_client.OpenAI")
     def test_default_tier_starts_with_primary(self, MockOpenAI, MockCM):
         from services.llm_client import LLMClient
+
         MockCM.return_value = _make_llm_config()
         client = LLMClient()
         config = _make_llm_config()
@@ -142,7 +157,10 @@ class TestBuildFallbackChain(unittest.TestCase):
     @patch("services.llm_client.OpenAI")
     def test_cheap_tier_uses_cheap_model(self, MockOpenAI, MockCM):
         from services.llm_client import LLMClient
-        cfg = _make_llm_config(cheap_model="gpt-3.5-turbo", cheap_base_url="http://cheap.test")
+
+        cfg = _make_llm_config(
+            cheap_model="gpt-3.5-turbo", cheap_base_url="http://cheap.test"
+        )
         MockCM.return_value = cfg
         client = LLMClient()
         client._current_model = "gpt-4"
@@ -157,7 +175,10 @@ class TestBuildFallbackChain(unittest.TestCase):
     @patch("services.llm_client.OpenAI")
     def test_fallback_models_added_to_chain(self, MockOpenAI, MockCM):
         from services.llm_client import LLMClient
-        fallbacks = [{"model": "claude-3", "base_url": "http://claude.test", "api_key": "ckey"}]
+
+        fallbacks = [
+            {"model": "claude-3", "base_url": "http://claude.test", "api_key": "ckey"}
+        ]
         cfg = _make_llm_config(fallback_models=fallbacks)
         MockCM.return_value = cfg
         client = LLMClient()
@@ -173,6 +194,7 @@ class TestBuildFallbackChain(unittest.TestCase):
     @patch("services.llm_client.OpenAI")
     def test_no_cheap_model_skips_cheap_entry(self, MockOpenAI, MockCM):
         from services.llm_client import LLMClient
+
         cfg = _make_llm_config(cheap_model="")
         MockCM.return_value = cfg
         client = LLMClient()
@@ -187,6 +209,7 @@ class TestBuildFallbackChain(unittest.TestCase):
     @patch("services.llm_client.OpenAI")
     def test_fallback_without_model_skipped(self, MockOpenAI, MockCM):
         from services.llm_client import LLMClient
+
         fallbacks = [{"model": "", "base_url": "http://test.com", "api_key": "k"}]
         cfg = _make_llm_config(fallback_models=fallbacks)
         MockCM.return_value = cfg
@@ -196,15 +219,17 @@ class TestBuildFallbackChain(unittest.TestCase):
         client._last_key = "http://api.test:key"
         chain = client._build_fallback_chain(cfg, "default")
         labels = [p["label"] for p in chain]
-        self.assertFalse(any("fallback:" in lbl and lbl.endswith(":") for lbl in labels))
+        self.assertFalse(
+            any("fallback:" in lbl and lbl.endswith(":") for lbl in labels)
+        )
 
 
 # ---------------------------------------------------------------------------
 # Tests: _try_provider
 # ---------------------------------------------------------------------------
 
-class TestTryProvider(unittest.TestCase):
 
+class TestTryProvider(unittest.TestCase):
     def setUp(self):
         _reset_llm_singleton()
 
@@ -214,6 +239,7 @@ class TestTryProvider(unittest.TestCase):
     @patch("services.llm_client.ConfigManager")
     def test_try_provider_success(self, MockCM):
         from services.llm_client import LLMClient
+
         MockCM.return_value = _make_llm_config()
         client = LLMClient()
         mock_openai = MagicMock()
@@ -222,12 +248,15 @@ class TestTryProvider(unittest.TestCase):
         mock_openai.chat.completions.create.return_value = response
 
         provider = {"client": mock_openai, "model": "gpt-4", "label": "primary"}
-        result = client._try_provider(provider, [{"role": "user", "content": "hi"}], 0.7, 1000, False)
+        result = client._try_provider(
+            provider, [{"role": "user", "content": "hi"}], 0.7, 1000, False
+        )
         self.assertEqual(result, "Hello!")
 
     @patch("services.llm_client.ConfigManager")
     def test_try_provider_json_mode(self, MockCM):
         from services.llm_client import LLMClient
+
         MockCM.return_value = _make_llm_config()
         client = LLMClient()
         mock_openai = MagicMock()
@@ -245,6 +274,7 @@ class TestTryProvider(unittest.TestCase):
     @patch("services.llm_client.time")
     def test_try_provider_retries_on_transient(self, mock_time, MockCM):
         from services.llm_client import LLMClient
+
         MockCM.return_value = _make_llm_config()
         client = LLMClient()
         mock_openai = MagicMock()
@@ -265,6 +295,7 @@ class TestTryProvider(unittest.TestCase):
     @patch("services.llm_client.time")
     def test_try_provider_raises_after_max_attempts(self, mock_time, MockCM):
         from services.llm_client import LLMClient
+
         MockCM.return_value = _make_llm_config()
         client = LLMClient()
         mock_openai = MagicMock()
@@ -279,6 +310,7 @@ class TestTryProvider(unittest.TestCase):
     @patch("services.llm_client.time")
     def test_try_provider_empty_content_raises(self, mock_time, MockCM):
         from services.llm_client import LLMClient
+
         MockCM.return_value = _make_llm_config()
         client = LLMClient()
         mock_openai = MagicMock()
@@ -295,8 +327,8 @@ class TestTryProvider(unittest.TestCase):
 # Tests: generate — fallback chain behavior
 # ---------------------------------------------------------------------------
 
-class TestGenerateFallback(unittest.TestCase):
 
+class TestGenerateFallback(unittest.TestCase):
     def setUp(self):
         _reset_llm_singleton()
 
@@ -307,6 +339,7 @@ class TestGenerateFallback(unittest.TestCase):
     @patch("services.llm_client.LLMCache")
     def test_generate_uses_primary_on_success(self, MockCache, MockCM):
         from services.llm_client import LLMClient
+
         cfg = _make_llm_config()
         MockCM.return_value = cfg
         MockCache.return_value.get.return_value = None
@@ -316,9 +349,9 @@ class TestGenerateFallback(unittest.TestCase):
         response = MagicMock()
         response.choices[0].message.content = "Primary result"
         primary.chat.completions.create.return_value = response
-        client._build_fallback_chain = MagicMock(return_value=[
-            {"client": primary, "model": "gpt-4", "label": "primary"}
-        ])
+        client._build_fallback_chain = MagicMock(
+            return_value=[{"client": primary, "model": "gpt-4", "label": "primary"}]
+        )
 
         with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
             result = client.generate("system", "user", temperature=0.5)
@@ -328,6 +361,7 @@ class TestGenerateFallback(unittest.TestCase):
     @patch("services.llm_client.LLMCache")
     def test_generate_falls_back_on_transient_error(self, MockCache, MockCM):
         from services.llm_client import LLMClient
+
         cfg = _make_llm_config()
         MockCM.return_value = cfg
         MockCache.return_value.get.return_value = None
@@ -339,10 +373,12 @@ class TestGenerateFallback(unittest.TestCase):
         resp = MagicMock()
         resp.choices[0].message.content = "Fallback result"
         fallback.chat.completions.create.return_value = resp
-        client._build_fallback_chain = MagicMock(return_value=[
-            {"client": primary, "model": "gpt-4", "label": "primary"},
-            {"client": fallback, "model": "gpt-3.5", "label": "cheap:gpt-3.5"},
-        ])
+        client._build_fallback_chain = MagicMock(
+            return_value=[
+                {"client": primary, "model": "gpt-4", "label": "primary"},
+                {"client": fallback, "model": "gpt-3.5", "label": "cheap:gpt-3.5"},
+            ]
+        )
 
         with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
             with patch("services.llm_client.time"):
@@ -353,6 +389,7 @@ class TestGenerateFallback(unittest.TestCase):
     @patch("services.llm_client.LLMCache")
     def test_generate_raises_when_all_providers_fail(self, MockCache, MockCM):
         from services.llm_client import LLMClient
+
         cfg = _make_llm_config()
         MockCM.return_value = cfg
         MockCache.return_value.get.return_value = None
@@ -360,9 +397,11 @@ class TestGenerateFallback(unittest.TestCase):
         client = LLMClient()
         failing = MagicMock()
         failing.chat.completions.create.side_effect = Exception("timeout")
-        client._build_fallback_chain = MagicMock(return_value=[
-            {"client": failing, "model": "gpt-4", "label": "primary"},
-        ])
+        client._build_fallback_chain = MagicMock(
+            return_value=[
+                {"client": failing, "model": "gpt-4", "label": "primary"},
+            ]
+        )
 
         with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
             with patch("services.llm_client.time"):
@@ -373,6 +412,7 @@ class TestGenerateFallback(unittest.TestCase):
     @patch("services.llm_client.LLMCache")
     def test_generate_returns_cached_result(self, MockCache, MockCM):
         from services.llm_client import LLMClient
+
         cfg = _make_llm_config(cache_enabled=True)
         MockCM.return_value = cfg
         MockCache.return_value.get.return_value = "cached response"
@@ -387,6 +427,7 @@ class TestGenerateFallback(unittest.TestCase):
     @patch("services.llm_client.LLMCache")
     def test_generate_stops_on_truly_fatal_error(self, MockCache, MockCM):
         from services.llm_client import LLMClient
+
         cfg = _make_llm_config()
         MockCM.return_value = cfg
         MockCache.return_value.get.return_value = None
@@ -394,15 +435,19 @@ class TestGenerateFallback(unittest.TestCase):
         client = LLMClient()
         primary = MagicMock()
         # A truly non-retryable error (not 401/403/429/transient)
-        primary.chat.completions.create.side_effect = ValueError("invalid prompt format")
+        primary.chat.completions.create.side_effect = ValueError(
+            "invalid prompt format"
+        )
         fallback = MagicMock()
         resp = MagicMock()
         resp.choices[0].message.content = "Fallback"
         fallback.chat.completions.create.return_value = resp
-        client._build_fallback_chain = MagicMock(return_value=[
-            {"client": primary, "model": "gpt-4", "label": "primary"},
-            {"client": fallback, "model": "gpt-3.5", "label": "cheap"},
-        ])
+        client._build_fallback_chain = MagicMock(
+            return_value=[
+                {"client": primary, "model": "gpt-4", "label": "primary"},
+                {"client": fallback, "model": "gpt-3.5", "label": "cheap"},
+            ]
+        )
 
         with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
             with self.assertRaises(ValueError):
@@ -414,6 +459,7 @@ class TestGenerateFallback(unittest.TestCase):
     def test_generate_404_skips_to_fallback_immediately(self, MockCache, MockCM):
         """404 model-not-found on OpenRouter should NOT retry on same provider, just skip to next."""
         from services.llm_client import LLMClient
+
         cfg = _make_llm_config()
         MockCM.return_value = cfg
         MockCache.return_value.get.return_value = None
@@ -421,16 +467,20 @@ class TestGenerateFallback(unittest.TestCase):
         client = LLMClient()
         primary = MagicMock()
         primary.base_url = "https://openrouter.ai/api/v1"
-        primary.chat.completions.create.side_effect = Exception("Error code: 404 - model not found")
+        primary.chat.completions.create.side_effect = Exception(
+            "Error code: 404 - model not found"
+        )
         fallback = MagicMock()
         fallback.base_url = "https://api.openai.com/v1"
         resp = MagicMock()
         resp.choices[0].message.content = "Fallback OK"
         fallback.chat.completions.create.return_value = resp
-        client._build_fallback_chain = MagicMock(return_value=[
-            {"client": primary, "model": "gpt-4", "label": "primary"},
-            {"client": fallback, "model": "gpt-3.5", "label": "cheap"},
-        ])
+        client._build_fallback_chain = MagicMock(
+            return_value=[
+                {"client": primary, "model": "gpt-4", "label": "primary"},
+                {"client": fallback, "model": "gpt-3.5", "label": "cheap"},
+            ]
+        )
 
         with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
             result = client.generate("system", "user")
@@ -442,6 +492,7 @@ class TestGenerateFallback(unittest.TestCase):
     @patch("services.llm_client.LLMCache")
     def test_generate_auth_error_tries_fallback(self, MockCache, MockCM):
         from services.llm_client import LLMClient
+
         cfg = _make_llm_config()
         MockCM.return_value = cfg
         MockCache.return_value.get.return_value = None
@@ -453,10 +504,12 @@ class TestGenerateFallback(unittest.TestCase):
         resp = MagicMock()
         resp.choices[0].message.content = "Fallback OK"
         fallback.chat.completions.create.return_value = resp
-        client._build_fallback_chain = MagicMock(return_value=[
-            {"client": primary, "model": "gpt-4", "label": "primary"},
-            {"client": fallback, "model": "gpt-3.5", "label": "cheap"},
-        ])
+        client._build_fallback_chain = MagicMock(
+            return_value=[
+                {"client": primary, "model": "gpt-4", "label": "primary"},
+                {"client": fallback, "model": "gpt-3.5", "label": "cheap"},
+            ]
+        )
 
         with patch("services.prompts.localize_prompt", side_effect=lambda p, lang: p):
             result = client.generate("system", "user")
@@ -468,8 +521,8 @@ class TestGenerateFallback(unittest.TestCase):
 # Tests: _repair_json
 # ---------------------------------------------------------------------------
 
-class TestRepairJson(unittest.TestCase):
 
+class TestRepairJson(unittest.TestCase):
     def setUp(self):
         _reset_llm_singleton()
 
@@ -479,6 +532,7 @@ class TestRepairJson(unittest.TestCase):
     @patch("services.llm_client.ConfigManager")
     def test_removes_trailing_comma_in_object(self, MockCM):
         from services.llm_client import LLMClient
+
         MockCM.return_value = _make_llm_config()
         LLMClient()
         result = LLMClient._repair_json('{"key": "value",}')
@@ -487,13 +541,15 @@ class TestRepairJson(unittest.TestCase):
     @patch("services.llm_client.ConfigManager")
     def test_removes_trailing_comma_in_array(self, MockCM):
         from services.llm_client import LLMClient
+
         MockCM.return_value = _make_llm_config()
-        result = LLMClient._repair_json('[1, 2, 3,]')
+        result = LLMClient._repair_json("[1, 2, 3,]")
         self.assertNotIn(",]", result)
 
     @patch("services.llm_client.ConfigManager")
     def test_extracts_json_from_surrounding_text(self, MockCM):
         from services.llm_client import LLMClient
+
         MockCM.return_value = _make_llm_config()
         text = 'Here is some JSON: {"key": "value"} and more text'
         result = LLMClient._repair_json(text)
@@ -503,6 +559,7 @@ class TestRepairJson(unittest.TestCase):
     @patch("services.llm_client.ConfigManager")
     def test_returns_text_unchanged_if_no_markers(self, MockCM):
         from services.llm_client import LLMClient
+
         MockCM.return_value = _make_llm_config()
         text = "just plain text"
         result = LLMClient._repair_json(text)
@@ -514,8 +571,8 @@ class TestRepairJson(unittest.TestCase):
 # Tests: generate_json
 # ---------------------------------------------------------------------------
 
-class TestGenerateJson(unittest.TestCase):
 
+class TestGenerateJson(unittest.TestCase):
     def setUp(self):
         _reset_llm_singleton()
 
@@ -526,6 +583,7 @@ class TestGenerateJson(unittest.TestCase):
     @patch("services.llm_client.LLMCache")
     def test_generate_json_parses_valid(self, MockCache, MockCM):
         from services.llm_client import LLMClient
+
         MockCM.return_value = _make_llm_config()
         MockCache.return_value.get.return_value = None
         client = LLMClient()
@@ -537,6 +595,7 @@ class TestGenerateJson(unittest.TestCase):
     @patch("services.llm_client.LLMCache")
     def test_generate_json_strips_markdown_code_block(self, MockCache, MockCM):
         from services.llm_client import LLMClient
+
         MockCM.return_value = _make_llm_config()
         MockCache.return_value.get.return_value = None
         client = LLMClient()
@@ -548,6 +607,7 @@ class TestGenerateJson(unittest.TestCase):
     @patch("services.llm_client.LLMCache")
     def test_generate_json_repairs_trailing_comma(self, MockCache, MockCM):
         from services.llm_client import LLMClient
+
         MockCM.return_value = _make_llm_config()
         MockCache.return_value.get.return_value = None
         client = LLMClient()
@@ -561,8 +621,8 @@ class TestGenerateJson(unittest.TestCase):
 # Tests: check_connection
 # ---------------------------------------------------------------------------
 
-class TestCheckConnection(unittest.TestCase):
 
+class TestCheckConnection(unittest.TestCase):
     def setUp(self):
         _reset_llm_singleton()
 
@@ -572,6 +632,7 @@ class TestCheckConnection(unittest.TestCase):
     @patch("services.llm_client.ConfigManager")
     def test_check_connection_success(self, MockCM):
         from services.llm_client import LLMClient
+
         MockCM.return_value = _make_llm_config()
         client = LLMClient()
         client.generate = MagicMock(return_value="OK")
@@ -588,12 +649,16 @@ class TestCheckConnection(unittest.TestCase):
     @patch("services.llm_client.ConfigManager")
     def test_check_connection_failure(self, MockCM):
         from services.llm_client import LLMClient
+
         MockCM.return_value = _make_llm_config()
         client = LLMClient()
-        client.generate = MagicMock(side_effect=RuntimeError("All LLM providers failed: connection refused"))
+        client.generate = MagicMock(
+            side_effect=RuntimeError("All LLM providers failed: connection refused")
+        )
         ok, msg = client.check_connection()
         self.assertFalse(ok)
         self.assertIn("Lỗi", msg)
+
 
 if __name__ == "__main__":
     unittest.main()

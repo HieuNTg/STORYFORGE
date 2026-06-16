@@ -2,7 +2,10 @@
 
 from unittest.mock import MagicMock
 from models.schemas import StoryContext
-from pipeline.layer1_story.quality_validators import validate_world_rules, validate_dialogue_voice
+from pipeline.layer1_story.quality_validators import (
+    validate_world_rules,
+    validate_dialogue_voice,
+)
 from pipeline.layer1_story.chapter_writer import _append_consistency_context
 
 
@@ -48,9 +51,17 @@ class TestValidateDialogueVoice:
     def test_returns_warnings(self):
         llm = MagicMock()
         llm.generate_json.return_value = {
-            "warnings": ["Minh: dùng từ quá học thuật, không đúng vocab level 'bình dân'"]
+            "warnings": [
+                "Minh: dùng từ quá học thuật, không đúng vocab level 'bình dân'"
+            ]
         }
-        profiles = [{"name": "Minh", "vocabulary_level": "bình dân", "sentence_style": "ngắn gọn"}]
+        profiles = [
+            {
+                "name": "Minh",
+                "vocabulary_level": "bình dân",
+                "sentence_style": "ngắn gọn",
+            }
+        ]
         result = validate_dialogue_voice(llm, "content", profiles, 3)
         assert len(result) == 1
         assert "Minh" in result[0]

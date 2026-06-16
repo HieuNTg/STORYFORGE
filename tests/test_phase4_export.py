@@ -41,6 +41,7 @@ class TestExportMarkdown:
     def teardown_method(self):
         """Cleanup after tests."""
         import shutil
+
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
 
@@ -53,7 +54,7 @@ class TestExportMarkdown:
             genre="Tiên Hiệp",
             synopsis="Test synopsis",
             chapters=[chapter],
-            characters=[]
+            characters=[],
         )
         self.orch.output.story_draft = story
 
@@ -89,7 +90,7 @@ class TestExportMarkdown:
             genre="Tiên Hiệp",
             synopsis="Test synopsis",
             chapters=[chapter],
-            characters=[]
+            characters=[],
         )
         self.orch.output.story_draft = story
 
@@ -98,7 +99,7 @@ class TestExportMarkdown:
         result = self.orch._export_markdown(self.temp_dir, timestamp)
 
         # Assert
-        with open(result, 'r', encoding='utf-8') as f:
+        with open(result, "r", encoding="utf-8") as f:
             content = f.read()
         assert "# Test Story" in content, "File should contain story title"
         assert "Tiên Hiệp" in content, "File should contain genre"
@@ -113,14 +114,14 @@ class TestExportMarkdown:
             genre="Tiên Hiệp",
             synopsis="Draft",
             chapters=[chapter],
-            characters=[]
+            characters=[],
         )
         enhanced = EnhancedStory(
             title="Enhanced",
             genre="Tiên Hiệp",
             chapters=[chapter],
             enhancement_notes=[],
-            drama_score=0.8
+            drama_score=0.8,
         )
         self.orch.output.story_draft = draft
         self.orch.output.enhanced_story = enhanced
@@ -130,7 +131,7 @@ class TestExportMarkdown:
         result = self.orch._export_markdown(self.temp_dir, timestamp)
 
         # Assert
-        with open(result, 'r', encoding='utf-8') as f:
+        with open(result, "r", encoding="utf-8") as f:
             content = f.read()
         assert "# Enhanced" in content, "Should use enhanced story"
 
@@ -146,6 +147,7 @@ class TestExportOutput:
     def teardown_method(self):
         """Cleanup after tests."""
         import shutil
+
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
 
@@ -158,7 +160,7 @@ class TestExportOutput:
             genre="Tiên Hiệp",
             synopsis="Test",
             chapters=[chapter],
-            characters=[]
+            characters=[],
         )
         self.orch.output.story_draft = story
 
@@ -192,7 +194,7 @@ class TestExportOutput:
             genre="Tiên Hiệp",
             synopsis="Test",
             chapters=[chapter],
-            characters=[]
+            characters=[],
         )
         self.orch.output.story_draft = story
 
@@ -201,7 +203,7 @@ class TestExportOutput:
 
         # Assert
         assert len(result) > 0, "Should create TXT file"
-        txt_files = [p for p in result if p.endswith('.txt')]
+        txt_files = [p for p in result if p.endswith(".txt")]
         assert len(txt_files) > 0, "Should have TXT files"
 
     def test_export_output_markdown_format(self):
@@ -213,7 +215,7 @@ class TestExportOutput:
             genre="Tiên Hiệp",
             synopsis="Test",
             chapters=[chapter],
-            characters=[]
+            characters=[],
         )
         self.orch.output.story_draft = story
 
@@ -222,7 +224,7 @@ class TestExportOutput:
 
         # Assert
         assert len(result) > 0, "Should create file"
-        md_files = [p for p in result if p.endswith('.md')]
+        md_files = [p for p in result if p.endswith(".md")]
         assert len(md_files) > 0, "Should have Markdown files"
 
     def test_export_output_json_format(self):
@@ -235,12 +237,12 @@ class TestExportOutput:
             genre="Tiên Hiệp",
             synopsis="Test",
             chapters=[chapter],
-            characters=[]
+            characters=[],
         )
         self.orch.output.story_draft = story
 
         result = self.orch.export_output(self.temp_dir, formats=["JSON"])
-        json_files = [p for p in result if p.endswith('.json')]
+        json_files = [p for p in result if p.endswith(".json")]
         assert len(json_files) > 0, "Should have JSON files"
 
     def test_export_output_multiple_formats(self):
@@ -252,15 +254,12 @@ class TestExportOutput:
             genre="Tiên Hiệp",
             synopsis="Test",
             chapters=[chapter],
-            characters=[]
+            characters=[],
         )
         self.orch.output.story_draft = story
 
         # Act
-        result = self.orch.export_output(
-            self.temp_dir,
-            formats=["TXT", "Markdown"]
-        )
+        result = self.orch.export_output(self.temp_dir, formats=["TXT", "Markdown"])
 
         # Assert
         assert len(result) > 0, "Should export multiple files"
@@ -277,6 +276,7 @@ class TestExportZip:
     def teardown_method(self):
         """Cleanup after tests."""
         import shutil
+
         if os.path.exists(self.temp_dir):
             shutil.rmtree(self.temp_dir)
 
@@ -289,7 +289,7 @@ class TestExportZip:
             genre="Tiên Hiệp",
             synopsis="Test",
             chapters=[chapter],
-            characters=[]
+            characters=[],
         )
         self.orch.output.story_draft = story
 
@@ -298,7 +298,7 @@ class TestExportZip:
 
         # Assert
         assert isinstance(result, str), "Should return string"
-        assert result.endswith('.zip'), "Should return ZIP file path"
+        assert result.endswith(".zip"), "Should return ZIP file path"
         assert os.path.exists(result), "ZIP file should exist"
 
     def test_export_zip_returns_empty_string_when_no_data(self):
@@ -322,7 +322,7 @@ class TestExportZip:
             genre="Tiên Hiệp",
             synopsis="Test",
             chapters=[chapter],
-            characters=[]
+            characters=[],
         )
         self.orch.output.story_draft = story
 
@@ -331,7 +331,7 @@ class TestExportZip:
 
         # Assert
         assert zipfile.is_zipfile(result), "Should be valid ZIP"
-        with zipfile.ZipFile(result, 'r') as zf:
+        with zipfile.ZipFile(result, "r") as zf:
             names = zf.namelist()
             assert len(names) > 0, "ZIP should contain files"
 
@@ -344,7 +344,7 @@ class TestExportZip:
             genre="Tiên Hiệp",
             synopsis="Test",
             chapters=[chapter],
-            characters=[]
+            characters=[],
         )
         self.orch.output.story_draft = story
 
@@ -352,10 +352,10 @@ class TestExportZip:
         zip_path = self.orch.export_zip(self.temp_dir, formats=["TXT", "Markdown"])
 
         # Assert
-        with zipfile.ZipFile(zip_path, 'r') as zf:
+        with zipfile.ZipFile(zip_path, "r") as zf:
             names = zf.namelist()
-            assert any(n.endswith('.txt') for n in names), "ZIP should have TXT"
-            assert any(n.endswith('.md') for n in names), "ZIP should have MD"
+            assert any(n.endswith(".txt") for n in names), "ZIP should have TXT"
+            assert any(n.endswith(".md") for n in names), "ZIP should have MD"
 
 
 class TestImportChain:
@@ -364,6 +364,7 @@ class TestImportChain:
     def test_import_orchestrator(self):
         """Verify can import PipelineOrchestrator."""
         from pipeline.orchestrator import PipelineOrchestrator
+
         assert PipelineOrchestrator is not None
 
     def test_import_schemas(self):
@@ -371,6 +372,7 @@ class TestImportChain:
         from models.schemas import (
             StoryDraft,
         )
+
         assert PipelineOutput is not None
         assert StoryDraft is not None
 
@@ -378,9 +380,9 @@ class TestImportChain:
         """Verify can instantiate orchestrator."""
         orch = PipelineOrchestrator()
         assert orch is not None
-        assert hasattr(orch, 'export_output')
-        assert hasattr(orch, 'export_zip')
-        assert hasattr(orch, '_export_markdown')
+        assert hasattr(orch, "export_output")
+        assert hasattr(orch, "export_zip")
+        assert hasattr(orch, "_export_markdown")
 
 
 class TestAppIntegration:
@@ -394,6 +396,7 @@ class TestAppIntegration:
 
     def test_export_handlers_exist(self):
         """Verify export handlers can be defined."""
+
         def export_files(orch, formats):
             if orch is None:
                 return None
@@ -428,19 +431,23 @@ class TestTypeAnnotations:
         orch = PipelineOrchestrator()
         # Check annotation
         import inspect
+
         sig = inspect.signature(orch.export_output)
         return_annotation = sig.return_annotation
-        assert return_annotation == list[str], f"Expected list[str], got {return_annotation}"
+        assert return_annotation == list[str], (
+            f"Expected list[str], got {return_annotation}"
+        )
 
     def test_export_zip_return_type(self):
         """Verify export_zip returns str."""
         orch = PipelineOrchestrator()
         # Check annotation
         import inspect
+
         sig = inspect.signature(orch.export_zip)
         return_annotation = sig.return_annotation
         assert return_annotation is str, f"Expected str, got {return_annotation}"
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v', '--tb=short'])
+if __name__ == "__main__":
+    pytest.main([__file__, "-v", "--tb=short"])

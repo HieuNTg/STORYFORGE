@@ -98,7 +98,9 @@ class ScoringCalibrationService:
         )
         return summary
 
-    def apply(self, raw_scores: dict[str, float], genre: str = "unknown") -> dict[str, float]:
+    def apply(
+        self, raw_scores: dict[str, float], genre: str = "unknown"
+    ) -> dict[str, float]:
         """Apply genre calibration to a raw score dict from quality_scorer.
 
         Keys expected: coherence, character_consistency, drama, writing_quality.
@@ -126,7 +128,11 @@ class ScoringCalibrationService:
             if abs(delta) > 0.01:
                 logger.debug(
                     "calibrate delta [genre=%s, dim=%s]: %.3f → %.3f (Δ%+.3f)",
-                    genre, dim, value, new_value, delta,
+                    genre,
+                    dim,
+                    value,
+                    new_value,
+                    delta,
                 )
         return adjusted
 
@@ -166,7 +172,11 @@ class ScoringCalibrationService:
         bias_stats = {
             d: calculate_bias(filtered_llm[d], filtered_human[d]) for d in usable
         }
-        return cal_map, {"n": len(records), "dimensions": list(usable), "bias": bias_stats}
+        return cal_map, {
+            "n": len(records),
+            "dimensions": list(usable),
+            "bias": bias_stats,
+        }
 
     def _persist(self, maps: dict[str, CalibrationMap]) -> None:
         """Write all genre calibration maps to disk."""
@@ -186,7 +196,9 @@ class ScoringCalibrationService:
             # export_calibration_params wraps in {"calibration": ..., "metadata": ...}
             cal = raw.get("calibration", raw)
             self._genre_maps = cal
-            logger.info("loaded calibration params from %s (%d genres)", self._path, len(cal))
+            logger.info(
+                "loaded calibration params from %s (%d genres)", self._path, len(cal)
+            )
         except Exception as exc:
             logger.warning("failed to load calibration params: %s", exc)
 

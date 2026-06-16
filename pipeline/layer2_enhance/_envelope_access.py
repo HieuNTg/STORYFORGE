@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from models.handoff_schemas import ConflictWeb, L1Handoff
+    from models.handoff_schemas import L1Handoff
 
 
 def get_envelope(draft) -> Optional["L1Handoff"]:
@@ -27,6 +27,7 @@ def get_envelope(draft) -> Optional["L1Handoff"]:
     instead of falling through to the legacy attribute.
     """
     from models.handoff_schemas import L1Handoff
+
     env = getattr(draft, "_l1_handoff_envelope", None)
     return env if isinstance(env, L1Handoff) else None
 
@@ -102,18 +103,20 @@ def voice_profiles(draft) -> list:
     if env is not None:
         out: list[dict] = []
         for vf in env.voice_fingerprints:
-            out.append({
-                "name": vf.name or vf.character_id,
-                "character_id": vf.character_id,
-                "vocabulary_level": vf.vocabulary_level or "",
-                "sentence_style": vf.sentence_style or "",
-                "emotional_expression": vf.emotional_expression or "",
-                "verbal_tics": list(vf.verbal_tics),
-                "dialogue_examples": list(vf.dialogue_examples),
-                "register": vf.register_,
-                "emotional_baseline": vf.emotional_baseline,
-                "avoid_phrases": list(vf.avoid_phrases),
-                "avg_sentence_length": vf.avg_sentence_length,
-            })
+            out.append(
+                {
+                    "name": vf.name or vf.character_id,
+                    "character_id": vf.character_id,
+                    "vocabulary_level": vf.vocabulary_level or "",
+                    "sentence_style": vf.sentence_style or "",
+                    "emotional_expression": vf.emotional_expression or "",
+                    "verbal_tics": list(vf.verbal_tics),
+                    "dialogue_examples": list(vf.dialogue_examples),
+                    "register": vf.register_,
+                    "emotional_baseline": vf.emotional_baseline,
+                    "avoid_phrases": list(vf.avoid_phrases),
+                    "avg_sentence_length": vf.avg_sentence_length,
+                }
+            )
         return out
     return list(getattr(draft, "voice_profiles", None) or [])

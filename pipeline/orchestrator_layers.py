@@ -16,7 +16,13 @@ from typing import TYPE_CHECKING
 from models.schemas import EnhancedStory, PipelineOutput, StoryDraft
 from plugins import plugin_manager
 from pipeline.pipeline_utils import verify_draft_integrity, DraftIntegrityError
-from services.trace_context import PipelineTrace, set_trace, clear_trace, set_module, set_chapter
+from services.trace_context import (
+    PipelineTrace,
+    set_trace,
+    clear_trace,
+    set_module,
+    set_chapter,
+)
 
 if TYPE_CHECKING:
     from pipeline.orchestrator import PipelineOrchestrator
@@ -41,10 +47,13 @@ def _get_sync_engine():
                 from sqlalchemy import create_engine, event as _sa_event
 
                 db_url = _os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
-                connect_args = {"check_same_thread": False} if "sqlite" in db_url else {}
+                connect_args = (
+                    {"check_same_thread": False} if "sqlite" in db_url else {}
+                )
                 _sync_engine = create_engine(db_url, connect_args=connect_args)
 
                 if "sqlite" in db_url:
+
                     @_sa_event.listens_for(_sync_engine, "connect")
                     def _set_pragmas(dbapi_conn, _conn_rec):
                         cur = dbapi_conn.cursor()
@@ -120,7 +129,8 @@ def _persist_chapter_contract_to_db(
         if chapter is None:
             logger.warning(
                 "Chapter contract persist: no chapter found story_id=%s chapter_number=%d",
-                story_id, chapter_number,
+                story_id,
+                chapter_number,
             )
             return
         chapter.negotiated_contract = contract_dict
@@ -128,7 +138,8 @@ def _persist_chapter_contract_to_db(
         session.commit()
         logger.info(
             "Chapter contract persisted story_id=%s chapter_number=%d",
-            story_id, chapter_number,
+            story_id,
+            chapter_number,
         )
 
 
@@ -159,19 +170,23 @@ def persist_chapter_semantic_findings(
             if chapter is None:
                 logger.warning(
                     "Semantic findings persist: no chapter found story_id=%s chapter_number=%d",
-                    story_id, chapter_number,
+                    story_id,
+                    chapter_number,
                 )
                 return
             chapter.semantic_findings = findings_dict
             session.commit()
             logger.debug(
                 "Semantic findings persisted story_id=%s chapter_number=%d",
-                story_id, chapter_number,
+                story_id,
+                chapter_number,
             )
     except Exception as exc:
         logger.warning(
             "Semantic findings persist failed (non-fatal) story_id=%s ch=%d: %s",
-            story_id, chapter_number, exc,
+            story_id,
+            chapter_number,
+            exc,
         )
 
 
@@ -197,19 +212,23 @@ def persist_outline_metrics(
             )
             if run is None:
                 logger.warning(
-                    "Outline metrics persist: no pipeline_run found for story_id=%s", story_id
+                    "Outline metrics persist: no pipeline_run found for story_id=%s",
+                    story_id,
                 )
                 return
             run.outline_metrics = metrics_dict
             session.commit()
             logger.info(
                 "Outline metrics persisted to pipeline_run id=%s story_id=%s overall=%.3f",
-                run.id, story_id, metrics_dict.get("overall_score", 0),
+                run.id,
+                story_id,
+                metrics_dict.get("overall_score", 0),
             )
     except Exception as exc:
         logger.warning(
             "Outline metrics persist failed (non-fatal) story_id=%s: %s",
-            story_id, exc,
+            story_id,
+            exc,
         )
 
 
@@ -243,7 +262,8 @@ async def _rebuild_signals_for_chapters(
         except Exception as exc:  # pragma: no cover — defensive
             logger.warning(
                 "rebuild_signals: summarize ch%s failed (non-fatal): %s",
-                ch.chapter_number, exc,
+                ch.chapter_number,
+                exc,
             )
         # Re-extract character states so knowledge registry reflects the new prose.
         try:
@@ -251,7 +271,8 @@ async def _rebuild_signals_for_chapters(
         except Exception as exc:  # pragma: no cover — defensive
             logger.warning(
                 "rebuild_signals: extract_states ch%s failed (non-fatal): %s",
-                ch.chapter_number, exc,
+                ch.chapter_number,
+                exc,
             )
 
     # Run refreshes in parallel — each is a sync LLM call, offload via to_thread.
@@ -259,7 +280,9 @@ async def _rebuild_signals_for_chapters(
         *[asyncio.to_thread(_refresh_one, ch) for ch in affected],
         return_exceptions=True,
     )
-    log_fn(f"[STRUCTURAL] Đã rebuild signals cho {len(affected)} chương sau khi viết lại")
+    log_fn(
+        f"[STRUCTURAL] Đã rebuild signals cho {len(affected)} chương sau khi viết lại"
+    )
 
 
 async def _run_structural_rewrites(
@@ -279,7 +302,9 @@ async def _run_structural_rewrites(
     (rewritten_chapters, failed_list) where failed_list contains
     (chapter_number, exception) tuples for each rewrite that raised.
     """
-    sem = asyncio.Semaphore(max(1, getattr(self.config.pipeline, "chapter_batch_size", 5)))
+    sem = asyncio.Semaphore(
+        max(1, getattr(self.config.pipeline, "chapter_batch_size", 5))
+    )
 
     async def _one(ch_num, issues):
         assert ch_num not in self.enhancer._rewritten_chapters, (
@@ -291,8 +316,7 @@ async def _run_structural_rewrites(
 
         _outline = outline_map.get(ch_num)
         _enhancement_ctx = (
-            f"[YÊU CẦU SỬA LỖI CẤU TRÚC]\n{_fix_hints}"
-            if _fix_hints else ""
+            f"[YÊU CẦU SỬA LỖI CẤU TRÚC]\n{_fix_hints}" if _fix_hints else ""
         )
         # B3: Locate the chapter once to harvest all per-chapter signals
         _ch = next(
@@ -302,8 +326,16 @@ async def _run_structural_rewrites(
         # Prepend drama directive if this chapter has a reconciled contract.
         _ch_contract = getattr(_ch, "negotiated_contract", None) if _ch else None
         if _ch_contract is not None and getattr(_ch_contract, "drama_ceiling", 0.0) > 0:
-            _subtext = ", ".join(_ch_contract.required_subtext) if _ch_contract.required_subtext else "không"
-            _forbidden = ", ".join(_ch_contract.forbidden_patterns) if _ch_contract.forbidden_patterns else "không"
+            _subtext = (
+                ", ".join(_ch_contract.required_subtext)
+                if _ch_contract.required_subtext
+                else "không"
+            )
+            _forbidden = (
+                ", ".join(_ch_contract.forbidden_patterns)
+                if _ch_contract.forbidden_patterns
+                else "không"
+            )
             _drama_directive = (
                 "## RÀNG BUỘC KỊCH TÍNH"
                 f"\n- Mục tiêu kịch tính: {_ch_contract.drama_target:.2f}"
@@ -312,7 +344,11 @@ async def _run_structural_rewrites(
                 f"\n- Yêu cầu phụ văn (subtext): {_subtext}"
                 f"\n- Cấm: {_forbidden}"
             )
-            _enhancement_ctx = f"{_drama_directive}\n\n{_enhancement_ctx}" if _enhancement_ctx else _drama_directive
+            _enhancement_ctx = (
+                f"{_drama_directive}\n\n{_enhancement_ctx}"
+                if _enhancement_ctx
+                else _drama_directive
+            )
 
         # B3: Forward thread/foreshadowing/pacing signals to write_chapter so
         # rewritten chapters preserve continuity with their siblings.
@@ -343,7 +379,8 @@ async def _run_structural_rewrites(
             except Exception as exc:
                 logger.warning(
                     "structural_rewrite_failed chapter=%s err=%s",
-                    ch_num, exc,
+                    ch_num,
+                    exc,
                 )
                 return ("err", ch_num, exc)
 
@@ -416,6 +453,7 @@ async def run_full_pipeline(
     # current_run_id is a contextvar — child tasks (asyncio.gather, to_thread)
     # inherit the current value automatically.
     from services.llm.client import LLMClient, current_run_id as _current_run_id
+
     _run_id = getattr(self, "session_id", "") or uuid.uuid4().hex[:8]
     _current_run_id.set(_run_id)
     LLMClient.reset_wallet(_run_id)
@@ -430,10 +468,12 @@ async def run_full_pipeline(
     _log(f"[TRACE] Pipeline trace_id={trace.trace_id}")
 
     from services.progress_tracker import ProgressTracker
+
     tracker = ProgressTracker(callback=_log)
 
     # Verify LLM connectivity before spending compute
     from services.llm_client import LLMClient
+
     ok, msg = await asyncio.to_thread(LLMClient().check_connection)
     if not ok:
         self.output.status = "error"
@@ -452,6 +492,7 @@ async def run_full_pipeline(
         try:
             from pipeline.agents import register_all_agents
             from pipeline.agents.agent_registry import AgentRegistry
+
             register_all_agents()
             _log("[AGENTS] Đã khởi tạo phòng ban đánh giá.")
         except Exception as e:
@@ -473,7 +514,10 @@ async def run_full_pipeline(
         _l1_chkpt_cb = None
         if getattr(self.config.pipeline, "enable_chapter_checkpoint", False):
             _bs = getattr(self.config.pipeline, "chapter_batch_size", 5)
-            _every = max(1, getattr(self.config.pipeline, "chapter_checkpoint_every_n_batches", 1))
+            _every = max(
+                1,
+                getattr(self.config.pipeline, "chapter_checkpoint_every_n_batches", 1),
+            )
             _keep = getattr(self.config.pipeline, "chapter_checkpoint_keep_last", 5)
             self.checkpoint._chapter_keep_last = _keep
 
@@ -482,7 +526,9 @@ async def run_full_pipeline(
                     return
                 last_ch = min(batch_done * _bs, num_chapters)
                 try:
-                    self.checkpoint.save_chapter(chapter_number=last_ch, layer=1, background=True)
+                    self.checkpoint.save_chapter(
+                        chapter_number=last_ch, layer=1, background=True
+                    )
                 except Exception as e:
                     logger.warning(f"Chapter checkpoint save failed (non-fatal): {e}")
 
@@ -492,10 +538,13 @@ async def run_full_pipeline(
         # lines stream into the SSE while L1 is still in progress (the post-L1
         # cycle below still runs the full review).
         _l1_chapter_review_cb = None
-        if enable_agents and AgentRegistry is not None and getattr(
-            self.config.pipeline, "enable_agent_debate", False
+        if (
+            enable_agents
+            and AgentRegistry is not None
+            and getattr(self.config.pipeline, "enable_agent_debate", False)
         ):
             _registry = AgentRegistry()
+
             def _l1_chapter_review_cb(_chapter, partial_draft, _total):
                 try:
                     self.output.story_draft = partial_draft
@@ -508,7 +557,9 @@ async def run_full_pipeline(
                 except Exception as e:
                     logger.warning(f"Per-chapter agent review failed (non-fatal): {e}")
 
-        logger.info("[PROBE-O1] orchestrator: about to await to_thread(generate_full_story)")
+        logger.info(
+            "[PROBE-O1] orchestrator: about to await to_thread(generate_full_story)"
+        )
         _heartbeat_stop = asyncio.Event()
 
         async def _heartbeat():
@@ -525,8 +576,12 @@ async def run_full_pipeline(
         try:
             draft = await asyncio.to_thread(
                 self.story_gen.generate_full_story,
-                title=title, genre=genre, idea=idea, style=style,
-                num_chapters=num_chapters, num_characters=num_characters,
+                title=title,
+                genre=genre,
+                idea=idea,
+                style=style,
+                num_chapters=num_chapters,
+                num_characters=num_characters,
                 word_count=word_count,
                 progress_callback=lambda m: _log(f"[L1] {m}"),
                 stream_callback=stream_callback,
@@ -539,27 +594,40 @@ async def run_full_pipeline(
                 await _hb_task
             except Exception:
                 pass
-        logger.info("[PROBE-O2] orchestrator: to_thread returned, draft type=%s chapters=%d",
-                    type(draft).__name__, len(getattr(draft, "chapters", []) or []))
+        logger.info(
+            "[PROBE-O2] orchestrator: to_thread returned, draft type=%s chapters=%d",
+            type(draft).__name__,
+            len(getattr(draft, "chapters", []) or []),
+        )
         logger.info("[PROBE-O3] orchestrator: about to acquire self._lock")
         with self._lock:
-            logger.info("[PROBE-O4] orchestrator: inside self._lock, assigning story_draft")
+            logger.info(
+                "[PROBE-O4] orchestrator: inside self._lock, assigning story_draft"
+            )
             self.output.story_draft = draft
             try:
-                draft.target_total_chapters = target_total_chapters if target_total_chapters else num_chapters
+                draft.target_total_chapters = (
+                    target_total_chapters if target_total_chapters else num_chapters
+                )
             except Exception:
                 pass
             self.output.progress = 0.33
-        logger.info("[PROBE-O5] orchestrator: released self._lock, about to _log Layer 1 hoàn tất trong")
+        logger.info(
+            "[PROBE-O5] orchestrator: released self._lock, about to _log Layer 1 hoàn tất trong"
+        )
         _log(f"Layer 1 hoàn tất trong {time.time() - layer_start:.1f}s")
-        logger.info("[PROBE-O6] orchestrator: post-_log returned, entering context-health block")
+        logger.info(
+            "[PROBE-O6] orchestrator: post-_log returned, entering context-health block"
+        )
 
         # Surface context health (Sprint 1 Task 1)
         try:
             _l1_ctx = getattr(draft, "context", None)
             if _l1_ctx is not None:
                 self.output.context_health_score = _l1_ctx.compute_health_score()
-                self.output.extraction_failures = [e for e in _l1_ctx.extraction_health if not e.success]
+                self.output.extraction_failures = [
+                    e for e in _l1_ctx.extraction_health if not e.success
+                ]
                 _log(
                     f"[HEALTH] Context health: {self.output.context_health_score:.0%} "
                     f"({len(self.output.extraction_failures)} failed extractions)"
@@ -575,8 +643,11 @@ async def run_full_pipeline(
             tracker.scoring_started(1)
             try:
                 from services.quality_scorer import QualityScorer
+
                 scorer = QualityScorer()
-                l1_score = await asyncio.to_thread(scorer.score_story, draft.chapters, layer=1)
+                l1_score = await asyncio.to_thread(
+                    scorer.score_story, draft.chapters, layer=1
+                )
                 # Plugin hook: let plugins observe/modify quality scores
                 try:
                     score_dict = {
@@ -587,10 +658,16 @@ async def run_full_pipeline(
                         "overall": l1_score.overall,
                     }
                     updated = plugin_manager.apply_score(score_dict)
-                    l1_score.avg_coherence = updated.get("coherence", l1_score.avg_coherence)
-                    l1_score.avg_character = updated.get("character_consistency", l1_score.avg_character)
+                    l1_score.avg_coherence = updated.get(
+                        "coherence", l1_score.avg_coherence
+                    )
+                    l1_score.avg_character = updated.get(
+                        "character_consistency", l1_score.avg_character
+                    )
                     l1_score.avg_drama = updated.get("drama", l1_score.avg_drama)
-                    l1_score.avg_writing = updated.get("writing_quality", l1_score.avg_writing)
+                    l1_score.avg_writing = updated.get(
+                        "writing_quality", l1_score.avg_writing
+                    )
                     l1_score.overall = updated.get("overall", l1_score.overall)
                 except Exception as _e:
                     logger.warning(f"Plugin apply_score Layer 1 failed: {_e}")
@@ -605,8 +682,10 @@ async def run_full_pipeline(
                     f"drama={l1_score.avg_drama:.2f} "
                     f"writing={l1_score.avg_writing:.2f}"
                 )
-                _log(f"[METRICS] Layer 1: {l1_score.overall:.1f}/5 | "
-                     f"Chương yếu nhất: {l1_score.weakest_chapter}")
+                _log(
+                    f"[METRICS] Layer 1: {l1_score.overall:.1f}/5 | "
+                    f"Chương yếu nhất: {l1_score.weakest_chapter}"
+                )
             except Exception as e:
                 logger.warning(f"Quality scoring Layer 1 failed: {e}")
                 l1_score = None
@@ -615,23 +694,32 @@ async def run_full_pipeline(
         if enable_scoring and self.config.pipeline.enable_quality_gate:
             try:
                 from services.quality_gate import QualityGate
+
                 gate = QualityGate(
                     gate_threshold=self.config.pipeline.quality_gate_threshold,
                     chapter_threshold=self.config.pipeline.quality_gate_chapter_threshold,
                     max_retries=self.config.pipeline.quality_gate_max_retries,
                 )
                 tracker.gate_started(1)
-                gate_result = gate.check(l1_score if self.output.quality_scores else None)
+                gate_result = gate.check(
+                    l1_score if self.output.quality_scores else None
+                )
                 _log(f"[GATE] {gate_result.message}")
                 if gate_result.passed:
                     tracker.gate_passed(1, l1_score.overall if l1_score else 0.0)
                 elif gate_result.should_retry:
-                    tracker.gate_retry(1, l1_score.overall if l1_score else 0.0, attempt=1)
+                    tracker.gate_retry(
+                        1, l1_score.overall if l1_score else 0.0, attempt=1
+                    )
                     _log("[GATE] Đang thử tạo lại Layer 1...")
                     draft = await asyncio.to_thread(
                         self.story_gen.generate_full_story,
-                        title=title, genre=genre, idea=idea, style=style,
-                        num_chapters=num_chapters, num_characters=num_characters,
+                        title=title,
+                        genre=genre,
+                        idea=idea,
+                        style=style,
+                        num_chapters=num_chapters,
+                        num_characters=num_characters,
                         word_count=word_count,
                         progress_callback=lambda m: _log(f"[L1-RETRY] {m}"),
                         stream_callback=stream_callback,
@@ -640,8 +728,11 @@ async def run_full_pipeline(
                     # Re-score after retry
                     try:
                         from services.quality_scorer import QualityScorer
+
                         scorer = QualityScorer()
-                        l1_score = await asyncio.to_thread(scorer.score_story, draft.chapters, layer=1)
+                        l1_score = await asyncio.to_thread(
+                            scorer.score_story, draft.chapters, layer=1
+                        )
                         self.output.quality_scores[-1] = l1_score
                     except Exception as e:
                         logger.warning(f"Quality scoring L1-retry failed: {e}")
@@ -660,11 +751,14 @@ async def run_full_pipeline(
         # Auto analytics: word count, reading time, dialogue ratio
         try:
             from services.story_analytics import StoryAnalytics
+
             analytics = await asyncio.to_thread(StoryAnalytics.analyze_story, draft)
             self.output.analytics = {"layer1": analytics}
-            _log(f"[ANALYTICS] Layer 1: {analytics['total_words']} từ, "
-                 f"{analytics['reading_time_minutes']} phút đọc, "
-                 f"dialogue: {analytics['dialogue_ratio']:.0%}")
+            _log(
+                f"[ANALYTICS] Layer 1: {analytics['total_words']} từ, "
+                f"{analytics['reading_time_minutes']} phút đọc, "
+                f"dialogue: {analytics['dialogue_ratio']:.0%}"
+            )
         except Exception as e:
             logger.warning(f"Analytics Layer 1 failed: {e}")
 
@@ -673,17 +767,25 @@ async def run_full_pipeline(
         # foreshadowing + macro_arcs into a single graph and persist full serialized form.
         try:
             from services.knowledge_graph import StoryKnowledgeGraph
-            use_unified = bool(getattr(self.config.pipeline, "enable_unified_kg", False))
-            builder = (StoryKnowledgeGraph().build_unified if use_unified
-                       else StoryKnowledgeGraph().build_from_story_draft)
+
+            use_unified = bool(
+                getattr(self.config.pipeline, "enable_unified_kg", False)
+            )
+            builder = (
+                StoryKnowledgeGraph().build_unified
+                if use_unified
+                else StoryKnowledgeGraph().build_from_story_draft
+            )
             kg = await asyncio.to_thread(builder, draft)
             self.output.knowledge_graph_summary = kg.to_summary()
             if use_unified:
                 serialized = kg.to_dict()
                 self.output.knowledge_graph = serialized
                 draft.knowledge_graph = serialized
-            _log(f"[KG] Knowledge graph: {kg.node_count()} nodes, {kg.edge_count()} edges"
-                 f"{' (unified)' if use_unified else ''}")
+            _log(
+                f"[KG] Knowledge graph: {kg.node_count()} nodes, {kg.edge_count()} edges"
+                f"{' (unified)' if use_unified else ''}"
+            )
         except Exception as e:
             logger.warning(f"Knowledge graph build failed: {e}")
 
@@ -693,7 +795,9 @@ async def run_full_pipeline(
             try:
                 reviews = await asyncio.to_thread(
                     AgentRegistry().run_review_cycle,
-                    self.output, layer=1, max_iterations=3,
+                    self.output,
+                    layer=1,
+                    max_iterations=3,
                     progress_callback=lambda m: _log(m),
                 )
                 self.output.reviews.extend(reviews)
@@ -724,7 +828,9 @@ async def run_full_pipeline(
             _log(f"[INTEGRITY] ⚠️ Draft có vấn đề: {'; '.join(integrity['errors'])}")
         for warn in integrity.get("warnings", []):
             _log(f"[INTEGRITY] {warn}")
-        _log(f"[INTEGRITY] {integrity['chapter_count']} chapters, {integrity['character_count']} characters")
+        _log(
+            f"[INTEGRITY] {integrity['chapter_count']} chapters, {integrity['character_count']} characters"
+        )
     except DraftIntegrityError as e:
         _log(f"[INTEGRITY] Draft integrity check failed: {e}")
         self.output.status = "error"
@@ -746,13 +852,20 @@ async def run_full_pipeline(
                 _log(f"[HANDOFF] Strict-mode block: {exc}")
                 self.output.status = "error"
                 self.output.handoff_health = {
-                    sig: h.model_dump() for sig, h in handoff_envelope.signal_health.items()
+                    sig: h.model_dump()
+                    for sig, h in handoff_envelope.signal_health.items()
                 }
                 return self.output
 
             # P6: structured log line at handoff
-            _ok_signals = [s for s, h in handoff_envelope.signal_health.items() if h.status == "ok"]
-            _missing = [s for s, h in handoff_envelope.signal_health.items() if h.status in ("empty", "extraction_failed")]
+            _ok_signals = [
+                s for s, h in handoff_envelope.signal_health.items() if h.status == "ok"
+            ]
+            _missing = [
+                s
+                for s, h in handoff_envelope.signal_health.items()
+                if h.status in ("empty", "extraction_failed")
+            ]
             logger.info(
                 "handoff_built signals_ok=%d/%d missing=%s story_id=%s",
                 len(_ok_signals),
@@ -786,21 +899,29 @@ async def run_full_pipeline(
             # Stash typed envelope on draft so P4 has a clean handle.
             draft._l1_handoff_envelope = handoff_envelope
         else:
-            _log("[HANDOFF] No envelope on draft (P2 build skipped or failed); continuing.")
+            _log(
+                "[HANDOFF] No envelope on draft (P2 build skipped or failed); continuing."
+            )
     except Exception as _h_err:  # pragma: no cover — defensive
         logger.warning(f"Handoff gate failed (non-fatal): {_h_err}")
 
     # ── Structural rewrite: L2 detects issues → L1 rewrites before enhancement ──
-    _structural_rewrite_enabled = getattr(self.config.pipeline, "enable_structural_rewrite", True)
+    _structural_rewrite_enabled = getattr(
+        self.config.pipeline, "enable_structural_rewrite", True
+    )
     if _structural_rewrite_enabled:
         try:
-            _rewrite_threshold = float(getattr(self.config.pipeline, "structural_rewrite_threshold", 0.7))
-            _max_rewrites = int(getattr(self.config.pipeline, "max_structural_rewrites", 1))
+            _rewrite_threshold = float(
+                getattr(self.config.pipeline, "structural_rewrite_threshold", 0.7)
+            )
+            _max_rewrites = int(
+                getattr(self.config.pipeline, "max_structural_rewrites", 1)
+            )
 
             # Collect arc waypoints from draft characters
             _sr_arc_wps: list = []
-            for _c in (draft.characters or []):
-                for _wp in (getattr(_c, "arc_waypoints", None) or []):
+            for _c in draft.characters or []:
+                for _wp in getattr(_c, "arc_waypoints", None) or []:
                     _wd = _wp.model_dump() if hasattr(_wp, "model_dump") else _wp
                     if isinstance(_wd, dict):
                         _wd.setdefault("character", _c.name)
@@ -811,12 +932,16 @@ async def run_full_pipeline(
             )
 
             if issues_by_chapter:
-                _log(f"[STRUCTURAL] Phát hiện vấn đề cấu trúc trong {len(issues_by_chapter)} chương")
+                _log(
+                    f"[STRUCTURAL] Phát hiện vấn đề cấu trúc trong {len(issues_by_chapter)} chương"
+                )
                 _outline_map = {o.chapter_number: o for o in (draft.outlines or [])}
 
                 # Apply max_rewrites cap: keep only the first N chapter entries.
                 _capped_issues = dict(
-                    list(sorted(issues_by_chapter.items()))[: min(_max_rewrites, len(issues_by_chapter))]
+                    list(sorted(issues_by_chapter.items()))[
+                        : min(_max_rewrites, len(issues_by_chapter))
+                    ]
                 )
 
                 # Pipeline stats counters (P6 observability)
@@ -877,7 +1002,9 @@ async def run_full_pipeline(
 
                 # Surface failures (already logged per-chapter in helper)
                 for _ch_num, _err in _failed_pairs:
-                    logger.warning("Structural rewrite ch%s failed (non-fatal): %s", _ch_num, _err)
+                    logger.warning(
+                        "Structural rewrite ch%s failed (non-fatal): %s", _ch_num, _err
+                    )
 
                 if _sr_failed:
                     _log(
@@ -905,6 +1032,7 @@ async def run_full_pipeline(
         theme_profile = None
         try:
             from pipeline.layer2_enhance.thematic_tracker import ThematicTracker
+
             thematic = ThematicTracker()
             theme_profile = await asyncio.to_thread(thematic.extract_theme, draft)
             if theme_profile and theme_profile.central_theme:
@@ -917,6 +1045,7 @@ async def run_full_pipeline(
         # Plugin hook: allow plugins to observe/override genre drama rules
         try:
             from pipeline.layer2_enhance.drama_patterns import get_genre_rules
+
             base_rules = get_genre_rules(genre)
             plugin_manager.apply_genre_rules(genre, base_rules)
         except Exception as _e:
@@ -929,25 +1058,32 @@ async def run_full_pipeline(
         _conflict_web = None
         _foreshadowing_plan = None
         if _use_signals:
-            for c in (draft.characters or []):
+            for c in draft.characters or []:
                 wps = getattr(c, "arc_waypoints", None) or []
                 for wp in wps:
                     wd = wp.model_dump() if hasattr(wp, "model_dump") else wp
                     if isinstance(wd, dict):
                         wd.setdefault("character", c.name)
                         _arc_wps.append(wd)
-            _threads_in = list(getattr(draft, "open_threads", []) or []) + list(getattr(draft, "resolved_threads", []) or [])
+            _threads_in = list(getattr(draft, "open_threads", []) or []) + list(
+                getattr(draft, "resolved_threads", []) or []
+            )
             try:
                 _ctx = getattr(draft, "context", None)
-                _pacing_dir = str(getattr(_ctx, "pacing_adjustment", "") or "") if _ctx else ""
+                _pacing_dir = (
+                    str(getattr(_ctx, "pacing_adjustment", "") or "") if _ctx else ""
+                )
             except Exception:
                 _pacing_dir = ""
             _conflict_web = list(getattr(draft, "conflict_web", None) or []) or None
-            _foreshadowing_plan = list(getattr(draft, "foreshadowing_plan", None) or []) or None
+            _foreshadowing_plan = (
+                list(getattr(draft, "foreshadowing_plan", None) or []) or None
+            )
 
         # Adaptive simulation rounds: calculate based on story complexity if enabled
         if getattr(self.config.pipeline, "adaptive_simulation_rounds", True):
             from pipeline.layer2_enhance.simulator import calculate_adaptive_rounds
+
             num_sim_rounds = calculate_adaptive_rounds(
                 characters=draft.characters or [],
                 threads=_threads_in,
@@ -959,9 +1095,7 @@ async def run_full_pipeline(
         else:
             _log(f"[L2] Bắt đầu mô phỏng {num_sim_rounds} vòng...")
 
-        analysis = await asyncio.to_thread(
-            self.analyzer.analyze, draft, _conflict_web
-        )
+        analysis = await asyncio.to_thread(self.analyzer.analyze, draft, _conflict_web)
         # B2: Await async path directly — `to_thread(run_simulation)` would spin
         # up a nested asyncio.run() inside a worker thread, binding any cached
         # httpx clients to a now-dead loop on subsequent runs.
@@ -978,7 +1112,9 @@ async def run_full_pipeline(
             current_chapter=1,
             conflict_web=_conflict_web,
             foreshadowing_plan=_foreshadowing_plan,
-            drama_ceiling_enabled=bool(getattr(self.config.pipeline, "l2_drama_ceiling", True)),
+            drama_ceiling_enabled=bool(
+                getattr(self.config.pipeline, "l2_drama_ceiling", True)
+            ),
         )
         self.output.simulation_result = sim_result
 
@@ -989,15 +1125,20 @@ async def run_full_pipeline(
         except Exception:
             pass
 
-        if hasattr(sim_result, 'actual_rounds') and sim_result.actual_rounds:
-            _log(f"[L2] Adaptive: {sim_result.actual_rounds} rounds (requested {num_sim_rounds})")
-        if hasattr(sim_result, 'knowledge_state') and sim_result.knowledge_state:
+        if hasattr(sim_result, "actual_rounds") and sim_result.actual_rounds:
+            _log(
+                f"[L2] Adaptive: {sim_result.actual_rounds} rounds (requested {num_sim_rounds})"
+            )
+        if hasattr(sim_result, "knowledge_state") and sim_result.knowledge_state:
             total_facts = sum(len(v) for v in sim_result.knowledge_state.values())
-            _log(f"[L2] Knowledge: {total_facts} sự kiện theo dõi, {len(sim_result.knowledge_state)} nhân vật")
+            _log(
+                f"[L2] Knowledge: {total_facts} sự kiện theo dõi, {len(sim_result.knowledge_state)} nhân vật"
+            )
 
         _log("[L2] Đang viết lại truyện với kịch tính cao hơn...")
         enhanced = await self.enhancer.enhance_with_feedback_async(
-            draft=draft, sim_result=sim_result,
+            draft=draft,
+            sim_result=sim_result,
             word_count=word_count,
             progress_callback=lambda m: _log(f"[L2] {m}"),
             theme_profile=theme_profile,
@@ -1014,8 +1155,11 @@ async def run_full_pipeline(
             tracker.scoring_started(2)
             try:
                 from services.quality_scorer import QualityScorer
+
                 scorer = QualityScorer()
-                l2_score = await asyncio.to_thread(scorer.score_story, enhanced.chapters, layer=2)
+                l2_score = await asyncio.to_thread(
+                    scorer.score_story, enhanced.chapters, layer=2
+                )
                 # Plugin hook: let plugins observe/modify Layer 2 quality scores
                 try:
                     score_dict = {
@@ -1026,10 +1170,16 @@ async def run_full_pipeline(
                         "overall": l2_score.overall,
                     }
                     updated = plugin_manager.apply_score(score_dict)
-                    l2_score.avg_coherence = updated.get("coherence", l2_score.avg_coherence)
-                    l2_score.avg_character = updated.get("character_consistency", l2_score.avg_character)
+                    l2_score.avg_coherence = updated.get(
+                        "coherence", l2_score.avg_coherence
+                    )
+                    l2_score.avg_character = updated.get(
+                        "character_consistency", l2_score.avg_character
+                    )
                     l2_score.avg_drama = updated.get("drama", l2_score.avg_drama)
-                    l2_score.avg_writing = updated.get("writing_quality", l2_score.avg_writing)
+                    l2_score.avg_writing = updated.get(
+                        "writing_quality", l2_score.avg_writing
+                    )
                     l2_score.overall = updated.get("overall", l2_score.overall)
                 except Exception as _e:
                     logger.warning(f"Plugin apply_score Layer 2 failed: {_e}")
@@ -1048,8 +1198,10 @@ async def run_full_pipeline(
                 if len(self.output.quality_scores) >= 2:
                     diff = l2_score.overall - self.output.quality_scores[0].overall
                     delta = f" | Delta: {diff:+.1f}"
-                _log(f"[METRICS] Layer 2: {l2_score.overall:.1f}/5 | "
-                     f"Chương yếu nhất: {l2_score.weakest_chapter}{delta}")
+                _log(
+                    f"[METRICS] Layer 2: {l2_score.overall:.1f}/5 | "
+                    f"Chương yếu nhất: {l2_score.weakest_chapter}{delta}"
+                )
             except Exception as e:
                 logger.warning(f"Quality scoring Layer 2 failed: {e}")
                 l2_score = None
@@ -1058,23 +1210,33 @@ async def run_full_pipeline(
         if enable_scoring and self.config.pipeline.enable_quality_gate:
             try:
                 from services.quality_gate import QualityGate
+
                 gate = QualityGate(
                     gate_threshold=self.config.pipeline.quality_gate_threshold,
                     chapter_threshold=self.config.pipeline.quality_gate_chapter_threshold,
                     max_retries=self.config.pipeline.quality_gate_max_retries,
                 )
                 # Use last appended score (Layer 2)
-                l2_check_score = self.output.quality_scores[-1] if self.output.quality_scores else None
+                l2_check_score = (
+                    self.output.quality_scores[-1]
+                    if self.output.quality_scores
+                    else None
+                )
                 tracker.gate_started(2)
                 gate_result = gate.check(l2_check_score)
                 _log(f"[GATE] {gate_result.message}")
                 if gate_result.passed:
-                    tracker.gate_passed(2, l2_check_score.overall if l2_check_score else 0.0)
+                    tracker.gate_passed(
+                        2, l2_check_score.overall if l2_check_score else 0.0
+                    )
                 elif gate_result.should_retry:
-                    tracker.gate_retry(2, l2_check_score.overall if l2_check_score else 0.0, attempt=1)
+                    tracker.gate_retry(
+                        2, l2_check_score.overall if l2_check_score else 0.0, attempt=1
+                    )
                     _log("[GATE] Đang thử tạo lại Layer 2...")
                     enhanced = await self.enhancer.enhance_with_feedback_async(
-                        draft=draft, sim_result=sim_result,
+                        draft=draft,
+                        sim_result=sim_result,
                         word_count=word_count,
                         progress_callback=lambda m: _log(f"[L2-RETRY] {m}"),
                     )
@@ -1082,8 +1244,11 @@ async def run_full_pipeline(
                     # Re-score after retry
                     try:
                         from services.quality_scorer import QualityScorer
+
                         scorer = QualityScorer()
-                        l2_score = await asyncio.to_thread(scorer.score_story, enhanced.chapters, layer=2)
+                        l2_score = await asyncio.to_thread(
+                            scorer.score_story, enhanced.chapters, layer=2
+                        )
                         self.output.quality_scores[-1] = l2_score
                     except Exception as e:
                         logger.warning(f"Quality scoring L2-retry failed: {e}")
@@ -1095,18 +1260,23 @@ async def run_full_pipeline(
                     else:
                         tracker.gate_failed(2, l2_score.overall if l2_score else 0.0)
                 else:
-                    tracker.gate_failed(2, l2_check_score.overall if l2_check_score else 0.0)
+                    tracker.gate_failed(
+                        2, l2_check_score.overall if l2_check_score else 0.0
+                    )
             except Exception as e:
                 logger.warning(f"Quality gate Layer 2 failed: {e}")
 
         # Auto analytics for enhanced story
         try:
             from services.story_analytics import StoryAnalytics
+
             analytics = await asyncio.to_thread(StoryAnalytics.analyze_story, enhanced)
             self.output.analytics["layer2"] = analytics
-            _log(f"[ANALYTICS] Layer 2: {analytics['total_words']} từ, "
-                 f"{analytics['reading_time_minutes']} phút đọc, "
-                 f"dialogue: {analytics['dialogue_ratio']:.0%}")
+            _log(
+                f"[ANALYTICS] Layer 2: {analytics['total_words']} từ, "
+                f"{analytics['reading_time_minutes']} phút đọc, "
+                f"dialogue: {analytics['dialogue_ratio']:.0%}"
+            )
         except Exception as e:
             logger.warning(f"Analytics Layer 2 failed: {e}")
 
@@ -1114,8 +1284,12 @@ async def run_full_pipeline(
         try:
             if sim_result:
                 self.output.analytics.setdefault("layer2", {})
-                self.output.analytics["layer2"]["actual_rounds"] = getattr(sim_result, "actual_rounds", 0)
-                self.output.analytics["layer2"]["causal_chains"] = len(getattr(sim_result, "causal_chains", []))
+                self.output.analytics["layer2"]["actual_rounds"] = getattr(
+                    sim_result, "actual_rounds", 0
+                )
+                self.output.analytics["layer2"]["causal_chains"] = len(
+                    getattr(sim_result, "causal_chains", [])
+                )
             if theme_profile:
                 self.output.analytics.setdefault("layer2", {})
                 self.output.analytics["layer2"]["theme"] = theme_profile.central_theme
@@ -1125,10 +1299,12 @@ async def run_full_pipeline(
         # Sprint 1 Task 3: contract validation stats
         try:
             from pipeline.layer2_enhance.chapter_contract import (
-                ContractValidation, aggregate_contract_stats,
+                ContractValidation,
+                aggregate_contract_stats,
             )
+
             _validations = []
-            for _ch in (enhanced.chapters or []):
+            for _ch in enhanced.chapters or []:
                 _cv = getattr(_ch, "contract_validation", None)
                 if isinstance(_cv, dict) and _cv:
                     try:
@@ -1137,7 +1313,9 @@ async def run_full_pipeline(
                         continue
             if _validations:
                 self.output.analytics.setdefault("layer2", {})
-                self.output.analytics["layer2"]["contract_stats"] = aggregate_contract_stats(_validations)
+                self.output.analytics["layer2"]["contract_stats"] = (
+                    aggregate_contract_stats(_validations)
+                )
                 _log(
                     f"[CONTRACT] stats: {self.output.analytics['layer2']['contract_stats']}"
                 )
@@ -1152,7 +1330,10 @@ async def run_full_pipeline(
             from pipeline.handoff_gate import reconcile_contract
             from pipeline.layer2_enhance.chapter_contract import build_chapter_contracts
 
-            _ch_nums = [int(getattr(_c, "chapter_number", 0) or 0) for _c in (enhanced.chapters or [])]
+            _ch_nums = [
+                int(getattr(_c, "chapter_number", 0) or 0)
+                for _c in (enhanced.chapters or [])
+            ]
             _drama_by_ch: dict[int, NegotiatedChapterContract] = {}
             if sim_result is not None and _ch_nums:
                 try:
@@ -1160,7 +1341,7 @@ async def run_full_pipeline(
                 except Exception as _be:
                     logger.debug(f"build_chapter_contracts skipped: {_be}")
 
-            for _ch in (enhanced.chapters or []):
+            for _ch in enhanced.chapters or []:
                 _nc = getattr(_ch, "negotiated_contract", None)
                 _typed: NegotiatedChapterContract | None = None
                 if isinstance(_nc, NegotiatedChapterContract):
@@ -1174,14 +1355,16 @@ async def run_full_pipeline(
                     continue
                 _drama = _drama_by_ch.get(int(_ch.chapter_number))
                 if _drama is not None:
-                    _typed = _typed.model_copy(update={
-                        "drama_target": float(_drama.drama_target),
-                        "drama_tolerance": float(_drama.drama_tolerance),
-                        "escalation_events": list(_drama.escalation_events),
-                        "required_subtext": list(_drama.required_subtext),
-                        "causal_refs": list(_drama.causal_refs),
-                        "forbidden_patterns": list(_drama.forbidden_patterns),
-                    })
+                    _typed = _typed.model_copy(
+                        update={
+                            "drama_target": float(_drama.drama_target),
+                            "drama_tolerance": float(_drama.drama_tolerance),
+                            "escalation_events": list(_drama.escalation_events),
+                            "required_subtext": list(_drama.required_subtext),
+                            "causal_refs": list(_drama.causal_refs),
+                            "forbidden_patterns": list(_drama.forbidden_patterns),
+                        }
+                    )
                 _reconciled = reconcile_contract(_typed, sim_result=sim_result)
                 try:
                     object.__setattr__(_ch, "negotiated_contract", _reconciled)
@@ -1209,10 +1392,12 @@ async def run_full_pipeline(
         # Sprint 2 Task 2: voice validation stats
         try:
             from pipeline.layer2_enhance.chapter_contract import (
-                VoiceValidation, aggregate_voice_stats,
+                VoiceValidation,
+                aggregate_voice_stats,
             )
+
             _v_validations = []
-            for _ch in (enhanced.chapters or []):
+            for _ch in enhanced.chapters or []:
                 _vv = getattr(_ch, "voice_validation", None)
                 if isinstance(_vv, dict) and _vv:
                     try:
@@ -1226,11 +1411,10 @@ async def run_full_pipeline(
             if _v_validations or _saved:
                 self.output.analytics.setdefault("layer2", {})
                 self.output.analytics["layer2"]["voice_stats"] = aggregate_voice_stats(
-                    _v_validations, llm_calls_saved=_saved,
+                    _v_validations,
+                    llm_calls_saved=_saved,
                 )
-                _log(
-                    f"[VOICE] stats: {self.output.analytics['layer2']['voice_stats']}"
-                )
+                _log(f"[VOICE] stats: {self.output.analytics['layer2']['voice_stats']}")
         except Exception as e:
             logger.warning(f"Voice stats aggregation failed: {e}")
 
@@ -1240,7 +1424,9 @@ async def run_full_pipeline(
             try:
                 reviews = await asyncio.to_thread(
                     AgentRegistry().run_review_cycle,
-                    self.output, layer=2, max_iterations=3,
+                    self.output,
+                    layer=2,
+                    max_iterations=3,
                     progress_callback=lambda m: _log(m),
                 )
                 self.output.reviews.extend(reviews)
@@ -1253,6 +1439,7 @@ async def run_full_pipeline(
             _log("[REVISION] Kiểm tra chương yếu...")
             try:
                 from services.smart_revision import SmartRevisionService
+
                 revisor = SmartRevisionService(
                     threshold=self.config.pipeline.smart_revision_threshold
                 )
@@ -1317,10 +1504,12 @@ async def run_full_pipeline(
         trace.layer = 3
         try:
             from pipeline.layer2_enhance.sensory_polish import apply_sensory_polish
+
             _log("[L3] Đang bổ sung chi tiết giác quan cho văn bản...")
             enhanced = await asyncio.to_thread(
                 apply_sensory_polish,
-                enhanced, True,
+                enhanced,
+                True,
                 lambda m: _log(f"[L3] {m}"),
                 draft,
             )
@@ -1338,7 +1527,9 @@ async def run_full_pipeline(
             self.output.status = "completed"
     _log("PIPELINE HOÀN TẤT!")
     total_time = time.time() - pipeline_start
-    _log(f"Tổng kết: {len(enhanced.chapters)} chương, tổng thời gian: {total_time:.0f}s")
+    _log(
+        f"Tổng kết: {len(enhanced.chapters)} chương, tổng thời gian: {total_time:.0f}s"
+    )
 
     # ── Media production (comic panels) is now decoupled from pipeline `done` ──
     #
@@ -1389,9 +1580,14 @@ def run_layer1_only(
     the raw draft before drama simulation.
     """
     return self.story_gen.generate_full_story(
-        title=title, genre=genre, idea=idea, style=style,
-        num_chapters=num_chapters, num_characters=num_characters,
-        word_count=word_count, progress_callback=progress_callback,
+        title=title,
+        genre=genre,
+        idea=idea,
+        style=style,
+        num_chapters=num_chapters,
+        num_characters=num_characters,
+        word_count=word_count,
+        progress_callback=progress_callback,
     )
 
 
@@ -1407,8 +1603,16 @@ def run_layer2_only(
     Runs analyzer → simulator → enhancer without touching Layer 1 or 3.
     """
     _use_signals = bool(getattr(self.config.pipeline, "l2_use_l1_signals", True))
-    _conflict_web = list(getattr(draft, "conflict_web", None) or []) or None if _use_signals else None
-    _foreshadowing_plan = list(getattr(draft, "foreshadowing_plan", None) or []) or None if _use_signals else None
+    _conflict_web = (
+        list(getattr(draft, "conflict_web", None) or []) or None
+        if _use_signals
+        else None
+    )
+    _foreshadowing_plan = (
+        list(getattr(draft, "foreshadowing_plan", None) or []) or None
+        if _use_signals
+        else None
+    )
     analysis = self.analyzer.analyze(draft, _conflict_web)
     sim_result = self.simulator.run_simulation(
         characters=draft.characters,
@@ -1421,6 +1625,8 @@ def run_layer2_only(
         foreshadowing_plan=_foreshadowing_plan,
     )
     return self.enhancer.enhance_with_feedback(
-        draft=draft, sim_result=sim_result,
-        word_count=word_count, progress_callback=progress_callback,
+        draft=draft,
+        sim_result=sim_result,
+        word_count=word_count,
+        progress_callback=progress_callback,
     )

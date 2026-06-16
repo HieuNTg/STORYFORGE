@@ -1,4 +1,5 @@
 """Registry quản lý và điều phối các agent."""
+
 import asyncio
 import importlib
 import logging
@@ -62,7 +63,13 @@ class AgentRegistry:
         """Auto-discover and register all BaseAgent subclasses in pipeline/agents/."""
         import pipeline.agents as agents_pkg
 
-        skip = {"base_agent", "agent_registry", "agent_prompts", "agent_graph", "__init__"}
+        skip = {
+            "base_agent",
+            "agent_registry",
+            "agent_prompts",
+            "agent_graph",
+            "__init__",
+        }
         editor_agent = None
 
         for _importer, modname, _ispkg in pkgutil.iter_modules(agents_pkg.__path__):
@@ -135,9 +142,16 @@ class AgentRegistry:
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(self._run_tier_parallel_async(
-                tier_agents, output, layer, iteration, prior_reviews, progress_callback
-            ))
+            return asyncio.run(
+                self._run_tier_parallel_async(
+                    tier_agents,
+                    output,
+                    layer,
+                    iteration,
+                    prior_reviews,
+                    progress_callback,
+                )
+            )
         raise RuntimeError(
             "_run_tier_parallel called from async context — use _run_tier_parallel_async"
         )
@@ -200,7 +214,12 @@ class AgentRegistry:
                             f"{[a.name for a in tier_agents]}"
                         )
                     tier_reviews = await self._run_tier_parallel_async(
-                        tier_agents, output, layer, iteration, accumulated, progress_callback
+                        tier_agents,
+                        output,
+                        layer,
+                        iteration,
+                        accumulated,
+                        progress_callback,
                     )
                     accumulated.extend(tier_reviews)
                     round_reviews.extend(tier_reviews)
@@ -217,6 +236,7 @@ class AgentRegistry:
             # Multi-agent debate: run after round 1 reviews on layer 2
             if ConfigManager().pipeline.enable_agent_debate and layer == 2:
                 from pipeline.agents.debate_orchestrator import DebateOrchestrator
+
                 cfg = ConfigManager().pipeline
                 orchestrator = DebateOrchestrator(
                     max_rounds=cfg.max_debate_rounds,
@@ -254,9 +274,11 @@ class AgentRegistry:
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(self.run_review_cycle_async(
-                output, layer, max_iterations, progress_callback
-            ))
+            return asyncio.run(
+                self.run_review_cycle_async(
+                    output, layer, max_iterations, progress_callback
+                )
+            )
         raise RuntimeError(
             "run_review_cycle called from async context — use run_review_cycle_async"
         )

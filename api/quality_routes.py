@@ -29,8 +29,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/quality", tags=["quality"])
 _READ_STORIES = Depends(require_permission_if_enabled(Permission.READ_STORIES))
 
+
 class OverallQuality(BaseModel):
     """Aggregate scores for the highest-layer scoring run available."""
+
     scoring_layer: int = 0
     overall: float = 0.0
     avg_coherence: float = 0.0
@@ -199,7 +201,9 @@ def get_quality_summaries() -> dict:
     return {"summaries": summaries}
 
 
-@router.get("/{session_id}", response_model=QualityResponse, dependencies=[_READ_STORIES])
+@router.get(
+    "/{session_id}", response_model=QualityResponse, dependencies=[_READ_STORIES]
+)
 async def get_quality(session_id: str) -> QualityResponse:
     """Return per-chapter quality scores for a session or checkpoint.
 

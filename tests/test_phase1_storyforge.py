@@ -44,7 +44,10 @@ class TestStoryTemplates(unittest.TestCase):
         templates_path = os.path.join(
             project_root, "data", "templates", "story_templates.json"
         )
-        self.assertTrue(os.path.exists(templates_path), f"Templates file not found: {templates_path}")
+        self.assertTrue(
+            os.path.exists(templates_path),
+            f"Templates file not found: {templates_path}",
+        )
 
     def test_story_templates_valid_json(self):
         """Verify story_templates.json is valid JSON."""
@@ -80,14 +83,21 @@ class TestStoryTemplates(unittest.TestCase):
         with open(templates_path, encoding="utf-8") as f:
             data = json.load(f)
 
-        required_keys = {"title", "idea", "num_chapters", "num_characters", "words_per_chapter", "style"}
+        required_keys = {
+            "title",
+            "idea",
+            "num_chapters",
+            "num_characters",
+            "words_per_chapter",
+            "style",
+        }
 
         for genre, templates in data.items():
             for idx, template in enumerate(templates):
                 missing_keys = required_keys - set(template.keys())
                 self.assertFalse(
                     missing_keys,
-                    f"Genre '{genre}' template {idx} missing keys: {missing_keys}"
+                    f"Genre '{genre}' template {idx} missing keys: {missing_keys}",
                 )
 
     def test_story_templates_multiple_genres(self):
@@ -110,8 +120,7 @@ class TestStoryTemplates(unittest.TestCase):
 
         for genre, templates in data.items():
             self.assertGreaterEqual(
-                len(templates), 1,
-                f"Genre '{genre}' should have at least 1 template"
+                len(templates), 1, f"Genre '{genre}' should have at least 1 template"
             )
 
 
@@ -122,6 +131,7 @@ class TestAppModule(unittest.TestCase):
         """Verify app.py imports without errors."""
         try:
             import app
+
             self.assertIsNotNone(app)
         except Exception as e:
             self.fail(f"app.py import failed: {e}")
@@ -146,6 +156,7 @@ class TestFilesCompile(unittest.TestCase):
         """Verify config package compiles (config.py replaced by config/ package)."""
         config_path = os.path.join(project_root, "config", "__init__.py")
         import py_compile
+
         try:
             py_compile.compile(config_path, doraise=True)
         except py_compile.PyCompileError as e:
@@ -155,6 +166,7 @@ class TestFilesCompile(unittest.TestCase):
         """Verify llm_client.py compiles."""
         file_path = os.path.join(project_root, "services", "llm_client.py")
         import py_compile
+
         try:
             py_compile.compile(file_path, doraise=True)
         except py_compile.PyCompileError as e:
@@ -164,6 +176,7 @@ class TestFilesCompile(unittest.TestCase):
         """Verify app.py compiles."""
         app_path = os.path.join(project_root, "app.py")
         import py_compile
+
         try:
             py_compile.compile(app_path, doraise=True)
         except py_compile.PyCompileError as e:
@@ -176,7 +189,9 @@ class TestFilesCompile(unittest.TestCase):
             os.path.join(project_root, "services", "deepseek_web_client.py"),
         ]
         for path in removed:
-            self.assertFalse(os.path.exists(path), f"Deprecated file still exists: {path}")
+            self.assertFalse(
+                os.path.exists(path), f"Deprecated file still exists: {path}"
+            )
         ba_pkg = os.path.join(project_root, "services", "browser_auth", "__init__.py")
         self.assertFalse(os.path.exists(ba_pkg), "browser_auth package still exists")
 

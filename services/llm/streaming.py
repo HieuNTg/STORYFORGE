@@ -32,15 +32,21 @@ class StreamingMixin:
                 last_exc = e
                 if chunks_yielded > 0:
                     # Mid-stream failure — cannot safely retry without duplication
-                    logger.error(f"{label} failed after {chunks_yielded} chunks: {_redact(e)}")
+                    logger.error(
+                        f"{label} failed after {chunks_yielded} chunks: {_redact(e)}"
+                    )
                     raise
                 if attempt < MAX_RETRIES - 1 and _is_transient(e):
-                    delay = BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
-                    logger.warning(f"{label} attempt {attempt+1} failed: {_redact(e)}. Retry in {delay:.1f}s")
+                    delay = BASE_DELAY * (2**attempt) + random.uniform(0, 0.5)
+                    logger.warning(
+                        f"{label} attempt {attempt + 1} failed: {_redact(e)}. Retry in {delay:.1f}s"
+                    )
                     time.sleep(delay)
                     continue
                 break
-        logger.error(f"{label} failed after {MAX_RETRIES} attempts: {_redact(last_exc)}")
+        logger.error(
+            f"{label} failed after {MAX_RETRIES} attempts: {_redact(last_exc)}"
+        )
         raise last_exc
 
     def _stream_with_chunk_timeout(
@@ -78,9 +84,7 @@ class StreamingMixin:
                 item = chunk_queue.get(timeout=timeout)
             except _queue.Empty:
                 phase = "first chunk" if not got_first else "inter-chunk"
-                logger.error(
-                    f"Stream {phase} timeout: no data received in {timeout}s"
-                )
+                logger.error(f"Stream {phase} timeout: no data received in {timeout}s")
                 raise TimeoutError(
                     f"Streaming response stalled — no {phase} data within {timeout}s"
                 )

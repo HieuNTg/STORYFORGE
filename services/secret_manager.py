@@ -6,6 +6,7 @@ Field-level encryption for sensitive config values:
   Fernet ciphertext (base64url). Plaintext values are left as-is when no
   STORYFORGE_SECRET_KEY env var is set (backward-compatible).
 """
+
 import os
 import json
 import logging
@@ -57,10 +58,12 @@ def decrypt_value(value: str) -> str:
     fernet = _get_fernet()
     if not fernet:
         # No key: strip prefix and return raw ciphertext (won't be useful, but won't crash)
-        logger.warning("ENC: value found but STORYFORGE_SECRET_KEY not set — cannot decrypt")
+        logger.warning(
+            "ENC: value found but STORYFORGE_SECRET_KEY not set — cannot decrypt"
+        )
         return ""
     try:
-        raw = fernet.decrypt(value[len(_ENC_PREFIX):].encode("ascii"))
+        raw = fernet.decrypt(value[len(_ENC_PREFIX) :].encode("ascii"))
         return raw.decode("utf-8")
     except InvalidToken:
         logger.warning("Failed to decrypt value — wrong key or corrupted data")
@@ -76,7 +79,12 @@ def encrypt_sensitive_fields(data: dict) -> dict:
             return {k: _encrypt_value(k, v) for k, v in value.items()}
         if isinstance(value, list):
             return [_encrypt_value(key, item) for item in value]
-        if isinstance(value, str) and sensitive and value and not value.startswith(_ENC_PREFIX):
+        if (
+            isinstance(value, str)
+            and sensitive
+            and value
+            and not value.startswith(_ENC_PREFIX)
+        ):
             return encrypt_value(value)
         return value
 

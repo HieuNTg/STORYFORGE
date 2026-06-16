@@ -23,6 +23,7 @@ import {
 } from "@/stores/library-store";
 import { importStory } from "@/lib/library/json-io";
 import { forgeToStory } from "@/lib/library/story-mappers";
+import { requestStoryCover } from "@/lib/library/cover";
 import type { ForgeResponse, Story } from "@/types/story";
 
 export function BookshelfScreen() {
@@ -64,7 +65,9 @@ export function BookshelfScreen() {
       const ok = addStory(story);
       if (!ok) {
         toast.error(`Đã đạt giới hạn ${LIBRARY_MAX_STORIES} truyện`);
+        return;
       }
+      void requestStoryCover(story);
     },
     [addStory],
   );
@@ -74,7 +77,9 @@ export function BookshelfScreen() {
       const ok = addStory(story);
       if (!ok) {
         toast.error(`Đã đạt giới hạn ${LIBRARY_MAX_STORIES} truyện`);
+        return;
       }
+      void requestStoryCover(story);
     },
     [addStory],
   );
@@ -157,15 +162,23 @@ export function BookshelfScreen() {
           onSelect={handleOpenReader}
           onCreate={() => setCreateOpen(true)}
         />
-      ) : selectedStory ? (
-        <StoryWorkspace
-          story={selectedStory}
-          onDelete={removeStory}
-          onOpenReader={handleOpenReader}
-          onOpenContinue={handleOpenContinue}
-          className="max-w-sm"
-        />
-      ) : null}
+      ) : (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
+          <BookshelfGrid
+            stories={stories}
+            selectedId={selectedId}
+            onSelect={handleOpenReader}
+          />
+          {selectedStory ? (
+            <StoryWorkspace
+              story={selectedStory}
+              onDelete={removeStory}
+              onOpenReader={handleOpenReader}
+              onOpenContinue={handleOpenContinue}
+            />
+          ) : null}
+        </div>
+      )}
 
       <CreateStoryModal
         open={createOpen}

@@ -15,6 +15,7 @@ def _get_stale_threshold() -> int:
     """Get thread stale threshold from config."""
     try:
         from config import ConfigManager
+
         return getattr(ConfigManager().pipeline, "thread_stale_threshold", 3)
     except Exception:
         return 3
@@ -22,6 +23,7 @@ def _get_stale_threshold() -> int:
 
 class PlotThread(BaseModel):
     """Một tuyến truyện cần theo dõi."""
+
     thread_id: str
     description: str
     introduced_chapter: int = 1
@@ -76,6 +78,7 @@ Trả về JSON:
     def load_from_draft(self, draft) -> "ThreadWatchdog":
         """Load threads từ L1 draft (open_threads, resolved_threads)."""
         from pipeline.layer2_enhance import _envelope_access as _env
+
         open_threads_raw = _env.open_threads(draft)
         resolved_threads_raw = _env.resolved_threads(draft)
 
@@ -88,8 +91,11 @@ Trả về JSON:
                 return {
                     "thread_id": d.get("id") or d.get("thread_id"),
                     "description": d.get("label") or d.get("description") or "",
-                    "introduced_chapter": d.get("opened_chapter") or d.get("introduced_chapter") or 1,
-                    "resolution_chapter": d.get("expected_close_chapter") or d.get("resolution_chapter"),
+                    "introduced_chapter": d.get("opened_chapter")
+                    or d.get("introduced_chapter")
+                    or 1,
+                    "resolution_chapter": d.get("expected_close_chapter")
+                    or d.get("resolution_chapter"),
                     "characters": d.get("characters") or [],
                     "importance": d.get("importance") or "normal",
                 }
@@ -162,21 +168,29 @@ Trả về JSON:
         """Lấy danh sách threads đang mở."""
         return [t for t in self.threads.values() if t.status in ("open", "progressing")]
 
-    def get_threads_for_chapter(self, chapter_number: int, total_chapters: int) -> list[PlotThread]:
+    def get_threads_for_chapter(
+        self, chapter_number: int, total_chapters: int
+    ) -> list[PlotThread]:
         """Lấy threads cần được chú ý trong chương này."""
         open_threads = self.get_open_threads()
         relevant = []
 
         for t in open_threads:
             # Thread should be resolved by expected chapter
-            if t.expected_resolution_chapter and t.expected_resolution_chapter == chapter_number:
+            if (
+                t.expected_resolution_chapter
+                and t.expected_resolution_chapter == chapter_number
+            ):
                 t.importance = "critical"  # Escalate importance
                 relevant.append(t)
                 continue
 
             # Thread hasn't been mentioned in a while (stale)
             stale_threshold = _get_stale_threshold()
-            if t.last_mentioned_chapter > 0 and chapter_number - t.last_mentioned_chapter > stale_threshold:
+            if (
+                t.last_mentioned_chapter > 0
+                and chapter_number - t.last_mentioned_chapter > stale_threshold
+            ):
                 relevant.append(t)
                 continue
 
@@ -238,18 +252,22 @@ Trả về JSON:
                     thread.status = "resolved"
                     thread.actual_resolution_chapter = chapter_number
                     thread.resolution_notes = update.get("resolution_notes", "")
-                    updates.append({
-                        "thread_id": tid,
-                        "action": "resolved",
-                        "chapter": chapter_number,
-                    })
+                    updates.append(
+                        {
+                            "thread_id": tid,
+                            "action": "resolved",
+                            "chapter": chapter_number,
+                        }
+                    )
                 elif status_change == "progressing":
                     thread.status = "progressing"
-                    updates.append({
-                        "thread_id": tid,
-                        "action": "progressed",
-                        "chapter": chapter_number,
-                    })
+                    updates.append(
+                        {
+                            "thread_id": tid,
+                            "action": "progressed",
+                            "chapter": chapter_number,
+                        }
+                    )
 
             # Add new threads discovered
             for new_t in result.get("new_threads", []):
@@ -261,22 +279,26 @@ Trả về JSON:
                         characters=new_t.get("characters", []),
                         importance=new_t.get("importance", "normal"),
                     )
-                    updates.append({
-                        "thread_id": new_tid,
-                        "action": "discovered",
-                        "chapter": chapter_number,
-                    })
+                    updates.append(
+                        {
+                            "thread_id": new_tid,
+                            "action": "discovered",
+                            "chapter": chapter_number,
+                        }
+                    )
 
             # Check for stale critical threads
             for t in open_threads:
                 if t.importance == "critical" and t.last_mentioned_chapter > 0:
                     gap = chapter_number - t.last_mentioned_chapter
                     if gap >= 3:
-                        warnings.append({
-                            "thread_id": t.thread_id,
-                            "type": "stale_critical",
-                            "message": f"Critical thread '{t.description[:50]}' không được đề cập trong {gap} chương",
-                        })
+                        warnings.append(
+                            {
+                                "thread_id": t.thread_id,
+                                "type": "stale_critical",
+                                "message": f"Critical thread '{t.description[:50]}' không được đề cập trong {gap} chương",
+                            }
+                        )
 
             return {"updates": updates, "new_threads": [], "warnings": warnings}
 
@@ -284,7 +306,9 @@ Trả về JSON:
             logger.warning(f"Thread check failed for ch{chapter_number}: {e}")
             return {"updates": [], "new_threads": [], "warnings": []}
 
-    def format_constraints_for_chapter(self, chapter_number: int, total_chapters: int) -> str:
+    def format_constraints_for_chapter(
+        self, chapter_number: int, total_chapters: int
+    ) -> str:
         """Tạo text ràng buộc threads cho enhance prompt."""
         relevant = self.get_threads_for_chapter(chapter_number, total_chapters)
         if not relevant:
@@ -297,7 +321,11 @@ Trả về JSON:
         if critical:
             lines.append("**[CRITICAL - Phải giải quyết]:**")
             for t in critical:
-                expected = f" (deadline: ch{t.expected_resolution_chapter})" if t.expected_resolution_chapter else ""
+                expected = (
+                    f" (deadline: ch{t.expected_resolution_chapter})"
+                    if t.expected_resolution_chapter
+                    else ""
+                )
                 lines.append(f"  - {t.description}{expected}")
 
         # Normal open threads
@@ -305,14 +333,23 @@ Trả về JSON:
         if normal:
             lines.append("**[Đang mở - Cần tiến triển]:**")
             for t in normal[:5]:
-                stale = " ⚠️ STALE" if (t.last_mentioned_chapter and chapter_number - t.last_mentioned_chapter > 2) else ""
+                stale = (
+                    " ⚠️ STALE"
+                    if (
+                        t.last_mentioned_chapter
+                        and chapter_number - t.last_mentioned_chapter > 2
+                    )
+                    else ""
+                )
                 lines.append(f"  - {t.description}{stale}")
 
         # Final chapter warning
         if chapter_number == total_chapters:
             open_count = len(self.get_open_threads())
             if open_count > 0:
-                lines.append(f"\n**⚠️ CHƯƠNG CUỐI: Còn {open_count} tuyến chưa giải quyết!**")
+                lines.append(
+                    f"\n**⚠️ CHƯƠNG CUỐI: Còn {open_count} tuyến chưa giải quyết!**"
+                )
 
         return "\n".join(lines)
 
@@ -321,14 +358,16 @@ Trả về JSON:
         unresolved = []
         for t in self.threads.values():
             if t.status not in ("resolved",):
-                unresolved.append({
-                    "thread_id": t.thread_id,
-                    "description": t.description,
-                    "introduced_chapter": t.introduced_chapter,
-                    "expected_resolution": t.expected_resolution_chapter,
-                    "importance": t.importance,
-                    "last_mentioned": t.last_mentioned_chapter,
-                })
+                unresolved.append(
+                    {
+                        "thread_id": t.thread_id,
+                        "description": t.description,
+                        "introduced_chapter": t.introduced_chapter,
+                        "expected_resolution": t.expected_resolution_chapter,
+                        "importance": t.importance,
+                        "last_mentioned": t.last_mentioned_chapter,
+                    }
+                )
         return unresolved
 
     def validate_enhanced_chapter(
@@ -345,30 +384,39 @@ Trả về JSON:
             if t.status == "resolved":
                 continue
 
-            if t.expected_resolution_chapter == chapter_number and t.importance == "critical":
+            if (
+                t.expected_resolution_chapter == chapter_number
+                and t.importance == "critical"
+            ):
                 # Check if content resolves this thread
                 keywords = t.description.lower().split()[:5]
-                mentioned = any(kw in enhanced_content.lower() for kw in keywords if len(kw) > 3)
+                mentioned = any(
+                    kw in enhanced_content.lower() for kw in keywords if len(kw) > 3
+                )
                 if not mentioned:
-                    violations.append({
-                        "type": "missed_resolution",
-                        "thread_id": t.thread_id,
-                        "chapter": chapter_number,
-                        "description": f"Critical thread '{t.description[:50]}' should resolve in ch{chapter_number} but not mentioned",
-                        "severity": "critical",
-                    })
+                    violations.append(
+                        {
+                            "type": "missed_resolution",
+                            "thread_id": t.thread_id,
+                            "chapter": chapter_number,
+                            "description": f"Critical thread '{t.description[:50]}' should resolve in ch{chapter_number} but not mentioned",
+                            "severity": "critical",
+                        }
+                    )
 
         # Final chapter: all critical threads should be resolved
         if chapter_number == total_chapters:
             for t in self.threads.values():
                 if t.status != "resolved" and t.importance == "critical":
-                    violations.append({
-                        "type": "unresolved_critical",
-                        "thread_id": t.thread_id,
-                        "chapter": chapter_number,
-                        "description": f"Critical thread '{t.description[:50]}' unresolved at story end",
-                        "severity": "critical",
-                    })
+                    violations.append(
+                        {
+                            "type": "unresolved_critical",
+                            "thread_id": t.thread_id,
+                            "chapter": chapter_number,
+                            "description": f"Critical thread '{t.description[:50]}' unresolved at story end",
+                            "severity": "critical",
+                        }
+                    )
 
         return violations
 
@@ -443,7 +491,10 @@ Trả về JSON:
                 continue
 
             # Severely overdue (5+ chapters past deadline)
-            if t.expected_resolution_chapter and chapter_number > t.expected_resolution_chapter + 5:
+            if (
+                t.expected_resolution_chapter
+                and chapter_number > t.expected_resolution_chapter + 5
+            ):
                 must_resolve.append(t)
 
         return must_resolve
@@ -454,7 +505,9 @@ Trả về JSON:
         total_chapters: int,
     ) -> str:
         """Format prompt block for mandatory thread resolution."""
-        must_resolve = self.get_threads_requiring_resolution(chapter_number, total_chapters)
+        must_resolve = self.get_threads_requiring_resolution(
+            chapter_number, total_chapters
+        )
         if not must_resolve:
             return ""
 
@@ -478,7 +531,9 @@ Trả về JSON:
                 lines.append(f"  Nhân vật: {', '.join(t.characters_involved[:3])}")
 
         lines.append("")
-        lines.append("Mỗi tuyến cần được giải quyết RÕRÀNG trong văn bản (không ngầm định).")
+        lines.append(
+            "Mỗi tuyến cần được giải quyết RÕRÀNG trong văn bản (không ngầm định)."
+        )
 
         return "\n".join(lines)
 
@@ -492,7 +547,9 @@ Trả về JSON:
 
         Returns (modified_content, resolutions_added).
         """
-        must_resolve = self.get_threads_requiring_resolution(chapter_number, total_chapters)
+        must_resolve = self.get_threads_requiring_resolution(
+            chapter_number, total_chapters
+        )
         if not must_resolve:
             return enhanced_content, []
 
@@ -545,22 +602,31 @@ Trả về JSON:
                 # Append resolution near the end (before final paragraph)
                 paragraphs = modified_content.rsplit("\n\n", 1)
                 if len(paragraphs) == 2:
-                    modified_content = f"{paragraphs[0]}\n\n{resolution_text}\n\n{paragraphs[1]}"
+                    modified_content = (
+                        f"{paragraphs[0]}\n\n{resolution_text}\n\n{paragraphs[1]}"
+                    )
                 else:
                     modified_content = f"{modified_content}\n\n{resolution_text}"
 
-                self.resolutions_applied.append({
-                    "thread": res.get("thread_description", ""),
-                    "chapter": chapter_number,
-                    "text_added": resolution_text[:100],
-                })
+                self.resolutions_applied.append(
+                    {
+                        "thread": res.get("thread_description", ""),
+                        "chapter": chapter_number,
+                        "text_added": resolution_text[:100],
+                    }
+                )
 
                 # Mark thread as resolved
                 for t in unresolved:
-                    if t.description[:30].lower() in res.get("thread_description", "").lower():
+                    if (
+                        t.description[:30].lower()
+                        in res.get("thread_description", "").lower()
+                    ):
                         t.status = "resolved"
                         t.actual_resolution_chapter = chapter_number
-                        t.resolution_notes = "Force-resolved by ThreadResolutionEnforcer"
+                        t.resolution_notes = (
+                            "Force-resolved by ThreadResolutionEnforcer"
+                        )
                         break
 
             logger.info(
@@ -575,8 +641,7 @@ Trả về JSON:
     def get_enforcement_summary(self) -> dict:
         """Get summary of enforcement actions taken."""
         unresolved = [
-            t for t in self.watchdog.threads.values()
-            if t.status not in ("resolved",)
+            t for t in self.watchdog.threads.values() if t.status not in ("resolved",)
         ]
 
         return {
@@ -585,11 +650,17 @@ Trả về JSON:
             "unresolved": len(unresolved),
             "force_resolved": len(self.resolutions_applied),
             "resolution_rate": (
-                (len(self.watchdog.threads) - len(unresolved)) / len(self.watchdog.threads)
-                if self.watchdog.threads else 1.0
+                (len(self.watchdog.threads) - len(unresolved))
+                / len(self.watchdog.threads)
+                if self.watchdog.threads
+                else 1.0
             ),
             "unresolved_threads": [
-                {"id": t.thread_id, "desc": t.description[:50], "importance": t.importance}
+                {
+                    "id": t.thread_id,
+                    "desc": t.description[:50],
+                    "importance": t.importance,
+                }
                 for t in unresolved[:5]
             ],
         }

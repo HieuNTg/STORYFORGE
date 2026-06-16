@@ -3,6 +3,7 @@
 Backstops the idea-fidelity fix: the chapter LLM must SEE the original idea text
 (or its head/tail+summary form when long), not just downstream paraphrases.
 """
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -35,14 +36,32 @@ def _build(idea="", idea_summary=""):
     config = _mk_config()
     outline = ChapterOutline(chapter_number=1, title="C1", summary="Things happen")
     world = WorldSetting(name="W", description="d")
-    chars = [Character(name="Hùng", role="protagonist", personality="brave", background="hero")]
-    with patch("pipeline.layer1_story.chapter_writer.build_adaptive_write_prompt", side_effect=lambda p, *a, **kw: p), \
-         patch("pipeline.layer1_story.narrative_context_block.build_narrative_block") as mock_nb:
+    chars = [
+        Character(
+            name="Hùng", role="protagonist", personality="brave", background="hero"
+        )
+    ]
+    with (
+        patch(
+            "pipeline.layer1_story.chapter_writer.build_adaptive_write_prompt",
+            side_effect=lambda p, *a, **kw: p,
+        ),
+        patch(
+            "pipeline.layer1_story.narrative_context_block.build_narrative_block"
+        ) as mock_nb,
+    ):
         mock_nb.return_value.render.return_value = ""
         _, user_prompt = build_chapter_prompt(
-            config, "S", "fantasy", "vivid",
-            chars, world, outline, 2000,
-            idea=idea, idea_summary=idea_summary,
+            config,
+            "S",
+            "fantasy",
+            "vivid",
+            chars,
+            world,
+            outline,
+            2000,
+            idea=idea,
+            idea_summary=idea_summary,
         )
     return user_prompt
 

@@ -23,8 +23,14 @@ class QualityGateResult:
 
     __slots__ = ("passed", "overall_score", "weak_chapters", "message", "should_retry")
 
-    def __init__(self, passed: bool, overall_score: float, weak_chapters: list,
-                 message: str, should_retry: bool = False):
+    def __init__(
+        self,
+        passed: bool,
+        overall_score: float,
+        weak_chapters: list,
+        message: str,
+        should_retry: bool = False,
+    ):
         self.passed = passed
         self.overall_score = overall_score
         self.weak_chapters = weak_chapters
@@ -56,7 +62,9 @@ class QualityGate:
         self._best_score: Optional[StoryScore] = None
         self._best_overall: float = -1.0
 
-    def check(self, score: Optional[StoryScore], retry_count: int = 0) -> QualityGateResult:
+    def check(
+        self, score: Optional[StoryScore], retry_count: int = 0
+    ) -> QualityGateResult:
         """Check if quality score passes the gate.
 
         Args:
@@ -68,8 +76,10 @@ class QualityGate:
         """
         if not score or not score.chapter_scores:
             return QualityGateResult(
-                passed=True, overall_score=0.0, weak_chapters=[],
-                message="Không có điểm chất lượng — bỏ qua quality gate."
+                passed=True,
+                overall_score=0.0,
+                weak_chapters=[],
+                message="Không có điểm chất lượng — bỏ qua quality gate.",
             )
 
         overall = score.overall
@@ -83,17 +93,21 @@ class QualityGate:
         weak_chapters = []
         for cs in score.chapter_scores:
             if cs.overall < self.chapter_threshold:
-                weak_chapters.append({
-                    "chapter": cs.chapter_number,
-                    "score": cs.overall,
-                    "notes": cs.notes,
-                })
+                weak_chapters.append(
+                    {
+                        "chapter": cs.chapter_number,
+                        "score": cs.overall,
+                        "notes": cs.notes,
+                    }
+                )
 
         # PASS: overall above threshold and no critically weak chapters
         if overall >= self.gate_threshold and not weak_chapters:
             return QualityGateResult(
-                passed=True, overall_score=overall, weak_chapters=[],
-                message=f"Quality gate PASSED: {overall:.1f}/5.0 (threshold: {self.gate_threshold})"
+                passed=True,
+                overall_score=overall,
+                weak_chapters=[],
+                message=f"Quality gate PASSED: {overall:.1f}/5.0 (threshold: {self.gate_threshold})",
             )
 
         # Circuit breaker: stop retrying if total retries across all chapters is too high
@@ -105,7 +119,9 @@ class QualityGate:
             )
             best_overall = self._best_overall if self._best_overall >= 0 else overall
             return QualityGateResult(
-                passed=True, overall_score=best_overall, weak_chapters=weak_chapters,
+                passed=True,
+                overall_score=best_overall,
+                weak_chapters=weak_chapters,
                 message=(
                     f"Quality gate circuit breaker triggered after {self._total_retries} total retries. "
                     f"Proceeding with best available chapters (score: {best_overall:.1f}/5.0)."
@@ -118,14 +134,18 @@ class QualityGate:
             self._total_retries += 1
             weak_info = f", {len(weak_chapters)} chương yếu" if weak_chapters else ""
             return QualityGateResult(
-                passed=False, overall_score=overall, weak_chapters=weak_chapters,
+                passed=False,
+                overall_score=overall,
+                weak_chapters=weak_chapters,
                 message=f"Quality gate RETRY: {overall:.1f}/5.0 < {self.gate_threshold}{weak_info}. Thử lại lần {retry_count + 1}.",
                 should_retry=True,
             )
 
         # Hard stop — retries exhausted
         return QualityGateResult(
-            passed=False, overall_score=overall, weak_chapters=weak_chapters,
+            passed=False,
+            overall_score=overall,
+            weak_chapters=weak_chapters,
             message=f"Quality gate FAILED: {overall:.1f}/5.0 < {self.gate_threshold}. Đã thử {retry_count} lần. Tiếp tục với kết quả hiện tại.",
             should_retry=False,
         )

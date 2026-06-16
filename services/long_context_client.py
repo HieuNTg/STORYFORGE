@@ -61,10 +61,13 @@ class LongContextClient:
     ) -> str:
         """Generate text using the long-context model with retry logic."""
         if not self.is_configured:
-            raise RuntimeError("LongContextClient is not configured (missing provider/model/api_key)")
+            raise RuntimeError(
+                "LongContextClient is not configured (missing provider/model/api_key)"
+            )
 
         # Apply language localization (same as LLMClient.generate)
         from services.prompts import localize_prompt
+
         lang = ConfigManager().pipeline.language
         system_prompt = localize_prompt(system_prompt, lang)
         user_prompt = localize_prompt(user_prompt, lang)
@@ -85,12 +88,14 @@ class LongContextClient:
                     max_tokens=max_tokens,
                 )
                 result = response.choices[0].message.content or ""
-                logger.info(f"LongContextClient success via {self.provider}/{self.model}")
+                logger.info(
+                    f"LongContextClient success via {self.provider}/{self.model}"
+                )
                 return result
             except Exception as e:
                 last_exc = e
                 if attempt < MAX_RETRIES - 1 and _is_transient(e):
-                    delay = BASE_DELAY * (2 ** attempt) + random.uniform(0, 0.5)
+                    delay = BASE_DELAY * (2**attempt) + random.uniform(0, 0.5)
                     logger.warning(
                         f"LongContextClient attempt {attempt + 1} failed: {e}. Retry in {delay:.1f}s"
                     )

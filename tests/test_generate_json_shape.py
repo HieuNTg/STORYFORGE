@@ -37,6 +37,7 @@ class _Stub(GenerationMixin):
 # _coerce_to_shape — unit tests for the pure helper
 # ---------------------------------------------------------------------------
 
+
 class TestCoerceToShape:
     def test_dict_passthrough(self):
         v, ok = _coerce_to_shape({"a": 1}, "dict", None)
@@ -89,6 +90,7 @@ class TestCoerceToShape:
 # generate_json — shape validation integration tests
 # ---------------------------------------------------------------------------
 
+
 class TestGenerateJsonExpectDict:
     def test_happy_path_returns_dict(self):
         stub = _Stub([json.dumps({"reveals": [], "hints": []})])
@@ -101,25 +103,32 @@ class TestGenerateJsonExpectDict:
         # through to the list_key wrap branch.
         stub = _Stub([json.dumps([{"character": "Lan"}, {"character": "Hoa"}])])
         result = stub.generate_json(
-            "sys", "user", expect="dict", list_key="reveals",
+            "sys",
+            "user",
+            expect="dict",
+            list_key="reveals",
         )
         assert result == {"reveals": [{"character": "Lan"}, {"character": "Hoa"}]}
         assert stub.call_count == 1  # auto-wrap, no retry
 
     def test_bare_list_without_list_key_triggers_retry_then_raises(self):
-        stub = _Stub([
-            json.dumps([1, 2, 3]),  # first attempt: bare list
-            json.dumps([4, 5, 6]),  # retry: still a list
-        ])
+        stub = _Stub(
+            [
+                json.dumps([1, 2, 3]),  # first attempt: bare list
+                json.dumps([4, 5, 6]),  # retry: still a list
+            ]
+        )
         with pytest.raises(ValueError, match="schema mismatch after retry"):
             stub.generate_json("sys", "user", expect="dict")
         assert stub.call_count == 2  # one initial + one shape-retry
 
     def test_retry_succeeds_after_initial_shape_mismatch(self):
-        stub = _Stub([
-            json.dumps([1, 2]),                 # bad shape
-            json.dumps({"reveals": [1, 2]}),    # retry returns dict
-        ])
+        stub = _Stub(
+            [
+                json.dumps([1, 2]),  # bad shape
+                json.dumps({"reveals": [1, 2]}),  # retry returns dict
+            ]
+        )
         result = stub.generate_json("sys", "user", expect="dict")
         assert result == {"reveals": [1, 2]}
         assert stub.call_count == 2
@@ -139,10 +148,12 @@ class TestGenerateJsonExpectList:
         assert stub.call_count == 1
 
     def test_unextractable_dict_triggers_retry_then_raises(self):
-        stub = _Stub([
-            json.dumps({"a": 1, "b": 2}),  # no list values
-            json.dumps({"a": 1}),          # retry still bad
-        ])
+        stub = _Stub(
+            [
+                json.dumps({"a": 1, "b": 2}),  # no list values
+                json.dumps({"a": 1}),  # retry still bad
+            ]
+        )
         with pytest.raises(ValueError, match="schema mismatch after retry"):
             stub.generate_json("sys", "user", expect="list")
         assert stub.call_count == 2

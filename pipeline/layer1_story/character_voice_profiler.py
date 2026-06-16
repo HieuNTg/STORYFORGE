@@ -57,7 +57,9 @@ def _build_characters_description(characters: list[Character]) -> str:
     return "\n\n".join(parts)
 
 
-def generate_voice_profiles(llm, characters: list[Character], genre: str, model=None) -> list[dict]:
+def generate_voice_profiles(
+    llm, characters: list[Character], genre: str, model=None
+) -> list[dict]:
     """Generate detailed voice profiles for each character via LLM.
 
     Args:
@@ -80,7 +82,11 @@ def generate_voice_profiles(llm, characters: list[Character], genre: str, model=
     )
     user_prompt = f"Tạo hồ sơ giọng nói cho {len(characters)} nhân vật trên."
 
-    kwargs = {"system_prompt": system_prompt, "user_prompt": user_prompt, "max_tokens": 4096}
+    kwargs = {
+        "system_prompt": system_prompt,
+        "user_prompt": user_prompt,
+        "max_tokens": 4096,
+    }
     if model:
         kwargs["model"] = model
 
@@ -102,17 +108,31 @@ def generate_voice_profiles(llm, characters: list[Character], genre: str, model=
         else:
             # LLM may return single profile dict directly (when 1 character)
             # Sometimes LLM omits "name" key — infer from input if only 1 character
-            voice_profile_keys = {"vocabulary_level", "sentence_style", "verbal_tics", "emotional_expression", "dialogue_example"}
+            voice_profile_keys = {
+                "vocabulary_level",
+                "sentence_style",
+                "verbal_tics",
+                "emotional_expression",
+                "dialogue_example",
+            }
             if "vocabulary_level" in result and voice_profile_keys & set(result.keys()):
                 if "name" not in result and len(characters) == 1:
                     result["name"] = characters[0].name
-                    logger.debug("generate_voice_profiles: inferred name '%s' for single-character profile", result["name"])
+                    logger.debug(
+                        "generate_voice_profiles: inferred name '%s' for single-character profile",
+                        result["name"],
+                    )
                 profiles = [result]
             else:
-                logger.warning("generate_voice_profiles: unexpected dict shape, keys=%s", list(result.keys()))
+                logger.warning(
+                    "generate_voice_profiles: unexpected dict shape, keys=%s",
+                    list(result.keys()),
+                )
                 return []
     else:
-        logger.warning("generate_voice_profiles: unexpected result type %s", type(result))
+        logger.warning(
+            "generate_voice_profiles: unexpected result type %s", type(result)
+        )
         return []
 
     # Ensure each profile is a dict; drop malformed entries non-fatally
@@ -121,7 +141,9 @@ def generate_voice_profiles(llm, characters: list[Character], genre: str, model=
         if isinstance(item, dict):
             cleaned.append(canonicalise_voice_profile(item))
         else:
-            logger.debug("generate_voice_profiles: skipping non-dict profile entry: %s", item)
+            logger.debug(
+                "generate_voice_profiles: skipping non-dict profile entry: %s", item
+            )
 
     if len(cleaned) != len(characters):
         logger.warning(
@@ -166,14 +188,16 @@ def format_voice_profiles_for_prompt(profiles: list[dict]) -> str:
             lines.append(f"  Khi giận: {anger}")
 
         if examples:
-            lines.append(f"  Ví dụ: \"{examples[0]}\"")
+            lines.append(f'  Ví dụ: "{examples[0]}"')
             if len(examples) > 1:
-                lines.append(f"          \"{examples[1]}\"")
+                lines.append(f'          "{examples[1]}"')
 
     return "\n".join(lines)
 
 
-def update_character_speech_patterns(characters: list[Character], profiles: list[dict]) -> None:
+def update_character_speech_patterns(
+    characters: list[Character], profiles: list[dict]
+) -> None:
     """Update each Character's speech_pattern field with a summary from their voice profile.
 
     Mutates characters in place. Matches by name (case-insensitive).
@@ -183,7 +207,9 @@ def update_character_speech_patterns(characters: list[Character], profiles: list
         characters: list of Character objects to update
         profiles: list of voice profile dicts from generate_voice_profiles()
     """
-    profile_map = {p.get("name", "").lower(): p for p in profiles if isinstance(p, dict)}
+    profile_map = {
+        p.get("name", "").lower(): p for p in profiles if isinstance(p, dict)
+    }
 
     for char in characters:
         profile = profile_map.get(char.name.lower())
@@ -207,8 +233,10 @@ def update_character_speech_patterns(characters: list[Character], profiles: list
         if anger:
             parts.append(f"giận: {anger}")
 
-        examples = profile.get("dialogue_examples") or profile.get("dialogue_example") or []
+        examples = (
+            profile.get("dialogue_examples") or profile.get("dialogue_example") or []
+        )
         if examples:
-            parts.append(f"vd: \"{examples[0]}\"")
+            parts.append(f'vd: "{examples[0]}"')
 
         char.speech_pattern = " | ".join(parts) if parts else char.speech_pattern

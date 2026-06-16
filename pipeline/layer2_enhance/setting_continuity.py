@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 class Location(BaseModel):
     """Một địa điểm trong truyện."""
+
     name: str
     description: str = ""
     introduced_chapter: int = 0
@@ -23,6 +24,7 @@ class Location(BaseModel):
 
 class SignificantObject(BaseModel):
     """Vật phẩm quan trọng trong truyện."""
+
     name: str
     description: str = ""
     introduced_chapter: int = 0
@@ -34,6 +36,7 @@ class SignificantObject(BaseModel):
 
 class TimeMarker(BaseModel):
     """Mốc thời gian trong truyện."""
+
     chapter_number: int
     description: str = ""  # "sáng hôm sau", "3 ngày sau", "mùa đông năm đó"
     relative_to: str = ""  # reference to another marker
@@ -70,7 +73,9 @@ Chỉ ghi nhận thông tin rõ ràng trong văn bản."""
         self.locations: dict[str, Location] = {}
         self.objects: dict[str, SignificantObject] = {}
         self.time_markers: list[TimeMarker] = []
-        self.chapter_locations: dict[int, list[str]] = {}  # chapter -> locations mentioned
+        self.chapter_locations: dict[
+            int, list[str]
+        ] = {}  # chapter -> locations mentioned
         self.llm = LLMClient()
 
     def extract_from_chapter(
@@ -140,11 +145,13 @@ Chỉ ghi nhận thông tin rõ ràng trong văn bản."""
             for tm_data in result.get("time_markers", []):
                 desc = tm_data.get("description", "").strip()
                 if desc:
-                    self.time_markers.append(TimeMarker(
-                        chapter_number=chapter_number,
-                        description=desc,
-                        relative_to=tm_data.get("relative_to", ""),
-                    ))
+                    self.time_markers.append(
+                        TimeMarker(
+                            chapter_number=chapter_number,
+                            description=desc,
+                            relative_to=tm_data.get("relative_to", ""),
+                        )
+                    )
 
             # Track which locations appear in which chapter
             chapter_locs = list(result.get("characters_at_locations", {}).keys())
@@ -165,7 +172,9 @@ Chỉ ghi nhận thông tin rõ ràng trong văn bản."""
             logger.warning(f"Setting extraction failed for ch{chapter_number}: {e}")
             return {}
 
-    def build_from_draft(self, draft, progress_callback=None) -> "SettingContinuityGraph":
+    def build_from_draft(
+        self, draft, progress_callback=None
+    ) -> "SettingContinuityGraph":
         """Xây dựng graph từ toàn bộ draft."""
         chapters = getattr(draft, "chapters", []) or []
 
@@ -224,12 +233,17 @@ Chỉ ghi nhận thông tin rõ ràng trong văn bản."""
             for loc_name in recent_locs:
                 loc = self.locations.get(loc_name)
                 if loc:
-                    access = ", ".join(loc.accessible_from[:3]) if loc.accessible_from else "không rõ"
+                    access = (
+                        ", ".join(loc.accessible_from[:3])
+                        if loc.accessible_from
+                        else "không rõ"
+                    )
                     lines.append(f"  - {loc_name}: có thể đến → {access}")
 
         # Active objects
         active_objs = [
-            obj for obj in self.objects.values()
+            obj
+            for obj in self.objects.values()
             if not obj.destroyed and (obj.current_owner or obj.current_location)
         ]
         if active_objs:
@@ -239,7 +253,9 @@ Chỉ ghi nhận thông tin rõ ràng trong văn bản."""
                 lines.append(f"  - {obj.name}: đang ở/thuộc {holder}")
 
         # Timeline context
-        recent_times = [tm for tm in self.time_markers if tm.chapter_number >= chapter_number - 2]
+        recent_times = [
+            tm for tm in self.time_markers if tm.chapter_number >= chapter_number - 2
+        ]
         if recent_times:
             lines.append("**Mốc thời gian:**")
             for tm in recent_times[-3:]:
@@ -287,13 +303,15 @@ Trả về:
                 char = mov.get("character", "")
 
                 if not self.is_transition_valid(from_loc, to_loc):
-                    violations.append({
-                        "type": "invalid_transition",
-                        "character": char,
-                        "chapter": chapter_number,
-                        "description": f"{char} di chuyển từ '{from_loc}' đến '{to_loc}' nhưng không có đường đi",
-                        "severity": "warning",
-                    })
+                    violations.append(
+                        {
+                            "type": "invalid_transition",
+                            "character": char,
+                            "chapter": chapter_number,
+                            "description": f"{char} di chuyển từ '{from_loc}' đến '{to_loc}' nhưng không có đường đi",
+                            "severity": "warning",
+                        }
+                    )
 
             # Check object consistency
             for obj_change in result.get("object_changes", []):
@@ -303,13 +321,15 @@ Trả về:
                 if obj_name in self.objects:
                     obj = self.objects[obj_name]
                     if obj.destroyed and action != "destroyed":
-                        violations.append({
-                            "type": "object_continuity",
-                            "object": obj_name,
-                            "chapter": chapter_number,
-                            "description": f"Vật phẩm '{obj_name}' đã bị phá hủy ở ch{obj.destroyed_chapter} nhưng xuất hiện lại",
-                            "severity": "critical",
-                        })
+                        violations.append(
+                            {
+                                "type": "object_continuity",
+                                "object": obj_name,
+                                "chapter": chapter_number,
+                                "description": f"Vật phẩm '{obj_name}' đã bị phá hủy ở ch{obj.destroyed_chapter} nhưng xuất hiện lại",
+                                "severity": "critical",
+                            }
+                        )
 
         except Exception as e:
             logger.debug(f"Setting validation failed for ch{chapter_number}: {e}")

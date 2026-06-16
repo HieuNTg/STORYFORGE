@@ -1,4 +1,5 @@
 """Tests for AgentDAG — topological sort, cycle detection, tiered execution."""
+
 import pytest
 from unittest.mock import MagicMock, patch
 from pipeline.agents.agent_graph import AgentDAG, AgentNode
@@ -8,6 +9,7 @@ from pipeline.agents.base_agent import BaseAgent
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_mock_agent(name: str, depends_on: list[str], layers=None):
     """Create a lightweight mock that looks like a BaseAgent."""
@@ -21,6 +23,7 @@ def _make_mock_agent(name: str, depends_on: list[str], layers=None):
 # ---------------------------------------------------------------------------
 # AgentNode
 # ---------------------------------------------------------------------------
+
 
 class TestAgentNode:
     def test_default_depends_on_is_empty(self):
@@ -36,6 +39,7 @@ class TestAgentNode:
 # ---------------------------------------------------------------------------
 # AgentDAG construction
 # ---------------------------------------------------------------------------
+
 
 class TestAgentDAGConstruction:
     def test_add_node_registers_node(self):
@@ -91,6 +95,7 @@ class TestAgentDAGConstruction:
 # Topological sort
 # ---------------------------------------------------------------------------
 
+
 class TestTopologicalSort:
     def test_single_node_returns_one_tier(self):
         dag = AgentDAG()
@@ -118,13 +123,29 @@ class TestTopologicalSort:
         """Reproduce the default 4-tier StoryForge DAG using actual agent names."""
         dag = AgentDAG()
         dag.add_node("Chuyên Gia Nhân Vật")  # tier 0
-        dag.add_node("Kiểm Soát Viên",   depends_on=["Chuyên Gia Nhân Vật"])  # tier 1
-        dag.add_node("Chuyên Gia Đối Thoại", depends_on=["Chuyên Gia Nhân Vật"])  # tier 1
-        dag.add_node("Kiểm Tra Văn Phong",   depends_on=["Chuyên Gia Nhân Vật"])  # tier 1
-        dag.add_node("Phân Tích Nhịp Truyện", depends_on=["Chuyên Gia Nhân Vật"])  # tier 1
-        dag.add_node("Nhà Phê Bình Kịch Tính", depends_on=["Kiểm Soát Viên", "Chuyên Gia Đối Thoại", "Kiểm Tra Văn Phong"])  # tier 2
-        dag.add_node("Cân Bằng Đối Thoại", depends_on=["Chuyên Gia Đối Thoại"])  # tier 2
-        dag.add_node("Biên Tập Trưởng",    depends_on=["Nhà Phê Bình Kịch Tính", "Cân Bằng Đối Thoại", "Phân Tích Nhịp Truyện"])  # tier 3
+        dag.add_node("Kiểm Soát Viên", depends_on=["Chuyên Gia Nhân Vật"])  # tier 1
+        dag.add_node(
+            "Chuyên Gia Đối Thoại", depends_on=["Chuyên Gia Nhân Vật"]
+        )  # tier 1
+        dag.add_node("Kiểm Tra Văn Phong", depends_on=["Chuyên Gia Nhân Vật"])  # tier 1
+        dag.add_node(
+            "Phân Tích Nhịp Truyện", depends_on=["Chuyên Gia Nhân Vật"]
+        )  # tier 1
+        dag.add_node(
+            "Nhà Phê Bình Kịch Tính",
+            depends_on=["Kiểm Soát Viên", "Chuyên Gia Đối Thoại", "Kiểm Tra Văn Phong"],
+        )  # tier 2
+        dag.add_node(
+            "Cân Bằng Đối Thoại", depends_on=["Chuyên Gia Đối Thoại"]
+        )  # tier 2
+        dag.add_node(
+            "Biên Tập Trưởng",
+            depends_on=[
+                "Nhà Phê Bình Kịch Tính",
+                "Cân Bằng Đối Thoại",
+                "Phân Tích Nhịp Truyện",
+            ],
+        )  # tier 3
 
         tiers = dag._topological_sort()
         assert len(tiers) == 4
@@ -148,6 +169,7 @@ class TestTopologicalSort:
 # ---------------------------------------------------------------------------
 # Cycle detection
 # ---------------------------------------------------------------------------
+
 
 class TestCycleDetection:
     def test_validate_acyclic_returns_true(self):
@@ -182,6 +204,7 @@ class TestCycleDetection:
 # ---------------------------------------------------------------------------
 # get_execution_order and get_agents_by_tier
 # ---------------------------------------------------------------------------
+
 
 class TestGetExecutionOrder:
     def test_returns_list_of_lists(self):

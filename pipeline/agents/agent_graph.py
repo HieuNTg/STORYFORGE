@@ -1,4 +1,5 @@
 """Agent Dependency Graph — DAG-based execution order for review agents."""
+
 from __future__ import annotations
 
 import logging
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AgentNode:
     """A node in the agent dependency graph."""
+
     name: str
     depends_on: list[str] = field(default_factory=list)
     agent: "BaseAgent | None" = field(default=None, repr=False)

@@ -11,7 +11,7 @@ and `docs/adr/0001-l1-handoff-envelope.md` for design rationale.
 from __future__ import annotations
 
 from typing import Literal, Optional
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 
 SIGNALS_VERSION = "1.0.0"

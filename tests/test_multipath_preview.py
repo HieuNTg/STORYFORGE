@@ -8,9 +8,17 @@ from fastapi import FastAPI
 from httpx import AsyncClient, ASGITransport
 
 from models.schemas import (
-    StoryDraft, Character, WorldSetting, ChapterOutline, Chapter,
-    CharacterState, PlotEvent, StoryContext, PipelineOutput,
-    ArcDirective, PathPreview,
+    StoryDraft,
+    Character,
+    WorldSetting,
+    ChapterOutline,
+    Chapter,
+    CharacterState,
+    PlotEvent,
+    StoryContext,
+    PipelineOutput,
+    ArcDirective,
+    PathPreview,
 )
 
 
@@ -18,28 +26,51 @@ from models.schemas import (
 # Helper Fixtures
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def _make_draft(num_chapters: int = 3) -> StoryDraft:
     """Create a test StoryDraft with specified number of chapters."""
     return StoryDraft(
         title="Test Story",
         genre="fantasy",
         characters=[
-            Character(name="Hero", role="protagonist", personality="brave", motivation="save world"),
+            Character(
+                name="Hero",
+                role="protagonist",
+                personality="brave",
+                motivation="save world",
+            ),
         ],
         world=WorldSetting(name="TestWorld", description="A fantasy realm"),
         outlines=[
-            ChapterOutline(chapter_number=i + 1, title=f"Chapter {i + 1}", summary=f"Summary {i + 1}", key_events=[])
+            ChapterOutline(
+                chapter_number=i + 1,
+                title=f"Chapter {i + 1}",
+                summary=f"Summary {i + 1}",
+                key_events=[],
+            )
             for i in range(num_chapters)
         ],
         chapters=[
-            Chapter(chapter_number=i + 1, title=f"Chapter {i + 1}", content=f"Content {i + 1}", word_count=1000, summary=f"Summary {i + 1}")
+            Chapter(
+                chapter_number=i + 1,
+                title=f"Chapter {i + 1}",
+                content=f"Content {i + 1}",
+                word_count=1000,
+                summary=f"Summary {i + 1}",
+            )
             for i in range(num_chapters)
         ],
         character_states=[
-            CharacterState(name="Hero", mood="determined", arc_position="rising", last_action="trained"),
+            CharacterState(
+                name="Hero",
+                mood="determined",
+                arc_position="rising",
+                last_action="trained",
+            ),
         ],
         plot_events=[
-            PlotEvent(chapter_number=i + 1, event=f"Event {i + 1}") for i in range(num_chapters)
+            PlotEvent(chapter_number=i + 1, event=f"Event {i + 1}")
+            for i in range(num_chapters)
         ],
     )
 
@@ -59,6 +90,7 @@ def _make_generator():
 # ══════════════════════════════════════════════════════════════════════════════
 # Unit Tests: PathPreview Schema
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 class TestPathPreviewSchema:
     """Unit tests for PathPreview schema."""
@@ -91,6 +123,7 @@ class TestPathPreviewSchema:
 # Unit Tests: generate_continuation_paths
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestGenerateContinuationPaths:
     """Tests for generate_continuation_paths function."""
 
@@ -103,19 +136,51 @@ class TestGenerateContinuationPaths:
 
         gen.llm.generate_json.return_value = {
             "paths": [
-                {"path_id": "path_1", "theme": "Dark", "tone": "dark", "outlines": [
-                    {"chapter_number": 4, "title": "Ch4", "summary": "S4", "key_events": []}
-                ]},
-                {"path_id": "path_2", "theme": "Light", "tone": "hopeful", "outlines": [
-                    {"chapter_number": 4, "title": "Ch4B", "summary": "S4B", "key_events": []}
-                ]},
-                {"path_id": "path_3", "theme": "Romance", "tone": "romantic", "outlines": [
-                    {"chapter_number": 4, "title": "Ch4C", "summary": "S4C", "key_events": []}
-                ]},
+                {
+                    "path_id": "path_1",
+                    "theme": "Dark",
+                    "tone": "dark",
+                    "outlines": [
+                        {
+                            "chapter_number": 4,
+                            "title": "Ch4",
+                            "summary": "S4",
+                            "key_events": [],
+                        }
+                    ],
+                },
+                {
+                    "path_id": "path_2",
+                    "theme": "Light",
+                    "tone": "hopeful",
+                    "outlines": [
+                        {
+                            "chapter_number": 4,
+                            "title": "Ch4B",
+                            "summary": "S4B",
+                            "key_events": [],
+                        }
+                    ],
+                },
+                {
+                    "path_id": "path_3",
+                    "theme": "Romance",
+                    "tone": "romantic",
+                    "outlines": [
+                        {
+                            "chapter_number": 4,
+                            "title": "Ch4C",
+                            "summary": "S4C",
+                            "key_events": [],
+                        }
+                    ],
+                },
             ]
         }
 
-        paths = generate_continuation_paths(gen, draft, additional_chapters=5, num_paths=3)
+        paths = generate_continuation_paths(
+            gen, draft, additional_chapters=5, num_paths=3
+        )
 
         assert len(paths) == 3
         assert paths[0]["path_id"] == "path_1"
@@ -132,7 +197,9 @@ class TestGenerateContinuationPaths:
         # Test clamping
         generate_continuation_paths(gen, draft, num_paths=1)  # Should become 2
         call_args = gen.llm.generate_json.call_args
-        user_prompt = call_args.kwargs.get("user_prompt") or call_args[1].get("user_prompt")
+        user_prompt = call_args.kwargs.get("user_prompt") or call_args[1].get(
+            "user_prompt"
+        )
         assert "2 HƯỚNG ĐI" in user_prompt  # Clamped to 2
 
     def test_higher_temperature_for_diversity(self):
@@ -156,14 +223,18 @@ class TestGenerateContinuationPaths:
         gen = _make_generator()
         draft = _make_draft()
         arc_directives = [
-            ArcDirective(character="Hero", from_state="weak", to_state="strong", chapter_span=5),
+            ArcDirective(
+                character="Hero", from_state="weak", to_state="strong", chapter_span=5
+            ),
         ]
         gen.llm.generate_json.return_value = {"paths": []}
 
         generate_continuation_paths(gen, draft, arc_directives=arc_directives)
 
         call_args = gen.llm.generate_json.call_args
-        user_prompt = call_args.kwargs.get("user_prompt") or call_args[1].get("user_prompt")
+        user_prompt = call_args.kwargs.get("user_prompt") or call_args[1].get(
+            "user_prompt"
+        )
         assert "Hero" in user_prompt
         assert "weak" in user_prompt
 
@@ -176,14 +247,20 @@ class TestGenerateContinuationPaths:
         progress_msgs = []
         gen.llm.generate_json.return_value = {"paths": []}
 
-        generate_continuation_paths(gen, draft, num_paths=3, progress_callback=progress_msgs.append)
+        generate_continuation_paths(
+            gen, draft, num_paths=3, progress_callback=progress_msgs.append
+        )
 
-        assert any("alternative" in msg.lower() or "path" in msg.lower() for msg in progress_msgs)
+        assert any(
+            "alternative" in msg.lower() or "path" in msg.lower()
+            for msg in progress_msgs
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Unit Tests: StoryContinuation orchestrator
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 class TestStoryContinuationPaths:
     """Tests for StoryContinuation.generate_continuation_paths method."""
@@ -193,7 +270,9 @@ class TestStoryContinuationPaths:
         from pipeline.orchestrator_continuation import StoryContinuation
 
         output = PipelineOutput()
-        cont = StoryContinuation(output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+        cont = StoryContinuation(
+            output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
 
         with pytest.raises(ValueError, match="No story draft loaded"):
             cont.generate_continuation_paths()
@@ -208,7 +287,9 @@ class TestStoryContinuationPaths:
         story_gen = MagicMock()
         mock_gen_paths.return_value = [{"path_id": "p1", "theme": "T", "outlines": []}]
 
-        cont = StoryContinuation(output, story_gen, MagicMock(), MagicMock(), MagicMock(), MagicMock())
+        cont = StoryContinuation(
+            output, story_gen, MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
         paths = cont.generate_continuation_paths(additional_chapters=5, num_paths=3)
 
         mock_gen_paths.assert_called_once()
@@ -224,7 +305,9 @@ class TestStoryContinuationPaths:
         arc_directives = [ArcDirective(character="X", from_state="a", to_state="b")]
         mock_gen_paths.return_value = []
 
-        cont = StoryContinuation(output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+        cont = StoryContinuation(
+            output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
         cont.generate_continuation_paths(arc_directives=arc_directives)
 
         mock_gen_paths.assert_called_once()
@@ -235,9 +318,11 @@ class TestStoryContinuationPaths:
 # API Tests
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def _make_app() -> FastAPI:
     from fastapi import APIRouter
     from api.continuation_routes import router as continuation_router
+
     app = FastAPI()
     api = APIRouter(prefix="/api")
     api.include_router(continuation_router)
@@ -289,7 +374,14 @@ class TestMultiPathAPI:
             json={
                 "checkpoint": "test.json",
                 "path_id": "path_1",
-                "outlines": [{"chapter_number": 4, "title": "Ch", "summary": "S", "key_events": []}],
+                "outlines": [
+                    {
+                        "chapter_number": 4,
+                        "title": "Ch",
+                        "summary": "S",
+                        "key_events": [],
+                    }
+                ],
             },
         )
         assert resp.status_code == 200
@@ -319,7 +411,12 @@ class TestMultiPathAPI:
                 "checkpoint": "test.json",
                 "num_paths": 3,
                 "arc_directives": [
-                    {"character": "Hero", "from_state": "a", "to_state": "b", "chapter_span": 3}
+                    {
+                        "character": "Hero",
+                        "from_state": "a",
+                        "to_state": "b",
+                        "chapter_span": 3,
+                    }
                 ],
             },
         )

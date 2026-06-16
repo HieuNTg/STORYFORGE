@@ -70,7 +70,9 @@ class _LibraryJob:
     provider: str
     panels_per_chapter: int
     target_numbers: list[int]
-    chapters: dict[int, dict] = field(default_factory=dict)  # ch -> {title,state,image_urls,error}
+    chapters: dict[int, dict] = field(
+        default_factory=dict
+    )  # ch -> {title,state,image_urls,error}
     chapter_images: dict[int, list[str]] = field(default_factory=dict)
     skipped_chapters: list[int] = field(default_factory=list)
     count: int = 0
@@ -254,6 +256,30 @@ class LibraryGenerateImagesRequest(BaseModel):
     only_missing: bool = True
 
 
+class GenerateCoverRequest(BaseModel):
+    """Payload for ``POST /library/generate-cover``.
+
+    Library stories live only in localStorage, so the story's identity +
+    prompt material travel in the body. ``story_id`` scopes the on-disk output
+    folder (two same-title stories must not share a cover) and seeds
+    generation so retries are idempotent.
+    """
+
+    story_id: Optional[str] = None
+    title: str
+    genre: Optional[str] = None
+    synopsis: Optional[str] = None
+
+
+class GenerateCoverResponse(BaseModel):
+    """``cover_url`` is null (HTTP 200) when the provider is disabled or the
+    upstream call failed — the cover is a nice-to-have and must never turn a
+    successful library save into a client-visible error."""
+
+    cover_url: Optional[str] = None
+    message: str = ""
+
+
 class ChapterComicStatus(BaseModel):
     chapter_number: int
     title: str = ""
@@ -302,11 +328,17 @@ class CharacterReferenceUploadResponse(BaseModel):
 def _session_basename(session_id: str) -> str:
     """Strip any path/extension to a filesystem-safe slug for grouping uploads."""
     base = pathlib.Path(session_id).stem or session_id
-    return "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in base).strip("_") or "session"
+    return (
+        "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in base).strip("_")
+        or "session"
+    )
 
 
 def _safe_char_name(name: str) -> str:
-    return "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in name).strip("_") or "char"
+    return (
+        "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in name).strip("_")
+        or "char"
+    )
 
 
 def _reference_url_for(rel_path: str) -> Optional[str]:
@@ -319,6 +351,7 @@ def _reference_url_for(rel_path: str) -> Optional[str]:
     if not rel_path:
         return None
     from services.output_paths import OUTPUT_ROOT
+
     p = pathlib.Path(rel_path)
     output_root = (_PROJECT_ROOT / OUTPUT_ROOT).resolve()
     try:
@@ -334,6 +367,7 @@ def _persist_to_checkpoint(session_id: str, output) -> None:
     if not session_id.endswith(".json"):
         return
     from pipeline.orchestrator_checkpoint import find_checkpoint_path
+
     safe_name = pathlib.Path(session_id).name
     if ".." in session_id or safe_name != session_id:
         logger.warning(f"Refusing to write outside checkpoint dir: {session_id}")
@@ -412,7 +446,10 @@ def _resolve_provider(provider: Optional[str]) -> str:
         return provider
     try:
         from config import ConfigManager
-        return getattr(ConfigManager().load().pipeline, "image_provider", "none") or "none"
+
+        return (
+            getattr(ConfigManager().load().pipeline, "image_provider", "none") or "none"
+        )
     except Exception:
         return "none"
 
@@ -421,13 +458,16 @@ def _resolve_panels_per_chapter() -> int:
     """Best-effort read of configured panels-per-chapter (for status reporting)."""
     try:
         from config import ConfigManager
+
         cfg = ConfigManager().load().pipeline
         return max(1, int(getattr(cfg, "panels_per_chapter", 8)))
     except Exception:
         return 8
 
 
-async def _run_library_job(job: _LibraryJob, draft, body: "LibraryGenerateImagesRequest") -> None:
+async def _run_library_job(
+    job: _LibraryJob, draft, body: "LibraryGenerateImagesRequest"
+) -> None:
     """Background worker that drives one whole-story Library comic job (§2.3/§2.5).
 
     Per target chapter it calls the SAME ``handle_generate_images`` as the sync
@@ -473,7 +513,8 @@ async def _run_library_job(job: _LibraryJob, draft, body: "LibraryGenerateImages
                 cancelled = True
                 break
             entry = job.chapters.setdefault(
-                ch_num, {"title": "", "state": "pending", "image_urls": [], "error": None}
+                ch_num,
+                {"title": "", "state": "pending", "image_urls": [], "error": None},
             )
             entry["state"] = "running"
             try:
@@ -548,7 +589,9 @@ async def generate_library_images(
     """
     draft = _payload_to_story_draft(body.story)
     if not draft.chapters:
-        raise HTTPException(status_code=400, detail="Truyện chưa có chương để tạo truyện tranh")
+        raise HTTPException(
+            status_code=400, detail="Truyện chưa có chương để tạo truyện tranh"
+        )
 
     # Resolve scope SYNCHRONOUSLY (raises 400 over-cap) before accepting the job.
     target_numbers, skipped_chapters = _resolve_target_chapters(
@@ -714,8 +757,65 @@ async def cancel_library_job(job_id: str):
         return _job_to_status(job)
 
 
-@router.post("/{session_id}/generate", response_model=GenerateImagesResponse, dependencies=[_CREATE_STORIES])
-async def generate_images(session_id: str, body: GenerateImagesRequest = GenerateImagesRequest()):
+@router.post(
+    "/library/generate-cover",
+    response_model=GenerateCoverResponse,
+    dependencies=[_CREATE_STORIES],
+)
+async def generate_library_cover(body: GenerateCoverRequest = Body(...)):
+    """Generate ONE cover image for a Library story — awaited inline (~25–30s).
+
+    Called by the frontend right after a story is saved to the localStorage
+    Library so the bookshelf card gets art. The cover is strictly best-effort:
+    when the feature/provider is disabled or generation fails, the response is
+    a 200 with ``cover_url=null`` and the card keeps its gradient placeholder.
+
+    Declared with the other literal ``library`` routes, BEFORE
+    ``/{session_id}/generate``, so path resolution never captures ``library``
+    as a session id (FastAPI resolves routes in declaration order).
+    """
+    title = (body.title or "").strip()
+    if not title:
+        raise HTTPException(
+            status_code=400, detail="Truyện chưa có tiêu đề để tạo ảnh bìa"
+        )
+
+    in_flight_key = f"library::cover::{body.story_id or title}"
+    async with _in_flight_lock:
+        if in_flight_key in _in_flight:
+            raise HTTPException(
+                status_code=409,
+                detail="Cover generation already in progress for this story",
+            )
+        _in_flight.add(in_flight_key)
+    try:
+        from services.cover_image import generate_story_cover
+
+        url = await generate_story_cover(
+            title,
+            genre=body.genre,
+            synopsis=body.synopsis,
+            story_id=body.story_id,
+        )
+        if not url:
+            return GenerateCoverResponse(
+                cover_url=None,
+                message="Cover generation unavailable (provider disabled or failed)",
+            )
+        return GenerateCoverResponse(cover_url=url, message="ok")
+    finally:
+        async with _in_flight_lock:
+            _in_flight.discard(in_flight_key)
+
+
+@router.post(
+    "/{session_id}/generate",
+    response_model=GenerateImagesResponse,
+    dependencies=[_CREATE_STORIES],
+)
+async def generate_images(
+    session_id: str, body: GenerateImagesRequest = GenerateImagesRequest()
+):
     """Generate comic panels for the given session or checkpoint — on-demand.
 
     `session_id` may be an active orchestrator session UUID or a checkpoint
@@ -740,16 +840,23 @@ async def generate_images(session_id: str, body: GenerateImagesRequest = Generat
     full-regenerate bulk mode is still capped at
     ``MAX_CHAPTERS_PER_IMAGE_CALL`` to bound a single request's cost.
     """
-    in_flight_key = f"{session_id}::{body.chapter}" if body.chapter is not None else session_id
+    in_flight_key = (
+        f"{session_id}::{body.chapter}" if body.chapter is not None else session_id
+    )
     async with _in_flight_lock:
         if in_flight_key in _in_flight:
-            raise HTTPException(status_code=409, detail="Image generation already in progress for this story")
+            raise HTTPException(
+                status_code=409,
+                detail="Image generation already in progress for this story",
+            )
         _in_flight.add(in_flight_key)
 
     try:
         orch = await _get_story_data(session_id)
         if not orch or not orch.output:
-            raise HTTPException(status_code=404, detail="Session or checkpoint not found")
+            raise HTTPException(
+                status_code=404, detail="Session or checkpoint not found"
+            )
 
         story = orch.output.enhanced_story or orch.output.story_draft
         all_chapters = list(story.chapters) if story and story.chapters else []
@@ -761,7 +868,9 @@ async def generate_images(session_id: str, body: GenerateImagesRequest = Generat
         elif body.only_missing:
             # Incremental: only chapters with no panels yet.
             target_numbers = [
-                ch.chapter_number for ch in all_chapters if not getattr(ch, "images", None)
+                ch.chapter_number
+                for ch in all_chapters
+                if not getattr(ch, "images", None)
             ]
             skipped_chapters = [
                 ch.chapter_number for ch in all_chapters if getattr(ch, "images", None)
@@ -783,7 +892,11 @@ async def generate_images(session_id: str, body: GenerateImagesRequest = Generat
         if not provider:
             try:
                 from config import ConfigManager
-                provider = getattr(ConfigManager().load().pipeline, "image_provider", "none") or "none"
+
+                provider = (
+                    getattr(ConfigManager().load().pipeline, "image_provider", "none")
+                    or "none"
+                )
             except Exception:
                 provider = "none"
 
@@ -829,7 +942,11 @@ async def generate_images(session_id: str, body: GenerateImagesRequest = Generat
             _in_flight.discard(in_flight_key)
 
 
-@router.get("/{session_id}/status", response_model=ComicStatusResponse, dependencies=[_READ_STORIES])
+@router.get(
+    "/{session_id}/status",
+    response_model=ComicStatusResponse,
+    dependencies=[_READ_STORIES],
+)
 async def get_comic_status(session_id: str):
     """Per-chapter comic-panel status for a session or checkpoint.
 
@@ -848,6 +965,7 @@ async def get_comic_status(session_id: str):
 
     try:
         from config import ConfigManager
+
         cfg = ConfigManager().load().pipeline
         provider = getattr(cfg, "image_provider", "none") or "none"
         panels_per_chapter = max(1, int(getattr(cfg, "panels_per_chapter", 8)))
@@ -883,8 +1001,11 @@ async def get_comic_status(session_id: str):
     )
 
 
-
-@router.get("/{session_id}/profiles", response_model=CharacterProfilesResponse, dependencies=[_READ_STORIES])
+@router.get(
+    "/{session_id}/profiles",
+    response_model=CharacterProfilesResponse,
+    dependencies=[_READ_STORIES],
+)
 async def get_character_profiles(session_id: str):
     """Return per-character visual profiles for a session or checkpoint.
 
@@ -899,6 +1020,7 @@ async def get_character_profiles(session_id: str):
     characters = list(draft.characters) if draft and draft.characters else []
 
     from services.character_visual_profile import CharacterVisualProfileStore
+
     store = CharacterVisualProfileStore(story_title=getattr(draft, "title", None))
 
     profiles: list[CharacterProfile] = []
@@ -941,23 +1063,32 @@ async def rebuild_character_profile(session_id: str, character_name: str):
     in_flight_key = f"{session_id}::profile::{decoded_name}"
     async with _in_flight_lock:
         if in_flight_key in _in_flight:
-            raise HTTPException(status_code=409, detail="Profile rebuild already in progress")
+            raise HTTPException(
+                status_code=409, detail="Profile rebuild already in progress"
+            )
         _in_flight.add(in_flight_key)
 
     try:
         orch = await _get_story_data(session_id)
         if not orch or not orch.output:
-            raise HTTPException(status_code=404, detail="Session or checkpoint not found")
+            raise HTTPException(
+                status_code=404, detail="Session or checkpoint not found"
+            )
 
         draft = orch.output.story_draft
         characters = list(draft.characters) if draft and draft.characters else []
         target = next(
-            (c for c in characters
-             if (getattr(c, "name", "") or "").lower() == decoded_name.lower()),
+            (
+                c
+                for c in characters
+                if (getattr(c, "name", "") or "").lower() == decoded_name.lower()
+            ),
             None,
         )
         if target is None:
-            raise HTTPException(status_code=404, detail=f"Character '{decoded_name}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Character '{decoded_name}' not found"
+            )
 
         from services.character_visual_extractor import CharacterVisualExtractor
         from services.character_visual_profile import CharacterVisualProfileStore
@@ -1014,7 +1145,9 @@ async def upload_character_reference(
     in_flight_key = f"{session_id}::ref::{decoded_name}"
     async with _in_flight_lock:
         if in_flight_key in _in_flight:
-            raise HTTPException(status_code=409, detail="Reference upload already in progress")
+            raise HTTPException(
+                status_code=409, detail="Reference upload already in progress"
+            )
         _in_flight.add(in_flight_key)
 
     try:
@@ -1035,21 +1168,29 @@ async def upload_character_reference(
 
         orch = await _get_story_data(session_id)
         if not orch or not orch.output:
-            raise HTTPException(status_code=404, detail="Session or checkpoint not found")
+            raise HTTPException(
+                status_code=404, detail="Session or checkpoint not found"
+            )
 
         draft = orch.output.story_draft
         characters = list(draft.characters) if draft and draft.characters else []
         target = next(
-            (c for c in characters
-             if (getattr(c, "name", "") or "").lower() == decoded_name.lower()),
+            (
+                c
+                for c in characters
+                if (getattr(c, "name", "") or "").lower() == decoded_name.lower()
+            ),
             None,
         )
         if target is None:
-            raise HTTPException(status_code=404, detail=f"Character '{decoded_name}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Character '{decoded_name}' not found"
+            )
 
         # Resolve storage path with traversal guard. References live under the
         # per-story images dir: output/<story-slug>/images/references/<session>/
         from services.output_paths import images_dir as _images_dir
+
         ext = _REF_ALLOWED_TYPES[content_type]
         refs_root = (
             _PROJECT_ROOT / _images_dir(getattr(draft, "title", None)) / "references"
@@ -1079,6 +1220,7 @@ async def upload_character_reference(
         # Update the profile's reference_image without re-running the LLM extractor.
         # If no profile exists yet, seed a minimal one so the reference is retained.
         from services.character_visual_profile import CharacterVisualProfileStore
+
         store = CharacterVisualProfileStore(story_title=getattr(draft, "title", None))
         rel_path = target_path.relative_to(_PROJECT_ROOT).as_posix()
         if not store.set_reference_image(target.name, rel_path):

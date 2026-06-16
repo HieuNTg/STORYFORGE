@@ -12,9 +12,13 @@ def _psych(name="A", pressure=0.0):
 
 def _thread(tid, involved, urgency=5, last_ch=0, status="open"):
     return PlotThread(
-        thread_id=tid, description="d", planted_chapter=1,
-        status=status, involved_characters=list(involved),
-        last_mentioned_chapter=last_ch, urgency=urgency,
+        thread_id=tid,
+        description="d",
+        planted_chapter=1,
+        status=status,
+        involved_characters=list(involved),
+        last_mentioned_chapter=last_ch,
+        urgency=urgency,
     )
 
 
@@ -91,9 +95,13 @@ def test_never_mentioned_uses_planted_chapter_for_staleness():
     p = _psych("A", 0.0)
     # Planted ch1, never mentioned since → stale by current-1 at any later chapter
     t = PlotThread(
-        thread_id="t1", description="d", planted_chapter=1,
-        status="open", involved_characters=["A"],
-        last_mentioned_chapter=0, urgency=5,
+        thread_id="t1",
+        description="d",
+        planted_chapter=1,
+        status="open",
+        involved_characters=["A"],
+        last_mentioned_chapter=0,
+        urgency=5,
     )
     delta = eng.apply_thread_pressure(p, [t], current_chapter=10)
     assert delta == 0.20  # staleness=9, urgency=5, status=open

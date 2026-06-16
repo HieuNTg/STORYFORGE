@@ -102,7 +102,9 @@ class PromptManager:
                 "name": name,
                 "constant": const_name,
                 "source": "yaml" if has_yaml else "hardcoded",
-                "version": yaml_data.get("version", "hardcoded") if has_yaml else "hardcoded",
+                "version": yaml_data.get("version", "hardcoded")
+                if has_yaml
+                else "hardcoded",
                 "has_variants": has_yaml,
                 "description": yaml_data.get("description", "") if has_yaml else "",
             }
@@ -119,20 +121,19 @@ class PromptManager:
             return version
         base = self._prompts_dir
         try:
-            dirs = [
-                d for d in os.listdir(base)
-                if os.path.isdir(os.path.join(base, d))
-            ]
+            dirs = [d for d in os.listdir(base) if os.path.isdir(os.path.join(base, d))]
         except FileNotFoundError:
             return "v1"
         if not dirs:
             return "v1"
+
         # Sort version dirs (v1 < v2 …) by stripping leading 'v' and comparing ints
         def _ver_key(d: str) -> int:
             try:
                 return int(d.lstrip("v"))
             except ValueError:
                 return 0
+
         dirs.sort(key=_ver_key, reverse=True)
         return dirs[0]
 
@@ -170,7 +171,9 @@ class PromptManager:
             module = importlib.import_module("services.prompts")
             return getattr(module, const_name, None)
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Could not import hardcoded prompt '%s': %s", const_name, exc)
+            logger.warning(
+                "Could not import hardcoded prompt '%s': %s", const_name, exc
+            )
             return None
 
 

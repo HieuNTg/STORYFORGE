@@ -1,4 +1,5 @@
 """Tests for services/thread_pool_manager.py and services/_thread_pool_impl.py."""
+
 import threading
 import pytest
 from unittest.mock import patch
@@ -11,6 +12,7 @@ from services._thread_pool_impl import _optimal_workers, _POOL_SPECS
 # ---------------------------------------------------------------------------
 # _optimal_workers
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestOptimalWorkers:
@@ -39,6 +41,7 @@ class TestOptimalWorkers:
 # ThreadPoolManager — singleton
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestThreadPoolManagerSingleton:
     def test_singleton_returns_same_instance(self):
@@ -64,6 +67,7 @@ class TestThreadPoolManagerSingleton:
 # ---------------------------------------------------------------------------
 # ThreadPoolManager — pool management
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestThreadPoolManagerPools:
@@ -95,6 +99,7 @@ class TestThreadPoolManagerPools:
 # ---------------------------------------------------------------------------
 # ThreadPoolManager — submit and active_count
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestThreadPoolManagerSubmit:
@@ -160,6 +165,7 @@ class TestThreadPoolManagerSubmit:
 # ThreadPoolManager — repr
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestThreadPoolManagerRepr:
     def test_repr_contains_pool_names(self):
@@ -172,6 +178,7 @@ class TestThreadPoolManagerRepr:
 # ---------------------------------------------------------------------------
 # get_thread_pool_manager
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestGetThreadPoolManager:

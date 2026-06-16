@@ -2,18 +2,25 @@
 
 from unittest.mock import MagicMock
 from models.schemas import (
-    StoryContext, StructuredSummary, PlotThread, ChapterOutline,
+    StoryContext,
+    StructuredSummary,
+    PlotThread,
+    ChapterOutline,
 )
 from pipeline.layer1_story.plot_thread_tracker import get_stale_threads
-from pipeline.layer1_story.structured_summary_extractor import extract_structured_summary
+from pipeline.layer1_story.structured_summary_extractor import (
+    extract_structured_summary,
+)
 from pipeline.layer1_story.chapter_writer import _append_consistency_context
 
 
 class TestGetStaleThreads:
     def _thread(self, desc, planted, last_mentioned, status="open"):
         return PlotThread(
-            thread_id=f"t_{desc}", description=desc,
-            planted_chapter=planted, last_mentioned_chapter=last_mentioned,
+            thread_id=f"t_{desc}",
+            description=desc,
+            planted_chapter=planted,
+            last_mentioned_chapter=last_mentioned,
             status=status,
         )
 
@@ -33,8 +40,8 @@ class TestGetStaleThreads:
 
     def test_dynamic_gap_calculation(self):
         """min(10, max(3, total // 3)) for various story lengths."""
-        assert min(10, max(3, 6 // 3)) == 3    # 6-chapter story → gap 3
-        assert min(10, max(3, 15 // 3)) == 5   # 15-chapter story → gap 5
+        assert min(10, max(3, 6 // 3)) == 3  # 6-chapter story → gap 3
+        assert min(10, max(3, 15 // 3)) == 5  # 15-chapter story → gap 5
         assert min(10, max(3, 30 // 3)) == 10  # 30-chapter story → gap 10
         assert min(10, max(3, 60 // 3)) == 10  # 60-chapter story → capped at 10
 
@@ -68,7 +75,10 @@ class TestStructuredSummaryNewFields:
             "brief_summary": "Minh phát hiện hang động bí ẩn.",
         }
         structured, brief = extract_structured_summary(llm, "content", 3, [])
-        assert structured.chapter_ending_hook == "Minh đứng trước cửa hang, bóng tối nuốt chửng"
+        assert (
+            structured.chapter_ending_hook
+            == "Minh đứng trước cửa hang, bóng tối nuốt chửng"
+        )
         assert structured.actual_emotional_arc == "hy vọng → tuyệt vọng"
 
     def test_defaults_when_missing(self):
@@ -111,9 +121,11 @@ class TestAppendConsistencyContext:
         return StoryContext(total_chapters=20, **kwargs)
 
     def test_stale_thread_warnings_injected(self):
-        ctx = self._context(stale_thread_warnings=[
-            "Tuyến 'bí mật' bị bỏ quên 8 chương",
-        ])
+        ctx = self._context(
+            stale_thread_warnings=[
+                "Tuyến 'bí mật' bị bỏ quên 8 chương",
+            ]
+        )
         parts = []
         _append_consistency_context(parts, ctx)
         assert any("TUYẾN TRUYỆN BỊ BỎ QUÊN" in p for p in parts)
@@ -134,7 +146,9 @@ class TestAppendConsistencyContext:
         assert any("Minh ngã xuống vực" in p for p in parts)
 
     def test_emotional_history_injected(self):
-        ctx = self._context(emotional_history=["vui → buồn", "buồn → giận", "giận → bình tĩnh"])
+        ctx = self._context(
+            emotional_history=["vui → buồn", "buồn → giận", "giận → bình tĩnh"]
+        )
         parts = []
         _append_consistency_context(parts, ctx)
         assert any("Dòng cảm xúc gần đây" in p for p in parts)
@@ -165,8 +179,11 @@ class TestPostProcessingIntegration:
 
     def _make_outline(self, ch_num):
         return ChapterOutline(
-            chapter_number=ch_num, title=f"Ch {ch_num}",
-            summary="s", key_events=["e"], emotional_arc="hope",
+            chapter_number=ch_num,
+            title=f"Ch {ch_num}",
+            summary="s",
+            key_events=["e"],
+            emotional_arc="hope",
         )
 
     def test_hook_and_emotional_stored_after_structured_summary(self):
@@ -190,8 +207,11 @@ class TestPostProcessingIntegration:
 
     def test_stale_warning_format(self):
         t = PlotThread(
-            thread_id="t1", description="con rồng",
-            planted_chapter=1, last_mentioned_chapter=2, status="open",
+            thread_id="t1",
+            description="con rồng",
+            planted_chapter=1,
+            last_mentioned_chapter=2,
+            status="open",
         )
         stale = get_stale_threads([t], current_chapter=15, stale_gap=10)
         assert len(stale) == 1

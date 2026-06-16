@@ -7,6 +7,9 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 
 from middleware.rbac import Permission, require_permission_if_enabled
+from services.llm.provider_config_keys import (
+    get_api_keys_from_config as _get_api_keys_from_config,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -17,64 +20,6 @@ router = APIRouter(
 )
 
 
-def _get_api_keys_from_config() -> dict[str, str]:
-    """Extract API keys for each provider from config."""
-    try:
-        from config import ConfigManager
-        cfg = ConfigManager()
-
-        keys = {}
-        base_url = getattr(cfg.llm, "base_url", "") or ""
-
-        # Detect primary provider
-        url_lower = base_url.lower()
-        if "openrouter" in url_lower:
-            keys["openrouter"] = cfg.llm.api_key
-        elif "kymaapi.com" in url_lower:
-            keys["kyma"] = cfg.llm.api_key
-        elif "anthropic.com" in url_lower:
-            keys["anthropic"] = cfg.llm.api_key
-        elif "googleapis.com" in url_lower or "generativelanguage" in url_lower:
-            keys["google"] = cfg.llm.api_key
-        elif "z.ai" in url_lower:
-            keys["zai"] = cfg.llm.api_key
-        else:
-            keys["openai"] = cfg.llm.api_key
-
-        # Check for additional keys in fallback_models
-        for fb in getattr(cfg.llm, "fallback_models", []) or []:
-            if not isinstance(fb, dict):
-                continue
-            fb_url = fb.get("base_url", "").lower()
-            fb_key = fb.get("api_key", "")
-            if not fb_key:
-                continue
-            if "openrouter" in fb_url:
-                keys.setdefault("openrouter", fb_key)
-            elif "kymaapi.com" in fb_url:
-                keys.setdefault("kyma", fb_key)
-            elif "anthropic.com" in fb_url:
-                keys.setdefault("anthropic", fb_key)
-            elif "googleapis.com" in fb_url:
-                keys.setdefault("google", fb_key)
-            elif "z.ai" in fb_url:
-                keys.setdefault("zai", fb_key)
-
-        # Check environment for additional keys
-        import os
-        if "ANTHROPIC_API_KEY" in os.environ and "anthropic" not in keys:
-            keys["anthropic"] = os.environ["ANTHROPIC_API_KEY"]
-        if "GOOGLE_AI_API_KEY" in os.environ and "google" not in keys:
-            keys["google"] = os.environ["GOOGLE_AI_API_KEY"]
-        if "ZAI_API_KEY" in os.environ and "zai" not in keys:
-            keys["zai"] = os.environ["ZAI_API_KEY"]
-
-        return keys
-    except Exception as e:
-        logger.warning(f"Failed to get API keys from config: {e}")
-        return {}
-
-
 @router.get("/status", summary="Get all provider statuses")
 async def get_all_provider_status():
     """Get rate limit and model availability for all configured providers."""
@@ -83,10 +28,12 @@ async def get_all_provider_status():
     mgr = get_provider_status_manager()
     api_keys = _get_api_keys_from_config()
 
-    return JSONResponse(content={
-        "providers": mgr.get_all_statuses(api_keys),
-        "configured_providers": list(api_keys.keys()),
-    })
+    return JSONResponse(
+        content={
+            "providers": mgr.get_all_statuses(api_keys),
+            "configured_providers": list(api_keys.keys()),
+        }
+    )
 
 
 @router.get("/status/{provider_type}", summary="Get specific provider status")
@@ -115,11 +62,13 @@ async def get_provider_models(
 
     models = mgr.get_available_models(provider_type, api_key, force_refresh=refresh)
 
-    return JSONResponse(content={
-        "provider": provider_type,
-        "models": models,
-        "count": len(models),
-    })
+    return JSONResponse(
+        content={
+            "provider": provider_type,
+            "models": models,
+            "count": len(models),
+        }
+    )
 
 
 @router.post("/refresh", summary="Force refresh all provider data")
@@ -132,10 +81,12 @@ async def refresh_all_providers():
 
     result = mgr.refresh_all(api_keys)
 
-    return JSONResponse(content={
-        "status": "refreshed",
-        "providers": result,
-    })
+    return JSONResponse(
+        content={
+            "status": "refreshed",
+            "providers": result,
+        }
+    )
 
 
 @router.get("/quota-check", summary="Check if any provider has low quota")
@@ -157,20 +108,24 @@ async def check_quota_status(
     for ptype, api_key in api_keys.items():
         if mgr.is_quota_low(ptype, api_key, threshold):
             status = mgr.get_rate_limit(ptype, api_key)
-            low_quota.append({
-                "provider": ptype,
-                "quota_pct": status.min_pct if status else None,
-                "reset_at": status.reset_at if status else None,
-            })
+            low_quota.append(
+                {
+                    "provider": ptype,
+                    "quota_pct": status.min_pct if status else None,
+                    "reset_at": status.reset_at if status else None,
+                }
+            )
         else:
             ok_providers.append(ptype)
 
-    return JSONResponse(content={
-        "low_quota_providers": low_quota,
-        "ok_providers": ok_providers,
-        "threshold": threshold,
-        "should_switch": len(low_quota) > 0,
-    })
+    return JSONResponse(
+        content={
+            "low_quota_providers": low_quota,
+            "ok_providers": ok_providers,
+            "threshold": threshold,
+            "should_switch": len(low_quota) > 0,
+        }
+    )
 
 
 @router.get("/health", summary="Live health snapshot for fallback chain")
@@ -194,12 +149,14 @@ async def get_providers_health():
     client = LLMClient()
     rl = client.rate_limit_snapshot()
 
-    return JSONResponse(content={
-        "providers": providers,
-        "rate_limited_keys": rl["rate_limited_keys"],
-        "rate_limited_models": rl["rate_limited_models"],
-        "snapshot_ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-    })
+    return JSONResponse(
+        content={
+            "providers": providers,
+            "rate_limited_keys": rl["rate_limited_keys"],
+            "rate_limited_models": rl["rate_limited_models"],
+            "snapshot_ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
+    )
 
 
 @router.get("/fallbacks", summary="Get usable fallback models")

@@ -10,6 +10,7 @@ def _get_adaptive_config() -> dict:
     """Load adaptive config from PipelineConfig if available."""
     try:
         from config import ConfigManager
+
         cfg = ConfigManager().pipeline
         return {
             "drama_threshold": getattr(cfg, "l2_drama_threshold", 0.5),
@@ -29,8 +30,8 @@ def _get_adaptive_config() -> dict:
 
 
 # Legacy constants for backwards compatibility
-DRAMA_THRESHOLD = 0.5   # Dưới ngưỡng này = vòng yếu
-DRAMA_TARGET = 0.65     # Dừng khi trung bình đạt mức này
+DRAMA_THRESHOLD = 0.5  # Dưới ngưỡng này = vòng yếu
+DRAMA_TARGET = 0.65  # Dừng khi trung bình đạt mức này
 MIN_ROUNDS = 3
 MAX_ROUNDS = 10
 
@@ -60,7 +61,9 @@ class AdaptiveController:
         self.min_rounds = min_rounds or _cfg["min_rounds"]
         self.max_rounds = max_rounds or _cfg["max_rounds"]
         self.drama_threshold = _cfg["drama_threshold"]
-        self.stall_threshold = _cfg["stall_threshold"]  # Rounds with no improvement before force-stop
+        self.stall_threshold = _cfg[
+            "stall_threshold"
+        ]  # Rounds with no improvement before force-stop
 
         self.history: list[RoundFeedback] = []
         self._stall_count = 0  # Track consecutive rounds with no improvement
@@ -73,7 +76,9 @@ class AdaptiveController:
         else:
             self.drama_target = _cfg["drama_target"]
         if self.pacing_directive:
-            logger.info(f"[Adaptive] pacing={self.pacing_directive} → DRAMA_TARGET={self.drama_target}")
+            logger.info(
+                f"[Adaptive] pacing={self.pacing_directive} → DRAMA_TARGET={self.drama_target}"
+            )
 
     def record_round(self, round_num: int, drama_score: float) -> None:
         """Ghi lại kết quả vòng và điều chỉnh cường độ cho vòng tiếp theo."""
@@ -81,7 +86,9 @@ class AdaptiveController:
 
         # Check for stall (no improvement)
         if self.history:
-            prev_avg = sum(h.drama_score for h in self.history[-3:]) / min(3, len(self.history))
+            prev_avg = sum(h.drama_score for h in self.history[-3:]) / min(
+                3, len(self.history)
+            )
             if abs(drama_score - prev_avg) < 0.02:  # Less than 2% change
                 self._stall_count += 1
                 fb.note = f"Stall detected ({self._stall_count}/{self.stall_threshold})"
@@ -91,12 +98,18 @@ class AdaptiveController:
         if drama_score < self.drama_threshold:
             self._escalate()
             fb.escalation_applied = True
-            fb.note = f"Vòng yếu ({drama_score:.2f} < {self.drama_threshold}), leo thang"
-            logger.info(f"[Adaptive] Vòng {round_num}: drama thấp {drama_score:.2f} → leo thang")
+            fb.note = (
+                f"Vòng yếu ({drama_score:.2f} < {self.drama_threshold}), leo thang"
+            )
+            logger.info(
+                f"[Adaptive] Vòng {round_num}: drama thấp {drama_score:.2f} → leo thang"
+            )
         elif drama_score > 0.85:
             self._deescalate()
             fb.note = f"Drama rất cao ({drama_score:.2f}), hạ nhiệt nhẹ"
-            logger.info(f"[Adaptive] Vòng {round_num}: drama cao {drama_score:.2f} → hạ nhiệt")
+            logger.info(
+                f"[Adaptive] Vòng {round_num}: drama cao {drama_score:.2f} → hạ nhiệt"
+            )
         self.history.append(fb)
 
     def should_continue(self, round_num: int) -> bool:
@@ -121,7 +134,9 @@ class AdaptiveController:
 
         # Target reached
         if avg >= self.drama_target:
-            logger.info(f"[Adaptive] Target reached: avg={avg:.2f} >= {self.drama_target}")
+            logger.info(
+                f"[Adaptive] Target reached: avg={avg:.2f} >= {self.drama_target}"
+            )
             return False
 
         return True
@@ -132,19 +147,32 @@ class AdaptiveController:
 
     def _escalate(self) -> None:
         """Tăng nhiệt độ +0.05, escalation_scale +0.15, reaction_depth +1."""
-        self.current["temperature"] = min(1.0, self.current.get("temperature", 0.85) + 0.05)
-        self.current["escalation_scale"] = min(2.0, self.current.get("escalation_scale", 1.0) + 0.15)
-        self.current["reaction_depth"] = min(4, self.current.get("reaction_depth", 2) + 1)
+        self.current["temperature"] = min(
+            1.0, self.current.get("temperature", 0.85) + 0.05
+        )
+        self.current["escalation_scale"] = min(
+            2.0, self.current.get("escalation_scale", 1.0) + 0.15
+        )
+        self.current["reaction_depth"] = min(
+            4, self.current.get("reaction_depth", 2) + 1
+        )
 
     def _deescalate(self) -> None:
         """Giảm nhẹ nhiệt độ -0.03, reaction_depth -1."""
-        self.current["temperature"] = max(0.7, self.current.get("temperature", 0.85) - 0.03)
-        self.current["reaction_depth"] = max(1, self.current.get("reaction_depth", 2) - 1)
+        self.current["temperature"] = max(
+            0.7, self.current.get("temperature", 0.85) - 0.03
+        )
+        self.current["reaction_depth"] = max(
+            1, self.current.get("reaction_depth", 2) - 1
+        )
 
-    def get_tension_modifier_actual(self, genre: str, round_num: int, total_rounds: int) -> float:
+    def get_tension_modifier_actual(
+        self, genre: str, round_num: int, total_rounds: int
+    ) -> float:
         """Kết hợp đường cong toán học (0.6) với drama thực tế (0.4) cho tension modifier."""
         try:
             from pipeline.layer2_enhance.drama_patterns import get_tension_modifier
+
             position = round_num / max(1, total_rounds)
             math_modifier = get_tension_modifier(genre, position)
         except Exception as e:
@@ -174,6 +202,7 @@ class DramaCeilingController:
 
     def __init__(self, genre: str, chapter_position: float = 0.5):
         from pipeline.layer2_enhance.drama_patterns import get_genre_drama_ceiling
+
         self.genre = genre
         self.chapter_position = chapter_position
         self.base_ceiling = get_genre_drama_ceiling(genre)
@@ -193,7 +222,9 @@ class DramaCeilingController:
 
         return ceiling
 
-    def check_and_cap(self, drama_score: float, chapter_num: int = 0) -> tuple[float, bool]:
+    def check_and_cap(
+        self, drama_score: float, chapter_num: int = 0
+    ) -> tuple[float, bool]:
         """Check drama score and cap if needed.
 
         Returns (capped_score, was_capped).
@@ -201,12 +232,14 @@ class DramaCeilingController:
         if drama_score <= self.ceiling:
             return drama_score, False
 
-        self.violations.append({
-            "chapter": chapter_num,
-            "original": drama_score,
-            "capped_to": self.ceiling,
-            "excess": drama_score - self.ceiling,
-        })
+        self.violations.append(
+            {
+                "chapter": chapter_num,
+                "original": drama_score,
+                "capped_to": self.ceiling,
+                "excess": drama_score - self.ceiling,
+            }
+        )
 
         logger.info(
             f"[DramaCeiling] Ch{chapter_num}: capped {drama_score:.2f} → {self.ceiling:.2f} "
@@ -215,7 +248,9 @@ class DramaCeilingController:
 
         return self.ceiling, True
 
-    def check_melodrama(self, content: str, chapter_num: int = 0) -> tuple[bool, list[str]]:
+    def check_melodrama(
+        self, content: str, chapter_num: int = 0
+    ) -> tuple[bool, list[str]]:
         """Check for melodrama in content.
 
         Returns (is_melodramatic, indicators_found).
@@ -225,11 +260,13 @@ class DramaCeilingController:
         is_melodrama, found = detect_melodrama(content, threshold=3)
 
         if is_melodrama:
-            self.violations.append({
-                "chapter": chapter_num,
-                "type": "melodrama",
-                "indicators": found,
-            })
+            self.violations.append(
+                {
+                    "chapter": chapter_num,
+                    "type": "melodrama",
+                    "indicators": found,
+                }
+            )
             logger.warning(
                 f"[DramaCeiling] Ch{chapter_num}: melodrama detected ({len(found)} indicators)"
             )
@@ -239,6 +276,7 @@ class DramaCeilingController:
     def get_enforcement_prompt(self) -> str:
         """Get prompt block for drama ceiling enforcement."""
         from pipeline.layer2_enhance.drama_patterns import format_drama_ceiling_prompt
+
         return format_drama_ceiling_prompt(self.genre, self.chapter_position)
 
     def get_summary(self) -> dict:
@@ -253,8 +291,7 @@ class DramaCeilingController:
             "total_capped": len(capped),
             "total_melodrama": len(melodrama),
             "avg_excess": (
-                sum(v["excess"] for v in capped) / len(capped)
-                if capped else 0.0
+                sum(v["excess"] for v in capped) / len(capped) if capped else 0.0
             ),
         }
 

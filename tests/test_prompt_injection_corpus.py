@@ -2,13 +2,17 @@
 
 Loads tests/security/prompt-injection-corpus.json and verifies that
 sanitize_input() blocks/allows payloads matching the expected_blocked field.
+
+sanitize_input() raises InjectionBlockedError on detection when blocking is
+enabled (the default via STORYFORGE_BLOCK_INJECTION); a normal return means
+the payload was allowed.
 """
 
 import json
 import os
 import pytest
 
-from services.input_sanitizer import sanitize_input
+from services.input_sanitizer import InjectionBlockedError, sanitize_input
 
 # ---------------------------------------------------------------------------
 # Load corpus
@@ -44,28 +48,33 @@ def test_corpus_entry(entry):
     description = entry.get("description", "")
     is_gap = entry.get("sanitizer_gap", False)
 
-    result = sanitize_input(payload)
+    try:
+        result = sanitize_input(payload)
+        blocked = not result.is_safe
+        threats = result.threats_found
+    except InjectionBlockedError as exc:
+        blocked = True
+        threats = exc.threats_found
 
     if expected_blocked:
-        assert not result.is_safe, (
+        assert blocked, (
             f"[{entry_id}] Expected BLOCKED but was ALLOWED.\n"
             f"  Description: {description}\n"
             f"  Payload: {payload!r}\n"
-            f"  Threats found: {result.threats_found}"
+            f"  Threats found: {threats}"
         )
-        assert len(result.threats_found) > 0, (
-            f"[{entry_id}] is_safe=False but threats_found is empty"
-        )
+        assert len(threats) > 0, f"[{entry_id}] blocked but threats_found is empty"
     else:
-        assert result.is_safe, (
+        assert not blocked, (
             f"[{entry_id}] Expected ALLOWED but was BLOCKED.\n"
             f"  Description: {description}\n"
             f"  Payload: {payload!r}\n"
-            f"  Threats found: {result.threats_found}"
+            f"  Threats found: {threats}"
         )
         if is_gap:
             # Log known gap entries so they're visible in CI output
             import warnings
+
             warnings.warn(
                 f"[{entry_id}] Known detection gap — sanitizer does not yet detect: {description}",
                 UserWarning,
@@ -107,6 +116,11 @@ def test_corpus_has_safe_entries():
 def test_corpus_categories_coverage():
     """Corpus should cover all major attack categories."""
     categories = {e["category"] for e in _CORPUS}
-    required = {"jailbreak", "role_play_escape", "delimiter_attack", "indirect_injection"}
+    required = {
+        "jailbreak",
+        "role_play_escape",
+        "delimiter_attack",
+        "indirect_injection",
+    }
     missing = required - categories
     assert not missing, f"Missing categories in corpus: {missing}"

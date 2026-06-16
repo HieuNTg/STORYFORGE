@@ -24,6 +24,7 @@ _store: dict[str, list] = {}
 # Request / Response models
 # ---------------------------------------------------------------------------
 
+
 class FeedbackRequest(BaseModel):
     story_id: str = Field(..., min_length=1, max_length=128)
     rating: int = Field(..., ge=1, le=5, description="1–5 star rating")
@@ -51,6 +52,7 @@ class FeedbackListResponse(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
+
 @router.post("", status_code=201)
 async def submit_feedback(body: FeedbackRequest) -> dict:
     """Submit a rating and optional comment for a story."""
@@ -77,10 +79,12 @@ async def get_feedback(
     """Return feedback entries for a story with pagination (auth required)."""
     entries_raw = _store.get(story_id, [])
     if not entries_raw:
-        raise HTTPException(status_code=404, detail=f"No feedback found for story '{story_id}'")
+        raise HTTPException(
+            status_code=404, detail=f"No feedback found for story '{story_id}'"
+        )
 
     total = len(entries_raw)
-    page = entries_raw[offset: offset + limit]
+    page = entries_raw[offset : offset + limit]
     entries = [FeedbackEntry(**e) for e in page]
     all_entries = [FeedbackEntry(**e) for e in entries_raw]
     avg = round(sum(e.rating for e in all_entries) / len(all_entries), 2)

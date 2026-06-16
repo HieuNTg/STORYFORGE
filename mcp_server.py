@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 try:
     import redis as _redis_lib
+
     _REDIS_AVAILABLE = True
 except ImportError:
     _redis_lib = None  # type: ignore[assignment]
@@ -67,7 +68,9 @@ if _REDIS_URL and _REDIS_AVAILABLE:
         _redis_client.ping()
         logger.warning("MCP job store: Redis connected (%s)", _REDIS_URL.split("@")[-1])
     except Exception as _e:
-        logger.warning("MCP job store: Redis unavailable (%s), using in-memory fallback.", _e)
+        logger.warning(
+            "MCP job store: Redis unavailable (%s), using in-memory fallback.", _e
+        )
         _redis_client = None
 
 
@@ -97,15 +100,31 @@ def _set_job(job_id: str, data: dict) -> None:
             logger.warning("Redis set_job error: %s", e)
     _jobs[job_id] = data
 
+
 # ---------------------------------------------------------------------------
 # Genre list (mirrors pipeline_routes._genre_keys without i18n dependency)
 # ---------------------------------------------------------------------------
 GENRES = [
-    "Tiên Hiệp", "Huyền Huyễn", "Kiếm Hiệp", "Đô Thị",
-    "Ngôn Tình", "Xuyên Không", "Trọng Sinh", "Hệ Thống",
-    "Khoa Huyễn", "Đồng Nhân", "Lịch Sử", "Quân Sự",
-    "Linh Dị", "Trinh Thám", "Hài Hước", "Vong Du",
-    "Dị Giới", "Mạt Thế", "Điền Văn", "Cung Đấu",
+    "Tiên Hiệp",
+    "Huyền Huyễn",
+    "Kiếm Hiệp",
+    "Đô Thị",
+    "Ngôn Tình",
+    "Xuyên Không",
+    "Trọng Sinh",
+    "Hệ Thống",
+    "Khoa Huyễn",
+    "Đồng Nhân",
+    "Lịch Sử",
+    "Quân Sự",
+    "Linh Dị",
+    "Trinh Thám",
+    "Hài Hước",
+    "Vong Du",
+    "Dị Giới",
+    "Mạt Thế",
+    "Điền Văn",
+    "Cung Đấu",
 ]
 
 # ---------------------------------------------------------------------------
@@ -176,6 +195,7 @@ TOOLS = [
 # ---------------------------------------------------------------------------
 # Tool handlers
 # ---------------------------------------------------------------------------
+
 
 def _handle_generate_story(args: dict) -> dict:
     """Queue a pipeline job and return a story_id."""
@@ -287,6 +307,7 @@ _TOOL_HANDLERS = {
 # JSON-RPC / MCP protocol
 # ---------------------------------------------------------------------------
 
+
 def _send(obj: Any) -> None:
     sys.stdout.write(json.dumps(obj, ensure_ascii=False) + "\n")
     sys.stdout.flush()
@@ -303,7 +324,8 @@ def _handle_request(req: dict) -> dict | None:
 
     if method == "initialize":
         return {
-            "jsonrpc": "2.0", "id": req_id,
+            "jsonrpc": "2.0",
+            "id": req_id,
             "result": {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
@@ -326,9 +348,15 @@ def _handle_request(req: dict) -> dict | None:
         try:
             result = handler(tool_args)
             return {
-                "jsonrpc": "2.0", "id": req_id,
+                "jsonrpc": "2.0",
+                "id": req_id,
                 "result": {
-                    "content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, indent=2)}],
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": json.dumps(result, ensure_ascii=False, indent=2),
+                        }
+                    ],
                     "isError": "error" in result,
                 },
             }

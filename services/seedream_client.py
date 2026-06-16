@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ImageResult:
     """Result wrapper for a single image generation attempt."""
+
     prompt: str
     image_url: Optional[str] = None
     error: Optional[str] = None
@@ -42,6 +43,7 @@ class SeedreamClient:
         # via full filenames. These are global fallbacks rooted at OUTPUT_ROOT
         # for the rare unscoped direct-use case.
         from services.output_paths import OUTPUT_ROOT
+
         self._output_root = OUTPUT_ROOT
         self.output_dir = os.path.join(OUTPUT_ROOT, "images")
         os.makedirs(self.output_dir, exist_ok=True)
@@ -67,7 +69,7 @@ class SeedreamClient:
             f"detailed facial features, cinematic quality, 4K"
         )
 
-        safe_name = re.sub(r'[^\w\-.]', '_', name.lower())
+        safe_name = re.sub(r"[^\w\-.]", "_", name.lower())
         fname = filename or f"{safe_name}_reference.png"
         output_path = os.path.join(self._output_root, "characters", fname)
 
@@ -116,7 +118,9 @@ class SeedreamClient:
             return []
 
         results: list[ImageResult] = []
-        with ThreadPoolExecutor(max_workers=min(max_workers, len(requests_list))) as executor:
+        with ThreadPoolExecutor(
+            max_workers=min(max_workers, len(requests_list))
+        ) as executor:
             futures = {
                 executor.submit(self.generate_scene, **req): req
                 for req in requests_list
@@ -129,7 +133,9 @@ class SeedreamClient:
                     results.append(ImageResult(prompt=prompt, image_url=path))
                 except Exception as e:
                     logger.error("Batch scene generation failed for %r: %s", prompt, e)
-                    results.append(ImageResult(prompt=prompt, error=str(e), success=False))
+                    results.append(
+                        ImageResult(prompt=prompt, error=str(e), success=False)
+                    )
         return results
 
     # ── Private helpers ────────────────────────────────────────────────────────
@@ -170,7 +176,9 @@ class SeedreamClient:
                 if not os.path.exists(ref_path):
                     continue
                 if os.path.getsize(ref_path) > MAX_REF_SIZE:
-                    logger.warning(f"Skipping reference image (too large >10MB): {ref_path}")
+                    logger.warning(
+                        f"Skipping reference image (too large >10MB): {ref_path}"
+                    )
                     continue
                 with open(ref_path, "rb") as f:
                     b64 = base64.b64encode(f.read()).decode("utf-8")

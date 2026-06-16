@@ -31,14 +31,16 @@ class PlatformExporter:
         chapter_details = []
         for ch in story.chapters:
             words = len(ch.content.split())
-            chapter_details.append({
-                "chapter_number": ch.chapter_number,
-                "title": ch.title,
-                "content": ch.content,
-                "word_count": words,
-                "reading_time_min": max(1, words // 200),
-                "author_notes": "",
-            })
+            chapter_details.append(
+                {
+                    "chapter_number": ch.chapter_number,
+                    "title": ch.title,
+                    "content": ch.content,
+                    "word_count": words,
+                    "reading_time_min": max(1, words // 200),
+                    "author_notes": "",
+                }
+            )
 
         # Metadata
         meta = {
@@ -88,14 +90,19 @@ class PlatformExporter:
             files.append(char_path)
 
         # ZIP bundle
-        safe_title = re.sub(r'[^\w\s-]', '', story.title)[:30].strip() or "story"
+        safe_title = re.sub(r"[^\w\s-]", "", story.title)[:30].strip() or "story"
         zip_path = os.path.join(output_dir, f"{safe_title}_wattpad.zip")
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             for fp in files:
                 zf.write(fp, os.path.basename(fp))
 
         logger.info(f"Wattpad export: {len(files)} files + ZIP -> {output_dir}")
-        return {"files": files, "zip_path": zip_path, "metadata": meta, "output_dir": output_dir}
+        return {
+            "files": files,
+            "zip_path": zip_path,
+            "metadata": meta,
+            "output_dir": output_dir,
+        }
 
     @staticmethod
     def _chapter_to_wattpad_html(chapter) -> str:
@@ -106,8 +113,8 @@ class PlatformExporter:
             p = p.strip()
             if p:
                 escaped = html.escape(p)
-                escaped = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', escaped)
-                escaped = re.sub(r'\*(.+?)\*', r'<i>\1</i>', escaped)
+                escaped = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", escaped)
+                escaped = re.sub(r"\*(.+?)\*", r"<i>\1</i>", escaped)
                 paragraphs.append(f"<p>{escaped}</p>")
         body = "\n".join(paragraphs)
         return f"<h2>Chương {chapter.chapter_number}: {title}</h2>\n{body}"

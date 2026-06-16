@@ -2,6 +2,7 @@
 
 Usage: LOG_FORMAT=json for JSON output, LOG_FORMAT=text (default) for human-readable.
 """
+
 import json
 import logging
 import os
@@ -42,6 +43,7 @@ class _RedactFilter(logging.Filter):
         if record.exc_info and record.exc_info[1]:
             # Re-format traceback as plain text and redact; store in exc_text
             import traceback
+
             tb = "".join(traceback.format_exception(*record.exc_info))
             record.exc_text = _redact(tb)
             record.exc_info = None  # prevent double-formatting
@@ -53,7 +55,9 @@ class JSONFormatter(logging.Formatter):
 
     def format(self, record):
         log_entry = {
-            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "timestamp": datetime.fromtimestamp(
+                record.created, tz=timezone.utc
+            ).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -77,23 +81,26 @@ def configure_logging():
     root.handlers.clear()
 
     import io
-    utf8_stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+
+    utf8_stdout = io.TextIOWrapper(
+        sys.stdout.buffer, encoding="utf-8", errors="replace"
+    )
     if log_format == "json":
         handler = logging.StreamHandler(utf8_stdout)
         handler.setFormatter(JSONFormatter())
     else:
         handler = logging.StreamHandler(utf8_stdout)
-        handler.setFormatter(logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-        ))
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+        )
 
     redact = _RedactFilter()
     handler.addFilter(redact)
     root.addHandler(handler)
     # File handler always uses text format for readability
     file_handler = logging.FileHandler("storyforge.log", encoding="utf-8")
-    file_handler.setFormatter(logging.Formatter(
-        "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-    ))
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    )
     file_handler.addFilter(redact)
     root.addHandler(file_handler)

@@ -27,6 +27,7 @@ from models.handoff_schemas import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _clean_health() -> dict[str, SignalHealth]:
     return {
         "conflict_web": SignalHealth(status="ok", item_count=2),
@@ -104,6 +105,7 @@ def _full_envelope() -> L1Handoff:
 # Construction
 # ---------------------------------------------------------------------------
 
+
 def test_signals_version_constant():
     assert SIGNALS_VERSION == "1.0.0"
 
@@ -144,6 +146,7 @@ def test_conflict_node_intensity_bounds():
 # SignalHealth
 # ---------------------------------------------------------------------------
 
+
 def test_signal_health_accepts_known_statuses():
     for status in ("ok", "empty", "malformed", "extraction_failed"):
         h = SignalHealth(status=status)
@@ -164,6 +167,7 @@ def test_signal_health_rejects_extra_field():
 # Frozen behaviour
 # ---------------------------------------------------------------------------
 
+
 def test_l1_handoff_is_frozen():
     env = _full_envelope()
     with pytest.raises(ValidationError):
@@ -180,6 +184,7 @@ def test_l1_handoff_frozen_blocks_signal_health_replacement():
 # is_usable_by_l2
 # ---------------------------------------------------------------------------
 
+
 def test_is_usable_by_l2_clean():
     env = _full_envelope()
     ok, blockers = env.is_usable_by_l2()
@@ -190,7 +195,9 @@ def test_is_usable_by_l2_clean():
 def test_is_usable_by_l2_empty_is_still_usable():
     """`empty` is degraded-but-recoverable; only malformed/extraction_failed block."""
     health = _clean_health()
-    health["arc_waypoints"] = SignalHealth(status="empty", reason="L1 produced no waypoints")
+    health["arc_waypoints"] = SignalHealth(
+        status="empty", reason="L1 produced no waypoints"
+    )
     env = _full_envelope().model_copy(update={"signal_health": health})
     ok, blockers = env.is_usable_by_l2()
     assert ok is True
@@ -232,6 +239,7 @@ def test_is_usable_by_l2_multiple_blockers():
 # Forbidden / extra fields
 # ---------------------------------------------------------------------------
 
+
 def test_l1_handoff_rejects_extra_fields():
     with pytest.raises(ValidationError):
         L1Handoff(
@@ -257,6 +265,7 @@ def test_voice_fingerprint_rejects_legacy_alias():
 # JSON round-trip
 # ---------------------------------------------------------------------------
 
+
 def test_json_round_trip_preserves_data():
     env = _full_envelope()
     raw = env.model_dump_json()
@@ -280,12 +289,15 @@ def test_json_round_trip_with_blockers():
     ok, blockers = reloaded.is_usable_by_l2()
     assert ok is False
     assert blockers == ["conflict_web"]
-    assert reloaded.signal_health["conflict_web"].last_error == "ValidationError: parties"
+    assert (
+        reloaded.signal_health["conflict_web"].last_error == "ValidationError: parties"
+    )
 
 
 # ---------------------------------------------------------------------------
 # NegotiatedChapterContract
 # ---------------------------------------------------------------------------
+
 
 def test_negotiated_contract_minimal():
     c = NegotiatedChapterContract(chapter_num=3, pacing_type="rising")
@@ -318,7 +330,9 @@ def test_negotiated_contract_full():
 
 def test_negotiated_contract_drama_target_bounds():
     with pytest.raises(ValidationError):
-        NegotiatedChapterContract(chapter_num=1, pacing_type="rising", drama_target=-0.1)
+        NegotiatedChapterContract(
+            chapter_num=1, pacing_type="rising", drama_target=-0.1
+        )
     with pytest.raises(ValidationError):
         NegotiatedChapterContract(chapter_num=1, pacing_type="rising", drama_target=1.1)
 
@@ -330,7 +344,9 @@ def test_negotiated_contract_pacing_type_enum():
 
 def test_negotiated_contract_rejects_extra_fields():
     with pytest.raises(ValidationError):
-        NegotiatedChapterContract(chapter_num=1, pacing_type="rising", legacy_drama_score=0.5)
+        NegotiatedChapterContract(
+            chapter_num=1, pacing_type="rising", legacy_drama_score=0.5
+        )
 
 
 def test_negotiated_contract_json_round_trip():
@@ -339,7 +355,9 @@ def test_negotiated_contract_json_round_trip():
         pacing_type="cooldown",
         drama_target=0.4,
         reconciled=True,
-        reconciliation_warnings=["pacing=cooldown clamped drama_target from 0.7 to 0.4"],
+        reconciliation_warnings=[
+            "pacing=cooldown clamped drama_target from 0.7 to 0.4"
+        ],
     )
     reloaded = NegotiatedChapterContract.model_validate_json(c.model_dump_json())
     assert reloaded == c
@@ -349,6 +367,7 @@ def test_negotiated_contract_json_round_trip():
 # Sprint 3 P1 — drama_ceiling field
 # ---------------------------------------------------------------------------
 
+
 def test_negotiated_contract_drama_ceiling_default_zero():
     c = NegotiatedChapterContract(chapter_num=1, pacing_type="rising")
     assert c.drama_ceiling == 0.0
@@ -356,9 +375,13 @@ def test_negotiated_contract_drama_ceiling_default_zero():
 
 def test_negotiated_contract_drama_ceiling_bounds():
     with pytest.raises(ValidationError):
-        NegotiatedChapterContract(chapter_num=1, pacing_type="rising", drama_ceiling=-0.1)
+        NegotiatedChapterContract(
+            chapter_num=1, pacing_type="rising", drama_ceiling=-0.1
+        )
     with pytest.raises(ValidationError):
-        NegotiatedChapterContract(chapter_num=1, pacing_type="rising", drama_ceiling=1.1)
+        NegotiatedChapterContract(
+            chapter_num=1, pacing_type="rising", drama_ceiling=1.1
+        )
 
 
 def test_negotiated_contract_legacy_dict_without_drama_ceiling_round_trips():
@@ -379,6 +402,7 @@ def test_negotiated_contract_legacy_dict_without_drama_ceiling_round_trips():
 # ---------------------------------------------------------------------------
 # Thread / Foreshadowing enum + bounds
 # ---------------------------------------------------------------------------
+
 
 def test_thread_status_enum():
     for s in ("open", "advancing", "resolved", "abandoned"):

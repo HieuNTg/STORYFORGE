@@ -33,15 +33,32 @@ def build_idea_header(idea: str, idea_summary: str = "") -> str:
         "[KẾT THÚC Ý TƯỞNG GỐC]\n\n"
     )
 
+
 try:
     import nh3 as _nh3
+
     _HAS_NH3 = True
 except ImportError:
     _nh3 = None  # type: ignore[assignment]
     _HAS_NH3 = False
 
-_ALLOWED_TAGS = {"strong", "em", "br", "p", "h1", "h2", "h3", "h4",
-                 "ul", "ol", "li", "a", "code", "pre", "blockquote"}
+_ALLOWED_TAGS = {
+    "strong",
+    "em",
+    "br",
+    "p",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "ul",
+    "ol",
+    "li",
+    "a",
+    "code",
+    "pre",
+    "blockquote",
+}
 _ALLOWED_ATTRS = {"a": {"href", "target", "rel"}}
 
 
@@ -51,10 +68,16 @@ def sanitize_story_html(content: str) -> str:
         return ""
     if not _HAS_NH3:
         return content
-    return _nh3.clean(content, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, link_rel=None)
+    return _nh3.clean(
+        content, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, link_rel=None
+    )
+
 
 _PREAMBLE_PATTERNS = [
-    _re.compile(r"^\s*(dưới đây|sau đây|đây là|dưới đấy)[^\n]*?(viết lại|bản viết|nâng cấp|cải thiện|phiên bản|cảnh|đoạn)[^\n]*\n+", _re.IGNORECASE),
+    _re.compile(
+        r"^\s*(dưới đây|sau đây|đây là|dưới đấy)[^\n]*?(viết lại|bản viết|nâng cấp|cải thiện|phiên bản|cảnh|đoạn)[^\n]*\n+",
+        _re.IGNORECASE,
+    ),
     _re.compile(r"^\s*(lưu ý|ghi chú|chú thích)[:\-][^\n]*\n+", _re.IGNORECASE),
 ]
 _SCAFFOLD_LABEL = _re.compile(

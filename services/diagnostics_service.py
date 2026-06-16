@@ -20,6 +20,7 @@ _DB_URL = os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
 
 def _sync_engine():
     from sqlalchemy import create_engine
+
     connect_args = {"check_same_thread": False} if "sqlite" in _DB_URL else {}
     return create_engine(_DB_URL, connect_args=connect_args)
 
@@ -87,7 +88,9 @@ def build_handoff_diagnostics(story_id: str) -> dict | None:
             # 3. Build signal health summary
             signal_health_summary: dict = {}
             signals_ok = 0
-            if isinstance(envelope, dict) and isinstance(envelope.get("signal_health"), dict):
+            if isinstance(envelope, dict) and isinstance(
+                envelope.get("signal_health"), dict
+            ):
                 for sig, h in envelope["signal_health"].items():
                     if not isinstance(h, dict):
                         continue
@@ -137,16 +140,19 @@ def build_handoff_diagnostics(story_id: str) -> dict | None:
                         warnings = None
                 if not isinstance(contract, dict):
                     continue
-                per_chapter.append({
-                    "chapter_number": ch_num,
-                    "pacing_type": contract.get("pacing_type", ""),
-                    "drama_target": contract.get("drama_target", 0.0),
-                    "reconciled": bool(contract.get("reconciled", False)),
-                    "reconciliation_warnings": list(
-                        warnings if isinstance(warnings, list)
-                        else contract.get("reconciliation_warnings", [])
-                    ),
-                })
+                per_chapter.append(
+                    {
+                        "chapter_number": ch_num,
+                        "pacing_type": contract.get("pacing_type", ""),
+                        "drama_target": contract.get("drama_target", 0.0),
+                        "reconciled": bool(contract.get("reconciled", False)),
+                        "reconciliation_warnings": list(
+                            warnings
+                            if isinstance(warnings, list)
+                            else contract.get("reconciliation_warnings", [])
+                        ),
+                    }
+                )
 
             return {
                 "story_id": story_id,
@@ -157,7 +163,9 @@ def build_handoff_diagnostics(story_id: str) -> dict | None:
                 "per_chapter_contracts": per_chapter,
             }
     except Exception as exc:
-        logger.warning("build_handoff_diagnostics failed for story_id=%s: %s", story_id, exc)
+        logger.warning(
+            "build_handoff_diagnostics failed for story_id=%s: %s", story_id, exc
+        )
         return None
     finally:
         engine.dispose()
@@ -256,11 +264,17 @@ def build_semantic_diagnostics(story_id: str) -> dict | None:
                     except (ValueError, TypeError):
                         contract_raw = None
 
-                per_chapter.append({
-                    "chapter_num": ch_num,
-                    "semantic_findings": findings_raw if isinstance(findings_raw, dict) else None,
-                    "contract": contract_raw if isinstance(contract_raw, dict) else None,
-                })
+                per_chapter.append(
+                    {
+                        "chapter_num": ch_num,
+                        "semantic_findings": findings_raw
+                        if isinstance(findings_raw, dict)
+                        else None,
+                        "contract": contract_raw
+                        if isinstance(contract_raw, dict)
+                        else None,
+                    }
+                )
 
             # 4. Build summary
             total_matched = 0
@@ -336,7 +350,9 @@ def build_semantic_diagnostics(story_id: str) -> dict | None:
                 },
             }
     except Exception as exc:
-        logger.warning("build_semantic_diagnostics failed for story_id=%s: %s", story_id, exc)
+        logger.warning(
+            "build_semantic_diagnostics failed for story_id=%s: %s", story_id, exc
+        )
         return None
     finally:
         engine.dispose()

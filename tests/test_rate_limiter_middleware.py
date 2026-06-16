@@ -9,6 +9,7 @@ Covers:
 - InMemoryRateLimiter service class (is_allowed, get_remaining)
 - RedisRateLimiter service class (fallback on unavailable)
 """
+
 from __future__ import annotations
 
 import time
@@ -18,7 +19,10 @@ import pytest
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-# Reset module-level globals between tests that mutate them
+# Reset module-level globals between tests that mutate them. The Redis
+# client globals live in the backends module — _get_redis reads its own
+# module's globals, so rebinding must happen there, not on the re-export.
+import middleware._rate_limit_backends as rl_backends
 import middleware.rate_limiter as rl_mod
 from middleware.rate_limiter import (
     RateLimitMiddleware,
@@ -37,6 +41,7 @@ from services._rate_limiter_redis_impl import RedisRateLimiter
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_request(
     path: str = "/api/stories",
@@ -65,6 +70,7 @@ def _clear_state():
 # TestGetIP
 # ---------------------------------------------------------------------------
 
+
 class TestGetIP:
     def setup_method(self):
         # Ensure _TRUSTED_PROXIES is empty unless explicitly set in a test
@@ -86,7 +92,9 @@ class TestGetIP:
 
     def test_uses_forwarded_for_from_trusted_proxy(self):
         rl_mod._TRUSTED_PROXIES.add("10.0.0.1")
-        req = _make_request(client_ip="10.0.0.1", headers={"X-Forwarded-For": "203.0.113.5"})
+        req = _make_request(
+            client_ip="10.0.0.1", headers={"X-Forwarded-For": "203.0.113.5"}
+        )
         assert _get_ip(req) == "203.0.113.5"
 
     def test_uses_first_ip_in_forwarded_for_chain(self):
@@ -114,6 +122,7 @@ class TestGetIP:
 # ---------------------------------------------------------------------------
 # TestGetTier
 # ---------------------------------------------------------------------------
+
 
 class TestGetTier:
     def test_default_tier_for_normal_api(self):
@@ -164,6 +173,7 @@ class TestGetTier:
 # TestCheckRateLimitMemory
 # ---------------------------------------------------------------------------
 
+
 class TestCheckRateLimitMemory:
     def setup_method(self):
         _clear_state()
@@ -212,6 +222,7 @@ class TestCheckRateLimitMemory:
 # TestEvictExpiredEntries
 # ---------------------------------------------------------------------------
 
+
 class TestEvictExpiredEntries:
     def setup_method(self):
         _clear_state()
@@ -237,12 +248,13 @@ class TestEvictExpiredEntries:
 # TestCheckRateLimitRedis
 # ---------------------------------------------------------------------------
 
+
 class TestCheckRateLimitRedis:
     def setup_method(self):
         _clear_state()
         # Reset Redis state so _get_redis() is re-evaluated
-        rl_mod._redis_client = None
-        rl_mod._redis_init_attempted = False
+        rl_backends._redis_client = None
+        rl_backends._redis_init_attempted = False
 
     def test_falls_back_to_memory_when_no_redis_url(self):
         """When REDIS_URL is absent, _get_redis returns None → memory fallback."""
@@ -252,7 +264,7 @@ class TestCheckRateLimitRedis:
         assert result is True
 
     def test_falls_back_to_memory_on_redis_connection_error(self):
-        rl_mod._redis_init_attempted = False
+        rl_backends._redis_init_attempted = False
         with patch.dict("os.environ", {"REDIS_URL": "redis://localhost:6379"}):
             with patch("redis.from_url", side_effect=Exception("connection refused")):
                 result = _check_rate_limit_redis("192.0.2.2", "default")
@@ -262,8 +274,8 @@ class TestCheckRateLimitRedis:
         mock_redis = MagicMock()
         mock_redis.ping.return_value = True
         mock_redis.eval.return_value = 1  # first request
-        rl_mod._redis_client = mock_redis
-        rl_mod._redis_init_attempted = True
+        rl_backends._redis_client = mock_redis
+        rl_backends._redis_init_attempted = True
 
         with patch.dict("os.environ", {"REDIS_URL": "redis://localhost:6379"}):
             result = _check_rate_limit_redis("192.0.2.3", "default")
@@ -274,8 +286,8 @@ class TestCheckRateLimitRedis:
         mock_redis = MagicMock()
         mock_redis.ping.return_value = True
         mock_redis.eval.return_value = _LIMITS["default"] + 1
-        rl_mod._redis_client = mock_redis
-        rl_mod._redis_init_attempted = True
+        rl_backends._redis_client = mock_redis
+        rl_backends._redis_init_attempted = True
 
         with patch.dict("os.environ", {"REDIS_URL": "redis://localhost:6379"}):
             result = _check_rate_limit_redis("192.0.2.4", "default")
@@ -285,8 +297,8 @@ class TestCheckRateLimitRedis:
         mock_redis = MagicMock()
         mock_redis.ping.return_value = True
         mock_redis.eval.side_effect = Exception("NOSCRIPT")
-        rl_mod._redis_client = mock_redis
-        rl_mod._redis_init_attempted = True
+        rl_backends._redis_client = mock_redis
+        rl_backends._redis_init_attempted = True
 
         with patch.dict("os.environ", {"REDIS_URL": "redis://localhost:6379"}):
             result = _check_rate_limit_redis("192.0.2.5", "default")
@@ -297,11 +309,12 @@ class TestCheckRateLimitRedis:
 # TestRateLimitMiddlewareDispatch
 # ---------------------------------------------------------------------------
 
+
 class TestRateLimitMiddlewareDispatch:
     def setup_method(self):
         _clear_state()
-        rl_mod._redis_client = None
-        rl_mod._redis_init_attempted = False
+        rl_backends._redis_client = None
+        rl_backends._redis_init_attempted = False
 
     def _make_middleware(self):
         app = AsyncMock()
@@ -389,6 +402,7 @@ class TestRateLimitMiddlewareDispatch:
         resp = await mw.dispatch(req, call_next)
 
         import json
+
         body = json.loads(resp.body)
         assert body["error"] == "Too Many Requests"
         assert "Rate limit exceeded" in body["detail"]
@@ -432,6 +446,7 @@ class TestRateLimitMiddlewareDispatch:
 # ---------------------------------------------------------------------------
 # TestInMemoryRateLimiter (service class)
 # ---------------------------------------------------------------------------
+
 
 class TestInMemoryRateLimiter:
     def test_is_allowed_first_request(self):
@@ -483,6 +498,7 @@ class TestInMemoryRateLimiter:
 # ---------------------------------------------------------------------------
 # TestRedisRateLimiter (service class)
 # ---------------------------------------------------------------------------
+
 
 class TestRedisRateLimiter:
     def test_falls_back_to_inmemory_when_redis_unavailable(self):

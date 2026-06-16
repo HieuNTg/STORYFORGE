@@ -10,6 +10,7 @@ Covers:
   - require_role dependency (allow at level, allow above level, deny below)
   - get_current_user_role dependency integration
 """
+
 from __future__ import annotations
 
 import os
@@ -37,6 +38,7 @@ from middleware.rbac import (  # noqa: E402
 # 1. Enum sanity checks
 # ===========================================================================
 
+
 class TestEnums:
     def test_role_enum_values(self):
         assert Role.VIEWER.value == "viewer"
@@ -56,6 +58,7 @@ class TestEnums:
 # ===========================================================================
 # 2. ROLE_PERMISSIONS mapping
 # ===========================================================================
+
 
 class TestRolePermissions:
     def test_viewer_has_only_read_stories(self):
@@ -96,16 +99,21 @@ class TestRolePermissions:
 
     def test_all_roles_present_in_map(self):
         for role in Role:
-            assert role in ROLE_PERMISSIONS, f"Role {role} missing from ROLE_PERMISSIONS"
+            assert role in ROLE_PERMISSIONS, (
+                f"Role {role} missing from ROLE_PERMISSIONS"
+            )
 
     def test_permission_sets_are_frozensets(self):
         for role, perms in ROLE_PERMISSIONS.items():
-            assert isinstance(perms, frozenset), f"{role} permissions should be frozenset"
+            assert isinstance(perms, frozenset), (
+                f"{role} permissions should be frozenset"
+            )
 
 
 # ===========================================================================
 # 3. _resolve_role helper
 # ===========================================================================
+
 
 class TestResolveRole:
     def test_resolves_valid_role_string(self):
@@ -134,6 +142,7 @@ class TestResolveRole:
 # 4. require_permission dependency
 # ===========================================================================
 
+
 def _make_request(role: str) -> object:
     """Build a minimal fake Request whose get_current_user returns the given role."""
     import services.auth as auth_svc
@@ -146,7 +155,11 @@ def _make_request(role: str) -> object:
 
     # Patch get_user_store so the middleware resolves the role without a real DB.
     store_mock = MagicMock()
-    store_mock.get_user.return_value = {"user_id": "test-uid", "username": "testuser", "role": role}
+    store_mock.get_user.return_value = {
+        "user_id": "test-uid",
+        "username": "testuser",
+        "role": role,
+    }
 
     return request, store_mock
 
@@ -158,7 +171,9 @@ class TestRequirePermission:
         request, store_mock = _make_request("admin")
         dep = require_permission(Permission.MANAGE_USERS)
 
-        with patch("middleware.auth_middleware.get_user_store", return_value=store_mock):
+        with patch(
+            "middleware.auth_middleware.get_user_store", return_value=store_mock
+        ):
             result = dep(request)
 
         assert result["user_id"] == "test-uid"
@@ -171,7 +186,9 @@ class TestRequirePermission:
         request, store_mock = _make_request("creator")
         dep = require_permission(Permission.MANAGE_USERS)
 
-        with patch("middleware.auth_middleware.get_user_store", return_value=store_mock):
+        with patch(
+            "middleware.auth_middleware.get_user_store", return_value=store_mock
+        ):
             with pytest.raises(HTTPException) as exc_info:
                 dep(request)
 
@@ -184,7 +201,9 @@ class TestRequirePermission:
         request, store_mock = _make_request("viewer")
         dep = require_permission(Permission.CREATE_STORIES)
 
-        with patch("middleware.auth_middleware.get_user_store", return_value=store_mock):
+        with patch(
+            "middleware.auth_middleware.get_user_store", return_value=store_mock
+        ):
             with pytest.raises(HTTPException) as exc_info:
                 dep(request)
 
@@ -197,7 +216,9 @@ class TestRequirePermission:
         request, store_mock = _make_request("superadmin")
         dep = require_permission(Permission.MANAGE_API_KEYS)
 
-        with patch("middleware.auth_middleware.get_user_store", return_value=store_mock):
+        with patch(
+            "middleware.auth_middleware.get_user_store", return_value=store_mock
+        ):
             result = dep(request)
 
         assert result["role"] == "superadmin"
@@ -255,6 +276,7 @@ class TestRequirePermissionIfEnabled:
 # 5. require_role dependency
 # ===========================================================================
 
+
 class TestRequireRole:
     def test_exact_role_allowed(self):
         from unittest.mock import patch
@@ -262,7 +284,9 @@ class TestRequireRole:
         request, store_mock = _make_request("admin")
         dep = require_role(Role.ADMIN)
 
-        with patch("middleware.auth_middleware.get_user_store", return_value=store_mock):
+        with patch(
+            "middleware.auth_middleware.get_user_store", return_value=store_mock
+        ):
             result = dep(request)
 
         assert result["role"] == "admin"
@@ -273,7 +297,9 @@ class TestRequireRole:
         request, store_mock = _make_request("superadmin")
         dep = require_role(Role.ADMIN)
 
-        with patch("middleware.auth_middleware.get_user_store", return_value=store_mock):
+        with patch(
+            "middleware.auth_middleware.get_user_store", return_value=store_mock
+        ):
             result = dep(request)
 
         assert result["role"] == "superadmin"
@@ -285,7 +311,9 @@ class TestRequireRole:
         request, store_mock = _make_request("creator")
         dep = require_role(Role.ADMIN)
 
-        with patch("middleware.auth_middleware.get_user_store", return_value=store_mock):
+        with patch(
+            "middleware.auth_middleware.get_user_store", return_value=store_mock
+        ):
             with pytest.raises(HTTPException) as exc_info:
                 dep(request)
 
@@ -299,7 +327,9 @@ class TestRequireRole:
         request, store_mock = _make_request("viewer")
         dep = require_role(Role.CREATOR)
 
-        with patch("middleware.auth_middleware.get_user_store", return_value=store_mock):
+        with patch(
+            "middleware.auth_middleware.get_user_store", return_value=store_mock
+        ):
             with pytest.raises(HTTPException) as exc_info:
                 dep(request)
 

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import threading
 import unicodedata
 from typing import TYPE_CHECKING, Protocol
@@ -42,6 +43,7 @@ class EmbeddingMissError(RuntimeError):
         super().__init__(
             f"embed_batch dropped {len(missing_indices)}/{total} inputs at indices {missing_indices}"
         )
+
 
 # Float32 little-endian — explicit so cache bytes are platform-stable.
 _VEC_DTYPE = np.dtype("<f4")
@@ -132,6 +134,12 @@ class EmbeddingService:
             return
         with self._lock:
             if self._model is not None or self._available is False:
+                return
+            # Kill switch: torch model loads inside worker threads can crash
+            # the whole process (access violation / fail-fast on Windows).
+            # When set, degrade straight to the keyword fallback.
+            if os.environ.get("STORYFORGE_DISABLE_REAL_EMBEDDINGS") == "1":
+                self._available = False
                 return
             try:
                 # Imported lazily so `import services.embedding_service` is
@@ -243,11 +251,15 @@ class EmbeddingService:
         still_missing = [i for i, b in enumerate(out) if b is None]
         if still_missing:
             if strict:
-                raise EmbeddingMissError(missing_indices=still_missing, total=len(texts))
+                raise EmbeddingMissError(
+                    missing_indices=still_missing, total=len(texts)
+                )
             else:
                 logger.warning(
                     "embed_batch partial failure: %d/%d inputs dropped at indices %s",
-                    len(still_missing), len(texts), still_missing,
+                    len(still_missing),
+                    len(texts),
+                    still_missing,
                 )
 
         return [b for b in out if b is not None]

@@ -1,4 +1,5 @@
 """FastAPI dependencies for JWT auth. Use as Depends() on individual routes."""
+
 import logging
 from typing import Optional
 
@@ -43,7 +44,9 @@ def get_current_user(request: Request) -> dict:
         user_record = store.get_user(user_id)
         role = user_record.get("role", "creator") if user_record else "creator"
     except Exception:
-        logger.warning("Could not fetch role for user %r — defaulting to creator", user_id)
+        logger.warning(
+            "Could not fetch role for user %r — defaulting to creator", user_id
+        )
         role = "creator"
 
     return {"user_id": user_id, "username": username, "role": role}
@@ -67,7 +70,9 @@ def get_optional_user(request: Request) -> Optional[dict]:
         user_record = store.get_user(user_id)
         role = user_record.get("role", "creator") if user_record else "creator"
     except Exception:
-        logger.warning("Could not fetch role for user %r — defaulting to creator", user_id)
+        logger.warning(
+            "Could not fetch role for user %r — defaulting to creator", user_id
+        )
         role = "creator"
 
     return {"user_id": user_id, "username": username, "role": role}

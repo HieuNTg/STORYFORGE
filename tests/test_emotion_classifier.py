@@ -1,6 +1,5 @@
 """Tests for rule-based Vietnamese emotion classifier."""
 
-
 from services.emotion_classifier import (
     EMOTION_VOICE_PARAMS,
     classify_emotion,

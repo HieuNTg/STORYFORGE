@@ -16,7 +16,9 @@ class MediaProducer:
     def __init__(self, config: ConfigManager):
         self.config = config
 
-    def run(self, draft, enhanced, progress_callback=None, session_id: str | None = None) -> dict:
+    def run(
+        self, draft, enhanced, progress_callback=None, session_id: str | None = None
+    ) -> dict:
         """Generate character reference images and scene images.
 
         Returns dict with paths: {character_refs, scene_images}
@@ -84,6 +86,7 @@ class MediaProducer:
         if cfg.enable_character_consistency and draft.characters:
             from services.character_visual_profile import CharacterVisualProfileStore
             from services.character_visual_extractor import CharacterVisualExtractor
+
             # Scope profiles by story TITLE only (not session) so the read side
             # — which addresses a story by checkpoint/session that may differ
             # from the writing session — resolves to the same folder. Title is
@@ -106,7 +109,9 @@ class MediaProducer:
                         )
                         profile = profile_store.load_profile(char.name)
                     except Exception as e:
-                        logger.warning("Visual extraction failed for %s: %s", char.name, e)
+                        logger.warning(
+                            "Visual extraction failed for %s: %s", char.name, e
+                        )
                         # Fallback: use simple text description
                         if not profile_store.has_profile(char.name):
                             desc = profile_store.build_visual_description(char)
@@ -116,7 +121,9 @@ class MediaProducer:
 
                 if profile:
                     # Prefer frozen_prompt, fallback to description
-                    visual_profiles[char.name] = profile.get("frozen_prompt") or profile.get("description", "")
+                    visual_profiles[char.name] = profile.get(
+                        "frozen_prompt"
+                    ) or profile.get("description", "")
                     if not char.reference_image and profile.get("reference_image"):
                         ref = profile["reference_image"]
                         if os.path.exists(ref):
@@ -150,7 +157,12 @@ class MediaProducer:
         else:
             panel_provider = cfg.image_provider
 
-        if panel_provider and panel_provider != "none" and enhanced and enhanced.chapters:
+        if (
+            panel_provider
+            and panel_provider != "none"
+            and enhanced
+            and enhanced.chapters
+        ):
             from services.image_generator import ImageGenerator
             from services.image_prompt_generator import ImagePromptGenerator
             from services.output_paths import rel_to_output_root
@@ -180,7 +192,8 @@ class MediaProducer:
                 except Exception as e:
                     logger.warning(
                         "Panel prompt generation failed for chapter %s: %s",
-                        ch.chapter_number, e,
+                        ch.chapter_number,
+                        e,
                     )
                     return ch, []
                 if not prompts:
@@ -197,7 +210,9 @@ class MediaProducer:
             # don't hammer the image provider with total*num_panels at once.
             completed = 0
             with ThreadPoolExecutor(max_workers=min(4, total)) as executor:
-                futures = {executor.submit(_panels_for_chapter, ch): ch for ch in chapters}
+                futures = {
+                    executor.submit(_panels_for_chapter, ch): ch for ch in chapters
+                }
                 for future in as_completed(futures):
                     completed += 1
                     ch = futures[future]
@@ -209,7 +224,8 @@ class MediaProducer:
                     except Exception as e:
                         logger.warning(
                             "Panel generation failed for chapter %s: %s",
-                            getattr(ch, "chapter_number", "?"), e,
+                            getattr(ch, "chapter_number", "?"),
+                            e,
                         )
                     _log(f"[MEDIA] Chương: {completed}/{total}")
 

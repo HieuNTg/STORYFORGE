@@ -1,4 +1,5 @@
 """Auth endpoints: register, login, me."""
+
 import logging
 import re
 from typing import Optional
@@ -19,6 +20,7 @@ _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]{3,32}$")
 # ---------------------------------------------------------------------------
 # Request / Response models
 # ---------------------------------------------------------------------------
+
 
 class AuthRequest(BaseModel):
     username: str
@@ -56,6 +58,7 @@ class UserResponse(BaseModel):
 # Routes
 # ---------------------------------------------------------------------------
 
+
 @router.post("/register", response_model=TokenResponse, status_code=201)
 def register(body: AuthRequest):
     """Create a new account. Returns JWT on success."""
@@ -64,6 +67,7 @@ def register(body: AuthRequest):
         user_id = store.create_user(body.username, body.password)
     except ValueError as exc:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=409, detail=str(exc))
     token = create_token(user_id, body.username)
     logger.info(f"New user registered: {body.username}")
@@ -77,6 +81,7 @@ def login(body: AuthRequest):
     user_id = store.authenticate(body.username, body.password)
     if not user_id:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=401, detail="Invalid username or password")
     token = create_token(user_id, body.username)
     return TokenResponse(access_token=token, username=body.username, user_id=user_id)
@@ -89,5 +94,6 @@ def me(current_user: dict = Depends(get_current_user)):
     user = store.get_user(current_user["user_id"])
     if not user:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail="User not found")
     return UserResponse(**user)

@@ -13,10 +13,14 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-# Inject a stub `sentence_transformers` module so `patch(...)` can resolve the
-# attribute even on hosts without the heavy ML dependency installed. The real
-# package is exercised by P7's integration test, not by these unit tests.
-if "sentence_transformers" not in sys.modules:
+# `patch(...)` below needs `sentence_transformers` to be importable. Prefer the
+# real package when installed; only stub on hosts without the heavy ML
+# dependency. A permanent sys.modules stub would poison the whole process:
+# pytest imports every test module at collection time, so the perf bench
+# (tests/perf/, which needs the real model) would silently load a MagicMock.
+try:
+    import sentence_transformers  # noqa: F401
+except ImportError:  # pragma: no cover - hosts without torch
     _stub = types.ModuleType("sentence_transformers")
     _stub.SentenceTransformer = MagicMock(name="SentenceTransformer")  # type: ignore[attr-defined]
     sys.modules["sentence_transformers"] = _stub
@@ -35,6 +39,13 @@ def _reset_singleton() -> None:
     es.reset_embedding_service()
     yield
     es.reset_embedding_service()
+
+
+@pytest.fixture(autouse=True)
+def _allow_patched_model_load(monkeypatch) -> None:
+    """These tests exercise _load with a patched SentenceTransformer, so the
+    suite-wide real-model kill switch (tests/conftest.py) must not apply."""
+    monkeypatch.delenv("STORYFORGE_DISABLE_REAL_EMBEDDINGS", raising=False)
 
 
 def _fake_model_returning(vectors: np.ndarray) -> MagicMock:
@@ -336,6 +347,7 @@ class TestEmbeddingMissError:
 
     def test_embed_batch_none_slot_raises_embedding_miss_error_strict(self) -> None:
         """Injecting a None slot after model fill → EmbeddingMissError (strict=True)."""
+
         # Build a service whose embed_texts returns only 1 row for 2-text input.
         # zip(strict=True) in embed_batch then raises ValueError (length mismatch),
         # which bubbles up. EmbeddingMissError is raised for the None-slot path.
@@ -394,3 +406,39 @@ class TestEmbeddingMissError:
         )
         with pytest.raises((es.EmbeddingMissError, ValueError)):
             svc.embed_batch(["text-a", "text-b"])
+
+
+# ---------------------------------------------------------------------------
+# EmbeddingService — _load guards
+# ---------------------------------------------------------------------------
+
+
+class TestLoadGuards:
+    def test_load_early_returns_once_loaded(self) -> None:
+        """A second direct _load() call returns via the unlocked fast path."""
+        fake = _fake_model_returning(np.array([[1.0, 0.0]], dtype=np.float32))
+        with patch("sentence_transformers.SentenceTransformer", return_value=fake):
+            svc = es.EmbeddingService("m")
+            svc._load()
+            svc._load()
+        assert svc.is_available() is True
+
+    def test_load_double_check_inside_lock(self) -> None:
+        """A racing loader that wins the lock first marks the service
+        unavailable; the loser re-checks under the lock and returns without
+        attempting another model load."""
+        svc = es.EmbeddingService("m")
+
+        class _FlippingLock:
+            def __enter__(self_inner):
+                svc._available = False  # simulate the racing winner
+                return self_inner
+
+            def __exit__(self_inner, *exc):
+                return False
+
+        svc._lock = _FlippingLock()
+        with patch("sentence_transformers.SentenceTransformer") as mock_st:
+            svc._load()
+            mock_st.assert_not_called()
+        assert svc._available is False

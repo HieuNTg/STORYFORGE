@@ -1,4 +1,5 @@
 """Tests for ImageGenerator service."""
+
 from unittest.mock import MagicMock, patch
 import base64
 import os
@@ -9,6 +10,7 @@ from models.schemas import ImagePrompt
 
 
 # ── Init / provider=none ──────────────────────────────────────────────────────
+
 
 def test_init_default_provider_none():
     gen = ImageGenerator(provider="none")
@@ -24,15 +26,20 @@ def test_generate_returns_none_when_provider_none():
 def test_generate_story_images_returns_empty_when_provider_none():
     gen = ImageGenerator(provider="none")
     prompts = [
-        ImagePrompt(panel_number=1, chapter_number=1,
-                    dalle_prompt="prompt A", sd_prompt="sd A",
-                    scene_description="scene A"),
+        ImagePrompt(
+            panel_number=1,
+            chapter_number=1,
+            dalle_prompt="prompt A",
+            sd_prompt="sd A",
+            scene_description="scene A",
+        ),
     ]
     paths = gen.generate_story_images(prompts, chapter_number=1)
     assert paths == []
 
 
 # ── DALL-E provider (mocked) ──────────────────────────────────────────────────
+
 
 def test_generate_dalle_saves_file(tmp_path):
     """_generate_dalle decodes b64 and writes file when request succeeds."""
@@ -46,7 +53,9 @@ def test_generate_dalle_saves_file(tmp_path):
     gen = ImageGenerator(provider="dalle", api_key="test-key")
     gen.output_dir = str(tmp_path)
 
-    with patch("services.image_generator.requests.post", return_value=mock_resp) as mock_post:
+    with patch(
+        "services.image_generator.requests.post", return_value=mock_resp
+    ) as mock_post:
         result = gen.generate("a hero standing on a cliff", filename="test.png")
 
     assert result is not None
@@ -62,7 +71,9 @@ def test_generate_dalle_saves_file(tmp_path):
 
 def test_generate_dalle_returns_none_on_error():
     gen = ImageGenerator(provider="dalle", api_key="test-key")
-    with patch("services.image_generator.requests.post", side_effect=Exception("timeout")):
+    with patch(
+        "services.image_generator.requests.post", side_effect=Exception("timeout")
+    ):
         result = gen.generate("some prompt", filename="fail.png")
     assert result is None
 
@@ -82,8 +93,12 @@ def test_generate_dalle_returns_none_without_api_key():
     cfg.llm.api_key = ""
     cfg.llm.base_url = ""  # not openai.com => no llm-key fallback
 
-    with patch("services.image_generator.ConfigManager", return_value=cfg), \
-         patch.dict(os.environ, {"IMAGE_API_KEY": "", "IMAGE_API_URL": "", "HF_TOKEN": ""}):
+    with (
+        patch("services.image_generator.ConfigManager", return_value=cfg),
+        patch.dict(
+            os.environ, {"IMAGE_API_KEY": "", "IMAGE_API_URL": "", "HF_TOKEN": ""}
+        ),
+    ):
         gen = ImageGenerator(provider="dalle", api_key="")
 
     assert gen.api_key == ""
@@ -95,6 +110,7 @@ def test_generate_dalle_returns_none_without_api_key():
 
 
 # ── SD-API provider (mocked) ──────────────────────────────────────────────────
+
 
 def test_generate_sd_saves_file(tmp_path):
     fake_image = b"fake sd image"
@@ -116,12 +132,15 @@ def test_generate_sd_saves_file(tmp_path):
 
 def test_generate_sd_returns_none_on_error():
     gen = ImageGenerator(provider="sd-api", base_url="http://localhost:7860")
-    with patch("services.image_generator.requests.post", side_effect=Exception("conn refused")):
+    with patch(
+        "services.image_generator.requests.post", side_effect=Exception("conn refused")
+    ):
         result = gen.generate("prompt", filename="fail.png")
     assert result is None
 
 
 # ── generate_story_images ─────────────────────────────────────────────────────
+
 
 def test_generate_story_images_with_mock(tmp_path):
     fake_image = b"fake bytes"
@@ -135,10 +154,20 @@ def test_generate_story_images_with_mock(tmp_path):
     gen.output_dir = str(tmp_path)
 
     prompts = [
-        ImagePrompt(panel_number=1, chapter_number=2,
-                    dalle_prompt="prompt 1", sd_prompt="sd 1", scene_description="scene 1"),
-        ImagePrompt(panel_number=2, chapter_number=2,
-                    dalle_prompt="prompt 2", sd_prompt="sd 2", scene_description="scene 2"),
+        ImagePrompt(
+            panel_number=1,
+            chapter_number=2,
+            dalle_prompt="prompt 1",
+            sd_prompt="sd 1",
+            scene_description="scene 1",
+        ),
+        ImagePrompt(
+            panel_number=2,
+            chapter_number=2,
+            dalle_prompt="prompt 2",
+            sd_prompt="sd 2",
+            scene_description="scene 2",
+        ),
     ]
 
     with patch("services.image_generator.requests.post", return_value=mock_resp):
@@ -156,6 +185,7 @@ def test_unknown_provider_returns_none():
 
 
 # ── HuggingFace provider (mocked) ────────────────────────────────────────────
+
 
 def _make_hf_config(hf_token="hf_test_token", hf_image_model="test/model"):
     """Return a mock ConfigManager whose .pipeline has HuggingFace fields set."""
@@ -177,7 +207,9 @@ def test_generate_huggingface_saves_file(tmp_path):
     mock_resp.content = fake_image_data
     mock_resp.raise_for_status.return_value = None
 
-    with patch("services.image_generator.ConfigManager", return_value=_make_hf_config()):
+    with patch(
+        "services.image_generator.ConfigManager", return_value=_make_hf_config()
+    ):
         gen = ImageGenerator(provider="huggingface")
     gen.output_dir = str(tmp_path)
 
@@ -204,12 +236,18 @@ def test_generate_huggingface_retries_on_503(tmp_path):
     mock_200.content = fake_image_data
     mock_200.raise_for_status.return_value = None
 
-    with patch("services.image_generator.ConfigManager", return_value=_make_hf_config()):
+    with patch(
+        "services.image_generator.ConfigManager", return_value=_make_hf_config()
+    ):
         gen = ImageGenerator(provider="huggingface")
     gen.output_dir = str(tmp_path)
 
-    with patch("services.image_generator.requests.post", side_effect=[mock_503, mock_200]) as mock_post, \
-         patch("services.image_generator.time.sleep", return_value=None):
+    with (
+        patch(
+            "services.image_generator.requests.post", side_effect=[mock_503, mock_200]
+        ) as mock_post,
+        patch("services.image_generator.time.sleep", return_value=None),
+    ):
         result = gen.generate("test prompt", filename="test.png")
 
     assert mock_post.call_count == 2
@@ -221,7 +259,10 @@ def test_generate_huggingface_retries_on_503(tmp_path):
 
 def test_generate_huggingface_returns_none_without_token():
     """_generate_huggingface returns None immediately when hf_token is empty."""
-    with patch("services.image_generator.ConfigManager", return_value=_make_hf_config(hf_token="")):
+    with patch(
+        "services.image_generator.ConfigManager",
+        return_value=_make_hf_config(hf_token=""),
+    ):
         gen = ImageGenerator(provider="huggingface")
     gen.hf_token = ""
 
@@ -234,10 +275,15 @@ def test_generate_huggingface_returns_none_without_token():
 
 def test_generate_huggingface_returns_none_on_exception():
     """_generate_huggingface swallows exceptions and returns None."""
-    with patch("services.image_generator.ConfigManager", return_value=_make_hf_config()):
+    with patch(
+        "services.image_generator.ConfigManager", return_value=_make_hf_config()
+    ):
         gen = ImageGenerator(provider="huggingface")
 
-    with patch("services.image_generator.requests.post", side_effect=ConnectionError("test error")):
+    with patch(
+        "services.image_generator.requests.post",
+        side_effect=ConnectionError("test error"),
+    ):
         result = gen.generate("test prompt", filename="test.png")
 
     assert result is None

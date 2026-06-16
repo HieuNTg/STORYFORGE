@@ -19,8 +19,11 @@ class TestExtractTimelineAndLocations:
             "character_locations": {"Minh": "rừng cấm"},
         }
         tl, loc = extract_timeline_and_locations(
-            llm, "content", 2,
-            {"Linh": "buổi sáng ngày 2"}, {"Linh": "làng cũ"},
+            llm,
+            "content",
+            2,
+            {"Linh": "buổi sáng ngày 2"},
+            {"Linh": "làng cũ"},
         )
         assert tl == {"Linh": "buổi sáng ngày 2", "Minh": "buổi chiều ngày 3"}
         assert loc == {"Linh": "làng cũ", "Minh": "rừng cấm"}
@@ -52,7 +55,10 @@ class TestExtractTimelineAndLocations:
 
 class TestValidateCharacterNames:
     def _chars(self, *names):
-        return [Character(name=n, role="hero", personality="p", motivation="m") for n in names]
+        return [
+            Character(name=n, role="hero", personality="p", motivation="m")
+            for n in names
+        ]
 
     def test_no_warnings_for_exact_names(self):
         content = "Minh đi vào rừng. Linh chạy theo."
@@ -82,8 +88,9 @@ class TestValidateCharacterNames:
 
 class TestArcDrift:
     def _char(self, name, traj="coward to brave"):
-        return Character(name=name, role="hero", personality="p",
-                         motivation="m", arc_trajectory=traj)
+        return Character(
+            name=name, role="hero", personality="p", motivation="m", arc_trajectory=traj
+        )
 
     def _state(self, name, pos):
         return CharacterState(name=name, mood="ok", arc_position=pos, last_action="a")

@@ -1,4 +1,5 @@
 """Tests for middleware/rbac.py — RBAC roles, permissions, and dependencies."""
+
 from __future__ import annotations
 
 import os
@@ -24,6 +25,7 @@ from middleware.rbac import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_request() -> Request:
     """Return a minimal mock Request."""
     return MagicMock(spec=Request)
@@ -32,6 +34,7 @@ def _make_request() -> Request:
 # ---------------------------------------------------------------------------
 # TestRoleEnum
 # ---------------------------------------------------------------------------
+
 
 class TestRoleEnum:
     def test_viewer_value(self):
@@ -59,6 +62,7 @@ class TestRoleEnum:
 # ---------------------------------------------------------------------------
 # TestPermissionEnum
 # ---------------------------------------------------------------------------
+
 
 class TestPermissionEnum:
     def test_read_stories(self):
@@ -93,16 +97,19 @@ class TestPermissionEnum:
 # TestRolePermissionsMapping
 # ---------------------------------------------------------------------------
 
+
 class TestRolePermissionsMapping:
     def test_viewer_has_only_read_stories(self):
         assert ROLE_PERMISSIONS[Role.VIEWER] == frozenset({Permission.READ_STORIES})
 
     def test_creator_has_read_create_delete_own(self):
-        expected = frozenset({
-            Permission.READ_STORIES,
-            Permission.CREATE_STORIES,
-            Permission.DELETE_OWN_STORIES,
-        })
+        expected = frozenset(
+            {
+                Permission.READ_STORIES,
+                Permission.CREATE_STORIES,
+                Permission.DELETE_OWN_STORIES,
+            }
+        )
         assert ROLE_PERMISSIONS[Role.CREATOR] == expected
 
     def test_admin_has_no_manage_api_keys(self):
@@ -125,12 +132,18 @@ class TestRolePermissionsMapping:
         assert Permission.VIEW_AUDIT_LOGS in ROLE_PERMISSIONS[Role.SUPERADMIN]
 
     def test_all_four_roles_mapped(self):
-        assert set(ROLE_PERMISSIONS.keys()) == {Role.VIEWER, Role.CREATOR, Role.ADMIN, Role.SUPERADMIN}
+        assert set(ROLE_PERMISSIONS.keys()) == {
+            Role.VIEWER,
+            Role.CREATOR,
+            Role.ADMIN,
+            Role.SUPERADMIN,
+        }
 
 
 # ---------------------------------------------------------------------------
 # TestResolveRole
 # ---------------------------------------------------------------------------
+
 
 class TestResolveRole:
     def test_known_role_viewer(self):
@@ -184,10 +197,14 @@ class TestResolveRole:
 # TestGetCurrentUserRole
 # ---------------------------------------------------------------------------
 
+
 class TestGetCurrentUserRole:
     def test_returns_role_from_auth(self):
         request = _make_request()
-        with patch("middleware.rbac.get_current_user", return_value={"user_id": "u1", "role": "admin"}):
+        with patch(
+            "middleware.rbac.get_current_user",
+            return_value={"user_id": "u1", "role": "admin"},
+        ):
             role = get_current_user_role(request)
         assert role == Role.ADMIN
 
@@ -195,7 +212,9 @@ class TestGetCurrentUserRole:
         request = _make_request()
         with patch(
             "middleware.rbac.get_current_user",
-            side_effect=HTTPException(status_code=401, detail="Missing authentication token"),
+            side_effect=HTTPException(
+                status_code=401, detail="Missing authentication token"
+            ),
         ):
             with pytest.raises(HTTPException) as exc_info:
                 get_current_user_role(request)
@@ -205,6 +224,7 @@ class TestGetCurrentUserRole:
 # ---------------------------------------------------------------------------
 # TestRequirePermission
 # ---------------------------------------------------------------------------
+
 
 class TestRequirePermission:
     def test_allows_when_user_has_permission(self):
@@ -247,7 +267,9 @@ class TestRequirePermission:
         request = _make_request()
         with patch(
             "middleware.rbac.get_current_user",
-            side_effect=HTTPException(status_code=401, detail="Missing authentication token"),
+            side_effect=HTTPException(
+                status_code=401, detail="Missing authentication token"
+            ),
         ):
             with pytest.raises(HTTPException) as exc_info:
                 dep(request)
@@ -261,6 +283,7 @@ class TestRequirePermission:
 # ---------------------------------------------------------------------------
 # TestRequireRole
 # ---------------------------------------------------------------------------
+
 
 class TestRequireRole:
     def test_allows_exact_role_match(self):
@@ -311,7 +334,9 @@ class TestRequireRole:
         request = _make_request()
         with patch(
             "middleware.rbac.get_current_user",
-            side_effect=HTTPException(status_code=401, detail="Missing authentication token"),
+            side_effect=HTTPException(
+                status_code=401, detail="Missing authentication token"
+            ),
         ):
             with pytest.raises(HTTPException) as exc_info:
                 dep(request)

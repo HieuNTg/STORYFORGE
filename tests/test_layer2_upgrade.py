@@ -7,15 +7,27 @@ genre drama rules, and targeted rewriting enhancements.
 import pytest
 from unittest.mock import Mock, patch
 from models.schemas import Character, Relationship, RelationType, Chapter
-from pipeline.layer2_enhance._agent import EmotionalState, CharacterAgent, TrustEdge, MOOD_DRAMA, MOOD_TRIGGERS, TENSION_DELTAS
+from pipeline.layer2_enhance._agent import (
+    EmotionalState,
+    CharacterAgent,
+    TrustEdge,
+    MOOD_DRAMA,
+    MOOD_TRIGGERS,
+    TENSION_DELTAS,
+)
 from pipeline.layer2_enhance.simulator import TrustNetworkEdge, DramaSimulator
-from pipeline.layer2_enhance.genre_drama_rules import get_genre_rules, get_genre_enhancement_hints, GENRE_DRAMA_RULES
+from pipeline.layer2_enhance.genre_drama_rules import (
+    get_genre_rules,
+    get_genre_enhancement_hints,
+    GENRE_DRAMA_RULES,
+)
 from pipeline.layer2_enhance.enhancer import StoryEnhancer
 
 
 # ============================================================================
 # EMOTIONAL STATE TESTS
 # ============================================================================
+
 
 class TestEmotionalState:
     """Test EmotionalState initialization and updates."""
@@ -40,8 +52,8 @@ class TestEmotionalState:
         """Test mood history tracks multiple updates."""
         state = EmotionalState()
         state.update_mood("phản_bội")  # → phẫn_nộ
-        state.update_mood("tiết_lộ")   # → sốc
-        state.update_mood("đối_đầu")   # → quyết_tâm
+        state.update_mood("tiết_lộ")  # → sốc
+        state.update_mood("đối_đầu")  # → quyết_tâm
         assert len(state.mood_history) == 3
         assert state.mood_history[0] == "bình_thường"
         assert state.mood_history[1] == "phẫn_nộ"
@@ -127,6 +139,7 @@ class TestEmotionalState:
 # CHARACTER AGENT TESTS
 # ============================================================================
 
+
 class TestCharacterAgent:
     """Test CharacterAgent with emotional state and trust network."""
 
@@ -137,7 +150,7 @@ class TestCharacterAgent:
             role="chính",
             personality="can đảm",
             background="lịch sử",
-            motivation="trả thù"
+            motivation="trả thù",
         )
         agent = CharacterAgent(char)
         assert agent.character == char
@@ -148,20 +161,26 @@ class TestCharacterAgent:
 
     def test_emotional_state_property_alias(self):
         """Test emotional_state property returns emotion."""
-        char = Character(name="Test", role="chính", personality="p", background="b", motivation="m")
+        char = Character(
+            name="Test", role="chính", personality="p", background="b", motivation="m"
+        )
         agent = CharacterAgent(char)
         assert agent.emotional_state is agent.emotion
 
     def test_process_event_updates_mood(self):
         """Test process_event updates emotional state."""
-        char = Character(name="Test", role="chính", personality="p", background="b", motivation="m")
+        char = Character(
+            name="Test", role="chính", personality="p", background="b", motivation="m"
+        )
         agent = CharacterAgent(char)
         agent.process_event("phản_bội", is_target=False)
         assert agent.emotion.mood == "phẫn_nộ"
 
     def test_process_event_target_raises_stakes(self):
         """Test being event target increases stakes and drains energy."""
-        char = Character(name="Test", role="chính", personality="p", background="b", motivation="m")
+        char = Character(
+            name="Test", role="chính", personality="p", background="b", motivation="m"
+        )
         agent = CharacterAgent(char)
         initial_stakes = agent.emotion.stakes
         initial_energy = agent.emotion.energy
@@ -171,7 +190,9 @@ class TestCharacterAgent:
 
     def test_process_event_non_target_drains_energy(self):
         """Test non-target events drain some energy."""
-        char = Character(name="Test", role="chính", personality="p", background="b", motivation="m")
+        char = Character(
+            name="Test", role="chính", personality="p", background="b", motivation="m"
+        )
         agent = CharacterAgent(char)
         initial_energy = agent.emotion.energy
         agent.process_event("phản_bội", is_target=False)
@@ -179,7 +200,9 @@ class TestCharacterAgent:
 
     def test_add_memory_appends_event(self):
         """Test add_memory appends to memory list."""
-        char = Character(name="Test", role="chính", personality="p", background="b", motivation="m")
+        char = Character(
+            name="Test", role="chính", personality="p", background="b", motivation="m"
+        )
         agent = CharacterAgent(char)
         agent.add_memory("Event 1")
         agent.add_memory("Event 2")
@@ -189,7 +212,9 @@ class TestCharacterAgent:
 
     def test_memory_limit_50(self):
         """Test memory is bounded to 50 entries."""
-        char = Character(name="Test", role="chính", personality="p", background="b", motivation="m")
+        char = Character(
+            name="Test", role="chính", personality="p", background="b", motivation="m"
+        )
         agent = CharacterAgent(char)
         for i in range(60):
             agent.add_memory(f"Event {i}")
@@ -200,7 +225,9 @@ class TestCharacterAgent:
 
     def test_get_trust_creates_edge(self):
         """Test get_trust creates TrustEdge if not exists."""
-        char = Character(name="Test", role="chính", personality="p", background="b", motivation="m")
+        char = Character(
+            name="Test", role="chính", personality="p", background="b", motivation="m"
+        )
         agent = CharacterAgent(char)
         trust = agent.get_trust("Target")
         assert isinstance(trust, TrustEdge)
@@ -209,7 +236,9 @@ class TestCharacterAgent:
 
     def test_get_trust_returns_existing_edge(self):
         """Test get_trust returns existing edge."""
-        char = Character(name="Test", role="chính", personality="p", background="b", motivation="m")
+        char = Character(
+            name="Test", role="chính", personality="p", background="b", motivation="m"
+        )
         agent = CharacterAgent(char)
         trust1 = agent.get_trust("Target")
         trust1.trust = 75.0
@@ -218,7 +247,9 @@ class TestCharacterAgent:
 
     def test_get_emotional_context(self):
         """Test emotional context formatting."""
-        char = Character(name="Test", role="chính", personality="p", background="b", motivation="m")
+        char = Character(
+            name="Test", role="chính", personality="p", background="b", motivation="m"
+        )
         agent = CharacterAgent(char)
         agent.emotion.mood = "tức_giận"
         agent.emotion.energy = 0.6
@@ -236,6 +267,7 @@ class TestCharacterAgent:
 # ============================================================================
 # TRUST EDGE TESTS (CharacterAgent level)
 # ============================================================================
+
 
 class TestTrustEdge:
     """Test TrustEdge for individual agents."""
@@ -289,6 +321,7 @@ class TestTrustEdge:
 # ============================================================================
 # TRUST NETWORK EDGE TESTS (Simulator level)
 # ============================================================================
+
 
 class TestTrustNetworkEdge:
     """Test TrustNetworkEdge in simulator."""
@@ -344,14 +377,21 @@ class TestTrustNetworkEdge:
 # GENRE DRAMA RULES TESTS
 # ============================================================================
 
+
 class TestGenreDramaRules:
     """Test genre drama rules and enhancements."""
 
     def test_all_8_genres_defined(self):
         """Test all 8 Vietnamese genres are defined."""
         required_genres = [
-            "Tiên Hiệp", "Huyền Huyễn", "Đô Thị", "Ngôn Tình",
-            "Cung Đấu", "Xuyên Không", "Trọng Sinh", "Kiếm Hiệp"
+            "Tiên Hiệp",
+            "Huyền Huyễn",
+            "Đô Thị",
+            "Ngôn Tình",
+            "Cung Đấu",
+            "Xuyên Không",
+            "Trọng Sinh",
+            "Kiếm Hiệp",
         ]
         for genre in required_genres:
             assert genre in GENRE_DRAMA_RULES, f"Missing genre: {genre}"
@@ -378,8 +418,12 @@ class TestGenreDramaRules:
     def test_genre_has_required_fields(self):
         """Test each genre has required fields."""
         required_fields = [
-            "escalation_pattern", "key_beats", "tension_curve",
-            "dialogue_style", "emotional_peaks", "pacing_note"
+            "escalation_pattern",
+            "key_beats",
+            "tension_curve",
+            "dialogue_style",
+            "emotional_peaks",
+            "pacing_note",
         ]
         for genre, rules in GENRE_DRAMA_RULES.items():
             for field in required_fields:
@@ -387,19 +431,25 @@ class TestGenreDramaRules:
 
     def test_get_genre_enhancement_hints_early_story(self):
         """Test enhancement hints at story start."""
-        hints = get_genre_enhancement_hints("Tiên Hiệp", chapter_num=2, total_chapters=20)
+        hints = get_genre_enhancement_hints(
+            "Tiên Hiệp", chapter_num=2, total_chapters=20
+        )
         assert "Tiên Hiệp" in hints
         assert "mở đầu" in hints or "thiết lập" in hints
 
     def test_get_genre_enhancement_hints_mid_story(self):
         """Test enhancement hints at story middle."""
-        hints = get_genre_enhancement_hints("Tiên Hiệp", chapter_num=9, total_chapters=20)
+        hints = get_genre_enhancement_hints(
+            "Tiên Hiệp", chapter_num=9, total_chapters=20
+        )
         assert "Tiên Hiệp" in hints
         assert "phát triển" in hints or "leo thang" in hints
 
     def test_get_genre_enhancement_hints_late_story(self):
         """Test enhancement hints at story end."""
-        hints = get_genre_enhancement_hints("Tiên Hiệp", chapter_num=18, total_chapters=20)
+        hints = get_genre_enhancement_hints(
+            "Tiên Hiệp", chapter_num=18, total_chapters=20
+        )
         assert "Tiên Hiệp" in hints
         assert "kết" in hints or "giải quyết" in hints
 
@@ -418,6 +468,7 @@ class TestGenreDramaRules:
 # SIMULATOR TRUST NETWORK TESTS
 # ============================================================================
 
+
 class TestDramaSimulatorTrustNetwork:
     """Test DramaSimulator trust network setup and updates."""
 
@@ -425,11 +476,17 @@ class TestDramaSimulatorTrustNetwork:
         """Test simulator initializes trust network from relationships."""
         sim = DramaSimulator()
         characters = [
-            Character(name="A", role="chính", personality="p", background="b", motivation="m"),
-            Character(name="B", role="phụ", personality="p", background="b", motivation="m"),
+            Character(
+                name="A", role="chính", personality="p", background="b", motivation="m"
+            ),
+            Character(
+                name="B", role="phụ", personality="p", background="b", motivation="m"
+            ),
         ]
         relationships = [
-            Relationship(character_a="A", character_b="B", relation_type=RelationType.ALLY)
+            Relationship(
+                character_a="A", character_b="B", relation_type=RelationType.ALLY
+            )
         ]
         sim.setup_agents(characters, relationships)
 
@@ -444,11 +501,17 @@ class TestDramaSimulatorTrustNetwork:
         """Test trust initialization for ENEMY relationship (hostile)."""
         sim = DramaSimulator()
         characters = [
-            Character(name="A", role="chính", personality="p", background="b", motivation="m"),
-            Character(name="B", role="phụ", personality="p", background="b", motivation="m"),
+            Character(
+                name="A", role="chính", personality="p", background="b", motivation="m"
+            ),
+            Character(
+                name="B", role="phụ", personality="p", background="b", motivation="m"
+            ),
         ]
         relationships = [
-            Relationship(character_a="A", character_b="B", relation_type=RelationType.ENEMY)
+            Relationship(
+                character_a="A", character_b="B", relation_type=RelationType.ENEMY
+            )
         ]
         sim.setup_agents(characters, relationships)
 
@@ -476,10 +539,11 @@ class TestDramaSimulatorTrustNetwork:
 # ENHANCER WEAK CHAPTERS TESTS
 # ============================================================================
 
+
 class TestEnhancerFindWeakChapters:
     """Test _find_weak_chapters returns dicts with weak/strong points."""
 
-    @patch('pipeline.layer2_enhance.enhancer.LLMClient.generate_json')
+    @patch("pipeline.layer2_enhance.enhancer.LLMClient.generate_json")
     def test_find_weak_chapters_returns_dicts(self, mock_llm):
         """Test _find_weak_chapters returns list of dicts with correct structure."""
         mock_llm.return_value = {
@@ -503,7 +567,7 @@ class TestEnhancerFindWeakChapters:
         assert "weak_points" in weak[0]
         assert "strong_points" in weak[0]
 
-    @patch('pipeline.layer2_enhance.enhancer.LLMClient.generate_json')
+    @patch("pipeline.layer2_enhance.enhancer.LLMClient.generate_json")
     def test_find_weak_chapters_filters_by_drama_score(self, mock_llm):
         """Test _find_weak_chapters only includes chapters < MIN_DRAMA_SCORE."""
         mock_llm.side_effect = [
@@ -533,7 +597,7 @@ class TestEnhancerFindWeakChapters:
         assert weak[0]["chapter_number"] == 1
         assert weak[0]["score"] == 0.5
 
-    @patch('pipeline.layer2_enhance.enhancer.LLMClient.generate_json')
+    @patch("pipeline.layer2_enhance.enhancer.LLMClient.generate_json")
     def test_find_weak_chapters_with_empty_weak_points(self, mock_llm):
         """Test _find_weak_chapters handles missing weak_points gracefully."""
         mock_llm.return_value = {
@@ -553,7 +617,7 @@ class TestEnhancerFindWeakChapters:
         assert weak[0]["weak_points"] == []  # Default empty list
         assert weak[0]["strong_points"] == []
 
-    @patch('pipeline.layer2_enhance.enhancer.LLMClient.generate_json')
+    @patch("pipeline.layer2_enhance.enhancer.LLMClient.generate_json")
     def test_find_weak_chapters_handles_llm_exception(self, mock_llm):
         """Test _find_weak_chapters gracefully handles LLM exceptions."""
         mock_llm.side_effect = Exception("LLM API error")
@@ -573,6 +637,7 @@ class TestEnhancerFindWeakChapters:
 # INTEGRATION TESTS
 # ============================================================================
 
+
 class TestIntegration:
     """Integration tests combining multiple components."""
 
@@ -583,7 +648,7 @@ class TestIntegration:
             role="chính",
             personality="Brave",
             background="History",
-            motivation="Justice"
+            motivation="Justice",
         )
         agent = CharacterAgent(char)
 
@@ -597,7 +662,9 @@ class TestIntegration:
 
     def test_trust_network_with_character_agents(self):
         """Test trust network syncs with character agent trust edges."""
-        char_a = Character(name="A", role="chính", personality="p", background="b", motivation="m")
+        char_a = Character(
+            name="A", role="chính", personality="p", background="b", motivation="m"
+        )
         Character(name="B", role="phụ", personality="p", background="b", motivation="m")
 
         agent_a = CharacterAgent(char_a)
@@ -637,12 +704,15 @@ class TestIntegration:
 # EDGE CASE TESTS
 # ============================================================================
 
+
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
 
     def test_emotional_state_zero_total_chapters(self):
         """Test genre hints with zero total chapters."""
-        hints = get_genre_enhancement_hints("Tiên Hiệp", chapter_num=1, total_chapters=0)
+        hints = get_genre_enhancement_hints(
+            "Tiên Hiệp", chapter_num=1, total_chapters=0
+        )
         assert len(hints) > 0  # Should not crash
 
     def test_trust_edge_with_empty_reason(self):
@@ -659,7 +729,7 @@ class TestEdgeCases:
             role="chính",
             personality="p",
             background="b",
-            motivation="m"
+            motivation="m",
         )
         agent = CharacterAgent(char)
         assert agent.character.name == "Nhân vật Đặc Biệt (ấu)"
@@ -684,6 +754,7 @@ class TestEdgeCases:
 # ============================================================================
 # MOOD AND TENSION CONSTANTS TESTS
 # ============================================================================
+
 
 class TestMoodAndTensionConstants:
     """Test mood and tension lookup tables."""

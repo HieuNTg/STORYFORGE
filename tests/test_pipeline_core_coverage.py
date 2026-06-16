@@ -23,18 +23,25 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 from factories import (
-    build_character, create_test_story,
+    build_character,
+    create_test_story,
     create_enhanced_story,
 )
 from models.schemas import (
-    PipelineOutput, Relationship, RelationType, SimulationResult, SimulationEvent,
-    AgentPost, EscalationPattern,
+    PipelineOutput,
+    Relationship,
+    RelationType,
+    SimulationResult,
+    SimulationEvent,
+    AgentPost,
+    EscalationPattern,
 )
 
 
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_pipeline_output(with_draft=True, with_enhanced=False, with_sim=False):
     """Return a PipelineOutput wired with optional sub-objects."""
@@ -61,9 +68,11 @@ def _make_pipeline_output(with_draft=True, with_enhanced=False, with_sim=False):
 
 def _make_relationship(a="Hero", b="Villain", rtype=RelationType.ENEMY, tension=0.5):
     return Relationship(
-        character_a=a, character_b=b,
+        character_a=a,
+        character_b=b,
         relation_type=rtype,
-        intensity=0.7, tension=tension,
+        intensity=0.7,
+        tension=tension,
         description="Test relationship",
     )
 
@@ -72,9 +81,11 @@ def _make_relationship(a="Hero", b="Villain", rtype=RelationType.ENEMY, tension=
 # 1. TrustNetworkEdge  (simulator.py)
 # ===========================================================================
 
+
 class TestTrustNetworkEdge:
     def test_initial_trust(self):
         from pipeline.layer2_enhance.simulator import TrustNetworkEdge
+
         edge = TrustNetworkEdge("A", "B", trust=60.0)
         assert edge.trust == 60.0
         assert edge.char_a == "A"
@@ -82,6 +93,7 @@ class TestTrustNetworkEdge:
 
     def test_update_trust_adds_delta(self):
         from pipeline.layer2_enhance.simulator import TrustNetworkEdge
+
         edge = TrustNetworkEdge("A", "B", trust=50.0)
         edge.update_trust(10.0, "good deed")
         assert edge.trust == 60.0
@@ -89,28 +101,33 @@ class TestTrustNetworkEdge:
 
     def test_update_trust_clamps_min(self):
         from pipeline.layer2_enhance.simulator import TrustNetworkEdge
+
         edge = TrustNetworkEdge("A", "B", trust=5.0)
         edge.update_trust(-100.0)
         assert edge.trust == 0.0
 
     def test_update_trust_clamps_max(self):
         from pipeline.layer2_enhance.simulator import TrustNetworkEdge
+
         edge = TrustNetworkEdge("A", "B", trust=95.0)
         edge.update_trust(100.0)
         assert edge.trust == 100.0
 
     def test_is_betrayal_candidate_below_30(self):
         from pipeline.layer2_enhance.simulator import TrustNetworkEdge
+
         edge = TrustNetworkEdge("A", "B", trust=20.0)
         assert edge.is_betrayal_candidate is True
 
     def test_is_betrayal_candidate_above_30(self):
         from pipeline.layer2_enhance.simulator import TrustNetworkEdge
+
         edge = TrustNetworkEdge("A", "B", trust=50.0)
         assert edge.is_betrayal_candidate is False
 
     def test_history_trimmed_to_10(self):
         from pipeline.layer2_enhance.simulator import TrustNetworkEdge
+
         edge = TrustNetworkEdge("A", "B", trust=50.0)
         for i in range(15):
             edge.update_trust(0.0, f"event {i}")
@@ -121,10 +138,12 @@ class TestTrustNetworkEdge:
 # 2. DramaSimulator  (simulator.py)
 # ===========================================================================
 
+
 class TestDramaSimulatorSetup:
     def _make_simulator(self):
         with patch("pipeline.layer2_enhance.simulator.LLMClient"):
             from pipeline.layer2_enhance.simulator import DramaSimulator
+
             return DramaSimulator()
 
     def test_init_empty_state(self):
@@ -170,10 +189,14 @@ class TestDramaSimulatorSetup:
         sim = self._make_simulator()
         chars = [build_character("Alice"), build_character("Bob")]
         sim.setup_agents(chars, [])
-        sim.all_posts.append(AgentPost(
-            agent_name="Alice", content="Hi", action_type="post",
-            round_number=1,
-        ))
+        sim.all_posts.append(
+            AgentPost(
+                agent_name="Alice",
+                content="Hi",
+                action_type="post",
+                round_number=1,
+            )
+        )
         result = sim._get_recent_posts("Alice")
         assert "Alice" not in result
 
@@ -222,11 +245,13 @@ class TestDramaSimulatorSetup:
         chars = [build_character("Alice"), build_character("Bob")]
         rels = [_make_relationship("Alice", "Bob", RelationType.ALLY)]
         sim.setup_agents(chars, rels)
-        sim._update_relationship({
-            "character_a": "Alice",
-            "character_b": "Bob",
-            "new_relation": RelationType.ENEMY.value,
-        })
+        sim._update_relationship(
+            {
+                "character_a": "Alice",
+                "character_b": "Bob",
+                "new_relation": RelationType.ENEMY.value,
+            }
+        )
         assert sim.relationships[0].relation_type == RelationType.ENEMY
 
     def test_update_relationship_invalid_type_ignored(self):
@@ -235,11 +260,13 @@ class TestDramaSimulatorSetup:
         rels = [_make_relationship("Alice", "Bob", RelationType.ALLY)]
         sim.setup_agents(chars, rels)
         # Should not raise
-        sim._update_relationship({
-            "character_a": "Alice",
-            "character_b": "Bob",
-            "new_relation": "nonexistent_type",
-        })
+        sim._update_relationship(
+            {
+                "character_a": "Alice",
+                "character_b": "Bob",
+                "new_relation": "nonexistent_type",
+            }
+        )
 
 
 class TestDramaSimulatorLLMCalls:
@@ -248,6 +275,7 @@ class TestDramaSimulatorLLMCalls:
     def _make_simulator_with_mock_llm(self):
         with patch("pipeline.layer2_enhance.simulator.LLMClient") as MockLLM:
             from pipeline.layer2_enhance.simulator import DramaSimulator
+
             sim = DramaSimulator()
             sim.llm = MockLLM.return_value
         return sim
@@ -286,10 +314,16 @@ class TestDramaSimulatorLLMCalls:
             "events": [],
             "relationship_changes": [],
         }
-        posts = [AgentPost(
-            agent_name="Alice", content="Drama!", action_type="confrontation",
-            target="Bob", sentiment="tức_giận", round_number=1,
-        )]
+        posts = [
+            AgentPost(
+                agent_name="Alice",
+                content="Drama!",
+                action_type="confrontation",
+                target="Bob",
+                sentiment="tức_giận",
+                round_number=1,
+            )
+        ]
         result = sim.evaluate_drama(posts)
         assert result["overall_drama_score"] == 0.75
         sim.llm.generate_json.assert_called_once()
@@ -354,8 +388,12 @@ class TestDramaSimulatorLLMCalls:
             "trust_change": -10,
         }
         triggering = AgentPost(
-            agent_name="Alice", content="I lied!", action_type="tiết_lộ",
-            target="Bob", sentiment="tiêu_cực", round_number=1,
+            agent_name="Alice",
+            content="I lied!",
+            action_type="tiết_lộ",
+            target="Bob",
+            sentiment="tiêu_cực",
+            round_number=1,
         )
         agent = sim.agents["Bob"]
         post = sim._run_reaction(agent, triggering, 1, "fantasy")
@@ -368,8 +406,12 @@ class TestDramaSimulatorLLMCalls:
         sim.setup_agents(chars, [])
         sim.llm.generate_json.side_effect = Exception("LLM error")
         triggering = AgentPost(
-            agent_name="Alice", content="I lied!", action_type="tiết_lộ",
-            target="Bob", sentiment="tiêu_cực", round_number=1,
+            agent_name="Alice",
+            content="I lied!",
+            action_type="tiết_lộ",
+            target="Bob",
+            sentiment="tiêu_cực",
+            round_number=1,
         )
         agent = sim.agents["Bob"]
         post = sim._run_reaction(agent, triggering, 1, "fantasy")
@@ -380,9 +422,11 @@ class TestDramaSimulatorLLMCalls:
 # 3. CheckpointManager  (orchestrator_checkpoint.py)
 # ===========================================================================
 
+
 class TestCheckpointManager:
     def _make_manager(self, output=None):
         from pipeline.orchestrator_checkpoint import CheckpointManager
+
         if output is None:
             output = _make_pipeline_output()
         analyzer = MagicMock()
@@ -436,6 +480,7 @@ class TestCheckpointManager:
 
     def test_list_checkpoints_empty_dir(self):
         from pipeline.orchestrator_checkpoint import CheckpointManager
+
         with tempfile.TemporaryDirectory() as tmpdir:
             with patch("pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", tmpdir):
                 result = CheckpointManager.list_checkpoints()
@@ -443,19 +488,34 @@ class TestCheckpointManager:
 
     def test_list_checkpoints_nonexistent_dir(self):
         from pipeline.orchestrator_checkpoint import CheckpointManager
-        with patch("pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", "/nonexistent/path"):
+
+        with patch(
+            "pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", "/nonexistent/path"
+        ):
             result = CheckpointManager.list_checkpoints()
         assert result == []
 
     def test_list_checkpoints_returns_metadata(self):
         from pipeline.orchestrator_checkpoint import CheckpointManager
+
         out = _make_pipeline_output()
         mgr = self._make_manager(out)
         with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", tmpdir):
+            # save() writes via _checkpoint_dir_for_title (per-story layout),
+            # while list_checkpoints scans dirs derived from CHECKPOINT_DIR —
+            # patch both so the write lands where the scan looks.
+            ckpt_dir = os.path.join(tmpdir, "checkpoints")
+            with (
+                patch("pipeline.orchestrator_checkpoint.CHECKPOINT_DIR", ckpt_dir),
+                patch(
+                    "pipeline.orchestrator_checkpoint._checkpoint_dir_for_title",
+                    new=lambda title: ckpt_dir,
+                ),
+            ):
                 mgr.save(1, background=False)
                 # brief wait for background thread if any
                 import time
+
                 time.sleep(0.05)
                 result = CheckpointManager.list_checkpoints()
         assert len(result) >= 1
@@ -466,8 +526,9 @@ class TestCheckpointManager:
 
     def test_resume_corrupted_checkpoint_raises(self):
         mgr = self._make_manager()
-        with tempfile.NamedTemporaryFile(suffix=".json", mode="w",
-                                         delete=False, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(
+            suffix=".json", mode="w", delete=False, encoding="utf-8"
+        ) as f:
             f.write("NOT VALID JSON {{{")
             bad_path = f.name
         try:
@@ -478,19 +539,23 @@ class TestCheckpointManager:
 
     def test_resume_valid_checkpoint_restores_output(self):
         from pipeline.orchestrator_checkpoint import CheckpointManager
+
         out = _make_pipeline_output(with_draft=True)
         out.current_layer = 2
         out.status = "completed"
         out.enhanced_story = create_enhanced_story(out.story_draft)
 
-        with tempfile.NamedTemporaryFile(suffix=".json", mode="w",
-                                          delete=False, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(
+            suffix=".json", mode="w", delete=False, encoding="utf-8"
+        ) as f:
             f.write(out.model_dump_json())
             ckpt_path = f.name
         try:
             mgr = CheckpointManager(
                 PipelineOutput(status="running", current_layer=1),
-                MagicMock(), MagicMock(), MagicMock(),
+                MagicMock(),
+                MagicMock(),
+                MagicMock(),
             )
             result = mgr.resume(ckpt_path, enable_agents=False, enable_scoring=False)
             assert result.status in ("completed", "partial")
@@ -500,11 +565,13 @@ class TestCheckpointManager:
     def test_resume_layer1_runs_layer2(self):
         """When checkpoint is at layer 1 (no enhanced story), should run layer 2."""
         from pipeline.orchestrator_checkpoint import CheckpointManager
+
         out = _make_pipeline_output(with_draft=True)
         out.current_layer = 1  # only layer 1 done
 
-        with tempfile.NamedTemporaryFile(suffix=".json", mode="w",
-                                          delete=False, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(
+            suffix=".json", mode="w", delete=False, encoding="utf-8"
+        ) as f:
             f.write(out.model_dump_json())
             ckpt_path = f.name
 
@@ -519,7 +586,9 @@ class TestCheckpointManager:
         try:
             mgr = CheckpointManager(
                 PipelineOutput(status="running", current_layer=1),
-                analyzer, simulator, enhancer,
+                analyzer,
+                simulator,
+                enhancer,
             )
             with patch("pipeline.orchestrator_checkpoint.CheckpointManager.save"):
                 mgr.resume(ckpt_path, enable_agents=False, enable_scoring=False)
@@ -534,14 +603,17 @@ class TestCheckpointManager:
 # 4. PipelineExporter  (orchestrator_export.py)
 # ===========================================================================
 
+
 class TestPipelineExporter:
     def _make_exporter(self, **kwargs):
         from pipeline.orchestrator_export import PipelineExporter
+
         output = _make_pipeline_output(**kwargs)
         return PipelineExporter(output), output
 
     def test_export_output_empty_no_stories(self):
         from pipeline.orchestrator_export import PipelineExporter
+
         empty = PipelineOutput(status="running", current_layer=1)
         exporter = PipelineExporter(empty)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -587,7 +659,10 @@ class TestPipelineExporter:
     def test_export_html_calls_html_exporter(self):
         exporter, _ = self._make_exporter(with_draft=True, with_enhanced=True)
         with patch("plugins.plugin_manager.apply_export", side_effect=lambda fmt, d: d):
-            with patch("services.html_exporter.HTMLExporter.export", return_value="/fake/path.html") as mock_html:
+            with patch(
+                "services.html_exporter.HTMLExporter.export",
+                return_value="/fake/path.html",
+            ) as mock_html:
                 with tempfile.TemporaryDirectory() as tmpdir:
                     exporter.export_output(tmpdir, formats=["HTML"])
         mock_html.assert_called_once()
@@ -595,7 +670,10 @@ class TestPipelineExporter:
     def test_export_epub_calls_epub_exporter(self):
         exporter, _ = self._make_exporter(with_draft=True, with_enhanced=True)
         with patch("plugins.plugin_manager.apply_export", side_effect=lambda fmt, d: d):
-            with patch("services.epub_exporter.EPUBExporter.export", return_value="/fake/path.epub") as mock_epub:
+            with patch(
+                "services.epub_exporter.EPUBExporter.export",
+                return_value="/fake/path.epub",
+            ) as mock_epub:
                 with tempfile.TemporaryDirectory() as tmpdir:
                     exporter.export_output(tmpdir, formats=["EPUB"])
         mock_epub.assert_called_once()
@@ -610,6 +688,7 @@ class TestPipelineExporter:
 
     def test_export_zip_no_files_returns_empty(self):
         from pipeline.orchestrator_export import PipelineExporter
+
         empty = PipelineOutput(status="running", current_layer=1)
         exporter = PipelineExporter(empty)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -619,7 +698,9 @@ class TestPipelineExporter:
     def test_export_plugin_exception_falls_back(self):
         """Plugin apply_export raises → falls back to original data."""
         exporter, _ = self._make_exporter(with_draft=True)
-        with patch("plugins.plugin_manager.apply_export", side_effect=Exception("plugin error")):
+        with patch(
+            "plugins.plugin_manager.apply_export", side_effect=Exception("plugin error")
+        ):
             with tempfile.TemporaryDirectory() as tmpdir:
                 files = exporter.export_output(tmpdir, formats=["TXT"])
         # Should still write the file using the original data
@@ -636,6 +717,7 @@ class TestPipelineExporter:
 
     def test_export_html_no_story_returns_none(self):
         from pipeline.orchestrator_export import PipelineExporter
+
         empty = PipelineOutput(status="running", current_layer=1)
         exporter = PipelineExporter(empty)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -644,6 +726,7 @@ class TestPipelineExporter:
 
     def test_export_epub_no_story_returns_none(self):
         from pipeline.orchestrator_export import PipelineExporter
+
         empty = PipelineOutput(status="running", current_layer=1)
         exporter = PipelineExporter(empty)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -652,6 +735,7 @@ class TestPipelineExporter:
 
     def test_export_markdown_no_story_returns_none(self):
         from pipeline.orchestrator_export import PipelineExporter
+
         empty = PipelineOutput(status="running", current_layer=1)
         exporter = PipelineExporter(empty)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -663,11 +747,17 @@ class TestPipelineExporter:
 # 5. MediaProducer  (orchestrator_media.py)
 # ===========================================================================
 
+
 class TestMediaProducer:
-    def _make_producer(self, image_provider="none", seedream_api_key="",
-                       enable_character_consistency=False):
+    def _make_producer(
+        self,
+        image_provider="none",
+        seedream_api_key="",
+        enable_character_consistency=False,
+    ):
         from pipeline.orchestrator_media import MediaProducer
         from config import PipelineConfig
+
         cfg = MagicMock()
         cfg.pipeline = PipelineConfig(
             image_provider=image_provider,
@@ -728,10 +818,12 @@ class TestMediaProducer:
 # 6. ImageGenerator  (services/media/image_generator.py)
 # ===========================================================================
 
+
 class TestImageGenerator:
     def _make_generator(self, provider="none", api_key="", base_url=""):
         with patch("config.ConfigManager") as MockCfg:
             from config import PipelineConfig
+
             mock_cfg = MagicMock()
             mock_cfg.pipeline = PipelineConfig(
                 image_provider=provider,
@@ -741,7 +833,10 @@ class TestImageGenerator:
             MockCfg.return_value = mock_cfg
             with patch("os.makedirs"):
                 from services.media.image_generator import ImageGenerator
-                return ImageGenerator(provider=provider, api_key=api_key, base_url=base_url)
+
+                return ImageGenerator(
+                    provider=provider, api_key=api_key, base_url=base_url
+                )
 
     def test_init_default_provider(self):
         gen = self._make_generator(provider="none")
@@ -765,6 +860,7 @@ class TestImageGenerator:
     def test_generate_dalle_calls_api(self):
         gen = self._make_generator(provider="dalle", api_key="sk-test")
         import base64
+
         fake_b64 = base64.b64encode(b"fake image bytes").decode()
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"data": [{"b64_json": fake_b64}]}
@@ -783,6 +879,7 @@ class TestImageGenerator:
     def test_generate_sd_success(self):
         gen = self._make_generator(provider="sd-api")
         import base64
+
         fake_b64 = base64.b64encode(b"fake image").decode()
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"images": [fake_b64]}
@@ -869,6 +966,7 @@ class TestImageGenerator:
         gen = self._make_generator(provider="dalle")
         gen.generate = MagicMock(return_value="/tmp/img.png")
         from models.schemas import ImagePrompt
+
         ip = ImagePrompt(
             dalle_prompt="Dalle prompt text",
             sd_prompt="SD prompt text",
@@ -881,6 +979,7 @@ class TestImageGenerator:
     def test_generate_story_images_returns_none_paths_excluded(self):
         gen = self._make_generator(provider="none")
         from models.schemas import ImagePrompt
+
         ip = ImagePrompt(scene_description="A scene")
         result = gen.generate_story_images([ip], chapter_number=1)
         assert result == []
@@ -889,6 +988,7 @@ class TestImageGenerator:
 # ===========================================================================
 # 7. orchestrator_layers functions (run_layer1_only, run_layer2_only)
 # ===========================================================================
+
 
 class TestOrchestratorLayerFunctions:
     """Test the module-level helper functions that wrap orchestrator methods."""
@@ -903,25 +1003,39 @@ class TestOrchestratorLayerFunctions:
 
     def test_run_layer1_only_delegates_to_story_gen(self):
         from pipeline.orchestrator_layers import run_layer1_only
+
         orch = self._make_mock_orchestrator()
         draft = create_test_story()
         orch.story_gen.generate_full_story.return_value = draft
         result = run_layer1_only(
-            orch, title="Test", genre="fantasy", idea="An idea",
-            style="default", num_chapters=3, num_characters=2, word_count=1000,
+            orch,
+            title="Test",
+            genre="fantasy",
+            idea="An idea",
+            style="default",
+            num_chapters=3,
+            num_characters=2,
+            word_count=1000,
         )
         assert result is draft
         orch.story_gen.generate_full_story.assert_called_once()
 
     def test_run_layer1_only_passes_progress_callback(self):
         from pipeline.orchestrator_layers import run_layer1_only
+
         orch = self._make_mock_orchestrator()
         draft = create_test_story()
         orch.story_gen.generate_full_story.return_value = draft
         cb = MagicMock()
         run_layer1_only(
-            orch, title="T", genre="f", idea="i",
-            style="s", num_chapters=1, num_characters=1, word_count=100,
+            orch,
+            title="T",
+            genre="f",
+            idea="i",
+            style="s",
+            num_chapters=1,
+            num_characters=1,
+            word_count=100,
             progress_callback=cb,
         )
         call_kwargs = orch.story_gen.generate_full_story.call_args
@@ -929,6 +1043,7 @@ class TestOrchestratorLayerFunctions:
 
     def test_run_layer2_only_calls_analyzer_simulator_enhancer(self):
         from pipeline.orchestrator_layers import run_layer2_only
+
         orch = self._make_mock_orchestrator()
         draft = create_test_story()
         orch.analyzer.analyze.return_value = {"relationships": []}
@@ -948,6 +1063,7 @@ class TestOrchestratorLayerFunctions:
 
     def test_run_layer2_only_passes_genre_from_draft(self):
         from pipeline.orchestrator_layers import run_layer2_only
+
         orch = self._make_mock_orchestrator()
         draft = create_test_story(genre="romance")
         orch.analyzer.analyze.return_value = {"relationships": []}
@@ -959,6 +1075,7 @@ class TestOrchestratorLayerFunctions:
 
     def test_run_layer2_only_default_rounds_is_5(self):
         from pipeline.orchestrator_layers import run_layer2_only
+
         orch = self._make_mock_orchestrator()
         draft = create_test_story()
         orch.analyzer.analyze.return_value = {"relationships": []}
@@ -972,6 +1089,7 @@ class TestOrchestratorLayerFunctions:
 # ===========================================================================
 # 8. run_full_pipeline (async, orchestrator_layers.py)
 # ===========================================================================
+
 
 @pytest.mark.asyncio
 class TestRunFullPipeline:
@@ -1002,7 +1120,10 @@ class TestRunFullPipeline:
 
         # config
         from config import PipelineConfig
-        orch.config.pipeline = PipelineConfig(enable_quality_gate=False, enable_smart_revision=False)
+
+        orch.config.pipeline = PipelineConfig(
+            enable_quality_gate=False, enable_smart_revision=False
+        )
 
         return orch, draft, enhanced
 
@@ -1012,11 +1133,19 @@ class TestRunFullPipeline:
         orch, _, _ = self._make_orchestrator_for_pipeline()
 
         with patch("services.llm_client.LLMClient") as MockLLM:
-            MockLLM.return_value.check_connection.return_value = (False, "No connection")
+            MockLLM.return_value.check_connection.return_value = (
+                False,
+                "No connection",
+            )
             with patch("services.progress_tracker.ProgressTracker"):
                 result = await run_full_pipeline(
-                    orch, title="T", genre="fantasy", idea="I",
-                    enable_agents=False, enable_scoring=False, enable_media=False,
+                    orch,
+                    title="T",
+                    genre="fantasy",
+                    idea="I",
+                    enable_agents=False,
+                    enable_scoring=False,
+                    enable_media=False,
                 )
 
         assert result.status == "error"
@@ -1031,8 +1160,13 @@ class TestRunFullPipeline:
             with patch("services.progress_tracker.ProgressTracker") as MockTracker:
                 MockTracker.return_value.events = []
                 result = await run_full_pipeline(
-                    orch, title="Test Story", genre="fantasy", idea="A hero",
-                    enable_agents=False, enable_scoring=False, enable_media=False,
+                    orch,
+                    title="Test Story",
+                    genre="fantasy",
+                    idea="A hero",
+                    enable_agents=False,
+                    enable_scoring=False,
+                    enable_media=False,
                 )
 
         assert result.status in ("completed", "partial")
@@ -1049,8 +1183,13 @@ class TestRunFullPipeline:
             with patch("services.progress_tracker.ProgressTracker") as MockTracker:
                 MockTracker.return_value.events = []
                 result = await run_full_pipeline(
-                    orch, title="Test", genre="fantasy", idea="i",
-                    enable_agents=False, enable_scoring=False, enable_media=False,
+                    orch,
+                    title="Test",
+                    genre="fantasy",
+                    idea="i",
+                    enable_agents=False,
+                    enable_scoring=False,
+                    enable_media=False,
                 )
 
         assert result.status == "error"
@@ -1066,8 +1205,13 @@ class TestRunFullPipeline:
             with patch("services.progress_tracker.ProgressTracker") as MockTracker:
                 MockTracker.return_value.events = []
                 result = await run_full_pipeline(
-                    orch, title="Test", genre="fantasy", idea="i",
-                    enable_agents=False, enable_scoring=False, enable_media=False,
+                    orch,
+                    title="Test",
+                    genre="fantasy",
+                    idea="i",
+                    enable_agents=False,
+                    enable_scoring=False,
+                    enable_media=False,
                 )
 
         # Layer 2 is non-fatal — should be partial/completed not error
@@ -1085,8 +1229,13 @@ class TestRunFullPipeline:
             with patch("services.progress_tracker.ProgressTracker") as MockTracker:
                 MockTracker.return_value.events = []
                 await run_full_pipeline(
-                    orch, title="Test", genre="fantasy", idea="i",
-                    enable_agents=False, enable_scoring=False, enable_media=False,
+                    orch,
+                    title="Test",
+                    genre="fantasy",
+                    idea="i",
+                    enable_agents=False,
+                    enable_scoring=False,
+                    enable_media=False,
                     progress_callback=messages.append,
                 )
 
@@ -1102,8 +1251,13 @@ class TestRunFullPipeline:
             with patch("services.progress_tracker.ProgressTracker") as MockTracker:
                 MockTracker.return_value.events = []
                 await run_full_pipeline(
-                    orch, title="Test", genre="fantasy", idea="i",
-                    enable_agents=False, enable_scoring=False, enable_media=False,
+                    orch,
+                    title="Test",
+                    genre="fantasy",
+                    idea="i",
+                    enable_agents=False,
+                    enable_scoring=False,
+                    enable_media=False,
                 )
 
         orch.media_producer.run.assert_not_called()
@@ -1118,8 +1272,13 @@ class TestRunFullPipeline:
             with patch("services.progress_tracker.ProgressTracker") as MockTracker:
                 MockTracker.return_value.events = []
                 result = await run_full_pipeline(
-                    orch, title="Test", genre="fantasy", idea="i",
-                    enable_agents=False, enable_scoring=False, enable_media=False,
+                    orch,
+                    title="Test",
+                    genre="fantasy",
+                    idea="i",
+                    enable_agents=False,
+                    enable_scoring=False,
+                    enable_media=False,
                 )
 
         # No agent reviews should be added
@@ -1139,8 +1298,13 @@ class TestRunFullPipeline:
             with patch("services.progress_tracker.ProgressTracker") as MockTracker:
                 MockTracker.return_value.events = []
                 result = await run_full_pipeline(
-                    orch, title="Test", genre="fantasy", idea="i",
-                    enable_agents=False, enable_scoring=False, enable_media=False,
+                    orch,
+                    title="Test",
+                    genre="fantasy",
+                    idea="i",
+                    enable_agents=False,
+                    enable_scoring=False,
+                    enable_media=False,
                 )
 
         assert result.status == "error"

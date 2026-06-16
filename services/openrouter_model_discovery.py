@@ -82,9 +82,9 @@ def _is_free(model: dict) -> bool:
 
 
 _EXCLUDED_PATTERNS = [
-    "lyria",       # music generation
-    "coder",       # code-only models produce poor prose
-    "gemma-3n",    # edge models, too small for quality prose
+    "lyria",  # music generation
+    "coder",  # code-only models produce poor prose
+    "gemma-3n",  # edge models, too small for quality prose
     "gemma-3-4b",  # too small
     "liquid/lfm",  # 1.2B params, too small
     "llama-3.2-3b",  # 3B params, too small
@@ -126,7 +126,8 @@ def get_free_models(api_key: str = "", force_refresh: bool = False) -> list[str]
 
     if raw_models is not None:
         filtered = [
-            m for m in raw_models
+            m
+            for m in raw_models
             if _is_free(m) and _meets_requirements(m) and m.get("id")
         ]
         _save_cache(filtered)
@@ -146,7 +147,9 @@ def get_free_models(api_key: str = "", force_refresh: bool = False) -> list[str]
                 data = json.load(f)
             ids = [m["id"] for m in data.get("models", [])]
             if ids:
-                logger.warning(f"Model discovery: using stale cache ({len(ids)} models)")
+                logger.warning(
+                    f"Model discovery: using stale cache ({len(ids)} models)"
+                )
                 return ids
         except Exception:
             pass

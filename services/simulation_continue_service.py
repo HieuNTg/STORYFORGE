@@ -110,21 +110,20 @@ def continue_dialogue(
     if not characters:
         raise ValueError("characters is required")
 
-    # str.format() treats `{` / `}` in user input as field markers — escape so
-    # a topic like "rule {x}" cannot KeyError or leak template internals.
-    def _safe(s: str) -> str:
-        return s.replace("{", "{{").replace("}", "}}")
-
     # Lazy import to avoid circular concerns; this maps locale -> readable name.
     from services.character_service import _language_label
+
     language_label = _language_label(language)
 
-    safe_topic = _safe(topic.strip().replace('"', "'")[:2000])
+    # str.format() only parses the template, never the arguments — braces in
+    # user input pass through verbatim, so no escaping is needed (doubling
+    # them here would corrupt the prompt the LLM sees).
+    safe_topic = topic.strip().replace('"', "'")[:2000]
     user = CONTINUE_USER_TEMPLATE.format(
         topic=safe_topic,
         drama=drama_level,
-        chars=_safe(_format_chars(characters)),
-        history=_safe(_format_history(history)),
+        chars=_format_chars(characters),
+        history=_format_history(history),
     )
     # Hard language pin prepended to the user prompt — the static system
     # prompt is Vietnamese-anchored, so for non-VI sources we need to make

@@ -5,7 +5,7 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from api import quality_routes
+import pipeline.orchestrator_checkpoint as orchestrator_checkpoint
 from api.quality_routes import router as quality_router
 from models.schemas import (
     Chapter,
@@ -60,16 +60,32 @@ def test_quality_empty_when_no_scores(client):
 
 
 def test_quality_returns_l1_scores(client):
-    cs1 = ChapterScore(chapter_number=1, coherence=4.0, character_consistency=3.5,
-                       drama=4.5, writing_quality=4.0, notes="strong hook")
+    cs1 = ChapterScore(
+        chapter_number=1,
+        coherence=4.0,
+        character_consistency=3.5,
+        drama=4.5,
+        writing_quality=4.0,
+        notes="strong hook",
+    )
     cs1.overall = 4.0
-    cs2 = ChapterScore(chapter_number=2, coherence=3.0, character_consistency=3.0,
-                       drama=2.5, writing_quality=3.0)
+    cs2 = ChapterScore(
+        chapter_number=2,
+        coherence=3.0,
+        character_consistency=3.0,
+        drama=2.5,
+        writing_quality=3.0,
+    )
     cs2.overall = 2.875
     story_score = StoryScore(
         chapter_scores=[cs1, cs2],
-        avg_coherence=3.5, avg_character=3.25, avg_drama=3.5, avg_writing=3.5,
-        overall=3.4375, weakest_chapter=2, scoring_layer=1,
+        avg_coherence=3.5,
+        avg_character=3.25,
+        avg_drama=3.5,
+        avg_writing=3.5,
+        overall=3.4375,
+        weakest_chapter=2,
+        scoring_layer=1,
     )
     orch = _build_orch(quality_scores=[story_score], num_chapters=2)
 
@@ -115,9 +131,15 @@ def test_quality_l2_overrides_l1(client):
 
 def test_quality_response_schema_validates(client):
     """The response model must validate cleanly for typical scored output."""
-    cs = ChapterScore(chapter_number=1, coherence=3.0, character_consistency=3.0,
-                      drama=3.0, writing_quality=3.0, thematic_alignment=2.0,
-                      dialogue_depth=1.5)
+    cs = ChapterScore(
+        chapter_number=1,
+        coherence=3.0,
+        character_consistency=3.0,
+        drama=3.0,
+        writing_quality=3.0,
+        thematic_alignment=2.0,
+        dialogue_depth=1.5,
+    )
     cs.overall = 3.0
     ss = StoryScore(chapter_scores=[cs], overall=3.0, scoring_layer=1)
     orch = _build_orch(quality_scores=[ss], num_chapters=1)
@@ -129,8 +151,13 @@ def test_quality_response_schema_validates(client):
     body = r.json()
     # Required keys on every chapter entry
     required_score_keys = {
-        "coherence", "character_consistency", "drama", "writing_quality",
-        "thematic_alignment", "dialogue_depth", "overall",
+        "coherence",
+        "character_consistency",
+        "drama",
+        "writing_quality",
+        "thematic_alignment",
+        "dialogue_depth",
+        "overall",
     }
     for ch in body["chapters"]:
         assert required_score_keys.issubset(ch["scores"].keys())
@@ -140,19 +167,24 @@ def test_quality_response_schema_validates(client):
 
 # === /api/quality batch summary endpoint =====================================
 
+
 def _write_checkpoint(path, output: PipelineOutput) -> None:
     path.write_text(output.model_dump_json(), encoding="utf-8")
 
 
 def test_quality_summary_empty_when_no_checkpoints(client, tmp_path, monkeypatch):
     """Missing or empty checkpoint dir → empty summaries map, never 500."""
-    monkeypatch.setattr(quality_routes, "_CHECKPOINT_DIR", tmp_path / "missing")
+    monkeypatch.setattr(
+        orchestrator_checkpoint, "CHECKPOINT_DIR", str(tmp_path / "missing")
+    )
     r = client.get("/quality")
     assert r.status_code == 200
     assert r.json() == {"summaries": {}}
 
     (tmp_path / "empty").mkdir()
-    monkeypatch.setattr(quality_routes, "_CHECKPOINT_DIR", tmp_path / "empty")
+    monkeypatch.setattr(
+        orchestrator_checkpoint, "CHECKPOINT_DIR", str(tmp_path / "empty")
+    )
     r = client.get("/quality")
     assert r.status_code == 200
     assert r.json() == {"summaries": {}}
@@ -167,7 +199,9 @@ def test_quality_summary_skips_unparseable_files(client, tmp_path, monkeypatch):
     # Also include a valid scored file to confirm partial success.
     cs = ChapterScore(chapter_number=1, drama=4.0)
     cs.overall = 4.0
-    ss = StoryScore(chapter_scores=[cs], overall=4.0, weakest_chapter=1, scoring_layer=2)
+    ss = StoryScore(
+        chapter_scores=[cs], overall=4.0, weakest_chapter=1, scoring_layer=2
+    )
     chapters = [Chapter(chapter_number=1, title="Ch 1", content="x", word_count=1)]
     output = PipelineOutput(
         story_draft=StoryDraft(title="T", genre="g", synopsis="s", chapters=chapters),
@@ -176,7 +210,7 @@ def test_quality_summary_skips_unparseable_files(client, tmp_path, monkeypatch):
     )
     _write_checkpoint(ckpt_dir / "good.json", output)
 
-    monkeypatch.setattr(quality_routes, "_CHECKPOINT_DIR", ckpt_dir)
+    monkeypatch.setattr(orchestrator_checkpoint, "CHECKPOINT_DIR", str(ckpt_dir))
     r = client.get("/quality")
     assert r.status_code == 200
     body = r.json()["summaries"]
@@ -192,10 +226,14 @@ def test_quality_summary_returns_l2_when_both_layers(client, tmp_path, monkeypat
 
     l1_cs = ChapterScore(chapter_number=1, drama=2.0)
     l1_cs.overall = 2.0
-    l1 = StoryScore(chapter_scores=[l1_cs], overall=2.0, weakest_chapter=1, scoring_layer=1)
+    l1 = StoryScore(
+        chapter_scores=[l1_cs], overall=2.0, weakest_chapter=1, scoring_layer=1
+    )
     l2_cs = ChapterScore(chapter_number=1, drama=4.5)
     l2_cs.overall = 4.5
-    l2 = StoryScore(chapter_scores=[l2_cs], overall=4.5, weakest_chapter=1, scoring_layer=2)
+    l2 = StoryScore(
+        chapter_scores=[l2_cs], overall=4.5, weakest_chapter=1, scoring_layer=2
+    )
 
     chapters = [Chapter(chapter_number=1, title="Ch 1", content="x", word_count=1)]
     output = PipelineOutput(
@@ -205,7 +243,7 @@ def test_quality_summary_returns_l2_when_both_layers(client, tmp_path, monkeypat
     )
     _write_checkpoint(ckpt_dir / "merged.json", output)
 
-    monkeypatch.setattr(quality_routes, "_CHECKPOINT_DIR", ckpt_dir)
+    monkeypatch.setattr(orchestrator_checkpoint, "CHECKPOINT_DIR", str(ckpt_dir))
     r = client.get("/quality")
     assert r.status_code == 200
     summary = r.json()["summaries"]["merged.json"]
@@ -228,7 +266,7 @@ def test_quality_summary_unscored_returns_null(client, tmp_path, monkeypatch):
     )
     _write_checkpoint(ckpt_dir / "legacy.json", output)
 
-    monkeypatch.setattr(quality_routes, "_CHECKPOINT_DIR", ckpt_dir)
+    monkeypatch.setattr(orchestrator_checkpoint, "CHECKPOINT_DIR", str(ckpt_dir))
     r = client.get("/quality")
     assert r.status_code == 200
     assert r.json()["summaries"]["legacy.json"] is None

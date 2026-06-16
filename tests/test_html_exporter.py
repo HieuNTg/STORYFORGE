@@ -1,8 +1,12 @@
 """Tests for services/html_exporter.py — HTMLExporter and helper functions."""
+
 import os
 
 from models.schemas import (
-    Chapter, Character, StoryDraft, EnhancedStory,
+    Chapter,
+    Character,
+    StoryDraft,
+    EnhancedStory,
 )
 from services.html_exporter import (
     HTMLExporter,
@@ -17,15 +21,26 @@ from services.html_exporter import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_chapter(num=1, title="Test Chapter", content="Hello world."):
     return Chapter(chapter_number=num, title=title, content=content)
 
 
-def _make_character(name="Alice", role="protagonist", personality="brave", motivation="save world"):
-    return Character(name=name, role=role, personality=personality, motivation=motivation, background="unknown")
+def _make_character(
+    name="Alice", role="protagonist", personality="brave", motivation="save world"
+):
+    return Character(
+        name=name,
+        role=role,
+        personality=personality,
+        motivation=motivation,
+        background="unknown",
+    )
 
 
-def _make_story_draft(title="My Story", genre="tien_hiep", chapters=None, characters=None):
+def _make_story_draft(
+    title="My Story", genre="tien_hiep", chapters=None, characters=None
+):
     return StoryDraft(
         title=title,
         genre=genre,
@@ -47,6 +62,7 @@ def _make_enhanced_story(title="Enhanced Story", drama_score=0.75, chapters=None
 # ---------------------------------------------------------------------------
 # _md_to_html
 # ---------------------------------------------------------------------------
+
 
 class TestMdToHtml:
     def test_bold_conversion(self):
@@ -93,6 +109,7 @@ class TestMdToHtml:
 # _build_chapter_nav
 # ---------------------------------------------------------------------------
 
+
 class TestBuildChapterNav:
     def test_generates_anchor_links(self):
         chapters = [_make_chapter(1, "Intro"), _make_chapter(2, "Conflict")]
@@ -124,6 +141,7 @@ class TestBuildChapterNav:
 # ---------------------------------------------------------------------------
 # _build_character_cards
 # ---------------------------------------------------------------------------
+
 
 class TestBuildCharacterCards:
     def test_empty_list_returns_empty_string(self):
@@ -166,6 +184,7 @@ class TestBuildCharacterCards:
 # _build_chapters_html
 # ---------------------------------------------------------------------------
 
+
 class TestBuildChaptersHtml:
     def test_chapter_id_anchor(self):
         chapters = [_make_chapter(1, "Intro")]
@@ -202,9 +221,13 @@ class TestBuildChaptersHtml:
 
     def test_comic_pages_rendered_stacked(self):
         ch = Chapter(
-            chapter_number=1, title="Ch1", content="Prose here.",
-            images=["/media/output/s/pages/ch01_page01.png",
-                    "/media/output/s/pages/ch01_page02.png"],
+            chapter_number=1,
+            title="Ch1",
+            content="Prose here.",
+            images=[
+                "/media/output/s/pages/ch01_page01.png",
+                "/media/output/s/pages/ch01_page02.png",
+            ],
         )
         result = _build_chapters_html([ch])
         assert 'class="comic-pages"' in result
@@ -215,7 +238,9 @@ class TestBuildChaptersHtml:
 
     def test_comic_chapter_prose_collapses_to_details(self):
         ch = Chapter(
-            chapter_number=1, title="Ch1", content="Prose here.",
+            chapter_number=1,
+            title="Ch1",
+            content="Prose here.",
             images=["/media/output/s/pages/p1.png"],
         )
         result = _build_chapters_html([ch])
@@ -230,10 +255,14 @@ class TestBuildChaptersHtml:
 
     def test_non_media_and_traversal_urls_dropped(self):
         ch = Chapter(
-            chapter_number=1, title="Ch1", content="x",
-            images=["https://evil.example/x.png",
-                    "/media/../data/config.json",
-                    "/media/output/s/ok.png"],
+            chapter_number=1,
+            title="Ch1",
+            content="x",
+            images=[
+                "https://evil.example/x.png",
+                "/media/../data/config.json",
+                "/media/output/s/ok.png",
+            ],
         )
         result = _build_chapters_html([ch])
         assert "evil.example" not in result
@@ -242,7 +271,9 @@ class TestBuildChaptersHtml:
 
     def test_image_url_html_escaped(self):
         ch = Chapter(
-            chapter_number=1, title="Ch1", content="x",
+            chapter_number=1,
+            title="Ch1",
+            content="x",
             images=['/media/a"onerror="alert(1).png'],
         )
         result = _build_chapters_html([ch])
@@ -252,6 +283,7 @@ class TestBuildChaptersHtml:
 # ---------------------------------------------------------------------------
 # HTMLExporter.export
 # ---------------------------------------------------------------------------
+
 
 class TestHTMLExporter:
     def test_export_story_draft_creates_file(self, tmp_path):

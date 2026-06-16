@@ -3,7 +3,13 @@
 import pytest
 from unittest.mock import MagicMock
 
-from models.schemas import Character, Relationship, RelationType, ConflictEntry, ForeshadowingEntry
+from models.schemas import (
+    Character,
+    Relationship,
+    RelationType,
+    ConflictEntry,
+    ForeshadowingEntry,
+)
 from pipeline.layer2_enhance.simulator import DramaSimulator, calculate_adaptive_rounds
 
 
@@ -19,7 +25,9 @@ def _char(name):
 
 
 def _rel(a, b, rel_type=RelationType.ALLY, tension=0.3):
-    return Relationship(character_a=a, character_b=b, relation_type=rel_type, tension=tension)
+    return Relationship(
+        character_a=a, character_b=b, relation_type=rel_type, tension=tension
+    )
 
 
 def _conflict(chars, intensity=3, description="test conflict"):
@@ -46,7 +54,9 @@ class TestSetupAgentsConflictWeb:
 
     def test_foreshadowing_plan_stored(self):
         sim = _sim()
-        entries = [ForeshadowingEntry(hint="dark secret", plant_chapter=1, payoff_chapter=3)]
+        entries = [
+            ForeshadowingEntry(hint="dark secret", plant_chapter=1, payoff_chapter=3)
+        ]
         sim.setup_agents([_char("A")], [], foreshadowing_plan=entries)
         assert len(sim.foreshadowing_plan) == 1
 
@@ -88,8 +98,16 @@ class TestApplyConflictWebTensions:
         sim_high = DramaSimulator()
         rel_low = _rel("A", "B", RelationType.ALLY)
         rel_high = _rel("A", "B", RelationType.ALLY)
-        sim_low.setup_agents([_char("A"), _char("B")], [rel_low], conflict_web=[_conflict(["A", "B"], intensity=1)])
-        sim_high.setup_agents([_char("A"), _char("B")], [rel_high], conflict_web=[_conflict(["A", "B"], intensity=5)])
+        sim_low.setup_agents(
+            [_char("A"), _char("B")],
+            [rel_low],
+            conflict_web=[_conflict(["A", "B"], intensity=1)],
+        )
+        sim_high.setup_agents(
+            [_char("A"), _char("B")],
+            [rel_high],
+            conflict_web=[_conflict(["A", "B"], intensity=5)],
+        )
         edge_low = sim_low.trust_network.get("A|B")
         edge_high = sim_high.trust_network.get("A|B")
         assert edge_low.trust > edge_high.trust
@@ -98,28 +116,48 @@ class TestApplyConflictWebTensions:
 class TestGetForeshadowingHints:
     def test_returns_hint_when_due(self):
         sim = _sim()
-        entries = [ForeshadowingEntry(hint="betrayal hint", plant_chapter=1, payoff_chapter=3, planted=True)]
+        entries = [
+            ForeshadowingEntry(
+                hint="betrayal hint", plant_chapter=1, payoff_chapter=3, planted=True
+            )
+        ]
         sim.setup_agents([_char("A")], [], foreshadowing_plan=entries)
         hints = sim._get_foreshadowing_hints(current_chapter=3)
         assert "betrayal hint" in hints
 
     def test_no_hint_when_not_yet_due(self):
         sim = _sim()
-        entries = [ForeshadowingEntry(hint="future reveal", plant_chapter=1, payoff_chapter=10, planted=True)]
+        entries = [
+            ForeshadowingEntry(
+                hint="future reveal", plant_chapter=1, payoff_chapter=10, planted=True
+            )
+        ]
         sim.setup_agents([_char("A")], [], foreshadowing_plan=entries)
         hints = sim._get_foreshadowing_hints(current_chapter=3)
         assert hints == []
 
     def test_no_hint_when_not_planted(self):
         sim = _sim()
-        entries = [ForeshadowingEntry(hint="not planted", plant_chapter=1, payoff_chapter=2, planted=False)]
+        entries = [
+            ForeshadowingEntry(
+                hint="not planted", plant_chapter=1, payoff_chapter=2, planted=False
+            )
+        ]
         sim.setup_agents([_char("A")], [], foreshadowing_plan=entries)
         hints = sim._get_foreshadowing_hints(current_chapter=5)
         assert hints == []
 
     def test_no_hint_when_already_paid_off(self):
         sim = _sim()
-        entries = [ForeshadowingEntry(hint="done", plant_chapter=1, payoff_chapter=2, planted=True, paid_off=True)]
+        entries = [
+            ForeshadowingEntry(
+                hint="done",
+                plant_chapter=1,
+                payoff_chapter=2,
+                planted=True,
+                paid_off=True,
+            )
+        ]
         sim.setup_agents([_char("A")], [], foreshadowing_plan=entries)
         hints = sim._get_foreshadowing_hints(current_chapter=5)
         assert hints == []
@@ -145,7 +183,9 @@ class TestCalculateAdaptiveRounds:
         chars = [_char(f"C{i}") for i in range(30)]
         threads = list(range(30))
         conflicts = list(range(30))
-        result = calculate_adaptive_rounds(chars, threads=threads, conflict_web=conflicts)
+        result = calculate_adaptive_rounds(
+            chars, threads=threads, conflict_web=conflicts
+        )
         assert result <= 10
 
     def test_character_factor(self):
@@ -168,7 +208,9 @@ class TestCalculateAdaptiveRounds:
         conflict_factor=min(2,6//4)=1 → base 4+2+1+1=8.
         """
         chars = [_char(f"C{i}") for i in range(10)]
-        result = calculate_adaptive_rounds(chars, threads=list(range(8)), conflict_web=list(range(6)))
+        result = calculate_adaptive_rounds(
+            chars, threads=list(range(8)), conflict_web=list(range(6))
+        )
         assert result == 8
 
     def test_simple_story(self):
@@ -187,7 +229,9 @@ class TestCalculateAdaptiveRounds:
 
     def test_none_threads_and_conflicts(self):
         """None inputs treated as empty lists (no error)."""
-        result = calculate_adaptive_rounds([_char("A")], threads=None, conflict_web=None)
+        result = calculate_adaptive_rounds(
+            [_char("A")], threads=None, conflict_web=None
+        )
         assert result == 4
 
 
@@ -201,7 +245,8 @@ class TestRunSimulationSignalPassthrough:
         sim._check_escalations = MagicMock(return_value=None)
         # We just verify setup_agents is called with conflict_web stored
         sim.setup_agents(
-            [_char("A"), _char("B")], [],
+            [_char("A"), _char("B")],
+            [],
             conflict_web=conflicts,
         )
         assert sim.conflict_web == conflicts

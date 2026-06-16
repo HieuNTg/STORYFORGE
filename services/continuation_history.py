@@ -20,7 +20,9 @@ _MAX_EVENTS = 20
 
 
 def _project_root() -> pathlib.Path:
-    return pathlib.Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).resolve()
+    return pathlib.Path(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    ).resolve()
 
 
 def checkpoint_dir() -> pathlib.Path:
@@ -51,9 +53,11 @@ def sidecar_path_for(
 
     if title:
         from services.output_paths import checkpoints_dir
+
         return pathlib.Path(checkpoints_dir(title)) / sidecar_name
 
     from pipeline.orchestrator_checkpoint import find_checkpoint_path
+
     found = find_checkpoint_path(pathlib.Path(checkpoint_filename).name)
     if found:
         return pathlib.Path(found).parent / sidecar_name
@@ -115,7 +119,9 @@ def record_continuation(
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"events": events}, f, ensure_ascii=False, indent=2)
-        logger.info("Continuation history appended: %s (+%d)", path.name, event["added"])
+        logger.info(
+            "Continuation history appended: %s (+%d)", path.name, event["added"]
+        )
         return path
     except OSError as e:
         logger.warning("Continuation sidecar write failed (%s): %s", path.name, e)

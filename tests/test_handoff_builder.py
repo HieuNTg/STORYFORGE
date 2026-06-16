@@ -26,10 +26,14 @@ from pipeline.layer1_story.handoff_builder import build_l1_handoff
 
 
 def _character(name: str, character_id: str | None = None):
-    return SimpleNamespace(name=name, character_id=character_id or name.lower().replace(" ", "_"))
+    return SimpleNamespace(
+        name=name, character_id=character_id or name.lower().replace(" ", "_")
+    )
 
 
-def _conflict(conflict_id: str, parties: list[str], ctype: str = "ideological", intensity: int = 3):
+def _conflict(
+    conflict_id: str, parties: list[str], ctype: str = "ideological", intensity: int = 3
+):
     return SimpleNamespace(
         conflict_id=conflict_id,
         characters=parties,
@@ -169,8 +173,10 @@ def test_canonicalise_warns_only_once_per_alias():
         canonicalise_voice_profile(raw1)
         canonicalise_voice_profile(raw2)
     speech_quirks_warnings = [
-        w for w in caught
-        if issubclass(w.category, DeprecationWarning) and "speech_quirks" in str(w.message)
+        w
+        for w in caught
+        if issubclass(w.category, DeprecationWarning)
+        and "speech_quirks" in str(w.message)
     ]
     assert len(speech_quirks_warnings) == 1
 
@@ -209,8 +215,16 @@ def test_build_handoff_full_draft_all_ok():
     assert isinstance(env, L1Handoff)
     assert env.story_id == "story_001"
     assert env.num_chapters == 10
-    for name in ("conflict_web", "foreshadowing_plan", "arc_waypoints", "threads", "voice_fingerprints"):
-        assert env.signal_health[name].status == "ok", f"{name} status: {env.signal_health[name]}"
+    for name in (
+        "conflict_web",
+        "foreshadowing_plan",
+        "arc_waypoints",
+        "threads",
+        "voice_fingerprints",
+    ):
+        assert env.signal_health[name].status == "ok", (
+            f"{name} status: {env.signal_health[name]}"
+        )
     ok, blockers = env.is_usable_by_l2()
     assert ok is True
     assert blockers == []

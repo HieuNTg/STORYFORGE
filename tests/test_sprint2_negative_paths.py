@@ -57,7 +57,9 @@ def _make_emb_service(text_to_seed: dict[str, int]):
     """
 
     def _embed_batch(texts):
-        return [_bytes_for(_unit_vec(text_to_seed.get(t, hash(t) & 0xFFFF))) for t in texts]
+        return [
+            _bytes_for(_unit_vec(text_to_seed.get(t, hash(t) & 0xFFFF))) for t in texts
+        ]
 
     svc = MagicMock()
     svc.is_available.return_value = True
@@ -179,14 +181,22 @@ class TestNameSpellingFallback:
         emb.is_available.return_value = False  # disable thread checks (N/A here)
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service", return_value=ner),
-            patch("pipeline.semantic.structural_detector.get_embedding_service", return_value=emb),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=ner,
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=emb,
+            ),
         ):
             findings = detect_structural_issues(chapter, contract, characters=[])
 
         # Substring matched "Long" → no missing-character finding
         missing = [
-            f for f in findings if f.finding_type == StructuralFindingType.MISSING_CHARACTER
+            f
+            for f in findings
+            if f.finding_type == StructuralFindingType.MISSING_CHARACTER
         ]
         assert missing == []
 
@@ -213,8 +223,14 @@ class TestNameSpellingFallback:
         emb.is_available.return_value = False
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service", return_value=ner),
-            patch("pipeline.semantic.structural_detector.get_embedding_service", return_value=emb),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=ner,
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=emb,
+            ),
         ):
             findings = detect_structural_issues(chapter, contract, characters=[])
 
@@ -304,8 +320,14 @@ class TestStrictCriticalFinding:
         emb.is_available.return_value = False
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service", return_value=ner),
-            patch("pipeline.semantic.structural_detector.get_embedding_service", return_value=emb),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=ner,
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=emb,
+            ),
         ):
             with pytest.raises(SemanticVerificationError) as excinfo:
                 detect_structural_issues(chapter, contract, characters=[])
@@ -379,16 +401,26 @@ class TestEmbeddingUnavailableDegradation:
         emb.is_available.return_value = False
 
         with (
-            patch("pipeline.semantic.structural_detector.get_ner_service", return_value=ner),
-            patch("pipeline.semantic.structural_detector.get_embedding_service", return_value=emb),
+            patch(
+                "pipeline.semantic.structural_detector.get_ner_service",
+                return_value=ner,
+            ),
+            patch(
+                "pipeline.semantic.structural_detector.get_embedding_service",
+                return_value=emb,
+            ),
         ):
             with caplog.at_level("WARNING"):
                 findings = detect_structural_issues(chapter, contract, characters=[])
 
         # No thread-coverage findings (would be MISSING_KEY_EVENT)
         thread_findings = [
-            f for f in findings if f.finding_type == StructuralFindingType.MISSING_KEY_EVENT
+            f
+            for f in findings
+            if f.finding_type == StructuralFindingType.MISSING_KEY_EVENT
         ]
         assert thread_findings == []
         # And a warning was logged
-        assert any("Embedding service unavailable" in rec.message for rec in caplog.records)
+        assert any(
+            "Embedding service unavailable" in rec.message for rec in caplog.records
+        )

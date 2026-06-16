@@ -45,8 +45,12 @@ _ENV_MAP: dict[str, tuple[str, str]] = {
 
 _FLOAT_FIELDS = {"temperature", "quality_gate_threshold"}
 _BOOL_FIELDS = {
-    "rag_enabled", "enable_character_consistency", "use_long_context",
-    "enable_agent_debate", "enable_smart_revision", "enable_quality_gate",
+    "rag_enabled",
+    "enable_character_consistency",
+    "use_long_context",
+    "enable_agent_debate",
+    "enable_smart_revision",
+    "enable_quality_gate",
     "block_on_injection",
 }
 
@@ -58,6 +62,7 @@ def load_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
             from services.secret_manager import decrypt_sensitive_fields
+
             data = decrypt_sensitive_fields(data)
             for k, v in data.get("llm", {}).items():
                 if hasattr(llm, k):
@@ -86,6 +91,7 @@ def _migrate_legacy_secrets(llm: "LLMConfig", pipeline: "PipelineConfig") -> Non
         return
     try:
         from services.secret_manager import load_encrypted
+
         data = load_encrypted(_SECRETS_FILE)
     except Exception as e:
         logger.warning(f"Legacy secrets load error: {e}")
@@ -169,9 +175,15 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
             "enable_self_review": pipeline.enable_self_review,
             "self_review_threshold": pipeline.self_review_threshold,
             "enable_drama_climax": getattr(pipeline, "enable_drama_climax", False),
-            "enable_pipeline_overlay": getattr(pipeline, "enable_pipeline_overlay", True),
-            "enable_chapter_illustration": getattr(pipeline, "enable_chapter_illustration", True),
-            "enable_simulation_transcript": getattr(pipeline, "enable_simulation_transcript", True),
+            "enable_pipeline_overlay": getattr(
+                pipeline, "enable_pipeline_overlay", True
+            ),
+            "enable_chapter_illustration": getattr(
+                pipeline, "enable_chapter_illustration", True
+            ),
+            "enable_simulation_transcript": getattr(
+                pipeline, "enable_simulation_transcript", True
+            ),
             "rag_enabled": pipeline.rag_enabled,
             "rag_persist_dir": pipeline.rag_persist_dir,
             "enable_character_consistency": pipeline.enable_character_consistency,
@@ -193,27 +205,54 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
             "flowkit_port": getattr(pipeline, "flowkit_port", 7860),
             "flowkit_project_id": getattr(pipeline, "flowkit_project_id", ""),
             "flowkit_aspect_ratio": getattr(pipeline, "flowkit_aspect_ratio", "9:16"),
-            "flowkit_style_reference_path": getattr(pipeline, "flowkit_style_reference_path", ""),
-            "flowkit_concurrent_workers_max": getattr(pipeline, "flowkit_concurrent_workers_max", 4),
-            "flowkit_workers_ramp_threshold": getattr(pipeline, "flowkit_workers_ramp_threshold", 5),
-            "flowkit_veo_poll_interval": getattr(pipeline, "flowkit_veo_poll_interval", 8.0),
-            "flowkit_account_warning_shown": getattr(pipeline, "flowkit_account_warning_shown", False),
-            "flowkit_risk_acknowledged": getattr(pipeline, "flowkit_risk_acknowledged", False),
-            "flowkit_image_input_type_split": getattr(pipeline, "flowkit_image_input_type_split", False),
-            "flowkit_callback_hmac_required": getattr(pipeline, "flowkit_callback_hmac_required", True),
+            "flowkit_style_reference_path": getattr(
+                pipeline, "flowkit_style_reference_path", ""
+            ),
+            "flowkit_concurrent_workers_max": getattr(
+                pipeline, "flowkit_concurrent_workers_max", 4
+            ),
+            "flowkit_workers_ramp_threshold": getattr(
+                pipeline, "flowkit_workers_ramp_threshold", 5
+            ),
+            "flowkit_veo_poll_interval": getattr(
+                pipeline, "flowkit_veo_poll_interval", 8.0
+            ),
+            "flowkit_account_warning_shown": getattr(
+                pipeline, "flowkit_account_warning_shown", False
+            ),
+            "flowkit_risk_acknowledged": getattr(
+                pipeline, "flowkit_risk_acknowledged", False
+            ),
+            "flowkit_image_input_type_split": getattr(
+                pipeline, "flowkit_image_input_type_split", False
+            ),
+            "flowkit_callback_hmac_required": getattr(
+                pipeline, "flowkit_callback_hmac_required", True
+            ),
             "flowkit_use_refiner": getattr(pipeline, "flowkit_use_refiner", True),
-            "flowkit_request_timeout": getattr(pipeline, "flowkit_request_timeout", 180.0),
+            "flowkit_request_timeout": getattr(
+                pipeline, "flowkit_request_timeout", 180.0
+            ),
             "panels_auto": getattr(pipeline, "panels_auto", True),
             "panels_min": getattr(pipeline, "panels_min", 4),
             "panels_max": getattr(pipeline, "panels_max", 12),
             "words_per_panel": getattr(pipeline, "words_per_panel", 200),
             "panel_retry_attempts": getattr(pipeline, "panel_retry_attempts", 2),
-            "comic_shot_list_enabled": getattr(pipeline, "comic_shot_list_enabled", False),
-            "comic_coverage_check_enabled": getattr(pipeline, "comic_coverage_check_enabled", True),
-            "comic_compositor_enabled": getattr(pipeline, "comic_compositor_enabled", False),
+            "comic_shot_list_enabled": getattr(
+                pipeline, "comic_shot_list_enabled", False
+            ),
+            "comic_coverage_check_enabled": getattr(
+                pipeline, "comic_coverage_check_enabled", True
+            ),
+            "comic_compositor_enabled": getattr(
+                pipeline, "comic_compositor_enabled", False
+            ),
             "comic_page_canvas": getattr(pipeline, "comic_page_canvas", "1600x2263"),
-            "comic_font": getattr(pipeline, "comic_font", "assets/fonts/BeVietnamPro-Bold.ttf"),
+            "comic_font": getattr(
+                pipeline, "comic_font", "assets/fonts/BeVietnamPro-Bold.ttf"
+            ),
             "comic_layout_mode": getattr(pipeline, "comic_layout_mode", "shot_list"),
+            "cover_image_enabled": getattr(pipeline, "cover_image_enabled", True),
             "rag_index_chapters": getattr(pipeline, "rag_index_chapters", True),
             "rag_multi_query": getattr(pipeline, "rag_multi_query", True),
             "rag_per_char_queries": getattr(pipeline, "rag_per_char_queries", 3),
@@ -224,6 +263,7 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
         },
     }
     from services.secret_manager import encrypt_sensitive_fields
+
     data = encrypt_sensitive_fields(data)
     tmp = CONFIG_FILE + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:

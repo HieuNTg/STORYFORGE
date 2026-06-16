@@ -28,7 +28,9 @@ from typing import Optional
 # ChromaDB persistence defaults (can be overridden via env vars)
 # ---------------------------------------------------------------------------
 CHROMA_PERSIST_DIR: str = os.environ.get("CHROMA_PERSIST_DIR", "data/chromadb")
-CHROMA_COLLECTION_NAME: str = os.environ.get("CHROMA_COLLECTION_NAME", "storyforge_world")
+CHROMA_COLLECTION_NAME: str = os.environ.get(
+    "CHROMA_COLLECTION_NAME", "storyforge_world"
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,7 @@ logger = logging.getLogger(__name__)
 try:
     import chromadb
     from chromadb.utils import embedding_functions
+
     _CHROMADB_AVAILABLE = True
 except ImportError:
     _CHROMADB_AVAILABLE = False
@@ -43,6 +46,7 @@ except ImportError:
 
 try:
     from sentence_transformers import SentenceTransformer  # noqa: F401
+
     _SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError:
     _SENTENCE_TRANSFORMERS_AVAILABLE = False
@@ -115,7 +119,9 @@ def _read_file(filepath: str) -> str:
 
     size = os.path.getsize(filepath)
     if size > MAX_FILE_SIZE_BYTES:
-        raise ValueError(f"File too large ({size} bytes). Max {MAX_FILE_SIZE_BYTES} bytes.")
+        raise ValueError(
+            f"File too large ({size} bytes). Max {MAX_FILE_SIZE_BYTES} bytes."
+        )
 
     ext = os.path.splitext(filepath)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -128,11 +134,14 @@ def _read_file(filepath: str) -> str:
     if ext == ".pdf":
         try:
             import pypdf
+
             reader = pypdf.PdfReader(filepath)
             pages = [page.extract_text() or "" for page in reader.pages]
             return "\n".join(pages)
         except ImportError:
-            raise ImportError("pypdf is required to read PDF files. Install with: pip install pypdf")
+            raise ImportError(
+                "pypdf is required to read PDF files. Install with: pip install pypdf"
+            )
 
     return ""  # unreachable
 
@@ -233,8 +242,7 @@ class RAGKnowledgeBase:
                 return 0
 
             metadatas = [
-                {"source": filename, "chunk_index": i}
-                for i in range(len(chunks))
+                {"source": filename, "chunk_index": i} for i in range(len(chunks))
             ]
             added = self.add_documents(chunks, metadatas)
             logger.info(f"RAG: Added {added} chunks from '{filename}'")
@@ -334,7 +342,9 @@ class RAGKnowledgeBase:
             # Retry without where filter — Chroma $contains syntax varies by version
             if where:
                 try:
-                    results = self._collection.query(query_texts=[question], n_results=n)
+                    results = self._collection.query(
+                        query_texts=[question], n_results=n
+                    )
                 except Exception as e2:
                     logger.warning(f"RAG query_structured fallback failed: {e2}")
                     return []
@@ -353,7 +363,10 @@ class RAGKnowledgeBase:
             if not doc:
                 continue
             meta = meta or {}
-            if exclude_chapter is not None and meta.get("chapter_number") == exclude_chapter:
+            if (
+                exclude_chapter is not None
+                and meta.get("chapter_number") == exclude_chapter
+            ):
                 continue
             out.append({"text": doc, "metadata": meta, "distance": float(dist or 0.0)})
         return out
@@ -396,7 +409,9 @@ class RAGKnowledgeBase:
         from datetime import datetime
 
         if not os.path.isdir(self._persist_dir):
-            logger.warning(f"RAG backup: persist_dir '{self._persist_dir}' does not exist")
+            logger.warning(
+                f"RAG backup: persist_dir '{self._persist_dir}' does not exist"
+            )
             return None
 
         if backup_dir is None:

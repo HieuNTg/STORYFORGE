@@ -11,7 +11,9 @@ router = APIRouter(tags=["metrics"])
 _ACCESS_ANALYTICS = Depends(require_permission_if_enabled(Permission.ACCESS_ANALYTICS))
 
 
-@router.get("/metrics", response_class=PlainTextResponse, dependencies=[_ACCESS_ANALYTICS])
+@router.get(
+    "/metrics", response_class=PlainTextResponse, dependencies=[_ACCESS_ANALYTICS]
+)
 async def get_metrics() -> PlainTextResponse:
     """Expose Prometheus text metrics (format version 0.0.4)."""
     return PlainTextResponse(
@@ -20,7 +22,11 @@ async def get_metrics() -> PlainTextResponse:
     )
 
 
-@router.get("/metrics/prometheus", response_class=PlainTextResponse, dependencies=[_ACCESS_ANALYTICS])
+@router.get(
+    "/metrics/prometheus",
+    response_class=PlainTextResponse,
+    dependencies=[_ACCESS_ANALYTICS],
+)
 async def get_prometheus_metrics() -> PlainTextResponse:
     """Expose StoryForge request/pipeline/SSE metrics in Prometheus text format.
 

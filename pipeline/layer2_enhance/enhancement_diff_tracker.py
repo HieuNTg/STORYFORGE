@@ -30,23 +30,37 @@ def compute_chapter_diff(original_content: str, enhanced_content: str) -> list[s
     delta = enhanced_words - orig_words
     if abs(delta) > 50:
         direction = "tăng" if delta > 0 else "giảm"
-        changelog.append(f"Số từ {direction} {abs(delta)} ({orig_words} → {enhanced_words})")
+        changelog.append(
+            f"Số từ {direction} {abs(delta)} ({orig_words} → {enhanced_words})"
+        )
 
     # Thay đổi mật độ đối thoại
-    orig_dialogue = sum(1 for line in orig_lines if line.strip().startswith(("\"", "\u201c", "—", "–")))
-    enhanced_dialogue = sum(1 for line in enhanced_lines if line.strip().startswith(("\"", "\u201c", "—", "–")))
+    orig_dialogue = sum(
+        1 for line in orig_lines if line.strip().startswith(('"', "\u201c", "—", "–"))
+    )
+    enhanced_dialogue = sum(
+        1
+        for line in enhanced_lines
+        if line.strip().startswith(('"', "\u201c", "—", "–"))
+    )
     if abs(enhanced_dialogue - orig_dialogue) > 2:
         direction = "tăng" if enhanced_dialogue > orig_dialogue else "giảm"
-        changelog.append(f"Đối thoại {direction} ({orig_dialogue} → {enhanced_dialogue} dòng)")
+        changelog.append(
+            f"Đối thoại {direction} ({orig_dialogue} → {enhanced_dialogue} dòng)"
+        )
 
     # Thay đổi cấu trúc đoạn
     orig_paras = len([line for line in orig_lines if line.strip() == ""])
     enhanced_paras = len([line for line in enhanced_lines if line.strip() == ""])
     if abs(enhanced_paras - orig_paras) > 3:
-        changelog.append(f"Cấu trúc đoạn thay đổi ({orig_paras} → {enhanced_paras} đoạn)")
+        changelog.append(
+            f"Cấu trúc đoạn thay đổi ({orig_paras} → {enhanced_paras} đoạn)"
+        )
 
     # Tỉ lệ tương đồng
-    ratio = difflib.SequenceMatcher(None, original_content[:3000], enhanced_content[:3000]).ratio()
+    ratio = difflib.SequenceMatcher(
+        None, original_content[:3000], enhanced_content[:3000]
+    ).ratio()
     if ratio < 0.3:
         changelog.append(f"Viết lại gần như hoàn toàn (similarity: {ratio:.0%})")
     elif ratio < 0.6:

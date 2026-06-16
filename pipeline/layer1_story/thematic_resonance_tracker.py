@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ThemePresence:
     """Track theme presence in a chapter."""
+
     chapter: int
     theme: str
     strength: float = 0.0  # 0-1
@@ -26,9 +27,12 @@ class ThemePresence:
 @dataclass
 class ThematicState:
     """Track thematic resonance across story."""
+
     core_themes: list[str] = field(default_factory=list)
     theme_history: list[ThemePresence] = field(default_factory=list)
-    symbol_registry: dict[str, list[int]] = field(default_factory=dict)  # symbol → chapters
+    symbol_registry: dict[str, list[int]] = field(
+        default_factory=dict
+    )  # symbol → chapters
 
     def add_presence(self, presence: ThemePresence) -> None:
         self.theme_history.append(presence)
@@ -40,11 +44,14 @@ class ThematicState:
     def get_theme_coverage(self, theme: str) -> list[int]:
         """Get chapters where theme appears."""
         return [
-            p.chapter for p in self.theme_history
+            p.chapter
+            for p in self.theme_history
             if p.theme == theme and p.strength >= 0.3
         ]
 
-    def get_dormant_themes(self, current_chapter: int, gap_threshold: int = 5) -> list[str]:
+    def get_dormant_themes(
+        self, current_chapter: int, gap_threshold: int = 5
+    ) -> list[str]:
         """Get themes not seen for gap_threshold chapters."""
         dormant = []
         for theme in self.core_themes:
@@ -60,18 +67,14 @@ class ThematicState:
 
         Returns: 'ascending' | 'descending' | 'stable' | 'absent'
         """
-        relevant = [
-            p for p in self.theme_history
-            if p.theme == theme
-        ][-window:]
+        relevant = [p for p in self.theme_history if p.theme == theme][-window:]
 
         if len(relevant) < 2:
             return "absent" if not relevant else "stable"
 
         strengths = [p.strength for p in relevant]
         avg_change = sum(
-            strengths[i] - strengths[i-1]
-            for i in range(1, len(strengths))
+            strengths[i] - strengths[i - 1] for i in range(1, len(strengths))
         ) / (len(strengths) - 1)
 
         if avg_change > 0.1:
@@ -139,13 +142,15 @@ Phân tích sự hiện diện của từng chủ đề:
 
     presences = []
     for t in result.get("themes", []):
-        presences.append(ThemePresence(
-            chapter=chapter_number,
-            theme=t.get("theme", ""),
-            strength=float(t.get("strength", 0.0)),
-            manifestation=t.get("manifestation", ""),
-            symbols=t.get("symbols", []),
-        ))
+        presences.append(
+            ThemePresence(
+                chapter=chapter_number,
+                theme=t.get("theme", ""),
+                strength=float(t.get("strength", 0.0)),
+                manifestation=t.get("manifestation", ""),
+                symbols=t.get("symbols", []),
+            )
+        )
 
     return presences
 
@@ -176,10 +181,7 @@ def detect_thematic_drift(
     # Find dominant theme
     theme_scores = {}
     for theme in state.core_themes:
-        presences = [
-            p for p in state.theme_history
-            if p.theme == theme
-        ]
+        presences = [p for p in state.theme_history if p.theme == theme]
         if presences:
             theme_scores[theme] = sum(p.strength for p in presences) / len(presences)
 
@@ -188,7 +190,9 @@ def detect_thematic_drift(
     # Calculate balance score (variance in theme coverage)
     if len(theme_scores) > 1:
         avg_score = sum(theme_scores.values()) / len(theme_scores)
-        variance = sum((s - avg_score) ** 2 for s in theme_scores.values()) / len(theme_scores)
+        variance = sum((s - avg_score) ** 2 for s in theme_scores.values()) / len(
+            theme_scores
+        )
         balance = max(0, 1 - variance * 2)  # Lower variance = higher balance
     else:
         balance = 1.0

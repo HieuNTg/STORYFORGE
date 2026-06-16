@@ -1,14 +1,31 @@
 """Genre-based naming convention helpers for story generation."""
 
 CHINESE_STYLE_GENRES = {
-    "tiên hiệp", "tien hiep", "tiên hiệp", "kiếm hiệp", "kiem hiep",
-    "wuxia", "xianxia", "tu tiên", "tu chân", "huyền huyễn",
-    "cổ đại", "co dai", "cung đấu", "cung dau", "võ hiệp",
+    "tiên hiệp",
+    "tien hiep",
+    "tiên hiệp",
+    "kiếm hiệp",
+    "kiem hiep",
+    "wuxia",
+    "xianxia",
+    "tu tiên",
+    "tu chân",
+    "huyền huyễn",
+    "cổ đại",
+    "co dai",
+    "cung đấu",
+    "cung dau",
+    "võ hiệp",
 }
 
 WESTERN_STYLE_GENRES = {
-    "fantasy western", "high fantasy", "epic fantasy", "dark fantasy",
-    "sci-fi", "science fiction", "khoa học viễn tưởng",
+    "fantasy western",
+    "high fantasy",
+    "epic fantasy",
+    "dark fantasy",
+    "sci-fi",
+    "science fiction",
+    "khoa học viễn tưởng",
 }
 
 

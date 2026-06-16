@@ -12,15 +12,13 @@ Coverage:
 
 from __future__ import annotations
 
-import asyncio
 import inspect
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from models.schemas import (
     Chapter,
-    Character,
     EnhancedStory,
     SimulationResult,
     StoryDraft,
@@ -30,6 +28,7 @@ from models.schemas import (
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 def _make_chapter(n: int = 1) -> Chapter:
     return Chapter(
@@ -71,8 +70,10 @@ def _make_enhanced(draft: StoryDraft) -> EnhancedStory:
 # Helper: patch enhance_story_async to return a stub EnhancedStory directly
 # ---------------------------------------------------------------------------
 
+
 def _patch_enhance_story_async(enhanced: EnhancedStory):
     """Return a context manager that replaces enhance_story_async with an AsyncMock."""
+
     async def _stub(self, draft, sim_result, *args, **kwargs):  # noqa: ARG001
         return enhanced
 
@@ -82,9 +83,28 @@ def _patch_enhance_story_async(enhanced: EnhancedStory):
     )
 
 
+def _patch_feedback_llm_validators():
+    """Stub the LLM-backed validators enhance_with_feedback_async calls after rewrite.
+
+    Without these, validate_coherence/apply_contract_gate hit the real LLM
+    client and hang the suite in its retry/sleep loop.
+    """
+    return (
+        patch(
+            "pipeline.layer2_enhance.coherence_validator.validate_coherence",
+            return_value=[],
+        ),
+        patch(
+            "pipeline.layer2_enhance.contract_gate.apply_contract_gate",
+            return_value={"rewrites": 0, "total_failures": 0},
+        ),
+    )
+
+
 # ---------------------------------------------------------------------------
 # 1. enhance_story_async works inside pytest.mark.asyncio
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_enhance_story_async_runs_in_loop():
@@ -107,6 +127,7 @@ async def test_enhance_story_async_runs_in_loop():
 # 2. enhance_with_feedback_async works inside pytest.mark.asyncio
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_enhance_with_feedback_async_runs_in_loop():
     """enhance_with_feedback_async completes without calling the sync wrapper."""
@@ -116,7 +137,8 @@ async def test_enhance_with_feedback_async_runs_in_loop():
     sim = _make_sim_result()
     expected = _make_enhanced(draft)
 
-    with _patch_enhance_story_async(expected):
+    coherence_patch, gate_patch = _patch_feedback_llm_validators()
+    with _patch_enhance_story_async(expected), coherence_patch, gate_patch:
         # Also stub _find_weak_chapters so no LLM call is made
         enhancer = StoryEnhancer()
         with patch.object(enhancer, "_find_weak_chapters", return_value=[]):
@@ -128,6 +150,7 @@ async def test_enhance_with_feedback_async_runs_in_loop():
 # ---------------------------------------------------------------------------
 # 3. enhance_story sync wrapper works outside any loop
 # ---------------------------------------------------------------------------
+
 
 def test_enhance_story_sync_outside_loop():
     """enhance_story (sync wrapper) succeeds when there is no running event loop."""
@@ -149,6 +172,7 @@ def test_enhance_story_sync_outside_loop():
 # 4. enhance_with_feedback sync wrapper works outside any loop
 # ---------------------------------------------------------------------------
 
+
 def test_enhance_with_feedback_sync_outside_loop():
     """enhance_with_feedback (sync wrapper) succeeds when there is no running loop."""
     from pipeline.layer2_enhance.enhancer import StoryEnhancer
@@ -157,7 +181,8 @@ def test_enhance_with_feedback_sync_outside_loop():
     sim = _make_sim_result()
     expected = _make_enhanced(draft)
 
-    with _patch_enhance_story_async(expected):
+    coherence_patch, gate_patch = _patch_feedback_llm_validators()
+    with _patch_enhance_story_async(expected), coherence_patch, gate_patch:
         enhancer = StoryEnhancer()
         with patch.object(enhancer, "_find_weak_chapters", return_value=[]):
             result = enhancer.enhance_with_feedback(draft, sim)
@@ -168,6 +193,7 @@ def test_enhance_with_feedback_sync_outside_loop():
 # ---------------------------------------------------------------------------
 # 5. enhance_story sync wrapper raises from a running loop
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_enhance_story_raises_from_running_loop():
@@ -188,6 +214,7 @@ async def test_enhance_story_raises_from_running_loop():
 # 6. enhance_with_feedback sync wrapper raises from a running loop
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_enhance_with_feedback_raises_from_running_loop():
     """enhance_with_feedback raises RuntimeError and names enhance_with_feedback_async."""
@@ -206,6 +233,7 @@ async def test_enhance_with_feedback_raises_from_running_loop():
 # ---------------------------------------------------------------------------
 # 7. ThreadPoolExecutor escape hatch is gone from enhancer module source
 # ---------------------------------------------------------------------------
+
 
 def test_no_threadpool_asyncio_run_escape_in_enhancer():
     """Prove the submit(asyncio.run, coro) escape pattern no longer exists in enhancer."""

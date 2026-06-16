@@ -120,7 +120,9 @@ def build_adaptive_write_prompt(
         additions.append(f"HƯỚNG DẪN THỂ LOẠI {genre.upper()}:\n{genre_text}")
 
     if pacing_type and pacing_type in PACING_MODIFIERS:
-        additions.append(f"HƯỚNG DẪN NHỊP ĐỘ ({pacing_type.upper()}):\n{PACING_MODIFIERS[pacing_type]}")
+        additions.append(
+            f"HƯỚNG DẪN NHỊP ĐỘ ({pacing_type.upper()}):\n{PACING_MODIFIERS[pacing_type]}"
+        )
 
     if genre in DIALOGUE_STRATEGY:
         additions.append(f"CHIẾN LƯỢC ĐỐI THOẠI ({genre}):\n{DIALOGUE_STRATEGY[genre]}")
@@ -138,7 +140,9 @@ def build_adaptive_write_prompt(
         return base_prompt.replace("YÊU CẦU:", insert_text + "YÊU CẦU:")
     # Fallback: prepend before "Bắt đầu viết chương:"
     if "Bắt đầu viết chương:" in base_prompt:
-        return base_prompt.replace("Bắt đầu viết chương:", insert_text + "Bắt đầu viết chương:")
+        return base_prompt.replace(
+            "Bắt đầu viết chương:", insert_text + "Bắt đầu viết chương:"
+        )
     # Last resort: append
     return base_prompt + "\n\n" + insert_text
 

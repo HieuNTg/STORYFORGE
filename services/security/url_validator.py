@@ -38,7 +38,9 @@ def validate_base_url(url: str) -> None:
         return
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
-        raise HTTPException(status_code=400, detail="base_url scheme must be http or https")
+        raise HTTPException(
+            status_code=400, detail="base_url scheme must be http or https"
+        )
     host = (parsed.hostname or "").lower()
     if not host:
         raise HTTPException(status_code=400, detail="base_url missing host")
@@ -48,7 +50,10 @@ def validate_base_url(url: str) -> None:
         addr = ipaddress.ip_address(host)
         for net in _BLOCKED_NETWORKS:
             if addr in net:
-                raise HTTPException(status_code=400, detail="base_url targets a private/internal address")
+                raise HTTPException(
+                    status_code=400,
+                    detail="base_url targets a private/internal address",
+                )
     except ValueError:
         pass  # not a bare IP — continue to host allowlist
 

@@ -5,6 +5,7 @@ from config import PIPELINE_PRESETS, PipelineConfig
 
 # ── Preset data validity ──
 
+
 def test_all_presets_have_label():
     for key, preset in PIPELINE_PRESETS.items():
         assert "label" in preset, f"Preset '{key}' missing 'label'"
@@ -77,6 +78,7 @@ def test_drama_intensity_valid_values():
 
 
 # ── apply_preset logic (unit-tests, no ConfigManager singleton side-effects) ──
+
 
 def _apply_preset_to_pipeline(choice: str, pipeline: PipelineConfig) -> tuple:
     """Mirror of the apply_preset logic in settings_tab, operating on a given PipelineConfig."""

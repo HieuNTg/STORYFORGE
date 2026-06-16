@@ -39,7 +39,9 @@ class TestBranchManagerContext:
     def test_add_generated_node_with_character_states(self):
         mgr, sid, _ = self._make_manager_with_context()
         states = {"Aria": {"mood": "determined", "arc_position": "rising"}}
-        node = mgr.add_generated_node(sid, 0, "Aria drew her sword.", ["Fight", "Flee"], character_states=states)
+        node = mgr.add_generated_node(
+            sid, 0, "Aria drew her sword.", ["Fight", "Flee"], character_states=states
+        )
         assert node is not None
         retrieved = mgr.get_node_states(sid)
         assert retrieved["Aria"]["mood"] == "determined"
@@ -47,14 +49,18 @@ class TestBranchManagerContext:
     def test_character_states_differ_across_branches(self):
         mgr, sid, _ = self._make_manager_with_context()
         # Branch A: Aria is brave
-        mgr.add_generated_node(sid, 0, "Branch A", ["Next"], character_states={"Aria": {"mood": "brave"}})
+        mgr.add_generated_node(
+            sid, 0, "Branch A", ["Next"], character_states={"Aria": {"mood": "brave"}}
+        )
         states_a = mgr.get_node_states(sid)
 
         # Go back to root
         mgr.go_back(sid)
 
         # Branch B: Aria is fearful
-        mgr.add_generated_node(sid, 1, "Branch B", ["Next"], character_states={"Aria": {"mood": "fearful"}})
+        mgr.add_generated_node(
+            sid, 1, "Branch B", ["Next"], character_states={"Aria": {"mood": "fearful"}}
+        )
         states_b = mgr.get_node_states(sid)
 
         assert states_a["Aria"]["mood"] == "brave"

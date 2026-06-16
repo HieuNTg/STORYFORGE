@@ -49,10 +49,14 @@ def get_config_repository(config_file: str = "data/config.json") -> ConfigReposi
             return _instance
         database_url = os.environ.get("DATABASE_URL", "").strip()
         if database_url:
-            logger.info("config_repository: using PostgresConfigRepository (DATABASE_URL set)")
+            logger.info(
+                "config_repository: using PostgresConfigRepository (DATABASE_URL set)"
+            )
             _instance = PostgresConfigRepository()
         else:
-            logger.info("config_repository: using JsonFileConfigRepository (%s)", config_file)
+            logger.info(
+                "config_repository: using JsonFileConfigRepository (%s)", config_file
+            )
             _instance = JsonFileConfigRepository(config_file)
     return _instance
 

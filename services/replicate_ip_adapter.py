@@ -1,4 +1,5 @@
 """Replicate IP-Adapter client for character-consistent image generation."""
+
 import os
 import logging
 import base64
@@ -15,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ImageResult:
     """Result wrapper for a single image generation attempt."""
+
     prompt: str
     image_url: Optional[str] = None
     error: Optional[str] = None
@@ -29,10 +31,13 @@ class ReplicateIPAdapter:
 
     def __init__(self, api_key: str = "", model: str = ""):
         cfg = ConfigManager().pipeline
-        self.api_key = api_key or cfg.replicate_api_key or os.environ.get("REPLICATE_API_KEY", "")
+        self.api_key = (
+            api_key or cfg.replicate_api_key or os.environ.get("REPLICATE_API_KEY", "")
+        )
         self.model = model or self.DEFAULT_MODEL
         # Global fallback; story-scoped callers override output_dir per request.
         from services.output_paths import OUTPUT_ROOT
+
         self.output_dir = os.path.join(OUTPUT_ROOT, "images")
         os.makedirs(self.output_dir, exist_ok=True)
 
@@ -82,7 +87,9 @@ class ReplicateIPAdapter:
                     "guidance_scale": 7.5,
                 },
             }
-            resp = requests.post(self.API_URL, headers=headers, json=payload, timeout=30)
+            resp = requests.post(
+                self.API_URL, headers=headers, json=payload, timeout=30
+            )
             resp.raise_for_status()
             prediction = resp.json()
 
@@ -152,10 +159,11 @@ class ReplicateIPAdapter:
             return []
 
         results: list[ImageResult] = []
-        with ThreadPoolExecutor(max_workers=min(max_workers, len(requests_list))) as executor:
+        with ThreadPoolExecutor(
+            max_workers=min(max_workers, len(requests_list))
+        ) as executor:
             futures = {
-                executor.submit(self.generate, **req): req
-                for req in requests_list
+                executor.submit(self.generate, **req): req for req in requests_list
             }
             for future in as_completed(futures):
                 req = futures[future]
@@ -165,5 +173,7 @@ class ReplicateIPAdapter:
                     results.append(ImageResult(prompt=prompt, image_url=url))
                 except Exception as e:
                     logger.error("Batch image generation failed for %r: %s", prompt, e)
-                    results.append(ImageResult(prompt=prompt, error=str(e), success=False))
+                    results.append(
+                        ImageResult(prompt=prompt, error=str(e), success=False)
+                    )
         return results

@@ -10,10 +10,12 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_PROMPTS_DIR = Path(os.environ.get(
-    "STORYFORGE_PROMPTS_DIR",
-    Path(__file__).resolve().parents[1] / "data" / "prompts",
-))
+_PROMPTS_DIR = Path(
+    os.environ.get(
+        "STORYFORGE_PROMPTS_DIR",
+        Path(__file__).resolve().parents[1] / "data" / "prompts",
+    )
+)
 _DEFAULT_FILE = "agent_prompts.yaml"
 
 
@@ -23,6 +25,7 @@ def _load_yaml(path: Path) -> dict:
         return {}
     try:
         import yaml
+
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return data if isinstance(data, dict) else {}
@@ -58,21 +61,26 @@ def list_prompt_versions() -> list[dict]:
     The active version is determined by STORYFORGE_PROMPTS_FILE env var.
     """
     versions = []
-    active_file = os.environ.get("STORYFORGE_PROMPTS_FILE", str(_PROMPTS_DIR / _DEFAULT_FILE))
+    active_file = os.environ.get(
+        "STORYFORGE_PROMPTS_FILE", str(_PROMPTS_DIR / _DEFAULT_FILE)
+    )
 
     for yaml_file in sorted(_PROMPTS_DIR.glob("*.yaml")):
         data = _load_yaml(yaml_file)
         meta = data.get("_meta", {})
         if not meta:
             continue
-        versions.append({
-            "version": meta.get("version", "unknown"),
-            "updated_at": meta.get("updated_at", ""),
-            "description": meta.get("description", ""),
-            "file": yaml_file.name,
-            "is_active": str(yaml_file) == active_file or yaml_file.name == _DEFAULT_FILE,
-            "prompt_count": sum(1 for k in data if k != "_meta"),
-        })
+        versions.append(
+            {
+                "version": meta.get("version", "unknown"),
+                "updated_at": meta.get("updated_at", ""),
+                "description": meta.get("description", ""),
+                "file": yaml_file.name,
+                "is_active": str(yaml_file) == active_file
+                or yaml_file.name == _DEFAULT_FILE,
+                "prompt_count": sum(1 for k in data if k != "_meta"),
+            }
+        )
     return versions
 
 
@@ -116,5 +124,3 @@ def get_prompt_diff(version_a: str, version_b: str) -> dict:
         "modified": modified,
         "unchanged": list(keys_a & keys_b - set(modified)),
     }
-
-

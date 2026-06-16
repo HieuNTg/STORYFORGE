@@ -23,6 +23,7 @@ Both degrade-by-raising; callers (the handler) wrap in try/except and fall back 
 loose panels. The compositor itself never silently substitutes a non-VN font: if
 the configured font cannot be loaded it raises :class:`FontUnavailableError`.
 """
+
 from __future__ import annotations
 
 import logging
@@ -51,39 +52,40 @@ __all__ = [
 # Geometry / style constants (spec §2.1, §2.4, §4 style guide)
 # ---------------------------------------------------------------------------
 
-DEFAULT_CANVAS = (1600, 2263)          # ISO 1:√2 (§2.1)
-SAFE_MARGIN = 60                       # px (§2.1)
-GUTTER = 28                            # px, within the 24–32 band (§2.1)
-PANEL_BORDER = 6                       # px black panel frame
-PAGE_BG = (250, 248, 244)             # warm paper white behind gutters
+DEFAULT_CANVAS = (1600, 2263)  # ISO 1:√2 (§2.1)
+SAFE_MARGIN = 60  # px (§2.1)
+GUTTER = 28  # px, within the 24–32 band (§2.1)
+PANEL_BORDER = 6  # px black panel frame
+PAGE_BG = (250, 248, 244)  # warm paper white behind gutters
 
 # Lettering (§2.4 / §4): cap-height ≥ 28 px @1600. Be Vietnam Pro's cap-height is
 # ~0.7 of the em, so an em of 44 px yields ~31 px caps — safely above the floor.
 FONT_SIZE_MAX = 46
-FONT_SIZE_MIN = 30                     # auto-shrink floor before the bubble grows
+FONT_SIZE_MIN = 30  # auto-shrink floor before the bubble grows
 CAPTION_FONT_SIZE = 34
 LINE_SPACING = 6
 BUBBLE_PAD_X = 26
 BUBBLE_PAD_Y = 20
-BUBBLE_OUTLINE = 4                     # black outline 3–4 px (§4)
-TEXT_HALO = 3                          # white halo radius so text reads on dark art
-MAX_BUBBLES_PER_FRAME = 2              # §4
-MAX_CHARS_PER_LINE = 20                # ≤18–22 VN chars/line (§4 step 3)
+BUBBLE_OUTLINE = 4  # black outline 3–4 px (§4)
+TEXT_HALO = 3  # white halo radius so text reads on dark art
+MAX_BUBBLES_PER_FRAME = 2  # §4
+MAX_CHARS_PER_LINE = 20  # ≤18–22 VN chars/line (§4 step 3)
 
 # Bubble fills/strokes
 INK = (20, 20, 20)
 PAPER = (255, 255, 255)
-CAPTION_FILL = (255, 243, 198)         # pale cream — classic narration-box color
-CAPTION_FONT_MIN = 26                  # captions auto-shrink down to this
-WHISPER_INK = (96, 96, 96)             # whispers letter lighter
-THOUGHT_PUFF = 7                       # cloud lobes for thought bubbles
-SHOUT_SPIKES = 14                      # spikes for shout bubbles (10–16 reads best)
-SUPERSAMPLE = 2                        # lettering overlay drawn at 2× then LANCZOS-downscaled
+CAPTION_FILL = (255, 243, 198)  # pale cream — classic narration-box color
+CAPTION_FONT_MIN = 26  # captions auto-shrink down to this
+WHISPER_INK = (96, 96, 96)  # whispers letter lighter
+THOUGHT_PUFF = 7  # cloud lobes for thought bubbles
+SHOUT_SPIKES = 14  # spikes for shout bubbles (10–16 reads best)
+SUPERSAMPLE = 2  # lettering overlay drawn at 2× then LANCZOS-downscaled
 
 
 # ---------------------------------------------------------------------------
 # Errors
 # ---------------------------------------------------------------------------
+
 
 class FontUnavailableError(RuntimeError):
     """Raised when the Vietnamese comic font cannot be loaded.
@@ -98,9 +100,11 @@ class FontUnavailableError(RuntimeError):
 # Page geometry
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class PageGeometry:
     """Resolved page canvas + spacing for one composition run."""
+
     width: int = DEFAULT_CANVAS[0]
     height: int = DEFAULT_CANVAS[1]
     margin: int = SAFE_MARGIN
@@ -110,7 +114,12 @@ class PageGeometry:
     @property
     def content_box(self) -> tuple[int, int, int, int]:
         """(left, top, right, bottom) inside the safe margin."""
-        return (self.margin, self.margin, self.width - self.margin, self.height - self.margin)
+        return (
+            self.margin,
+            self.margin,
+            self.width - self.margin,
+            self.height - self.margin,
+        )
 
     @classmethod
     def from_canvas_spec(cls, spec: Optional[str]) -> "PageGeometry":
@@ -124,7 +133,9 @@ class PageGeometry:
                 raise ValueError("canvas too small")
             return cls(width=w, height=h)
         except Exception:
-            logger.warning("Bad comic_page_canvas %r; using default %sx%s", spec, *DEFAULT_CANVAS)
+            logger.warning(
+                "Bad comic_page_canvas %r; using default %sx%s", spec, *DEFAULT_CANVAS
+            )
             return cls()
 
 
@@ -137,27 +148,28 @@ Cell = tuple[int, int, int, int]
 # Reading order is Z/LTR: cells are emitted top→bottom, left→right.
 # ---------------------------------------------------------------------------
 
+
 def _rows(box: Cell, gutter: int, weights: Sequence[float]) -> list[Cell]:
     """Split ``box`` vertically into rows sized by ``weights`` (full-width)."""
-    l, t, r, b = box
+    left, t, r, b = box
     inner_h = (b - t) - gutter * (len(weights) - 1)
     total = float(sum(weights)) or 1.0
     cells: list[Cell] = []
     y = t
     for w in weights:
         h = int(round(inner_h * (w / total)))
-        cells.append((l, y, r, y + h))
+        cells.append((left, y, r, y + h))
         y += h + gutter
     return cells
 
 
 def _split_cols(cell: Cell, gutter: int, n: int) -> list[Cell]:
     """Split one row ``cell`` horizontally into ``n`` equal columns (LTR)."""
-    l, t, r, b = cell
-    inner_w = (r - l) - gutter * (n - 1)
+    left, t, r, b = cell
+    inner_w = (r - left) - gutter * (n - 1)
     cw = inner_w // n
     out: list[Cell] = []
-    x = l
+    x = left
     for i in range(n):
         x2 = r if i == n - 1 else x + cw
         out.append((x, t, x2, b))
@@ -223,7 +235,12 @@ def _resolve_layout_name(page: Page, mode: str) -> str:
     name = (page.layout or "").upper()
     if name in LAYOUT_LIBRARY:
         return name
-    logger.debug("Unknown layout %r on page %s; deriving from %d panels", page.layout, page.page, n)
+    logger.debug(
+        "Unknown layout %r on page %s; deriving from %d panels",
+        page.layout,
+        page.page,
+        n,
+    )
     return _AUTO_BY_COUNT.get(min(n, 6), "SIX_GRID")
 
 
@@ -243,6 +260,7 @@ def layout_cells(page: Page, geom: PageGeometry, mode: str = "shot_list") -> lis
 # ---------------------------------------------------------------------------
 # Fonts
 # ---------------------------------------------------------------------------
+
 
 def _project_root() -> str:
     # services/media/page_compositor.py -> project root is two levels up.
@@ -280,7 +298,9 @@ class _FontCache:
             try:
                 f = ImageFont.truetype(self.path, size)
             except Exception as e:  # pragma: no cover - corrupt font file
-                raise FontUnavailableError(f"Cannot load font {self.path!r}: {e}") from e
+                raise FontUnavailableError(
+                    f"Cannot load font {self.path!r}: {e}"
+                ) from e
             self._sizes[size] = f
         return f
 
@@ -288,6 +308,7 @@ class _FontCache:
 # ---------------------------------------------------------------------------
 # Text wrapping (Vietnamese; word-aware, char-capped)
 # ---------------------------------------------------------------------------
+
 
 def wrap_vietnamese(text: str, max_chars: int = MAX_CHARS_PER_LINE) -> list[str]:
     """Greedy word wrap at ≤``max_chars`` Vietnamese characters per line.
@@ -357,7 +378,10 @@ def _shape_lines(text: str, max_chars: int) -> list[str]:
         # budget — over-long tokens keep the plain greedy wrap + hard cuts.
         if words and all(len(w) <= int(max_chars * 0.70) for w in words):
             caps = [
-                max(8, int(max_chars * (0.70 + 0.30 * math.sin(math.pi * (i + 0.5) / n))))
+                max(
+                    8,
+                    int(max_chars * (0.70 + 0.30 * math.sin(math.pi * (i + 0.5) / n))),
+                )
                 for i in range(n)
             ]
             shaped: list[str] = []
@@ -392,6 +416,7 @@ def _shape_lines(text: str, max_chars: int) -> list[str]:
 # Panel placement
 # ---------------------------------------------------------------------------
 
+
 def _fit_cover(img: Image.Image, cell: Cell) -> Image.Image:
     """Resize+center-crop ``img`` to exactly fill ``cell`` (object-fit: cover)."""
     cw = max(1, cell[2] - cell[0])
@@ -407,14 +432,22 @@ def _fit_cover(img: Image.Image, cell: Cell) -> Image.Image:
     return resized.crop((left, top, left + cw, top + ch))
 
 
-def _place_panel(canvas: Image.Image, draw: ImageDraw.ImageDraw, panel_path: str, cell: Cell, border: int) -> None:
+def _place_panel(
+    canvas: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    panel_path: str,
+    cell: Cell,
+    border: int,
+) -> None:
     """Composite one panel image into ``cell`` with a black border."""
     try:
         with Image.open(panel_path) as im:
             im = im.convert("RGB")
             fitted = _fit_cover(im, cell)
     except Exception as e:
-        logger.warning("Panel image unreadable (%s): %s — drawing placeholder", panel_path, e)
+        logger.warning(
+            "Panel image unreadable (%s): %s — drawing placeholder", panel_path, e
+        )
         fitted = Image.new("RGB", (cell[2] - cell[0], cell[3] - cell[1]), (40, 40, 48))
     canvas.paste(fitted, (cell[0], cell[1]))
     draw.rectangle(cell, outline=INK, width=border)
@@ -424,7 +457,10 @@ def _place_panel(canvas: Image.Image, draw: ImageDraw.ImageDraw, panel_path: str
 # Speaker side resolution
 # ---------------------------------------------------------------------------
 
-def _speaker_side(panel: Panel, bubble: Bubble, char_screen_sides: Optional[dict]) -> str:
+
+def _speaker_side(
+    panel: Panel, bubble: Bubble, char_screen_sides: Optional[dict]
+) -> str:
     """Resolve which side of the frame the speaker is on: 'left'|'right'|'center'.
 
     Prefers the panel's own ``screen_side`` map, then any chapter-wide override,
@@ -445,6 +481,7 @@ def _speaker_side(panel: Panel, bubble: Bubble, char_screen_sides: Optional[dict
 # Bubble + caption rendering
 # ---------------------------------------------------------------------------
 
+
 def _draw_text_block(
     draw: ImageDraw.ImageDraw,
     lines: Sequence[str],
@@ -463,23 +500,30 @@ def _draw_text_block(
         x = cx - lw // 2 - box[0]
         if halo:
             # Cheap halo: stroke_width on the same glyphs in white.
-            draw.text((x, y - box[1]), ln, font=font, fill=PAPER, stroke_width=halo, stroke_fill=PAPER)
+            draw.text(
+                (x, y - box[1]),
+                ln,
+                font=font,
+                fill=PAPER,
+                stroke_width=halo,
+                stroke_fill=PAPER,
+            )
         draw.text((x, y - box[1]), ln, font=font, fill=fill)
         y += (box[3] - box[1]) + spacing
 
 
 def _tail_polygon(bbox: tuple[int, int, int, int], side: str) -> list[tuple[int, int]]:
     """Triangle tail from the bubble edge toward ``side`` (the speaker)."""
-    l, t, r, b = bbox
-    cx = (l + r) // 2
+    left, t, r, b = bbox
+    cx = (left + r) // 2
     by = b  # tails drop from the bottom of the bubble toward the speaker below
-    base = max(18, (r - l) // 8)
+    base = max(18, (r - left) // 8)
     drop = max(28, (b - t) // 3)
     if side == "left":
-        ax = l + (r - l) // 4
-        tip = (max(l - drop // 2, l - 60), by + drop)
+        ax = left + (r - left) // 4
+        tip = (max(left - drop // 2, left - 60), by + drop)
     elif side == "right":
-        ax = r - (r - l) // 4
+        ax = r - (r - left) // 4
         tip = (min(r + drop // 2, r + 60), by + drop)
     else:  # center
         ax = cx
@@ -494,7 +538,6 @@ def _bubble_outline_shape(
     ow: int = BUBBLE_OUTLINE,
 ) -> None:
     """Stroke the bubble body according to ``type`` (§5 shapes)."""
-    l, t, r, b = bbox
     if btype == "narration":
         draw.rectangle(bbox, fill=PAPER, outline=INK, width=ow)
         return
@@ -515,9 +558,10 @@ def _bubble_outline_shape(
 
 def _dashed_ellipse(draw, bbox, color, width) -> None:
     import math
-    l, t, r, b = bbox
-    cx, cy = (l + r) / 2, (t + b) / 2
-    rx, ry = (r - l) / 2, (b - t) / 2
+
+    left, t, r, b = bbox
+    cx, cy = (left + r) / 2, (t + b) / 2
+    rx, ry = (r - left) / 2, (b - t) / 2
     # Dense, even dash rhythm (dash ≈ gap) reads as "whisper" at page size;
     # the old sparse 8-dash ring was barely distinguishable from speech.
     seg = 6
@@ -534,9 +578,10 @@ def _dashed_ellipse(draw, bbox, color, width) -> None:
 
 def _spiky(draw, bbox, ow: int = BUBBLE_OUTLINE) -> None:
     import math
-    l, t, r, b = bbox
-    cx, cy = (l + r) / 2, (t + b) / 2
-    rx, ry = (r - l) / 2, (b - t) / 2
+
+    left, t, r, b = bbox
+    cx, cy = (left + r) / 2, (t + b) / 2
+    rx, ry = (r - left) / 2, (b - t) / 2
     pts = []
     n = SHOUT_SPIKES * 2
     for i in range(n):
@@ -555,9 +600,10 @@ def _spiky(draw, bbox, ow: int = BUBBLE_OUTLINE) -> None:
 
 def _cloud(draw, bbox, ow: int = BUBBLE_OUTLINE) -> None:
     import math
-    l, t, r, b = bbox
-    cx, cy = (l + r) / 2, (t + b) / 2
-    rx, ry = (r - l) / 2, (b - t) / 2
+
+    left, t, r, b = bbox
+    cx, cy = (left + r) / 2, (t + b) / 2
+    rx, ry = (r - left) / 2, (b - t) / 2
     # Base body
     draw.ellipse(bbox, fill=PAPER)
     lobe = max(14, int(min(rx, ry) * 0.42))
@@ -566,25 +612,34 @@ def _cloud(draw, bbox, ow: int = BUBBLE_OUTLINE) -> None:
         ang = 2 * math.pi * i / n
         px = cx + (rx - lobe * 0.4) * math.cos(ang)
         py = cy + (ry - lobe * 0.4) * math.sin(ang)
-        draw.ellipse((px - lobe, py - lobe, px + lobe, py + lobe), fill=PAPER, outline=INK, width=ow)
+        draw.ellipse(
+            (px - lobe, py - lobe, px + lobe, py + lobe),
+            fill=PAPER,
+            outline=INK,
+            width=ow,
+        )
     # redraw center to clean interior strokes
-    draw.ellipse((l + lobe, t + lobe, r - lobe, b - lobe), fill=PAPER)
+    draw.ellipse((left + lobe, t + lobe, r - lobe, b - lobe), fill=PAPER)
 
 
-def _draw_thought_dots(draw, bbox, side, ow: int = BUBBLE_OUTLINE, scale: int = 1) -> None:
+def _draw_thought_dots(
+    draw, bbox, side, ow: int = BUBBLE_OUTLINE, scale: int = 1
+) -> None:
     """Trailing puffs from a thought bubble toward the speaker."""
-    l, t, r, b = bbox
-    cx = (l + r) // 2
+    left, t, r, b = bbox
+    cx = (left + r) // 2
     if side == "left":
-        x = l + (r - l) // 4
+        x = left + (r - left) // 4
     elif side == "right":
-        x = r - (r - l) // 4
+        x = r - (r - left) // 4
     else:
         x = cx
     y = b
     rad = 14 * scale
     for _ in range(3):
-        draw.ellipse((x - rad, y - rad, x + rad, y + rad), fill=PAPER, outline=INK, width=ow)
+        draw.ellipse(
+            (x - rad, y - rad, x + rad, y + rad), fill=PAPER, outline=INK, width=ow
+        )
         y += rad + 8 * scale
         rad = max(5 * scale, rad - 4 * scale)
 
@@ -596,14 +651,17 @@ def _tail_curves(
 ) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
     """Two quadratic-Bézier sides turning the straight triangle tail into a
     tapered, slightly bowed wedge (straight wedges read as clip-art)."""
+
     def quad(p0, p1, p2, steps=10):
         pts = []
         for s in range(steps + 1):
             u = s / steps
-            pts.append((
-                (1 - u) ** 2 * p0[0] + 2 * (1 - u) * u * p1[0] + u ** 2 * p2[0],
-                (1 - u) ** 2 * p0[1] + 2 * (1 - u) * u * p1[1] + u ** 2 * p2[1],
-            ))
+            pts.append(
+                (
+                    (1 - u) ** 2 * p0[0] + 2 * (1 - u) * u * p1[0] + u**2 * p2[0],
+                    (1 - u) ** 2 * p0[1] + 2 * (1 - u) * u * p1[1] + u**2 * p2[1],
+                )
+            )
         return pts
 
     mx = (base1[0] + base2[0]) / 2
@@ -645,10 +703,10 @@ def _render_bubble(
     size_max, size_min = FONT_SIZE_MAX, FONT_SIZE_MIN
     text_fill = INK
     if btype == "shout":
-        ow = int(ow * 1.5)        # screams get a heavier stroke…
-        size_max += 6             # …and larger lettering
+        ow = int(ow * 1.5)  # screams get a heavier stroke…
+        size_max += 6  # …and larger lettering
     elif btype == "whisper":
-        size_max -= 8             # whispers letter smaller and lighter
+        size_max -= 8  # whispers letter smaller and lighter
         size_min = max(24, size_min - 6)
         text_fill = WHISPER_INK
 
@@ -724,7 +782,9 @@ def _render_bubble(
 
     # Text — centered (both axes) inside the bubble, black on the white body.
     text_top = btop + (bh - th) // 2
-    _draw_text_block(draw, lines, font, (bl + br) // 2, text_top, spacing, fill=text_fill)
+    _draw_text_block(
+        draw, lines, font, (bl + br) // 2, text_top, spacing, fill=text_fill
+    )
 
 
 def _render_caption(
@@ -767,7 +827,9 @@ def _render_caption(
     bl = cl + 8 * scale
     bt = ct + 8 * scale
     box = (bl, bt, bl + bw, bt + bh)
-    draw.rounded_rectangle(box, radius=6 * scale, fill=CAPTION_FILL, outline=INK, width=3 * scale)
+    draw.rounded_rectangle(
+        box, radius=6 * scale, fill=CAPTION_FILL, outline=INK, width=3 * scale
+    )
     _draw_text_block(draw, lines, font, bl + bw // 2, bt + pad, spacing, fill=INK)
     return bt + bh
 
@@ -775,6 +837,7 @@ def _render_caption(
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def compose_page(
     page: Page,
@@ -835,9 +898,12 @@ def compose_page(
         # Captions first (top-left, Z-order start), then bubbles pushed below
         # the lowest caption so the two never overlap.
         cap_bottom = 0
-        for cap in (panel.captions or []):
+        for cap in panel.captions or []:
             try:
-                cap_bottom = max(cap_bottom, _render_caption(overlay, odraw, cap, scell, fonts, scale=ss))
+                cap_bottom = max(
+                    cap_bottom,
+                    _render_caption(overlay, odraw, cap, scell, fonts, scale=ss),
+                )
             except Exception as e:  # one bad caption shouldn't kill the page
                 logger.warning("Caption render skipped: %s", e)
 
@@ -847,8 +913,16 @@ def compose_page(
             side = _speaker_side(panel, bubble, char_screen_sides)
             try:
                 _render_bubble(
-                    overlay, odraw, bubble, scell, slot, n_slots, side, fonts,
-                    scale=ss, top_floor=cap_bottom,
+                    overlay,
+                    odraw,
+                    bubble,
+                    scell,
+                    slot,
+                    n_slots,
+                    side,
+                    fonts,
+                    scale=ss,
+                    top_floor=cap_bottom,
                 )
             except Exception as e:
                 logger.warning("Bubble render skipped: %s", e)
@@ -862,7 +936,9 @@ def compose_page(
     return out_path
 
 
-def compose_chapter(shot_list, panel_paths: list[str], out_dir: str, **kwargs) -> list[str]:
+def compose_chapter(
+    shot_list, panel_paths: list[str], out_dir: str, **kwargs
+) -> list[str]:
     """Composite a whole chapter shot-list → page PNGs in reading order.
 
     Args:
@@ -886,7 +962,7 @@ def compose_chapter(shot_list, panel_paths: list[str], out_dir: str, **kwargs) -
     cursor = 0
     for page in pages:
         n = len(page.panels)
-        page_imgs = panel_paths[cursor:cursor + n]
+        page_imgs = panel_paths[cursor : cursor + n]
         cursor += n
         if not page_imgs:
             # No panels generated for this page (e.g. image gen produced fewer
@@ -909,7 +985,7 @@ def _coerce_pages(shot_list) -> list[Page]:
     if pages is None and isinstance(shot_list, list):
         pages = shot_list
     out: list[Page] = []
-    for p in (pages or []):
+    for p in pages or []:
         if isinstance(p, Page):
             out.append(p)
         elif isinstance(p, dict):

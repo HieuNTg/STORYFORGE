@@ -38,7 +38,9 @@ class StoryForgePlugin:
     # Hooks
     # ------------------------------------------------------------------
 
-    def on_genre_rules(self, genre: str, rules: dict[str, Any]) -> dict[str, Any] | None:
+    def on_genre_rules(
+        self, genre: str, rules: dict[str, Any]
+    ) -> dict[str, Any] | None:
         """Called before genre drama rules are applied to a chapter.
 
         Args:

@@ -1,4 +1,5 @@
 """Test UserManager service."""
+
 import pytest
 from services.user_manager import UserManager
 
@@ -9,7 +10,9 @@ def test_register_new_user(tmp_path):
     assert profile.username == "alice"
     assert profile.user_id != ""
     assert profile.password_hash != "password123"
-    assert profile.password_hash.startswith("$2b$") or profile.password_hash.startswith("$2a$")  # bcrypt format
+    assert profile.password_hash.startswith("$2b$") or profile.password_hash.startswith(
+        "$2a$"
+    )  # bcrypt format
 
 
 def test_register_duplicate_raises(tmp_path):

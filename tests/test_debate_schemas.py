@@ -1,4 +1,5 @@
 """Tests for Phase 16 debate schemas — DebateStance, DebateEntry, DebateResult."""
+
 from models.schemas import AgentReview, DebateEntry, DebateResult, DebateStance
 
 

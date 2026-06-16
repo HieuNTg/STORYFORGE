@@ -9,34 +9,46 @@ import asyncio
 import logging
 
 from models.schemas import (
-    Character, Relationship, RelationType, SimulationEvent, AgentPost,
-    SimulationResult, EscalationPattern,
+    Character,
+    Relationship,
+    RelationType,
+    SimulationEvent,
+    AgentPost,
+    SimulationResult,
+    EscalationPattern,
 )
 from services.llm_client import LLMClient
 from services import prompts
 from pipeline.layer2_enhance._agent import CharacterAgent, TENSION_DELTAS
-from pipeline.layer2_enhance.drama_patterns import get_genre_escalation_prompt, get_tension_modifier
+from pipeline.layer2_enhance.drama_patterns import (
+    get_genre_escalation_prompt,
+    get_tension_modifier,
+)
 
 try:
     from pipeline.layer2_enhance.psychology_engine import PsychologyEngine
+
     _PSYCHOLOGY_AVAILABLE = True
 except Exception:  # pragma: no cover
     _PSYCHOLOGY_AVAILABLE = False
 
 try:
     from pipeline.layer2_enhance.knowledge_system import KnowledgeRegistry
+
     _KNOWLEDGE_AVAILABLE = True
 except Exception:  # pragma: no cover
     _KNOWLEDGE_AVAILABLE = False
 
 try:
     from pipeline.layer2_enhance.causal_chain import CausalGraph
+
     _CAUSAL_AVAILABLE = True
 except Exception:  # pragma: no cover
     _CAUSAL_AVAILABLE = False
 
 try:
     from pipeline.layer2_enhance.adaptive_intensity import AdaptiveController
+
     _ADAPTIVE_AVAILABLE = True
 except Exception:  # pragma: no cover
     _ADAPTIVE_AVAILABLE = False
@@ -54,9 +66,24 @@ DRAMATIC_LANE_BOUNDARY = (
 
 # Cấu hình cường độ kịch tính — ảnh hưởng đến nhiệt độ, ngưỡng leo thang, độ sâu phản ứng
 INTENSITY_CONFIG = {
-    "thấp": {"temperature": 0.7, "escalation_scale": 0.7, "max_escalations": 1, "reaction_depth": 1},
-    "trung bình": {"temperature": 0.85, "escalation_scale": 1.0, "max_escalations": 2, "reaction_depth": 2},
-    "cao": {"temperature": 0.95, "escalation_scale": 1.3, "max_escalations": 2, "reaction_depth": 3},
+    "thấp": {
+        "temperature": 0.7,
+        "escalation_scale": 0.7,
+        "max_escalations": 1,
+        "reaction_depth": 1,
+    },
+    "trung bình": {
+        "temperature": 0.85,
+        "escalation_scale": 1.0,
+        "max_escalations": 2,
+        "reaction_depth": 2,
+    },
+    "cao": {
+        "temperature": 0.95,
+        "escalation_scale": 1.3,
+        "max_escalations": 2,
+        "reaction_depth": 3,
+    },
 }
 
 
@@ -99,10 +126,20 @@ ESCALATION_PATTERNS = {
 # Which relationship types are valid for each escalation pattern.
 # None means the pattern can trigger for any relationship type.
 ESCALATION_VALID_RELATIONS: dict[str, list[RelationType] | None] = {
-    "phản_bội": [RelationType.ALLY, RelationType.LOVER, RelationType.FAMILY, RelationType.MENTOR],
+    "phản_bội": [
+        RelationType.ALLY,
+        RelationType.LOVER,
+        RelationType.FAMILY,
+        RelationType.MENTOR,
+    ],
     "tiết_lộ": None,
     "đối_đầu": [RelationType.RIVAL, RelationType.ENEMY, RelationType.UNKNOWN],
-    "hy_sinh": [RelationType.ALLY, RelationType.LOVER, RelationType.FAMILY, RelationType.MENTOR],
+    "hy_sinh": [
+        RelationType.ALLY,
+        RelationType.LOVER,
+        RelationType.FAMILY,
+        RelationType.MENTOR,
+    ],
     "đảo_ngược": None,
 }
 
@@ -179,10 +216,16 @@ class DramaSimulator:
         self.trust_network = {}
         for rel in self.relationships:
             key = f"{rel.character_a}|{rel.character_b}"
-            initial_trust = 70.0 if rel.relation_type.value in _CLOSE_RELATION_TYPES else 40.0
-            self.trust_network[key] = TrustNetworkEdge(rel.character_a, rel.character_b, initial_trust)
+            initial_trust = (
+                70.0 if rel.relation_type.value in _CLOSE_RELATION_TYPES else 40.0
+            )
+            self.trust_network[key] = TrustNetworkEdge(
+                rel.character_a, rel.character_b, initial_trust
+            )
         self._apply_conflict_web_tensions()
-        logger.info(f"Đã tạo {len(self.agents)} agent nhân vật, {len(self.trust_network)} trust edges")
+        logger.info(
+            f"Đã tạo {len(self.agents)} agent nhân vật, {len(self.trust_network)} trust edges"
+        )
 
         # Khởi tạo hệ thống tri thức (non-fatal)
         if _KNOWLEDGE_AVAILABLE:
@@ -205,32 +248,52 @@ class DramaSimulator:
                 logger.warning(f"CausalGraph thất bại: {e}")
                 self.causal_graph = None
 
-        # Extract psychology for each agent in parallel (non-fatal)
+        # Extract psychology for each agent in parallel (non-fatal).
+        # Inside a running event loop (production path: run_simulation_async)
+        # the sync wrapper raises RuntimeError, so extraction + thread
+        # pressure are deferred to the async caller, which awaits
+        # _extract_all_psychology_async after setup_agents returns.
         if self._psychology_engine:
             try:
-                self._extract_all_psychology(characters)
-            except Exception as e:
-                logger.warning(f"Psychology extraction thất bại, tiếp tục không có tâm lý: {e}")
-
-        # Phase C: thread-urgency → psychology pressure (pure-python, non-fatal)
-        if self._psychology_engine and self.threads:
-            try:
-                _thread_pressure_on = True
+                asyncio.get_running_loop()
+            except RuntimeError:
+                # No running loop — direct sync callers (tests, scripts)
                 try:
-                    from config import ConfigManager as _CM
-                    _thread_pressure_on = bool(getattr(_CM().load().pipeline, "l2_thread_pressure", True))
-                except Exception:
-                    pass
-                if _thread_pressure_on:
-                    for agent in self.agents.values():
-                        psych = getattr(agent, "psychology", None)
-                        if psych is None:
-                            continue
-                        self._psychology_engine.apply_thread_pressure(
-                            psych, self.threads, current_chapter
-                        )
-            except Exception as e:
-                logger.debug(f"apply_thread_pressure failed (non-fatal): {e}")
+                    self._extract_all_psychology(characters)
+                except Exception as e:
+                    logger.warning(
+                        f"Psychology extraction thất bại, tiếp tục không có tâm lý: {e}"
+                    )
+                self._apply_thread_pressure(current_chapter)
+            else:
+                logger.debug(
+                    "setup_agents trong event loop — psychology extraction deferred sang async caller"
+                )
+
+    def _apply_thread_pressure(self, current_chapter: int) -> None:
+        """Phase C: thread-urgency → psychology pressure (pure-python, non-fatal)."""
+        if not (self._psychology_engine and self.threads):
+            return
+        try:
+            _thread_pressure_on = True
+            try:
+                from config import ConfigManager as _CM
+
+                _thread_pressure_on = bool(
+                    getattr(_CM().load().pipeline, "l2_thread_pressure", True)
+                )
+            except Exception:
+                pass
+            if _thread_pressure_on:
+                for agent in self.agents.values():
+                    psych = getattr(agent, "psychology", None)
+                    if psych is None:
+                        continue
+                    self._psychology_engine.apply_thread_pressure(
+                        psych, self.threads, current_chapter
+                    )
+        except Exception as e:
+            logger.debug(f"apply_thread_pressure failed (non-fatal): {e}")
 
     async def _extract_all_psychology_async(self, characters: list[Character]) -> None:
         """Trích xuất tâm lý cho tất cả nhân vật song song (async core)."""
@@ -292,11 +355,15 @@ class DramaSimulator:
                     for j in range(i + 1, len(chars)):
                         key_ab = f"{chars[i]}|{chars[j]}"
                         key_ba = f"{chars[j]}|{chars[i]}"
-                        edge = self.trust_network.get(key_ab) or self.trust_network.get(key_ba)
+                        edge = self.trust_network.get(key_ab) or self.trust_network.get(
+                            key_ba
+                        )
                         if edge is None:
                             edge = TrustNetworkEdge(chars[i], chars[j], 50.0)
                             self.trust_network[key_ab] = edge
-                        edge.update_trust(-trust_penalty, f"conflict_web seed (intensity={intensity})")
+                        edge.update_trust(
+                            -trust_penalty, f"conflict_web seed (intensity={intensity})"
+                        )
                         applied += 1
             except Exception as e:
                 logger.debug(f"conflict_web tension seed skipped: {e}")
@@ -338,7 +405,11 @@ class DramaSimulator:
                     entry = entry.model_dump()
                 if not isinstance(entry, dict):
                     continue
-                char_name = entry.get("character") or entry.get("character_name") or entry.get("name")
+                char_name = (
+                    entry.get("character")
+                    or entry.get("character_name")
+                    or entry.get("name")
+                )
                 if not char_name or char_name not in self.agents:
                     continue
                 ch_range = entry.get("chapter_range") or entry.get("range") or ""
@@ -353,7 +424,9 @@ class DramaSimulator:
             except Exception as e:
                 logger.debug(f"waypoint apply skipped: {e}")
         if applied:
-            logger.info(f"[L2] Waypoint floor applied to {applied}/{len(self.agents)} characters")
+            logger.info(
+                f"[L2] Waypoint floor applied to {applied}/{len(self.agents)} characters"
+            )
 
     @staticmethod
     def _chapter_in_range(chapter: int, rng: str) -> bool:
@@ -392,18 +465,18 @@ class DramaSimulator:
         """Lấy các bài viết gần đây của nhân vật khác, lọc theo tri thức nếu có."""
         try:
             if self.knowledge is not None:
-                recent = self.knowledge.get_visible_posts(exclude_agent, self.all_posts, limit)
+                recent = self.knowledge.get_visible_posts(
+                    exclude_agent, self.all_posts, limit
+                )
             else:
                 recent = [
-                    p for p in self.all_posts[-20:]
-                    if p.agent_name != exclude_agent
+                    p for p in self.all_posts[-20:] if p.agent_name != exclude_agent
                 ][-limit:]
         except Exception as e:
             logger.debug(f"Knowledge filter lỗi, fallback: {e}")
-            recent = [
-                p for p in self.all_posts[-20:]
-                if p.agent_name != exclude_agent
-            ][-limit:]
+            recent = [p for p in self.all_posts[-20:] if p.agent_name != exclude_agent][
+                -limit:
+            ]
 
         if not recent:
             return "Chưa có hoạt động nào."
@@ -416,7 +489,8 @@ class DramaSimulator:
     def _get_relationships_text(self, agent_name: str) -> str:
         """Lấy mối quan hệ liên quan đến một nhân vật."""
         related = [
-            r for r in self.relationships
+            r
+            for r in self.relationships
             if r.character_a == agent_name or r.character_b == agent_name
         ]
         if not related:
@@ -430,17 +504,23 @@ class DramaSimulator:
     def _infer_mood(self, sentiment: str) -> str:
         """Infer mood from sentiment text."""
         mapping = {
-            "tích_cực": "quyết_tâm", "tiêu_cực": "đau_khổ",
-            "tức_giận": "tức_giận", "sợ_hãi": "sợ_hãi",
-            "vui": "bình_thường", "buồn": "đau_khổ",
-            "hận": "hận_thù", "yêu": "yêu",
+            "tích_cực": "quyết_tâm",
+            "tiêu_cực": "đau_khổ",
+            "tức_giận": "tức_giận",
+            "sợ_hãi": "sợ_hãi",
+            "vui": "bình_thường",
+            "buồn": "đau_khổ",
+            "hận": "hận_thù",
+            "yêu": "yêu",
         }
         for key, mood in mapping.items():
             if key in sentiment.lower():
                 return mood
         return "bình_thường"
 
-    def _run_single_agent(self, name: str, round_number: int, context: str) -> tuple[AgentPost | None, dict]:
+    def _run_single_agent(
+        self, name: str, round_number: int, context: str
+    ) -> tuple[AgentPost | None, dict]:
         """Chạy một agent trong vòng mô phỏng. Thread-safe (read-only shared state)."""
         agent = self.agents[name]
         recent_posts = self._get_recent_posts(name)
@@ -473,7 +553,11 @@ class DramaSimulator:
                         f"Vòng mô phỏng {round_number}. "
                         f"Trạng thái: {agent.get_emotional_context()}. "
                         f"Ký ức gần đây: {'; '.join(agent.memory[-3:]) if agent.memory else 'Không có.'}"
-                        + (f"\nTri thức: {self.knowledge.get_knowledge_context(name)}" if self.knowledge else "")
+                        + (
+                            f"\nTri thức: {self.knowledge.get_knowledge_context(name)}"
+                            if self.knowledge
+                            else ""
+                        )
                     ),
                     recent_posts=recent_posts,
                 ),
@@ -503,25 +587,40 @@ class DramaSimulator:
             logger.warning(f"Agent {name} lỗi ở vòng {round_number}: {e}")
             return None, {}
 
-    async def _generate_reactions_async(self, posts: list[AgentPost], round_num: int, context: str) -> list[AgentPost]:
+    async def _generate_reactions_async(
+        self, posts: list[AgentPost], round_num: int, context: str
+    ) -> list[AgentPost]:
         """Async core: generate reactions from targeted characters concurrently."""
         targeted = {p.target: p for p in posts if p.target and p.target in self.agents}
         loop = asyncio.get_running_loop()
 
-        async def _one(target_name: str, triggering_post: AgentPost) -> AgentPost | None:
+        async def _one(
+            target_name: str, triggering_post: AgentPost
+        ) -> AgentPost | None:
             if target_name == triggering_post.agent_name:
                 return None
             agent = self.agents[target_name]
             try:
                 return await asyncio.wait_for(
-                    loop.run_in_executor(None, self._run_reaction, agent, triggering_post, round_num, context),
+                    loop.run_in_executor(
+                        None,
+                        self._run_reaction,
+                        agent,
+                        triggering_post,
+                        round_num,
+                        context,
+                    ),
                     timeout=120,
                 )
             except asyncio.TimeoutError:
-                logger.warning(f"Reaction from {target_name} timed out after 120s, skipping")
+                logger.warning(
+                    f"Reaction from {target_name} timed out after 120s, skipping"
+                )
                 return None
             except Exception as e:
-                logger.warning(f"Reaction from {target_name} raised unexpected error: {e}")
+                logger.warning(
+                    f"Reaction from {target_name} raised unexpected error: {e}"
+                )
                 return None
 
         results = await asyncio.gather(
@@ -529,17 +628,27 @@ class DramaSimulator:
         )
         return [r for r in results if r is not None]
 
-    def _generate_reactions(self, posts: list[AgentPost], round_num: int, context: str) -> list[AgentPost]:
+    def _generate_reactions(
+        self, posts: list[AgentPost], round_num: int, context: str
+    ) -> list[AgentPost]:
         """Sync wrapper — raises if called from a running event loop."""
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(self._generate_reactions_async(posts, round_num, context))
+            return asyncio.run(
+                self._generate_reactions_async(posts, round_num, context)
+            )
         raise RuntimeError(
             "_generate_reactions called from async context — use _generate_reactions_async"
         )
 
-    def _run_reaction(self, agent: CharacterAgent, triggering_post: AgentPost, round_num: int, context: str) -> AgentPost | None:
+    def _run_reaction(
+        self,
+        agent: CharacterAgent,
+        triggering_post: AgentPost,
+        round_num: int,
+        context: str,
+    ) -> AgentPost | None:
         """Generate a reaction from agent to a triggering post."""
         try:
             # L2-D: Agent reasoning loop for reactions
@@ -563,7 +672,9 @@ class DramaSimulator:
             # Log reaction reasoning (L2-D)
             reasoning = result.get("reasoning", "")
             if reasoning:
-                logger.debug(f"[L2-D] {agent.character.name} reaction reasoning: {reasoning[:120]}")
+                logger.debug(
+                    f"[L2-D] {agent.character.name} reaction reasoning: {reasoning[:120]}"
+                )
             new_mood = result.get("new_mood", "")
             if new_mood:
                 agent.emotion.update(new_mood)
@@ -583,7 +694,10 @@ class DramaSimulator:
             return None
 
     async def simulate_round_async(
-        self, round_number: int, context: str, total_rounds: int = 5,
+        self,
+        round_number: int,
+        context: str,
+        total_rounds: int = 5,
         progress_callback=None,
     ) -> list[AgentPost]:
         """Async core: run one simulation round with all agents acting concurrently.
@@ -606,10 +720,14 @@ class DramaSimulator:
                 )
                 return name, post, metadata
             except asyncio.TimeoutError:
-                logger.warning(f"Agent {name} timed out at round {round_number}, skipping")
+                logger.warning(
+                    f"Agent {name} timed out at round {round_number}, skipping"
+                )
                 return name, None, {}
             except Exception as e:
-                logger.warning(f"Agent {name} raised unexpected error at round {round_number}: {e}")
+                logger.warning(
+                    f"Agent {name} raised unexpected error at round {round_number}: {e}"
+                )
                 return name, None, {}
 
         gathered = await asyncio.gather(*[_one(n) for n in self.agents])  # type: ignore[arg-type]
@@ -629,7 +747,11 @@ class DramaSimulator:
             new_mood = metadata.get("new_mood", "") or self._infer_mood(post.sentiment)
             agent.emotion.update(new_mood)
             trust_delta = metadata.get("trust_change", 0)
-            if isinstance(trust_delta, (int, float)) and post.target and post.target in self.agents:
+            if (
+                isinstance(trust_delta, (int, float))
+                and post.target
+                and post.target in self.agents
+            ):
                 agent.get_trust(post.target).update(trust_delta, post.content[:50])
 
         # Post-round updates (sequential, safe) + emotional state + trust network
@@ -649,8 +771,12 @@ class DramaSimulator:
                 rev_key = f"{post.target}|{post.agent_name}"
                 edge = self.trust_network.get(key) or self.trust_network.get(rev_key)
                 if edge:
-                    trust_delta = -15.0 if post.sentiment in ("tiêu cực", "căng thẳng") else 5.0
-                    edge.update_trust(trust_delta, f"R{round_number}: {post.action_type}")
+                    trust_delta = (
+                        -15.0 if post.sentiment in ("tiêu cực", "căng thẳng") else 5.0
+                    )
+                    edge.update_trust(
+                        trust_delta, f"R{round_number}: {post.action_type}"
+                    )
                 # Update psychology pressure for the target (non-fatal)
                 if self._psychology_engine and target_agent.psychology:
                     try:
@@ -664,6 +790,7 @@ class DramaSimulator:
 
         # Chuỗi phản ứng đa lớp: nhân vật bị nhắm đến phản ứng theo nhiều lớp
         import random
+
         all_reactions: list[AgentPost] = []
         reaction_input = round_posts
         for layer in range(self._intensity.get("reaction_depth", 1)):
@@ -671,13 +798,17 @@ class DramaSimulator:
                 skip_prob = 0.5 if layer == 1 else 0.7
                 if random.random() < skip_prob:
                     break
-            reactions = await self._generate_reactions_async(reaction_input, round_number, context)
+            reactions = await self._generate_reactions_async(
+                reaction_input, round_number, context
+            )
             if not reactions:
                 break
             for post in reactions:
                 agent = self.agents[post.agent_name]
                 agent.posts.append(post)
-                agent.add_memory(f"Vòng {round_number} [phản ứng L{layer + 1}]: {post.content[:100]}")
+                agent.add_memory(
+                    f"Vòng {round_number} [phản ứng L{layer + 1}]: {post.content[:100]}"
+                )
             all_reactions.extend(reactions)
             reaction_input = reactions  # lớp tiếp theo phản ứng với lớp này
         round_posts.extend(all_reactions)
@@ -688,17 +819,28 @@ class DramaSimulator:
         if self.knowledge is not None:
             try:
                 revelations = self.knowledge.check_revelation_triggers(
-                    round_posts, round_number, all_posts=self.all_posts,
+                    round_posts,
+                    round_number,
+                    all_posts=self.all_posts,
                 )
                 if revelations:
-                    logger.info(f"Vòng {round_number}: {len(revelations)} bí mật được tiết lộ")
+                    logger.info(
+                        f"Vòng {round_number}: {len(revelations)} bí mật được tiết lộ"
+                    )
                     if self.causal_graph is not None:
                         try:
-                            from pipeline.layer2_enhance.causal_chain import record_revelation_event
+                            from pipeline.layer2_enhance.causal_chain import (
+                                record_revelation_event,
+                            )
+
                             for rev in revelations:
                                 new_id = record_revelation_event(
-                                    self.causal_graph, self.knowledge,
-                                    rev["fact_id"], rev["by"], rev["revealed_to"], round_number,
+                                    self.causal_graph,
+                                    self.knowledge,
+                                    rev["fact_id"],
+                                    rev["by"],
+                                    rev["revealed_to"],
+                                    round_number,
                                 )
                                 if new_id:
                                     try:
@@ -715,7 +857,10 @@ class DramaSimulator:
         return round_posts
 
     def simulate_round(
-        self, round_number: int, context: str, total_rounds: int = 5,
+        self,
+        round_number: int,
+        context: str,
+        total_rounds: int = 5,
         progress_callback=None,
     ) -> list[AgentPost]:
         """Sync wrapper — raises if called from a running event loop."""
@@ -723,7 +868,9 @@ class DramaSimulator:
             asyncio.get_running_loop()
         except RuntimeError:
             return asyncio.run(
-                self.simulate_round_async(round_number, context, total_rounds, progress_callback)
+                self.simulate_round_async(
+                    round_number, context, total_rounds, progress_callback
+                )
             )
         raise RuntimeError(
             "simulate_round called from async context — use simulate_round_async"
@@ -752,7 +899,9 @@ class DramaSimulator:
             expect="dict",
         )
 
-    def _check_escalation(self, round_num: int, total_rounds: int = 5, genre: str = "") -> list[EscalationPattern]:
+    def _check_escalation(
+        self, round_num: int, total_rounds: int = 5, genre: str = ""
+    ) -> list[EscalationPattern]:
         """Kiểm tra ngưỡng căng thẳng và trả về các mô hình leo thang được kích hoạt.
 
         Ngưỡng được điều chỉnh theo đường cong căng thẳng thể loại và cường độ kịch tính.
@@ -760,7 +909,9 @@ class DramaSimulator:
         # Định hình đường cong căng thẳng: ưu tiên adaptive nếu có, fallback sang math curve
         try:
             if self.adaptive is not None:
-                curve_modifier = self.adaptive.get_tension_modifier_actual(genre, round_num, total_rounds)
+                curve_modifier = self.adaptive.get_tension_modifier_actual(
+                    genre, round_num, total_rounds
+                )
             else:
                 position = round_num / max(1, total_rounds)
                 curve_modifier = get_tension_modifier(genre, position)
@@ -783,19 +934,26 @@ class DramaSimulator:
                 if rel.tension < effective_trigger:
                     continue
                 valid_relations = ESCALATION_VALID_RELATIONS.get(ptype)
-                if valid_relations is not None and rel.relation_type not in valid_relations:
+                if (
+                    valid_relations is not None
+                    and rel.relation_type not in valid_relations
+                ):
                     continue
                 seen_types.add(ptype)
-                triggered.append(EscalationPattern(
-                    pattern_type=ptype,
-                    trigger_tension=cfg["trigger_tension"],
-                    characters_required=2,
-                    description=f"{rel.character_a} vs {rel.character_b}",
-                    intensity_multiplier=cfg["intensity_multiplier"],
-                ))
+                triggered.append(
+                    EscalationPattern(
+                        pattern_type=ptype,
+                        trigger_tension=cfg["trigger_tension"],
+                        characters_required=2,
+                        description=f"{rel.character_a} vs {rel.character_b}",
+                        intensity_multiplier=cfg["intensity_multiplier"],
+                    )
+                )
         return triggered
 
-    def _apply_escalation(self, pattern: EscalationPattern, round_num: int, genre: str) -> SimulationEvent | None:
+    def _apply_escalation(
+        self, pattern: EscalationPattern, round_num: int, genre: str
+    ) -> SimulationEvent | None:
         """Generate escalation event via LLM."""
         chars = pattern.description.split(" vs ")
         try:
@@ -822,7 +980,8 @@ class DramaSimulator:
             ]
             avg_multiplier = (
                 sum(agent_multipliers) / len(agent_multipliers)
-                if agent_multipliers else 1.0
+                if agent_multipliers
+                else 1.0
             )
             avg_multiplier = min(3.0, max(0.5, avg_multiplier))
             boosted = min(1.0, boosted * avg_multiplier)
@@ -857,6 +1016,7 @@ class DramaSimulator:
         """Async core: run full simulation and return result."""
         try:
             from services.trace_context import set_chapter, set_module
+
             set_chapter(current_chapter)
             set_module("l2_simulator")
         except Exception:
@@ -869,13 +1029,26 @@ class DramaSimulator:
 
         self._intensity = _get_intensity_config(drama_intensity)
         self.setup_agents(
-            characters, relationships,
+            characters,
+            relationships,
             arc_waypoints=arc_waypoints,
             threads=threads,
             current_chapter=current_chapter,
             conflict_web=conflict_web,
             foreshadowing_plan=foreshadowing_plan,
         )
+        # setup_agents defers psychology extraction when a loop is running
+        # (the sync wrapper would raise RuntimeError). Run it here — its LLM
+        # calls are executor-offloaded internally (run_in_executor), so the
+        # uvicorn event loop stays responsive.
+        if self._psychology_engine:
+            try:
+                await self._extract_all_psychology_async(characters)
+            except Exception as e:
+                logger.warning(
+                    f"Psychology extraction thất bại, tiếp tục không có tâm lý: {e}"
+                )
+            self._apply_thread_pressure(current_chapter)
         all_events: list[SimulationEvent] = []
         all_drama_scores: list[float] = []
 
@@ -883,10 +1056,14 @@ class DramaSimulator:
         if _ADAPTIVE_AVAILABLE:
             try:
                 from config.config import ConfigManager
+
                 _l2_max = ConfigManager().pipeline.l2_max_rounds
                 _requested_max = num_rounds + 3
                 if _requested_max > _l2_max:
-                    logger.info("adaptive_rounds_clamped", extra={"requested": _requested_max, "capped": _l2_max})
+                    logger.info(
+                        "adaptive_rounds_clamped",
+                        extra={"requested": _requested_max, "capped": _l2_max},
+                    )
                 self.adaptive = AdaptiveController(
                     self._intensity,
                     min_rounds=max(3, num_rounds - 2),
@@ -910,7 +1087,9 @@ class DramaSimulator:
                 if round_num > num_rounds:
                     break
 
-            display_total = num_rounds if self.adaptive is None else (self.adaptive.max_rounds)
+            display_total = (
+                num_rounds if self.adaptive is None else (self.adaptive.max_rounds)
+            )
             _log(f"Vòng mô phỏng {round_num}/{display_total}...")
 
             # Cập nhật intensity từ adaptive nếu có
@@ -922,11 +1101,15 @@ class DramaSimulator:
 
             # Chạy vòng mô phỏng
             round_posts = await self.simulate_round_async(
-                round_num, genre, num_rounds, progress_callback=progress_callback,
+                round_num,
+                genre,
+                num_rounds,
+                progress_callback=progress_callback,
             )
 
-            # Đánh giá kịch tính
-            evaluation = self.evaluate_drama(round_posts)
+            # Đánh giá kịch tính — sync LLM call, offload so the event loop
+            # (uvicorn /api/health) stays responsive during the simulator phase
+            evaluation = await asyncio.to_thread(self.evaluate_drama, round_posts)
             round_drama = evaluation.get("overall_drama_score", 0.5)
 
             # Trích xuất sự kiện + liên kết nhân quả
@@ -941,7 +1124,9 @@ class DramaSimulator:
                         suggested_insertion=ev.get("suggested_insertion", ""),
                     )
                     if not self._is_event_thread_valid(event):
-                        logger.debug(f"Event blocked by thread gate: {event.event_type} r{round_num}")
+                        logger.debug(
+                            f"Event blocked by thread gate: {event.event_type} r{round_num}"
+                        )
                         continue
                     all_events.append(event)
                     # Thêm vào đồ thị nhân quả (non-fatal)
@@ -951,7 +1136,9 @@ class DramaSimulator:
                         except Exception as e:
                             logger.debug(f"causal_graph.add_event lỗi: {e}")
                 except (KeyError, ValueError, TypeError) as e:
-                    logger.debug(f"Skipping malformed simulation event at round {round_num}: {e}")
+                    logger.debug(
+                        f"Skipping malformed simulation event at round {round_num}: {e}"
+                    )
                     continue
 
             all_drama_scores.append(round_drama)
@@ -964,10 +1151,15 @@ class DramaSimulator:
                     logger.debug(f"adaptive.record_round lỗi: {e}")
 
             # Kiểm tra và áp dụng mô hình leo thang
-            escalations = self._check_escalation(round_num, total_rounds=num_rounds, genre=genre)
+            escalations = self._check_escalation(
+                round_num, total_rounds=num_rounds, genre=genre
+            )
             max_esc = self._intensity.get("max_escalations", 2)
             for pattern in escalations[:max_esc]:
-                esc_event = self._apply_escalation(pattern, round_num, genre)
+                # Sync LLM call — offload off the event loop
+                esc_event = await asyncio.to_thread(
+                    self._apply_escalation, pattern, round_num, genre
+                )
                 if esc_event:
                     all_events.append(esc_event)
                     if self.causal_graph is not None:
@@ -987,7 +1179,8 @@ class DramaSimulator:
 
         # Tạo gợi ý kịch tính
         _log("Dang tao goi y tang cuong kich tinh...")
-        suggestions_result = self._generate_suggestions(genre)
+        # Sync LLM call — offload off the event loop
+        suggestions_result = await asyncio.to_thread(self._generate_suggestions, genre)
 
         # Xây dựng dữ liệu quỹ đạo cảm xúc
         emotional_trajectories = {
@@ -1002,7 +1195,8 @@ class DramaSimulator:
             if self.knowledge is not None:
                 for name in self.agents:
                     known = [
-                        item.content for item in self.knowledge.items.values()
+                        item.content
+                        for item in self.knowledge.items.values()
                         if name in item.known_by
                     ]
                     knowledge_state[name] = known
@@ -1019,9 +1213,16 @@ class DramaSimulator:
         # Apply drama ceiling to prevent melodrama (Phase 6)
         if drama_ceiling_enabled:
             try:
-                from pipeline.layer2_enhance.adaptive_intensity import apply_drama_ceiling_to_events
-                chapter_position = current_chapter / max(1, current_chapter + 10)  # Estimate
-                all_events = apply_drama_ceiling_to_events(all_events, genre, chapter_position)
+                from pipeline.layer2_enhance.adaptive_intensity import (
+                    apply_drama_ceiling_to_events,
+                )
+
+                chapter_position = current_chapter / max(
+                    1, current_chapter + 10
+                )  # Estimate
+                all_events = apply_drama_ceiling_to_events(
+                    all_events, genre, chapter_position
+                )
                 _log(f"[DramaCeiling] Applied genre ceiling for {genre}")
             except Exception as e:
                 logger.debug(f"Drama ceiling application failed (non-fatal): {e}")
@@ -1031,6 +1232,7 @@ class DramaSimulator:
         # Plain str: classify via keyword regex and drop clear craft drift.
         from models.schemas import LaneSuggestion as _LS
         from pipeline.layer2_enhance.lane_classifier import is_craft_drift
+
         raw_suggestions = suggestions_result.get("suggestions", []) or []
         filtered_suggestions: list[str] = []
         for sug in raw_suggestions:
@@ -1039,7 +1241,8 @@ class DramaSimulator:
                     logger.warning(
                         "cross_lane_suggestion_dropped agent=character_simulator "
                         "claimed=%s expected=dramatic text=%r",
-                        sug.lane, str(sug)[:80],
+                        sug.lane,
+                        str(sug)[:80],
                     )
                     continue
                 filtered_suggestions.append(str(sug))
@@ -1067,7 +1270,9 @@ class DramaSimulator:
             actual_rounds=round_num,
         )
 
-        avg_drama = sum(all_drama_scores) / len(all_drama_scores) if all_drama_scores else 0
+        avg_drama = (
+            sum(all_drama_scores) / len(all_drama_scores) if all_drama_scores else 0
+        )
         _log(f"Mo phong hoan tat! Diem kich tinh trung binh: {avg_drama:.2f}")
         return result
 
@@ -1091,21 +1296,23 @@ class DramaSimulator:
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(self.run_simulation_async(
-                characters=characters,
-                relationships=relationships,
-                genre=genre,
-                num_rounds=num_rounds,
-                drama_intensity=drama_intensity,
-                progress_callback=progress_callback,
-                pacing_directive=pacing_directive,
-                arc_waypoints=arc_waypoints,
-                threads=threads,
-                current_chapter=current_chapter,
-                conflict_web=conflict_web,
-                foreshadowing_plan=foreshadowing_plan,
-                drama_ceiling_enabled=drama_ceiling_enabled,
-            ))
+            return asyncio.run(
+                self.run_simulation_async(
+                    characters=characters,
+                    relationships=relationships,
+                    genre=genre,
+                    num_rounds=num_rounds,
+                    drama_intensity=drama_intensity,
+                    progress_callback=progress_callback,
+                    pacing_directive=pacing_directive,
+                    arc_waypoints=arc_waypoints,
+                    threads=threads,
+                    current_chapter=current_chapter,
+                    conflict_web=conflict_web,
+                    foreshadowing_plan=foreshadowing_plan,
+                    drama_ceiling_enabled=drama_ceiling_enabled,
+                )
+            )
         raise RuntimeError(
             "run_simulation called from async context — use run_simulation_async"
         )
@@ -1116,8 +1323,9 @@ class DramaSimulator:
         new_type = change.get("new_relation", "")
 
         for rel in self.relationships:
-            if (rel.character_a == a and rel.character_b == b) or \
-               (rel.character_a == b and rel.character_b == a):
+            if (rel.character_a == a and rel.character_b == b) or (
+                rel.character_a == b and rel.character_b == a
+            ):
                 try:
                     rel.relation_type = RelationType(new_type)
                     delta = TENSION_DELTAS.get(new_type, 0.1)
@@ -1125,9 +1333,13 @@ class DramaSimulator:
                     # Sync with trust network
                     key = f"{a}|{b}"
                     rev_key = f"{b}|{a}"
-                    edge = self.trust_network.get(key) or self.trust_network.get(rev_key)
+                    edge = self.trust_network.get(key) or self.trust_network.get(
+                        rev_key
+                    )
                     if edge:
-                        trust_change = -20.0 if new_type in _HOSTILE_RELATION_TYPES else 10.0
+                        trust_change = (
+                            -20.0 if new_type in _HOSTILE_RELATION_TYPES else 10.0
+                        )
                         edge.update_trust(trust_change, f"Relationship → {new_type}")
                 except ValueError:
                     pass

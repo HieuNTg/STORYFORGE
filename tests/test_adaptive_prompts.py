@@ -15,6 +15,7 @@ from services.adaptive_prompts import (
 # get_genre_emphasis
 # ---------------------------------------------------------------------------
 
+
 class TestGetGenreEmphasis:
     def test_exact_match_all_genres(self):
         for genre in GENRE_EMPHASIS:
@@ -51,6 +52,7 @@ class TestGetGenreEmphasis:
 # get_score_boosters
 # ---------------------------------------------------------------------------
 
+
 class TestGetScoreBoosters:
     def test_none_returns_empty(self):
         assert get_score_boosters(None) == ""
@@ -73,13 +75,23 @@ class TestGetScoreBoosters:
         assert get_score_boosters(scores) == ""
 
     def test_single_weak_dimension(self):
-        scores = {"coherence": 2.5, "character_consistency": 4.0, "drama": 4.0, "writing_quality": 4.0}
+        scores = {
+            "coherence": 2.5,
+            "character_consistency": 4.0,
+            "drama": 4.0,
+            "writing_quality": 4.0,
+        }
         result = get_score_boosters(scores)
         assert SCORE_BOOSTERS["coherence"] in result
         assert SCORE_BOOSTERS["character_consistency"] not in result
 
     def test_multiple_weak_dimensions(self):
-        scores = {"coherence": 1.0, "character_consistency": 1.0, "drama": 5.0, "writing_quality": 5.0}
+        scores = {
+            "coherence": 1.0,
+            "character_consistency": 1.0,
+            "drama": 5.0,
+            "writing_quality": 5.0,
+        }
         result = get_score_boosters(scores)
         assert SCORE_BOOSTERS["coherence"] in result
         assert SCORE_BOOSTERS["character_consistency"] in result
@@ -119,14 +131,12 @@ class TestGetScoreBoosters:
 # build_adaptive_write_prompt
 # ---------------------------------------------------------------------------
 
+
 class TestBuildAdaptiveWritePrompt:
     BASE_WITH_YEU_CAU = (
-        "Bạn là tiểu thuyết gia.\n\n"
-        "YÊU CẦU:\n- Viết 2000 từ\n\nBắt đầu viết chương:"
+        "Bạn là tiểu thuyết gia.\n\nYÊU CẦU:\n- Viết 2000 từ\n\nBắt đầu viết chương:"
     )
-    BASE_WITHOUT_YEU_CAU = (
-        "Bạn là tiểu thuyết gia.\n\nBắt đầu viết chương:"
-    )
+    BASE_WITHOUT_YEU_CAU = "Bạn là tiểu thuyết gia.\n\nBắt đầu viết chương:"
     BASE_BARE = "Bạn là tiểu thuyết gia."
 
     def test_no_genre_no_scores_returns_original(self):
@@ -156,7 +166,9 @@ class TestBuildAdaptiveWritePrompt:
 
     def test_both_genre_and_scores(self):
         scores = {"coherence": 1.0, "drama": 1.0}
-        result = build_adaptive_write_prompt(self.BASE_WITH_YEU_CAU, "Ngôn Tình", scores)
+        result = build_adaptive_write_prompt(
+            self.BASE_WITH_YEU_CAU, "Ngôn Tình", scores
+        )
         assert "HƯỚNG DẪN THỂ LOẠI NGÔN TÌNH:" in result
         assert SCORE_BOOSTERS["coherence"] in result
         assert SCORE_BOOSTERS["drama"] in result
@@ -183,7 +195,9 @@ class TestBuildAdaptiveWritePrompt:
     def test_all_known_genres_produce_nonempty_result(self):
         for genre in GENRE_EMPHASIS:
             result = build_adaptive_write_prompt(self.BASE_WITH_YEU_CAU, genre)
-            assert len(result) > len(self.BASE_WITH_YEU_CAU), f"No enhancement for {genre}"
+            assert len(result) > len(self.BASE_WITH_YEU_CAU), (
+                f"No enhancement for {genre}"
+            )
 
     def test_yeu_cau_replaced_only_once(self):
         # Ensure we don't double-insert if "YÊU CẦU:" appears once
@@ -195,10 +209,9 @@ class TestBuildAdaptiveWritePrompt:
 # build_adaptive_enhance_prompt
 # ---------------------------------------------------------------------------
 
+
 class TestBuildAdaptiveEnhancePrompt:
-    BASE_WITH_YEU_CAU = (
-        "Bạn là nhà văn.\n\nCHƯƠNG GỐC:\n...\n\nYÊU CẦU:\n- Tăng kịch tính\n\nBắt đầu viết lại:"
-    )
+    BASE_WITH_YEU_CAU = "Bạn là nhà văn.\n\nCHƯƠNG GỐC:\n...\n\nYÊU CẦU:\n- Tăng kịch tính\n\nBắt đầu viết lại:"
     BASE_WITHOUT_YEU_CAU = "Bạn là nhà văn.\n\nCHƯƠNG GỐC:\n..."
 
     def test_no_genre_returns_original(self):
@@ -231,7 +244,9 @@ class TestBuildAdaptiveEnhancePrompt:
     def test_all_known_genres_produce_enhancement(self):
         for genre in GENRE_EMPHASIS:
             result = build_adaptive_enhance_prompt(self.BASE_WITH_YEU_CAU, genre)
-            assert len(result) > len(self.BASE_WITH_YEU_CAU), f"No enhancement for {genre}"
+            assert len(result) > len(self.BASE_WITH_YEU_CAU), (
+                f"No enhancement for {genre}"
+            )
 
     def test_yeu_cau_replaced_only_once(self):
         result = build_adaptive_enhance_prompt(self.BASE_WITH_YEU_CAU, "Đô Thị")

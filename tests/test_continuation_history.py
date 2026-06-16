@@ -30,8 +30,22 @@ from services.continuation_history import (
 
 @pytest.fixture(autouse=True)
 def _isolated_checkpoint_dir(tmp_path, monkeypatch):
-    """Redirect checkpoint_dir() to a tmp folder for the duration of the test."""
+    """Redirect the whole sidecar path resolution into a tmp folder.
+
+    Sidecars co-locate with per-story checkpoints now: writes resolve via
+    ``services.output_paths.checkpoints_dir(title)``, reads via
+    ``pipeline.orchestrator_checkpoint.find_checkpoint_path``, with the
+    legacy flat ``checkpoint_dir()`` only as last fallback. All three must
+    point at tmp_path or the writer and reader disagree on location.
+    """
+    import pipeline.orchestrator_checkpoint as orchestrator_checkpoint
+    import services.output_paths as output_paths
+
     monkeypatch.setattr(continuation_history, "checkpoint_dir", lambda: tmp_path)
+    monkeypatch.setattr(output_paths, "checkpoints_dir", lambda *a, **kw: str(tmp_path))
+    monkeypatch.setattr(
+        orchestrator_checkpoint, "find_checkpoint_path", lambda _f: None
+    )
     yield tmp_path
 
 
@@ -39,7 +53,9 @@ def _isolated_checkpoint_dir(tmp_path, monkeypatch):
 
 
 def test_record_creates_fresh_sidecar(tmp_path):
-    record_continuation(title="My Story", previous_chapter_count=5, new_chapter_count=8, layer=1)
+    record_continuation(
+        title="My Story", previous_chapter_count=5, new_chapter_count=8, layer=1
+    )
     path = sidecar_path_for("My_Story_layer1.json")
     assert path.exists()
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -52,8 +68,12 @@ def test_record_creates_fresh_sidecar(tmp_path):
 
 
 def test_record_appends_to_existing(tmp_path):
-    record_continuation(title="Ts", previous_chapter_count=1, new_chapter_count=2, layer=1)
-    record_continuation(title="Ts", previous_chapter_count=2, new_chapter_count=5, layer=1)
+    record_continuation(
+        title="Ts", previous_chapter_count=1, new_chapter_count=2, layer=1
+    )
+    record_continuation(
+        title="Ts", previous_chapter_count=2, new_chapter_count=5, layer=1
+    )
     events = read_events(f"{slug_for_title('Ts')}_layer1.json")
     assert len(events) == 2
     assert events[0]["added"] == 1
@@ -63,7 +83,9 @@ def test_record_appends_to_existing(tmp_path):
 def test_record_rotates_at_max(tmp_path):
     title = "Rot"
     for i in range(_MAX_EVENTS + 5):
-        record_continuation(title=title, previous_chapter_count=i, new_chapter_count=i + 1, layer=1)
+        record_continuation(
+            title=title, previous_chapter_count=i, new_chapter_count=i + 1, layer=1
+        )
     events = read_events(f"{slug_for_title(title)}_layer1.json")
     assert len(events) == _MAX_EVENTS
     # Newest events kept; oldest 5 dropped — first kept event has prev_count == 5.
@@ -72,19 +94,24 @@ def test_record_rotates_at_max(tmp_path):
 
 
 def test_record_skips_when_no_chapters_added(tmp_path):
-    result = record_continuation(title="X", previous_chapter_count=3, new_chapter_count=3, layer=1)
+    result = record_continuation(
+        title="X", previous_chapter_count=3, new_chapter_count=3, layer=1
+    )
     assert result is None
     assert not sidecar_path_for("X_layer1.json").exists()
 
 
 def test_record_failure_does_not_raise(tmp_path, monkeypatch):
     """Write errors must be swallowed — sidecar is advisory only."""
+
     def _boom(*_a, **_kw):
         raise OSError("disk full")
 
     monkeypatch.setattr("builtins.open", _boom)
     # Should not raise.
-    result = record_continuation(title="Y", previous_chapter_count=1, new_chapter_count=2, layer=1)
+    result = record_continuation(
+        title="Y", previous_chapter_count=1, new_chapter_count=2, layer=1
+    )
     assert result is None
 
 
@@ -99,15 +126,20 @@ def test_continue_story_hook_swallows_sidecar_failure(tmp_path):
     from models.schemas import Chapter, PipelineOutput, StoryDraft
 
     draft_before = StoryDraft(
-        title="HookSafe", genre="g", synopsis="s",
+        title="HookSafe",
+        genre="g",
+        synopsis="s",
         chapters=[Chapter(chapter_number=1, title="C1", content="x", word_count=1)],
     )
     output = PipelineOutput(story_draft=draft_before, status="ok")
 
     fake_gen = MagicMock()
     draft_after = StoryDraft(
-        title="HookSafe", genre="g", synopsis="s",
-        chapters=draft_before.chapters + [
+        title="HookSafe",
+        genre="g",
+        synopsis="s",
+        chapters=draft_before.chapters
+        + [
             Chapter(chapter_number=2, title="C2", content="y", word_count=1),
         ],
     )
@@ -115,8 +147,11 @@ def test_continue_story_hook_swallows_sidecar_failure(tmp_path):
 
     fake_ckpt_mgr = MagicMock()
     cont = StoryContinuation(
-        output=output, story_gen=fake_gen,
-        analyzer=MagicMock(), simulator=MagicMock(), enhancer=MagicMock(),
+        output=output,
+        story_gen=fake_gen,
+        analyzer=MagicMock(),
+        simulator=MagicMock(),
+        enhancer=MagicMock(),
         checkpoint_manager=fake_ckpt_mgr,
     )
 
@@ -133,12 +168,14 @@ def test_continue_story_hook_swallows_sidecar_failure(tmp_path):
 
 
 @pytest.fixture
-def client(monkeypatch, tmp_path):
-    """Mount continuation_routes in isolation; redirect _CHECKPOINT_DIR to tmp."""
-    from api import continuation_routes
+def client(tmp_path):
+    """Mount continuation_routes in isolation.
 
-    monkeypatch.setattr(continuation_routes, "_CHECKPOINT_DIR", tmp_path.resolve())
-    monkeypatch.setattr(continuation_history, "checkpoint_dir", lambda: tmp_path)
+    Path isolation comes from the autouse ``_isolated_checkpoint_dir``
+    fixture; the old ``_CHECKPOINT_DIR`` module attribute no longer exists
+    (routes resolve checkpoints via ``find_checkpoint_path`` now).
+    """
+    from api import continuation_routes
 
     app = FastAPI()
     app.include_router(continuation_routes.router)
@@ -152,8 +189,12 @@ def test_history_endpoint_empty_for_missing_sidecar(client):
 
 
 def test_history_endpoint_returns_events(client, tmp_path):
-    record_continuation(title="Hist", previous_chapter_count=2, new_chapter_count=4, layer=1)
-    r = client.get(f"/pipeline/continuation/{slug_for_title('Hist')}_layer1.json/history")
+    record_continuation(
+        title="Hist", previous_chapter_count=2, new_chapter_count=4, layer=1
+    )
+    r = client.get(
+        f"/pipeline/continuation/{slug_for_title('Hist')}_layer1.json/history"
+    )
     assert r.status_code == 200
     body = r.json()
     assert len(body["events"]) == 1
@@ -177,7 +218,9 @@ def test_pipeline_checkpoints_attaches_latest_continuation(monkeypatch, tmp_path
 
     monkeypatch.setattr(continuation_history, "checkpoint_dir", lambda: tmp_path)
 
-    record_continuation(title="ListMe", previous_chapter_count=4, new_chapter_count=7, layer=1)
+    record_continuation(
+        title="ListMe", previous_chapter_count=4, new_chapter_count=7, layer=1
+    )
 
     fake_ckpts = [
         {
@@ -200,7 +243,10 @@ def test_pipeline_checkpoints_attaches_latest_continuation(monkeypatch, tmp_path
         },
     ]
 
-    with patch("pipeline.orchestrator.PipelineOrchestrator.list_checkpoints", return_value=fake_ckpts):
+    with patch(
+        "pipeline.orchestrator.PipelineOrchestrator.list_checkpoints",
+        return_value=fake_ckpts,
+    ):
         app = FastAPI()
         app.include_router(pipeline_routes.router)
         client = TestClient(app)
@@ -216,8 +262,12 @@ def test_pipeline_checkpoints_attaches_latest_continuation(monkeypatch, tmp_path
 
 
 def test_latest_event_helper_returns_newest():
-    record_continuation(title="L", previous_chapter_count=1, new_chapter_count=2, layer=1)
-    record_continuation(title="L", previous_chapter_count=2, new_chapter_count=10, layer=1)
+    record_continuation(
+        title="L", previous_chapter_count=1, new_chapter_count=2, layer=1
+    )
+    record_continuation(
+        title="L", previous_chapter_count=2, new_chapter_count=10, layer=1
+    )
     ev = latest_event(f"{slug_for_title('L')}_layer1.json")
     assert ev is not None
     assert ev["added"] == 8
@@ -226,6 +276,7 @@ def test_latest_event_helper_returns_newest():
 def test_slug_matches_checkpoint_manager_rule():
     """Slug rule: title[:30] then non-word → _ (mirrors CheckpointManager.save)."""
     import re
+
     # Pure-ASCII case is the tightest contract; Unicode handling matches \w in re.
     assert slug_for_title("My Title!! ") == re.sub(r"[^\w\-]", "_", "My Title!! ")
     assert slug_for_title("") == "untitled"
@@ -269,7 +320,9 @@ def test_resume_status_clear_when_recent_continuation(tmp_path):
     """A successful continuation in the last 6h suppresses the affordance."""
     from services.resume_status import derive_resume_status
 
-    record_continuation(title="Recovered", previous_chapter_count=3, new_chapter_count=4, layer=1)
+    record_continuation(
+        title="Recovered", previous_chapter_count=3, new_chapter_count=4, layer=1
+    )
     ckpt = {
         "file": f"{slug_for_title('Recovered')}_layer1.json",
         "chapter_count": 4,  # still below target …
@@ -287,12 +340,18 @@ def test_resume_status_interrupted_when_history_is_old(tmp_path, monkeypatch):
     # Write an event manually with a stale timestamp (10h ago).
     sidecar = sidecar_path_for("Stale_layer1.json")
     sidecar.write_text(
-        json.dumps({"events": [{
-            "ts": "2020-01-01T00:00:00Z",
-            "previous_chapter_count": 1,
-            "new_chapter_count": 2,
-            "added": 1,
-        }]}),
+        json.dumps(
+            {
+                "events": [
+                    {
+                        "ts": "2020-01-01T00:00:00Z",
+                        "previous_chapter_count": 1,
+                        "new_chapter_count": 2,
+                        "added": 1,
+                    }
+                ]
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -344,7 +403,10 @@ def test_pipeline_checkpoints_attaches_resume_fields(monkeypatch, tmp_path):
         },
     ]
 
-    with patch("pipeline.orchestrator.PipelineOrchestrator.list_checkpoints", return_value=fake_ckpts):
+    with patch(
+        "pipeline.orchestrator.PipelineOrchestrator.list_checkpoints",
+        return_value=fake_ckpts,
+    ):
         app = FastAPI()
         app.include_router(pipeline_routes.router)
         client = TestClient(app)

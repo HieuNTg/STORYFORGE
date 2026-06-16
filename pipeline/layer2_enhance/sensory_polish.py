@@ -80,6 +80,7 @@ class SensoryPolisher:
     ) -> EnhancedStory:
         """Polish all chapters in an enhanced story."""
         from services.text_utils import build_idea_header
+
         idea_header = build_idea_header(idea, idea_summary) if idea else ""
 
         polished_chapters = []
@@ -108,10 +109,16 @@ def apply_sensory_polish(
     try:
         polisher = SensoryPolisher()
         _idea = getattr(draft, "original_idea", "") or "" if draft is not None else ""
-        _idea_sum = getattr(draft, "idea_summary_for_chapters", "") or "" if draft is not None else ""
+        _idea_sum = (
+            getattr(draft, "idea_summary_for_chapters", "") or ""
+            if draft is not None
+            else ""
+        )
         return polisher.polish_story(
-            enhanced, progress_callback,
-            idea=_idea, idea_summary=_idea_sum,
+            enhanced,
+            progress_callback,
+            idea=_idea,
+            idea_summary=_idea_sum,
         )
     except Exception as e:
         logger.warning(f"Sensory polish failed (non-fatal): {e}")

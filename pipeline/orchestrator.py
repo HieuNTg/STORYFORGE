@@ -98,13 +98,16 @@ class PipelineOrchestrator:
         self._redis = None
         try:
             self._redis = _make_redis_client()
-            logger.debug("PipelineOrchestrator: Redis connected for session %s", self.session_id)
+            logger.debug(
+                "PipelineOrchestrator: Redis connected for session %s", self.session_id
+            )
         except Exception as exc:
             if os.environ.get("STORYFORGE_REDIS_REQUIRED", "").lower() in ("1", "true"):
                 raise
             logger.warning(
                 "PipelineOrchestrator: Redis unavailable, using in-memory fallback "
-                "(session state will not survive restarts): %s", exc
+                "(session state will not survive restarts): %s",
+                exc,
             )
 
         # Load persisted output or start fresh
@@ -113,12 +116,18 @@ class PipelineOrchestrator:
         self.media_producer = MediaProducer(self.config)
         self.exporter = PipelineExporter(self.output)
         self.checkpoint = CheckpointManager(
-            self.output, self.analyzer, self.simulator,
+            self.output,
+            self.analyzer,
+            self.simulator,
             self.enhancer,
         )
         self.continuation = StoryContinuation(
-            self.output, self.story_gen, self.analyzer,
-            self.simulator, self.enhancer, self.checkpoint,
+            self.output,
+            self.story_gen,
+            self.analyzer,
+            self.simulator,
+            self.enhancer,
+            self.checkpoint,
         )
 
     # ── Redis output persistence ─────────────────────────────────────────────
@@ -213,11 +222,19 @@ class PipelineOrchestrator:
     ) -> PipelineOutput:
         """Chạy toàn bộ pipeline 2 lớp (async — blocking LLM calls run in thread pool)."""
         return await _run_full_pipeline(
-            self, title=title, genre=genre, idea=idea, style=style,
-            num_chapters=num_chapters, num_characters=num_characters,
-            word_count=word_count, num_sim_rounds=num_sim_rounds,
-            progress_callback=progress_callback, stream_callback=stream_callback,
-            enable_agents=enable_agents, enable_scoring=enable_scoring,
+            self,
+            title=title,
+            genre=genre,
+            idea=idea,
+            style=style,
+            num_chapters=num_chapters,
+            num_characters=num_characters,
+            word_count=word_count,
+            num_sim_rounds=num_sim_rounds,
+            progress_callback=progress_callback,
+            stream_callback=stream_callback,
+            enable_agents=enable_agents,
+            enable_scoring=enable_scoring,
             enable_media=enable_media,
             target_total_chapters=target_total_chapters,
         )
@@ -235,9 +252,15 @@ class PipelineOrchestrator:
     ) -> StoryDraft:
         """Chỉ chạy Layer 1."""
         return _run_layer1_only(
-            self, title=title, genre=genre, idea=idea, style=style,
-            num_chapters=num_chapters, num_characters=num_characters,
-            word_count=word_count, progress_callback=progress_callback,
+            self,
+            title=title,
+            genre=genre,
+            idea=idea,
+            style=style,
+            num_chapters=num_chapters,
+            num_characters=num_characters,
+            word_count=word_count,
+            progress_callback=progress_callback,
         )
 
     def run_layer2_only(
@@ -249,17 +272,24 @@ class PipelineOrchestrator:
     ) -> EnhancedStory:
         """Chỉ chạy Layer 2 trên bản thảo có sẵn."""
         return _run_layer2_only(
-            self, draft=draft, num_sim_rounds=num_sim_rounds,
-            word_count=word_count, progress_callback=progress_callback,
+            self,
+            draft=draft,
+            num_sim_rounds=num_sim_rounds,
+            word_count=word_count,
+            progress_callback=progress_callback,
         )
 
     # ── Export wrappers (delegate to PipelineExporter) ───────────────────────
 
-    def export_output(self, output_dir: str | None = None, formats: list[str] | None = None) -> list[str]:
+    def export_output(
+        self, output_dir: str | None = None, formats: list[str] | None = None
+    ) -> list[str]:
         self._sync_output()
         return self.exporter.export_output(output_dir, formats)
 
-    def export_zip(self, output_dir: str | None = None, formats: list[str] | None = None) -> str:
+    def export_zip(
+        self, output_dir: str | None = None, formats: list[str] | None = None
+    ) -> str:
         self._sync_output()
         return self.exporter.export_zip(output_dir, formats)
 
@@ -291,7 +321,9 @@ class PipelineOrchestrator:
         **kwargs,
     ) -> PipelineOutput:
         self._sync_output()
-        result = self.checkpoint.resume(checkpoint_path, progress_callback, enable_agents, enable_scoring, **kwargs)
+        result = self.checkpoint.resume(
+            checkpoint_path, progress_callback, enable_agents, enable_scoring, **kwargs
+        )
         self.output = result
         self._sync_output()
         return result
@@ -328,9 +360,13 @@ class PipelineOrchestrator:
         self._sync_output()
         return result
 
-    def update_character(self, char_name: str, updates: dict, progress_callback=None) -> StoryDraft:
+    def update_character(
+        self, char_name: str, updates: dict, progress_callback=None
+    ) -> StoryDraft:
         self._sync_output()
-        result = self.continuation.update_character(char_name, updates, progress_callback)
+        result = self.continuation.update_character(
+            char_name, updates, progress_callback
+        )
         self.output = self.continuation.output
         self._sync_output()
         return result
@@ -342,7 +378,9 @@ class PipelineOrchestrator:
         progress_callback=None,
     ) -> Optional[EnhancedStory]:
         self._sync_output()
-        result = self.continuation.enhance_chapters(num_sim_rounds, word_count, progress_callback)
+        result = self.continuation.enhance_chapters(
+            num_sim_rounds, word_count, progress_callback
+        )
         self.output = self.continuation.output
         self._sync_output()
         return result

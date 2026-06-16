@@ -5,7 +5,11 @@ import logging
 import time
 from typing import Optional
 from models.schemas import (
-    StoryDraft, SimulationResult, EnhancedStory, Chapter, count_words,
+    StoryDraft,
+    SimulationResult,
+    EnhancedStory,
+    Chapter,
+    count_words,
 )
 from services.llm_client import LLMClient
 from services import prompts as prompt_templates
@@ -15,13 +19,17 @@ from config import ConfigManager
 # Consistency Engine (A-E improvements)
 try:
     from pipeline.layer2_enhance.consistency_engine import ConsistencyEngine
+
     _CONSISTENCY_AVAILABLE = True
 except ImportError:
     _CONSISTENCY_AVAILABLE = False
 
 # Structural issue detector (Sprint 2 P4 — NER + embedding replacement)
 try:
-    from pipeline.semantic.structural_detector import detect_structural_issues as _detect_structural_issues
+    from pipeline.semantic.structural_detector import (
+        detect_structural_issues as _detect_structural_issues,
+    )
+
     _STRUCTURAL_DETECTOR_AVAILABLE = True
 except ImportError:
     _detect_structural_issues = None  # type: ignore[assignment]
@@ -111,7 +119,7 @@ def _precheck_coherence(llm, chapter, draft, prev_chapters: list) -> str:
         prompt = f"""Kiểm tra nhanh chương {chapter.chapter_number} với context trước:
 {prev_summary}
 
-Nhân vật: {', '.join(char_names)}
+Nhân vật: {", ".join(char_names)}
 Chương hiện tại: {chapter.content[:1500]}
 
 Liệt kê TỐI ĐA 3 vấn đề nhất quán tiềm ẩn (timeline, vị trí, trạng thái nhân vật).
@@ -142,6 +150,7 @@ def _build_voice_engine(draft):
         return None
     try:
         from pipeline.layer2_enhance.voice_fingerprint import VoiceFingerprintEngine
+
         engine = VoiceFingerprintEngine()
         engine.build_from_draft(draft)
         return engine
@@ -167,7 +176,10 @@ def _build_knowledge_constraints(sim_result, draft) -> str:
         lines.append(f"- {char_name} BIẾT: {facts_text}")
     if not lines:
         return ""
-    return "## KIẾN THỨC NHÂN VẬT (KHÔNG được tiết lộ điều nhân vật chưa biết):\n" + "\n".join(lines[:10])
+    return (
+        "## KIẾN THỨC NHÂN VẬT (KHÔNG được tiết lộ điều nhân vật chưa biết):\n"
+        + "\n".join(lines[:10])
+    )
 
 
 def _resolve_contract(chapter, ch_num: int):
@@ -202,7 +214,9 @@ def _resolve_contract(chapter, ch_num: int):
 
     return NegotiatedChapterContract(
         chapter_num=ch_num,
-        pacing_type=pacing if pacing in ("setup", "rising", "climax", "twist", "cooldown") else "rising",
+        pacing_type=pacing
+        if pacing in ("setup", "rising", "climax", "twist", "cooldown")
+        else "rising",
         must_mention_characters=must_mention,
         threads_advance=threads,
     )
@@ -238,8 +252,6 @@ class StoryEnhancer:
         if not _STRUCTURAL_DETECTOR_AVAILABLE or _detect_structural_issues is None:
             return {}
         try:
-            from models.handoff_schemas import NegotiatedChapterContract
-
             characters = list(getattr(draft, "characters", []) or [])
             # Build a per-chapter contract from negotiated_contract if present,
             # else synthesise a minimal one from the outline (graceful fallback).
@@ -282,6 +294,7 @@ class StoryEnhancer:
         """
         try:
             from services.trace_context import set_chapter, set_module
+
             set_chapter(getattr(chapter, "chapter_number", None))
             set_module("l2_enhancer")
         except Exception:
@@ -329,7 +342,9 @@ class StoryEnhancer:
             scene_enhancer = SceneEnhancer(voice_engine=_build_voice_engine(draft))
             _signals_on = True
             try:
-                _signals_on = bool(getattr(ConfigManager().load().pipeline, "l2_use_l1_signals", True))
+                _signals_on = bool(
+                    getattr(ConfigManager().load().pipeline, "l2_use_l1_signals", True)
+                )
             except Exception:
                 pass
             _chapter_summary = None
@@ -340,9 +355,12 @@ class StoryEnhancer:
                 _chapter_summary = getattr(chapter, "structured_summary", None)
                 if draft is not None:
                     from pipeline.layer2_enhance import _envelope_access as _env
+
                     _thread_state = _env.threads(draft)
                     _arc_context = _build_arc_context(draft, chapter.chapter_number)
-                _pacing_directive = _extract_pacing_directive(draft, chapter.chapter_number)
+                _pacing_directive = _extract_pacing_directive(
+                    draft, chapter.chapter_number
+                )
             # L2-E: Use pacing_type from outline as fallback for per-chapter drama intensity
             if not _pacing_directive:
                 _pacing_directive = _extract_pacing_type(draft, chapter.chapter_number)
@@ -350,37 +368,54 @@ class StoryEnhancer:
             _consistency_constraints = ""
             if self.consistency_engine:
                 try:
-                    _consistency_constraints = self.consistency_engine.get_constraints_for_chapter(
-                        chapter.chapter_number
+                    _consistency_constraints = (
+                        self.consistency_engine.get_constraints_for_chapter(
+                            chapter.chapter_number
+                        )
                     )
                 except Exception as _ce:
                     logger.debug(f"Consistency constraints failed: {_ce}")
             # L2-B: Append knowledge constraints to prevent hallucinating facts
             _knowledge_enabled = True
             try:
-                _knowledge_enabled = bool(ConfigManager().load().pipeline.l2_knowledge_constraints)
+                _knowledge_enabled = bool(
+                    ConfigManager().load().pipeline.l2_knowledge_constraints
+                )
             except Exception:
                 pass
             if _knowledge_enabled:
                 try:
                     _knowledge_block = _build_knowledge_constraints(sim_result, draft)
                     if _knowledge_block:
-                        _consistency_constraints = (_consistency_constraints + "\n\n" + _knowledge_block).strip()
+                        _consistency_constraints = (
+                            _consistency_constraints + "\n\n" + _knowledge_block
+                        ).strip()
                 except Exception as _ke:
                     logger.debug(f"Knowledge constraints failed: {_ke}")
             # L2-F: Coherence pre-check — inject constraints for potential violations
             try:
                 _prev_chapters = []
                 if draft and hasattr(draft, "chapters"):
-                    _prev_chapters = [c for c in draft.chapters if c.chapter_number < chapter.chapter_number]
-                _coherence_block = _precheck_coherence(self.llm, chapter, draft, _prev_chapters)
+                    _prev_chapters = [
+                        c
+                        for c in draft.chapters
+                        if c.chapter_number < chapter.chapter_number
+                    ]
+                _coherence_block = _precheck_coherence(
+                    self.llm, chapter, draft, _prev_chapters
+                )
                 if _coherence_block:
-                    _consistency_constraints = (_consistency_constraints + "\n\n" + _coherence_block).strip()
+                    _consistency_constraints = (
+                        _consistency_constraints + "\n\n" + _coherence_block
+                    ).strip()
             except Exception as _coh_e:
                 logger.debug(f"Coherence pre-check failed: {_coh_e}")
 
             enhanced_chapter = scene_enhancer.enhance_chapter_by_scenes(
-                chapter, sim_result, genre, draft,
+                chapter,
+                sim_result,
+                genre,
+                draft,
                 subtext_guidance=_subtext_guidance,
                 thematic_guidance=_thematic_guidance,
                 chapter_summary=_chapter_summary,
@@ -455,40 +490,68 @@ class StoryEnhancer:
         try:
             from models.handoff_schemas import NegotiatedChapterContract
             from pipeline.layer2_enhance.chapter_contract import (
-                validate_chapter_against_contract, build_retry_hint,
+                validate_chapter_against_contract,
+                build_retry_hint,
             )
             from pipeline.layer2_enhance.scene_enhancer import SceneEnhancer
-            contract = NegotiatedChapterContract.model_validate(raw) if isinstance(raw, dict) else raw
+
+            contract = (
+                NegotiatedChapterContract.model_validate(raw)
+                if isinstance(raw, dict)
+                else raw
+            )
 
             try:
                 cfg = ConfigManager().load().pipeline
             except Exception:
                 cfg = None
 
-            tolerance = float(getattr(cfg, "contract_drama_tolerance", 0.15)) if cfg else 0.15
+            tolerance = (
+                float(getattr(cfg, "contract_drama_tolerance", 0.15)) if cfg else 0.15
+            )
             contract = contract.model_copy(update={"drama_tolerance": tolerance})
-            cheap = bool(getattr(cfg, "contract_cheap_validation", True)) if cfg else True
-            retry_enabled = bool(getattr(cfg, "enable_contract_retry", True)) if cfg else True
+            cheap = (
+                bool(getattr(cfg, "contract_cheap_validation", True)) if cfg else True
+            )
+            retry_enabled = (
+                bool(getattr(cfg, "enable_contract_retry", True)) if cfg else True
+            )
             retry_max = int(getattr(cfg, "contract_retry_max", 1)) if cfg else 1
 
             validation = validate_chapter_against_contract(
-                self.llm, enhanced_chapter.content, contract,
+                self.llm,
+                enhanced_chapter.content,
+                contract,
                 model_tier="cheap" if cheap else "default",
             )
             logger.info(
                 "[CONTRACT] ch%d pass=%s compliance=%.2f drama=%.2f/%.2f",
-                ch_num, validation.passed, validation.compliance_score,
-                validation.drama_actual, contract.drama_target,
+                ch_num,
+                validation.passed,
+                validation.compliance_score,
+                validation.drama_actual,
+                contract.drama_target,
             )
 
             if not validation.passed and retry_enabled and retry_max > 0:
                 hint = build_retry_hint(validation)
-                logger.info("[CONTRACT] ch%d retry with hint: %s", ch_num, hint.replace("\n", " | "))
+                logger.info(
+                    "[CONTRACT] ch%d retry with hint: %s",
+                    ch_num,
+                    hint.replace("\n", " | "),
+                )
                 try:
-                    scene_enhancer = SceneEnhancer(voice_engine=_build_voice_engine(draft))
-                    injected_guidance = (subtext_guidance or "") + "\n\n[RETRY HINT]\n" + hint
+                    scene_enhancer = SceneEnhancer(
+                        voice_engine=_build_voice_engine(draft)
+                    )
+                    injected_guidance = (
+                        (subtext_guidance or "") + "\n\n[RETRY HINT]\n" + hint
+                    )
                     retried = scene_enhancer.enhance_chapter_by_scenes(
-                        original, sim_result, genre, draft,
+                        original,
+                        sim_result,
+                        genre,
+                        draft,
                         subtext_guidance=injected_guidance,
                         thematic_guidance=thematic_guidance,
                         chapter_summary=chapter_summary,
@@ -498,7 +561,9 @@ class StoryEnhancer:
                         consistency_constraints=consistency_constraints,
                     )
                     retry_validation = validate_chapter_against_contract(
-                        self.llm, retried.content, contract,
+                        self.llm,
+                        retried.content,
+                        contract,
                         model_tier="cheap" if cheap else "default",
                     )
                     retry_validation.retry_attempted = True
@@ -507,7 +572,9 @@ class StoryEnhancer:
                         validation = retry_validation
                     logger.info(
                         "[CONTRACT] ch%d retry pass=%s compliance=%.2f",
-                        ch_num, validation.passed, validation.compliance_score,
+                        ch_num,
+                        validation.passed,
+                        validation.compliance_score,
                     )
                 except Exception as _re:
                     logger.warning(f"Contract retry ch{ch_num} failed: {_re}")
@@ -546,9 +613,12 @@ class StoryEnhancer:
 
         try:
             from pipeline.layer2_enhance.chapter_contract import (
-                VoiceContract, validate_chapter_voice, build_voice_retry_hint,
+                VoiceContract,
+                validate_chapter_voice,
+                build_voice_retry_hint,
             )
             from pipeline.layer2_enhance.scene_enhancer import SceneEnhancer
+
             contract = VoiceContract(**raw) if isinstance(raw, dict) else raw
 
             try:
@@ -556,30 +626,51 @@ class StoryEnhancer:
             except Exception:
                 cfg = None
 
-            if cfg is not None and not bool(getattr(cfg, "enable_voice_contract", True)):
+            if cfg is not None and not bool(
+                getattr(cfg, "enable_voice_contract", True)
+            ):
                 return enhanced_chapter
 
-            min_comp = float(getattr(cfg, "voice_min_compliance", 0.75)) if cfg else 0.75
+            min_comp = (
+                float(getattr(cfg, "voice_min_compliance", 0.75)) if cfg else 0.75
+            )
             contract.min_compliance = min_comp
-            retry_enabled = bool(getattr(cfg, "enable_voice_contract_retry", True)) if cfg else True
+            retry_enabled = (
+                bool(getattr(cfg, "enable_voice_contract_retry", True)) if cfg else True
+            )
             retry_max = int(getattr(cfg, "voice_contract_retry_max", 1)) if cfg else 1
-            revert_floor = float(getattr(cfg, "voice_binary_revert_floor", 0.5)) if cfg else 0.5
+            revert_floor = (
+                float(getattr(cfg, "voice_binary_revert_floor", 0.5)) if cfg else 0.5
+            )
 
-            validation = validate_chapter_voice(self.llm, enhanced_chapter.content, contract)
+            validation = validate_chapter_voice(
+                self.llm, enhanced_chapter.content, contract
+            )
             logger.info(
                 "[VOICE] ch%d pass=%s compliance=%.2f drifted=%s",
-                ch_num, validation.passed, validation.overall_compliance,
+                ch_num,
+                validation.passed,
+                validation.overall_compliance,
                 validation.drifted_characters,
             )
 
             if not validation.passed and retry_enabled and retry_max > 0:
                 hint = build_voice_retry_hint(validation)
-                logger.info("[VOICE] ch%d refine with hint: %s", ch_num, hint.replace("\n", " | "))
+                logger.info(
+                    "[VOICE] ch%d refine with hint: %s",
+                    ch_num,
+                    hint.replace("\n", " | "),
+                )
                 try:
-                    scene_enhancer = SceneEnhancer(voice_engine=_build_voice_engine(draft))
+                    scene_enhancer = SceneEnhancer(
+                        voice_engine=_build_voice_engine(draft)
+                    )
                     injected = (subtext_guidance or "") + "\n\n[VOICE HINT]\n" + hint
                     refined = scene_enhancer.enhance_chapter_by_scenes(
-                        original, sim_result, genre, draft,
+                        original,
+                        sim_result,
+                        genre,
+                        draft,
                         subtext_guidance=injected,
                         thematic_guidance=thematic_guidance,
                         chapter_summary=chapter_summary,
@@ -588,14 +679,18 @@ class StoryEnhancer:
                         pacing_directive=pacing_directive,
                         consistency_constraints=consistency_constraints,
                     )
-                    retry_val = validate_chapter_voice(self.llm, refined.content, contract)
+                    retry_val = validate_chapter_voice(
+                        self.llm, refined.content, contract
+                    )
                     retry_val.retry_attempted = True
                     if retry_val.overall_compliance >= validation.overall_compliance:
                         enhanced_chapter = refined
                         validation = retry_val
                     logger.info(
                         "[VOICE] ch%d refine pass=%s compliance=%.2f",
-                        ch_num, validation.passed, validation.overall_compliance,
+                        ch_num,
+                        validation.passed,
+                        validation.overall_compliance,
                     )
                 except Exception as _re:
                     logger.warning(f"Voice refine ch{ch_num} failed: {_re}")
@@ -604,12 +699,17 @@ class StoryEnhancer:
             if not validation.passed and validation.overall_compliance < revert_floor:
                 try:
                     from pipeline.layer2_enhance.voice_fingerprint import (
-                        VoiceFingerprintEngine, enforce_voice_preservation,
+                        VoiceFingerprintEngine,
+                        enforce_voice_preservation,
                     )
+
                     engine = VoiceFingerprintEngine()
                     engine.build_from_draft(draft, dedup_l1=True)
-                    characters = [c for c in (getattr(draft, "characters", []) or [])
-                                  if getattr(c, "name", "") in validation.drifted_characters]
+                    characters = [
+                        c
+                        for c in (getattr(draft, "characters", []) or [])
+                        if getattr(c, "name", "") in validation.drifted_characters
+                    ]
                     if characters:
                         preserved, vp_res = enforce_voice_preservation(
                             engine,
@@ -624,7 +724,10 @@ class StoryEnhancer:
                             validation.binary_reverted = True
                             logger.warning(
                                 "[VOICE] ch%d catastrophic (%.2f<%.2f) → binary reverted %d dialogue(s)",
-                                ch_num, validation.overall_compliance, revert_floor, vp_res.reverted_count,
+                                ch_num,
+                                validation.overall_compliance,
+                                revert_floor,
+                                vp_res.reverted_count,
                             )
                 except Exception as _be:
                     logger.warning(f"Voice binary revert ch{ch_num} failed: {_be}")
@@ -661,10 +764,16 @@ class StoryEnhancer:
         # Build consistency engine (A-E improvements)
         _consistency_enabled = True
         try:
-            _consistency_enabled = bool(ConfigManager().load().pipeline.l2_consistency_engine)
+            _consistency_enabled = bool(
+                ConfigManager().load().pipeline.l2_consistency_engine
+            )
         except Exception:
             pass
-        if _CONSISTENCY_AVAILABLE and _consistency_enabled and self.consistency_engine is None:
+        if (
+            _CONSISTENCY_AVAILABLE
+            and _consistency_enabled
+            and self.consistency_engine is None
+        ):
             try:
                 _log("🔧 Building consistency engine...")
                 self.consistency_engine = ConsistencyEngine()
@@ -687,7 +796,10 @@ class StoryEnhancer:
             _contracts_on = True
         if _contracts_on and not getattr(sim_result, "chapter_contracts", None):
             try:
-                from pipeline.layer2_enhance.chapter_contract import build_chapter_contracts
+                from pipeline.layer2_enhance.chapter_contract import (
+                    build_chapter_contracts,
+                )
+
                 _ch_nums = [c.chapter_number for c in draft.chapters]
                 _contracts = build_chapter_contracts(sim_result, _ch_nums)
                 sim_result.chapter_contracts = {
@@ -704,8 +816,11 @@ class StoryEnhancer:
             _voice_on = True
         if _voice_on and not getattr(sim_result, "voice_contracts", None):
             try:
-                from pipeline.layer2_enhance.chapter_contract import build_voice_contracts
+                from pipeline.layer2_enhance.chapter_contract import (
+                    build_voice_contracts,
+                )
                 from pipeline.layer2_enhance import _envelope_access as _env
+
                 _vp = _env.voice_profiles(draft)
                 if _vp:
                     _min_comp = float(getattr(_cfg, "voice_min_compliance", 0.75))
@@ -716,7 +831,9 @@ class StoryEnhancer:
                         characters=getattr(draft, "characters", []) or [],
                         min_compliance=_min_comp,
                     )
-                    sim_result.voice_contracts = {k: v.model_dump() for k, v in _vcs.items()}
+                    sim_result.voice_contracts = {
+                        k: v.model_dump() for k, v in _vcs.items()
+                    }
                     _log(f"[VOICE] Built {len(_vcs)} voice contracts")
             except Exception as _ve:
                 logger.warning(f"build_voice_contracts failed (non-fatal): {_ve}")
@@ -724,7 +841,9 @@ class StoryEnhancer:
         total_chapters = len(draft.chapters)
         max_workers = ConfigManager().llm.max_parallel_workers
 
-        _log(f"✨ Đang tăng cường kịch tính {total_chapters} chương (parallel, {max_workers} workers)...")
+        _log(
+            f"✨ Đang tăng cường kịch tính {total_chapters} chương (parallel, {max_workers} workers)..."
+        )
 
         # enhance_chapter() wraps blocking LLM calls; run_in_executor offloads each to the
         # default thread pool while asyncio.gather dispatches all coroutines concurrently.
@@ -735,8 +854,14 @@ class StoryEnhancer:
             ch_num = chapter.chapter_number
             try:
                 result = await loop.run_in_executor(
-                    None, self.enhance_chapter,
-                    chapter, sim_result, word_count, total_chapters, draft.genre, draft,
+                    None,
+                    self.enhance_chapter,
+                    chapter,
+                    sim_result,
+                    word_count,
+                    total_chapters,
+                    draft.genre,
+                    draft,
                 )
                 _log(f"✨ Chương {ch_num} đã tăng cường xong")
                 # P-C: Incremental publish — notify when chapter is done
@@ -769,7 +894,11 @@ class StoryEnhancer:
 
         if _curve_enabled:
             try:
-                from pipeline.layer2_enhance.scene_enhancer import DramaCurveBalancer, SceneEnhancer
+                from pipeline.layer2_enhance.scene_enhancer import (
+                    DramaCurveBalancer,
+                    SceneEnhancer,
+                )
+
                 _log("📈 Analyzing drama curve...")
 
                 # Score all chapters to build curve
@@ -781,13 +910,15 @@ class StoryEnhancer:
                         result = self.llm.generate_json(
                             system_prompt="Đánh giá kịch tính nhanh. Trả về JSON.",
                             user_prompt=f"Đánh giá kịch tính nội dung sau (0-1):\n{ch.content[:2000]}\n\n"
-                                        '{"drama_score": 0.6}',
+                            '{"drama_score": 0.6}',
                             temperature=0.2,
                             max_tokens=100,
                             model_tier="cheap",
                             expect="dict",
                         )
-                        chapter_scores[ch.chapter_number] = float(result.get("drama_score", 0.5))
+                        chapter_scores[ch.chapter_number] = float(
+                            result.get("drama_score", 0.5)
+                        )
                     except Exception:
                         chapter_scores[ch.chapter_number] = 0.5
 
@@ -803,16 +934,23 @@ class StoryEnhancer:
 
                 # Re-enhance chapters that need curve adjustment
                 if summary["total_adjustments"] > 0:
-                    _log(f"🔄 Re-enhancing {summary['total_adjustments']} chapters for curve balance...")
-                    chapters_to_reenhance = (
-                        summary.get("chapters_need_boost", []) +
-                        summary.get("chapters_need_reduction", [])
+                    _log(
+                        f"🔄 Re-enhancing {summary['total_adjustments']} chapters for curve balance..."
                     )
+                    chapters_to_reenhance = summary.get(
+                        "chapters_need_boost", []
+                    ) + summary.get("chapters_need_reduction", [])
 
                     for ch_num in chapters_to_reenhance:
                         try:
-                            ch = next(c for c in enhanced.chapters if c.chapter_number == ch_num)
-                            orig = next(c for c in draft.chapters if c.chapter_number == ch_num)
+                            ch = next(
+                                c
+                                for c in enhanced.chapters
+                                if c.chapter_number == ch_num
+                            )
+                            orig = next(
+                                c for c in draft.chapters if c.chapter_number == ch_num
+                            )
 
                             # Re-enhance with curve directive
                             reenhanced = scene_enhancer.enhance_chapter_by_scenes(
@@ -831,7 +969,8 @@ class StoryEnhancer:
                                     break
                             else:
                                 logger.warning(
-                                    "curve_re_enhance: chapter %s not found in enhanced list", ch_num
+                                    "curve_re_enhance: chapter %s not found in enhanced list",
+                                    ch_num,
                                 )
                         except Exception as e:
                             logger.warning(f"Curve re-enhance ch{ch_num} failed: {e}")
@@ -841,7 +980,10 @@ class StoryEnhancer:
 
         # Enhancement diff tracking (non-fatal)
         try:
-            from pipeline.layer2_enhance.enhancement_diff_tracker import track_enhancement_diffs
+            from pipeline.layer2_enhance.enhancement_diff_tracker import (
+                track_enhancement_diffs,
+            )
+
             track_enhancement_diffs(list(draft.chapters), enhanced.chapters)
         except Exception as e:
             logger.warning(f"Enhancement diff tracking failed (non-fatal): {e}")
@@ -849,15 +991,20 @@ class StoryEnhancer:
         # Melodrama detection (Phase 6) — surface indicators to changelog, no rewrite
         _melodrama_enabled = True
         try:
-            _melodrama_enabled = bool(ConfigManager().load().pipeline.l2_melodrama_detection)
+            _melodrama_enabled = bool(
+                ConfigManager().load().pipeline.l2_melodrama_detection
+            )
         except Exception:
             pass
         if _melodrama_enabled:
             try:
                 from pipeline.layer2_enhance.drama_patterns import detect_melodrama
+
                 total_flagged = 0
                 for enh_ch in enhanced.chapters:
-                    is_melo, indicators = detect_melodrama(enh_ch.content or "", threshold=3)
+                    is_melo, indicators = detect_melodrama(
+                        enh_ch.content or "", threshold=3
+                    )
                     if not is_melo:
                         continue
                     total_flagged += 1
@@ -872,7 +1019,9 @@ class StoryEnhancer:
                     except Exception:
                         pass
                 if total_flagged:
-                    _log(f"⚠️ Melodrama: {total_flagged}/{len(enhanced.chapters)} chương có chỉ báo")
+                    _log(
+                        f"⚠️ Melodrama: {total_flagged}/{len(enhanced.chapters)} chương có chỉ báo"
+                    )
                 else:
                     _log("✅ Không phát hiện melodrama")
             except Exception as e:
@@ -903,7 +1052,9 @@ class StoryEnhancer:
                         except Exception:
                             pass
                 except Exception as ve:
-                    logger.debug(f"Consistency validation ch{enh_ch.chapter_number} error: {ve}")
+                    logger.debug(
+                        f"Consistency validation ch{enh_ch.chapter_number} error: {ve}"
+                    )
             if total_violations > 0:
                 _log(f"⚠️ Phát hiện {total_violations} vi phạm nhất quán")
             else:
@@ -918,8 +1069,10 @@ class StoryEnhancer:
         if _voice_enabled:
             try:
                 from pipeline.layer2_enhance.voice_fingerprint import (
-                    VoiceFingerprintEngine, enforce_voice_preservation,
+                    VoiceFingerprintEngine,
+                    enforce_voice_preservation,
                 )
+
                 _log("🎤 Checking voice preservation...")
                 voice_engine = VoiceFingerprintEngine()
                 voice_engine.build_from_draft(draft)
@@ -952,7 +1105,9 @@ class StoryEnhancer:
 
                 avg_drift = total_drift / max(1, len(enhanced.chapters))
                 if total_reverted > 0:
-                    _log(f"🎤 Voice: {total_reverted} dialogues reverted (avg drift: {avg_drift:.0%})")
+                    _log(
+                        f"🎤 Voice: {total_reverted} dialogues reverted (avg drift: {avg_drift:.0%})"
+                    )
                 else:
                     _log(f"✅ Voice preserved (avg drift: {avg_drift:.0%})")
             except Exception as e:
@@ -961,14 +1116,19 @@ class StoryEnhancer:
         # Thread resolution enforcement (Phase 6)
         _thread_enforce_enabled = True
         try:
-            _thread_enforce_enabled = bool(ConfigManager().load().pipeline.l2_consistency_threads)
+            _thread_enforce_enabled = bool(
+                ConfigManager().load().pipeline.l2_consistency_threads
+            )
         except Exception:
             pass
         if _thread_enforce_enabled:
             try:
                 from pipeline.layer2_enhance.thread_watchdog import (
-                    ThreadWatchdog, ThreadResolutionEnforcer, should_enforce_resolution,
+                    ThreadWatchdog,
+                    ThreadResolutionEnforcer,
+                    should_enforce_resolution,
                 )
+
                 total_chapters = len(enhanced.chapters)
                 if should_enforce_resolution(total_chapters, total_chapters):
                     _log("🔗 Checking thread resolution...")
@@ -1004,7 +1164,9 @@ class StoryEnhancer:
                             f"total {summary['resolved']}/{summary['total_threads']} resolved"
                         )
                     elif summary["unresolved"] > 0:
-                        _log(f"⚠️ Threads: {summary['unresolved']} unresolved at story end")
+                        _log(
+                            f"⚠️ Threads: {summary['unresolved']} unresolved at story end"
+                        )
                     else:
                         _log("✅ All threads resolved")
             except Exception as e:
@@ -1012,15 +1174,11 @@ class StoryEnhancer:
 
         # Tính điểm kịch tính tổng thể (chuyển từ 0-1 sang 1-5)
         if sim_result.events:
-            raw = sum(
-                e.drama_score for e in sim_result.events
-            ) / len(sim_result.events)
+            raw = sum(e.drama_score for e in sim_result.events) / len(sim_result.events)
             enhanced.drama_score = round(1.0 + raw * 4.0, 2)  # Map 0-1 → 1-5
         enhanced.enhancement_notes = sim_result.drama_suggestions
 
-        _log(
-            f"✅ Layer 2 hoàn tất! Điểm kịch tính: {enhanced.drama_score:.2f}"
-        )
+        _log(f"✅ Layer 2 hoàn tất! Điểm kịch tính: {enhanced.drama_score:.2f}")
         return enhanced
 
     def enhance_story(
@@ -1045,14 +1203,16 @@ class StoryEnhancer:
         except RuntimeError as exc:
             if "enhance_story called" in str(exc):
                 raise
-        return asyncio.run(self.enhance_story_async(
-            draft=draft,
-            sim_result=sim_result,
-            word_count=word_count,
-            progress_callback=progress_callback,
-            theme_profile=theme_profile,
-            chapter_done_callback=chapter_done_callback,
-        ))
+        return asyncio.run(
+            self.enhance_story_async(
+                draft=draft,
+                sim_result=sim_result,
+                word_count=word_count,
+                progress_callback=progress_callback,
+                theme_profile=theme_profile,
+                chapter_done_callback=chapter_done_callback,
+            )
+        )
 
     def _find_weak_chapters(self, enhanced: EnhancedStory) -> list[dict]:
         """Analyze chapters and return detailed weakness info for targeted rewriting."""
@@ -1071,12 +1231,14 @@ class StoryEnhancer:
                 )
                 score = result.get("drama_score", 0.5)
                 if score < MIN_DRAMA_SCORE:
-                    weak.append({
-                        "chapter_number": ch.chapter_number,
-                        "score": score,
-                        "weak_points": result.get("weak_points", []),
-                        "strong_points": result.get("strong_points", []),
-                    })
+                    weak.append(
+                        {
+                            "chapter_number": ch.chapter_number,
+                            "score": score,
+                            "weak_points": result.get("weak_points", []),
+                            "strong_points": result.get("strong_points", []),
+                        }
+                    )
             except Exception as e:
                 logger.debug(f"Drama check failed for ch {ch.chapter_number}: {e}")
         return weak
@@ -1090,6 +1252,7 @@ class StoryEnhancer:
         theme_profile=None,
     ) -> EnhancedStory:
         """Async core: enhance story with iterative feedback — re-enhance weak chapters."""
+
         def _log(msg):
             logger.info(msg)
             if progress_callback:
@@ -1101,14 +1264,13 @@ class StoryEnhancer:
         # defensive for any stray LaneSuggestion that slipped through.
         try:
             from models.schemas import LaneSuggestion as _LS
+
             _raw_sugs = list(getattr(sim_result, "drama_suggestions", []) or [])
             _dramatic_sugs = [
-                s for s in _raw_sugs
-                if not isinstance(s, _LS) or s.lane == "dramatic"
+                s for s in _raw_sugs if not isinstance(s, _LS) or s.lane == "dramatic"
             ]
             _craft_sugs = [
-                s for s in _raw_sugs
-                if isinstance(s, _LS) and s.lane == "craft"
+                s for s in _raw_sugs if isinstance(s, _LS) and s.lane == "craft"
             ]
             _log(
                 f"[ENHANCER] applying {len(_dramatic_sugs)} dramatic + "
@@ -1121,9 +1283,10 @@ class StoryEnhancer:
         if getattr(draft, "_knowledge_registry", None) is None:
             try:
                 from pipeline.layer2_enhance.knowledge_system import KnowledgeRegistry
+
                 draft._knowledge_registry = KnowledgeRegistry()
                 # Seed with initial character states if available
-                for ch in (draft.characters or []):
+                for ch in draft.characters or []:
                     draft._knowledge_registry.register_fact(
                         character=ch.name,
                         fact_type="initial_state",
@@ -1137,14 +1300,18 @@ class StoryEnhancer:
         # Reset consistency engine for fresh build
         self.consistency_engine = None
 
-        enhanced = await self.enhance_story_async(draft, sim_result, word_count, progress_callback, theme_profile)
+        enhanced = await self.enhance_story_async(
+            draft, sim_result, word_count, progress_callback, theme_profile
+        )
 
-        genre = draft.genre if hasattr(draft, 'genre') else ""
+        genre = draft.genre if hasattr(draft, "genre") else ""
 
         # Log drama_multiplier influence: event scores already incorporate agent multipliers
         # from simulator._apply_escalation. Report average event drama_score as proxy.
         if sim_result.events:
-            avg_event_score = sum(e.drama_score for e in sim_result.events) / len(sim_result.events)
+            avg_event_score = sum(e.drama_score for e in sim_result.events) / len(
+                sim_result.events
+            )
             logger.info(
                 f"Drama multiplier influence: avg event drama_score={avg_event_score:.3f} "
                 f"across {len(sim_result.events)} events (agent multipliers embedded)"
@@ -1155,25 +1322,36 @@ class StoryEnhancer:
         # Idea header for re-enhancement rewrites — preserve proper nouns / gimmicks
         try:
             from services.text_utils import build_idea_header
+
             _idea = getattr(draft, "original_idea", "") or ""
             _idea_summary = getattr(draft, "idea_summary_for_chapters", "") or ""
-            _reenhance_idea_header = build_idea_header(_idea, _idea_summary) if _idea else ""
+            _reenhance_idea_header = (
+                build_idea_header(_idea, _idea_summary) if _idea else ""
+            )
         except Exception:
             _reenhance_idea_header = ""
 
         for round_num in range(1, MAX_REENHANCE_ROUNDS + 1):
             weak_analyses = self._find_weak_chapters(enhanced)
             if not weak_analyses:
-                _log(f"✅ Feedback round {round_num}: all chapters pass drama threshold")
+                _log(
+                    f"✅ Feedback round {round_num}: all chapters pass drama threshold"
+                )
                 break
-            _log(f"🔄 Feedback round {round_num}: re-enhancing {len(weak_analyses)} weak chapters (parallel)")
+            _log(
+                f"🔄 Feedback round {round_num}: re-enhancing {len(weak_analyses)} weak chapters (parallel)"
+            )
 
             # L2-A: Parallel feedback rewrite — blocking LLM calls offloaded via run_in_executor.
             def _rewrite_one(analysis: dict) -> tuple[int, Chapter | None]:
                 ch_num = analysis["chapter_number"]
                 # B5: lookup by chapter_number (may be non-contiguous in continuation)
                 idx = next(
-                    (_i for _i, _c in enumerate(enhanced.chapters) if _c.chapter_number == ch_num),
+                    (
+                        _i
+                        for _i, _c in enumerate(enhanced.chapters)
+                        if _c.chapter_number == ch_num
+                    ),
                     -1,
                 )
                 if idx < 0:
@@ -1190,9 +1368,15 @@ class StoryEnhancer:
                 _delay = 1.0
                 for attempt in range(_retry_max + 1):
                     try:
-                        genre_hints = get_genre_enhancement_hints(genre, ch_num, len(enhanced.chapters))
-                        weak_text = "\n".join(f"- {wp}" for wp in analysis.get("weak_points", []))
-                        strong_text = "\n".join(f"- {sp}" for sp in analysis.get("strong_points", []))
+                        genre_hints = get_genre_enhancement_hints(
+                            genre, ch_num, len(enhanced.chapters)
+                        )
+                        weak_text = "\n".join(
+                            f"- {wp}" for wp in analysis.get("weak_points", [])
+                        )
+                        strong_text = "\n".join(
+                            f"- {sp}" for sp in analysis.get("strong_points", [])
+                        )
                         rewrite_prompt = prompt_templates.REENHANCE_CHAPTER.format(
                             user_story_idea_header=_reenhance_idea_header,
                             chapter_content=enhanced.chapters[idx].content[:6000],
@@ -1221,17 +1405,24 @@ class StoryEnhancer:
                         )
                     except Exception as e:
                         if attempt < _retry_max:
-                            logger.warning(f"Feedback rewrite ch{ch_num} attempt {attempt+1} failed: {e}, retrying in {_delay:.1f}s")
+                            logger.warning(
+                                f"Feedback rewrite ch{ch_num} attempt {attempt + 1} failed: {e}, retrying in {_delay:.1f}s"
+                            )
                             time.sleep(_delay)
                             _delay *= _backoff
                         else:
-                            logger.warning(f"Feedback rewrite ch{ch_num} failed after {_retry_max+1} attempts: {e}")
+                            logger.warning(
+                                f"Feedback rewrite ch{ch_num} failed after {_retry_max + 1} attempts: {e}"
+                            )
                             return ch_num, None
                 return ch_num, None
 
             try:
                 pairs = await asyncio.gather(
-                    *[loop.run_in_executor(None, _rewrite_one, a) for a in weak_analyses]
+                    *[
+                        loop.run_in_executor(None, _rewrite_one, a)
+                        for a in weak_analyses
+                    ]
                 )
                 rewritten_map = {ch_num: ch for ch_num, ch in pairs if ch is not None}
             except Exception as e:
@@ -1242,7 +1433,11 @@ class StoryEnhancer:
                 ch_num = analysis["chapter_number"]
                 # B5: lookup by chapter_number (may be non-contiguous in continuation)
                 idx = next(
-                    (_i for _i, _c in enumerate(enhanced.chapters) if _c.chapter_number == ch_num),
+                    (
+                        _i
+                        for _i, _c in enumerate(enhanced.chapters)
+                        if _c.chapter_number == ch_num
+                    ),
                     -1,
                 )
                 if idx < 0:
@@ -1251,23 +1446,37 @@ class StoryEnhancer:
                     rewritten_ch = rewritten_map[ch_num]
                     # L2-C: Inline contract + voice validation after feedback rewrite
                     try:
-                        contracts_raw = getattr(sim_result, "chapter_contracts", None) or {}
-                        raw_contract = contracts_raw.get(ch_num) or contracts_raw.get(str(ch_num))
+                        contracts_raw = (
+                            getattr(sim_result, "chapter_contracts", None) or {}
+                        )
+                        raw_contract = contracts_raw.get(ch_num) or contracts_raw.get(
+                            str(ch_num)
+                        )
                         if raw_contract:
                             from models.handoff_schemas import NegotiatedChapterContract
                             from pipeline.layer2_enhance.chapter_contract import (
                                 validate_chapter_against_contract,
                             )
-                            contract = NegotiatedChapterContract.model_validate(raw_contract) if isinstance(raw_contract, dict) else raw_contract
+
+                            contract = (
+                                NegotiatedChapterContract.model_validate(raw_contract)
+                                if isinstance(raw_contract, dict)
+                                else raw_contract
+                            )
                             val = validate_chapter_against_contract(
-                                self.llm, rewritten_ch.content, contract, model_tier="cheap",
+                                self.llm,
+                                rewritten_ch.content,
+                                contract,
+                                model_tier="cheap",
                             )
                             try:
                                 rewritten_ch.contract_validation = val.model_dump()
                             except Exception:
                                 pass
                             if not val.passed:
-                                logger.info(f"[L2-C] ch{ch_num} feedback-rewrite contract: {val.compliance_score:.2f}")
+                                logger.info(
+                                    f"[L2-C] ch{ch_num} feedback-rewrite contract: {val.compliance_score:.2f}"
+                                )
                     except Exception as _cv:
                         logger.debug(f"Inline contract validation ch{ch_num}: {_cv}")
                     try:
@@ -1275,34 +1484,58 @@ class StoryEnhancer:
                         raw_voice = voice_raw.get(ch_num) or voice_raw.get(str(ch_num))
                         if raw_voice:
                             from pipeline.layer2_enhance.chapter_contract import (
-                                VoiceContract, validate_chapter_voice,
+                                VoiceContract,
+                                validate_chapter_voice,
                             )
-                            vc = VoiceContract(**raw_voice) if isinstance(raw_voice, dict) else raw_voice
-                            vv = validate_chapter_voice(self.llm, rewritten_ch.content, vc)
+
+                            vc = (
+                                VoiceContract(**raw_voice)
+                                if isinstance(raw_voice, dict)
+                                else raw_voice
+                            )
+                            vv = validate_chapter_voice(
+                                self.llm, rewritten_ch.content, vc
+                            )
                             try:
                                 rewritten_ch.voice_validation = vv.model_dump()
                             except Exception:
                                 pass
                             if not vv.passed:
-                                logger.info(f"[L2-C] ch{ch_num} feedback-rewrite voice: {vv.overall_compliance:.2f}")
+                                logger.info(
+                                    f"[L2-C] ch{ch_num} feedback-rewrite voice: {vv.overall_compliance:.2f}"
+                                )
                     except Exception as _vv:
                         logger.debug(f"Inline voice validation ch{ch_num}: {_vv}")
                     enhanced.chapters[idx] = rewritten_ch
-                    _log(f"  ✓ Chương {ch_num}: score {analysis['score']:.2f} → re-enhanced")
+                    _log(
+                        f"  ✓ Chương {ch_num}: score {analysis['score']:.2f} → re-enhanced"
+                    )
 
         # Coherence validation (non-fatal)
         try:
-            from pipeline.layer2_enhance.coherence_validator import validate_coherence, fix_coherence_issues
+            from pipeline.layer2_enhance.coherence_validator import (
+                validate_coherence,
+                fix_coherence_issues,
+            )
+
             _log("🔍 Đang kiểm tra tính nhất quán...")
             issues = validate_coherence(self.llm, enhanced, draft)
             if issues:
-                critical_count = sum(1 for i in issues if i.get("severity") == "critical")
-                _log(f"⚠️ Phát hiện {len(issues)} vấn đề nhất quán ({critical_count} critical)")
+                critical_count = sum(
+                    1 for i in issues if i.get("severity") == "critical"
+                )
+                _log(
+                    f"⚠️ Phát hiện {len(issues)} vấn đề nhất quán ({critical_count} critical)"
+                )
                 if critical_count > 0:
                     fixed = fix_coherence_issues(
-                        self.llm, enhanced, issues, word_count,
+                        self.llm,
+                        enhanced,
+                        issues,
+                        word_count,
                         idea=getattr(draft, "original_idea", "") or "",
-                        idea_summary=getattr(draft, "idea_summary_for_chapters", "") or "",
+                        idea_summary=getattr(draft, "idea_summary_for_chapters", "")
+                        or "",
                     )
                     _log(f"✅ Đã sửa {fixed} chương có vấn đề critical")
             else:
@@ -1312,7 +1545,9 @@ class StoryEnhancer:
 
         # Causal audit (Phase B, non-fatal, feature-flagged)
         try:
-            _audit_on = bool(getattr(ConfigManager().load().pipeline, "l2_causal_audit", True))
+            _audit_on = bool(
+                getattr(ConfigManager().load().pipeline, "l2_causal_audit", True)
+            )
         except Exception:
             _audit_on = True
         if _audit_on:
@@ -1320,10 +1555,17 @@ class StoryEnhancer:
                 _kr = getattr(draft, "_knowledge_registry", None)
                 _cg = getattr(draft, "_causal_graph", None)
                 if _kr is not None:
-                    from pipeline.layer2_enhance.causal_chain import audit_revelation_causality
+                    from pipeline.layer2_enhance.causal_chain import (
+                        audit_revelation_causality,
+                    )
+
                     _log("🔎 Đang kiểm tra nhân quả tiết lộ...")
                     violations = audit_revelation_causality(
-                        self.llm, _cg, _kr, enhanced.chapters, enabled=True,
+                        self.llm,
+                        _cg,
+                        _kr,
+                        enhanced.chapters,
+                        enabled=True,
                     )
                     if violations:
                         by_ch: dict[int, list[dict]] = {}
@@ -1334,16 +1576,22 @@ class StoryEnhancer:
                             if not flags:
                                 continue
                             try:
-                                ch.enhancement_changelog = list(getattr(ch, "enhancement_changelog", []) or [])
+                                ch.enhancement_changelog = list(
+                                    getattr(ch, "enhancement_changelog", []) or []
+                                )
                                 for v in flags:
-                                    ch.enhancement_changelog.append(f"[causality:{v['severity']}] {v['msg']}")
+                                    ch.enhancement_changelog.append(
+                                        f"[causality:{v['severity']}] {v['msg']}"
+                                    )
                             except Exception:
                                 pass
                         try:
                             object.__setattr__(enhanced, "_causality_flags", violations)
                         except Exception:
                             pass
-                        _log(f"⚠️ Nhân quả: {len(violations)} vi phạm trên {len(by_ch)} chương")
+                        _log(
+                            f"⚠️ Nhân quả: {len(violations)} vi phạm trên {len(by_ch)} chương"
+                        )
                     else:
                         _log("✅ Nhân quả tiết lộ hợp lệ")
             except Exception as e:
@@ -1351,23 +1599,30 @@ class StoryEnhancer:
 
         # Contract gate (Phase E, non-fatal, feature-flagged)
         try:
-            _gate_on = bool(getattr(ConfigManager().load().pipeline, "l2_contract_gate", True))
+            _gate_on = bool(
+                getattr(ConfigManager().load().pipeline, "l2_contract_gate", True)
+            )
         except Exception:
             _gate_on = True
         if _gate_on:
             try:
                 from pipeline.layer2_enhance.contract_gate import apply_contract_gate
                 from pipeline.layer2_enhance import _envelope_access as _env
+
                 _draft_threads = _env.threads(draft)
                 _log("📋 Đang kiểm tra hợp đồng chương...")
-                stats = apply_contract_gate(self.llm, enhanced, _draft_threads, enabled=True, draft=draft)
+                stats = apply_contract_gate(
+                    self.llm, enhanced, _draft_threads, enabled=True, draft=draft
+                )
                 if stats.get("rewrites", 0) > 0:
                     _log(
                         f"🔧 Contract gate: {stats['rewrites']} chương viết lại "
                         f"(tổng {stats.get('total_failures', 0)} vi phạm)"
                     )
                 else:
-                    _log(f"✅ Contract gate: {stats.get('total_failures', 0)} vi phạm, không cần viết lại")
+                    _log(
+                        f"✅ Contract gate: {stats.get('total_failures', 0)} vi phạm, không cần viết lại"
+                    )
             except Exception as e:
                 logger.warning(f"Contract gate failed (non-fatal): {e}")
 
@@ -1376,9 +1631,13 @@ class StoryEnhancer:
             try:
                 report = self.consistency_engine.get_final_report()
                 if report.unresolved_threads:
-                    _log(f"⚠️ Còn {len(report.unresolved_threads)} tuyến truyện chưa giải quyết")
+                    _log(
+                        f"⚠️ Còn {len(report.unresolved_threads)} tuyến truyện chưa giải quyết"
+                    )
                     try:
-                        enhanced.enhancement_notes = list(enhanced.enhancement_notes or [])
+                        enhanced.enhancement_notes = list(
+                            enhanced.enhancement_notes or []
+                        )
                         for ut in report.unresolved_threads[:5]:
                             enhanced.enhancement_notes.append(
                                 f"[UNRESOLVED] {ut.get('description', '')[:80]}"
@@ -1413,10 +1672,12 @@ class StoryEnhancer:
         except RuntimeError as exc:
             if "enhance_with_feedback called" in str(exc):
                 raise
-        return asyncio.run(self.enhance_with_feedback_async(
-            draft=draft,
-            sim_result=sim_result,
-            word_count=word_count,
-            progress_callback=progress_callback,
-            theme_profile=theme_profile,
-        ))
+        return asyncio.run(
+            self.enhance_with_feedback_async(
+                draft=draft,
+                sim_result=sim_result,
+                word_count=word_count,
+                progress_callback=progress_callback,
+                theme_profile=theme_profile,
+            )
+        )

@@ -8,12 +8,22 @@ from services.input_sanitizer import sanitize_story_input
 from config import ConfigManager
 from pipeline.pipeline_utils import llm_call_with_retry
 from pipeline.layer1_story.story_bible_manager import StoryBibleManager
-from pipeline.layer1_story.character_generator import generate_characters, extract_character_states
-from pipeline.layer1_story.chapter_writer import (
-    build_chapter_prompt, write_chapter, write_chapter_stream,
-    summarize_chapter, extract_plot_events,
+from pipeline.layer1_story.character_generator import (
+    generate_characters,
+    extract_character_states,
 )
-from pipeline.layer1_story.outline_builder import suggest_titles, generate_world, generate_outline
+from pipeline.layer1_story.chapter_writer import (
+    build_chapter_prompt,
+    write_chapter,
+    write_chapter_stream,
+    summarize_chapter,
+    extract_plot_events,
+)
+from pipeline.layer1_story.outline_builder import (
+    suggest_titles,
+    generate_world,
+    generate_outline,
+)
 from pipeline.layer1_story.post_processing import process_chapter_post_write
 from pipeline.layer1_story.context_helpers import (
     get_rag_kb as _get_rag_kb_fn,
@@ -49,58 +59,154 @@ class StoryGenerator:
     def long_context_client(self):
         if self._long_ctx_client is None:
             from services.long_context_client import LongContextClient
+
             self._long_ctx_client = LongContextClient()
         return self._long_ctx_client
 
     def suggest_titles(self, genre: str, requirements: str = "") -> list[str]:
         return suggest_titles(self.llm, genre, requirements, model=self._layer_model)
 
-    def generate_characters(self, title, genre, idea, num_characters=5) -> list[Character]:
-        return generate_characters(self.llm, title, genre, idea, num_characters, model=self._layer_model)
+    def generate_characters(
+        self, title, genre, idea, num_characters=5
+    ) -> list[Character]:
+        return generate_characters(
+            self.llm, title, genre, idea, num_characters, model=self._layer_model
+        )
 
     def generate_world(self, title, genre, characters):
-        rag_kb = _get_rag_kb(self.config.pipeline.rag_persist_dir) if self.config.pipeline.rag_enabled else None
-        return generate_world(self.llm, self.config, title, genre, characters, rag_kb=rag_kb, model=self._layer_model)
+        rag_kb = (
+            _get_rag_kb(self.config.pipeline.rag_persist_dir)
+            if self.config.pipeline.rag_enabled
+            else None
+        )
+        return generate_world(
+            self.llm,
+            self.config,
+            title,
+            genre,
+            characters,
+            rag_kb=rag_kb,
+            model=self._layer_model,
+        )
 
-    def generate_outline(self, title, genre, characters, world, idea, num_chapters=10, macro_arcs=None):
-        return generate_outline(self.llm, title, genre, characters, world, idea, num_chapters, model=self._layer_model, macro_arcs=macro_arcs)
+    def generate_outline(
+        self, title, genre, characters, world, idea, num_chapters=10, macro_arcs=None
+    ):
+        return generate_outline(
+            self.llm,
+            title,
+            genre,
+            characters,
+            world,
+            idea,
+            num_chapters,
+            model=self._layer_model,
+            macro_arcs=macro_arcs,
+        )
 
-    def write_chapter(self, title, genre, style, characters, world, outline,
-                      previous_summary="", word_count=2000, context=None,
-                      open_threads=None, active_conflicts=None,
-                      foreshadowing_to_plant=None, foreshadowing_to_payoff=None,
-                      pacing_type="", enhancement_context="",
-                      negotiated_contract=None) -> Chapter:
-        rag_kb = _get_rag_kb(self.config.pipeline.rag_persist_dir) if self.config.pipeline.rag_enabled else None
-        return write_chapter(self.llm, self.config, title, genre, style, characters, world, outline,
-                             previous_summary, word_count, context, rag_kb=rag_kb, model=self._layer_model,
-                             open_threads=open_threads, active_conflicts=active_conflicts,
-                             foreshadowing_to_plant=foreshadowing_to_plant,
-                             foreshadowing_to_payoff=foreshadowing_to_payoff, pacing_type=pacing_type,
-                             enhancement_context=enhancement_context,
-                             negotiated_contract=negotiated_contract)
+    def write_chapter(
+        self,
+        title,
+        genre,
+        style,
+        characters,
+        world,
+        outline,
+        previous_summary="",
+        word_count=2000,
+        context=None,
+        open_threads=None,
+        active_conflicts=None,
+        foreshadowing_to_plant=None,
+        foreshadowing_to_payoff=None,
+        pacing_type="",
+        enhancement_context="",
+        negotiated_contract=None,
+    ) -> Chapter:
+        rag_kb = (
+            _get_rag_kb(self.config.pipeline.rag_persist_dir)
+            if self.config.pipeline.rag_enabled
+            else None
+        )
+        return write_chapter(
+            self.llm,
+            self.config,
+            title,
+            genre,
+            style,
+            characters,
+            world,
+            outline,
+            previous_summary,
+            word_count,
+            context,
+            rag_kb=rag_kb,
+            model=self._layer_model,
+            open_threads=open_threads,
+            active_conflicts=active_conflicts,
+            foreshadowing_to_plant=foreshadowing_to_plant,
+            foreshadowing_to_payoff=foreshadowing_to_payoff,
+            pacing_type=pacing_type,
+            enhancement_context=enhancement_context,
+            negotiated_contract=negotiated_contract,
+        )
 
-    def write_chapter_stream(self, title, genre, style, characters, world, outline,
-                             word_count=2000, context=None, stream_callback=None,
-                             open_threads=None, active_conflicts=None,
-                             foreshadowing_to_plant=None, foreshadowing_to_payoff=None,
-                             pacing_type="", enhancement_context="",
-                             current_arc_context="", chapter_contract="",
-                             scenes=None, negotiated_contract=None,
-                             idea: str = "", idea_summary: str = "") -> Chapter:
-        rag_kb = _get_rag_kb(self.config.pipeline.rag_persist_dir) if self.config.pipeline.rag_enabled else None
-        return write_chapter_stream(self.llm, self.config, title, genre, style, characters, world, outline,
-                                    word_count, context, stream_callback, rag_kb=rag_kb, model=self._layer_model,
-                                    open_threads=open_threads, active_conflicts=active_conflicts,
-                                    foreshadowing_to_plant=foreshadowing_to_plant,
-                                    foreshadowing_to_payoff=foreshadowing_to_payoff, pacing_type=pacing_type,
-                                    enhancement_context=enhancement_context,
-                                    current_arc_context=current_arc_context,
-                                    chapter_contract=chapter_contract,
-                                    scenes=scenes,
-                                    negotiated_contract=negotiated_contract,
-                                    idea=idea,
-                                    idea_summary=idea_summary)
+    def write_chapter_stream(
+        self,
+        title,
+        genre,
+        style,
+        characters,
+        world,
+        outline,
+        word_count=2000,
+        context=None,
+        stream_callback=None,
+        open_threads=None,
+        active_conflicts=None,
+        foreshadowing_to_plant=None,
+        foreshadowing_to_payoff=None,
+        pacing_type="",
+        enhancement_context="",
+        current_arc_context="",
+        chapter_contract="",
+        scenes=None,
+        negotiated_contract=None,
+        idea: str = "",
+        idea_summary: str = "",
+    ) -> Chapter:
+        rag_kb = (
+            _get_rag_kb(self.config.pipeline.rag_persist_dir)
+            if self.config.pipeline.rag_enabled
+            else None
+        )
+        return write_chapter_stream(
+            self.llm,
+            self.config,
+            title,
+            genre,
+            style,
+            characters,
+            world,
+            outline,
+            word_count,
+            context,
+            stream_callback,
+            rag_kb=rag_kb,
+            model=self._layer_model,
+            open_threads=open_threads,
+            active_conflicts=active_conflicts,
+            foreshadowing_to_plant=foreshadowing_to_plant,
+            foreshadowing_to_payoff=foreshadowing_to_payoff,
+            pacing_type=pacing_type,
+            enhancement_context=enhancement_context,
+            current_arc_context=current_arc_context,
+            chapter_contract=chapter_contract,
+            scenes=scenes,
+            negotiated_contract=negotiated_contract,
+            idea=idea,
+            idea_summary=idea_summary,
+        )
 
     def extract_character_states(self, content, characters):
         return extract_character_states(self.llm, content, characters)
@@ -113,35 +219,83 @@ class StoryGenerator:
 
     def _format_context(self, context, bible_context="", full_chapter_texts=None):
         from pipeline.layer1_story.chapter_writer import format_context
+
         return format_context(context, bible_context, full_chapter_texts)
 
-    def _build_chapter_prompt(self, title, genre, style, characters, world, outline,
-                               word_count, context=None, previous_summary="", bible_context="",
-                               full_chapter_texts=None) -> tuple[str, str]:
-        rag_kb = _get_rag_kb(self.config.pipeline.rag_persist_dir) if self.config.pipeline.rag_enabled else None
-        return build_chapter_prompt(self.config, title, genre, style, characters, world, outline,
-                                    word_count, context, previous_summary, bible_context, full_chapter_texts, rag_kb=rag_kb)
+    def _build_chapter_prompt(
+        self,
+        title,
+        genre,
+        style,
+        characters,
+        world,
+        outline,
+        word_count,
+        context=None,
+        previous_summary="",
+        bible_context="",
+        full_chapter_texts=None,
+    ) -> tuple[str, str]:
+        rag_kb = (
+            _get_rag_kb(self.config.pipeline.rag_persist_dir)
+            if self.config.pipeline.rag_enabled
+            else None
+        )
+        return build_chapter_prompt(
+            self.config,
+            title,
+            genre,
+            style,
+            characters,
+            world,
+            outline,
+            word_count,
+            context,
+            previous_summary,
+            bible_context,
+            full_chapter_texts,
+            rag_kb=rag_kb,
+        )
 
     @staticmethod
     def _excerpt(content: str, max_chars: int = 4000) -> str:
         from pipeline.layer1_story.chapter_writer import excerpt
+
         return excerpt(content, max_chars)
 
     def _get_self_reviewer(self):
-        if not hasattr(self, '_self_reviewer'):
+        if not hasattr(self, "_self_reviewer"):
             from services.self_review import SelfReviewer
-            self._self_reviewer = SelfReviewer(threshold=self.config.pipeline.self_review_threshold)
+
+            self._self_reviewer = SelfReviewer(
+                threshold=self.config.pipeline.self_review_threshold
+            )
         return self._self_reviewer
 
     def _write_chapter_with_long_context(
-        self, title, genre, style, characters, world, outline,
-        word_count, story_context, all_chapter_texts, bible_ctx="",
-        open_threads=None, active_conflicts=None,
-        foreshadowing_to_plant=None, foreshadowing_to_payoff=None,
-        pacing_type="", enhancement_context="",
-        current_arc_context="", chapter_contract="",
-        scenes=None, negotiated_contract=None,
-        idea: str = "", idea_summary: str = "",
+        self,
+        title,
+        genre,
+        style,
+        characters,
+        world,
+        outline,
+        word_count,
+        story_context,
+        all_chapter_texts,
+        bible_ctx="",
+        open_threads=None,
+        active_conflicts=None,
+        foreshadowing_to_plant=None,
+        foreshadowing_to_payoff=None,
+        pacing_type="",
+        enhancement_context="",
+        current_arc_context="",
+        chapter_contract="",
+        scenes=None,
+        negotiated_contract=None,
+        idea: str = "",
+        idea_summary: str = "",
         total_chapters: int = 0,
     ) -> Chapter:
         # Bug 2: Within a parallel batch, all_chapter_texts is the FROZEN list of
@@ -157,11 +311,28 @@ class StoryGenerator:
             prev_tail = " ".join(words[-300:]) if words else ""
 
         # When new narrative params are provided, build prompt directly so they are forwarded.
-        if any(p is not None for p in (open_threads, active_conflicts, foreshadowing_to_plant, foreshadowing_to_payoff)) or pacing_type:
+        if (
+            any(
+                p is not None
+                for p in (
+                    open_threads,
+                    active_conflicts,
+                    foreshadowing_to_plant,
+                    foreshadowing_to_payoff,
+                )
+            )
+            or pacing_type
+        ):
             from models.schemas import count_words
-            from pipeline.layer1_story.chapter_writer import build_chapter_prompt, strip_llm_preamble
+            from pipeline.layer1_story.chapter_writer import (
+                build_chapter_prompt,
+                strip_llm_preamble,
+            )
+
             window_size = getattr(self.config.pipeline, "context_window_chapters", 5)
-            windowed_texts = all_chapter_texts[-window_size:] if all_chapter_texts else []
+            windowed_texts = (
+                all_chapter_texts[-window_size:] if all_chapter_texts else []
+            )
             use_lc = False
             if (
                 windowed_texts
@@ -169,15 +340,31 @@ class StoryGenerator:
                 and self.long_context_client.is_configured
             ):
                 from services.token_counter import fits_in_context
-                if fits_in_context(windowed_texts, self.long_context_client.max_context):
+
+                if fits_in_context(
+                    windowed_texts, self.long_context_client.max_context
+                ):
                     use_lc = True
-            rag_kb = _get_rag_kb(self.config.pipeline.rag_persist_dir) if self.config.pipeline.rag_enabled else None
+            rag_kb = (
+                _get_rag_kb(self.config.pipeline.rag_persist_dir)
+                if self.config.pipeline.rag_enabled
+                else None
+            )
             sys_prompt, user_prompt = build_chapter_prompt(
-                self.config, title, genre, style, characters, world, outline,
-                word_count, story_context, bible_context=bible_ctx,
+                self.config,
+                title,
+                genre,
+                style,
+                characters,
+                world,
+                outline,
+                word_count,
+                story_context,
+                bible_context=bible_ctx,
                 full_chapter_texts=windowed_texts if use_lc else None,
                 rag_kb=rag_kb,
-                open_threads=open_threads, active_conflicts=active_conflicts,
+                open_threads=open_threads,
+                active_conflicts=active_conflicts,
                 foreshadowing_to_plant=foreshadowing_to_plant,
                 foreshadowing_to_payoff=foreshadowing_to_payoff,
                 pacing_type=pacing_type,
@@ -193,11 +380,15 @@ class StoryGenerator:
             )
             if use_lc:
                 content = self.long_context_client.generate(
-                    system_prompt=sys_prompt, user_prompt=user_prompt, max_tokens=8192,
+                    system_prompt=sys_prompt,
+                    user_prompt=user_prompt,
+                    max_tokens=8192,
                 )
             else:
                 content = self.llm.generate(
-                    system_prompt=sys_prompt, user_prompt=user_prompt, max_tokens=8192,
+                    system_prompt=sys_prompt,
+                    user_prompt=user_prompt,
+                    max_tokens=8192,
                     model=self._layer_model,
                 )
             content = strip_llm_preamble(content)
@@ -208,20 +399,42 @@ class StoryGenerator:
                 word_count=count_words(content),
             )
         # Fallback: no new params — use existing helper (unchanged behaviour)
-        return _write_chapter_lc_fn(self.llm, self.long_context_client, self.config,
-                                    title, genre, style, characters, world, outline,
-                                    word_count, story_context, all_chapter_texts, bible_ctx,
-                                    layer_model=self._layer_model,
-                                    enhancement_context=enhancement_context,
-                                    idea=idea, idea_summary=idea_summary,
-                                    total_chapters=total_chapters or getattr(self, "_total_chapters", 0))
+        return _write_chapter_lc_fn(
+            self.llm,
+            self.long_context_client,
+            self.config,
+            title,
+            genre,
+            style,
+            characters,
+            world,
+            outline,
+            word_count,
+            story_context,
+            all_chapter_texts,
+            bible_ctx,
+            layer_model=self._layer_model,
+            enhancement_context=enhancement_context,
+            idea=idea,
+            idea_summary=idea_summary,
+            total_chapters=total_chapters or getattr(self, "_total_chapters", 0),
+        )
 
-    def generate_full_story(self, title, genre, idea, style="Miêu tả chi tiết",
-                             num_chapters=10, num_characters=5, word_count=2000,
-                             progress_callback=None, stream_callback=None,
-                             batch_checkpoint_callback=None,
-                             chapter_complete_callback=None,
-                             resume_from_batch=0) -> StoryDraft:
+    def generate_full_story(
+        self,
+        title,
+        genre,
+        idea,
+        style="Miêu tả chi tiết",
+        num_chapters=10,
+        num_characters=5,
+        word_count=2000,
+        progress_callback=None,
+        stream_callback=None,
+        batch_checkpoint_callback=None,
+        chapter_complete_callback=None,
+        resume_from_batch=0,
+    ) -> StoryDraft:
         """Generate complete story from start to finish."""
 
         # Fixed-length closure: stash the target on `self` so deeply nested
@@ -239,6 +452,7 @@ class StoryGenerator:
             logger.warning(f"Injection threats in story input: {_san.threats_found}")
             if self.config.pipeline.block_on_injection:
                 from errors.exceptions import InputSanitizationError
+
                 raise InputSanitizationError(_san.threats_found)
 
         # --- Idea fidelity: build LLM summary only when idea exceeds verbatim threshold ---
@@ -246,8 +460,13 @@ class StoryGenerator:
         if idea and len(idea) > 3000:
             try:
                 _log("Đang tóm tắt ý tưởng dài (giữ tên riêng)...")
-                from pipeline.layer1_story.theme_premise_generator import build_idea_summary_for_chapters
-                idea_summary_for_chapters = build_idea_summary_for_chapters(idea, self.llm) or ""
+                from pipeline.layer1_story.theme_premise_generator import (
+                    build_idea_summary_for_chapters,
+                )
+
+                idea_summary_for_chapters = (
+                    build_idea_summary_for_chapters(idea, self.llm) or ""
+                )
             except Exception as e:
                 logger.warning("Idea summary build failed (non-fatal): %s", e)
 
@@ -256,8 +475,13 @@ class StoryGenerator:
         if self.config.pipeline.enable_theme_premise:
             try:
                 _log("Đang xác định chủ đề cốt lõi...")
-                from pipeline.layer1_story.theme_premise_generator import generate_premise
-                premise = generate_premise(self.llm, title, genre, idea, model=self._layer_model)
+                from pipeline.layer1_story.theme_premise_generator import (
+                    generate_premise,
+                )
+
+                premise = generate_premise(
+                    self.llm, title, genre, idea, model=self._layer_model
+                )
                 if premise:
                     _log(f"Chủ đề: {premise.get('premise_statement', '')[:80]}...")
             except Exception as e:
@@ -278,9 +502,13 @@ class StoryGenerator:
             try:
                 _log("Đang tạo hồ sơ giọng nói nhân vật...")
                 from pipeline.layer1_story.character_voice_profiler import (
-                    generate_voice_profiles, update_character_speech_patterns,
+                    generate_voice_profiles,
+                    update_character_speech_patterns,
                 )
-                voice_profiles = generate_voice_profiles(self.llm, characters, genre, model=self._layer_model)
+
+                voice_profiles = generate_voice_profiles(
+                    self.llm, characters, genre, model=self._layer_model
+                )
                 if voice_profiles:
                     update_character_speech_patterns(characters, voice_profiles)
                     _log(f"Đã tạo voice profile cho {len(voice_profiles)} nhân vật")
@@ -292,7 +520,8 @@ class StoryGenerator:
             except Exception as e:
                 logger.warning(
                     "Voice profile generation failed (non-fatal): %s (type=%s)",
-                    e, type(e).__name__,
+                    e,
+                    type(e).__name__,
                 )
         # voice_profiles already canonicalised at character_voice_profiler boundary
         _voice_fingerprints_top = list(voice_profiles or [])
@@ -310,9 +539,16 @@ class StoryGenerator:
         try:
             _log("Đang xây dựng cấu trúc macro arc...")
             from pipeline.layer1_story.macro_outline_builder import generate_macro_arcs
+
             macro_arcs = generate_macro_arcs(
-                self.llm, title, genre, characters, world, idea,
-                num_chapters, arc_size=self.config.pipeline.arc_size,
+                self.llm,
+                title,
+                genre,
+                characters,
+                world,
+                idea,
+                num_chapters,
+                arc_size=self.config.pipeline.arc_size,
                 model=self._layer_model,
             )
             _log(f"Đã tạo {len(macro_arcs)} macro arcs")
@@ -325,11 +561,20 @@ class StoryGenerator:
             try:
                 _log("Đang tạo arc waypoints cho nhân vật...")
                 from pipeline.layer1_story.arc_waypoint_generator import (
-                    generate_arc_waypoints, apply_waypoints_to_characters,
+                    generate_arc_waypoints,
+                    apply_waypoints_to_characters,
                 )
-                waypoints_map = generate_arc_waypoints(
-                    self.llm, characters, num_chapters, genre, model=self._layer_model,
-                ) or {}
+
+                waypoints_map = (
+                    generate_arc_waypoints(
+                        self.llm,
+                        characters,
+                        num_chapters,
+                        genre,
+                        model=self._layer_model,
+                    )
+                    or {}
+                )
                 if waypoints_map:
                     apply_waypoints_to_characters(characters, waypoints_map)
                     _log(f"Đã tạo arc waypoints cho {len(waypoints_map)} nhân vật")
@@ -351,7 +596,15 @@ class StoryGenerator:
         _log(f"Đang tạo dàn ý {num_chapters} chương...")
         # Bug #1: Critical call with retry
         synopsis, outlines = llm_call_with_retry(
-            lambda: self.generate_outline(title, genre, characters, world, idea, num_chapters, macro_arcs=macro_arcs),
+            lambda: self.generate_outline(
+                title,
+                genre,
+                characters,
+                world,
+                idea,
+                num_chapters,
+                macro_arcs=macro_arcs,
+            ),
             max_retries=2,
             critical=True,
             operation_name="generate_outline",
@@ -361,9 +614,15 @@ class StoryGenerator:
         if self.config.pipeline.enable_outline_arc_validation and macro_arcs:
             try:
                 _log("Đang kiểm tra tính nhất quán outline-arc...")
-                from pipeline.layer1_story.outline_arc_validator import validate_outline_arc_coherence
+                from pipeline.layer1_story.outline_arc_validator import (
+                    validate_outline_arc_coherence,
+                )
+
                 arc_validation = validate_outline_arc_coherence(
-                    self.llm, outlines, macro_arcs, model=self._layer_model,
+                    self.llm,
+                    outlines,
+                    macro_arcs,
+                    model=self._layer_model,
                 )
                 if arc_validation.get("warnings"):
                     for w in arc_validation["warnings"]:
@@ -377,11 +636,17 @@ class StoryGenerator:
             try:
                 _log("Đang đánh giá và cải thiện dàn ý...")
                 from pipeline.layer1_story.outline_critic import critique_and_revise
+
                 _enable_llm = getattr(
                     self.config.pipeline, "enable_llm_outline_critic", True
                 )
                 outlines, outline_critique = critique_and_revise(
-                    self.llm, outlines, characters, world, synopsis, genre,
+                    self.llm,
+                    outlines,
+                    characters,
+                    world,
+                    synopsis,
+                    genre,
                     max_rounds=self.config.pipeline.outline_critique_max_rounds,
                     model=self._layer_model,
                     enable_llm_critic=_enable_llm,
@@ -397,11 +662,18 @@ class StoryGenerator:
 
         # BUG FIX #7: Sync revised outlines back to draft
         # Previously draft.outlines was set before critique, chapters wrote to pre-critique outlines
-        draft = StoryDraft(title=title, genre=genre, synopsis=synopsis,
-                           characters=characters, world=world, outlines=outlines,
-                           premise=premise, voice_profiles=voice_profiles,
-                           original_idea=idea or "",
-                           idea_summary_for_chapters=idea_summary_for_chapters)
+        draft = StoryDraft(
+            title=title,
+            genre=genre,
+            synopsis=synopsis,
+            characters=characters,
+            world=world,
+            outlines=outlines,
+            premise=premise,
+            voice_profiles=voice_profiles,
+            original_idea=idea or "",
+            idea_summary_for_chapters=idea_summary_for_chapters,
+        )
 
         # Bug #3: Parallelize conflict_web + arc_milestones, then foreshadowing (depends on conflict_web)
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -412,9 +684,14 @@ class StoryGenerator:
         def _gen_conflict_web():
             # B6: retry transient LLM failures (rate limits) before falling back to []
             from pipeline.layer1_story.conflict_web_builder import generate_conflict_web
+
             return llm_call_with_retry(
                 lambda: generate_conflict_web(
-                    self.llm, title, genre, characters, macro_arcs,
+                    self.llm,
+                    title,
+                    genre,
+                    characters,
+                    macro_arcs,
                     model=self._layer_model,
                 ),
                 operation_name="conflict_web",
@@ -425,9 +702,16 @@ class StoryGenerator:
         def _gen_arc_milestones():
             if not (self.config.pipeline.enable_arc_milestones and macro_arcs):
                 return []
-            from pipeline.layer1_story.arc_milestone_manager import generate_arc_milestones
+            from pipeline.layer1_story.arc_milestone_manager import (
+                generate_arc_milestones,
+            )
+
             return generate_arc_milestones(
-                self.llm, macro_arcs, synopsis, genre, model=self._layer_model,
+                self.llm,
+                macro_arcs,
+                synopsis,
+                genre,
+                model=self._layer_model,
             )
 
         _log("Đang xây dựng mạng lưới xung đột + arc milestones (song song)...")
@@ -456,16 +740,26 @@ class StoryGenerator:
                 except Exception as e:
                     logger.warning(
                         "%s generation failed (non-fatal): %s (type=%s) — falling back to empty list",
-                        task_name, e, type(e).__name__,
+                        task_name,
+                        e,
+                        type(e).__name__,
                     )
 
         # Foreshadowing depends on conflict_web, so runs after parallel phase
         foreshadowing_plan = []
         try:
             _log("Đang lên kế hoạch foreshadowing...")
-            from pipeline.layer1_story.foreshadowing_manager import generate_foreshadowing_plan
+            from pipeline.layer1_story.foreshadowing_manager import (
+                generate_foreshadowing_plan,
+            )
+
             foreshadowing_plan = generate_foreshadowing_plan(
-                self.llm, title, genre, synopsis, macro_arcs, conflict_web,
+                self.llm,
+                title,
+                genre,
+                synopsis,
+                macro_arcs,
+                conflict_web,
                 model=self._layer_model,
             )
             if foreshadowing_plan:
@@ -478,7 +772,8 @@ class StoryGenerator:
         except Exception as e:
             logger.warning(
                 "Foreshadowing plan generation failed (non-fatal): %s (type=%s)",
-                e, type(e).__name__,
+                e,
+                type(e).__name__,
             )
 
         # Update draft with L1 signals (draft already created after outline critique)
@@ -493,6 +788,7 @@ class StoryGenerator:
         # Sprint 2 P5: compute + persist deterministic outline metrics
         try:
             from pipeline.layer1_story.outline_metrics import compute_outline_metrics
+
             _outline_metrics = compute_outline_metrics(
                 outlines=outlines,
                 conflict_web=conflict_web,
@@ -512,18 +808,26 @@ class StoryGenerator:
             if _story_id:
                 try:
                     from pipeline.orchestrator_layers import persist_outline_metrics
+
                     persist_outline_metrics(_story_id, _outline_metrics.model_dump())
                 except Exception as _pe:
-                    logger.warning("Outline metrics DB persist failed (non-fatal): %s", _pe)
+                    logger.warning(
+                        "Outline metrics DB persist failed (non-fatal): %s", _pe
+                    )
         except Exception as _me:
             logger.warning("Outline metrics computation failed (non-fatal): %s", _me)
         story_context = StoryContext(total_chapters=len(outlines))
         if not self.config.pipeline.story_bible_enabled:
-            logger.warning("story_bible_enabled=False is deprecated; Story Bible is now always-on for consistency.")
-        draft.story_bible = self.bible_manager.initialize(draft, arc_size=self.config.pipeline.arc_size)
+            logger.warning(
+                "story_bible_enabled=False is deprecated; Story Bible is now always-on for consistency."
+            )
+        draft.story_bible = self.bible_manager.initialize(
+            draft, arc_size=self.config.pipeline.arc_size
+        )
 
         # Delegate to BatchChapterGenerator (Phase 1: sequential within batches)
         from pipeline.layer1_story.batch_generator import BatchChapterGenerator
+
         batch_gen = BatchChapterGenerator(self)
         batch_gen.generate_chapters(
             draft=draft,
@@ -559,8 +863,11 @@ class StoryGenerator:
         if arc_milestones:
             try:
                 from pipeline.layer1_story.arc_milestone_manager import (
-                    audit_arc_milestones, check_milestones_in_chapter, format_milestone_warnings,
+                    audit_arc_milestones,
+                    check_milestones_in_chapter,
+                    format_milestone_warnings,
                 )
+
                 for ch in draft.chapters:
                     check_milestones_in_chapter(arc_milestones, ch)
                 audit = audit_arc_milestones(arc_milestones, final_chapter=num_chapters)
@@ -574,27 +881,34 @@ class StoryGenerator:
         if foreshadowing_plan and self.config.pipeline.enable_foreshadowing_enforcement:
             try:
                 from pipeline.layer1_story.foreshadowing_manager import (
-                    audit_foreshadowing_plan, format_audit_warnings,
+                    audit_foreshadowing_plan,
+                    format_audit_warnings,
                 )
+
                 audit = audit_foreshadowing_plan(foreshadowing_plan, num_chapters)
                 draft.foreshadowing_audit = audit
                 warnings = format_audit_warnings(audit)
                 for w in warnings:
                     _log(w)
                 if audit["completion_rate"] >= 0.9:
-                    _log(f"✅ Foreshadowing: {audit['paid_off']}/{audit['total']} payoff ({audit['completion_rate']:.0%})")
+                    _log(
+                        f"✅ Foreshadowing: {audit['paid_off']}/{audit['total']} payoff ({audit['completion_rate']:.0%})"
+                    )
             except Exception as e:
                 logger.warning("Foreshadowing audit failed: %s", e)
 
         # Sprint 1 P2: build L1→L2 handoff envelope (validation gate runs in P3)
         try:
             from pipeline.layer1_story.handoff_builder import build_l1_handoff
+
             envelope = build_l1_handoff(draft, story_id=title)
             draft.l1_handoff = envelope.model_dump()
             ok, blockers = envelope.is_usable_by_l2()
             logger.info(
                 "handoff_built signals_ok=%s blockers=%s story_id=%s",
-                "yes" if ok else "no", blockers, title,
+                "yes" if ok else "no",
+                blockers,
+                title,
             )
         except Exception as e:
             logger.warning("L1 handoff envelope build failed (non-fatal): %s", e)
@@ -602,40 +916,67 @@ class StoryGenerator:
         _log("Layer 1 hoàn tất - Bản thảo truyện đã sẵn sàng!")
         logger.info("[PROBE-G1] generator: about to return draft from worker thread")
         import threading as _t_probe
+
         logger.info(
             "[PROBE-G2] generator: worker tid=%s daemon=%s draft_id=%s",
-            _t_probe.get_ident(), _t_probe.current_thread().daemon, id(draft),
+            _t_probe.get_ident(),
+            _t_probe.current_thread().daemon,
+            id(draft),
         )
         return draft
 
     def rebuild_context(self, draft: StoryDraft) -> StoryContext:
         """Rebuild StoryContext from existing StoryDraft chapters."""
         context_window = self.config.pipeline.context_window_chapters
-        context = StoryContext(total_chapters=len(draft.chapters), current_chapter=len(draft.chapters))
+        context = StoryContext(
+            total_chapters=len(draft.chapters), current_chapter=len(draft.chapters)
+        )
         for ch in draft.chapters[-context_window:]:
             if ch.summary:
                 context.recent_summaries.append(ch.summary)
             else:
-                logger.warning(f"Chapter {ch.chapter_number} has no summary for context rebuild")
+                logger.warning(
+                    f"Chapter {ch.chapter_number} has no summary for context rebuild"
+                )
         context.character_states = list(draft.character_states)
         context.plot_events = list(draft.plot_events[-50:])
         # Restore conflict map from draft (guard for old checkpoints without field)
-        context.conflict_map = list(getattr(draft, 'conflict_web', None) or [])
+        context.conflict_map = list(getattr(draft, "conflict_web", None) or [])
         # Restore open_threads from draft (guard for old checkpoints without field)
-        context.open_threads = list(getattr(draft, 'open_threads', None) or [])
+        context.open_threads = list(getattr(draft, "open_threads", None) or [])
         return context
 
-    def continue_story(self, draft: StoryDraft, additional_chapters=5, word_count=2000,
-                       style="", progress_callback=None, stream_callback=None) -> StoryDraft:
+    def continue_story(
+        self,
+        draft: StoryDraft,
+        additional_chapters=5,
+        word_count=2000,
+        style="",
+        progress_callback=None,
+        stream_callback=None,
+    ) -> StoryDraft:
         """Continue writing from existing StoryDraft by adding more chapters."""
         from pipeline.layer1_story.story_continuation import continue_story as _c
-        return _c(self, draft, additional_chapters, word_count, style, progress_callback, stream_callback)
+
+        return _c(
+            self,
+            draft,
+            additional_chapters,
+            word_count,
+            style,
+            progress_callback,
+            stream_callback,
+        )
 
     @staticmethod
     def remove_chapters(draft: StoryDraft, from_chapter: int) -> StoryDraft:
         """Remove chapters from `from_chapter` onward. Returns modified draft."""
-        draft.chapters = [ch for ch in draft.chapters if ch.chapter_number < from_chapter]
+        draft.chapters = [
+            ch for ch in draft.chapters if ch.chapter_number < from_chapter
+        ]
         draft.outlines = [o for o in draft.outlines if o.chapter_number < from_chapter]
-        draft.plot_events = [e for e in draft.plot_events if e.chapter_number < from_chapter]
+        draft.plot_events = [
+            e for e in draft.plot_events if e.chapter_number < from_chapter
+        ]
         draft.character_states = []
         return draft

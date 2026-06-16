@@ -101,9 +101,12 @@ class TestFormatEventsWithCausality:
         sim = SimulationResult(
             events=[
                 SimulationEvent(
-                    round_number=1, event_type="test",
-                    characters_involved=["A"], description="Something happened",
-                    drama_score=0.5, suggested_insertion="1",
+                    round_number=1,
+                    event_type="test",
+                    characters_involved=["A"],
+                    description="Something happened",
+                    drama_score=0.5,
+                    suggested_insertion="1",
                 ),
             ],
             drama_suggestions=[],
@@ -119,15 +122,21 @@ class TestFormatEventsWithCausality:
     def test_causal_chains_used_when_available(self):
         events = [
             SimulationEvent(
-                round_number=1, event_type="confrontation",
-                characters_involved=["A", "B"], description="A confronts B",
-                drama_score=0.7, suggested_insertion="1",
+                round_number=1,
+                event_type="confrontation",
+                characters_involved=["A", "B"],
+                description="A confronts B",
+                drama_score=0.7,
+                suggested_insertion="1",
                 cause_event_id="",
             ),
             SimulationEvent(
-                round_number=2, event_type="betrayal",
-                characters_involved=["A", "B"], description="B betrays A",
-                drama_score=0.9, suggested_insertion="1",
+                round_number=2,
+                event_type="betrayal",
+                characters_involved=["A", "B"],
+                description="B betrays A",
+                drama_score=0.9,
+                suggested_insertion="1",
                 cause_event_id="evt_1_0",
             ),
         ]
@@ -143,6 +152,7 @@ class TestFormatEventsWithCausality:
 class TestQualityScorerNewDimensions:
     def test_score_chapter_extracts_new_dimensions(self):
         from services.pipeline.quality_scorer import QualityScorer
+
         with patch("services.pipeline.quality_scorer.LLMClient") as MockLLM:
             mock_llm = MockLLM.return_value
             mock_llm.generate_json.return_value = {
@@ -155,8 +165,13 @@ class TestQualityScorerNewDimensions:
                 "notes": "Good chapter",
             }
             scorer = QualityScorer()
-            ch = Chapter(chapter_number=1, title="Ch1", content="test " * 100,
-                         word_count=100, summary="test")
+            ch = Chapter(
+                chapter_number=1,
+                title="Ch1",
+                content="test " * 100,
+                word_count=100,
+                summary="test",
+            )
             score = scorer.score_chapter(ch)
             assert score.thematic_alignment == 4.2
             assert score.dialogue_depth == 3.8
@@ -164,6 +179,7 @@ class TestQualityScorerNewDimensions:
 
     def test_score_chapter_defaults_new_dimensions_to_zero(self):
         from services.pipeline.quality_scorer import QualityScorer
+
         with patch("services.pipeline.quality_scorer.LLMClient") as MockLLM:
             mock_llm = MockLLM.return_value
             mock_llm.generate_json.return_value = {
@@ -174,8 +190,13 @@ class TestQualityScorerNewDimensions:
                 "notes": "",
             }
             scorer = QualityScorer()
-            ch = Chapter(chapter_number=1, title="Ch1", content="test " * 100,
-                         word_count=100, summary="test")
+            ch = Chapter(
+                chapter_number=1,
+                title="Ch1",
+                content="test " * 100,
+                word_count=100,
+                summary="test",
+            )
             score = scorer.score_chapter(ch)
             assert score.thematic_alignment == 0.0
             assert score.dialogue_depth == 0.0
@@ -189,5 +210,6 @@ class TestQualityScorerNewDimensions:
 
     def test_score_chapter_prompt_includes_new_dimensions(self):
         from services.prompts.story_prompts import SCORE_CHAPTER
+
         assert "thematic_alignment" in SCORE_CHAPTER
         assert "dialogue_depth" in SCORE_CHAPTER

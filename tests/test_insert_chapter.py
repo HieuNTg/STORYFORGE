@@ -9,9 +9,17 @@ from fastapi import FastAPI
 from httpx import AsyncClient, ASGITransport
 
 from models.schemas import (
-    StoryDraft, Character, WorldSetting, ChapterOutline, Chapter,
-    CharacterState, PlotEvent, StoryContext, PipelineOutput,
-    ForeshadowingEntry, PlotThread,
+    StoryDraft,
+    Character,
+    WorldSetting,
+    ChapterOutline,
+    Chapter,
+    CharacterState,
+    PlotEvent,
+    StoryContext,
+    PipelineOutput,
+    ForeshadowingEntry,
+    PlotThread,
 )
 
 
@@ -19,28 +27,51 @@ from models.schemas import (
 # Helper Fixtures
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def _make_draft(num_chapters: int = 5) -> StoryDraft:
     """Create a test StoryDraft with specified number of chapters."""
     return StoryDraft(
         title="Test Story",
         genre="fantasy",
         characters=[
-            Character(name="Hero", role="protagonist", personality="brave", motivation="save world"),
+            Character(
+                name="Hero",
+                role="protagonist",
+                personality="brave",
+                motivation="save world",
+            ),
         ],
         world=WorldSetting(name="TestWorld", description="A fantasy realm"),
         outlines=[
-            ChapterOutline(chapter_number=i + 1, title=f"Chapter {i + 1}", summary=f"Summary {i + 1}", key_events=[])
+            ChapterOutline(
+                chapter_number=i + 1,
+                title=f"Chapter {i + 1}",
+                summary=f"Summary {i + 1}",
+                key_events=[],
+            )
             for i in range(num_chapters)
         ],
         chapters=[
-            Chapter(chapter_number=i + 1, title=f"Chapter {i + 1}", content=f"Content {i + 1}", word_count=1000, summary=f"Summary {i + 1}")
+            Chapter(
+                chapter_number=i + 1,
+                title=f"Chapter {i + 1}",
+                content=f"Content {i + 1}",
+                word_count=1000,
+                summary=f"Summary {i + 1}",
+            )
             for i in range(num_chapters)
         ],
         character_states=[
-            CharacterState(name="Hero", mood="determined", arc_position="rising", last_action="trained"),
+            CharacterState(
+                name="Hero",
+                mood="determined",
+                arc_position="rising",
+                last_action="trained",
+            ),
         ],
         plot_events=[
-            PlotEvent(chapter_number=i + 1, event=f"Event {i + 1}") for i in range(num_chapters)
+            PlotEvent(chapter_number=i + 1, event=f"Event {i + 1}")
+            for i in range(num_chapters)
         ],
     )
 
@@ -60,6 +91,7 @@ def _make_generator():
 # ══════════════════════════════════════════════════════════════════════════════
 # Unit Tests: renumber_chapters
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 class TestRenumberChapters:
     """Unit tests for renumber_chapters utility."""
@@ -119,7 +151,13 @@ class TestRenumberChapters:
 
         draft = _make_draft(num_chapters=5)
         draft.open_threads = [
-            PlotThread(thread_id="t1", description="A mystery", status="open", planted_chapter=1, last_mentioned_chapter=3),
+            PlotThread(
+                thread_id="t1",
+                description="A mystery",
+                status="open",
+                planted_chapter=1,
+                last_mentioned_chapter=3,
+            ),
         ]
 
         renumber_chapters(draft, from_position=2, delta=1)
@@ -131,6 +169,7 @@ class TestRenumberChapters:
 # ══════════════════════════════════════════════════════════════════════════════
 # Unit Tests: insert_chapter_impl
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 class TestInsertChapterImpl:
     """Unit tests for insert_chapter_impl function."""
@@ -167,7 +206,9 @@ class TestInsertChapterImpl:
             "summary": "A bridge chapter",
             "key_events": [],
         }
-        new_chapter = Chapter(chapter_number=3, title="Inserted", content="new", word_count=1000)
+        new_chapter = Chapter(
+            chapter_number=3, title="Inserted", content="new", word_count=1000
+        )
         gen._write_chapter_with_long_context.return_value = new_chapter
         mock_post_write.return_value = (new_chapter, "s", [], [])
 
@@ -184,8 +225,14 @@ class TestInsertChapterImpl:
 
         gen = _make_generator()
         draft = _make_draft(num_chapters=3)
-        gen.llm.generate_json.return_value = {"title": "New First", "summary": "s", "key_events": []}
-        new_chapter = Chapter(chapter_number=1, title="New First", content="new", word_count=1000)
+        gen.llm.generate_json.return_value = {
+            "title": "New First",
+            "summary": "s",
+            "key_events": [],
+        }
+        new_chapter = Chapter(
+            chapter_number=1, title="New First", content="new", word_count=1000
+        )
         gen._write_chapter_with_long_context.return_value = new_chapter
         mock_post_write.return_value = (new_chapter, "s", [], [])
 
@@ -202,12 +249,20 @@ class TestInsertChapterImpl:
         gen = _make_generator()
         draft = _make_draft(num_chapters=3)
         progress_msgs = []
-        gen.llm.generate_json.return_value = {"title": "Ch", "summary": "s", "key_events": []}
-        new_chapter = Chapter(chapter_number=2, title="Ch", content="c", word_count=1000)
+        gen.llm.generate_json.return_value = {
+            "title": "Ch",
+            "summary": "s",
+            "key_events": [],
+        }
+        new_chapter = Chapter(
+            chapter_number=2, title="Ch", content="c", word_count=1000
+        )
         gen._write_chapter_with_long_context.return_value = new_chapter
         mock_post_write.return_value = (new_chapter, "s", [], [])
 
-        insert_chapter_impl(gen, draft, insert_after=1, progress_callback=progress_msgs.append)
+        insert_chapter_impl(
+            gen, draft, insert_after=1, progress_callback=progress_msgs.append
+        )
 
         assert any("Inserting" in msg for msg in progress_msgs)
         assert any("inserted successfully" in msg for msg in progress_msgs)
@@ -217,6 +272,7 @@ class TestInsertChapterImpl:
 # Unit Tests: StoryContinuation.insert_chapter
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestStoryContinuationInsertChapter:
     """Tests for StoryContinuation.insert_chapter method."""
 
@@ -225,7 +281,9 @@ class TestStoryContinuationInsertChapter:
         from pipeline.orchestrator_continuation import StoryContinuation
 
         output = PipelineOutput()
-        cont = StoryContinuation(output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+        cont = StoryContinuation(
+            output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
 
         with pytest.raises(ValueError, match="No story draft loaded"):
             cont.insert_chapter(insert_after=1)
@@ -239,7 +297,9 @@ class TestStoryContinuationInsertChapter:
         output = PipelineOutput(story_draft=draft)
         checkpoint_mgr = MagicMock()
 
-        cont = StoryContinuation(output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), checkpoint_mgr)
+        cont = StoryContinuation(
+            output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), checkpoint_mgr
+        )
         mock_impl.return_value = draft
 
         cont.insert_chapter(insert_after=2)
@@ -257,7 +317,9 @@ class TestStoryContinuationInsertChapter:
         enhanced = EnhancedStory(title="Test", genre="fantasy", chapters=[])
         output = PipelineOutput(story_draft=draft, enhanced_story=enhanced)
 
-        cont = StoryContinuation(output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+        cont = StoryContinuation(
+            output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
         mock_impl.return_value = draft
 
         cont.insert_chapter(insert_after=2)
@@ -269,9 +331,11 @@ class TestStoryContinuationInsertChapter:
 # API Tests
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def _make_app() -> FastAPI:
     from fastapi import APIRouter
     from api.continuation_routes import router as continuation_router
+
     app = FastAPI()
     api = APIRouter(prefix="/api")
     api.include_router(continuation_router)

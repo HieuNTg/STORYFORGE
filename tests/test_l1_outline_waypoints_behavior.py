@@ -50,11 +50,15 @@ def _make_character(
         internal_conflict=internal_conflict,
     )
     if waypoints is not None:
-        c.arc_waypoints = [wp.model_dump() if isinstance(wp, ArcWaypoint) else wp for wp in waypoints]
+        c.arc_waypoints = [
+            wp.model_dump() if isinstance(wp, ArcWaypoint) else wp for wp in waypoints
+        ]
     return c
 
 
-def _make_world(name: str = "Giang hồ", description: str = "Thế giới võ lâm") -> WorldSetting:
+def _make_world(
+    name: str = "Giang hồ", description: str = "Thế giới võ lâm"
+) -> WorldSetting:
     return WorldSetting(name=name, description=description)
 
 
@@ -111,7 +115,9 @@ def _make_waypoint(
 
 
 def _make_chapter(chapter_number: int = 1, content: str = "") -> Chapter:
-    return Chapter(chapter_number=chapter_number, title=f"Chương {chapter_number}", content=content)
+    return Chapter(
+        chapter_number=chapter_number, title=f"Chương {chapter_number}", content=content
+    )
 
 
 # ===========================================================================
@@ -148,8 +154,9 @@ class TestSuggestTitles:
         llm = _make_llm({"titles": []})
         suggest_titles(llm, genre="tiên hiệp", requirements="cần tên đặc sắc")
         call_kwargs = llm.generate_json.call_args
-        assert "cần tên đặc sắc" in call_kwargs[1].get("user_prompt", "") or \
-               "cần tên đặc sắc" in str(call_kwargs)
+        assert "cần tên đặc sắc" in call_kwargs[1].get(
+            "user_prompt", ""
+        ) or "cần tên đặc sắc" in str(call_kwargs)
 
 
 class TestGenerateTitleFromIdea:
@@ -157,7 +164,9 @@ class TestGenerateTitleFromIdea:
         from pipeline.layer1_story.outline_builder import generate_title_from_idea
 
         llm = _make_llm({"title": "Huyết chiến giang hồ"})
-        result = generate_title_from_idea(llm, genre="võ hiệp", idea="kẻ phản bội trở về")
+        result = generate_title_from_idea(
+            llm, genre="võ hiệp", idea="kẻ phản bội trở về"
+        )
         assert result == "Huyết chiến giang hồ"
 
     def test_returns_str_directly_when_llm_returns_string(self):
@@ -182,7 +191,11 @@ class TestParseOutlineResponse:
         raw = {
             "synopsis": "Câu chuyện bi kịch",
             "outlines": [
-                {"chapter_number": 1, "title": "Mở đầu", "summary": "Nhân vật gặp khó khăn"},
+                {
+                    "chapter_number": 1,
+                    "title": "Mở đầu",
+                    "summary": "Nhân vật gặp khó khăn",
+                },
             ],
         }
         synopsis, outlines = _parse_outline_response(raw)
@@ -211,7 +224,12 @@ class TestParseOutlineResponse:
     def test_skips_non_dict_items(self):
         from pipeline.layer1_story.outline_builder import _parse_outline_response
 
-        raw = {"outlines": ["not a dict", {"chapter_number": 1, "title": "ok", "summary": "s"}]}
+        raw = {
+            "outlines": [
+                "not a dict",
+                {"chapter_number": 1, "title": "ok", "summary": "s"},
+            ]
+        }
         _, outlines = _parse_outline_response(raw)
         assert len(outlines) == 1
 
@@ -236,7 +254,9 @@ class TestGenerateOutline:
         llm = self._valid_llm(3)
         chars = [_make_character()]
         world = _make_world()
-        synopsis, outlines = generate_outline(llm, "Title", "tiên hiệp", chars, world, "idea", num_chapters=3)
+        synopsis, outlines = generate_outline(
+            llm, "Title", "tiên hiệp", chars, world, "idea", num_chapters=3
+        )
         assert len(outlines) == 3
         assert synopsis == "Tóm tắt test"
 
@@ -262,7 +282,9 @@ class TestGenerateOutline:
         llm.generate_json.side_effect = [{}, valid_resp]
         chars = [_make_character()]
         world = _make_world()
-        synopsis, outlines = generate_outline(llm, "T", "g", chars, world, "i", num_chapters=1)
+        synopsis, outlines = generate_outline(
+            llm, "T", "g", chars, world, "i", num_chapters=1
+        )
         assert len(outlines) == 1
         assert llm.generate_json.call_count == 2
 
@@ -270,7 +292,10 @@ class TestGenerateOutline:
         from pipeline.layer1_story.outline_builder import generate_outline
 
         # LLM returns only ch1, need 3 — fill call also returns empty
-        first_resp = {"synopsis": "s", "outlines": [{"chapter_number": 1, "title": "C1", "summary": "s"}]}
+        first_resp = {
+            "synopsis": "s",
+            "outlines": [{"chapter_number": 1, "title": "C1", "summary": "s"}],
+        }
         fill_resp = {}  # fill call returns empty → placeholders
         llm = _make_llm({})
         llm.generate_json.side_effect = [first_resp, fill_resp]
@@ -288,7 +313,9 @@ class TestGenerateOutline:
         chars = [_make_character()]
         world = _make_world()
         arcs = [_make_macro_arc()]
-        generate_outline(llm, "T", "tiên hiệp", chars, world, "i", num_chapters=1, macro_arcs=arcs)
+        generate_outline(
+            llm, "T", "tiên hiệp", chars, world, "i", num_chapters=1, macro_arcs=arcs
+        )
         call_kwargs = llm.generate_json.call_args_list[0]
         prompt = str(call_kwargs)
         assert "Arc" in prompt or "arc" in prompt
@@ -304,13 +331,21 @@ class TestGenerateMacroArcs:
         from pipeline.layer1_story.macro_outline_builder import generate_macro_arcs
 
         arc_data = [
-            {"arc_number": 1, "name": "Khởi đầu", "chapter_start": 1, "chapter_end": 30,
-             "central_conflict": "Xung đột A", "character_focus": ["Lan"]},
+            {
+                "arc_number": 1,
+                "name": "Khởi đầu",
+                "chapter_start": 1,
+                "chapter_end": 30,
+                "central_conflict": "Xung đột A",
+                "character_focus": ["Lan"],
+            },
         ]
         llm = _make_llm({"macro_arcs": arc_data})
         chars = [_make_character()]
         world = _make_world()
-        arcs = generate_macro_arcs(llm, "Title", "tiên hiệp", chars, world, "idea", num_chapters=100)
+        arcs = generate_macro_arcs(
+            llm, "Title", "tiên hiệp", chars, world, "idea", num_chapters=100
+        )
         assert len(arcs) == 1
         assert arcs[0].name == "Khởi đầu"
 
@@ -318,8 +353,14 @@ class TestGenerateMacroArcs:
         from pipeline.layer1_story.macro_outline_builder import generate_macro_arcs
 
         arc_data = [
-            {"arc_number": 1, "name": "Arc A", "chapter_start": 1, "chapter_end": 10,
-             "central_conflict": "conflict", "character_focus": []},
+            {
+                "arc_number": 1,
+                "name": "Arc A",
+                "chapter_start": 1,
+                "chapter_end": 10,
+                "central_conflict": "conflict",
+                "character_focus": [],
+            },
         ]
         llm = _make_llm(arc_data)  # LLM returns list directly
         chars = [_make_character()]
@@ -341,8 +382,14 @@ class TestGenerateMacroArcs:
         from pipeline.layer1_story.macro_outline_builder import generate_macro_arcs
 
         arc_data = [
-            {"arc_number": 1, "name": "A", "chapter_start": 1, "chapter_end": 999,
-             "central_conflict": "c", "character_focus": []},
+            {
+                "arc_number": 1,
+                "name": "A",
+                "chapter_start": 1,
+                "chapter_end": 999,
+                "central_conflict": "c",
+                "character_focus": [],
+            },
         ]
         llm = _make_llm({"macro_arcs": arc_data})
         chars = [_make_character()]
@@ -354,10 +401,22 @@ class TestGenerateMacroArcs:
         from pipeline.layer1_story.macro_outline_builder import generate_macro_arcs
 
         arc_data = [
-            {"arc_number": 1, "name": "valid", "chapter_start": 1, "chapter_end": 10,
-             "central_conflict": "c", "character_focus": []},
-            {"arc_number": 2, "name": "beyond", "chapter_start": 999, "chapter_end": 1000,
-             "central_conflict": "c", "character_focus": []},
+            {
+                "arc_number": 1,
+                "name": "valid",
+                "chapter_start": 1,
+                "chapter_end": 10,
+                "central_conflict": "c",
+                "character_focus": [],
+            },
+            {
+                "arc_number": 2,
+                "name": "beyond",
+                "chapter_start": 999,
+                "chapter_end": 1000,
+                "central_conflict": "c",
+                "character_focus": [],
+            },
         ]
         llm = _make_llm({"macro_arcs": arc_data})
         chars = [_make_character()]
@@ -371,14 +430,22 @@ class TestGenerateMacroArcs:
         from pipeline.layer1_story.macro_outline_builder import generate_macro_arcs
 
         arc_data = [
-            {"arc_number": 1, "name": "only", "chapter_start": 1, "chapter_end": 5,
-             "central_conflict": "c", "character_focus": []},
+            {
+                "arc_number": 1,
+                "name": "only",
+                "chapter_start": 1,
+                "chapter_end": 5,
+                "central_conflict": "c",
+                "character_focus": [],
+            },
         ]
         llm = _make_llm({"macro_arcs": arc_data})
         chars = [_make_character()]
         world = _make_world()
         # arc_size=30 but num_chapters=5 → should be clamped
-        arcs = generate_macro_arcs(llm, "T", "g", chars, world, "i", num_chapters=5, arc_size=30)
+        arcs = generate_macro_arcs(
+            llm, "T", "g", chars, world, "i", num_chapters=5, arc_size=30
+        )
         assert arcs  # just ensure no crash
 
 
@@ -418,7 +485,11 @@ class TestFormatArcsForPrompt:
     def test_formats_single_arc(self):
         from pipeline.layer1_story.macro_outline_builder import format_arcs_for_prompt
 
-        arcs = [_make_macro_arc(arc_number=1, name="Kiếm đạo", chapter_start=1, chapter_end=30)]
+        arcs = [
+            _make_macro_arc(
+                arc_number=1, name="Kiếm đạo", chapter_start=1, chapter_end=30
+            )
+        ]
         text = format_arcs_for_prompt(arcs)
         assert "Arc 1" in text
         assert "Kiếm đạo" in text
@@ -429,7 +500,9 @@ class TestFormatArcsForPrompt:
 
         arcs = [
             _make_macro_arc(arc_number=1, chapter_start=1, chapter_end=10),
-            _make_macro_arc(arc_number=2, name="Arc kết", chapter_start=11, chapter_end=20),
+            _make_macro_arc(
+                arc_number=2, name="Arc kết", chapter_start=11, chapter_end=20
+            ),
         ]
         text = format_arcs_for_prompt(arcs)
         assert "Arc 1" in text
@@ -444,7 +517,9 @@ class TestFormatArcsForPrompt:
 
 class TestValidateOutlineArcCoherence:
     def test_returns_ok_on_empty_inputs(self):
-        from pipeline.layer1_story.outline_arc_validator import validate_outline_arc_coherence
+        from pipeline.layer1_story.outline_arc_validator import (
+            validate_outline_arc_coherence,
+        )
 
         llm = _make_llm({})
         result = validate_outline_arc_coherence(llm, outlines=[], macro_arcs=[])
@@ -452,7 +527,9 @@ class TestValidateOutlineArcCoherence:
         llm.generate_json.assert_not_called()
 
     def test_returns_warnings_from_llm(self):
-        from pipeline.layer1_story.outline_arc_validator import validate_outline_arc_coherence
+        from pipeline.layer1_story.outline_arc_validator import (
+            validate_outline_arc_coherence,
+        )
 
         llm = _make_llm({"warnings": ["Arc 1 thiếu climax"], "score": 3.5})
         outlines = [_make_outline()]
@@ -462,34 +539,48 @@ class TestValidateOutlineArcCoherence:
         assert result["score"] == pytest.approx(3.5)
 
     def test_returns_perfect_score_when_no_warnings(self):
-        from pipeline.layer1_story.outline_arc_validator import validate_outline_arc_coherence
+        from pipeline.layer1_story.outline_arc_validator import (
+            validate_outline_arc_coherence,
+        )
 
         llm = _make_llm({"warnings": [], "score": 5.0})
-        result = validate_outline_arc_coherence(llm, [_make_outline()], [_make_macro_arc()])
+        result = validate_outline_arc_coherence(
+            llm, [_make_outline()], [_make_macro_arc()]
+        )
         assert result["score"] == pytest.approx(5.0)
         assert result["warnings"] == []
 
     def test_returns_zero_score_on_llm_exception(self):
-        from pipeline.layer1_story.outline_arc_validator import validate_outline_arc_coherence
+        from pipeline.layer1_story.outline_arc_validator import (
+            validate_outline_arc_coherence,
+        )
 
         llm = MagicMock()
         llm.generate_json.side_effect = RuntimeError("LLM offline")
-        result = validate_outline_arc_coherence(llm, [_make_outline()], [_make_macro_arc()])
+        result = validate_outline_arc_coherence(
+            llm, [_make_outline()], [_make_macro_arc()]
+        )
         assert result["score"] == 0.0
         assert result["warnings"] == []
 
     def test_calls_llm_once(self):
-        from pipeline.layer1_story.outline_arc_validator import validate_outline_arc_coherence
+        from pipeline.layer1_story.outline_arc_validator import (
+            validate_outline_arc_coherence,
+        )
 
         llm = _make_llm({"warnings": [], "score": 4.0})
         validate_outline_arc_coherence(llm, [_make_outline()], [_make_macro_arc()])
         assert llm.generate_json.call_count == 1
 
     def test_missing_fields_fall_back_gracefully(self):
-        from pipeline.layer1_story.outline_arc_validator import validate_outline_arc_coherence
+        from pipeline.layer1_story.outline_arc_validator import (
+            validate_outline_arc_coherence,
+        )
 
         llm = _make_llm({})  # no warnings / score keys
-        result = validate_outline_arc_coherence(llm, [_make_outline()], [_make_macro_arc()])
+        result = validate_outline_arc_coherence(
+            llm, [_make_outline()], [_make_macro_arc()]
+        )
         assert "warnings" in result
         assert "score" in result
 
@@ -524,7 +615,9 @@ class TestGenerateArcWaypoints:
         from pipeline.layer1_story.arc_waypoint_generator import generate_arc_waypoints
 
         chars = [_make_character("Lan")]
-        result = generate_arc_waypoints(self._llm_with_waypoints("Lan"), chars, num_chapters=20, genre="tiên hiệp")
+        result = generate_arc_waypoints(
+            self._llm_with_waypoints("Lan"), chars, num_chapters=20, genre="tiên hiệp"
+        )
         assert "Lan" in result
         assert len(result["Lan"]) == 1
         assert result["Lan"][0].stage_name == "phủ nhận"
@@ -548,9 +641,23 @@ class TestGenerateArcWaypoints:
     def test_skips_entries_with_no_name(self):
         from pipeline.layer1_story.arc_waypoint_generator import generate_arc_waypoints
 
-        resp = {"characters": [{"name": "", "waypoints": [{"stage_name": "s", "chapter_start": 1,
-                                                            "chapter_end": 5, "description": "d",
-                                                            "emotional_state": "e", "progress_pct": 0.1}]}]}
+        resp = {
+            "characters": [
+                {
+                    "name": "",
+                    "waypoints": [
+                        {
+                            "stage_name": "s",
+                            "chapter_start": 1,
+                            "chapter_end": 5,
+                            "description": "d",
+                            "emotional_state": "e",
+                            "progress_pct": 0.1,
+                        }
+                    ],
+                }
+            ]
+        }
         llm = _make_llm(resp)
         result = generate_arc_waypoints(llm, [_make_character("X")], num_chapters=10)
         assert result == {}
@@ -559,10 +666,20 @@ class TestGenerateArcWaypoints:
         from pipeline.layer1_story.arc_waypoint_generator import generate_arc_waypoints
 
         def make_wp(name):
-            return {"name": name, "waypoints": [
-                {"stage_name": "khởi đầu", "chapter_start": 1, "chapter_end": 5,
-                 "description": "d", "emotional_state": "bình tĩnh", "progress_pct": 0.1}
-            ]}
+            return {
+                "name": name,
+                "waypoints": [
+                    {
+                        "stage_name": "khởi đầu",
+                        "chapter_start": 1,
+                        "chapter_end": 5,
+                        "description": "d",
+                        "emotional_state": "bình tĩnh",
+                        "progress_pct": 0.1,
+                    }
+                ],
+            }
+
         resp = {"characters": [make_wp("Lan"), make_wp("Hùng")]}
         llm = _make_llm(resp)
         chars = [_make_character("Lan"), _make_character("Hùng")]
@@ -573,7 +690,9 @@ class TestGenerateArcWaypoints:
 
 class TestApplyWaypointsToCharacters:
     def test_attaches_waypoints_to_matching_character(self):
-        from pipeline.layer1_story.arc_waypoint_generator import apply_waypoints_to_characters
+        from pipeline.layer1_story.arc_waypoint_generator import (
+            apply_waypoints_to_characters,
+        )
 
         char = _make_character("Lan")
         wp = _make_waypoint()
@@ -582,7 +701,9 @@ class TestApplyWaypointsToCharacters:
         assert char.arc_waypoints[0]["stage_name"] == "phủ nhận"
 
     def test_no_op_for_unknown_character(self):
-        from pipeline.layer1_story.arc_waypoint_generator import apply_waypoints_to_characters
+        from pipeline.layer1_story.arc_waypoint_generator import (
+            apply_waypoints_to_characters,
+        )
 
         char = _make_character("Hùng")
         apply_waypoints_to_characters([char], {"Lan": [_make_waypoint()]})
@@ -624,9 +745,13 @@ class TestGetExpectedStage:
 
 class TestFormatArcStagesForPrompt:
     def test_returns_nonempty_when_waypoint_matches(self):
-        from pipeline.layer1_story.arc_waypoint_generator import format_arc_stages_for_prompt
+        from pipeline.layer1_story.arc_waypoint_generator import (
+            format_arc_stages_for_prompt,
+        )
 
-        wp = _make_waypoint(stage_name="khủng hoảng", chapter_range=[1, 20], progress_pct=0.5)
+        wp = _make_waypoint(
+            stage_name="khủng hoảng", chapter_range=[1, 20], progress_pct=0.5
+        )
         char = _make_character("Lan", waypoints=[wp])
         result = format_arc_stages_for_prompt([char], chapter_number=10)
         assert "Lan" in result
@@ -634,7 +759,9 @@ class TestFormatArcStagesForPrompt:
         assert "50%" in result
 
     def test_returns_empty_string_when_no_match(self):
-        from pipeline.layer1_story.arc_waypoint_generator import format_arc_stages_for_prompt
+        from pipeline.layer1_story.arc_waypoint_generator import (
+            format_arc_stages_for_prompt,
+        )
 
         char = _make_character()  # no waypoints
         result = format_arc_stages_for_prompt([char], chapter_number=5)
@@ -657,7 +784,9 @@ class TestUpdateArcProgressionCache:
         )
 
     def test_adds_entry_to_cache(self):
-        from pipeline.layer1_story.arc_waypoint_generator import update_arc_progression_cache
+        from pipeline.layer1_story.arc_waypoint_generator import (
+            update_arc_progression_cache,
+        )
 
         cache: dict = {}
         r = self._make_result("Lan", 1, "phủ nhận", True, 0.8, "ok")
@@ -667,7 +796,9 @@ class TestUpdateArcProgressionCache:
         assert cache["Lan"][0]["found"] is True
 
     def test_deduplicates_same_chapter(self):
-        from pipeline.layer1_story.arc_waypoint_generator import update_arc_progression_cache
+        from pipeline.layer1_story.arc_waypoint_generator import (
+            update_arc_progression_cache,
+        )
 
         cache: dict = {}
         r1 = self._make_result("Lan", 3, "phủ nhận", False, 0.0, "warning")
@@ -678,7 +809,9 @@ class TestUpdateArcProgressionCache:
         assert cache["Lan"][0]["stage_name"] == "thức tỉnh"
 
     def test_caps_at_max_per_character(self):
-        from pipeline.layer1_story.arc_waypoint_generator import update_arc_progression_cache
+        from pipeline.layer1_story.arc_waypoint_generator import (
+            update_arc_progression_cache,
+        )
 
         cache: dict = {}
         for ch in range(1, 20):
@@ -692,13 +825,20 @@ class TestFormatArcProgressionForPrompt:
         from pipeline.layer1_story.arc_execution_validator import ArcValidationResult
 
         return ArcValidationResult(
-            character=name, chapter_number=chapter, expected_stage=stage,
-            expected_emotion="", found=found, confidence=confidence,
-            evidence="", severity=severity,
+            character=name,
+            chapter_number=chapter,
+            expected_stage=stage,
+            expected_emotion="",
+            found=found,
+            confidence=confidence,
+            evidence="",
+            severity=severity,
         )
 
     def test_returns_empty_for_empty_cache(self):
-        from pipeline.layer1_story.arc_waypoint_generator import format_arc_progression_for_prompt
+        from pipeline.layer1_story.arc_waypoint_generator import (
+            format_arc_progression_for_prompt,
+        )
 
         chars = [_make_character("Lan")]
         assert format_arc_progression_for_prompt({}, chars, 5) == ""
@@ -710,12 +850,17 @@ class TestFormatArcProgressionForPrompt:
         )
 
         cache: dict = {}
-        results = [self._make_result("Lan", ch, "phủ nhận", True, 0.7, "ok") for ch in [1, 2, 3]]
+        results = [
+            self._make_result("Lan", ch, "phủ nhận", True, 0.7, "ok")
+            for ch in [1, 2, 3]
+        ]
         for r in results:
             update_arc_progression_cache(cache, [r], r.chapter_number)
 
         chars = [_make_character("Lan")]
-        text = format_arc_progression_for_prompt(cache, chars, current_chapter=4, lookback=3)
+        text = format_arc_progression_for_prompt(
+            cache, chars, current_chapter=4, lookback=3
+        )
         assert "Lan" in text
         assert "ch1" in text or "ch2" in text
 
@@ -727,7 +872,9 @@ class TestFormatArcProgressionForPrompt:
 
 class TestFindCharacterMentions:
     def test_finds_mentions_by_full_name(self):
-        from pipeline.layer1_story.arc_execution_validator import _find_character_mentions
+        from pipeline.layer1_story.arc_execution_validator import (
+            _find_character_mentions,
+        )
 
         content = "Lan cảm thấy sợ hãi. Hùng bước vào phòng. Lan lùi lại."
         mentions = _find_character_mentions(content, "Lan")
@@ -735,7 +882,9 @@ class TestFindCharacterMentions:
         assert any("Lan" in m for m in mentions)
 
     def test_returns_empty_when_not_mentioned(self):
-        from pipeline.layer1_story.arc_execution_validator import _find_character_mentions
+        from pipeline.layer1_story.arc_execution_validator import (
+            _find_character_mentions,
+        )
 
         mentions = _find_character_mentions("Không có ai ở đây.", "Minh")
         assert mentions == []
@@ -743,17 +892,25 @@ class TestFindCharacterMentions:
 
 class TestHeuristicEmotionMatch:
     def test_detects_fear_keyword(self):
-        from pipeline.layer1_story.arc_execution_validator import _heuristic_emotion_match
+        from pipeline.layer1_story.arc_execution_validator import (
+            _heuristic_emotion_match,
+        )
 
-        found, confidence, evidence = _heuristic_emotion_match("Cô ấy run rẩy trước mặt kẻ thù.", "sợ hãi")
+        found, confidence, evidence = _heuristic_emotion_match(
+            "Cô ấy run rẩy trước mặt kẻ thù.", "sợ hãi"
+        )
         assert found is True
         assert confidence > 0.0
         assert evidence != ""
 
     def test_no_match_returns_false(self):
-        from pipeline.layer1_story.arc_execution_validator import _heuristic_emotion_match
+        from pipeline.layer1_story.arc_execution_validator import (
+            _heuristic_emotion_match,
+        )
 
-        found, confidence, _ = _heuristic_emotion_match("Trời xanh mây trắng đẹp lắm.", "tức giận")
+        found, confidence, _ = _heuristic_emotion_match(
+            "Trời xanh mây trắng đẹp lắm.", "tức giận"
+        )
         assert found is False
         assert confidence == 0.0
 
@@ -762,7 +919,9 @@ class TestHeuristicStageMatch:
     def test_detects_stage_keyword(self):
         from pipeline.layer1_story.arc_execution_validator import _heuristic_stage_match
 
-        found, conf, ev = _heuristic_stage_match("Anh ta đã thức tỉnh sau biến cố lớn.", "thức tỉnh")
+        found, conf, ev = _heuristic_stage_match(
+            "Anh ta đã thức tỉnh sau biến cố lớn.", "thức tỉnh"
+        )
         assert found is True
         assert conf >= 0.6
 
@@ -775,14 +934,18 @@ class TestHeuristicStageMatch:
 
 class TestValidateArcExecutionHeuristic:
     def test_returns_none_when_no_waypoint(self):
-        from pipeline.layer1_story.arc_execution_validator import validate_arc_execution_heuristic
+        from pipeline.layer1_story.arc_execution_validator import (
+            validate_arc_execution_heuristic,
+        )
 
         char = _make_character()  # no waypoints
         chapter = _make_chapter(1, "Lan đi vào rừng.")
         assert validate_arc_execution_heuristic(chapter, char, 1) is None
 
     def test_warning_when_character_not_mentioned(self):
-        from pipeline.layer1_story.arc_execution_validator import validate_arc_execution_heuristic
+        from pipeline.layer1_story.arc_execution_validator import (
+            validate_arc_execution_heuristic,
+        )
 
         wp = _make_waypoint(chapter_range=[1, 5])
         char = _make_character("Lan", waypoints=[wp])
@@ -793,9 +956,13 @@ class TestValidateArcExecutionHeuristic:
         assert result.severity == "warning"
 
     def test_ok_severity_when_emotion_found_with_high_confidence(self):
-        from pipeline.layer1_story.arc_execution_validator import validate_arc_execution_heuristic
+        from pipeline.layer1_story.arc_execution_validator import (
+            validate_arc_execution_heuristic,
+        )
 
-        wp = _make_waypoint(stage_name="phủ nhận", emotional_state="sợ hãi", chapter_range=[1, 5])
+        wp = _make_waypoint(
+            stage_name="phủ nhận", emotional_state="sợ hãi", chapter_range=[1, 5]
+        )
         char = _make_character("Lan", waypoints=[wp])
         # Content has "Lan" + fear keyword
         chapter = _make_chapter(1, content="Lan run rẩy khi nhìn thấy kẻ thù tiến đến.")
@@ -805,7 +972,9 @@ class TestValidateArcExecutionHeuristic:
         assert result.severity in ("ok", "warning")
 
     def test_critical_when_not_found_and_high_progress(self):
-        from pipeline.layer1_story.arc_execution_validator import validate_arc_execution_heuristic
+        from pipeline.layer1_story.arc_execution_validator import (
+            validate_arc_execution_heuristic,
+        )
 
         wp = _make_waypoint(
             stage_name="hy sinh",
@@ -853,15 +1022,22 @@ class TestValidateAllArcs:
     def test_escalates_to_llm_for_critical_ambiguous(self):
         from pipeline.layer1_story.arc_execution_validator import validate_all_arcs
 
-        wp = _make_waypoint(stage_name="hy sinh", emotional_state="bình tĩnh",
-                            chapter_range=[1, 5], progress_pct=0.9)
+        wp = _make_waypoint(
+            stage_name="hy sinh",
+            emotional_state="bình tĩnh",
+            chapter_range=[1, 5],
+            progress_pct=0.9,
+        )
         char = _make_character("Lan", waypoints=[wp])
         # No matching keywords → heuristic gives critical + low confidence
         chapter = _make_chapter(1, content="Lan đang ăn cơm bình thường.")
 
-        llm_mock = _make_llm({"found": True, "confidence": 0.8, "evidence": "Lan hy sinh"})
-        results = validate_all_arcs(chapter, [char], chapter_number=1,
-                                    llm=llm_mock, use_llm_for_critical=True)
+        llm_mock = _make_llm(
+            {"found": True, "confidence": 0.8, "evidence": "Lan hy sinh"}
+        )
+        results = validate_all_arcs(
+            chapter, [char], chapter_number=1, llm=llm_mock, use_llm_for_critical=True
+        )
         assert len(results) == 1
 
 
@@ -884,7 +1060,9 @@ class TestFormatArcWarnings:
             format_arc_warnings,
         )
 
-        critical = ArcValidationResult("Lan", 5, "hy sinh", "e", False, 0.1, "ev", "critical")
+        critical = ArcValidationResult(
+            "Lan", 5, "hy sinh", "e", False, 0.1, "ev", "critical"
+        )
         warnings = format_arc_warnings([critical])
         assert len(warnings) == 1
         assert "Lan" in warnings[0]
@@ -904,7 +1082,10 @@ class TestGetArcDriftSummary:
             get_arc_drift_summary,
         )
 
-        results = [ArcValidationResult("Lan", i, "s", "e", True, 0.9, "ev", "ok") for i in range(5)]
+        results = [
+            ArcValidationResult("Lan", i, "s", "e", True, 0.9, "ev", "ok")
+            for i in range(5)
+        ]
         summary = get_arc_drift_summary(results)
         assert summary["ok"] == 5
         assert summary["drift_rate"] == 0.0

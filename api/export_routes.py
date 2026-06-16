@@ -4,9 +4,8 @@ import logging
 import os
 import pathlib
 import re
-import tempfile
 import uuid
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 if TYPE_CHECKING:
@@ -16,13 +15,19 @@ from pydantic import BaseModel, Field
 
 from api.pipeline_routes import _orchestrators
 from middleware.rbac import Permission, require_permission_if_enabled
+from services.output_paths import (
+    OUTPUT_ROOT as _OUTPUT_ROOT,
+    exports_dir as _exports_dir,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/export", tags=["export"])
 _READ_STORIES = Depends(require_permission_if_enabled(Permission.READ_STORIES))
 
 # Directories that export files may legally reside in
-_PROJECT_ROOT = pathlib.Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))).resolve()
+_PROJECT_ROOT = pathlib.Path(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+).resolve()
 _ALLOWED_EXPORT_DIRS = (
     _PROJECT_ROOT / "output",
     _PROJECT_ROOT / "data",
@@ -46,8 +51,7 @@ def _safe_file_response(path: "str | pathlib.Path", filename: str) -> FileRespon
     """
     resolved = pathlib.Path(path).resolve()
     in_allowed = any(
-        _is_relative_to(resolved, allowed)
-        for allowed in _ALLOWED_EXPORT_DIRS
+        _is_relative_to(resolved, allowed) for allowed in _ALLOWED_EXPORT_DIRS
     )
     if not in_allowed:
         logger.warning(f"Path traversal attempt blocked: {resolved}")
@@ -73,6 +77,7 @@ def _load_story_from_checkpoint(filename: str) -> Optional["_DBStoryWrapper"]:
     import json
 
     from pipeline.orchestrator_checkpoint import find_checkpoint_path
+
     safe_name = pathlib.Path(filename).name
     if ".." in filename or safe_name != filename:
         logger.warning(f"Path traversal attempt in checkpoint load: {filename}")
@@ -146,11 +151,13 @@ class _DBStoryWrapper:
 
     def export_output(self, formats: list[str]) -> Optional[list[str]]:
         from pipeline.orchestrator_export import PipelineExporter
+
         exporter = PipelineExporter(self.output)
         return exporter.export_output(formats=formats) or None
 
     def export_zip(self, formats: list[str]) -> Optional[str]:
         from pipeline.orchestrator_export import PipelineExporter
+
         exporter = PipelineExporter(self.output)
         return exporter.export_zip(formats=formats) or None
 
@@ -168,12 +175,15 @@ async def _get_story_data(session_id: str):
 
 
 @router.post("/files/{session_id}", dependencies=[_READ_STORIES])
-async def export_files(session_id: str, formats: list[str] = ["TXT", "Markdown", "JSON"]):
+async def export_files(
+    session_id: str, formats: list[str] = ["TXT", "Markdown", "JSON"]
+):
     """Export story files in requested formats."""
     orch = await _get_story_data(session_id)
     if not orch:
         return JSONResponse({"error": "Chưa có truyện"}, status_code=404)
     from services.handlers import handle_export_files
+
     files = handle_export_files(orch, formats)
     if not files:
         return {"files": []}
@@ -195,8 +205,10 @@ async def export_zip(session_id: str):
     if not orch:
         return JSONResponse({"error": "Chưa có truyện"}, status_code=404)
     from services.i18n import I18n
+
     _t = I18n().t
     from services.handlers import handle_export_zip
+
     files = handle_export_zip(orch, ["TXT", "Markdown", "JSON", "HTML"], _t)
     if files and len(files) > 0:
         return _safe_file_response(files[0], "storyforge_export.zip")
@@ -211,6 +223,7 @@ async def export_pdf(session_id: str):
         return JSONResponse({"error": "Chưa có truyện"}, status_code=404)
     from services.i18n import I18n
     from services.handlers import handle_export_pdf
+
     files, stats = handle_export_pdf(orch, I18n().t)
     if files:
         return _safe_file_response(files[0], "storyforge.pdf")
@@ -225,6 +238,7 @@ async def export_epub(session_id: str):
         return JSONResponse({"error": "Chưa có truyện"}, status_code=404)
     from services.i18n import I18n
     from services.handlers import handle_export_epub
+
     files, stats = handle_export_epub(orch, I18n().t)
     if files:
         return _safe_file_response(files[0], "storyforge.epub")
@@ -240,7 +254,6 @@ async def export_epub(session_id: str):
 # (``output/<story-slug>/exports``) instead of a shared ``output/library``.
 # The served-file guard validates against the whole output root so any
 # per-story exports dir is acceptable while still blocking path traversal.
-from services.output_paths import OUTPUT_ROOT as _OUTPUT_ROOT, exports_dir as _exports_dir
 _OUTPUT_ROOT_ABS = (_PROJECT_ROOT / _OUTPUT_ROOT).resolve()
 _SAFE_NAME_RE = re.compile(r"[^A-Za-z0-9_\-]+")
 
@@ -350,17 +363,26 @@ async def export_library_story(fmt: str, story: _LibraryStoryPayload = Body(...)
     try:
         if fmt_lower == "docx":
             from services.export.docx_exporter import DOCXExporter
+
             path = DOCXExporter.export(draft, out_path, characters=draft.characters)
         elif fmt_lower == "pdf":
             from services.export.pdf_exporter import PDFExporter
+
             path = PDFExporter.export(draft, out_path, characters=draft.characters)
         else:  # epub
             from services.export.epub_exporter import EPUBExporter
+
             path = EPUBExporter.export(draft, out_path, characters=draft.characters)
-    except Exception as e:  # pragma: no cover — exporter-specific failures surface as 500
+    except (
+        Exception
+    ) as e:  # pragma: no cover — exporter-specific failures surface as 500
         logger.exception(f"Library export ({fmt_lower}) failed")
-        return JSONResponse({"error": f"Xuất {fmt_lower.upper()} thất bại: {e}"}, status_code=500)
+        return JSONResponse(
+            {"error": f"Xuất {fmt_lower.upper()} thất bại: {e}"}, status_code=500
+        )
 
     if not path:
-        return JSONResponse({"error": f"Xuất {fmt_lower.upper()} thất bại"}, status_code=500)
+        return JSONResponse(
+            {"error": f"Xuất {fmt_lower.upper()} thất bại"}, status_code=500
+        )
     return _serve_library_file(path, download_name)

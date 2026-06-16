@@ -15,7 +15,9 @@ class CausalEvent(BaseModel):
     description: str = ""
     drama_score: float = 0.5
     consequences: list[str] = Field(default_factory=list)
-    forces_choice_for: list[str] = Field(default_factory=list)  # Nhân vật bị buộc phải quyết định
+    forces_choice_for: list[str] = Field(
+        default_factory=list
+    )  # Nhân vật bị buộc phải quyết định
 
 
 class CausalGraph:
@@ -73,8 +75,9 @@ class CausalGraph:
         best_overlap = 0 if is_revelation else 1  # rev: ≥1 overlap; others: ≥2
         round_lookback = 2 if is_revelation else 1
 
-        for eid, cev in sorted(self.events.items(),
-                               key=lambda x: x[1].event_round, reverse=True):
+        for eid, cev in sorted(
+            self.events.items(), key=lambda x: x[1].event_round, reverse=True
+        ):
             if cev.event_round < event.round_number - round_lookback:
                 break
             overlap = len(chars & set(cev.characters_involved))
@@ -176,7 +179,9 @@ def record_revelation_event(
         synthetic = type("SimEvt", (), {})()
         synthetic.round_number = round_num
         synthetic.event_type = "tiết_lộ"
-        synthetic.characters_involved = [revealer, receiver] if revealer != receiver else [revealer]
+        synthetic.characters_involved = (
+            [revealer, receiver] if revealer != receiver else [revealer]
+        )
         synthetic.description = f"{revealer} tiết lộ '{fact_id}' cho {receiver}"
         synthetic.drama_score = 0.6
 
@@ -247,7 +252,9 @@ def audit_revelation_causality(
                 tokens_b = set(item_content.split())
                 if not tokens_a or not tokens_b:
                     continue
-                overlap = len(tokens_a & tokens_b) / max(1, min(len(tokens_a), len(tokens_b)))
+                overlap = len(tokens_a & tokens_b) / max(
+                    1, min(len(tokens_a), len(tokens_b))
+                )
                 if overlap >= 0.5:
                     matched_fact = item
                     break
@@ -256,23 +263,31 @@ def audit_revelation_causality(
             known_by = getattr(matched_fact, "known_by", []) or []
             log = getattr(matched_fact, "reveal_log", []) or []
             if claimed not in known_by:
-                violations.append({
-                    "chapter_number": ch_num,
-                    "fact_id": matched_fact.fact_id,
-                    "msg": f"Text claims '{claimed}' knows '{matched_fact.fact_id}' but registry has no record",
-                    "severity": "critical",
-                    "sentence": sentence[:200],
-                })
+                violations.append(
+                    {
+                        "chapter_number": ch_num,
+                        "fact_id": matched_fact.fact_id,
+                        "msg": f"Text claims '{claimed}' knows '{matched_fact.fact_id}' but registry has no record",
+                        "severity": "critical",
+                        "sentence": sentence[:200],
+                    }
+                )
                 continue
             if log:
                 first_revealer = getattr(log[0], "char", "")
-                if first_revealer and claimed != first_revealer and claimed not in {getattr(e, "char", "") for e in log[:2]}:
-                    violations.append({
-                        "chapter_number": ch_num,
-                        "fact_id": matched_fact.fact_id,
-                        "msg": f"Text attributes '{matched_fact.fact_id}' to {claimed}; earliest revealer was {first_revealer}",
-                        "severity": "warning",
-                        "sentence": sentence[:200],
-                    })
+                if (
+                    first_revealer
+                    and claimed != first_revealer
+                    and claimed not in {getattr(e, "char", "") for e in log[:2]}
+                ):
+                    violations.append(
+                        {
+                            "chapter_number": ch_num,
+                            "fact_id": matched_fact.fact_id,
+                            "msg": f"Text attributes '{matched_fact.fact_id}' to {claimed}; earliest revealer was {first_revealer}",
+                            "severity": "warning",
+                            "sentence": sentence[:200],
+                        }
+                    )
 
     return violations

@@ -71,7 +71,9 @@ class ModelFallbackManager:
         # track why fallback was triggered
         self._last_fallback_reason: str = ""
 
-    def update_thresholds(self, max_latency_ms: int = None, max_cost_per_1k: float = None):
+    def update_thresholds(
+        self, max_latency_ms: int = None, max_cost_per_1k: float = None
+    ):
         """Update thresholds dynamically (e.g., from config reload)."""
         with self._lock:
             if max_latency_ms is not None:
@@ -103,14 +105,19 @@ class ModelFallbackManager:
         """
         # Try primary first
         if self._is_model_acceptable(primary_model, context):
-            return {"model": primary_model, "is_fallback": False, "reason": "primary_ok"}
+            return {
+                "model": primary_model,
+                "is_fallback": False,
+                "reason": "primary_ok",
+            }
 
         # Walk fallback list
         for idx, fb in enumerate(fallback_models):
             if not isinstance(fb, dict):
                 logger.warning(
                     "Fallback config entry at index %d is not a dict (got %s); skipping.",
-                    idx, type(fb).__name__,
+                    idx,
+                    type(fb).__name__,
                 )
                 continue
             fb_model = fb.get("model", "")
@@ -122,7 +129,9 @@ class ModelFallbackManager:
                 continue
             cost = fb.get("cost_per_1k", 0.0)
             if cost > self._max_cost_per_1k:
-                logger.debug(f"Skipping {fb_model}: cost {cost} > threshold {self._max_cost_per_1k}")
+                logger.debug(
+                    f"Skipping {fb_model}: cost {cost} > threshold {self._max_cost_per_1k}"
+                )
                 continue
             if self._is_model_acceptable(fb_model, context):
                 reason = self._last_fallback_reason or "primary_unhealthy"
@@ -131,8 +140,14 @@ class ModelFallbackManager:
 
         # Nothing passed — return primary and hope for the best
         self._last_fallback_reason = "all_fallbacks_failed"
-        logger.warning("All fallback models failed checks; returning primary as last resort")
-        return {"model": primary_model, "is_fallback": False, "reason": "all_fallbacks_failed"}
+        logger.warning(
+            "All fallback models failed checks; returning primary as last resort"
+        )
+        return {
+            "model": primary_model,
+            "is_fallback": False,
+            "reason": "all_fallbacks_failed",
+        }
 
     def record_latency(self, model: str, latency_ms: float) -> None:
         """Update rolling latency average for a model.
@@ -145,8 +160,10 @@ class ModelFallbackManager:
             samples = self._latency_samples.setdefault(model, [])
             samples.append(latency_ms)
             if len(samples) > self._latency_window:
-                self._latency_samples[model] = samples[-self._latency_window:]
-        logger.debug(f"Latency recorded: {model} = {latency_ms:.1f}ms (avg={self.get_avg_latency(model):.1f}ms)")
+                self._latency_samples[model] = samples[-self._latency_window :]
+        logger.debug(
+            f"Latency recorded: {model} = {latency_ms:.1f}ms (avg={self.get_avg_latency(model):.1f}ms)"
+        )
 
     def get_avg_latency(self, model: str) -> float:
         """Return rolling average latency for model in ms. Returns 0 if unknown."""
@@ -186,7 +203,9 @@ class ModelFallbackManager:
         """Return reason why fallback was triggered on last select_model call."""
         return self._last_fallback_reason
 
-    def should_skip_model(self, model: str, cost_per_1k: float = 0.0) -> tuple[bool, str]:
+    def should_skip_model(
+        self, model: str, cost_per_1k: float = 0.0
+    ) -> tuple[bool, str]:
         """Check if a model should be skipped in fallback chain.
 
         Returns: (should_skip, reason)
@@ -216,7 +235,9 @@ class ModelFallbackManager:
         with self._lock:
             return {
                 "health_cache": dict(self._health_cache),
-                "latency_samples": {k: list(v) for k, v in self._latency_samples.items()},
+                "latency_samples": {
+                    k: list(v) for k, v in self._latency_samples.items()
+                },
                 "max_latency_ms": self._max_latency_ms,
                 "max_cost_per_1k": self._max_cost_per_1k,
             }
@@ -245,19 +266,25 @@ class ModelFallbackManager:
             if entry is not None:
                 healthy = bool(entry["healthy"])
                 age = now - entry["checked_at"]
-                cooldown_remaining = max(0.0, _HEALTH_TTL_SECONDS - age) if not healthy else 0.0
+                cooldown_remaining = (
+                    max(0.0, _HEALTH_TTL_SECONDS - age) if not healthy else 0.0
+                )
             else:
                 healthy = True  # never-checked models are optimistic
                 cooldown_remaining = 0.0
-            out.append({
-                "model": model,
-                "healthy": healthy,
-                "last_latency_ms": int(samples[-1]) if samples else None,
-                "avg_latency_ms": int(avg_latency) if avg_latency is not None else None,
-                "consecutive_failures": failure_count.get(model, 0),
-                "cooldown_remaining_s": int(cooldown_remaining),
-                "last_error_class": last_error.get(model) or None,
-            })
+            out.append(
+                {
+                    "model": model,
+                    "healthy": healthy,
+                    "last_latency_ms": int(samples[-1]) if samples else None,
+                    "avg_latency_ms": int(avg_latency)
+                    if avg_latency is not None
+                    else None,
+                    "consecutive_failures": failure_count.get(model, 0),
+                    "cooldown_remaining_s": int(cooldown_remaining),
+                    "last_error_class": last_error.get(model) or None,
+                }
+            )
         return out
 
     # ------------------------------------------------------------------
@@ -275,7 +302,9 @@ class ModelFallbackManager:
         avg_lat = self.get_avg_latency(model)
         if avg_lat > 0 and avg_lat > self._max_latency_ms:
             self._last_fallback_reason = f"latency_exceeded:{model}:{avg_lat:.0f}ms"
-            logger.debug(f"Model {model} avg latency {avg_lat:.0f}ms > threshold {self._max_latency_ms}ms")
+            logger.debug(
+                f"Model {model} avg latency {avg_lat:.0f}ms > threshold {self._max_latency_ms}ms"
+            )
             return False
 
         return True

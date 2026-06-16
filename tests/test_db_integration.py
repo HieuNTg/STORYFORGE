@@ -3,6 +3,7 @@
 Each test class uses its own engine + tables so tests are fully isolated.
 Requires: pip install sqlalchemy[asyncio] aiosqlite
 """
+
 from __future__ import annotations
 
 import uuid
@@ -63,6 +64,7 @@ async def session(engine):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _uid() -> str:
     return str(uuid.uuid4())
 
@@ -98,7 +100,9 @@ async def test_user_default_role(session):
     session.add(user)
     await session.commit()
 
-    result = await session.execute(select(User).where(User.username == "default_role_user"))
+    result = await session.execute(
+        select(User).where(User.username == "default_role_user")
+    )
     fetched = result.scalar_one()
     assert fetched.role == "creator"
 
@@ -134,7 +138,9 @@ async def test_authentication_flow(session):
     fetched = result.scalar_one()
     # Simulate verification
     assert fetched.password_hash == hashlib.sha256(raw_pw.encode()).hexdigest()
-    assert fetched.password_hash != hashlib.sha256("wrong_password".encode()).hexdigest()
+    assert (
+        fetched.password_hash != hashlib.sha256("wrong_password".encode()).hexdigest()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +184,9 @@ async def test_story_checkpoint_load_and_update(session):
     await session.commit()
 
     await session.execute(
-        update(Story).where(Story.id == story_id).values(status="complete", chapter_count=10)
+        update(Story)
+        .where(Story.id == story_id)
+        .values(status="complete", chapter_count=10)
     )
     await session.commit()
 
@@ -305,14 +313,20 @@ async def test_transaction_atomic_commit(engine):
     chapter_id = _uid()
 
     # Patch services.database internals to use the test engine/factory
-    with patch("services.database._session_factory", factory), \
-         patch("services.database.get_engine", return_value=engine):
+    with (
+        patch("services.database._session_factory", factory),
+        patch("services.database.get_engine", return_value=engine),
+    ):
         from services.database import transaction  # noqa: PLC0415
 
         async with transaction() as sess:
             assert sess is not None
             sess.add(Story(id=story_id, title="Atomic Story", genre="drama"))
-            sess.add(Chapter(id=chapter_id, story_id=story_id, chapter_number=1, content="ch1"))
+            sess.add(
+                Chapter(
+                    id=chapter_id, story_id=story_id, chapter_number=1, content="ch1"
+                )
+            )
 
     # Verify both records persisted
     async with factory() as verify_sess:
@@ -332,8 +346,10 @@ async def test_transaction_rollback_on_exception(engine):
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     story_id = _uid()
 
-    with patch("services.database._session_factory", factory), \
-         patch("services.database.get_engine", return_value=engine):
+    with (
+        patch("services.database._session_factory", factory),
+        patch("services.database.get_engine", return_value=engine),
+    ):
         from services.database import transaction  # noqa: PLC0415
 
         with pytest.raises(RuntimeError):

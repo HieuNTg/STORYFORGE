@@ -9,8 +9,15 @@ from fastapi import FastAPI
 from httpx import AsyncClient, ASGITransport
 
 from models.schemas import (
-    StoryDraft, Character, WorldSetting, ChapterOutline, Chapter,
-    CharacterState, PlotEvent, StoryContext, PipelineOutput,
+    StoryDraft,
+    Character,
+    WorldSetting,
+    ChapterOutline,
+    Chapter,
+    CharacterState,
+    PlotEvent,
+    StoryContext,
+    PipelineOutput,
 )
 
 
@@ -18,28 +25,51 @@ from models.schemas import (
 # Helper Fixtures
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def _make_draft(num_chapters: int = 3) -> StoryDraft:
     """Create a test StoryDraft with specified number of chapters."""
     return StoryDraft(
         title="Test Story",
         genre="fantasy",
         characters=[
-            Character(name="Hero", role="protagonist", personality="brave", motivation="save world"),
+            Character(
+                name="Hero",
+                role="protagonist",
+                personality="brave",
+                motivation="save world",
+            ),
         ],
         world=WorldSetting(name="TestWorld", description="A fantasy realm"),
         outlines=[
-            ChapterOutline(chapter_number=i + 1, title=f"Chapter {i + 1}", summary=f"Summary {i + 1}", key_events=[])
+            ChapterOutline(
+                chapter_number=i + 1,
+                title=f"Chapter {i + 1}",
+                summary=f"Summary {i + 1}",
+                key_events=[],
+            )
             for i in range(num_chapters)
         ],
         chapters=[
-            Chapter(chapter_number=i + 1, title=f"Chapter {i + 1}", content=f"Content {i + 1}", word_count=1000, summary=f"Summary {i + 1}")
+            Chapter(
+                chapter_number=i + 1,
+                title=f"Chapter {i + 1}",
+                content=f"Content {i + 1}",
+                word_count=1000,
+                summary=f"Summary {i + 1}",
+            )
             for i in range(num_chapters)
         ],
         character_states=[
-            CharacterState(name="Hero", mood="determined", arc_position="rising", last_action="trained"),
+            CharacterState(
+                name="Hero",
+                mood="determined",
+                arc_position="rising",
+                last_action="trained",
+            ),
         ],
         plot_events=[
-            PlotEvent(chapter_number=i + 1, event=f"Event {i + 1}") for i in range(num_chapters)
+            PlotEvent(chapter_number=i + 1, event=f"Event {i + 1}")
+            for i in range(num_chapters)
         ],
     )
 
@@ -60,19 +90,32 @@ def _make_generator():
 # Unit Tests: generate_continuation_outlines
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestGenerateContinuationOutlines:
     """Unit tests for generate_continuation_outlines function."""
 
     def test_generates_outlines(self):
         """Should generate ChapterOutline list from LLM response."""
-        from pipeline.layer1_story.story_continuation import generate_continuation_outlines
+        from pipeline.layer1_story.story_continuation import (
+            generate_continuation_outlines,
+        )
 
         gen = _make_generator()
         draft = _make_draft(num_chapters=3)
         gen.llm.generate_json.return_value = {
             "outlines": [
-                {"chapter_number": 4, "title": "New Ch 4", "summary": "Summary 4", "key_events": []},
-                {"chapter_number": 5, "title": "New Ch 5", "summary": "Summary 5", "key_events": []},
+                {
+                    "chapter_number": 4,
+                    "title": "New Ch 4",
+                    "summary": "Summary 4",
+                    "key_events": [],
+                },
+                {
+                    "chapter_number": 5,
+                    "title": "New Ch 5",
+                    "summary": "Summary 5",
+                    "key_events": [],
+                },
             ]
         }
 
@@ -85,7 +128,9 @@ class TestGenerateContinuationOutlines:
 
     def test_empty_outlines_returned(self):
         """Should return empty list if LLM returns no outlines."""
-        from pipeline.layer1_story.story_continuation import generate_continuation_outlines
+        from pipeline.layer1_story.story_continuation import (
+            generate_continuation_outlines,
+        )
 
         gen = _make_generator()
         draft = _make_draft(num_chapters=3)
@@ -97,16 +142,22 @@ class TestGenerateContinuationOutlines:
 
     def test_progress_callback_invoked(self):
         """Progress callback should receive status messages."""
-        from pipeline.layer1_story.story_continuation import generate_continuation_outlines
+        from pipeline.layer1_story.story_continuation import (
+            generate_continuation_outlines,
+        )
 
         gen = _make_generator()
         draft = _make_draft(num_chapters=3)
         progress_msgs = []
         gen.llm.generate_json.return_value = {
-            "outlines": [{"chapter_number": 4, "title": "Ch4", "summary": "S", "key_events": []}]
+            "outlines": [
+                {"chapter_number": 4, "title": "Ch4", "summary": "S", "key_events": []}
+            ]
         }
 
-        generate_continuation_outlines(gen, draft, additional_chapters=1, progress_callback=progress_msgs.append)
+        generate_continuation_outlines(
+            gen, draft, additional_chapters=1, progress_callback=progress_msgs.append
+        )
 
         assert any("Generating outlines" in msg for msg in progress_msgs)
         assert any("Generated" in msg for msg in progress_msgs)
@@ -115,6 +166,7 @@ class TestGenerateContinuationOutlines:
 # ══════════════════════════════════════════════════════════════════════════════
 # Unit Tests: write_from_outlines
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 class TestWriteFromOutlines:
     """Unit tests for write_from_outlines function."""
@@ -127,11 +179,17 @@ class TestWriteFromOutlines:
         gen = _make_generator()
         draft = _make_draft(num_chapters=3)
         outlines = [
-            ChapterOutline(chapter_number=4, title="New Ch 4", summary="Summary 4", key_events=[]),
-            ChapterOutline(chapter_number=5, title="New Ch 5", summary="Summary 5", key_events=[]),
+            ChapterOutline(
+                chapter_number=4, title="New Ch 4", summary="Summary 4", key_events=[]
+            ),
+            ChapterOutline(
+                chapter_number=5, title="New Ch 5", summary="Summary 5", key_events=[]
+            ),
         ]
 
-        new_chapter = Chapter(chapter_number=4, title="Ch4", content="new content", word_count=1000)
+        new_chapter = Chapter(
+            chapter_number=4, title="Ch4", content="new content", word_count=1000
+        )
         gen._write_chapter_with_long_context.return_value = new_chapter
         mock_post_write.return_value = (new_chapter, "s", [], [])
 
@@ -160,10 +218,14 @@ class TestWriteFromOutlines:
 
         gen = _make_generator()
         draft = _make_draft(num_chapters=3)
-        outlines = [ChapterOutline(chapter_number=4, title="Ch4", summary="S", key_events=[])]
+        outlines = [
+            ChapterOutline(chapter_number=4, title="Ch4", summary="S", key_events=[])
+        ]
         stream_cb = MagicMock()
 
-        new_chapter = Chapter(chapter_number=4, title="Ch4", content="streamed", word_count=1000)
+        new_chapter = Chapter(
+            chapter_number=4, title="Ch4", content="streamed", word_count=1000
+        )
         gen.write_chapter_stream.return_value = new_chapter
         mock_post_write.return_value = (new_chapter, "s", [], [])
 
@@ -177,6 +239,7 @@ class TestWriteFromOutlines:
 # Unit Tests: StoryContinuation methods
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestStoryContinuationOutlineMethods:
     """Tests for StoryContinuation outline methods."""
 
@@ -185,7 +248,9 @@ class TestStoryContinuationOutlineMethods:
         from pipeline.orchestrator_continuation import StoryContinuation
 
         output = PipelineOutput()
-        cont = StoryContinuation(output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+        cont = StoryContinuation(
+            output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
 
         with pytest.raises(ValueError, match="No story draft loaded"):
             cont.generate_continuation_outlines()
@@ -195,8 +260,12 @@ class TestStoryContinuationOutlineMethods:
         from pipeline.orchestrator_continuation import StoryContinuation
 
         output = PipelineOutput()
-        cont = StoryContinuation(output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
-        outlines = [ChapterOutline(chapter_number=1, title="Ch", summary="S", key_events=[])]
+        cont = StoryContinuation(
+            output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
+        outlines = [
+            ChapterOutline(chapter_number=1, title="Ch", summary="S", key_events=[])
+        ]
 
         with pytest.raises(ValueError, match="No story draft loaded"):
             cont.write_from_outlines(outlines)
@@ -206,7 +275,9 @@ class TestStoryContinuationOutlineMethods:
         from pipeline.orchestrator_continuation import StoryContinuation
 
         output = PipelineOutput(story_draft=_make_draft())
-        cont = StoryContinuation(output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+        cont = StoryContinuation(
+            output, MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
 
         with pytest.raises(ValueError, match="No outlines provided"):
             cont.write_from_outlines([])
@@ -220,7 +291,9 @@ class TestStoryContinuationOutlineMethods:
         output = PipelineOutput(story_draft=draft)
         story_gen = MagicMock()
 
-        cont = StoryContinuation(output, story_gen, MagicMock(), MagicMock(), MagicMock(), MagicMock())
+        cont = StoryContinuation(
+            output, story_gen, MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        )
         mock_gen_outlines.return_value = [
             ChapterOutline(chapter_number=4, title="Ch4", summary="S", key_events=[])
         ]
@@ -235,9 +308,11 @@ class TestStoryContinuationOutlineMethods:
 # API Tests
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def _make_app() -> FastAPI:
     from fastapi import APIRouter
     from api.continuation_routes import router as continuation_router
+
     app = FastAPI()
     api = APIRouter(prefix="/api")
     api.include_router(continuation_router)
@@ -301,7 +376,9 @@ class TestWriteFromOutlinesAPI:
     @pytest.mark.asyncio
     async def test_checkpoint_not_found_returns_error(self, client):
         """Non-existent checkpoint should return SSE error."""
-        outlines = [{"chapter_number": 1, "title": "Ch", "summary": "S", "key_events": []}]
+        outlines = [
+            {"chapter_number": 1, "title": "Ch", "summary": "S", "key_events": []}
+        ]
         resp = await client.post(
             "/api/pipeline/continue/write",
             json={"checkpoint": "nonexistent.json", "outlines": outlines},
@@ -315,7 +392,9 @@ class TestWriteFromOutlinesAPI:
     @pytest.mark.asyncio
     async def test_sse_headers_correct(self, client):
         """Should return correct SSE headers."""
-        outlines = [{"chapter_number": 1, "title": "Ch", "summary": "S", "key_events": []}]
+        outlines = [
+            {"chapter_number": 1, "title": "Ch", "summary": "S", "key_events": []}
+        ]
         resp = await client.post(
             "/api/pipeline/continue/write",
             json={"checkpoint": "test.json", "outlines": outlines},
@@ -344,6 +423,7 @@ class TestWriteFromOutlinesAPI:
 # Integration: continue_story uses extracted functions
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestContinueStoryRefactored:
     """Verify continue_story delegates to extracted functions."""
 
@@ -355,7 +435,9 @@ class TestContinueStoryRefactored:
 
         gen = _make_generator()
         draft = _make_draft(num_chapters=3)
-        outlines = [ChapterOutline(chapter_number=4, title="Ch4", summary="S", key_events=[])]
+        outlines = [
+            ChapterOutline(chapter_number=4, title="Ch4", summary="S", key_events=[])
+        ]
         mock_gen_outlines.return_value = outlines
         mock_write.return_value = draft
 

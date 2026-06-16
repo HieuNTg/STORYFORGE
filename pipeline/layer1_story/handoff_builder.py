@@ -38,7 +38,9 @@ def _slug(value: str) -> str:
 
 def _build_conflict_web(raw: list) -> tuple[ConflictWeb, SignalHealth]:
     if raw is None:
-        return ConflictWeb(), SignalHealth(status="extraction_failed", reason="conflict_web missing on draft")
+        return ConflictWeb(), SignalHealth(
+            status="extraction_failed", reason="conflict_web missing on draft"
+        )
     if _is_extraction_sentinel(raw):
         return ConflictWeb(), SignalHealth(
             status="extraction_failed",
@@ -51,7 +53,9 @@ def _build_conflict_web(raw: list) -> tuple[ConflictWeb, SignalHealth]:
             reason=f"conflict_web is {type(raw).__name__}, expected list",
         )
     if not raw:
-        return ConflictWeb(), SignalHealth(status="empty", reason="no conflicts produced", item_count=0)
+        return ConflictWeb(), SignalHealth(
+            status="empty", reason="no conflicts produced", item_count=0
+        )
 
     nodes: list[ConflictNode] = []
     first_error: str | None = None
@@ -62,9 +66,15 @@ def _build_conflict_web(raw: list) -> tuple[ConflictWeb, SignalHealth]:
             intensity = max(1, min(5, intensity))
             nodes.append(
                 ConflictNode(
-                    id=str(data.get("conflict_id") or data.get("id") or f"c{len(nodes)+1}"),
+                    id=str(
+                        data.get("conflict_id")
+                        or data.get("id")
+                        or f"c{len(nodes) + 1}"
+                    ),
                     parties=list(data.get("characters") or data.get("parties") or []),
-                    type=str(data.get("conflict_type") or data.get("type") or "unknown"),
+                    type=str(
+                        data.get("conflict_type") or data.get("type") or "unknown"
+                    ),
                     intensity=intensity,
                 )
             )
@@ -93,14 +103,18 @@ def _build_conflict_web(raw: list) -> tuple[ConflictWeb, SignalHealth]:
 
 def _build_foreshadowing(raw: list) -> tuple[list[ForeshadowingSeed], SignalHealth]:
     if raw is None:
-        return [], SignalHealth(status="extraction_failed", reason="foreshadowing_plan missing on draft")
+        return [], SignalHealth(
+            status="extraction_failed", reason="foreshadowing_plan missing on draft"
+        )
     if _is_extraction_sentinel(raw):
         return [], SignalHealth(
             status="extraction_failed",
             last_error=str(raw.get("_error")),
         )
     if not isinstance(raw, list):
-        return [], SignalHealth(status="malformed", reason=f"expected list, got {type(raw).__name__}")
+        return [], SignalHealth(
+            status="malformed", reason=f"expected list, got {type(raw).__name__}"
+        )
     if not raw:
         return [], SignalHealth(status="empty", item_count=0)
 
@@ -111,7 +125,7 @@ def _build_foreshadowing(raw: list) -> tuple[list[ForeshadowingSeed], SignalHeal
             data = entry.model_dump() if hasattr(entry, "model_dump") else dict(entry)
             seeds.append(
                 ForeshadowingSeed(
-                    id=str(data.get("id") or f"f{i+1}"),
+                    id=str(data.get("id") or f"f{i + 1}"),
                     plant_chapter=int(data["plant_chapter"]),
                     payoff_chapter=int(data["payoff_chapter"]),
                     description=str(data.get("description") or data.get("hint") or ""),
@@ -120,7 +134,7 @@ def _build_foreshadowing(raw: list) -> tuple[list[ForeshadowingSeed], SignalHeal
                         data.get("semantic_anchor")
                         or data.get("hint")
                         or data.get("description")
-                        or f"seed-{i+1}"
+                        or f"seed-{i + 1}"
                     ),
                     planted=bool(data.get("planted", False)),
                     paid_off=bool(data.get("paid_off", False)),
@@ -132,10 +146,17 @@ def _build_foreshadowing(raw: list) -> tuple[list[ForeshadowingSeed], SignalHeal
             logger.debug("foreshadowing entry rejected: %s", exc)
 
     if not seeds and first_error:
-        return [], SignalHealth(status="malformed", reason="all entries rejected", last_error=first_error)
+        return [], SignalHealth(
+            status="malformed", reason="all entries rejected", last_error=first_error
+        )
     health = SignalHealth(status="ok", item_count=len(seeds))
     if first_error:
-        health = SignalHealth(status="ok", item_count=len(seeds), reason="some entries dropped", last_error=first_error)
+        health = SignalHealth(
+            status="ok",
+            item_count=len(seeds),
+            reason="some entries dropped",
+            last_error=first_error,
+        )
     return seeds, health
 
 
@@ -144,11 +165,17 @@ def _build_arc_waypoints(
     characters_by_name: dict[str, str],
 ) -> tuple[list[ArcWaypoint], SignalHealth]:
     if raw is None:
-        return [], SignalHealth(status="extraction_failed", reason="arc_waypoints missing on draft")
+        return [], SignalHealth(
+            status="extraction_failed", reason="arc_waypoints missing on draft"
+        )
     if _is_extraction_sentinel(raw):
-        return [], SignalHealth(status="extraction_failed", last_error=str(raw.get("_error")))
+        return [], SignalHealth(
+            status="extraction_failed", last_error=str(raw.get("_error"))
+        )
     if not isinstance(raw, list):
-        return [], SignalHealth(status="malformed", reason=f"expected list, got {type(raw).__name__}")
+        return [], SignalHealth(
+            status="malformed", reason=f"expected list, got {type(raw).__name__}"
+        )
     if not raw:
         return [], SignalHealth(status="empty", item_count=0)
 
@@ -156,13 +183,19 @@ def _build_arc_waypoints(
     first_error: str | None = None
     for entry in raw:
         try:
-            data = entry if isinstance(entry, dict) else (
-                entry.model_dump() if hasattr(entry, "model_dump") else dict(entry)
+            data = (
+                entry
+                if isinstance(entry, dict)
+                else (
+                    entry.model_dump() if hasattr(entry, "model_dump") else dict(entry)
+                )
             )
             char_name = str(data.get("character_name") or data.get("character") or "")
             char_id = str(
                 data.get("character_id")
-                or characters_by_name.get(char_name, _slug(char_name) if char_name else "unknown")
+                or characters_by_name.get(
+                    char_name, _slug(char_name) if char_name else "unknown"
+                )
             )
             ch_range = data.get("chapter_range") or []
             if "chapter" in data:
@@ -175,7 +208,9 @@ def _build_arc_waypoints(
                 ArcWaypoint(
                     character_id=char_id,
                     chapter=chapter,
-                    state_label=str(data.get("state_label") or data.get("stage_name") or ""),
+                    state_label=str(
+                        data.get("state_label") or data.get("stage_name") or ""
+                    ),
                     required_evidence=list(data.get("required_evidence") or []),
                 )
             )
@@ -185,20 +220,33 @@ def _build_arc_waypoints(
             logger.debug("arc_waypoint entry rejected: %s", exc)
 
     if not waypoints and first_error:
-        return [], SignalHealth(status="malformed", reason="all entries rejected", last_error=first_error)
+        return [], SignalHealth(
+            status="malformed", reason="all entries rejected", last_error=first_error
+        )
     health = SignalHealth(status="ok", item_count=len(waypoints))
     if first_error:
-        health = SignalHealth(status="ok", item_count=len(waypoints), reason="some entries dropped", last_error=first_error)
+        health = SignalHealth(
+            status="ok",
+            item_count=len(waypoints),
+            reason="some entries dropped",
+            last_error=first_error,
+        )
     return waypoints, health
 
 
 def _build_threads(raw: list) -> tuple[list[ThreadEntry], SignalHealth]:
     if raw is None:
-        return [], SignalHealth(status="extraction_failed", reason="open_threads missing on draft")
+        return [], SignalHealth(
+            status="extraction_failed", reason="open_threads missing on draft"
+        )
     if _is_extraction_sentinel(raw):
-        return [], SignalHealth(status="extraction_failed", last_error=str(raw.get("_error")))
+        return [], SignalHealth(
+            status="extraction_failed", last_error=str(raw.get("_error"))
+        )
     if not isinstance(raw, list):
-        return [], SignalHealth(status="malformed", reason=f"expected list, got {type(raw).__name__}")
+        return [], SignalHealth(
+            status="malformed", reason=f"expected list, got {type(raw).__name__}"
+        )
     if not raw:
         return [], SignalHealth(status="empty", item_count=0)
 
@@ -217,7 +265,9 @@ def _build_threads(raw: list) -> tuple[list[ThreadEntry], SignalHealth]:
             data = entry.model_dump() if hasattr(entry, "model_dump") else dict(entry)
             raw_status = str(data.get("status") or "open").lower()
             status = _STATUS_MAP.get(raw_status, "open")
-            expected_close = data.get("resolution_chapter") or data.get("expected_close_chapter")
+            expected_close = data.get("resolution_chapter") or data.get(
+                "expected_close_chapter"
+            )
             chars_raw = (
                 data.get("characters")
                 or data.get("involved_characters")
@@ -227,10 +277,14 @@ def _build_threads(raw: list) -> tuple[list[ThreadEntry], SignalHealth]:
             importance = data.get("importance")
             threads.append(
                 ThreadEntry(
-                    id=str(data.get("thread_id") or data.get("id") or f"t{i+1}"),
+                    id=str(data.get("thread_id") or data.get("id") or f"t{i + 1}"),
                     label=str(data.get("description") or data.get("label") or ""),
-                    opened_chapter=int(data.get("planted_chapter") or data.get("opened_chapter") or 1),
-                    expected_close_chapter=int(expected_close) if expected_close else None,
+                    opened_chapter=int(
+                        data.get("planted_chapter") or data.get("opened_chapter") or 1
+                    ),
+                    expected_close_chapter=int(expected_close)
+                    if expected_close
+                    else None,
                     status=status,
                     characters=[str(c) for c in chars_raw if c],
                     importance=str(importance) if importance else None,
@@ -242,10 +296,17 @@ def _build_threads(raw: list) -> tuple[list[ThreadEntry], SignalHealth]:
             logger.debug("thread entry rejected: %s", exc)
 
     if not threads and first_error:
-        return [], SignalHealth(status="malformed", reason="all entries rejected", last_error=first_error)
+        return [], SignalHealth(
+            status="malformed", reason="all entries rejected", last_error=first_error
+        )
     health = SignalHealth(status="ok", item_count=len(threads))
     if first_error:
-        health = SignalHealth(status="ok", item_count=len(threads), reason="some entries dropped", last_error=first_error)
+        health = SignalHealth(
+            status="ok",
+            item_count=len(threads),
+            reason="some entries dropped",
+            last_error=first_error,
+        )
     return threads, health
 
 
@@ -254,11 +315,17 @@ def _build_voice_fingerprints(
     characters_by_name: dict[str, str],
 ) -> tuple[list[VoiceFingerprint], SignalHealth]:
     if raw is None:
-        return [], SignalHealth(status="extraction_failed", reason="voice_fingerprints missing on draft")
+        return [], SignalHealth(
+            status="extraction_failed", reason="voice_fingerprints missing on draft"
+        )
     if _is_extraction_sentinel(raw):
-        return [], SignalHealth(status="extraction_failed", last_error=str(raw.get("_error")))
+        return [], SignalHealth(
+            status="extraction_failed", last_error=str(raw.get("_error"))
+        )
     if not isinstance(raw, list):
-        return [], SignalHealth(status="malformed", reason=f"expected list, got {type(raw).__name__}")
+        return [], SignalHealth(
+            status="malformed", reason=f"expected list, got {type(raw).__name__}"
+        )
     if not raw:
         return [], SignalHealth(status="empty", item_count=0)
 
@@ -293,7 +360,9 @@ def _build_voice_fingerprints(
                     character_id=char_id,
                     verbal_tics=list(canonical.get("verbal_tics") or []),
                     dialogue_examples=list(canonical.get("dialogue_examples") or []),
-                    register=str(canonical["register"]) if "register" in canonical else (
+                    register=str(canonical["register"])
+                    if "register" in canonical
+                    else (
                         canonical.get("vocabulary_level") or _raise_missing("register")
                     ),
                     emotional_baseline=str(
@@ -303,8 +372,12 @@ def _build_voice_fingerprints(
                     ),
                     avoid_phrases=list(canonical.get("avoid_phrases") or []),
                     name=name or None,
-                    vocabulary_level=str(canonical["vocabulary_level"]) if canonical.get("vocabulary_level") else None,
-                    sentence_style=str(canonical["sentence_style"]) if canonical.get("sentence_style") else None,
+                    vocabulary_level=str(canonical["vocabulary_level"])
+                    if canonical.get("vocabulary_level")
+                    else None,
+                    sentence_style=str(canonical["sentence_style"])
+                    if canonical.get("sentence_style")
+                    else None,
                     emotional_expression=ee_str,
                     avg_sentence_length=avg_len,
                 )
@@ -315,10 +388,17 @@ def _build_voice_fingerprints(
             logger.debug("voice fingerprint rejected: %s", exc)
 
     if not fingerprints and first_error:
-        return [], SignalHealth(status="malformed", reason="all entries rejected", last_error=first_error)
+        return [], SignalHealth(
+            status="malformed", reason="all entries rejected", last_error=first_error
+        )
     health = SignalHealth(status="ok", item_count=len(fingerprints))
     if first_error:
-        health = SignalHealth(status="ok", item_count=len(fingerprints), reason="some entries dropped", last_error=first_error)
+        health = SignalHealth(
+            status="ok",
+            item_count=len(fingerprints),
+            reason="some entries dropped",
+            last_error=first_error,
+        )
     return fingerprints, health
 
 
@@ -353,7 +433,9 @@ def build_l1_handoff(draft, story_id: str) -> L1Handoff:
     Never raises on missing/malformed signal — the validation gate (P3) decides.
     """
     char_map = _characters_by_name(draft)
-    num_chapters = len(getattr(draft, "outlines", None) or []) or len(getattr(draft, "chapters", None) or [])
+    num_chapters = len(getattr(draft, "outlines", None) or []) or len(
+        getattr(draft, "chapters", None) or []
+    )
 
     raw_conflict = _safe_extract(draft, "conflict_web")
     conflict_web, conflict_health = _build_conflict_web(raw_conflict)

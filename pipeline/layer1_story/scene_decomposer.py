@@ -60,7 +60,14 @@ Chỉ trả JSON, không giải thích thêm."""
 # Public API
 # ---------------------------------------------------------------------------
 
-CLIMAX_PACING_TYPES = {"climax", "đỉnh điểm", "twist", "bước ngoặt", "crisis", "khủng hoảng"}
+CLIMAX_PACING_TYPES = {
+    "climax",
+    "đỉnh điểm",
+    "twist",
+    "bước ngoặt",
+    "crisis",
+    "khủng hoảng",
+}
 
 
 def should_decompose(chapter_number: int, pacing_type: str) -> bool:
@@ -91,7 +98,11 @@ def decompose_chapter_scenes(
     )
     world_text = f"{world.name}: {world.description}"
     if world.locations:
-        locs = ", ".join(world.locations) if isinstance(world.locations, list) else str(world.locations)
+        locs = (
+            ", ".join(world.locations)
+            if isinstance(world.locations, list)
+            else str(world.locations)
+        )
         world_text += f"\nĐịa điểm: {locs}"
     if world.era:
         world_text += f"\nThời đại: {world.era}"
@@ -130,13 +141,19 @@ def decompose_chapter_scenes(
         )
         scenes = result.get("scenes", [])
         if not isinstance(scenes, list):
-            logger.warning("decompose_chapter_scenes: unexpected scenes type %s", type(scenes))
+            logger.warning(
+                "decompose_chapter_scenes: unexpected scenes type %s", type(scenes)
+            )
             return []
         # Clamp to 3-5 scenes
         scenes = scenes[:5]
         return scenes
     except Exception as exc:
-        logger.warning("decompose_chapter_scenes failed for chapter %s: %s", outline.chapter_number, exc)
+        logger.warning(
+            "decompose_chapter_scenes failed for chapter %s: %s",
+            outline.chapter_number,
+            exc,
+        )
         return []
 
 

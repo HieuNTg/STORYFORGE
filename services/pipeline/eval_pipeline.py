@@ -65,7 +65,9 @@ class EvalPipeline:
         # Normalize to 0-1 scale
         # consistency: already 0-1
         # variance: lower is better; cap at 2000 words std dev → score = 1 - min(std/2000, 1)
-        variance_score = max(0.0, 1.0 - min(variance / 2000.0, 1.0)) if variance >= 0 else 0.0
+        variance_score = (
+            max(0.0, 1.0 - min(variance / 2000.0, 1.0)) if variance >= 0 else 0.0
+        )
         # purity: already 0-1
 
         overall = (consistency + variance_score + purity) / 3.0
@@ -78,7 +80,9 @@ class EvalPipeline:
             "auto_score_overall": round(overall, 4),
         }
 
-    def _character_name_consistency(self, chapters: list[dict], char_names: list[str]) -> float:
+    def _character_name_consistency(
+        self, chapters: list[dict], char_names: list[str]
+    ) -> float:
         """Check that each named character appears at least once across all chapters.
 
         Returns ratio of names that appear in the combined text (0-1).
@@ -88,7 +92,8 @@ class EvalPipeline:
 
         combined = " ".join(ch.get("content", "") for ch in chapters)
         found = sum(
-            1 for name in char_names
+            1
+            for name in char_names
             if re.search(re.escape(name), combined, re.IGNORECASE)
         )
         return found / len(char_names)
@@ -303,7 +308,11 @@ class EvalPipeline:
 
             deviations = {}
             entry_passed = True
-            for metric in ["character_name_consistency", "language_purity", "auto_score_overall"]:
+            for metric in [
+                "character_name_consistency",
+                "language_purity",
+                "auto_score_overall",
+            ]:
                 exp_val = expected.get(metric, 0)
                 act_val = actual.get(metric, 0)
                 dev = abs(act_val - exp_val)
@@ -319,13 +328,15 @@ class EvalPipeline:
             if entry_passed:
                 passed += 1
 
-            results.append({
-                "id": entry.get("id"),
-                "title": entry.get("title"),
-                "tags": entry.get("tags", []),
-                "passed": entry_passed,
-                "deviations": deviations,
-            })
+            results.append(
+                {
+                    "id": entry.get("id"),
+                    "title": entry.get("title"),
+                    "tags": entry.get("tags", []),
+                    "passed": entry_passed,
+                    "deviations": deviations,
+                }
+            )
 
         return {
             "generated_at": datetime.now(timezone.utc).isoformat(),

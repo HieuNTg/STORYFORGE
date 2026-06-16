@@ -6,6 +6,7 @@ Do not import this module directly from outside the services package.
 Storage format:
   data/audit/audit-YYYY-MM-DD.json — one JSON object per line (NDJSON).
 """
+
 import json
 import logging
 import os
@@ -67,7 +68,7 @@ def list_log_files(date_from: Optional[str], date_to: Optional[str]) -> list[str
     for filename in sorted(os.listdir(_AUDIT_DIR)):
         if not filename.startswith("audit-") or not filename.endswith(".json"):
             continue
-        date_part = filename[len("audit-"):-len(".json")]
+        date_part = filename[len("audit-") : -len(".json")]
         if date_from and date_part < date_from:
             continue
         if date_part > date_to:
@@ -115,12 +116,14 @@ def cleanup_old_logs(retention_days: int) -> int:
     """
     if not os.path.isdir(_AUDIT_DIR):
         return 0
-    cutoff_str = (datetime.now(timezone.utc) - timedelta(days=retention_days)).strftime("%Y-%m-%d")
+    cutoff_str = (datetime.now(timezone.utc) - timedelta(days=retention_days)).strftime(
+        "%Y-%m-%d"
+    )
     deleted = 0
     for filename in os.listdir(_AUDIT_DIR):
         if not filename.startswith("audit-") or not filename.endswith(".json"):
             continue
-        date_part = filename[len("audit-"):-len(".json")]
+        date_part = filename[len("audit-") : -len(".json")]
         try:
             if date_part < cutoff_str:
                 os.remove(os.path.join(_AUDIT_DIR, filename))

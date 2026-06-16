@@ -26,8 +26,8 @@ def _optimal_workers(multiplier: float, cap: int) -> int:
 # Pool specs: (name, workers_multiplier, worker_cap)
 _POOL_SPECS: list[tuple[str, float, int]] = [
     ("pipeline_pool", 3.0, 32),
-    ("scoring_pool",  2.0, 16),
-    ("general_pool",  1.0,  8),
+    ("scoring_pool", 2.0, 16),
+    ("general_pool", 1.0, 8),
 ]
 
 
@@ -115,13 +115,19 @@ class ThreadPoolManager:
     def _make_done_cb(self, pool_name: str) -> Callable[[Future], None]:
         def _cb(f: Future) -> None:
             with self._counts_lock:
-                self._active_counts[pool_name] = max(0, self._active_counts[pool_name] - 1)
+                self._active_counts[pool_name] = max(
+                    0, self._active_counts[pool_name] - 1
+                )
             if f.exception():
-                logger.debug("thread_pool: task in %r raised %s", pool_name, f.exception())
+                logger.debug(
+                    "thread_pool: task in %r raised %s", pool_name, f.exception()
+                )
             logger.debug(
                 "thread_pool: %r active=%d after task complete",
-                pool_name, self._active_counts[pool_name]
+                pool_name,
+                self._active_counts[pool_name],
             )
+
         return _cb
 
     def active_count(self, pool_name: str) -> int:
@@ -158,7 +164,9 @@ class ThreadPoolManager:
             active = self._active_counts[pool_name]
         max_w = self._pools[pool_name]._max_workers  # type: ignore[attr-defined]
         pct = (active / max_w * 100) if max_w else 0
-        logger.debug("thread_pool: %r util=%d/%d (%.0f%%)", pool_name, active, max_w, pct)
+        logger.debug(
+            "thread_pool: %r util=%d/%d (%.0f%%)", pool_name, active, max_w, pct
+        )
 
     def __repr__(self) -> str:
         with self._counts_lock:

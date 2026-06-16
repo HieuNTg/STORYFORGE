@@ -19,7 +19,7 @@ import random
 import secrets
 import sqlite3
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 from uuid import uuid4
@@ -234,7 +234,8 @@ class FlowService:
         if self._ramp.current != 1 or self._ramp.streak != 0:
             logger.info(
                 "FlowKit ramp reset (was workers=%d streak=%d)",
-                self._ramp.current, self._ramp.streak,
+                self._ramp.current,
+                self._ramp.streak,
             )
         self._ramp.streak = 0
         self._ramp.current = 1
@@ -254,7 +255,13 @@ class FlowService:
 
     # ------------------------------------------------------------ ws dispatch
 
-    async def _send(self, method: str, params: dict, timeout: float = 60.0, ws_method: str = "api_request") -> dict:
+    async def _send(
+        self,
+        method: str,
+        params: dict,
+        timeout: float = 60.0,
+        ws_method: str = "api_request",
+    ) -> dict:
         if self.active_ws is None:
             raise ConnectionError("FlowKit extension not connected")
 
@@ -271,7 +278,10 @@ class FlowService:
             payload = {"id": req_id, "method": ws_method, "params": params}
             logger.info(
                 "FlowKit WS OUT id=%s ws_method=%s op=%s param_keys=%s",
-                req_id, ws_method, method, list(params.keys()),
+                req_id,
+                ws_method,
+                method,
+                list(params.keys()),
             )
             try:
                 await self.active_ws.send_json(payload)
@@ -288,7 +298,9 @@ class FlowService:
                 self._record_failure()
                 logger.warning(
                     "FlowKit WS TIMEOUT id=%s op=%s after %.1fs",
-                    req_id, method, timeout,
+                    req_id,
+                    method,
+                    timeout,
                 )
                 raise
             except Exception:
@@ -297,14 +309,18 @@ class FlowService:
                 raise
 
             status = result.get("status", 0)
-            if status == 429 or (isinstance(result.get("data"), dict) and result["data"].get("captchaBlocked")):
+            if status == 429 or (
+                isinstance(result.get("data"), dict)
+                and result["data"].get("captchaBlocked")
+            ):
                 self._record_failure()
                 raise RuntimeError(f"FlowKit upstream rejected: status={status}")
             if not (200 <= status < 300):
                 self._record_failure()
                 logger.error(
                     "FlowKit upstream error: status=%s data=%s",
-                    status, str(result.get("data"))[:1500],
+                    status,
+                    str(result.get("data"))[:1500],
                 )
                 raise RuntimeError(f"FlowKit upstream error: status={status}")
 
@@ -313,7 +329,9 @@ class FlowService:
         finally:
             await self._release_slot()
 
-    async def _solve_captcha(self, action: str = "IMAGE_GENERATION", timeout: float = 20.0) -> str:
+    async def _solve_captcha(
+        self, action: str = "IMAGE_GENERATION", timeout: float = 20.0
+    ) -> str:
         """Ask extension to call grecaptcha.enterprise.execute() and return the token."""
         data = await self._send(
             "solve_captcha",
@@ -323,7 +341,9 @@ class FlowService:
         )
         token = data.get("token") if isinstance(data, dict) else None
         if not token:
-            raise RuntimeError("FlowKit captcha solve returned no token (is labs.google tab open?)")
+            raise RuntimeError(
+                "FlowKit captcha solve returned no token (is labs.google tab open?)"
+            )
         return token
 
     def note_media_url(self, url: Optional[str], ttl: Optional[float] = None) -> None:
@@ -373,6 +393,7 @@ class FlowService:
         char_refs = char_refs or []
         if output_dir is None:
             from services.output_paths import OUTPUT_ROOT
+
             output_dir = os.path.join(OUTPUT_ROOT, "images")
         cfg = self._cfg
 
@@ -402,7 +423,11 @@ class FlowService:
             "sessionId": f";{int(time.time() * 1000)}",
         }
         aspect_enum = _aspect_to_enum(aspect_override or cfg.flowkit_aspect_ratio)
-        seed = seed_override if seed_override is not None else random.randint(0, 2_147_483_647)
+        seed = (
+            seed_override
+            if seed_override is not None
+            else random.randint(0, 2_147_483_647)
+        )
         # The LLM-generated negative_prompt never reaches flowkit (schema has no
         # negative field), so bake a hard no-text suffix into the positive prompt
         # to stop the model inventing captions/bubbles/signs. Idempotent.
@@ -428,7 +453,10 @@ class FlowService:
 
         logger.info(
             "FlowKit flowMedia:batchGenerateImages REQUEST project=%s aspect=%s refs=%d seed=%d",
-            project_id, aspect_enum, len(media_inputs), seed,
+            project_id,
+            aspect_enum,
+            len(media_inputs),
+            seed,
         )
         result = await self._send(
             "flowMedia:batchGenerateImages",
@@ -446,7 +474,10 @@ class FlowService:
 
         fife_url = self._extract_fife_url(result)
         if not fife_url:
-            logger.error("FlowKit batchGenerateImages full response (no fifeUrl): %s", str(result)[:2000])
+            logger.error(
+                "FlowKit batchGenerateImages full response (no fifeUrl): %s",
+                str(result)[:2000],
+            )
             raise RuntimeError("FlowKit batchGenerateImages returned no fifeUrl")
 
         os.makedirs(output_dir, exist_ok=True)
@@ -472,7 +503,9 @@ class FlowService:
                 "captchaAction": "video_generation",
             },
         )
-        operation_name = result.get("operationName") or result.get("operation_name") or ""
+        operation_name = (
+            result.get("operationName") or result.get("operation_name") or ""
+        )
         job_id = str(uuid4())
         now = time.time()
         await self._db_execute(
@@ -572,6 +605,7 @@ class FlowService:
         if not os.path.isfile(path):
             raise FileNotFoundError(path)
         import base64
+
         with open(path, "rb") as fh:
             blob = base64.b64encode(fh.read()).decode("ascii")
         result = await self._send(
@@ -589,7 +623,9 @@ class FlowService:
         media_id = (media or {}).get("name") if isinstance(media, dict) else None
         media_id = media_id or result.get("mediaId") or result.get("media_id")
         if not media_id:
-            raise RuntimeError(f"FlowKit uploadImage returned no mediaId; payload keys={list(result.keys()) if isinstance(result, dict) else type(result).__name__}")
+            raise RuntimeError(
+                f"FlowKit uploadImage returned no mediaId; payload keys={list(result.keys()) if isinstance(result, dict) else type(result).__name__}"
+            )
         return media_id
 
     async def download_to_local(self, url: str, dest_path: str) -> str:
@@ -610,7 +646,9 @@ class FlowService:
                     # generation; this retry only recovers transient propagation 403s.
                     if attempt == 0 and self.active_ws is not None:
                         try:
-                            await self.active_ws.send_json({"method": "media_urls_refresh"})
+                            await self.active_ws.send_json(
+                                {"method": "media_urls_refresh"}
+                            )
                         except Exception:
                             pass
                         await asyncio.sleep(1.0)
@@ -627,7 +665,12 @@ class FlowService:
         if not payload:
             return None
         if isinstance(payload, str):
-            return payload if "googleusercontent.com" in payload or "storage.googleapis.com" in payload else None
+            return (
+                payload
+                if "googleusercontent.com" in payload
+                or "storage.googleapis.com" in payload
+                else None
+            )
         if isinstance(payload, dict):
             for key in ("fifeUrl", "fife_url", "url", "mediaUrl"):
                 if key in payload and isinstance(payload[key], str):

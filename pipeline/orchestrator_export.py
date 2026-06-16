@@ -27,11 +27,14 @@ class PipelineExporter:
         title to scope by.
         """
         from services.output_paths import exports_dir
+
         story = self.output.enhanced_story or self.output.story_draft
         title = getattr(story, "title", None)
         return exports_dir(title)
 
-    def export_output(self, output_dir: str | None = None, formats: list[str] | None = None) -> list[str]:
+    def export_output(
+        self, output_dir: str | None = None, formats: list[str] | None = None
+    ) -> list[str]:
         """Export results to files. Returns list of generated file paths.
 
         ``output_dir=None`` resolves to the per-story exports dir (see
@@ -49,7 +52,9 @@ class PipelineExporter:
             if self.output.story_draft:
                 path = os.path.join(output_dir, f"{timestamp}_draft.txt")
                 try:
-                    draft_data = plugin_manager.apply_export("txt", self.output.story_draft)
+                    draft_data = plugin_manager.apply_export(
+                        "txt", self.output.story_draft
+                    )
                 except Exception as _e:
                     logger.warning(f"Plugin apply_export txt failed: {_e}")
                     draft_data = self.output.story_draft
@@ -63,7 +68,9 @@ class PipelineExporter:
             if self.output.enhanced_story:
                 path = os.path.join(output_dir, f"{timestamp}_enhanced.txt")
                 try:
-                    enhanced_data = plugin_manager.apply_export("txt", self.output.enhanced_story)
+                    enhanced_data = plugin_manager.apply_export(
+                        "txt", self.output.enhanced_story
+                    )
                 except Exception as _e:
                     logger.warning(f"Plugin apply_export txt (enhanced) failed: {_e}")
                     enhanced_data = self.output.enhanced_story
@@ -84,7 +91,9 @@ class PipelineExporter:
             if self.output.story_draft:
                 path = os.path.join(output_dir, f"{timestamp}_draft.json")
                 try:
-                    draft_data = plugin_manager.apply_export("json", self.output.story_draft.model_dump())
+                    draft_data = plugin_manager.apply_export(
+                        "json", self.output.story_draft.model_dump()
+                    )
                 except Exception as _e:
                     logger.warning(f"Plugin apply_export json (draft) failed: {_e}")
                     draft_data = self.output.story_draft.model_dump()
@@ -95,7 +104,9 @@ class PipelineExporter:
             if self.output.enhanced_story:
                 path = os.path.join(output_dir, f"{timestamp}_enhanced.json")
                 try:
-                    enhanced_data = plugin_manager.apply_export("json", self.output.enhanced_story.model_dump())
+                    enhanced_data = plugin_manager.apply_export(
+                        "json", self.output.enhanced_story.model_dump()
+                    )
                 except Exception as _e:
                     logger.warning(f"Plugin apply_export json (enhanced) failed: {_e}")
                     enhanced_data = self.output.enhanced_story.model_dump()
@@ -106,9 +117,13 @@ class PipelineExporter:
             if self.output.simulation_result:
                 path = os.path.join(output_dir, f"{timestamp}_simulation.json")
                 try:
-                    sim_data = plugin_manager.apply_export("json", self.output.simulation_result.model_dump())
+                    sim_data = plugin_manager.apply_export(
+                        "json", self.output.simulation_result.model_dump()
+                    )
                 except Exception as _e:
-                    logger.warning(f"Plugin apply_export json (simulation) failed: {_e}")
+                    logger.warning(
+                        f"Plugin apply_export json (simulation) failed: {_e}"
+                    )
                     sim_data = self.output.simulation_result.model_dump()
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(sim_data, f, ensure_ascii=False, indent=2)
@@ -131,7 +146,9 @@ class PipelineExporter:
 
         return files
 
-    def export_zip(self, output_dir: str | None = None, formats: list[str] | None = None) -> str:
+    def export_zip(
+        self, output_dir: str | None = None, formats: list[str] | None = None
+    ) -> str:
         """Export all files and bundle into a single ZIP. Returns ZIP path or empty string."""
         if output_dir is None:
             output_dir = self._default_output_dir()
@@ -155,6 +172,7 @@ class PipelineExporter:
         except Exception as _e:
             logger.warning(f"Plugin apply_export html failed: {_e}")
         from services.html_exporter import HTMLExporter
+
         path = os.path.join(output_dir, f"{timestamp}_story.html")
         chars = self.output.story_draft.characters if self.output.story_draft else []
         return HTMLExporter.export(story, path, characters=chars)
@@ -169,6 +187,7 @@ class PipelineExporter:
         except Exception as _e:
             logger.warning(f"Plugin apply_export epub failed: {_e}")
         from services.epub_exporter import EPUBExporter
+
         path = os.path.join(output_dir, f"{timestamp}_story.epub")
         chars = self.output.story_draft.characters if self.output.story_draft else []
         return EPUBExporter.export(story, path, characters=chars)

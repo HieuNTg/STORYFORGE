@@ -1,4 +1,5 @@
 """Tests for EPUBExporter service."""
+
 import importlib
 import os
 import sys
@@ -10,6 +11,7 @@ from models.schemas import StoryDraft, Chapter
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_epub_mocks():
     """Return (ebooklib_mock, epub_mod, book) with a fully wired mock hierarchy."""
@@ -51,6 +53,7 @@ def _get_exporter(ebooklib_mock):
     """Reload EPUBExporter with mocked ebooklib, return the class."""
     with patch.dict(sys.modules, {"ebooklib": ebooklib_mock}):
         import services.epub_exporter
+
         importlib.reload(services.epub_exporter)
         return services.epub_exporter.EPUBExporter
 
@@ -58,6 +61,7 @@ def _get_exporter(ebooklib_mock):
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def single_chapter_story():
@@ -99,30 +103,37 @@ def multi_chapter_story():
 # Tests: _get_css (no mocking needed)
 # ---------------------------------------------------------------------------
 
+
 class TestGetCss:
     def test_returns_string(self):
         from services.epub_exporter import EPUBExporter
+
         css = EPUBExporter._get_css()
         assert isinstance(css, str)
 
     def test_contains_font_family(self):
         from services.epub_exporter import EPUBExporter
+
         assert "font-family" in EPUBExporter._get_css()
 
     def test_contains_line_height(self):
         from services.epub_exporter import EPUBExporter
+
         assert "line-height" in EPUBExporter._get_css()
 
     def test_contains_title_page_class(self):
         from services.epub_exporter import EPUBExporter
+
         assert ".title-page" in EPUBExporter._get_css()
 
     def test_contains_character_class(self):
         from services.epub_exporter import EPUBExporter
+
         assert ".character" in EPUBExporter._get_css()
 
     def test_nonempty(self):
         from services.epub_exporter import EPUBExporter
+
         assert len(EPUBExporter._get_css()) > 50
 
 
@@ -130,12 +141,16 @@ class TestGetCss:
 # Tests: ImportError fallback
 # ---------------------------------------------------------------------------
 
+
 class TestImportFallback:
-    def test_returns_empty_string_when_ebooklib_missing(self, sample_story_draft, tmp_path):
+    def test_returns_empty_string_when_ebooklib_missing(
+        self, sample_story_draft, tmp_path
+    ):
         out = str(tmp_path / "story.epub")
         # patch ebooklib import to raise ImportError
         with patch.dict(sys.modules, {"ebooklib": None}):
             import services.epub_exporter
+
             importlib.reload(services.epub_exporter)
             EPUBExporter = services.epub_exporter.EPUBExporter
             result = EPUBExporter.export(sample_story_draft, out)
@@ -145,6 +160,7 @@ class TestImportFallback:
         out = str(tmp_path / "story.epub")
         with patch.dict(sys.modules, {"ebooklib": None}):
             import services.epub_exporter
+
             importlib.reload(services.epub_exporter)
             EPUBExporter = services.epub_exporter.EPUBExporter
             EPUBExporter.export(sample_story_draft, out)
@@ -154,6 +170,7 @@ class TestImportFallback:
 # ---------------------------------------------------------------------------
 # Tests: export() — write_epub called
 # ---------------------------------------------------------------------------
+
 
 class TestExportWriteEpub:
     def test_returns_output_path(self, sample_story_draft, tmp_path):
@@ -195,22 +212,29 @@ class TestExportWriteEpub:
 # Tests: export() with characters
 # ---------------------------------------------------------------------------
 
+
 class TestExportWithCharacters:
     def test_returns_output_path(self, sample_story_draft, sample_characters, tmp_path):
         ebooklib_mock, epub_mod, _ = _make_epub_mocks()
         EPUBExporter = _get_exporter(ebooklib_mock)
         out = str(tmp_path / "story.epub")
         with patch.dict(sys.modules, {"ebooklib": ebooklib_mock}):
-            result = EPUBExporter.export(sample_story_draft, out, characters=sample_characters)
+            result = EPUBExporter.export(
+                sample_story_draft, out, characters=sample_characters
+            )
         assert result == out
 
-    def test_characters_xhtml_created(self, sample_story_draft, sample_characters, tmp_path):
+    def test_characters_xhtml_created(
+        self, sample_story_draft, sample_characters, tmp_path
+    ):
         ebooklib_mock, epub_mod, _ = _make_epub_mocks()
         EPUBExporter = _get_exporter(ebooklib_mock)
         out = str(tmp_path / "story.epub")
         with patch.dict(sys.modules, {"ebooklib": ebooklib_mock}):
             EPUBExporter.export(sample_story_draft, out, characters=sample_characters)
-        file_names = [c.kwargs.get("file_name", "") for c in epub_mod.EpubHtml.call_args_list]
+        file_names = [
+            c.kwargs.get("file_name", "") for c in epub_mod.EpubHtml.call_args_list
+        ]
         assert "characters.xhtml" in file_names
 
     def test_spine_assigned(self, sample_story_draft, sample_characters, tmp_path):
@@ -225,6 +249,7 @@ class TestExportWithCharacters:
 # ---------------------------------------------------------------------------
 # Tests: export() without characters
 # ---------------------------------------------------------------------------
+
 
 class TestExportWithoutCharacters:
     def test_returns_output_path(self, sample_story_draft, tmp_path):
@@ -241,7 +266,9 @@ class TestExportWithoutCharacters:
         out = str(tmp_path / "story.epub")
         with patch.dict(sys.modules, {"ebooklib": ebooklib_mock}):
             EPUBExporter.export(sample_story_draft, out, characters=None)
-        file_names = [c.kwargs.get("file_name", "") for c in epub_mod.EpubHtml.call_args_list]
+        file_names = [
+            c.kwargs.get("file_name", "") for c in epub_mod.EpubHtml.call_args_list
+        ]
         assert "characters.xhtml" not in file_names
 
     def test_write_epub_still_called(self, sample_story_draft, tmp_path):
@@ -256,6 +283,7 @@ class TestExportWithoutCharacters:
 # ---------------------------------------------------------------------------
 # Tests: metadata
 # ---------------------------------------------------------------------------
+
 
 class TestMetadata:
     def test_title_set(self, sample_story_draft, tmp_path):
@@ -313,6 +341,7 @@ class TestMetadata:
 # Tests: multiple chapters → multiple xhtml files
 # ---------------------------------------------------------------------------
 
+
 class TestMultipleChapters:
     def test_each_chapter_gets_xhtml(self, multi_chapter_story, tmp_path):
         ebooklib_mock, epub_mod, _ = _make_epub_mocks()
@@ -320,7 +349,9 @@ class TestMultipleChapters:
         out = str(tmp_path / "story.epub")
         with patch.dict(sys.modules, {"ebooklib": ebooklib_mock}):
             EPUBExporter.export(multi_chapter_story, out)
-        file_names = [c.kwargs.get("file_name", "") for c in epub_mod.EpubHtml.call_args_list]
+        file_names = [
+            c.kwargs.get("file_name", "") for c in epub_mod.EpubHtml.call_args_list
+        ]
         chapter_files = [f for f in file_names if f.startswith("chapter_")]
         assert len(chapter_files) == 5
 
@@ -330,7 +361,9 @@ class TestMultipleChapters:
         out = str(tmp_path / "story.epub")
         with patch.dict(sys.modules, {"ebooklib": ebooklib_mock}):
             EPUBExporter.export(multi_chapter_story, out)
-        file_names = [c.kwargs.get("file_name", "") for c in epub_mod.EpubHtml.call_args_list]
+        file_names = [
+            c.kwargs.get("file_name", "") for c in epub_mod.EpubHtml.call_args_list
+        ]
         chapter_files = sorted(f for f in file_names if f.startswith("chapter_"))
         assert chapter_files[0] == "chapter_001.xhtml"
         assert chapter_files[4] == "chapter_005.xhtml"
@@ -342,7 +375,9 @@ class TestMultipleChapters:
         with patch.dict(sys.modules, {"ebooklib": ebooklib_mock}):
             result = EPUBExporter.export(single_chapter_story, out)
         assert result == out
-        file_names = [c.kwargs.get("file_name", "") for c in epub_mod.EpubHtml.call_args_list]
+        file_names = [
+            c.kwargs.get("file_name", "") for c in epub_mod.EpubHtml.call_args_list
+        ]
         chapter_files = [f for f in file_names if f.startswith("chapter_")]
         assert len(chapter_files) == 1
 
@@ -352,13 +387,16 @@ class TestMultipleChapters:
         out = str(tmp_path / "story.epub")
         with patch.dict(sys.modules, {"ebooklib": ebooklib_mock}):
             EPUBExporter.export(single_chapter_story, out)
-        file_names = [c.kwargs.get("file_name", "") for c in epub_mod.EpubHtml.call_args_list]
+        file_names = [
+            c.kwargs.get("file_name", "") for c in epub_mod.EpubHtml.call_args_list
+        ]
         assert "title.xhtml" in file_names
 
 
 # ---------------------------------------------------------------------------
 # Tests: output directory creation
 # ---------------------------------------------------------------------------
+
 
 class TestOutputPath:
     def test_creates_nested_output_dir(self, sample_story_draft, tmp_path):
