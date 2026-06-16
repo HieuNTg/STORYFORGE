@@ -734,4 +734,4 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Targeted: tests/test_layer2_upgrade.py + tests/test_l2_signal_integration.py 82 passed; ruff check + format clean; smoke OK incl. `import pipeline.layer2_enhance.simulator`.
   - Gate: EXIT 0/0/0/5(expected)/0, 4658 passed (= baseline+5 from intervening work; pure refactor adds 0), coverage 72.86% (baseline 72.87%, within ±0.02pp noise band; floor 70.61%).
 - **Loop retrospective**: Smooth (~25 min). No new friction — `gate_chunks_output.txt` now gitignored (cycle #41 chore), git status stays clean.
-- **Stage Summary**: character agent now respects the 200-line rule with emotional-state primitives isolated in an internal module. Remaining 200–250L backlog: services/export/branch_epub_exporter.py (248), services/infra/database.py (250). Commit `<pending>`.
+- **Stage Summary**: character agent now respects the 200-line rule with emotional-state primitives isolated in an internal module. Remaining 200–250L backlog: services/export/branch_epub_exporter.py (248), services/infra/database.py (250). Commit `e1af0eb`.
