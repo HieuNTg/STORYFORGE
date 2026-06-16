@@ -9,7 +9,6 @@ from __future__ import annotations
 import logging
 import os
 import threading
-import warnings
 from contextlib import asynccontextmanager
 from typing import AsyncIterator, Optional
 
@@ -39,67 +38,14 @@ _lock = threading.Lock()
 _engine: Optional["AsyncEngine"] = None  # noqa: F821
 _session_factory: Optional["async_sessionmaker[AsyncSession]"] = None  # noqa: F821
 
-
-def _get_database_url() -> Optional[str]:
-    """Return DATABASE_URL from environment, or None."""
-    return os.environ.get("DATABASE_URL") or None
-
-
-def _setup_sqlite_pragmas(engine: "AsyncEngine") -> None:  # noqa: F821
-    """Set WAL mode + performance pragmas on every new SQLite connection."""
-    from sqlalchemy import event
-
-    sync_engine = engine.sync_engine
-    db_url = str(sync_engine.url)
-    if "sqlite" not in db_url:
-        return
-
-    @event.listens_for(sync_engine, "connect")
-    def _set_sqlite_pragmas(dbapi_conn, connection_record):
-        cursor = dbapi_conn.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA synchronous=NORMAL")
-        cursor.execute("PRAGMA busy_timeout=5000")
-        cursor.close()
-
-
-def _setup_pool_metrics(engine: "AsyncEngine") -> None:  # noqa: F821
-    """Attach SQLAlchemy pool event listeners for observability.
-
-    Logs pool checkout/checkin events at DEBUG level so pool exhaustion
-    issues can be diagnosed from structured logs.
-    """
-    from sqlalchemy import event
-
-    sync_engine = engine.sync_engine
-
-    @event.listens_for(sync_engine, "checkout")
-    def _on_checkout(dbapi_conn, connection_record, connection_proxy):
-        pool = sync_engine.pool
-        logger.debug(
-            "DB pool checkout: size=%d, checked_in=%d, overflow=%d",
-            pool.size(),
-            pool.checkedin(),
-            pool.overflow(),
-        )
-
-    @event.listens_for(sync_engine, "checkin")
-    def _on_checkin(dbapi_conn, connection_record):
-        pool = sync_engine.pool
-        logger.debug(
-            "DB pool checkin: size=%d, checked_in=%d, overflow=%d",
-            pool.size(),
-            pool.checkedin(),
-            pool.overflow(),
-        )
-
-
-def _warn_no_db() -> None:
-    warnings.warn(
-        "DATABASE_URL is not set — database operations are no-ops.",
-        RuntimeWarning,
-        stacklevel=3,
-    )
+# Stateless engine-setup helpers live in _database_setup; re-imported here so
+# existing services.infra.database.<name> references and patch targets work.
+from services.infra._database_setup import (  # noqa: E402
+    _get_database_url,
+    _setup_pool_metrics,
+    _setup_sqlite_pragmas,
+    _warn_no_db,
+)
 
 
 # ---------------------------------------------------------------------------
