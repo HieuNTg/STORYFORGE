@@ -1,10 +1,13 @@
 """Smart Chapter Revision — auto-detect and fix weak chapters using agent reviews."""
 
 import logging
-import re
 
 from models.schemas import AgentReview, Chapter, EnhancedStory, StoryScore
 from services.llm_client import LLMClient
+from services.pipeline._smart_revision_review import (
+    aggregate_review_guidance,
+    find_chapters_with_agent_issues,
+)
 from services.pipeline.quality_scorer import QualityScorer
 from services import prompts
 
@@ -58,9 +61,7 @@ class SmartRevisionService:
         ]
 
         # Also find chapters with significant agent issues (even if quality score is OK)
-        chapters_with_issues = self._find_chapters_with_agent_issues(
-            reviews, min_issues=3
-        )
+        chapters_with_issues = find_chapters_with_agent_issues(reviews, min_issues=3)
         weak_chapter_nums = {cs.chapter_number for cs in weak_scores}
 
         # Add chapters with agent issues that aren't already in weak list
@@ -95,9 +96,7 @@ class SmartRevisionService:
             if not chapter:
                 continue
 
-            issues, suggestions = self._aggregate_review_guidance(
-                cs.chapter_number, reviews
-            )
+            issues, suggestions = aggregate_review_guidance(cs.chapter_number, reviews)
             old_score = cs.overall
 
             revised = False
@@ -194,69 +193,6 @@ class SmartRevisionService:
             "score_deltas": score_deltas,
         }
 
-    def _aggregate_review_guidance(
-        self, chapter_number: int, reviews: list[AgentReview]
-    ) -> tuple[list[str], list[str]]:
-        """Collect relevant issues and suggestions for a specific chapter.
-
-        Returns (issues, suggestions) capped at 5 each.
-        """
-        issues = []
-        suggestions = []
-        # Word-boundary regex to avoid false positives (e.g. "1" matching "chương 10")
-        ch_pattern = re.compile(rf"\bch(?:ương\s*)?{chapter_number}\b", re.IGNORECASE)
-
-        def _mentions_chapter(text: str) -> bool:
-            return bool(ch_pattern.search(text))
-
-        for review in reviews:
-            # Chapter-specific: mentions this chapter number
-            for issue in review.issues:
-                if _mentions_chapter(issue):
-                    issues.append(f"[{review.agent_name}] {issue}")
-            for suggestion in review.suggestions:
-                sug_text = str(suggestion)
-                if _mentions_chapter(sug_text):
-                    suggestions.append(f"[{review.agent_name}] {sug_text}")
-
-            # General issues from low-scoring agents (not chapter-specific)
-            if review.score < 0.6:
-                for issue in review.issues:
-                    if not _mentions_chapter(issue) and len(issues) < 5:
-                        issues.append(f"[{review.agent_name}] {issue}")
-                for suggestion in review.suggestions:
-                    sug_text = str(suggestion)
-                    if not _mentions_chapter(sug_text) and len(suggestions) < 5:
-                        suggestions.append(f"[{review.agent_name}] {sug_text}")
-
-        return issues[:5], suggestions[:5]
-
-    def _find_chapters_with_agent_issues(
-        self, reviews: list[AgentReview], min_issues: int = 3
-    ) -> set[int]:
-        """Find chapters that have significant issues from agent reviews.
-
-        Even if overall quality score is OK, chapters with many agent-reported
-        issues should be revised.
-
-        Returns set of chapter numbers with >= min_issues total issues.
-        """
-        chapter_issue_count: dict[int, int] = {}
-        ch_pattern = re.compile(r"\bch(?:ương\s*)?(\d+)\b", re.IGNORECASE)
-
-        for review in reviews:
-            # Count issues per chapter
-            for issue in review.issues:
-                matches = ch_pattern.findall(issue)
-                for ch_num_str in matches:
-                    ch_num = int(ch_num_str)
-                    chapter_issue_count[ch_num] = chapter_issue_count.get(ch_num, 0) + 1
-
-            # Also count suggestions as potential issues
-            for suggestion in review.suggestions:
-                matches = ch_pattern.findall(str(suggestion))
-                for ch_num_str in matches:
-                    ch_num = int(ch_num_str)
-                    chapter_issue_count[ch_num] = chapter_issue_count.get(ch_num, 0) + 1
-
-        return {ch for ch, count in chapter_issue_count.items() if count >= min_issues}
+    def _aggregate_review_guidance(self, chapter_number: int, reviews):
+        """Instance shim kept for callers/tests; logic in _smart_revision_review."""
+        return aggregate_review_guidance(chapter_number, reviews)
