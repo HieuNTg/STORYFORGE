@@ -735,3 +735,16 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Gate: EXIT 0/0/0/5(expected)/0, 4658 passed (= baseline+5 from intervening work; pure refactor adds 0), coverage 72.86% (baseline 72.87%, within ±0.02pp noise band; floor 70.61%).
 - **Loop retrospective**: Smooth (~25 min). No new friction — `gate_chunks_output.txt` now gitignored (cycle #41 chore), git status stays clean.
 - **Stage Summary**: character agent now respects the 200-line rule with emotional-state primitives isolated in an internal module. Remaining 200–250L backlog: services/export/branch_epub_exporter.py (248), services/infra/database.py (250). Commit `e1af0eb`.
+
+## Cycle #43 — Split services/export/branch_epub_exporter.py into exporter + assets
+
+- **Task ID**: 43-branch-epub-split
+- **Agent**: eng-loop (Claude)
+- **Task**: Bring services/export/branch_epub_exporter.py (248L) under the 200-line rule with zero behavior change. Impact scan via Serena `get_symbols_overview` + Grep cross-check: the only external consumer is api/branch_routes.py (`BranchEPUBExporter.export(...)`). The class's static `_enumerate_paths`/`_get_css` and the module `_html_escape` have NO external callers — the `_get_css`/`_html_escape` matches in tests/services belong to the *separate* services/epub_exporter.py (`EPUBExporter`) module. Refactoring the branch exporter's internals is therefore externally invisible. Split-safe.
+- **Work Log**:
+  - New `services/export/_branch_epub_assets.py` (92L): `_enumerate_paths` → module function `enumerate_paths(root_id, nodes)` and `_get_css` → `get_css()`, bodies moved verbatim (no imports needed).
+  - `branch_epub_exporter.py` (248→164L): keeps `_html_escape` (used throughout `export`) and `BranchEPUBExporter.export`; imports `enumerate_paths`/`get_css` from the assets module and calls them directly (call sites `BranchEPUBExporter._get_css()`→`get_css()`, `._enumerate_paths(...)`→`enumerate_paths(...)`); the two static methods removed (no external callers).
+  - Targeted: tests/test_export_coverage.py -k branch/epub 4 passed; ruff check + format clean; smoke OK (`get_css()` len 735, `enumerate_paths` single-leaf path correct).
+  - Gate: EXIT 0/0/0/5(expected)/0, 4658 passed (= baseline+5 from intervening work; pure refactor adds 0), coverage 72.86% (baseline 72.87%, within ±0.02pp noise band; floor 70.61%).
+- **Loop retrospective**: Smooth (~25 min). Note: single-class file (no separable second public class), so the split extracted the two helper static methods to module functions rather than the move-and-re-export pattern used in #41/#42 — chosen because the helpers have no external callers, so no re-export shim is needed.
+- **Stage Summary**: branch EPUB exporter now respects the 200-line rule with path-enumeration + CSS isolated in an internal assets module. Remaining 200–250L backlog: services/infra/database.py (250). Commit `<pending>`.
