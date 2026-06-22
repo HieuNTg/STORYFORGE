@@ -3,13 +3,23 @@
 Phase 1: Sequential within batches, frozen context snapshots at batch boundaries.
 Phase 2: asyncio.gather() within batches for true parallelism (gated by feature flag).
 Phase 3: Contract retry + cross-batch causal sync.
+
+Structural note: this module is the stable public import surface. The heavy
+parallel/threaded helpers live in sibling modules and are mixed into
+``BatchChapterGenerator``; the small context primitives live in
+``batch_context``. The following names are re-exported here unchanged so that
+``from pipeline.layer1_story.batch_generator import X`` keeps working for
+``X`` in {``BatchChapterGenerator``, ``FrozenContext``, ``CausalAccumulator``,
+``_index_chapter_into_rag``}.
+
+``_run_batch_async`` / ``_run_batch_sequential`` stay in this module on purpose:
+both call the module-global ``_index_chapter_into_rag`` that tests patch via
+``pipeline.layer1_story.batch_generator._index_chapter_into_rag``.
 """
 
 import asyncio
 import logging
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Callable
 
 from models.schemas import StoryDraft, StoryContext, ChapterOutline, Chapter
@@ -34,64 +44,23 @@ from pipeline.layer1_story.contract_batch_retry import validate_and_retry_thread
 from pipeline.layer1_story.contract_validation_retry import (
     validate_and_retry_contract,
 )
-from pipeline.layer1_story.parallel_write_context import (
-    assemble_parallel_write_inputs,
-)
+
+from pipeline.layer1_story.batch_context import CausalAccumulator, FrozenContext
+from pipeline.layer1_story.batch_parallel_dispatch import ParallelDispatchMixin
+from pipeline.layer1_story.batch_parallel_writer import ParallelWriteMixin
 
 logger = logging.getLogger(__name__)
 
-
-@dataclass
-class CausalAccumulator:
-    """Thread-safe accumulator for causal events across parallel chapters.
-
-    Used to sync causal graph updates after parallel batch completes.
-    """
-
-    events: list[dict] = field(default_factory=list)
-    _lock: threading.Lock = field(default_factory=threading.Lock)
-
-    def add_event(
-        self,
-        chapter_num: int,
-        event_type: str,
-        description: str,
-        causes: list[int] = None,
-        effects: list[int] = None,
-    ):
-        with self._lock:
-            self.events.append(
-                {
-                    "chapter": chapter_num,
-                    "type": event_type,
-                    "description": description,
-                    "causes": causes or [],
-                    "effects": effects or [],
-                }
-            )
-
-    def get_events_sorted(self) -> list[dict]:
-        with self._lock:
-            return sorted(self.events, key=lambda e: e["chapter"])
-
-    def clear(self):
-        with self._lock:
-            self.events.clear()
+# Re-exported for backwards-compatible imports (see module docstring).
+__all__ = [
+    "BatchChapterGenerator",
+    "FrozenContext",
+    "CausalAccumulator",
+    "_index_chapter_into_rag",
+]
 
 
-class FrozenContext:
-    """Immutable context snapshot taken at batch boundary."""
-
-    __slots__ = ("recent_summaries", "character_states", "plot_events", "chapter_texts")
-
-    def __init__(self, story_context: StoryContext, all_chapter_texts: list[str]):
-        self.recent_summaries = list(story_context.recent_summaries)
-        self.character_states = list(story_context.character_states)
-        self.plot_events = list(story_context.plot_events)
-        self.chapter_texts = list(all_chapter_texts)
-
-
-class BatchChapterGenerator:
+class BatchChapterGenerator(ParallelDispatchMixin, ParallelWriteMixin):
     """Generate chapters in batches with frozen context snapshots.
 
     When parallel_chapters_enabled=False (default), behaves identically to
@@ -561,131 +530,6 @@ class BatchChapterGenerator:
 
         return chapters
 
-    def _run_batch_parallel(
-        self,
-        batch: list[ChapterOutline],
-        frozen: FrozenContext,
-        draft: StoryDraft,
-        story_context: StoryContext,
-        all_chapter_texts: list[str],
-        title: str,
-        genre: str,
-        style: str,
-        characters: list,
-        world,
-        word_count: int,
-        context_window: int,
-        executor: ThreadPoolExecutor,
-        self_reviewer,
-        progress_callback,
-        macro_arcs=None,
-        conflict_web=None,
-        foreshadowing_plan=None,
-        premise=None,
-        voice_profiles=None,
-        idea: str = "",
-        idea_summary: str = "",
-    ) -> list[Chapter]:
-        """Run a single batch in parallel (Phase 2/3).
-
-        Improvements:
-        - #1: Uses asyncio.gather() when parallel_use_asyncio=True
-        - #2: Contract validation with retry
-        - #3: Cross-batch causal sync via CausalAccumulator
-        """
-        # Route to async or thread-based implementation
-        if self.use_asyncio:
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                loop = None
-
-            if loop and loop.is_running():
-                # Already in async context — run directly
-                import concurrent.futures
-
-                with concurrent.futures.ThreadPoolExecutor() as pool:
-                    future = pool.submit(
-                        asyncio.run,
-                        self._run_batch_async(
-                            batch,
-                            frozen,
-                            draft,
-                            story_context,
-                            all_chapter_texts,
-                            title,
-                            genre,
-                            style,
-                            characters,
-                            world,
-                            word_count,
-                            context_window,
-                            executor,
-                            self_reviewer,
-                            progress_callback,
-                            macro_arcs,
-                            conflict_web,
-                            foreshadowing_plan,
-                            premise,
-                            voice_profiles,
-                            idea,
-                            idea_summary,
-                        ),
-                    )
-                    return future.result()
-            else:
-                return asyncio.run(
-                    self._run_batch_async(
-                        batch,
-                        frozen,
-                        draft,
-                        story_context,
-                        all_chapter_texts,
-                        title,
-                        genre,
-                        style,
-                        characters,
-                        world,
-                        word_count,
-                        context_window,
-                        executor,
-                        self_reviewer,
-                        progress_callback,
-                        macro_arcs,
-                        conflict_web,
-                        foreshadowing_plan,
-                        premise,
-                        voice_profiles,
-                        idea,
-                        idea_summary,
-                    )
-                )
-        else:
-            return self._run_batch_threaded(
-                batch,
-                frozen,
-                draft,
-                story_context,
-                all_chapter_texts,
-                title,
-                genre,
-                style,
-                characters,
-                world,
-                word_count,
-                context_window,
-                executor,
-                self_reviewer,
-                progress_callback,
-                macro_arcs,
-                conflict_web,
-                foreshadowing_plan,
-                premise,
-                voice_profiles,
-                idea,
-                idea_summary,
-            )
-
     async def _run_batch_async(
         self,
         batch: list[ChapterOutline],
@@ -909,335 +753,3 @@ class BatchChapterGenerator:
             )
 
         return chapters_ordered
-
-    def _write_chapter_parallel(
-        self,
-        outline: ChapterOutline,
-        frozen: FrozenContext,
-        draft: StoryDraft,
-        story_context: StoryContext,
-        frozen_threads: list,
-        sibling_summaries: str,
-        shared_enhancement: str,
-        title: str,
-        genre: str,
-        style: str,
-        characters: list,
-        world,
-        word_count: int,
-        macro_arcs,
-        conflict_web,
-        foreshadowing_plan,
-        progress_callback,
-        causal_acc: CausalAccumulator | None,
-        idea: str = "",
-        idea_summary: str = "",
-        override_contract=None,
-    ) -> tuple[Chapter, dict | None]:
-        """Write a single chapter for parallel execution. Returns (chapter, contract)."""
-        try:
-            from services.trace_context import set_chapter, set_module
-
-            set_chapter(outline.chapter_number)
-            set_module("chapter_writer")
-        except Exception:
-            pass
-        (
-            bible_ctx,
-            frozen_ctx,
-            active_conflicts,
-            seeds,
-            payoffs,
-            pacing,
-            arc_context,
-            per_chapter_enhancement,
-        ) = assemble_parallel_write_inputs(
-            self.gen,
-            self.config,
-            self.llm,
-            outline=outline,
-            frozen=frozen,
-            draft=draft,
-            story_context=story_context,
-            frozen_threads=frozen_threads,
-            sibling_summaries=sibling_summaries,
-            shared_enhancement=shared_enhancement,
-            characters=characters,
-            world=world,
-            genre=genre,
-            macro_arcs=macro_arcs,
-            conflict_web=conflict_web,
-            foreshadowing_plan=foreshadowing_plan,
-        )
-
-        # Contract
-        p_contract, p_contract_text = build_contract_for_chapter(
-            self.config,
-            outline,
-            threads=frozen_threads,
-            macro_arcs=macro_arcs,
-            conflicts=conflict_web,
-            foreshadowing_plan=foreshadowing_plan,
-            characters=characters,
-            override_contract=override_contract,
-        )
-
-        if progress_callback:
-            progress_callback(
-                f"Đang viết chương {outline.chapter_number}: {outline.title}..."
-            )
-
-        _p_negotiated = p_contract.to_negotiated() if p_contract is not None else None
-        ch_result = self.gen._write_chapter_with_long_context(
-            title,
-            genre,
-            style,
-            characters,
-            world,
-            outline,
-            word_count,
-            frozen_ctx,
-            list(frozen.chapter_texts),
-            bible_ctx,
-            open_threads=frozen_threads,
-            active_conflicts=active_conflicts,
-            foreshadowing_to_plant=seeds,
-            foreshadowing_to_payoff=payoffs,
-            pacing_type=pacing,
-            enhancement_context=per_chapter_enhancement,
-            current_arc_context=arc_context,
-            chapter_contract=p_contract_text,
-            negotiated_contract=_p_negotiated,
-            idea=idea,
-            idea_summary=idea_summary,
-        )
-
-        if p_contract is not None:
-            try:
-                ch_result.contract = p_contract
-                object.__setattr__(
-                    ch_result, "negotiated_contract", p_contract.to_negotiated()
-                )
-            except Exception:
-                pass
-
-        # Causal event extraction (#3 improvement)
-        if causal_acc:
-            self._extract_causal_events(ch_result, outline, causal_acc)
-
-        return ch_result, p_contract
-
-    def _extract_causal_events(
-        self,
-        chapter: Chapter,
-        outline: ChapterOutline,
-        causal_acc: CausalAccumulator,
-    ):
-        """Extract causal events from chapter for cross-batch sync."""
-        try:
-            # Simple heuristic: extract key plot points from content
-            # More sophisticated: use LLM to identify cause-effect chains
-            keywords = ["vì thế", "do đó", "kết quả", "dẫn đến", "bởi vì", "nên"]
-            content_lower = chapter.content.lower()
-            for kw in keywords:
-                if kw in content_lower:
-                    causal_acc.add_event(
-                        chapter_num=outline.chapter_number,
-                        event_type="causal_marker",
-                        description=f"Chapter {outline.chapter_number} contains causal keyword: {kw}",
-                    )
-                    break
-        except Exception as e:
-            logger.debug(
-                "Causal extraction failed for ch%d: %s", outline.chapter_number, e
-            )
-
-    def _sync_causal_events(
-        self,
-        causal_acc: CausalAccumulator,
-        story_context: StoryContext,
-        progress_callback,
-    ):
-        """Sync accumulated causal events back to story_context."""
-        events = causal_acc.get_events_sorted()
-        if not events:
-            return
-
-        # Merge into story_context.plot_events or a dedicated causal_graph
-        causal_graph = getattr(story_context, "causal_graph", None)
-        if causal_graph and hasattr(causal_graph, "add_event"):
-            for ev in events:
-                try:
-                    causal_graph.add_event(
-                        chapter=ev["chapter"],
-                        event_type=ev["type"],
-                        description=ev["description"],
-                    )
-                except Exception:
-                    pass
-
-        if progress_callback and events:
-            progress_callback(
-                f"[CAUSAL] Synced {len(events)} causal events from parallel batch"
-            )
-
-    def _run_batch_threaded(
-        self,
-        batch: list[ChapterOutline],
-        frozen: FrozenContext,
-        draft: StoryDraft,
-        story_context: StoryContext,
-        all_chapter_texts: list[str],
-        title: str,
-        genre: str,
-        style: str,
-        characters: list,
-        world,
-        word_count: int,
-        context_window: int,
-        executor: ThreadPoolExecutor,
-        self_reviewer,
-        progress_callback,
-        macro_arcs=None,
-        conflict_web=None,
-        foreshadowing_plan=None,
-        premise=None,
-        voice_profiles=None,
-        idea: str = "",
-        idea_summary: str = "",
-    ) -> list[Chapter]:
-        """Thread-based batch execution (fallback when asyncio disabled)."""
-        sibling_summaries = self._build_sibling_context(batch)
-        frozen_threads = list(story_context.open_threads)
-
-        from pipeline.layer1_story.enhancement_context_builder import (
-            build_shared_enhancement_context,
-        )
-
-        shared_enhancement = build_shared_enhancement_context(
-            self.config,
-            genre,
-            premise=premise,
-            voice_profiles=voice_profiles,
-        )
-
-        causal_acc = CausalAccumulator() if self.causal_sync else None
-
-        max_workers = min(len(batch), 5)
-        with ThreadPoolExecutor(max_workers=max_workers) as write_executor:
-            futures = {
-                write_executor.submit(
-                    self._write_chapter_parallel,
-                    o,
-                    frozen,
-                    draft,
-                    story_context,
-                    frozen_threads,
-                    sibling_summaries,
-                    shared_enhancement,
-                    title,
-                    genre,
-                    style,
-                    characters,
-                    world,
-                    word_count,
-                    macro_arcs,
-                    conflict_web,
-                    foreshadowing_plan,
-                    progress_callback,
-                    causal_acc,
-                    idea,
-                    idea_summary,
-                ): o
-                for o in batch
-            }
-            chapters = []
-            contracts = {}
-            for future in as_completed(futures):
-                outline = futures[future]
-                try:
-                    chapter, contract = future.result()
-                    chapters.append(chapter)
-                    if contract:
-                        contracts[chapter.chapter_number] = contract
-                except Exception as e:
-                    logger.error(
-                        "Threaded write failed for chapter %d: %s",
-                        outline.chapter_number,
-                        e,
-                    )
-                    raise
-
-        # Contract validation with retry (#2 improvement)
-        chapters = validate_and_retry_threaded(
-            self,
-            chapters=chapters,
-            contracts=contracts,
-            batch=batch,
-            frozen=frozen,
-            draft=draft,
-            story_context=story_context,
-            frozen_threads=frozen_threads,
-            sibling_summaries=sibling_summaries,
-            shared_enhancement=shared_enhancement,
-            title=title,
-            genre=genre,
-            style=style,
-            characters=characters,
-            world=world,
-            word_count=word_count,
-            macro_arcs=macro_arcs,
-            conflict_web=conflict_web,
-            foreshadowing_plan=foreshadowing_plan,
-            progress_callback=progress_callback,
-            idea=idea,
-            idea_summary=idea_summary,
-        )
-
-        chapters_ordered = sorted(chapters, key=lambda c: c.chapter_number)
-
-        # Causal sync (#3 improvement)
-        if causal_acc and self.causal_sync:
-            self._sync_causal_events(causal_acc, story_context, progress_callback)
-
-        if progress_callback:
-            progress_callback(
-                f"[BATCH] {len(chapters_ordered)} chương viết xong, đang trích xuất context..."
-            )
-
-        for outline, chapter in zip(
-            sorted(batch, key=lambda o: o.chapter_number), chapters_ordered
-        ):
-            all_chapter_texts.append(chapter.content)
-            finalize_chapter(
-                pipeline_config=self.config.pipeline,
-                llm=self.llm,
-                chapter=chapter,
-                outline=outline,
-                story_context=story_context,
-                characters=characters,
-                context_window=context_window,
-                executor=executor,
-                draft=draft,
-                bible_manager=self.gen.bible_manager,
-                progress_callback=progress_callback,
-                genre=genre,
-                word_count=word_count,
-                enable_self_review=self.config.pipeline.enable_self_review,
-                self_reviewer=self_reviewer,
-                open_threads=frozen_threads,
-                foreshadowing_plan=foreshadowing_plan,
-                layer_model=self.gen._layer_model,
-            )
-
-        return chapters_ordered
-
-    @staticmethod
-    def _build_sibling_context(batch: list[ChapterOutline]) -> str:
-        """Build sibling outline context for parallel chapters to avoid duplication."""
-        if len(batch) <= 1:
-            return ""
-        lines = []
-        for o in batch:
-            lines.append(f"- Ch{o.chapter_number}: {o.title} — {o.summary}")
-        return "\n".join(lines)

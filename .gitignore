@@ -108,3 +108,6 @@ backend*.log*
 frontend*.log*
 storyforge.log*
 pytest-batch*.log
+
+# uv lockfile (not tracked by team decision)
+uv.lock
