@@ -789,3 +789,17 @@ F821: `chapter_contract.py` forward ref fixed via `TYPE_CHECKING` import (commit
   - Gate: EXIT 0/0/0/5(expected)/0, 4658 passed (= baseline), 0 failed, combined coverage 73% (≈ baseline 72.87%; floor 70.61%, hard gate 60%).
 - **Loop retrospective**: Smooth (~30 min). The #45 lesson paid off immediately — grepped tests/ for bare names up front, caught the patch targets before touching anything, and chose the split boundary specifically to avoid the patch-namespace coupling. No mid-cycle gate failure this time.
 - **Stage Summary**: chapter contract builder now respects the 200-line rule with the pure-Python assembly + event-matching isolated in an internal module. 250–270L band remaining: pipeline/layer1_story/consistency_validators.py (268). Commit `d4a7f29`.
+
+## Cycle #47 - Split pipeline/layer1_story/batch_generator.py into context/dispatch/writer modules
+
+- **Task ID**: 47-batch-generator-split
+- **Agent**: eng-loop (Claude, via OpenClaw orchestrator)
+- **Task**: Bring pipeline/layer1_story/batch_generator.py (1243L, the worst oversized file) toward the 200-line rule with zero behavior change. Public import surface must stay stable: BatchChapterGenerator, FrozenContext, CausalAccumulator, _index_chapter_into_rag are imported by generator.py + 5 test files (test_batch_generator, test_batch_continuity, test_context_health, test_chapter_writer_rag, test_pipeline_agents_zero_coverage). Impact scan via Serena find_referencing_symbols before any move.
+- **Work Log**:
+  - New `batch_context.py` (62L): `CausalAccumulator` + `FrozenContext` (the small context/dataclass helpers) moved verbatim.
+  - New `batch_parallel_dispatch.py` (303L) + `batch_parallel_writer.py` (205L): parallel dispatch + writer helpers extracted.
+  - `batch_generator.py` (1243->755L): keeps `BatchChapterGenerator` core (deliberately not butchered to hit 200 - cohesive orchestrator class) and re-exports the moved names so every existing `from pipeline.layer1_story.batch_generator import X` keeps working unchanged.
+  - **Backlog correction**: the worklog #11 P1 noted this file at 1891L; it had already shrunk to 1243L across cycles #12-46. Likewise #11's "457 files fail ruff format" backlog is now 0 (all 559 files format-clean), and the "coverage 69.59% vs 70%" item is resolved - combined coverage now 72% term / 74.78% line-rate, comfortably over the 70% floor. All three #11 P1 items are closed.
+  - Verified: import surface intact (all 4 public names importable from batch_generator); ruff check pipeline/ = 0 errors; ruff format --check = 4 new files clean; targeted `batch_generator or batch_continuity or context_health` = 71 passed, 0 failed.
+- **Loop retrospective**: Orchestrator (OpenClaw) delegated to OpenClaw, then independently re-verified rather than trusting the agent's self-report. Early-cycle false alarm: direct `python`/`.venv` invocations failed with ModuleNotFoundError (pydantic) because the project runs under `uv run` - the env, not the refactor, was broken. Lesson: always verify via the project's real runner (`uv run pytest`) before judging an agent's test claims.
+- **Stage Summary**: worst oversized file cut by 513L; three cohesive sibling modules added, public API preserved via re-export. uv.lock added to .gitignore (team decision, not tracked). Commit `edf05a1`.
