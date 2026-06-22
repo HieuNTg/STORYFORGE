@@ -144,7 +144,7 @@ export function PipelineForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedNumChapters]);
 
-  const submit = form.handleSubmit((values) => {
+  const runPipeline = form.handleSubmit((values) => {
     const dramaLabel = DRAMA_TO_LABEL[Math.round(values.drama)] ?? "cao";
     const req: CreateStoryRequest = {
       title: "",
@@ -181,6 +181,15 @@ export function PipelineForm({
     };
     onSubmit(req);
   });
+
+  // Guard against a native GET form submission: the Base UI <Button type="submit">
+  // can navigate to `/forge/?idea=…` (serializing fields into the URL) before the
+  // RHF handler runs. Calling preventDefault() up front stops that native submit so
+  // the payload is POSTed via usePostStream instead. Run logic itself is unchanged.
+  const submit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    void runPipeline(e);
+  };
 
   return (
     <form onSubmit={submit} className="space-y-7">

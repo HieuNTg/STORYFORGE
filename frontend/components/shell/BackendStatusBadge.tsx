@@ -16,13 +16,15 @@ interface Props {
 }
 
 /**
- * Polls `/api/health` every 30s. Renders a gold pulse dot when reachable,
+ * Polls `/api/health/` every 30s. The trailing slash matches the app's
+ * `trailingSlash: true` config so Next dev doesn't 308-redirect the probe.
+ * Renders a gold pulse dot when reachable,
  * ShieldAlert + "offline" label otherwise. AbortController used to cancel
  * in-flight requests on unmount / refresh.
  */
 export function BackendStatusBadge({
   collapsed = false,
-  endpoint = "/api/health",
+  endpoint = "/api/health/",
   intervalMs = 30_000,
 }: Props) {
   const [status, setStatus] = useState<Status>("unknown");
