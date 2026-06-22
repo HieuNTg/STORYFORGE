@@ -907,9 +907,7 @@ def test_generate_cover_400_when_title_empty(client):
 def test_generate_cover_returns_null_when_service_declines(client):
     """Provider off / unconfigured must surface as 200 + cover_url=null, never
     an error — the cover is layered on top of an already-successful save."""
-    with patch(
-        "services.cover_image.generate_story_cover", return_value=None
-    ) as gen:
+    with patch("services.cover_image.generate_story_cover", return_value=None) as gen:
         r = client.post(
             "/images/library/generate-cover",
             json={"story_id": "story-1", "title": "T", "genre": "Tiên Hiệp"},
