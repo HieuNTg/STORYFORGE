@@ -91,13 +91,13 @@ def build_v1_router() -> APIRouter:
     Importing route modules is deferred to this factory to avoid circular
     imports at module load time and to keep startup cost explicit.
     """
-    from api.pipeline_routes import router as pipeline_router
-    from api.config_routes import router as config_router
-    from api.export_routes import router as export_router
-    from api.analytics_routes import router as analytics_router
-    from api.auth_routes import router as auth_router
-    from api.branch_routes import router as branch_router
-    from api.dashboard_routes import router as dashboard_router
+    from .pipeline_routes import router as pipeline_router
+    from .config_routes import router as config_router
+    from .export_routes import router as export_router
+    from .analytics_routes import router as analytics_router
+    from .auth_routes import router as auth_router
+    from .branch_routes import router as branch_router
+    from .dashboard_routes import router as dashboard_router
 
     v1 = APIRouter(prefix="/api/v1", route_class=_VersionedRoute)
 
