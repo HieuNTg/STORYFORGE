@@ -1234,7 +1234,10 @@ ForgeTraitKey = Literal["strength", "wisdom", "agility", "scheme"]
 
 
 class ForgeRequest(BaseModel):
-    sentenceIdea: str = Field(min_length=10, max_length=500)
+    # 500 fits a human one-liner ("Khai sinh"), but "Viết tiếp truyện" assembles
+    # story context (title, genre, tone, summary, cast, last chapter, direction)
+    # into the same field — that payload runs well past 500.
+    sentenceIdea: str = Field(min_length=10, max_length=2000)
 
 
 class ForgeCharacter(BaseModel):

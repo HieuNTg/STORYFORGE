@@ -954,6 +954,8 @@ class StoryGenerator:
         style="",
         progress_callback=None,
         stream_callback=None,
+        arc_directives: list = None,
+        direction: str = "",
     ) -> StoryDraft:
         """Continue writing from existing StoryDraft by adding more chapters."""
         from pipeline.layer1_story.story_continuation import continue_story as _c
@@ -966,6 +968,8 @@ class StoryGenerator:
             style,
             progress_callback,
             stream_callback,
+            arc_directives or [],
+            direction=direction,
         )
 
     @staticmethod

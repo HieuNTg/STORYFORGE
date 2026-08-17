@@ -29,6 +29,12 @@ from api.pipeline_routes import (
 )
 from pipeline.orchestrator import PipelineOrchestrator
 from services.continuation_history import read_events
+from services.library_continuation import (
+    LibraryStoryPayload,
+    enhance_tail,
+    hydrate_output,
+    new_chapters_response,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
@@ -50,6 +56,42 @@ class ContinueRequest(BaseModel):
     arc_directives: list[ArcDirective] = Field(
         default_factory=list, description="Character arc steering directives"
     )
+
+
+class ContinueLibraryRequest(BaseModel):
+    """Continue a localStorage Library story (no server-side checkpoint id).
+
+    The whole story travels in the body — same contract as the library export and
+    comic endpoints. See `services/library_continuation.py` for how it becomes a
+    StoryDraft.
+    """
+
+    story: LibraryStoryPayload
+    additional_chapters: int = Field(1, ge=1, le=50)
+    word_count: int = Field(2000, ge=100, le=20000)
+    style: str = Field("", max_length=100)
+    direction: str = Field(
+        "", max_length=2000, description="Free-text 'Hướng viết tiếp' from the user"
+    )
+    run_enhancement: bool = True
+    num_sim_rounds: int = Field(3, ge=1, le=10)
+    arc_directives: list[ArcDirective] = Field(default_factory=list)
+    outlines: list[dict] = Field(
+        default_factory=list,
+        description=(
+            "Pre-approved (possibly user-edited) ChapterOutline dicts from "
+            "/continue/library/outlines. Empty = plan them during this run."
+        ),
+    )
+
+
+class ContinueLibraryOutlineRequest(BaseModel):
+    """Preview continuation outlines for a Library story without writing prose."""
+
+    story: LibraryStoryPayload
+    additional_chapters: int = Field(1, ge=1, le=50)
+    direction: str = Field("", max_length=2000)
+    arc_directives: list[ArcDirective] = Field(default_factory=list)
 
 
 class RegenerateChapterRequest(BaseModel):
@@ -305,6 +347,256 @@ async def continue_story(request: Request, body: ContinueRequest):
         )
 
         async for frame in stream_job_events(request, job, label="continue"):
+            yield frame
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+def _clamp_to_target(draft, requested: int) -> tuple[int, str | None]:
+    """Clamp a chapter request to the story's remaining arc.
+
+    Returns `(effective_count, note)`; `note` is a user-facing message when the
+    request was reduced, or an error string when the story is already complete.
+    """
+    target = draft.target_total_chapters
+    if target is None:
+        return requested, None
+    remaining = max(0, int(target) - len(draft.chapters))
+    if remaining <= 0:
+        return 0, (
+            f"Truyện đã đạt {target}/{target} chương — "
+            "không còn dung lượng để viết thêm."
+        )
+    if requested > remaining:
+        return remaining, (
+            f"Chỉ còn {remaining} chương trong tổng {target}; sẽ viết {remaining}."
+        )
+    return requested, None
+
+
+@router.post("/continue/library/outlines")
+async def continue_library_outlines(body: ContinueLibraryOutlineRequest):
+    """Plan the next chapters for a Library story WITHOUT writing them.
+
+    Cheap and fast relative to a full continuation, so the reader can see (and
+    edit) where the story is heading before paying for prose. The edited
+    outlines go back to `/continue/library` as `outlines`.
+    """
+    if not body.story.chapters:
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Truyện chưa có chương nào để viết tiếp."},
+        )
+
+    output, source = await asyncio.to_thread(hydrate_output, body.story)
+    draft = output.story_draft
+
+    effective, note = _clamp_to_target(draft, body.additional_chapters)
+    if effective <= 0:
+        return JSONResponse(status_code=400, content={"error": note})
+
+    orch = PipelineOrchestrator()
+    orch.output = output
+    orch._sync_output()
+
+    try:
+        outlines = await asyncio.to_thread(
+            orch.generate_continuation_outlines,
+            additional_chapters=effective,
+            arc_directives=body.arc_directives,
+            direction=body.direction,
+        )
+    except Exception as e:
+        logger.exception("Library outline preview failed: %s", e)
+        return JSONResponse(
+            status_code=500, content={"error": "Không lên được dàn ý. Thử lại nhé."}
+        )
+
+    return {
+        "hydration_source": source,
+        "existing_chapters": len(draft.chapters),
+        "note": note,
+        "outlines": [o.model_dump() for o in outlines],
+    }
+
+
+@router.post("/continue/library")
+async def continue_library_story(request: Request, body: ContinueLibraryRequest):
+    """Continue a Library (localStorage) story through the real L1/L2 pipeline.
+
+    This is what the "Viết tiếp truyện" screen calls. Unlike `/continue`, there is
+    no checkpoint id — the client sends the story itself, we hydrate a draft from
+    it (enriched by the story's checkpoint when one exists), run the continuation
+    stack, and hand back only the newly written chapters for the client to append
+    to localStorage.
+
+    A checkpoint IS written as a side effect (`StoryContinuation.continue_story`
+    saves layer 1), so a story continued once becomes checkpoint-backed and every
+    later continuation starts from full L1 signals.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    payload = body.story
+
+    async def event_generator():
+        if not payload.chapters:
+            yield f"data: {json.dumps({'type': 'error', 'data': 'Truyện chưa có chương nào để viết tiếp.'})}\n\n"
+            return
+
+        async with _orchestrators_lock:
+            ip_count = sum(1 for (_, _, ip) in _sessions.values() if ip == client_ip)
+            if ip_count >= _MAX_SESSIONS_PER_IP:
+                yield f"data: {json.dumps({'type': 'error', 'data': f'Too many concurrent sessions (max {_MAX_SESSIONS_PER_IP}).'})}\n\n"
+                return
+
+        orch = PipelineOrchestrator()
+        session_id = str(uuid.uuid4())
+        async with _orchestrators_lock:
+            _sessions[session_id] = (orch, time.time(), client_ip)
+
+        job = await _jobs.register(session_id, kind="continue-library")
+        job.orchestrator = orch
+        on_progress, on_stream = make_progress_callbacks(job)
+
+        result: list = [None]
+        caught_error: list = [None]
+        was_cancelled: list = [False]
+        extra: dict = {}
+
+        async def _run_async():
+            try:
+                output, source = await asyncio.to_thread(hydrate_output, payload)
+                draft = output.story_draft
+                orch.output = output
+                orch._sync_output()
+
+                if source == "checkpoint":
+                    on_progress(
+                        "Đã nạp hồ sơ truyện đầy đủ (nhân vật, arc, tuyến xung đột, foreshadowing)."
+                    )
+                else:
+                    on_progress(
+                        "Không tìm thấy checkpoint gốc — dựng lại ngữ cảnh từ nội dung truyện."
+                    )
+                on_progress(f"Chương hiện có: {len(draft.chapters)}")
+
+                requested = len(body.outlines) or body.additional_chapters
+                effective, note = _clamp_to_target(draft, requested)
+                if effective <= 0:
+                    caught_error[0] = note
+                    job.progress_queue.put_nowait(("error", caught_error[0]))
+                    return
+                if note:
+                    on_progress(note)
+
+                previous_count = len(draft.chapters)
+
+                if body.outlines:
+                    # The reader already reviewed (and possibly edited) the plan
+                    # via /continue/library/outlines — write it as approved
+                    # instead of re-planning and silently overriding them.
+                    try:
+                        approved = [
+                            ChapterOutline(**o) for o in body.outlines[:effective]
+                        ]
+                    except Exception as e:
+                        caught_error[0] = f"Dàn ý không hợp lệ: {e}"
+                        job.progress_queue.put_nowait(("error", caught_error[0]))
+                        return
+                    on_progress(f"Viết {len(approved)} chương từ dàn ý đã duyệt...")
+                    await asyncio.to_thread(
+                        orch.write_from_outlines,
+                        outlines=approved,
+                        word_count=body.word_count,
+                        style=body.style,
+                        progress_callback=on_progress,
+                        stream_callback=on_stream,
+                        arc_directives=body.arc_directives,
+                    )
+                else:
+                    on_progress(f"Lên dàn ý và viết {effective} chương tiếp theo...")
+                    await asyncio.to_thread(
+                        orch.continue_story,
+                        additional_chapters=effective,
+                        word_count=body.word_count,
+                        style=body.style,
+                        progress_callback=on_progress,
+                        stream_callback=on_stream,
+                        arc_directives=body.arc_directives,
+                        direction=body.direction,
+                    )
+
+                final_draft = orch.output.story_draft
+                enhanced_count = 0
+                if body.run_enhancement:
+                    on_progress("Chạy Layer 2 (mô phỏng kịch tính + tăng cường)...")
+                    enhanced_count = await asyncio.to_thread(
+                        enhance_tail,
+                        orch.continuation,
+                        final_draft,
+                        previous_count,
+                        num_sim_rounds=body.num_sim_rounds,
+                        word_count=body.word_count,
+                        progress_callback=on_progress,
+                    )
+                    if enhanced_count:
+                        # continue_story already checkpointed the L1 prose; persist
+                        # the enhanced text so the next continuation reads what the
+                        # user actually has.
+                        await asyncio.to_thread(orch.save_checkpoint, 1)
+
+                new_chapters = new_chapters_response(final_draft, previous_count)
+                if not new_chapters:
+                    caught_error[0] = "Pipeline không sinh được chương mới nào."
+                    job.progress_queue.put_nowait(("error", caught_error[0]))
+                    return
+
+                extra["new_chapters"] = new_chapters
+                extra["hydration_source"] = source
+                extra["total_chapters"] = len(final_draft.chapters)
+                extra["enhanced_chapters"] = enhanced_count
+                result[0] = orch.output
+            except asyncio.CancelledError:
+                logger.info("Library continue cancelled (session=%s)", session_id)
+                was_cancelled[0] = True
+                raise
+            except (ValueError, TypeError) as e:
+                logger.warning(
+                    "Library continue input error (session=%s): %s", session_id, e
+                )
+                caught_error[0] = f"Invalid data: {e}"
+                job.progress_queue.put_nowait(("error", caught_error[0]))
+            except (TimeoutError, ConnectionError) as e:
+                logger.error(
+                    "Library continue network error (session=%s): %s", session_id, e
+                )
+                caught_error[0] = "Network error. Please try again."
+                job.progress_queue.put_nowait(("error", caught_error[0]))
+            except Exception as e:
+                logger.exception(
+                    "Library continue error (session=%s): %s", session_id, e
+                )
+                caught_error[0] = "An unexpected error occurred."
+                job.progress_queue.put_nowait(("error", caught_error[0]))
+            finally:
+                await finalize_job(
+                    session_id,
+                    job,
+                    result[0],
+                    caught_error=caught_error[0],
+                    was_cancelled=was_cancelled[0],
+                    cancelled_msg="Continuation was cancelled.",
+                    extra_summary=extra or None,
+                )
+
+        launch_job_task(
+            session_id, job, _run_async(), cancelled_msg="Continuation was cancelled."
+        )
+
+        async for frame in stream_job_events(request, job, label="continue/library"):
             yield frame
 
     return StreamingResponse(

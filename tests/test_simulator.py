@@ -250,3 +250,77 @@ class TestRunSimulationSignalPassthrough:
             conflict_web=conflicts,
         )
         assert sim.conflict_web == conflicts
+
+
+class TestMalformedEvaluationPayloads:
+    """The drama evaluator is an LLM call — it sometimes returns a list of
+    strings where event objects are expected. That used to raise
+    AttributeError ('str' object has no attribute 'get') out of
+    `run_simulation_async`, killing the whole L2 pass mid-run."""
+
+    def _sim_with_evaluation(self, evaluation):
+        import asyncio
+
+        sim = _sim()
+        sim.setup_agents([_char("A")], [])
+
+        async def _round(*a, **kw):
+            return []
+
+        sim.simulate_round_async = _round
+        sim.evaluate_drama = MagicMock(return_value=evaluation)
+        sim._check_escalation = MagicMock(return_value=[])
+        # Post-loop suggestion generation is a live LLM call — stub it so the
+        # test exercises only the event-parsing guard.
+        sim._generate_suggestions = MagicMock(return_value={"suggestions": []})
+        return sim, asyncio
+
+    def test_string_events_are_skipped_not_fatal(self):
+        sim, asyncio = self._sim_with_evaluation(
+            {
+                "overall_drama_score": 0.6,
+                "events": ["Lý Trầm bị phản bội", "Bí mật bị lộ"],
+                "relationship_changes": [],
+            }
+        )
+        result = asyncio.run(
+            sim.run_simulation_async([_char("A")], [], "Tiên Hiệp", num_rounds=1)
+        )
+        assert result is not None
+
+    def test_string_relationship_changes_are_skipped(self):
+        sim, asyncio = self._sim_with_evaluation(
+            {
+                "overall_drama_score": 0.6,
+                "events": [],
+                "relationship_changes": ["A ghét B"],
+            }
+        )
+        result = asyncio.run(
+            sim.run_simulation_async([_char("A")], [], "Tiên Hiệp", num_rounds=1)
+        )
+        assert result is not None
+
+    def test_well_formed_events_still_recorded(self):
+        sim, asyncio = self._sim_with_evaluation(
+            {
+                "overall_drama_score": 0.7,
+                "events": [
+                    {
+                        "event_type": "phản_bội",
+                        "characters_involved": ["A"],
+                        "description": "A bị phản bội",
+                        "drama_score": 0.8,
+                    }
+                ],
+                "relationship_changes": [],
+            }
+        )
+        result = asyncio.run(
+            sim.run_simulation_async([_char("A")], [], "Tiên Hiệp", num_rounds=1)
+        )
+        assert result is not None
+        assert any(
+            getattr(e, "event_type", "") == "phản_bội"
+            for e in getattr(result, "events", [])
+        )

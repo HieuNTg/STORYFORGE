@@ -52,8 +52,20 @@ def build_output_summary(output) -> dict:
             "synopsis": _san(d.synopsis),
             "target_total_chapters": getattr(d, "target_total_chapters", None),
             "written_chapters": len(d.chapters),
+            # The Library persists this roster verbatim (see
+            # `frontend/lib/library/story-mappers.ts`), and the continuation
+            # pipeline reads it back when a story has no checkpoint — so emit
+            # the full sheet, not just name+personality.
             "characters": [
-                {"name": _san(c.name), "personality": _san(c.personality)}
+                {
+                    "name": _san(c.name),
+                    "role": _san(c.role),
+                    "personality": _san(c.personality),
+                    "background": _san(getattr(c, "background", "")),
+                    "secret": _san(getattr(c, "secret", "")),
+                    "motivation": _san(getattr(c, "motivation", "")),
+                    "internal_conflict": _san(getattr(c, "internal_conflict", "")),
+                }
                 for c in d.characters
             ],
             "chapters": [
@@ -61,6 +73,10 @@ def build_output_summary(output) -> dict:
                     "number": ch.chapter_number,
                     "title": _san(ch.title),
                     "content": _san(ch.content),
+                    # Chapter summaries are what `rebuild_context` feeds the
+                    # continuation planner; dropping them here forced the
+                    # continuation to re-derive them from prose.
+                    "summary": _san(ch.summary or ""),
                     # Prefer images set directly on the draft chapter; otherwise
                     # fall back to the enhanced chapter's panels (same number).
                     "images": _chapter_image_urls(ch)
@@ -95,6 +111,7 @@ def build_output_summary(output) -> dict:
                     "number": ch.chapter_number,
                     "title": _san(ch.title),
                     "content": _san(ch.content),
+                    "summary": _san(getattr(ch, "summary", "") or ""),
                     "images": _chapter_image_urls(ch),
                 }
                 for ch in es.chapters

@@ -32,7 +32,13 @@ export type Traits = z.infer<typeof traitsSchema>;
 export const forgeCharacterSchema = z.object({
   name: z.string().min(1),
   role: forgeRoleSchema,
-  traits: traitsSchema,
+  /**
+   * `null` when the character came from the L1 pipeline, which models
+   * personality/backstory/conflict but has no 0-100 trait axes. The forge
+   * always supplies them. Consumers must render an empty state rather than
+   * invent numbers — a radar chart of fabricated 50s reads as real data.
+   */
+  traits: traitsSchema.nullable().default(null),
   description: z.string(),
   backstory: z.string(),
   secret: z.string(),
@@ -67,7 +73,7 @@ export const forgeResponseSchema = z.object({
 export type ForgeResponse = z.infer<typeof forgeResponseSchema>;
 
 export const forgeRequestSchema = z.object({
-  sentenceIdea: z.string().min(10).max(500),
+  sentenceIdea: z.string().min(10).max(2000),
 });
 export type ForgeRequest = z.infer<typeof forgeRequestSchema>;
 

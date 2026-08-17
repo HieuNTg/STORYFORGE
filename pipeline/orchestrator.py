@@ -307,6 +307,15 @@ class PipelineOrchestrator:
         self._sync_output()
         return self.checkpoint.save(layer)
 
+    def save_checkpoint(self, layer: int) -> str:
+        """Public alias for `_save_checkpoint`.
+
+        Callers outside the pipeline package (e.g. the library continuation
+        route, which persists L2-enhanced prose after `continue_story` has
+        already checkpointed the L1 pass) should use this.
+        """
+        return self._save_checkpoint(layer)
+
     @classmethod
     def list_checkpoints(cls) -> list:
         """List available checkpoints sorted newest-first."""
@@ -344,10 +353,18 @@ class PipelineOrchestrator:
         style: str = "",
         progress_callback=None,
         stream_callback=None,
+        arc_directives: list = None,
+        direction: str = "",
     ) -> StoryDraft:
         self._sync_output()
         result = self.continuation.continue_story(
-            additional_chapters, word_count, style, progress_callback, stream_callback
+            additional_chapters,
+            word_count,
+            style,
+            progress_callback,
+            stream_callback,
+            arc_directives=arc_directives or [],
+            direction=direction,
         )
         self.output = self.continuation.output
         self._sync_output()
@@ -390,6 +407,7 @@ class PipelineOrchestrator:
         additional_chapters: int = 5,
         progress_callback=None,
         arc_directives: list = None,
+        direction: str = "",
     ) -> list:
         """Generate outlines for continuation without writing chapters."""
         self._sync_output()
@@ -397,6 +415,7 @@ class PipelineOrchestrator:
             additional_chapters=additional_chapters,
             progress_callback=progress_callback,
             arc_directives=arc_directives,
+            direction=direction,
         )
 
     def write_from_outlines(

@@ -288,12 +288,17 @@ async def finalize_job(
     caught_error: Optional[str],
     was_cancelled: bool,
     cancelled_msg: str = "Run was cancelled.",
+    extra_summary: Optional[dict] = None,
 ) -> None:
     """Persist a worker's terminal state into the registry. Call from the
     worker's `finally`. Mirrors `/run`'s finalisation: build a summary from a
     successful output, surface the real reason for an error-status output, or
     record the captured exception message — writing `cancelled` when the task
-    was cancelled rather than mislabelling it `error`."""
+    was cancelled rather than mislabelling it `error`.
+
+    `extra_summary` is merged into the success summary — used by callers that
+    need to hand the client data the generic builder doesn't carry (e.g. the
+    library continuation's freshly written chapters)."""
     final_summary = None
     final_error = None
     output_status = getattr(output, "status", None) if output is not None else None
@@ -306,6 +311,8 @@ async def finalize_job(
             final_summary["session_id"] = session_id
             final_summary["logs"] = list(job.logs)
             _sanitize_summary(final_summary)
+            if extra_summary:
+                final_summary.update(extra_summary)
         except Exception as exc:
             logger.exception(
                 "Failed to build final summary (session=%s): %s", session_id, exc

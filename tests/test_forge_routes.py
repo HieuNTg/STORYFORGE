@@ -127,12 +127,22 @@ def test_forge_rejects_short_sentence(client):
 
 
 def test_forge_rejects_long_sentence(client):
-    """Pydantic rejects sentence > 500 chars with 422."""
+    """Pydantic rejects sentence > 2000 chars with 422."""
     with patch.object(
         forge_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)
     ):
-        resp = client.post("/api/forge/sentence", json={"sentenceIdea": "x" * 501})
+        resp = client.post("/api/forge/sentence", json={"sentenceIdea": "x" * 2001})
     assert resp.status_code == 422
+
+
+def test_forge_accepts_continue_story_context_payload(client):
+    """"Viết tiếp truyện" assembles story context into sentenceIdea — the old
+    500-char cap rejected it with 422 before the handler ever ran."""
+    with patch.object(
+        forge_routes, "_get_llm", return_value=_mock_llm(VALID_LLM_PAYLOAD)
+    ):
+        resp = client.post("/api/forge/sentence", json={"sentenceIdea": "x" * 700})
+    assert resp.status_code == 200
 
 
 def test_forge_rate_limit_429(client):

@@ -50,6 +50,7 @@ class StoryContinuation:
         progress_callback=None,
         stream_callback=None,
         arc_directives: list = None,
+        direction: str = "",
     ) -> StoryDraft:
         """Continue writing from current StoryDraft."""
         if not self.output.story_draft:
@@ -69,6 +70,7 @@ class StoryContinuation:
             progress_callback=progress_callback,
             stream_callback=stream_callback,
             arc_directives=arc_directives or [],
+            direction=direction,
         )
         self.output.story_draft = draft
         self.checkpoint_manager.output = self.output
@@ -143,6 +145,7 @@ class StoryContinuation:
         additional_chapters: int = 5,
         progress_callback=None,
         arc_directives: list = None,
+        direction: str = "",
     ) -> list[ChapterOutline]:
         """Generate outlines for continuation without writing chapters.
 
@@ -162,6 +165,7 @@ class StoryContinuation:
             additional_chapters=additional_chapters,
             progress_callback=progress_callback,
             arc_directives=arc_directives or [],
+            direction=direction,
         )
         return outlines
 

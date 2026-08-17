@@ -13,7 +13,13 @@
  */
 
 import { genStoryId } from "@/lib/library/ids";
-import type { ForgeResponse, Story, StoryChapter } from "@/types/story";
+import type {
+  ForgeCharacter,
+  ForgeResponse,
+  ForgeRole,
+  Story,
+  StoryChapter,
+} from "@/types/story";
 
 function genChapterId(): string {
   return `ch-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -75,11 +81,20 @@ export interface PipelineDoneSummary {
     synopsis?: string;
     target_total_chapters?: number | null;
     written_chapters?: number;
-    characters?: Array<{ name?: string; personality?: string }>;
+    characters?: Array<{
+      name?: string;
+      role?: string;
+      personality?: string;
+      background?: string;
+      secret?: string;
+      motivation?: string;
+      internal_conflict?: string;
+    }>;
     chapters?: Array<{
       number?: number;
       title?: string;
       content?: string;
+      summary?: string;
     }>;
   };
   enhanced?: {
@@ -89,8 +104,28 @@ export interface PipelineDoneSummary {
       number?: number;
       title?: string;
       content?: string;
+      summary?: string;
     }>;
   };
+}
+
+/**
+ * Map a backend `Character.role` onto the Library's four-way role enum.
+ *
+ * L1 writes free-form Vietnamese ("chính", "phản diện", …); the forge writes
+ * the enum directly. Anything unrecognised becomes "supporting" — a wrong
+ * badge is recoverable, a dropped character is not.
+ */
+export function normaliseRole(role: string | undefined): ForgeRole {
+  const r = (role ?? "").trim().toLowerCase();
+  if (!r) return "supporting";
+  if (["protagonist", "antagonist", "rival", "supporting"].includes(r)) {
+    return r as ForgeRole;
+  }
+  if (r.includes("phản") || r.includes("ác")) return "antagonist";
+  if (r.includes("đối thủ") || r.includes("kình địch")) return "rival";
+  if (r.includes("chính")) return "protagonist";
+  return "supporting";
 }
 
 /**
@@ -115,22 +150,43 @@ export function pipelineSummaryToStory(
   const description = draft?.synopsis?.trim() ?? "";
   const status: StoryChapter["status"] = enhanced ? "enhanced" : "ready";
 
-  const chapters: StoryChapter[] = sourceChapters.map((ch, idx) => ({
-    id: `ch-${idx + 1}-${Date.now().toString(36)}`,
-    title: (ch.title ?? `Chương ${ch.number ?? idx + 1}`).trim() ||
-      `Chương ${ch.number ?? idx + 1}`,
-    content: ch.content ?? "",
-    summary: "",
-    badge: "Ch" as const,
-    status,
-    images: [],
-    createdAt: now,
-  }));
+  // L2 rewrites prose but does not re-summarise, so a chapter's summary lives
+  // on the draft. Match by chapter number rather than index — the enhanced list
+  // is not guaranteed to be dense.
+  const draftSummaries = new Map<number, string>(
+    (draft?.chapters ?? []).map((ch, idx) => [ch.number ?? idx + 1, ch.summary ?? ""]),
+  );
 
-  // Pipeline character schema is `{name, personality}` — far thinner than the
-  // ForgeCharacter (role + traits + backstory + …) required by `storySchema`.
-  // Persist an empty character roster for v1; the user can flesh it out later
-  // via the Characters page. Avoids forcing a fake `role` / zero-stat traits.
+  const chapters: StoryChapter[] = sourceChapters.map((ch, idx) => {
+    const number = ch.number ?? idx + 1;
+    return {
+      id: `ch-${idx + 1}-${Date.now().toString(36)}`,
+      title: (ch.title ?? `Chương ${number}`).trim() || `Chương ${number}`,
+      content: ch.content ?? "",
+      summary: ch.summary || draftSummaries.get(number) || "",
+      badge: "Ch" as const,
+      status,
+      images: [],
+      createdAt: now,
+    };
+  });
+
+  // Carry the roster across. The pipeline models personality/backstory/secret/
+  // conflict but has no 0-100 trait axes, so `traits` stays null and the
+  // Characters page offers to generate them — previously the whole roster was
+  // dropped, which also cost the continuation pipeline its character context.
+  const characters: ForgeCharacter[] = (draft?.characters ?? [])
+    .filter((c) => (c.name ?? "").trim())
+    .map((c) => ({
+      name: (c.name ?? "").trim(),
+      role: normaliseRole(c.role),
+      traits: null,
+      description: c.personality ?? "",
+      backstory: c.background ?? "",
+      secret: c.secret ?? "",
+      conflict: c.internal_conflict || c.motivation || "",
+    }));
+
   // Prefer explicit caller value; fall back to backend's draft.target_total_chapters.
   const effectiveTarget =
     targetChapters ??
@@ -149,7 +205,7 @@ export function pipelineSummaryToStory(
     description,
     coverUrl: null,
     galleryShareId: "",
-    characters: [],
+    characters,
     chapters,
     pendingChoices: null,
     language: "vi",
