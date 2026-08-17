@@ -1114,6 +1114,14 @@ class DramaSimulator:
 
             # Trích xuất sự kiện + liên kết nhân quả
             for ev in evaluation.get("events", []):
+                # The drama evaluator sometimes returns a list of plain strings
+                # instead of event objects. `ev.get` then raises AttributeError,
+                # which the handler below did not catch — killing the whole run.
+                if not isinstance(ev, dict):
+                    logger.debug(
+                        f"Skipping non-dict simulation event at round {round_num}: {type(ev).__name__}"
+                    )
+                    continue
                 try:
                     event = SimulationEvent(
                         round_number=round_num,
@@ -1135,7 +1143,7 @@ class DramaSimulator:
                             self.causal_graph.add_event(event)
                         except Exception as e:
                             logger.debug(f"causal_graph.add_event lỗi: {e}")
-                except (KeyError, ValueError, TypeError) as e:
+                except (KeyError, ValueError, TypeError, AttributeError) as e:
                     logger.debug(
                         f"Skipping malformed simulation event at round {round_num}: {e}"
                     )
@@ -1171,6 +1179,8 @@ class DramaSimulator:
 
             # Cập nhật mối quan hệ
             for change in evaluation.get("relationship_changes", []):
+                if not isinstance(change, dict):
+                    continue
                 self._update_relationship(change)
 
             # Ghi lại arc cảm xúc sau mỗi vòng

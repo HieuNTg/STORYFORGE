@@ -351,11 +351,15 @@ def generate_continuation_outlines(
     additional_chapters: int = 5,
     progress_callback=None,
     arc_directives: list = None,
+    direction: str = "",
 ) -> list[ChapterOutline]:
     """Generate outlines for continuation without writing chapters.
 
     Args:
         arc_directives: List of ArcDirective objects for character arc steering
+        direction: Free-text steering from the user ("Hướng viết tiếp"). Appended
+            to the outline prompt; empty string = let the story continue on its
+            own momentum.
 
     Returns list of ChapterOutline objects that can be edited by user before writing.
     """
@@ -466,6 +470,14 @@ CHỈ THỊ ARC NHÂN VẬT (QUAN TRỌNG - phải tuân theo):
 {arc_text}
 
 Các dàn ý PHẢI thể hiện sự chuyển đổi arc của nhân vật theo chỉ thị trên. Chia đều tiến trình arc qua các chương."""
+
+    if direction and direction.strip():
+        base_prompt += f"""
+
+HƯỚNG VIẾT TIẾP DO NGƯỜI DÙNG CHỈ ĐỊNH (QUAN TRỌNG - phải tuân theo):
+{direction.strip()}
+
+Các dàn ý PHẢI triển khai hướng này, đồng thời vẫn tôn trọng mạch truyện, thể loại và các tuyến đang mở ở trên."""
 
     result = generator.llm.generate_json(
         system_prompt="Bạn là biên kịch tài năng viết truyện bằng tiếng Việt. BẮT BUỘC: Toàn bộ output phải viết bằng tiếng Việt, không được dùng ngôn ngữ khác. Trả về JSON.",
@@ -829,6 +841,7 @@ def continue_story(
     progress_callback=None,
     stream_callback=None,
     arc_directives: list = None,
+    direction: str = "",
 ) -> StoryDraft:
     """Continue writing from existing StoryDraft by adding more chapters.
 
@@ -838,12 +851,18 @@ def continue_story(
 
     Args:
         arc_directives: List of ArcDirective objects for character arc steering
+        direction: Free-text user steering for the new chapters
     """
     arc_directives = arc_directives or []
 
     # Step 1: Generate outlines
     new_outlines = generate_continuation_outlines(
-        generator, draft, additional_chapters, progress_callback, arc_directives
+        generator,
+        draft,
+        additional_chapters,
+        progress_callback,
+        arc_directives,
+        direction=direction,
     )
     if not new_outlines:
         if progress_callback:

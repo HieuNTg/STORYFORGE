@@ -114,3 +114,71 @@ def test_existing_fields_unaffected():
     assert result["has_draft"] is True
     assert "draft" in result
     assert result["draft"]["title"] == "Test Story"
+
+
+class TestRosterAndSummariesSurvive:
+    """The Library persists this payload verbatim and the continuation pipeline
+    reads it back, so dropping fields here silently degrades continuations."""
+
+    def _draft_with_content(self):
+        from models.schemas import Chapter, Character, StoryDraft
+
+        return StoryDraft(
+            title="Phụng Hoàng Tàn",
+            genre="Tiên Hiệp",
+            synopsis="Một câu chuyện.",
+            characters=[
+                Character(
+                    name="Lý Hữu",
+                    role="chính",
+                    personality="Cương trực",
+                    background="Xuất thân hàn vi",
+                    motivation="Tìm sư phụ",
+                    internal_conflict="Trung nghĩa hay tự do",
+                    secret="Hậu duệ phụng hoàng",
+                )
+            ],
+            chapters=[
+                Chapter(
+                    chapter_number=1,
+                    title="Khởi đầu",
+                    content="Nội dung.",
+                    summary="Lý Hữu rời quê.",
+                )
+            ],
+        )
+
+    def test_chapter_summary_is_emitted(self):
+        out = _make_output(draft=self._draft_with_content())
+        summary = build_output_summary(out)
+        assert summary["draft"]["chapters"][0]["summary"] == "Lý Hữu rời quê."
+
+    def test_character_sheet_is_emitted_in_full(self):
+        out = _make_output(draft=self._draft_with_content())
+        char = build_output_summary(out)["draft"]["characters"][0]
+        assert char["name"] == "Lý Hữu"
+        assert char["role"] == "chính"
+        assert char["personality"] == "Cương trực"
+        assert char["background"] == "Xuất thân hàn vi"
+        assert char["secret"] == "Hậu duệ phụng hoàng"
+        assert char["internal_conflict"] == "Trung nghĩa hay tự do"
+        assert char["motivation"] == "Tìm sư phụ"
+
+    def test_enhanced_chapters_carry_summary(self):
+        from models.schemas import Chapter, EnhancedStory
+
+        enhanced = EnhancedStory(
+            title="Phụng Hoàng Tàn",
+            genre="Tiên Hiệp",
+            chapters=[
+                Chapter(
+                    chapter_number=1,
+                    title="Khởi đầu",
+                    content="Bản nâng cao.",
+                    summary="Lý Hữu rời quê.",
+                )
+            ],
+        )
+        out = _make_output(draft=self._draft_with_content(), enhanced=enhanced)
+        summary = build_output_summary(out)
+        assert summary["enhanced"]["chapters"][0]["summary"] == "Lý Hữu rời quê."

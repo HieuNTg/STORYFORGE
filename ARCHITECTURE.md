@@ -198,7 +198,7 @@ The API has 38 route modules under `api/`, plus a versioned `api/v1/` router:
 | `auth_routes.py` | `/auth` | Register, login, me |
 | `character_routes.py` | `/characters` | CRUD operations |
 | `branch_routes.py` | `/branch` | Alternate paths |
-| `continuation_routes.py` | `/continue` | Continue/edit stories |
+| `continuation_routes.py` | `/pipeline` | Continue/edit stories. `POST /continue` is checkpoint-addressed; `POST /continue/library` takes a whole localStorage story in the body (hydrated by `services/library_continuation.py`) and is what the "Viết tiếp truyện" screen calls, with `POST /continue/library/outlines` planning the next chapters for review/editing first |
 | `export_routes.py` | `/export` | PDF, EPUB, Markdown |
 | `quality_routes.py` | `/quality` | Quality scoring |
 | `simulation_routes.py` | `/simulation` | Drama scenarios |

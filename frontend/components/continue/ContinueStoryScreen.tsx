@@ -2,17 +2,34 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, BookOpen, Sparkles } from "lucide-react";
+import { ArrowLeft, BookOpen, ListChecks, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { rehydrateLibrary, useLibraryStore } from "@/stores/library-store";
-import { forgeFromSentenceStream } from "@/lib/api/forge";
+import { usePostStream } from "@/lib/sse/usePostStream";
+import {
+  buildContinueBody,
+  CONTINUE_LIBRARY_URL,
+  fetchContinueOutlines,
+  type ContinuationOutline,
+  type ContinueDoneData,
+  type ContinueRequestBody,
+} from "@/lib/api/continueStory";
 import type { StoryChapter } from "@/types/story";
 import { displayStoryTitle } from "@/lib/library/display-helpers";
 import { getChapterDefault, getChapterRange } from "@/lib/library/chapter-defaults";
+import {
+  clampWordCount,
+  MAX_WORD_COUNT,
+  MIN_WORD_COUNT,
+  suggestWordCount,
+} from "@/lib/library/chapter-length";
+
+/** Matches `ContinueLibraryRequest.direction` (max_length=2000) on the backend. */
+const MAX_DIRECTION_LEN = 2000;
 
 export function ContinueStoryScreen() {
   const router = useRouter();
@@ -30,9 +47,32 @@ export function ContinueStoryScreen() {
   const [storyId, setStoryId] = React.useState("");
   const [chapterCount, setChapterCount] = React.useState(1);
   const [direction, setDirection] = React.useState("");
+  /** null = follow the story's own rhythm (see `suggestWordCount`). */
+  const [wordCountOverride, setWordCountOverride] = React.useState<number | null>(
+    null,
+  );
+  /**
+   * A reviewed plan, tagged with the story+batch it was made for. Keeping the
+   * key on the value (instead of resetting via an effect) means a plan simply
+   * stops applying when the user switches story or batch size — no cascading
+   * render, no stale outlines written against the wrong chapters.
+   */
+  const [plan, setPlan] = React.useState<{
+    key: string;
+    outlines: ContinuationOutline[];
+  } | null>(null);
+  const [isPlanning, setIsPlanning] = React.useState(false);
   const [isWriting, setIsWriting] = React.useState(false);
-  const [stage, setStage] = React.useState<string | null>(null);
+  const [progressLine, setProgressLine] = React.useState("");
   const [written, setWritten] = React.useState(0);
+  /**
+   * Body of the in-flight continuation. `usePostStream` keys off this
+   * reference, so it is set once per run and cleared when the run settles —
+   * never rebuilt during render.
+   */
+  const [pendingBody, setPendingBody] = React.useState<ContinueRequestBody | null>(
+    null,
+  );
 
   React.useEffect(() => {
     rehydrateLibrary();
@@ -63,99 +103,171 @@ export function ContinueStoryScreen() {
 
   const maxBatch = remaining == null ? 10 : Math.max(1, remaining);
 
+  const suggestedWordCount = React.useMemo(
+    () => suggestWordCount(story?.chapters ?? []),
+    [story],
+  );
+  const effectiveWordCount = wordCountOverride ?? suggestedWordCount;
+
+  const planKey = `${storyId}:${chapterCount}`;
+  const outlines = plan?.key === planKey ? plan.outlines : null;
+
   React.useEffect(() => {
     if (chapterCount > maxBatch) setChapterCount(maxBatch);
   }, [chapterCount, maxBatch]);
 
-  const buildIdea = React.useCallback(
-    (chapterNumber: number) => {
-      if (!story) return "";
-      const lastChapter = story.chapters.at(-1);
-      const characters = story.characters.map((c) => c.name).filter(Boolean).slice(0, 8).join(", ");
-      const automaticDirection =
-        "Không có chỉ đạo riêng: hãy tự nối tiếp từ chương cuối, giữ đúng thể loại, tông giọng, nhân vật và mở thêm cao trào hợp lý.";
-      const isFinal = target != null && chapterNumber >= target;
-      const targetLine =
-        target != null
-          ? isFinal
-            ? `Đây là CHƯƠNG CUỐI (Chương ${chapterNumber}/${target}) — bắt buộc khép trọn vẹn cốt truyện, giải quyết mâu thuẫn chính và đóng arc nhân vật. KHÔNG để cliffhanger, KHÔNG mở mạch mới.`
-            : `Chương ${chapterNumber}/${target} — còn ${target - chapterNumber} chương trước khi truyện phải kết thúc, hãy điều tiết nhịp độ phù hợp.`
-          : `Đây là chương viết tiếp số ${chapterNumber}.`;
-      return [
-        `Viết tiếp truyện "${story.title}".`,
-        story.genre ? `Thể loại: ${story.genre}.` : "",
-        story.tone ? `Tông giọng: ${story.tone}.` : "",
-        story.description ? `Tóm tắt truyện: ${story.description}` : "",
-        characters ? `Nhân vật chính/phụ đã biết: ${characters}.` : "",
-        lastChapter
-          ? `Chương gần nhất: ${lastChapter.title}. ${lastChapter.summary || lastChapter.content.slice(0, 220)}`
-          : "Truyện chưa có chương; hãy viết chương mở đầu phù hợp với tiền đề.",
-        targetLine,
-        direction.trim() ? `Chỉ đạo của người dùng: ${direction.trim()}` : automaticDirection,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .slice(0, 700);
-    },
-    [direction, story, target],
-  );
+  /**
+   * False while a run is in flight and has not yet produced a terminal frame.
+   * The SSE stream always closes after `done`/`error`, so `onClose` needs this
+   * to tell "closed normally" from "closed on us mid-run".
+   */
+  const settledRef = React.useRef(true);
 
-  const stageLabel = React.useCallback(
-    (s: string | null) => {
-      switch (s) {
-        case "planning":
-          return t("writing_stage_planning");
-        case "characters":
-          return t("writing_stage_characters");
-        case "chapter":
-          return t("writing_stage_chapter");
-        case "choices":
-          return t("writing_stage_choices");
-        default:
-          return t("writing_stage_default");
+  const finish = React.useCallback((message?: string) => {
+    settledRef.current = true;
+    setPendingBody(null);
+    setIsWriting(false);
+    setProgressLine(message ?? "");
+  }, []);
+
+  const handleDone = React.useCallback(
+    (data: ContinueDoneData) => {
+      const chapters = data.new_chapters ?? [];
+      if (!story || chapters.length === 0) {
+        finish();
+        toast.error(t("toast_failed_title"), { description: t("toast_no_chapters") });
+        return;
       }
-    },
-    [t],
-  );
-
-  const handleWrite = React.useCallback(async () => {
-    if (!story || isWriting) return;
-    setIsWriting(true);
-    setWritten(0);
-    try {
-      for (let i = 0; i < chapterCount; i += 1) {
-        setStage("planning");
-        const result = await forgeFromSentenceStream(
-          { sentenceIdea: buildIdea(story.chapters.length + i + 1) },
-          { onStage: (nextStage) => setStage(nextStage) },
-        );
-        const now = new Date().toISOString();
+      const now = new Date().toISOString();
+      chapters.forEach((ch, i) => {
         const chapter: StoryChapter = {
           id: `chapter-${Date.now().toString(36)}-${i}`,
-          title: result.firstChapter.title || `Chương ${story.chapters.length + i + 1}`,
-          content: result.firstChapter.content,
-          summary: result.firstChapter.summary,
+          title: ch.title || `Chương ${ch.number}`,
+          content: ch.content,
+          summary: ch.summary,
           badge: "Ch",
-          status: "ready",
+          status: (data.enhanced_chapters ?? 0) > 0 ? "enhanced" : "ready",
           images: [],
           createdAt: now,
         };
         appendChapter(story.id, chapter);
-        setWritten(i + 1);
-      }
+      });
+      setWritten(chapters.length);
+      finish();
       toast.success(t("toast_success_title"), {
-        description: t("toast_success_body", { count: chapterCount }),
+        description: t("toast_success_body", { count: chapters.length }),
       });
       router.push(`/reader/?id=${encodeURIComponent(story.id)}`);
-    } catch (err) {
+    },
+    [appendChapter, finish, router, story, t],
+  );
+
+  const handleMessage = React.useCallback(
+    (ev: { data: string }) => {
+      if (!ev.data) return;
+      let frame: { type?: string; data?: unknown };
+      try {
+        frame = JSON.parse(ev.data);
+      } catch {
+        return; // heartbeat / non-JSON comment frame
+      }
+      switch (frame.type) {
+        case "log":
+          if (typeof frame.data === "string") setProgressLine(frame.data);
+          break;
+        case "error":
+          finish();
+          toast.error(t("toast_failed_title"), {
+            description:
+              typeof frame.data === "string" ? frame.data : t("toast_unknown_error"),
+          });
+          break;
+        case "done":
+          handleDone((frame.data ?? {}) as ContinueDoneData);
+          break;
+        default:
+          break; // "session" / "stream" frames need no handling here
+      }
+    },
+    [finish, handleDone, t],
+  );
+
+  usePostStream({
+    url: pendingBody ? CONTINUE_LIBRARY_URL : null,
+    body: pendingBody,
+    onMessage: handleMessage,
+    onError: (err) => {
+      finish();
       toast.error(t("toast_failed_title"), {
         description: err instanceof Error ? err.message : String(err),
       });
+    },
+    onClose: () => {
+      // Server closed without a terminal frame — don't strand the UI in "writing".
+      if (settledRef.current) return;
+      finish();
+      toast.error(t("toast_failed_title"), {
+        description: t("toast_stream_closed"),
+      });
+    },
+  });
+
+  const handlePreviewOutlines = React.useCallback(async () => {
+    if (!story || isWriting || isPlanning) return;
+    setIsPlanning(true);
+    try {
+      const res = await fetchContinueOutlines(story, {
+        additionalChapters: chapterCount,
+        direction,
+      });
+      if (!res.outlines?.length) {
+        toast.error(t("toast_outline_failed"), {
+          description: t("toast_outline_empty"),
+        });
+        return;
+      }
+      setPlan({ key: planKey, outlines: res.outlines });
+      if (res.note) toast.info(res.note);
+    } catch (err) {
+      toast.error(t("toast_outline_failed"), {
+        description: err instanceof Error ? err.message : String(err),
+      });
     } finally {
-      setIsWriting(false);
-      setStage(null);
+      setIsPlanning(false);
     }
-  }, [appendChapter, buildIdea, chapterCount, isWriting, router, story, t]);
+  }, [chapterCount, direction, isPlanning, isWriting, planKey, story, t]);
+
+  const updateOutline = React.useCallback(
+    (index: number, patch: Partial<ContinuationOutline>) => {
+      setPlan((prev) =>
+        prev
+          ? {
+              ...prev,
+              outlines: prev.outlines.map((o, i) =>
+                i === index ? { ...o, ...patch } : o,
+              ),
+            }
+          : prev,
+      );
+    },
+    [],
+  );
+
+  const handleWrite = React.useCallback(() => {
+    if (!story || isWriting) return;
+    settledRef.current = false;
+    setIsWriting(true);
+    setWritten(0);
+    setProgressLine(t("writing_stage_default"));
+    setPendingBody(
+      buildContinueBody(story, {
+        additionalChapters: chapterCount,
+        direction,
+        wordCount: effectiveWordCount,
+        outlines: outlines ?? [],
+      }),
+    );
+  }, [chapterCount, direction, effectiveWordCount, isWriting, outlines, story, t]);
 
   if (!hydrated) {
     return (
@@ -187,7 +299,7 @@ export function ContinueStoryScreen() {
       </div>
 
       <section className="rounded-xl border border-border/60 bg-card/70 p-5 shadow-sm">
-        <div className="grid gap-4 md:grid-cols-[1fr_180px]">
+        <div className="grid gap-4 md:grid-cols-[1fr_180px_180px]">
           <label className="space-y-2 text-sm font-medium text-foreground">
             <span>{t("label_story")}</span>
             <select
@@ -232,6 +344,26 @@ export function ContinueStoryScreen() {
               disabled={isWriting || atTarget}
               className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             />
+          </label>
+
+          <label className="space-y-2 text-sm font-medium text-foreground">
+            <span>{t("label_word_count")}</span>
+            <input
+              type="number"
+              min={MIN_WORD_COUNT}
+              max={MAX_WORD_COUNT}
+              step={100}
+              value={effectiveWordCount}
+              onChange={(e) => setWordCountOverride(clampWordCount(Number(e.target.value)))}
+              disabled={isWriting || atTarget}
+              aria-label={t("label_word_count")}
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            />
+            <span className="block text-xs font-normal text-muted-foreground">
+              {wordCountOverride == null
+                ? t("word_count_auto", { value: suggestedWordCount })
+                : t("word_count_manual")}
+            </span>
           </label>
         </div>
 
@@ -308,7 +440,7 @@ export function ContinueStoryScreen() {
             <Textarea
               value={direction}
               onChange={(e) => setDirection(e.target.value)}
-              maxLength={500}
+              maxLength={MAX_DIRECTION_LEN}
               disabled={isWriting}
               className="min-h-36"
               placeholder={t("direction_placeholder")}
@@ -333,28 +465,95 @@ export function ContinueStoryScreen() {
           </div>
         </div>
 
+        {outlines ? (
+          <div className="mt-4 rounded-lg border border-border/60 bg-background/45 p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <ListChecks className="size-4" aria-hidden />
+                {t("outline_title", { count: outlines.length })}
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={isWriting || isPlanning}
+                onClick={() => setPlan(null)}
+              >
+                {t("outline_discard")}
+              </Button>
+            </div>
+            <p className="mb-3 text-xs text-muted-foreground">{t("outline_hint")}</p>
+            <ol className="space-y-3">
+              {outlines.map((o, i) => (
+                <li
+                  key={o.chapter_number ?? i}
+                  className="rounded-md border border-border/40 bg-card/40 p-3"
+                >
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {t("outline_chapter", { number: o.chapter_number ?? i + 1 })}
+                    </span>
+                    <input
+                      type="text"
+                      value={o.title ?? ""}
+                      onChange={(e) => updateOutline(i, { title: e.target.value })}
+                      disabled={isWriting}
+                      aria-label={t("outline_title_field")}
+                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                    />
+                  </div>
+                  <Textarea
+                    value={o.summary ?? ""}
+                    onChange={(e) => updateOutline(i, { summary: e.target.value })}
+                    disabled={isWriting}
+                    aria-label={t("outline_summary_field")}
+                    className="min-h-20 text-sm"
+                  />
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
+
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground" aria-live="polite">
             {isWriting
-              ? t("writing_progress", {
-                  stage: stageLabel(stage),
-                  written,
-                  total: chapterCount,
-                })
-              : t("completion_hint")}
+              ? progressLine || t("writing_stage_default")
+              : isPlanning
+                ? t("outline_planning")
+                : written > 0
+                  ? t("writing_done", { written })
+                  : t("completion_hint")}
           </p>
-          <Button
-            type="button"
-            onClick={() => void handleWrite()}
-            disabled={!story || isWriting || atTarget}
-          >
-            <Sparkles className="size-4" aria-hidden />
-            {isWriting
-              ? t("btn_writing")
-              : atTarget
-                ? t("btn_at_target")
-                : t("btn_write_n", { count: chapterCount })}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void handlePreviewOutlines()}
+              disabled={!story || isWriting || isPlanning || atTarget}
+            >
+              <ListChecks className="size-4" aria-hidden />
+              {isPlanning
+                ? t("btn_planning")
+                : outlines
+                  ? t("btn_replan")
+                  : t("btn_preview_outline")}
+            </Button>
+            <Button
+              type="button"
+              onClick={handleWrite}
+              disabled={!story || isWriting || isPlanning || atTarget}
+            >
+              <Sparkles className="size-4" aria-hidden />
+              {isWriting
+                ? t("btn_writing")
+                : atTarget
+                  ? t("btn_at_target")
+                  : outlines
+                    ? t("btn_write_approved", { count: outlines.length })
+                    : t("btn_write_n", { count: chapterCount })}
+            </Button>
+          </div>
         </div>
       </section>
     </div>

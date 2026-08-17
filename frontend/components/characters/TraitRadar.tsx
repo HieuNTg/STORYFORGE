@@ -24,7 +24,8 @@ const TraitRadarChart = dynamic(() => import("./TraitRadarChart"), {
 });
 
 export interface TraitRadarProps {
-  traits: Traits;
+  /** `null` for pipeline-authored characters, which have no trait axes. */
+  traits: Traits | null;
   genre?: string | null;
   size?: number;
   /** When true, suppress recharts and only render textual summary. */
@@ -45,6 +46,15 @@ export function TraitRadar({ traits, genre, size, textOnly }: TraitRadarProps) {
       scheme: tTraits("scheme"),
     };
   }, [genre, tTraits]);
+
+  if (!traits) {
+    // Show nothing rather than a radar of invented numbers.
+    return (
+      <p className="py-6 text-center text-xs text-muted-foreground">
+        {tTraits("empty")}
+      </p>
+    );
+  }
 
   const summary = TRAIT_AXES.map((k) => `${labels[k]} ${traits[k]}`).join(" · ");
 
