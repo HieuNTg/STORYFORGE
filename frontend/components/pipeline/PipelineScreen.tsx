@@ -314,13 +314,6 @@ export function PipelineScreen({
     };
   }, [phaseStats, requestedChapters]);
 
-  // ETA heuristic: ~22s per chapter for L1, plus a flat 90s envelope for L2
-  // post-processing. Refined later from real telemetry.
-  const etaSeconds = React.useMemo(() => {
-    if (!requestedChapters || requestedChapters <= 0) return undefined;
-    return Math.max(60, requestedChapters * 22 + 90);
-  }, [requestedChapters]);
-
   // Convert theater partialChapters → ResultPanel partial-chapter shape.
   const resultPartials = React.useMemo(
     () =>
@@ -354,7 +347,6 @@ export function PipelineScreen({
           characters={characterList}
           debateMarker={debateMarker ?? undefined}
           startedAt={startedAt ?? undefined}
-          etaSeconds={etaSeconds}
           running={pending}
           status={status}
           onCancel={pending ? handleCancel : undefined}
