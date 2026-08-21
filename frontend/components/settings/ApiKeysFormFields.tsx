@@ -46,6 +46,7 @@ interface ProviderPreset {
   model: string;
   models: Array<{ id: string; label: string }>;
   placeholder: string;
+  defaultKey?: string;
 }
 
 // Provider cards are served by the backend (single source of truth) —
@@ -76,9 +77,29 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
         model: p.model,
         models: p.models,
         placeholder: p.placeholder,
+        defaultKey: p.default_key,
       })),
     [providerPresetsQuery.data],
   );
+
+  // The key a card is currently holding. Local/dev bridges ship a `defaultKey`
+  // (a shared localhost token, not a user secret) so their card is usable
+  // without typing; everything else starts empty. Typing always wins — once
+  // the user edits the box, `providerKeys` holds the value, even if empty.
+  const keyFor = React.useCallback(
+    (preset: ProviderPreset) =>
+      providerKeys[preset.name] ?? preset.defaultKey ?? "",
+    [providerKeys],
+  );
+
+  // The model the card's <select> shows. A previously saved profile can hold a
+  // model that a preset no longer lists (a provider renamed or retired it), and
+  // a <select> whose value matches no <option> renders as blank — so fall back
+  // to the preset default instead of showing an empty picker.
+  function modelFor(preset: ProviderPreset, savedModel: string | undefined) {
+    const chosen = providerModels[preset.name] ?? savedModel ?? preset.model;
+    return preset.models.some((m) => m.id === chosen) ? chosen : preset.model;
+  }
 
   // IMPORTANT: defaults start empty for secrets. Showing the masked echo as a
   // value would let the user accidentally "save" the masked string back.
@@ -142,7 +163,7 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
   }, [config.llm.profiles]);
 
   async function saveProvider(preset: ProviderPreset) {
-    const apiKey = providerKeys[preset.name]?.trim() ?? "";
+    const apiKey = keyFor(preset).trim();
     if (!apiKey) {
       toast.error(t("form.api.enter_key_first", { provider: preset.label }));
       return;
@@ -155,11 +176,18 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
           name: preset.name,
           base_url: preset.baseUrl,
           api_key: apiKey,
-          model: providerModels[preset.name] || preset.model,
+          // Same resolution the <select> displays, so "Add"/"Update" saves the
+          // model the user is actually looking at.
+          model: modelFor(preset, profileByName.get(preset.name)?.model),
           enabled: true,
         }),
       });
-      setProviderKeys((prev) => ({ ...prev, [preset.name]: "" }));
+      // Drop the typed secret right after a successful save. A local/dev
+      // bridge falls back to its (non-secret) prefill so the card stays ready.
+      setProviderKeys((prev) => ({
+        ...prev,
+        [preset.name]: preset.defaultKey ?? "",
+      }));
       await queryClient.invalidateQueries({ queryKey: ["config"] });
       toast.success(t("form.api.saved_preset", { provider: preset.label }));
     } catch (e) {
@@ -201,7 +229,7 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
                       <div>
                         <div className="text-sm font-medium text-foreground">{preset.label}</div>
                         <select
-                          value={providerModels[preset.name] || existing?.model || preset.model}
+                          value={modelFor(preset, existing?.model)}
                           onChange={(e) =>
                             setProviderModels((prev) => ({
                               ...prev,
@@ -225,7 +253,7 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
                     <Input
                       type="password"
                       autoComplete="off"
-                      value={providerKeys[preset.name] ?? ""}
+                      value={keyFor(preset)}
                       onChange={(e) =>
                         setProviderKeys((prev) => ({
                           ...prev,
@@ -246,7 +274,7 @@ export function ApiKeysFormFields({ config }: ApiKeysFormFieldsProps) {
                         type="button"
                         size="sm"
                         variant="outline"
-                        disabled={busy || !(providerKeys[preset.name] ?? "").trim()}
+                        disabled={busy || !keyFor(preset).trim()}
                         onClick={() => saveProvider(preset)}
                       >
                         {busy ? t("form.saving") : existing ? t("update") : t("add")}

@@ -49,6 +49,10 @@ export interface ProviderPresetDTO {
   model: string;
   models: Array<{ id: string; label: string }>;
   placeholder: string;
+  // Only set for local/dev bridges whose "key" is a shared localhost token
+  // (see config/presets.py). Prefilled into the card's key box so setup is
+  // one click. Never present for real hosted providers.
+  default_key?: string;
 }
 
 export interface StorySummary {

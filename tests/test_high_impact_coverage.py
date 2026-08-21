@@ -705,6 +705,19 @@ class TestMorePresets:
                     f"Model entry in {preset['name']} missing id/label"
                 )
 
+    def test_prefilled_keys_are_localhost_only(self):
+        # `default_key` prefills the Settings key box. It exists for local dev
+        # bridges whose token is shared and non-secret; a hosted provider must
+        # never ship a key in the repo.
+        from config import PROVIDER_PRESETS
+
+        for preset in PROVIDER_PRESETS:
+            if "default_key" not in preset:
+                continue
+            assert preset["base_url"].startswith(
+                ("http://localhost", "http://127.0.0.1")
+            ), f"Provider preset {preset['name']} prefills a key for a non-local base_url"
+
 
 # ============================================================
 # services/llm/streaming.py — 53 statements, 10% coverage
