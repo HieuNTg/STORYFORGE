@@ -1,6 +1,7 @@
 """Retry logic, error classification, and credential-redaction utilities for LLM calls."""
 
 import re
+import sys
 import time
 import logging
 
@@ -43,11 +44,43 @@ def _is_auth_error(exc: Exception) -> bool:
     )
 
 
+def _is_transient_type(exc: Exception) -> bool:
+    """Type-based transient check — the reliable half of the classification.
+
+    Substring matching on ``str(exc)`` is fragile: the OpenAI SDK raises
+    ``APITimeoutError("Request timed out.")``, whose text contains "timed out"
+    but NOT the "timeout" keyword the string list looked for. That single gap
+    made every request timeout classify as FATAL/non-retryable, so one slow
+    response failed the call outright instead of retrying or rotating to the
+    next provider. Match the exception types first; strings stay as a fallback
+    for providers that wrap their errors in a plain Exception.
+    """
+    # Builtins: TimeoutError also covers asyncio.TimeoutError (aliased since
+    # 3.11), and ConnectionError covers reset/aborted/refused.
+    if isinstance(exc, (TimeoutError, ConnectionError)):
+        return True
+    for module, names in (
+        ("httpx", ("TimeoutException", "NetworkError", "RemoteProtocolError")),
+        ("openai", ("APITimeoutError", "APIConnectionError", "InternalServerError")),
+        ("anthropic", ("APITimeoutError", "APIConnectionError", "InternalServerError")),
+    ):
+        mod = sys.modules.get(module)
+        if mod is None:
+            continue  # provider SDK not imported — nothing of its type can be raised
+        for name in names:
+            klass = getattr(mod, name, None)
+            if isinstance(klass, type) and isinstance(exc, klass):
+                return True
+    return False
+
+
 def _is_transient(exc: Exception) -> bool:
     """Check if exception is transient (worth retrying)."""
     import json
 
     if isinstance(exc, json.JSONDecodeError):
+        return True
+    if _is_transient_type(exc):
         return True
     if isinstance(exc, RuntimeError) and (
         "empty choices" in str(exc).lower() or "empty content" in str(exc).lower()
@@ -60,10 +93,19 @@ def _is_transient(exc: Exception) -> bool:
         kw in exc_str
         for kw in (
             "timeout",
+            # "timed out" is NOT a substring of "timeout" — the OpenAI/Anthropic
+            # SDKs and httpx all phrase it this way ("Request timed out.",
+            # "Read timed out"). Omitting it is what made timeouts FATAL.
+            "timed out",
             "connection",
             "reset",
             "broken pipe",
             "incomplete chunked",
+            # Upstream-overloaded phrasings that carry no HTTP status code in
+            # the message, so _TRANSIENT_CODES above cannot catch them.
+            "temporarily unavailable",
+            "overloaded",
+            "try again",
         )
     ):
         return True

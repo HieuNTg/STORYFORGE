@@ -46,6 +46,44 @@ class TestIsTransient(unittest.TestCase):
         exc = Exception("request timeout")
         self.assertTrue(_is_transient(exc))
 
+    # -- Regression: the wording the SDKs actually use --------------------
+    # The test above passes with a message containing the literal keyword
+    # "timeout", which is why the real bug hid behind it: every provider SDK
+    # phrases a timeout as "timed out" (with a space), which is NOT a substring
+    # of "timeout". Classified non-transient, a plain timeout was logged as
+    # "FATAL: Non-retryable", failed the call instead of retrying or rotating,
+    # AND marked the model unhealthy (both call sites gate on _is_transient).
+
+    def test_timed_out_wording_is_transient(self):
+        from services.llm_client import _is_transient
+
+        # Exact string from openai.APITimeoutError / httpx read timeouts.
+        self.assertTrue(_is_transient(Exception("Request timed out.")))
+        self.assertTrue(_is_transient(Exception("Read timed out")))
+
+    def test_sdk_timeout_types_are_transient(self):
+        """Type-based classification — independent of message wording."""
+        import httpx
+        import openai
+        from services.llm_client import _is_transient
+
+        req = httpx.Request("POST", "http://localhost:8000/v1/chat/completions")
+        self.assertTrue(_is_transient(openai.APITimeoutError(request=req)))
+        self.assertTrue(_is_transient(openai.APIConnectionError(request=req)))
+        self.assertTrue(_is_transient(httpx.ReadTimeout("")))
+        self.assertTrue(_is_transient(httpx.ConnectError("")))
+        self.assertTrue(_is_transient(TimeoutError()))
+        self.assertTrue(_is_transient(ConnectionError()))
+
+    def test_real_client_error_stays_fatal(self):
+        """The widened classifier must not swallow genuine, non-retryable faults."""
+        from services.llm_client import _is_transient
+
+        self.assertFalse(
+            _is_transient(Exception("invalid_request: unsupported parameter"))
+        )
+        self.assertFalse(_is_transient(ValueError("model not found")))
+
     def test_connection_error_is_transient(self):
         from services.llm_client import _is_transient
 
