@@ -29,3 +29,18 @@ def slug_session_dir(title: str, session_id: str, max_len: int = 60) -> str:
         base = "story"
     sid = _SLUG_RE.sub("_", (session_id or "").strip()).strip("_") or "session"
     return f"{base}_{sid}"
+
+
+# ── Colour steering ──────────────────────────────────────────────────────────
+# Comic-panel prompts ("cel shading", "bold ink lines", "manga") sit right on
+# top of the monochrome slice of every image model's training data, so a panel
+# prompt that never says "colour" comes back as black-and-white lineart often
+# enough to be a bug. Every prompt builder states it positively AND negates the
+# monochrome failure mode — models weight the two differently, and DALL-E-style
+# endpoints drop negative prompts entirely, so the positive clause carries alone
+# there.
+COLOR_CLAUSE = "full color, rich vibrant color palette, colored artwork"
+MONOCHROME_NEGATIVES = (
+    "monochrome, grayscale, black and white, desaturated, sepia, "
+    "uncolored lineart, sketch"
+)

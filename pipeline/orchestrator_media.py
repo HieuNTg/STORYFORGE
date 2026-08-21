@@ -167,7 +167,12 @@ class MediaProducer:
             from services.image_prompt_generator import ImagePromptGenerator
             from services.output_paths import rel_to_output_root
 
-            num_panels = max(1, int(getattr(cfg, "panels_per_chapter", 8)))
+            from services.media.comic_chapter import (
+                ComicSettings,
+                generate_chapter_comic,
+                make_shot_extractor,
+            )
+            from services.media.shot_list import panels_for_chapter
             prompt_gen = ImagePromptGenerator()
             image_gen = ImageGenerator(
                 provider=panel_provider,
@@ -178,31 +183,48 @@ class MediaProducer:
 
             chapters = enhanced.chapters
             total = len(chapters)
-            _log(f"[MEDIA] Tạo {num_panels} panel/chương cho {total} chương...")
+            # Panel count follows the same auto-sizing rules the reader path
+            # uses; a long chapter gets more panels than a short one instead of
+            # every chapter getting the same fixed number.
+            _counts = {
+                ch.chapter_number: panels_for_chapter(ch, cfg) for ch in chapters
+            }
+            comic_settings = ComicSettings(cfg, panel_provider)
+            shot_extractor = make_shot_extractor(comic_settings)
+            _log(
+                f"[MEDIA] Tạo {min(_counts.values())}-{max(_counts.values())} "
+                f"panel/chương cho {total} chương..."
+                if _counts
+                else f"[MEDIA] {total} chương..."
+            )
 
             def _panels_for_chapter(ch):
-                """Generate this chapter's panels; returns (ch, [rel_paths])."""
+                """Generate this chapter's comic pages; returns (ch, [rel_paths]).
+
+                Runs the SAME stages the Reader's on-demand button runs (shot
+                list → prompts → cell-matched panels → page composition). This
+                stage used to call the legacy scene extractor directly, so a
+                story generated end-to-end came out as loose illustrations with
+                no dialogue while the Reader produced real comic pages.
+                """
                 try:
-                    prompts = prompt_gen.generate_from_chapter(
+                    paths = generate_chapter_comic(
                         ch,
+                        prompt_gen=prompt_gen,
+                        image_gen=image_gen,
+                        settings=comic_settings,
+                        shot_extractor=shot_extractor,
                         characters=characters or None,
-                        num_images=num_panels,
+                        character_references=char_refs or None,
                         visual_profiles=visual_profiles or None,
                     )
                 except Exception as e:
                     logger.warning(
-                        "Panel prompt generation failed for chapter %s: %s",
+                        "Panel generation failed for chapter %s: %s",
                         ch.chapter_number,
                         e,
                     )
                     return ch, []
-                if not prompts:
-                    return ch, []
-                paths = image_gen.generate_story_images(
-                    prompts,
-                    chapter_number=ch.chapter_number,
-                    character_references=char_refs or None,
-                )
                 return ch, [rel_to_output_root(p) for p in paths]
 
             # Parallelize across chapters (panels within a chapter run

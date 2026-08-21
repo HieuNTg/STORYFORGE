@@ -25,6 +25,7 @@ class ImageGenerator:
         "huggingface",
         "flowkit",
         "codex",
+        "qwen-local",
         "none",
     ]
 
@@ -105,6 +106,8 @@ class ImageGenerator:
             return self._generate_flowkit(prompt, filename, size)
         if self.provider == "codex":
             return self._generate_codex(prompt, filename, size)
+        if self.provider == "qwen-local":
+            return self._generate_qwen_local(prompt, filename, size)
 
         logger.warning("Unknown image provider: %s", self.provider)
         return None
@@ -128,6 +131,8 @@ class ImageGenerator:
             return self._flowkit_with_ref(prompt, reference_paths, filename)
         if self.provider == "codex":
             return self._codex_with_ref(prompt, reference_paths, filename, size)
+        if self.provider == "qwen-local":
+            return self._qwen_local_with_ref(prompt, reference_paths, filename, size)
         if self.provider == "seedream":
             return self._seedream_with_ref(prompt, reference_paths, filename)
         if self.provider == "replicate":
@@ -168,6 +173,10 @@ class ImageGenerator:
             if not prompt:
                 prompt = ip.scene_description
             filename = f"ch{chapter_number:02d}_panel{i + 1:02d}.png"
+            # Generate at the aspect of the compositor cell this panel lands in.
+            # Everything used to be square, so a panel dropped into a 2.1:1 tier
+            # cell lost more than half its height to the center crop.
+            size = getattr(ip, "target_size", "") or "1024x1024"
 
             scene_refs: list[str] = []
             for name in getattr(ip, "characters_in_scene", []) or []:
@@ -190,9 +199,11 @@ class ImageGenerator:
             path = None
             for attempt in range(_retries + 1):
                 if scene_refs:
-                    path = self.generate_with_reference(prompt, scene_refs, filename)
+                    path = self.generate_with_reference(
+                        prompt, scene_refs, filename, size
+                    )
                 else:
-                    path = self.generate(prompt, filename)
+                    path = self.generate(prompt, filename, size)
                 if path:
                     break
                 if attempt < _retries:
@@ -216,6 +227,30 @@ class ImageGenerator:
 
     # ── Private providers ─────────────────────────────────────────────────────
 
+    # Sizes each hosted backend will actually accept. A cell-matched size like
+    # "1024x480" is legal for local backends but a 400 from DALL-E, so it is
+    # snapped to the closest aspect the provider does support instead of being
+    # dropped (dropping it would put us back to square panels in tier cells).
+    _DALLE_SIZES = ("1024x1024", "1792x1024", "1024x1792")
+    _CODEX_SIZES = ("1024x1024", "1536x1024", "1024x1536")
+
+    @staticmethod
+    def _snap_size(size: str, allowed: tuple) -> str:
+        """Closest allowed WxH by aspect ratio; falls back to the first entry."""
+        try:
+            w, h = (int(v) for v in str(size).lower().split("x"))
+            if w <= 0 or h <= 0:
+                raise ValueError(size)
+        except (ValueError, TypeError):
+            return allowed[0]
+        target = w / h
+
+        def _ar(spec: str) -> float:
+            aw, ah = (int(v) for v in spec.split("x"))
+            return aw / ah
+
+        return min(allowed, key=lambda spec: abs(_ar(spec) - target))
+
     def _generate_dalle(self, prompt: str, filename: str, size: str) -> Optional[str]:
         """Generate via OpenAI DALL-E 3 API."""
         if not self.api_key:
@@ -230,7 +265,7 @@ class ImageGenerator:
                 "model": "dall-e-3",
                 "prompt": prompt,
                 "n": 1,
-                "size": size,
+                "size": self._snap_size(size, self._DALLE_SIZES),
                 "response_format": "b64_json",
             }
             resp = requests.post(
@@ -385,7 +420,7 @@ class ImageGenerator:
             logger.error("Codex generation skipped: no ~/.codex login found.")
             return None
         filepath = os.path.join(self.output_dir, filename)
-        return client.text_to_image(prompt, filepath, size)
+        return client.text_to_image(prompt, filepath, self._snap_size(size, self._CODEX_SIZES))
 
     def _codex_with_ref(
         self, prompt: str, reference_paths: list, filename: str, size: str
@@ -396,6 +431,53 @@ class ImageGenerator:
             logger.warning("Codex not configured for reference generation")
             return self.generate(prompt, filename, size)
         filepath = os.path.join(self.output_dir, filename)
+        return client.image_with_refs(
+            prompt, reference_paths, filepath, self._snap_size(size, self._CODEX_SIZES)
+        )
+
+    # ── Qwen local proxy (OpenAI-compatible server driving chat.qwen.ai) ──────
+
+    def _qwen_local_client(self):
+        from services.media.qwen_local_client import QwenLocalClient
+
+        cfg = ConfigManager().pipeline
+        return QwenLocalClient(
+            base_url=getattr(cfg, "qwen_local_base_url", ""),
+            api_key=getattr(cfg, "qwen_local_api_key", ""),
+            model=getattr(cfg, "qwen_local_model", ""),
+            size=getattr(cfg, "qwen_local_size", ""),
+            timeout=getattr(cfg, "qwen_local_timeout", 300.0),
+        )
+
+    def _generate_qwen_local(
+        self, prompt: str, filename: str, size: str
+    ) -> Optional[str]:
+        """Text-to-image via the local Qwen proxy."""
+        client = self._qwen_local_client()
+        if not client.is_configured():
+            logger.error("Qwen local generation skipped: no base URL configured.")
+            return None
+        filepath = os.path.join(self.output_dir, filename)
+        return client.text_to_image(prompt, filepath, size)
+
+    def _qwen_local_with_ref(
+        self, prompt: str, reference_paths: list, filename: str, size: str
+    ) -> Optional[str]:
+        """Reference-conditioned generation via the proxy's edit endpoint.
+
+        Qwen's edit mode rewrites the reference image itself, which keeps a
+        character's likeness far better than re-describing them in text. Users
+        who would rather have a fresh composition can turn it off with
+        ``qwen_local_use_edit_for_refs``.
+        """
+        client = self._qwen_local_client()
+        if not client.is_configured():
+            logger.warning("Qwen local not configured for reference generation")
+            return None
+        filepath = os.path.join(self.output_dir, filename)
+        cfg = ConfigManager().pipeline
+        if not getattr(cfg, "qwen_local_use_edit_for_refs", True):
+            return client.text_to_image(prompt, filepath, size)
         return client.image_with_refs(prompt, reference_paths, filepath, size)
 
     # ── FlowKit (Google Labs proxy via Chrome extension WS) ───────────────────
