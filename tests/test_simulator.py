@@ -324,3 +324,45 @@ class TestMalformedEvaluationPayloads:
             getattr(e, "event_type", "") == "phản_bội"
             for e in getattr(result, "events", [])
         )
+
+
+class TestRefusalDetection:
+    """Model safety filters answer a persona prompt with a well-formed JSON
+    object of a different shape. It parses fine and IS a dict, so schema
+    validation accepts it — the agent would then post the "..." placeholder and
+    silently shrink the round. See _looks_like_refusal.
+    """
+
+    def test_real_refusal_payload_detected(self):
+        # Verbatim shape observed from the Gemini web bridge in a tiên hiệp run.
+        assert DramaSimulator._looks_like_refusal(
+            {
+                "message": "Tôi không thể thực hiện yêu cầu nhập vai...",
+                "status": "refusal",
+                "support_options": ["Phân tích tâm lý nhân vật"],
+            }
+        )
+
+    def test_other_refusal_shapes_detected(self):
+        assert DramaSimulator._looks_like_refusal({"status": "error", "message": "no"})
+        assert DramaSimulator._looks_like_refusal({"refusal": True, "content": "x"})
+        # No content + an explanatory message is the decline shape.
+        assert DramaSimulator._looks_like_refusal({"message": "sorry"})
+
+    def test_normal_turn_is_not_a_refusal(self):
+        """Guard against false positives — a real turn must never be dropped."""
+        assert not DramaSimulator._looks_like_refusal(
+            {
+                "content": "Ta sẽ giết ngươi",
+                "action_type": "confrontation",
+                "sentiment": "hận",
+            }
+        )
+        # `content` present wins even alongside status/message keys.
+        assert not DramaSimulator._looks_like_refusal(
+            {"content": "abc", "status": "ok"}
+        )
+        assert not DramaSimulator._looks_like_refusal(
+            {"content": "abc", "message": "ghi chú"}
+        )
+        assert not DramaSimulator._looks_like_refusal("refusal")
