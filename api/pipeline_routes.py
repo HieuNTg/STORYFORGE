@@ -853,11 +853,38 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                     enable_scoring=body.enable_scoring,
                     enable_media=body.enable_media,
                 )
-                result[0] = (
-                    await _pipeline_coro
-                    if inspect.isawaitable(_pipeline_coro)
-                    else _pipeline_coro
-                )
+                # Run the orchestrator on its OWN event loop in a worker thread
+                # instead of awaiting it on uvicorn's loop.
+                #
+                # Why: run_full_pipeline is `async def`, but large parts of it
+                # call the LLM synchronously (e.g. ConsistencyEngine.build_from_draft
+                # and the drama-curve scoring loop in enhancer.enhance_story_async).
+                # Awaited inline, each of those is a blocking socket read that
+                # freezes the server loop for the whole call — measured at 5m18s
+                # in one Layer 2 run, during which EVERY endpoint hung (/docs and
+                # /openapi.json included), the SSE progress stream stopped
+                # flushing (the UI froze on its last Layer 1 frame), and the
+                # Cancel button could not be served.
+                #
+                # Offloading the whole coroutine fixes every such call at once —
+                # including ones added later — instead of wrapping them one by
+                # one and regressing the next time someone adds a sync call to an
+                # async function. The orchestrator's internal asyncio.gather /
+                # run_in_executor parallelism still works: it just runs against
+                # the worker loop's own default executor.
+                #
+                # Progress flows over `progress_queue`, a stdlib queue.Queue, so
+                # cross-thread puts stay safe.
+                #
+                # Cancellation: cancelling the outer task cannot force-kill the
+                # worker thread — it keeps running until its current blocking LLM
+                # call returns. That is the same limitation the L1 to_thread
+                # workers already carry (see the shutdown handler above); this
+                # makes the behaviour uniform rather than worse.
+                if inspect.isawaitable(_pipeline_coro):
+                    result[0] = await asyncio.to_thread(asyncio.run, _pipeline_coro)
+                else:
+                    result[0] = _pipeline_coro
             except asyncio.CancelledError:
                 logger.info(f"Pipeline task cancelled (session={session_id})")
                 was_cancelled[0] = True
