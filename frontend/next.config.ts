@@ -29,6 +29,16 @@ const nextConfig: NextConfig = {
   // Prod is a static export served by FastAPI (no Next server, no proxy), so
   // `compress` has no effect there — gating on dev keeps the switch honest.
   compress: !isDev,
+  // The dev `rewrites()` proxy below kills any upstream request that takes
+  // longer than Next's default 30s (`proxy-request.js`: `proxyTimeout || 30000`),
+  // and the browser sees a bare `socket hang up` / ECONNRESET that the UI can
+  // only report as "Internal Server Error" — indistinguishable from a real
+  // backend fault. StoryForge legitimately exceeds 30s on a single request:
+  // `POST /api/config/test-connection` against a slow provider (the local
+  // Gemini/Qwen bridge drives a real browser, ~45s) and long SSE pipeline runs.
+  // Raise the ceiling in dev so slow-but-working calls report the truth.
+  // Prod is a static export served by FastAPI — no Next server, no proxy.
+  ...(isDev ? { experimental: { proxyTimeout: 10 * 60_000 } } : {}),
   // Dev-only proxy to the FastAPI backend on :7860.
   // Note: rewrites() is ignored when `output: 'export'` runs at build time;
   // it remains effective for `next dev`.
