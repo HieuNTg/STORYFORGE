@@ -58,9 +58,12 @@ _OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 # drift where summaries/context turn English and later chapters follow suit.
 _KYMA_BASE = "https://kymaapi.com/v1"
 
-# Local OpenAI-compatible bridge to the Gemini web app (gemini-webapi server).
-# Runs at http://localhost:8000 — see Gemini-API/server/README.md.
+# Local OpenAI-compatible bridge to the Gemini + Qwen web apps (gemini-webapi
+# server). Runs at http://localhost:8000 — see Gemini-API/server/README.md.
 _GEMINI_LOCAL_BASE = "http://localhost:8000/v1"
+# The bridge's own default shared token (its `GEMINI_API_KEYS`). Local-only —
+# it never leaves the machine, and the bridge rejects requests without it.
+_GEMINI_LOCAL_KEY = "changeme-internal-key"
 
 # ---------------------------------------------------------------------------
 # Provider presets — single source of truth for the "Quick provider" cards in
@@ -198,16 +201,44 @@ PROVIDER_PRESETS = [
         "placeholder": "ky-...",
     },
     {
-        # Local OpenAI-compatible bridge to the Gemini web app (gemini-webapi).
+        # Local OpenAI-compatible bridge to the Gemini + Qwen web apps.
         # Requires running the bridge at localhost:8000 — see Gemini-API/server/README.md.
-        # The bridge maps any model name to the web app's current default (Gemini 3.5 Flash).
+        #
+        # Model ids below are the ones the bridge actually advertises on
+        # GET /v1/models (verified against a running instance). Unknown names do
+        # not error — they silently fall back to the bridge's default model —
+        # so listing the real ids is what keeps model choice meaningful here.
+        #
+        # `auto` hands the request to the bridge's rotation/failover logic
+        # (ROTATION_MODE + API_PROVIDERS in the bridge's .env); a named model
+        # always pins its own provider.
         "name": "Gemini Web (local/dev)",
         "label": "Gemini Web (local/dev)",
         "base_url": _GEMINI_LOCAL_BASE,
-        "model": "gemini-3.5-flash",
+        "model": "gemini-3-pro",
         "models": [
-            {"id": "gemini-3.5-flash", "label": "Gemini 3.5 Flash (web default)"},
+            {"id": "gemini-3-pro", "label": "Gemini 3 Pro (web)"},
+            {"id": "gemini-3-pro-plus", "label": "Gemini 3 Pro Plus (web)"},
+            {"id": "gemini-3-flash", "label": "Gemini 3 Flash (web)"},
+            {
+                "id": "gemini-3-flash-thinking",
+                "label": "Gemini 3 Flash Thinking (web)",
+            },
+            # The Qwen side of the bridge drives a real browser (Playwright), so
+            # a single call costs ~45s vs ~1s for Gemini. `auto` inherits that
+            # cost whenever rotation lands on Qwen — measured, not estimated.
+            {"id": "auto", "label": "Auto — xoay tua Gemini/Qwen (chậm)"},
+            {"id": "qwen3.8-max", "label": "Qwen3.8 Max (web, ~45s/lượt)"},
+            {
+                "id": "qwen3.8-max-thinking",
+                "label": "Qwen3.8 Max Thinking (web, ~45s/lượt)",
+            },
         ],
-        "placeholder": "changeme-internal-key",
+        # The bridge authenticates with a shared local token (GEMINI_API_KEYS in
+        # its .env), not a per-user secret. Prefill it so the card is one click
+        # to set up; a user running the bridge with a different token just types
+        # over it. Only ever a localhost dev token — never ship a real key here.
+        "default_key": _GEMINI_LOCAL_KEY,
+        "placeholder": _GEMINI_LOCAL_KEY,
     },
 ]

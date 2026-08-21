@@ -141,6 +141,16 @@ class GenerationMixin:
         )
         try:
             return json.loads(fixed)
+        except json.JSONDecodeError:
+            pass
+        # The fixer model very often wraps its answer in a ```json fence, and a
+        # fenced payload fails json.loads at "line 1 column 1" even when the JSON
+        # inside is perfectly valid — so this last-chance repair used to throw
+        # away good output. Attempts 1→2 already run the text through
+        # _repair_json (which slices from the first '{' to the last '}', dropping
+        # any fence or prose); attempt 3 skipped that step. Run it here too.
+        try:
+            return json.loads(_repair_json(fixed))
         except json.JSONDecodeError as e:
             preview = fixed[:800] if fixed else "<empty>"
             raise ValueError(

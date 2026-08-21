@@ -518,6 +518,34 @@ class DramaSimulator:
                 return mood
         return "bình_thường"
 
+    @staticmethod
+    def _looks_like_refusal(result: dict) -> bool:
+        """True when the model declined to role-play instead of taking a turn.
+
+        Safety filters answer a persona prompt with well-formed JSON of a
+        different shape, e.g.::
+
+            {"message": "Tôi không thể thực hiện yêu cầu nhập vai...",
+             "status": "refusal", "support_options": [...]}
+
+        That parses cleanly and is a ``dict``, so schema validation accepts it
+        and the caller would read ``content`` as missing and post the "..."
+        placeholder — a silent hole in the round. Detect the shape instead.
+        """
+        if not isinstance(result, dict):
+            return False
+        if str(result.get("status", "")).strip().lower() in {
+            "refusal",
+            "refused",
+            "error",
+        }:
+            return True
+        if result.get("refusal"):
+            return True
+        # A real turn always carries `content`. No content plus an explanatory
+        # `message` is the shape providers use when they decline.
+        return not result.get("content") and bool(result.get("message"))
+
     def _run_single_agent(
         self, name: str, round_number: int, context: str
     ) -> tuple[AgentPost | None, dict]:
@@ -564,6 +592,15 @@ class DramaSimulator:
                 temperature=self._intensity.get("temperature", 0.95),
                 expect="dict",
             )
+
+            if self._looks_like_refusal(result):
+                logger.warning(
+                    "Agent %s bị từ chối nhập vai ở vòng %s (bộ lọc của model): %s",
+                    name,
+                    round_number,
+                    str(result.get("message") or result)[:160],
+                )
+                return None, {"refusal": True}
 
             # Log agent reasoning if present (L2-D)
             reasoning = result.get("reasoning", "")
@@ -733,8 +770,19 @@ class DramaSimulator:
         gathered = await asyncio.gather(*[_one(n) for n in self.agents])  # type: ignore[arg-type]
 
         round_posts = []
+        skipped: list[str] = []
         for idx, (name, post, metadata) in enumerate(gathered):
             if post is None:
+                # A dropped agent silently shrinks the round — fewer voices, less
+                # drama — and the old code `continue`d before the progress line,
+                # so the UI could not tell a 5-agent round from a 4-agent one.
+                # Report it on the same channel as a normal turn.
+                reason = "từ chối nhập vai" if metadata.get("refusal") else "lỗi"
+                skipped.append(f"{name} ({reason})")
+                if progress_callback:
+                    progress_callback(
+                        f"[Agent {idx + 1}/{len(agent_names)}] {name}: bỏ qua — {reason}"
+                    )
                 continue
             if progress_callback:
                 progress_callback(
@@ -753,6 +801,17 @@ class DramaSimulator:
                 and post.target in self.agents
             ):
                 agent.get_trust(post.target).update(trust_delta, post.content[:50])
+
+        if skipped:
+            # Aggregate line so a recurring refusal is visible as a pattern
+            # rather than as scattered per-agent notices.
+            msg = (
+                f"Vòng {round_number}: {len(round_posts)}/{len(agent_names)} nhân vật "
+                f"tham gia — vắng {', '.join(skipped)}"
+            )
+            logger.warning(msg)
+            if progress_callback:
+                progress_callback(msg)
 
         # Post-round updates (sequential, safe) + emotional state + trust network
         for post in round_posts:

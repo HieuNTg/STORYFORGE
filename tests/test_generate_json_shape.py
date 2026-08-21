@@ -171,3 +171,31 @@ class TestGenerateJsonNoExpect:
         # untouched — opt-in only.
         stub = _Stub([json.dumps([1, 2, 3])])
         assert stub.generate_json("sys", "user") == [1, 2, 3]
+
+
+class TestFencedRepairOnLastAttempt:
+    """Attempt 3 asks a model to fix malformed JSON, and that fixer very often
+    wraps its answer in a ```json fence. json.loads() then fails at "line 1
+    column 1" even though the JSON inside is valid, so good output was thrown
+    away. Attempts 1-2 already ran _repair_json; attempt 3 must too.
+    """
+
+    def test_repair_json_strips_code_fence(self):
+        import json
+        from services.llm.generation import _repair_json
+
+        fenced = '```json\n{"status": "refusal", "message": "no"}\n```'
+        # The raw payload is what used to reach json.loads() and blow up.
+        with pytest.raises(json.JSONDecodeError):
+            json.loads(fenced)
+        assert json.loads(_repair_json(fenced)) == {
+            "status": "refusal",
+            "message": "no",
+        }
+
+    def test_repair_json_strips_prose_around_json(self):
+        import json
+        from services.llm.generation import _repair_json
+
+        noisy = 'Here is the fixed JSON:\n{"a": 1}\nHope that helps!'
+        assert json.loads(_repair_json(noisy)) == {"a": 1}

@@ -33,14 +33,11 @@ export interface TheaterPanelProps {
   debateMarker?: string;
   /** Epoch ms when generation started; drives the elapsed timer. */
   startedAt?: number;
-  /** Total expected duration in seconds for ETA; falls back to a rough estimate. */
-  etaSeconds?: number;
   /** Set to true while the pipeline is running to show timer + cancel. */
   running?: boolean;
   /**
    * Pipeline run status. Drives the terminal-state label shown once `running`
-   * flips to false, so a finished/interrupted/failed run reads clearly instead
-   * of freezing on a stale "còn ~0:00" ETA.
+   * flips to false, so a finished/interrupted/failed run reads clearly.
    */
   status?: "idle" | "running" | "done" | "error" | "interrupted";
   /** Optional cancel callback; renders the cancel button when provided. */
@@ -77,7 +74,6 @@ export function TheaterPanel({
   characters,
   debateMarker,
   startedAt,
-  etaSeconds,
   running,
   status,
   onCancel,
@@ -86,15 +82,8 @@ export function TheaterPanel({
   const hasAgents = agents.length > 0;
   const elapsed = useElapsedSeconds(startedAt, running);
   const showStatusStrip = Boolean(running || startedAt);
-  const remaining =
-    typeof etaSeconds === "number" && elapsed !== null
-      ? Math.max(0, etaSeconds - elapsed)
-      : null;
 
-  // Terminal-state label, only once the run has stopped. The ETA ("còn ~…") is
-  // a rough heuristic that often underestimates, so it pins to 0:00 near the
-  // end; surfacing it after the run finishes is misleading. Replace it with the
-  // actual outcome instead.
+  // Terminal-state label, only once the run has stopped.
   const terminal =
     !running && status === "done"
       ? { label: "Hoàn tất", Icon: CheckCircle2, cls: "text-emerald-600 dark:text-emerald-400" }
@@ -147,9 +136,6 @@ export function TheaterPanel({
                   <Clock className="size-3.5" aria-hidden />
                   <span aria-live="polite">
                     {elapsed !== null ? `Đã chạy ${formatMmSs(elapsed)}` : "Chuẩn bị…"}
-                    {running && remaining !== null
-                      ? ` · còn ~${formatMmSs(remaining)}`
-                      : ""}
                   </span>
                   {terminal ? (
                     <span
