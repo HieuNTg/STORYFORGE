@@ -17,6 +17,10 @@ venv/
 # â”€â”€ Runtime Data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 data/config.json
 data/secrets.json
+# Local backups/archives of the two files above (e.g. secrets.json.unreadable-*,
+# config.json.bak-*) — they hold the same credentials, never commit them.
+data/config.json.*
+data/secrets.json.*
 data/*.db
 data/*.db-shm
 data/*.db-wal

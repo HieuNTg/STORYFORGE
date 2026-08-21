@@ -97,7 +97,20 @@ def _migrate_legacy_secrets(llm: "LLMConfig", pipeline: "PipelineConfig") -> Non
         logger.warning(f"Legacy secrets load error: {e}")
         return
     if not data:
-        # Encrypted but no key, or corrupt — leave file alone for manual recovery
+        # Encrypted but no key, or corrupt — leave the file alone for manual
+        # recovery. load_encrypted() only logs the raw JSONDecodeError from
+        # parsing ciphertext as text ("Expecting value: line 1 column 1"),
+        # which reads like a corrupt-file bug rather than a missing key, so
+        # say what actually happened and what to do about it.
+        logger.warning(
+            "%s exists but could not be read — it is encrypted and "
+            "STORYFORGE_SECRET_KEY does not match the key it was written with. "
+            "Config now lives in %s; recover the legacy file with "
+            "scripts/recover_secrets.py (needs the original key), or archive it "
+            "to silence this warning.",
+            _SECRETS_FILE,
+            CONFIG_FILE,
+        )
         return
     recovered = False
     for k, v in data.get("llm", {}).items():
