@@ -117,7 +117,9 @@ class PipelineConfig:
 
     # Image generation provider
     image_provider: str = (
-        "none"  # none / dalle / sd-api / seedream / huggingface / flowkit / codex
+        # none / dalle / sd-api / seedream / huggingface / flowkit / codex /
+        # qwen-local
+        "none"
     )
     image_api_key: str = ""
     image_api_url: str = ""
@@ -127,6 +129,21 @@ class PipelineConfig:
     # ~/.codex/config.toml (falls back to gpt-5.5). No API key needed — it reuses
     # the Codex login and supports reference images for character consistency.
     codex_model: str = ""
+    # Qwen local proxy: an OpenAI-compatible server (run separately) that drives
+    # chat.qwen.ai. Unlike the other providers it takes an ASPECT RATIO rather
+    # than a pixel size, and it can edit an existing image — which is what gives
+    # reference-conditioned panels real character consistency instead of the
+    # text-only fallback. Leave qwen_local_model empty to use whatever the proxy
+    # has as QWEN_IMAGE_MODEL, and qwen_local_size empty for its default (1:1).
+    qwen_local_base_url: str = "http://localhost:8000/v1"
+    qwen_local_api_key: str = ""
+    qwen_local_model: str = ""
+    qwen_local_size: str = ""
+    # When a panel has character reference images, send the first one to the
+    # proxy's edit endpoint. Off = always text-only, which is faster but loses
+    # the character likeness the references exist for.
+    qwen_local_use_edit_for_refs: bool = True
+    qwen_local_timeout: float = 300.0
     # Comic panels generated per chapter (truyện tranh). Each chapter gets this
     # many distinct scene images. Used by both the pipeline media stage and the
     # on-demand reader regen. Acts as the FIXED count when panels_auto is False,
@@ -149,9 +166,10 @@ class PipelineConfig:
     # runs between chapter prose and image generation, splitting each chapter
     # into ordered beats/panels with shot_type, layout/page, dialogue+speaker and
     # screen_side — the foundation Phase 3's page compositor consumes. Image
-    # prompts still carry NO dialogue text. Ships dark (False) so it can be A/B'd
-    # and rolled back safely; image generation is unchanged when off.
-    comic_shot_list_enabled: bool = False
+    # prompts still carry NO dialogue text. Now ON by default — with it off the
+    # product generates loose illustrations, not a comic; turn it off to A/B or
+    # roll back, image generation is unchanged when off.
+    comic_shot_list_enabled: bool = True
     # Coverage verification for the shot-list stage. When on (and the shot-list
     # stage itself is on), a second cheap-tier LLM pass re-reads the full chapter
     # against the extracted beats and inserts panels for important details the
@@ -167,10 +185,10 @@ class PipelineConfig:
     # borders + gutters, vector speech bubbles with tails pointing at the speaker's
     # screen_side, Vietnamese lettering, and caption boxes. Composed pages replace
     # the loose panels in what the chapter exposes to the frontend (chapter.images),
-    # while the loose panels are kept on disk alongside. Ships dark (False) so it
-    # can be A/B'd against loose-panel output and rolled back safely; any failure
-    # degrades gracefully to loose panels.
-    comic_compositor_enabled: bool = False
+    # while the loose panels are kept on disk alongside. ON by default — this is
+    # what turns generated panels into an actual comic page; any failure degrades
+    # gracefully to loose panels, and turning it off restores that behaviour.
+    comic_compositor_enabled: bool = True
     # Page canvas geometry (spec §2.1): "<width>x<height>" in px. ISO 1:√2 by
     # default (1600×2263), suitable for both webtoon scroll and print.
     comic_page_canvas: str = "1600x2263"
@@ -385,6 +403,23 @@ class PipelineConfig:
         2  # Rewrite if >= N location transition warnings
     )
     consistency_arc_drift_threshold: int = 2  # Rewrite if >= N arc drift warnings
+
+    # Length gate: expand a chapter that came back materially under word_count.
+    # Nothing used to compare the produced chapter against the requested length —
+    # `count_words()` only recorded it — so a 2000-word target routinely shipped
+    # at 900-1500 words. See pipeline/layer1_story/chapter_length_gate.py.
+    enable_length_gate: bool = True
+    length_gate_min_ratio: float = 0.85  # Expand below this fraction of target
+
+    # Streaming stall detection. `first_chunk` covers time-to-first-token, which
+    # a reasoning model spends thinking before it emits anything: measured
+    # median 51.6s and max 106.3s for qwen3.8-max-thinking through the local
+    # bridge, so the previous hard-coded 60s discarded a large share of calls
+    # mid-thought and retried them from scratch — burning the wait twice and
+    # silently demoting the request to the next model in the chain.
+    # `chunk` stays short: once tokens are flowing, a long gap is a real stall.
+    stream_first_chunk_timeout: int = 180
+    stream_chunk_timeout: int = 30
 
     # Phase 5: L1 consistency improvements
     enable_emotional_memory: bool = (

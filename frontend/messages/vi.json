@@ -459,7 +459,11 @@
         "self_review_threshold": "Ngưỡng tự đánh giá",
         "self_review_threshold_hint": "Chương có điểm thấp hơn ngưỡng sẽ được viết lại.",
         "current_model": "Hiện tại · {model}",
-        "save_success": "Đã lưu cài đặt Layer 1"
+        "save_success": "Đã lưu cài đặt Layer 1",
+        "length_gate": "Bổ sung chương ngắn",
+        "length_gate_desc": "Chương viết ra ngắn hơn mục tiêu sẽ được viết bổ sung một lần bằng chất liệu thật (cảnh, đối thoại, nội tâm) — không phải kéo dài lê thê.",
+        "length_gate_ratio": "Ngưỡng coi là ngắn",
+        "length_gate_ratio_hint": "Dưới ngưỡng này so với số từ yêu cầu thì mới bổ sung. 85% là mặc định; hạ xuống nếu anh chấp nhận chương ngắn hơn."
       },
       "l2": {
         "banner": "Tùy chọn nâng cao — chỉ thay đổi nếu bạn hiểu rõ tác động.",
@@ -516,6 +520,30 @@
         "undo": "Hoàn tác",
         "save_flowkit": "Lưu FlowKit",
         "save_success": "Đã lưu cài đặt FlowKit"
+      },
+      "qwen_local": {
+        "title": "Qwen (proxy local)",
+        "desc": "Sinh ảnh qua server OpenAI-compatible chạy local, điều khiển chat.qwen.ai. Phải bật server đó trước (mặc định cổng 8000).",
+        "status_checking": "Đang kiểm tra…",
+        "status_ready": "Sẵn sàng",
+        "status_no_qwen": "Proxy chạy, Qwen chưa lên",
+        "status_offline": "Không kết nối được",
+        "recheck": "Kiểm tra lại",
+        "base_url_label": "Base URL",
+        "base_url_hint": "Mặc định http://localhost:8000/v1",
+        "api_key_label": "API key",
+        "api_key_hint": "Khớp với GEMINI_API_KEYS của proxy. Để trống nếu proxy không đặt key.",
+        "api_key_hint_set": "Đang lưu: {masked}. Để trống nếu không muốn đổi.",
+        "model_label": "Model ảnh",
+        "model_hint": "Để trống để dùng QWEN_IMAGE_MODEL của proxy",
+        "size_label": "Tỉ lệ khung",
+        "size_hint": "Qwen nhận tỉ lệ, không nhận kích thước pixel",
+        "size_auto": "Theo proxy (1:1)",
+        "timeout_label": "Timeout (giây)",
+        "timeout_hint": "Mỗi ảnh mất khoảng 25–40 giây",
+        "edit_refs_label": "Dùng chế độ sửa ảnh cho ảnh tham chiếu",
+        "edit_refs_desc": "Khi panel có ảnh nhân vật tham chiếu, gửi thẳng ảnh đó cho Qwen sửa — giữ được khuôn mặt nhân vật tốt hơn là tả lại bằng chữ.",
+        "save_success": "Đã lưu cài đặt Qwen local"
       }
     }
   },

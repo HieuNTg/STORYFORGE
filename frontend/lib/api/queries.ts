@@ -344,6 +344,32 @@ export function useFlowkitStatus(enabled: boolean) {
   });
 }
 
+// ---------- Qwen local proxy (Settings → Provider=qwen-local) ----------
+
+export interface QwenLocalStatus {
+  configured: boolean;
+  reachable: boolean;
+  qwen_ready: boolean;
+  base_url: string;
+  error: string;
+}
+
+/**
+ * Probe the local Qwen proxy. Unlike the FlowKit badge this does NOT poll on a
+ * timer — the proxy is a local process the user starts by hand, so a manual
+ * re-check button is both enough and cheaper (each probe is an HTTP round-trip
+ * from the backend to the proxy).
+ */
+export function useQwenLocalStatus(enabled: boolean) {
+  return useQuery<QwenLocalStatus, Error>({
+    queryKey: ["qwen-local", "status"],
+    queryFn: () => apiFetch<QwenLocalStatus>("/api/config/qwen-local/status"),
+    enabled,
+    staleTime: 10_000,
+    retry: false,
+  });
+}
+
 // ---------- Providers (Providers page) ----------
 
 /**

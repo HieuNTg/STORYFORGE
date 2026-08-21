@@ -16,6 +16,7 @@ import { toast } from "sonner";
 
 import { GeneralForm } from "@/components/settings/GeneralForm";
 import { FlowkitSettings } from "@/components/settings/FlowkitSettings";
+import { QwenLocalSettings } from "@/components/settings/QwenLocalSettings";
 import {
   Select,
   SelectContent,
@@ -189,6 +190,7 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
                 <SelectItem value="seedream">Seedream</SelectItem>
                 <SelectItem value="flowkit">Flowkit (Google Labs)</SelectItem>
                 <SelectItem value="codex">ChatGPT (Codex)</SelectItem>
+                <SelectItem value="qwen-local">Qwen (proxy local)</SelectItem>
               </SelectContent>
             </Select>
           </Field>
@@ -220,6 +222,9 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
         </div>
         {currentProvider === "flowkit" ? (
           <FlowkitSettings config={config} />
+        ) : null}
+        {currentProvider === "qwen-local" ? (
+          <QwenLocalSettings config={config} />
         ) : null}
         </>
       }

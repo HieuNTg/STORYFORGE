@@ -59,8 +59,18 @@ export const configPipelineSchema = z
     language: z.string(),
     enable_self_review: z.boolean(),
     self_review_threshold: z.number(),
+    enable_length_gate: z.boolean().default(true),
+    length_gate_min_ratio: z.number().default(0.85),
+    stream_first_chunk_timeout: z.number().int().default(180),
+    stream_chunk_timeout: z.number().int().default(30),
     image_provider: z.string(),
     codex_model: z.string().default(""),
+    qwen_local_base_url: z.string().default("http://localhost:8000/v1"),
+    qwen_local_api_key_masked: z.string().default(""),
+    qwen_local_model: z.string().default(""),
+    qwen_local_size: z.string().default(""),
+    qwen_local_use_edit_for_refs: z.boolean().default(true),
+    qwen_local_timeout: z.number().default(300),
     hf_token_masked: z.string(),
     hf_image_model: z.string(),
     image_prompt_style: z.string(),
@@ -114,8 +124,19 @@ export const configUpdateSchema = z
     layer2_model: z.string().optional(),
     enable_self_review: z.boolean().optional(),
     self_review_threshold: z.number().min(1).max(5).optional(),
+    enable_length_gate: z.boolean().optional(),
+    // 0.5–1.0: below this fraction of the requested length a chapter is expanded.
+    length_gate_min_ratio: z.number().min(0.5).max(1).optional(),
+    stream_first_chunk_timeout: z.number().int().min(30).max(600).optional(),
+    stream_chunk_timeout: z.number().int().min(5).max(300).optional(),
     image_provider: z.string().optional(),
     codex_model: z.string().optional(),
+    qwen_local_base_url: z.string().optional(),
+    qwen_local_api_key: z.string().optional(),
+    qwen_local_model: z.string().optional(),
+    qwen_local_size: z.string().optional(),
+    qwen_local_use_edit_for_refs: z.boolean().optional(),
+    qwen_local_timeout: z.number().min(30).max(900).optional(),
     hf_token: z.string().optional(),
     hf_image_model: z.string().optional(),
     image_prompt_style: z.string().optional(),
@@ -150,6 +171,19 @@ export const IMAGE_PROVIDERS = [
   "seedream",
   "flowkit",
   "codex",
+  "qwen-local",
+] as const;
+
+// Aspect ratios the local Qwen proxy accepts. "" = let the proxy decide (1:1).
+export const QWEN_LOCAL_SIZES = [
+  "",
+  "1:1",
+  "4:3",
+  "3:4",
+  "16:9",
+  "9:16",
+  "3:2",
+  "2:3",
 ] as const;
 
 export const generalFormSchema = z.object({
@@ -178,6 +212,10 @@ export const advancedL1FormSchema = z.object({
   layer1_model: z.string(),
   enable_self_review: z.boolean(),
   self_review_threshold: z.number().min(1).max(5),
+  // Required, like every other field here: react-hook-form's resolver types
+  // the form values from this schema, and an optional input type breaks it.
+  enable_length_gate: z.boolean(),
+  length_gate_min_ratio: z.number().min(0.5).max(1),
 });
 
 export type AdvancedL1FormValues = z.infer<typeof advancedL1FormSchema>;

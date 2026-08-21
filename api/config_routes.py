@@ -179,8 +179,20 @@ class ConfigUpdate(BaseModel):
     layer2_model: Optional[str] = None
     enable_self_review: Optional[bool] = None
     self_review_threshold: Optional[float] = None
+    # Length gate (L1): expand a chapter that came back under target.
+    enable_length_gate: Optional[bool] = None
+    length_gate_min_ratio: Optional[float] = None
+    stream_first_chunk_timeout: Optional[int] = None
+    stream_chunk_timeout: Optional[int] = None
     image_provider: Optional[str] = None
     codex_model: Optional[str] = None
+    # Qwen local proxy (separate OpenAI-compatible server driving chat.qwen.ai)
+    qwen_local_base_url: Optional[str] = None
+    qwen_local_api_key: Optional[str] = None
+    qwen_local_model: Optional[str] = None
+    qwen_local_size: Optional[str] = None
+    qwen_local_use_edit_for_refs: Optional[bool] = None
+    qwen_local_timeout: Optional[float] = None
     hf_token: Optional[str] = None
     hf_image_model: Optional[str] = None
     image_prompt_style: Optional[str] = None
@@ -284,8 +296,29 @@ def get_config(response: Response):
             "language": cfg.pipeline.language,
             "enable_self_review": cfg.pipeline.enable_self_review,
             "self_review_threshold": cfg.pipeline.self_review_threshold,
+            "enable_length_gate": getattr(cfg.pipeline, "enable_length_gate", True),
+            "length_gate_min_ratio": getattr(
+                cfg.pipeline, "length_gate_min_ratio", 0.85
+            ),
+            "stream_first_chunk_timeout": getattr(
+                cfg.pipeline, "stream_first_chunk_timeout", 180
+            ),
+            "stream_chunk_timeout": getattr(cfg.pipeline, "stream_chunk_timeout", 30),
             "image_provider": cfg.pipeline.image_provider,
             "codex_model": getattr(cfg.pipeline, "codex_model", ""),
+            "qwen_local_base_url": getattr(
+                cfg.pipeline, "qwen_local_base_url", "http://localhost:8000/v1"
+            ),
+            # Masked like every other secret the GET surface returns.
+            "qwen_local_api_key_masked": _mask_key(
+                getattr(cfg.pipeline, "qwen_local_api_key", "")
+            ),
+            "qwen_local_model": getattr(cfg.pipeline, "qwen_local_model", ""),
+            "qwen_local_size": getattr(cfg.pipeline, "qwen_local_size", ""),
+            "qwen_local_use_edit_for_refs": getattr(
+                cfg.pipeline, "qwen_local_use_edit_for_refs", True
+            ),
+            "qwen_local_timeout": getattr(cfg.pipeline, "qwen_local_timeout", 300.0),
             "hf_token_masked": masked_hf_token,
             "hf_image_model": cfg.pipeline.hf_image_model,
             "image_prompt_style": cfg.pipeline.image_prompt_style,
@@ -408,10 +441,32 @@ def save_config(body: ConfigUpdate):
         cfg.pipeline.enable_self_review = body.enable_self_review
     if body.self_review_threshold is not None:
         cfg.pipeline.self_review_threshold = body.self_review_threshold
+    if body.enable_length_gate is not None:
+        cfg.pipeline.enable_length_gate = body.enable_length_gate
+    if body.length_gate_min_ratio is not None:
+        cfg.pipeline.length_gate_min_ratio = body.length_gate_min_ratio
+    if body.stream_first_chunk_timeout is not None:
+        cfg.pipeline.stream_first_chunk_timeout = body.stream_first_chunk_timeout
+    if body.stream_chunk_timeout is not None:
+        cfg.pipeline.stream_chunk_timeout = body.stream_chunk_timeout
     if body.image_provider is not None:
         cfg.pipeline.image_provider = body.image_provider
     if body.codex_model is not None:
         cfg.pipeline.codex_model = body.codex_model
+    if body.qwen_local_base_url is not None:
+        cfg.pipeline.qwen_local_base_url = body.qwen_local_base_url
+    # An empty string means "leave the stored key alone" — the UI never echoes
+    # the real value back, so a blank field must not wipe it.
+    if body.qwen_local_api_key:
+        cfg.pipeline.qwen_local_api_key = body.qwen_local_api_key
+    if body.qwen_local_model is not None:
+        cfg.pipeline.qwen_local_model = body.qwen_local_model
+    if body.qwen_local_size is not None:
+        cfg.pipeline.qwen_local_size = body.qwen_local_size
+    if body.qwen_local_use_edit_for_refs is not None:
+        cfg.pipeline.qwen_local_use_edit_for_refs = body.qwen_local_use_edit_for_refs
+    if body.qwen_local_timeout is not None:
+        cfg.pipeline.qwen_local_timeout = body.qwen_local_timeout
     if body.hf_token is not None:
         cfg.pipeline.hf_token = body.hf_token
     if body.hf_image_model is not None:
@@ -457,6 +512,25 @@ def save_config(body: ConfigUpdate):
 
     LLMClient.reset()
     return {"status": "ok"}
+
+
+@router.get("/qwen-local/status", dependencies=[_CONFIGURE_PIPELINE])
+def qwen_local_status():
+    """Probe the local Qwen proxy: is it up, and did its Qwen provider start?
+
+    A sync handler on purpose — FastAPI runs these in a worker thread, so the
+    blocking HTTP probe never touches the event loop. Always answers 200; the
+    body carries the failure so the settings badge can render a reason.
+    """
+    from services.media.qwen_local_client import QwenLocalClient
+
+    cfg = ConfigManager().pipeline
+    client = QwenLocalClient(
+        base_url=getattr(cfg, "qwen_local_base_url", ""),
+        api_key=getattr(cfg, "qwen_local_api_key", ""),
+        model=getattr(cfg, "qwen_local_model", ""),
+    )
+    return client.status()
 
 
 @router.post("/test-connection", dependencies=[_CONFIGURE_PIPELINE])

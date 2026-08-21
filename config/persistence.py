@@ -23,7 +23,12 @@ _ENV_MAP: dict[str, tuple[str, str]] = {
     "STORYFORGE_MODEL": ("llm", "model"),
     "STORYFORGE_TEMPERATURE": ("llm", "temperature"),
     "STORYFORGE_IMAGE_PROVIDER": ("pipeline", "image_provider"),
+    "STORYFORGE_LENGTH_GATE": ("pipeline", "enable_length_gate"),
+    "STORYFORGE_LENGTH_GATE_RATIO": ("pipeline", "length_gate_min_ratio"),
     "IMAGE_API_KEY": ("pipeline", "image_api_key"),
+    "QWEN_LOCAL_BASE_URL": ("pipeline", "qwen_local_base_url"),
+    "QWEN_LOCAL_API_KEY": ("pipeline", "qwen_local_api_key"),
+    "QWEN_LOCAL_MODEL": ("pipeline", "qwen_local_model"),
     "IMAGE_API_URL": ("pipeline", "image_api_url"),
     "SEEDREAM_API_KEY": ("pipeline", "seedream_api_key"),
     "SEEDREAM_API_URL": ("pipeline", "seedream_api_url"),
@@ -178,6 +183,16 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
             "pdf_font": pipeline.pdf_font,
             "image_provider": pipeline.image_provider,
             "codex_model": getattr(pipeline, "codex_model", ""),
+            "qwen_local_base_url": getattr(
+                pipeline, "qwen_local_base_url", "http://localhost:8000/v1"
+            ),
+            "qwen_local_api_key": getattr(pipeline, "qwen_local_api_key", ""),
+            "qwen_local_model": getattr(pipeline, "qwen_local_model", ""),
+            "qwen_local_size": getattr(pipeline, "qwen_local_size", ""),
+            "qwen_local_use_edit_for_refs": getattr(
+                pipeline, "qwen_local_use_edit_for_refs", True
+            ),
+            "qwen_local_timeout": getattr(pipeline, "qwen_local_timeout", 300.0),
             "image_api_key": pipeline.image_api_key,
             "image_api_url": pipeline.image_api_url,
             "panels_per_chapter": getattr(pipeline, "panels_per_chapter", 8),
@@ -186,6 +201,16 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
             "arc_size": pipeline.arc_size,
             "story_bible_enabled": pipeline.story_bible_enabled,
             "enable_self_review": pipeline.enable_self_review,
+            # Length gate + streaming stall detection. These shipped as code
+            # defaults only, so a change never survived a restart.
+            "enable_length_gate": getattr(pipeline, "enable_length_gate", True),
+            "length_gate_min_ratio": getattr(
+                pipeline, "length_gate_min_ratio", 0.85
+            ),
+            "stream_first_chunk_timeout": getattr(
+                pipeline, "stream_first_chunk_timeout", 180
+            ),
+            "stream_chunk_timeout": getattr(pipeline, "stream_chunk_timeout", 30),
             "self_review_threshold": pipeline.self_review_threshold,
             "enable_drama_climax": getattr(pipeline, "enable_drama_climax", False),
             "enable_pipeline_overlay": getattr(

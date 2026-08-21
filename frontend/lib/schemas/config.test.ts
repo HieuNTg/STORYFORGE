@@ -4,6 +4,7 @@ import {
   configUpdateSchema,
   generalFormSchema,
   advancedL1FormSchema,
+  IMAGE_PROVIDERS,
 } from "./config";
 
 const VALID_RESPONSE = {
@@ -31,6 +32,54 @@ const VALID_RESPONSE = {
     image_prompt_style: "cinematic",
   },
 };
+
+describe("qwen-local provider", () => {
+  it("is offered as an image provider", () => {
+    expect(IMAGE_PROVIDERS).toContain("qwen-local");
+    const parsed = generalFormSchema.parse({
+      language: "vi",
+      image_provider: "qwen-local",
+      image_prompt_style: "cinematic",
+      base_url: "https://api.openai.com/v1",
+      model: "gpt-4o-mini",
+    });
+    expect(parsed.image_provider).toBe("qwen-local");
+  });
+
+  it("defaults the panel fields when the backend omits them", () => {
+    const parsed = configResponseSchema.parse(VALID_RESPONSE);
+    expect(parsed.pipeline.qwen_local_base_url).toBe("http://localhost:8000/v1");
+    expect(parsed.pipeline.qwen_local_use_edit_for_refs).toBe(true);
+    expect(parsed.pipeline.qwen_local_size).toBe("");
+  });
+
+  it("accepts a qwen-local delta on the update body", () => {
+    const parsed = configUpdateSchema.parse({
+      qwen_local_base_url: "http://10.0.0.5:8000/v1",
+      qwen_local_api_key: "secret",
+      qwen_local_size: "16:9",
+      qwen_local_use_edit_for_refs: false,
+      qwen_local_timeout: 300,
+    });
+    expect(parsed.qwen_local_size).toBe("16:9");
+    expect(parsed.qwen_local_use_edit_for_refs).toBe(false);
+  });
+
+  it("rejects a timeout outside the accepted range", () => {
+    expect(() => configUpdateSchema.parse({ qwen_local_timeout: 5 })).toThrow();
+    expect(() => configUpdateSchema.parse({ qwen_local_timeout: 5000 })).toThrow();
+  });
+
+  it("never exposes the raw key on the response schema", () => {
+    // The GET surface masks secrets; a strict schema must reject a raw one.
+    expect(() =>
+      configResponseSchema.parse({
+        ...VALID_RESPONSE,
+        pipeline: { ...VALID_RESPONSE.pipeline, qwen_local_api_key: "raw" },
+      }),
+    ).toThrow();
+  });
+});
 
 describe("configResponseSchema", () => {
   it("accepts a valid masked config payload", () => {
@@ -109,8 +158,28 @@ describe("advancedL1FormSchema", () => {
         layer1_model: "",
         enable_self_review: true,
         self_review_threshold: 3.0,
+        enable_length_gate: true,
+        length_gate_min_ratio: 0.85,
       }),
     ).not.toThrow();
+  });
+
+  it("rejects a length-gate ratio outside 0.5–1", () => {
+    const base = {
+      temperature: 0.8,
+      max_tokens: 4096,
+      cheap_model: "",
+      layer1_model: "",
+      enable_self_review: true,
+      self_review_threshold: 3.0,
+      enable_length_gate: true,
+    };
+    expect(() =>
+      advancedL1FormSchema.parse({ ...base, length_gate_min_ratio: 0.2 }),
+    ).toThrow();
+    expect(() =>
+      advancedL1FormSchema.parse({ ...base, length_gate_min_ratio: 1.5 }),
+    ).toThrow();
   });
 
   it("rejects max_tokens above hard cap", () => {
