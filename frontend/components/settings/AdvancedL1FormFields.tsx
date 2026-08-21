@@ -62,6 +62,8 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
       layer1_model: config.llm.layer1_model ?? "",
       enable_self_review: config.pipeline.enable_self_review ?? true,
       self_review_threshold: config.pipeline.self_review_threshold ?? 3.0,
+      enable_length_gate: config.pipeline.enable_length_gate ?? true,
+      length_gate_min_ratio: config.pipeline.length_gate_min_ratio ?? 0.85,
     }),
     [config],
   );
@@ -95,6 +97,8 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
   const temperature = form.watch("temperature");
   const threshold = form.watch("self_review_threshold");
   const selfReview = form.watch("enable_self_review");
+  const lengthGate = form.watch("enable_length_gate");
+  const lengthRatio = form.watch("length_gate_min_ratio");
   const cheapModel = form.watch("cheap_model") ?? "";
   const layer1Model = form.watch("layer1_model") ?? "";
 
@@ -307,6 +311,67 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
             ) : (
               <p className="text-xs text-muted-foreground">
                 {t("form.l1.self_review_threshold_hint")}
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2">
+            <div className="flex flex-col">
+              <label
+                htmlFor="adv-length-gate"
+                className="text-sm font-medium text-foreground"
+              >
+                {t("form.l1.length_gate")}
+              </label>
+              <span className="text-xs text-muted-foreground">
+                {t("form.l1.length_gate_desc")}
+              </span>
+            </div>
+            <Switch
+              id="adv-length-gate"
+              checked={lengthGate}
+              onCheckedChange={(v) =>
+                form.setValue("enable_length_gate", v, { shouldDirty: true })
+              }
+              data-testid="length-gate-toggle"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <label
+                htmlFor="adv-length-ratio"
+                className="text-sm font-medium text-foreground"
+              >
+                {t("form.l1.length_gate_ratio")}
+              </label>
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                {Math.round(lengthRatio * 100)}%
+              </span>
+            </div>
+            <Slider
+              id="adv-length-ratio"
+              min={0.5}
+              max={1}
+              step={0.05}
+              value={[lengthRatio]}
+              aria-label={t("form.l1.length_gate_ratio")}
+              onValueChange={(v) => {
+                const next = Array.isArray(v) ? v[0] : v;
+                form.setValue("length_gate_min_ratio", next, {
+                  shouldDirty: true,
+                });
+              }}
+              disabled={!lengthGate}
+              data-testid="length-gate-ratio"
+            />
+            {errors.length_gate_min_ratio ? (
+              <p className="text-xs text-destructive">
+                {errors.length_gate_min_ratio.message}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {t("form.l1.length_gate_ratio_hint")}
               </p>
             )}
           </div>

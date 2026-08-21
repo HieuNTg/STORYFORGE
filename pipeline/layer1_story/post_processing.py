@@ -837,6 +837,15 @@ def process_chapter_post_write(
                 story_context.arc_execution_warnings = arc_warnings
                 for w in arc_warnings:
                     logger.warning("Ch%d arc: %s", outline.chapter_number, w)
+                # A drifting character arc used to be visible only to whoever
+                # tailed the server log. Put it on the progress channel so it
+                # reaches the UI — the reader of the finished story is the one
+                # who pays for an arc that never happened.
+                if progress_callback:
+                    progress_callback(
+                        f"Ch{outline.chapter_number}: {len(arc_warnings)} cung nhân vật "
+                        f"chưa thể hiện — {'; '.join(arc_warnings[:3])}"
+                    )
             else:
                 story_context.arc_execution_warnings = []
             # L1-C: append to per-character arc progression cache

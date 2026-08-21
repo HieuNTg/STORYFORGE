@@ -266,10 +266,20 @@ class GenerationMixin:
 
             entry_yielded = 0
             try:
+                # Read from config: a reasoning model's time-to-first-token can
+                # exceed any fixed default, and a too-short ceiling throws away
+                # the work mid-thought rather than waiting for it.
+                # `config` is the one already resolved at the top of this method
+                # — LLMClient itself has no `.config` attribute.
+                _pcfg = getattr(config, "pipeline", None)
                 for chunk in self._stream_with_chunk_timeout(
                     self._stream_with_retry(_api_gen, f"stream:{entry['label']}"),
-                    chunk_timeout=30,
-                    first_chunk_timeout=60,
+                    chunk_timeout=int(
+                        getattr(_pcfg, "stream_chunk_timeout", 30) or 30
+                    ),
+                    first_chunk_timeout=int(
+                        getattr(_pcfg, "stream_first_chunk_timeout", 180) or 180
+                    ),
                 ):
                     entry_yielded += 1
                     total_yielded += 1
