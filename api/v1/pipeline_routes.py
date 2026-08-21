@@ -812,7 +812,15 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                 from services.llm_client import LLMClient
 
                 llm = LLMClient()
-                story_title = generate_title_from_idea(llm, body.genre, idea)
+                # Blocking LLM call inside an `async def` route handler — it runs
+                # BEFORE the pipeline coroutine is offloaded below, so awaiting it
+                # inline froze the server loop for the length of one completion
+                # (measured at 33.9s against the local bridge's Qwen path, during
+                # which /api/health stopped answering). Same class of bug as the
+                # orchestrator offload; this call site just sits earlier.
+                story_title = await asyncio.to_thread(
+                    generate_title_from_idea, llm, body.genre, idea
+                )
                 logger.info(f"Auto-generated title: {story_title}")
             except Exception as e:
                 logger.warning(f"Title generation failed, using fallback: {e}")

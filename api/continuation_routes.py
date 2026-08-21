@@ -732,7 +732,10 @@ async def generate_outlines(body: OutlinePreviewRequest):
         )
 
     try:
-        outlines = orch.generate_continuation_outlines(
+        # Blocking LLM work in an `async def` handler freezes the server loop
+        # for the whole call — see the orchestrator offload in pipeline_routes.
+        outlines = await asyncio.to_thread(
+            orch.generate_continuation_outlines,
             additional_chapters=body.additional_chapters,
             arc_directives=body.arc_directives,
         )
@@ -1011,7 +1014,8 @@ async def generate_continuation_paths(body: MultiPathRequest):
         )
 
     try:
-        paths = orch.continuation.generate_continuation_paths(
+        paths = await asyncio.to_thread(
+            orch.continuation.generate_continuation_paths,
             additional_chapters=body.additional_chapters,
             num_paths=body.num_paths,
             arc_directives=body.arc_directives,
