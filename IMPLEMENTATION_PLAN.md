@@ -142,8 +142,8 @@ Nothing else in this sprint can be judged until spend is counted correctly.
 - [ ] Group the ~10 sequential validators in `finalize_chapter` into 2-3 gather groups.
 - [ ] Parallelise the 6 independent L1 preamble calls (60-90 s of dead time at the start of every run).
 - [ ] Parallelise comic panels within a chapter and chapters on the Reader path, so the FlowKit ramp can actually ramp.
-- [ ] Collapse the 4-tier agent DAG to 2 tiers — only the editor consumes `prior_reviews`.
-- [ ] Honour `max_parallel_workers`, which is currently read only to print a log line while the gather runs unbounded.
+- [x] Collapse the agent DAG from 4 tiers to 2. Six of eight agents declared `depends_on` while ignoring the `prior_reviews` argument, so the panel ran in four sequential passes with nobody using the previous pass's data. Only the editor consumes it, so only the editor gets its own tier. A test now rejects a declared dependency that the agent does not actually read.
+- [x] Honour `max_parallel_workers`. It was read only to print "parallel, N workers" while the gather dispatched every chapter at once — a 50-chapter continuation ran 50 chapter pipelines concurrently, each with its own nested pool.
 ### Batch I — Retry discipline (done)
 
 - [x] Cap auto-discovered round-robin models at `max_discovered_models_per_key` (3). Explicitly configured `fallback_models` are untouched — capping the whole chain would have dropped exactly the fallbacks the operator chose on purpose.

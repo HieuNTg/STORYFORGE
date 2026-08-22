@@ -935,19 +935,27 @@ class StoryEnhancer:
         loop = asyncio.get_running_loop()
         chapters_list = list(draft.chapters)
 
+        # max_workers was read only to print the line above: the gather below
+        # dispatched every chapter at once. A 50-chapter continuation therefore
+        # ran 50 chapter pipelines concurrently, each spawning its own nested
+        # pool inside scene enhancement — far past what the provider or the
+        # default executor can serve, and the opposite of what the setting says.
+        semaphore = asyncio.Semaphore(max(1, int(max_workers or 1)))
+
         async def _one(chapter: Chapter) -> tuple[int, Chapter]:
             ch_num = chapter.chapter_number
             try:
-                result = await loop.run_in_executor(
-                    None,
-                    self.enhance_chapter,
-                    chapter,
-                    sim_result,
-                    word_count,
-                    total_chapters,
-                    draft.genre,
-                    draft,
-                )
+                async with semaphore:
+                    result = await loop.run_in_executor(
+                        None,
+                        self.enhance_chapter,
+                        chapter,
+                        sim_result,
+                        word_count,
+                        total_chapters,
+                        draft.genre,
+                        draft,
+                    )
                 _log(f"✨ Chương {ch_num} đã tăng cường xong")
                 # P-C: Incremental publish — notify when chapter is done
                 if chapter_done_callback:

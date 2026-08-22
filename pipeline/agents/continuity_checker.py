@@ -10,7 +10,11 @@ class ContinuityCheckerAgent(BaseAgent):
     role = "continuity_checker"
     goal = "Phát hiện lỗi dòng thời gian, luật thế giới, nhân vật chết hồi sinh, địa điểm sai"
     layers = [1, 2, 3]
-    depends_on: list[str] = ["Chuyên Gia Nhân Vật"]
+    # No dependency: this agent ignores `prior_reviews`. `depends_on`
+    # forces a separate execution tier, and declaring one without
+    # consuming the data made the panel run in four sequential tiers
+    # where only the editor actually needs to go last.
+    depends_on: list[str] = []
 
     def review(
         self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None

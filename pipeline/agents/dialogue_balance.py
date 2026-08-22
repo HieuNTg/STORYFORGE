@@ -10,7 +10,11 @@ class DialogueBalanceAgent(BaseAgent):
     role = "dialogue_balance"
     goal = "Đánh giá phân bổ đối thoại, giọng nói riêng biệt của từng nhân vật"
     layers = [2]
-    depends_on: list[str] = ["Chuyên Gia Đối Thoại"]
+    # No dependency: this agent ignores `prior_reviews`. `depends_on`
+    # forces a separate execution tier, and declaring one without
+    # consuming the data made the panel run in four sequential tiers
+    # where only the editor actually needs to go last.
+    depends_on: list[str] = []
 
     def review(
         self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None
