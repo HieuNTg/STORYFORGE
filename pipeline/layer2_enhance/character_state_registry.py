@@ -5,6 +5,7 @@ Extracted before enhance, injected as constraints, validated after enhance.
 """
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pydantic import BaseModel, Field
 from services.llm_client import LLMClient
 
@@ -61,56 +62,91 @@ Chỉ ghi nhận thông tin CHẮC CHẮN xuất hiện trong văn bản. Nếu 
         character_names: list[str],
     ) -> list[CharacterState]:
         """Trích xuất trạng thái của tất cả nhân vật từ một chương."""
-        results = []
         content_truncated = chapter_content[:5000]
+        present = [
+            name for name in character_names
+            if name.lower() in chapter_content.lower()
+        ]
+        if not present:
+            return []
 
-        for name in character_names:
-            # Skip if character not mentioned in chapter
-            if name.lower() not in chapter_content.lower():
-                continue
+        # One call per character, but issued concurrently. These are independent
+        # cheap calls against the same content; running them one after another
+        # made state extraction the wall-clock floor of the consistency engine
+        # (a 10-chapter, 5-character story is ~50 strictly serial calls).
+        states: list[CharacterState] = []
+        if len(present) == 1:
+            single = self._extract_one(present[0], chapter_number, content_truncated)
+            if single is not None:
+                states.append(single)
+        else:
+            with ThreadPoolExecutor(max_workers=min(len(present), 5)) as pool:
+                futures = {
+                    pool.submit(
+                        self._extract_one, name, chapter_number, content_truncated
+                    ): name
+                    for name in present
+                }
+                for future in as_completed(futures):
+                    try:
+                        state = future.result()
+                    except Exception as exc:  # pragma: no cover - defensive
+                        logger.warning(
+                            "Failed to extract state for %s ch%s: %s",
+                            futures[future],
+                            chapter_number,
+                            exc,
+                        )
+                        continue
+                    if state is not None:
+                        states.append(state)
 
-            try:
-                result = self.llm.generate_json(
-                    system_prompt="Trích xuất trạng thái nhân vật. Trả về JSON chính xác.",
-                    user_prompt=self.EXTRACT_STATE_PROMPT.format(
-                        name=name,
-                        chapter_number=chapter_number,
-                        content=content_truncated,
-                    ),
-                    temperature=0.1,
-                    max_tokens=500,
-                    model_tier="cheap",
-                    expect="dict",
-                )
+        # Merge on the calling thread: self.states is shared mutable state.
+        for state in states:
+            self.states.setdefault(state.name, {})[chapter_number] = state
 
-                state = CharacterState(
+        # Deterministic order regardless of completion order.
+        states.sort(key=lambda st: present.index(st.name))
+        return states
+
+    def _extract_one(
+        self, name: str, chapter_number: int, content_truncated: str
+    ) -> "CharacterState | None":
+        """One character's state for one chapter. Returns None on failure."""
+        try:
+            result = self.llm.generate_json(
+                system_prompt="Trích xuất trạng thái nhân vật. Trả về JSON chính xác.",
+                user_prompt=self.EXTRACT_STATE_PROMPT.format(
                     name=name,
                     chapter_number=chapter_number,
-                    location=result.get("location", "") or "",
-                    physical_state=result.get("physical_state", "") or "",
-                    emotional_state=result.get("emotional_state", "") or "",
-                    inventory=result.get("inventory", []) or [],
-                    companions=result.get("companions", []) or [],
-                    goals_active=result.get("goals_active", []) or [],
-                    secrets_revealed=result.get("secrets_revealed", []) or [],
-                )
-
-                # Store in registry
-                if name not in self.states:
-                    self.states[name] = {}
-                self.states[name][chapter_number] = state
-                results.append(state)
-
-                logger.debug(
-                    f"Extracted state for {name} ch{chapter_number}: loc={state.location}"
-                )
-
-            except Exception as e:
-                logger.warning(
-                    f"Failed to extract state for {name} ch{chapter_number}: {e}"
-                )
-
-        return results
+                    content=content_truncated,
+                ),
+                temperature=0.1,
+                max_tokens=500,
+                model_tier="cheap",
+                expect="dict",
+            )
+            state = CharacterState(
+                name=name,
+                chapter_number=chapter_number,
+                location=result.get("location", "") or "",
+                physical_state=result.get("physical_state", "") or "",
+                emotional_state=result.get("emotional_state", "") or "",
+                inventory=result.get("inventory", []) or [],
+                companions=result.get("companions", []) or [],
+                goals_active=result.get("goals_active", []) or [],
+                secrets_revealed=result.get("secrets_revealed", []) or [],
+            )
+            logger.debug(
+                "Extracted state for %s ch%s: loc=%s", name, chapter_number,
+                state.location,
+            )
+            return state
+        except Exception as e:
+            logger.warning(
+                "Failed to extract state for %s ch%s: %s", name, chapter_number, e
+            )
+            return None
 
     def get_state(self, name: str, chapter_number: int) -> CharacterState | None:
         """Lấy trạng thái nhân vật tại chương cụ thể."""

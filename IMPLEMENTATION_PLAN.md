@@ -135,7 +135,10 @@ Nothing else in this sprint can be judged until spend is counted correctly.
 - [x] Cap the 8-agent panel's replies at `l2_agent_review_max_tokens` (1200). Each returns a small `{score, issues[], suggestions[]}` object and had no output cap, so it was billed against the model's full output budget. A source-level test keeps any new panel call from shipping uncapped.
 - [x] Expose `l2_cheap_agent_panel`, **defaulted off**. Unlike the simulator's filler, the panel's critique is what SmartRevisionService rewrites from, so moving it to a weaker model is a quality decision for the CEO rather than an automatic saving.
 - [ ] Reorder the fallback chain: cheap model first in the cheap tier, primary model always present as last resort.
-- [ ] Batch and parallelise the consistency engine (~100 strictly sequential cheap calls, one per character per chapter).
+### Batch H — Parallelism (in progress)
+
+- [x] Parallelise character-state extraction: one cheap call per character per chapter, previously issued strictly one after another against the same excerpt. Prompt unchanged — this is a scheduling fix, so there is no quality risk. Results are merged on the calling thread and returned in a deterministic order rather than completion order.
+- [ ] **Follow-up, needs measurement:** batch all characters into one call per chapter (~50 calls to ~10). Cuts cost as well, but changes the prompt and its parsed shape, so it needs a real story run to validate before shipping.
 - [ ] Group the ~10 sequential validators in `finalize_chapter` into 2-3 gather groups.
 - [ ] Parallelise the 6 independent L1 preamble calls (60-90 s of dead time at the start of every run).
 - [ ] Parallelise comic panels within a chapter and chapters on the Reader path, so the FlowKit ramp can actually ramp.

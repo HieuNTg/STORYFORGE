@@ -52,6 +52,29 @@ if os.path.exists(_config_persistence.CONFIG_FILE):
 
     shutil.copyfile(_config_persistence.CONFIG_FILE, _TEST_CONFIG_FILE)
 
+    # Drop encrypted secrets from the sandbox copy. Tests deliberately do not
+    # load .env (STORYFORGE_SKIP_DOTENV above), so STORYFORGE_SECRET_KEY is
+    # absent and every ENC: value decrypts to "" anyway — but noisily, logging
+    # "cannot decrypt" on each read. Removing them keeps the effective state
+    # identical and the log honest: tests run without secrets, on purpose.
+    try:
+        with open(_TEST_CONFIG_FILE, "r", encoding="utf-8") as _f:
+            _seed = json.load(_f)
+
+        def _strip_encrypted(value):
+            if isinstance(value, dict):
+                return {k: _strip_encrypted(v) for k, v in value.items()}
+            if isinstance(value, list):
+                return [_strip_encrypted(v) for v in value]
+            if isinstance(value, str) and value.startswith("ENC:"):
+                return ""
+            return value
+
+        with open(_TEST_CONFIG_FILE, "w", encoding="utf-8") as _f:
+            json.dump(_strip_encrypted(_seed), _f, ensure_ascii=False)
+    except (OSError, json.JSONDecodeError):
+        pass
+
     # Hermetic LLM: point every base_url in the sandbox copy at a local
     # accept-and-close listener so an unmocked LLM call fails in milliseconds
     # instead of running a real generation against the developer's live proxy.
