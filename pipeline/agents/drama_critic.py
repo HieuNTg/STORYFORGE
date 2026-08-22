@@ -15,11 +15,11 @@ class DramaCriticAgent(BaseAgent):
     role = "drama_critic"
     goal = "Đánh giá tension arc, cliffhanger, đa dạng cảm xúc và tích hợp sự kiện kịch tính"
     layers = [2]
-    depends_on: list[str] = [
-        "Kiểm Soát Viên",
-        "Chuyên Gia Đối Thoại",
-        "Kiểm Tra Văn Phong",
-    ]
+    # No dependency: this agent ignores `prior_reviews`. `depends_on`
+    # forces a separate execution tier, and declaring one without
+    # consuming the data made the panel run in four sequential tiers
+    # where only the editor actually needs to go last.
+    depends_on: list[str] = []
 
     def review(
         self, output: PipelineOutput, layer: int, iteration: int, prior_reviews=None
@@ -36,6 +36,8 @@ class DramaCriticAgent(BaseAgent):
             user_prompt=prompt,
             temperature=0.4,
             expect="dict",
+            max_tokens=self.review_max_tokens,
+            model_tier=self.review_model_tier,
         )
         return self._parse_review_json(result, layer, iteration)
 
@@ -89,6 +91,7 @@ class DramaCriticAgent(BaseAgent):
             max_tokens=500,
             expect="dict",
             list_key="entries",
+            model_tier=self.review_model_tier,
         )
         return self._parse_debate_llm_response(result, all_reviews)
 

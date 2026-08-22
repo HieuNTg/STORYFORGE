@@ -9,6 +9,21 @@ from pathlib import Path
 import pytest
 from unittest.mock import MagicMock, patch
 
+# Hermetic env: the config package loads .env so every entry point picks up
+# STORYFORGE_SECRET_KEY and friends. Tests must not — a developer's .env would
+# override the dead-LLM base_url installed below and point the suite at their
+# live proxy. Set before the config import on the next line.
+os.environ.setdefault("STORYFORGE_SKIP_DOTENV", "1")
+
+# Hermetic LLM cache: point it at a throwaway file. Tests have always written to
+# the developer's real data/llm_cache.db; now that the cache key is fixed and
+# reads actually hit, sharing it would let one test be served another's cached
+# response — order-dependent failures that look like real regressions.
+os.environ.setdefault(
+    "STORYFORGE_LLM_CACHE_DB",
+    os.path.join(tempfile.mkdtemp(prefix="storyforge-test-cache-"), "llm_cache.db"),
+)
+
 # ---------------------------------------------------------------------------
 # Hermetic config: redirect CONFIG_FILE for the WHOLE test session.
 #
@@ -36,6 +51,29 @@ if os.path.exists(_config_persistence.CONFIG_FILE):
     import shutil
 
     shutil.copyfile(_config_persistence.CONFIG_FILE, _TEST_CONFIG_FILE)
+
+    # Drop encrypted secrets from the sandbox copy. Tests deliberately do not
+    # load .env (STORYFORGE_SKIP_DOTENV above), so STORYFORGE_SECRET_KEY is
+    # absent and every ENC: value decrypts to "" anyway — but noisily, logging
+    # "cannot decrypt" on each read. Removing them keeps the effective state
+    # identical and the log honest: tests run without secrets, on purpose.
+    try:
+        with open(_TEST_CONFIG_FILE, "r", encoding="utf-8") as _f:
+            _seed = json.load(_f)
+
+        def _strip_encrypted(value):
+            if isinstance(value, dict):
+                return {k: _strip_encrypted(v) for k, v in value.items()}
+            if isinstance(value, list):
+                return [_strip_encrypted(v) for v in value]
+            if isinstance(value, str) and value.startswith("ENC:"):
+                return ""
+            return value
+
+        with open(_TEST_CONFIG_FILE, "w", encoding="utf-8") as _f:
+            json.dump(_strip_encrypted(_seed), _f, ensure_ascii=False)
+    except (OSError, json.JSONDecodeError):
+        pass
 
     # Hermetic LLM: point every base_url in the sandbox copy at a local
     # accept-and-close listener so an unmocked LLM call fails in milliseconds

@@ -11,6 +11,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- **Chapter length gate (L1)** — a chapter that comes back materially under its word-count target gets one expansion pass built from real material (expanded scenes, dialogue, interiority), never a padding loop; an "expansion" that returns shorter is rejected and the original kept. Toggle + threshold in Settings → Nâng cao L1 (`enable_length_gate`, `length_gate_min_ratio`, default 85%)
+- **Streaming stall timeouts are configurable** — `stream_first_chunk_timeout` (180s) and `stream_chunk_timeout` (30s) replace the hard-coded 60s/30s; a reasoning model's time-to-first-token measured a 106s max through the local bridge, so the old ceiling discarded calls mid-thought and silently demoted them down the model chain
+- **Colour steering in every image prompt** — panel, scene, refiner, avatar and cover prompts now ask for full colour and negate monochrome/grayscale; comic-style wording ("cel shading", "bold ink lines") otherwise lands on the black-and-white slice of the training data
+- **Qwen local proxy image provider** (`image_provider="qwen-local"`) — generate panels through a locally-run OpenAI-compatible proxy in front of chat.qwen.ai. Selectable in Settings → General with its own panel (base URL, API key, model, aspect ratio, timeout, reachability probe). Reference images go to the proxy's edit endpoint, so character likeness is preserved instead of being re-described in text; toggle with `qwen_local_use_edit_for_refs`. See `docs/qwen-local-provider.md`
 - **Phase E: Contract Gate** — Validate enhanced chapters against `ChapterContract` (Phase 1 constraints); auto-rewrite if ≥2 critical failures or (≥1 critical + ≥2 warnings); integrated post-causal-audit; feature-flagged `config.pipeline.l2_contract_gate` (default True)
 
 ### Removed
@@ -18,6 +22,24 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - TTS/voice narration (edge-tts)
 - Audio player component
 - Video composer and exporter
+
+### Changed
+
+- **One comic path for both entry points** — the pipeline media stage ran its own legacy routine (no shot list, no dialogue, no page composition) while the Reader's on-demand button ran the full comic flow, so an end-to-end story came out as loose illustrations. Both now call `services/media/comic_chapter.py`
+- **Comic paneling is on by default** — `comic_shot_list_enabled` and `comic_compositor_enabled` flipped to `True`; with them off the product generates illustrations rather than a comic. Failures still degrade to loose panels
+
+### Fixed
+
+- **Arc-execution warnings now reach the consistency rewrite** — `arc_execution_validator` wrote `arc_execution_warnings` to the story context and nothing read it, so a chapter that never executed its planned arc stage was flagged to the log and then shipped unchanged. Both arc warning lists now feed the rewrite (and are cleared together once the content they described is replaced), and the warning is surfaced on the progress channel instead of only the server log
+- **`panels_max` is enforced** — nothing bounded the panel count end to end: the coverage verifier inserts up to 6 panels and the bubble rules split more, so a chapter could ship well past the configured ceiling, each extra panel costing an image. Over the ceiling, panels split from the same beat are merged back (same beat + subject + shot, within the 2-bubble limit); beats are never dropped
+- **Length-gate and streaming knobs persist** — the four settings existed as code defaults only, so a change never survived a restart and never appeared in the API or the UI
+- **Comic pages: balloons no longer escape their panel** — the bubble fitter only ever fit width, so a long line grew the balloon downward past the frame and over the panel below. Height is now budgeted (body + tail ≤ 66% of the frame) and the text shrinks/tightens to fit
+- **Comic pages: over-long dialogue is split into several balloons** — `enforce_rules` only moved a long speaker into another panel when it was NOT the first bubble, so the common case (one speaker, one long line) reached the compositor whole. Long lines now split at sentence/clause boundaries into ≤20-word balloons, text preserved in order
+- **Comic pages: panels are generated at their cell's aspect** — every panel was square and then center-cropped into its layout cell, discarding >50% of a panel on a `THREE_TIER` page. `panel_target_sizes()` derives WxH per panel from the layout; DALL·E/Codex sizes snap to the nearest supported aspect
+- **Comic pages: no more silently dropped panels** — a 5-panel page routed to the 3-cell `BIG_PLUS_TWO` lost two beats. Added `BIG_PLUS_FOUR` (5 cells) and `layout_cells` now widens the layout instead of dropping panels
+- **Comic pages: a lone leftover panel fills its page** — it was labelled `TWO_TIER`, leaving the bottom half blank. Added the `SOLO` layout (single cell, without SPLASH's dramatic meaning)
+- **Pipeline panel count honours the auto-sizing knobs** — the media stage read `panels_per_chapter` directly and ignored `panels_auto` / `panels_min` / `panels_max` / `words_per_panel`, so the same chapter got a different panel count depending on which route generated it (shared `panels_for_chapter()`)
+- **Legacy scene extractor sees the whole chapter** — it truncated prose at 3000 chars (the shot-list path had already moved to 8000), so half of a typical chapter could never be picked as a scene
 
 ### Changed
 - Thread-safe SSE streaming (RLock + snapshot pattern)

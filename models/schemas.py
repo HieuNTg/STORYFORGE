@@ -1073,6 +1073,13 @@ class ImagePrompt(BaseModel):
         default_factory=dict,
         description="180-degree placement, {character_name: left|center|right}",
     )
+    target_size: str = Field(
+        default="",
+        description=(
+            "WxH the panel should be generated at, matched to the compositor "
+            "cell this panel lands in. Empty = the generator's default square."
+        ),
+    )
 
 
 class UserProfile(BaseModel):

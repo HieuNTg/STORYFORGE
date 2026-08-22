@@ -1,5 +1,6 @@
 """LLMClient — singleton LLM caller with retry and cache."""
 
+import contextlib
 import contextvars
 import logging
 import random
@@ -236,9 +237,21 @@ def _get_provider(base_url: str, api_key: str):
 
 
 def _estimate_tokens(text: str) -> int:
+    """Token estimate, used only when a provider reports no usage of its own.
+
+    Delegates to services.token_counter, which uses tiktoken when available and
+    otherwise accounts for Vietnamese character density. The previous
+    len(text)//4 ran roughly 45% low on Vietnamese prose, so every cost cap and
+    usage figure derived from it was correspondingly wrong.
+    """
     if not text:
         return 0
-    return max(1, len(text) // 4)
+    try:
+        from services.token_counter import estimate_tokens
+
+        return max(1, int(estimate_tokens(text)))
+    except Exception:  # pragma: no cover - defensive
+        return max(1, len(text) // 4)
 
 
 def _record_trace_call(
@@ -250,8 +263,13 @@ def _record_trace_call(
     duration_ms: int,
     success: bool,
     error: str = "",
+    usage: dict | None = None,
 ) -> None:
-    """Append LLMCall into active PipelineTrace. No-op if no trace is active."""
+    """Append LLMCall into active PipelineTrace. No-op if no trace is active.
+
+    `usage` carries the provider's own token counts when it reported them;
+    otherwise the counts fall back to an estimate.
+    """
     try:
         from services.trace_context import get_trace, get_chapter, get_module, LLMCall
         from services.llm_pricing import compute_cost
@@ -266,8 +284,12 @@ def _record_trace_call(
         prompt_text = "".join(
             (m.get("content") or "") for m in messages if isinstance(m, dict)
         )
-        prompt_tokens = _estimate_tokens(prompt_text)
-        completion_tokens = _estimate_tokens(result) if success else 0
+        usage = usage or {}
+        prompt_tokens = int(usage.get("prompt_tokens") or _estimate_tokens(prompt_text))
+        completion_tokens = int(
+            usage.get("completion_tokens")
+            or (_estimate_tokens(result) if success else 0)
+        )
         total = prompt_tokens + completion_tokens
         cost = compute_cost(model, prompt_tokens, completion_tokens)
         call = LLMCall(
@@ -319,6 +341,35 @@ def _record_trace_call(
                 logger.debug("Usage sidecar hook failed: %s", ue)
     except Exception as e:
         logger.debug("Trace record failed: %s", e)
+
+
+_cache_reads_enabled: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "storyforge_llm_cache_reads", default=True
+)
+
+
+@contextlib.contextmanager
+def no_cache_reads():
+    """Suppress LLM cache *reads* for the duration of the block.
+
+    Quality-gate retries re-issue a call whose prompt may be byte-identical to
+    the one that just failed — a rebuilt contract that failed to rebuild, or a
+    revision hint that lands outside the prompt. The cache then serves the
+    rejected body straight back, so every retry is a guaranteed no-op that
+    still burns the retry budget. Writes stay on: the fresh result is worth
+    caching, only reading the stale one is wrong.
+
+    Scoped through a ContextVar, so concurrent chapters and async tasks are
+    unaffected by one chapter entering a retry. The flip side is that a plain
+    ThreadPoolExecutor does not copy the context, so calls a retry hands to a
+    nested pool still read the cache — that covers validators and sub-calls,
+    where a hit is harmless, not the chapter body being rewritten.
+    """
+    token = _cache_reads_enabled.set(False)
+    try:
+        yield
+    finally:
+        _cache_reads_enabled.reset(token)
 
 
 @dataclass
@@ -744,7 +795,13 @@ class LLMClient(StreamingMixin, GenerationMixin):
             {"role": "user", "content": user_prompt},
         ]
 
-        effective_model = config.llm.model
+        # The requested model, not the configured primary. Reading under
+        # config.llm.model regardless of the `model` override meant every layer
+        # shared one cache namespace: generate_for_layer delegates here with
+        # model=layer2_model, so a layer-2 call could be served a cached layer-1
+        # body. It also meant the read key never matched the write key below
+        # once anything but the primary answered, so the cache barely ever hit.
+        effective_model = model or config.llm.model
         use_cache = config.llm.cache_enabled and effective_temp <= 1.0
         cache = None
         cache_params = None
@@ -761,10 +818,17 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 model=effective_model,
                 temperature=effective_temp,
                 json_mode=json_mode,
+                # A 512-token answer must not be served to an 8192-token
+                # request: the shorter body is truncated mid-sentence.
+                max_tokens=max_tokens or config.llm.max_tokens,
+                model_tier=model_tier,
             )
-            cached = cache.get(**cache_params)
-            if cached is not None and cached.strip():
-                return cached
+            if _cache_reads_enabled.get():
+                cached = cache.get(**cache_params)
+                if cached is not None and cached.strip():
+                    return cached
+            else:
+                logger.debug("Cache read suppressed (retry path): %s", effective_model)
 
         chain = self._build_fallback_chain(config, model_tier, model_override=model)
         eff_max_tokens = max_tokens or config.llm.max_tokens
@@ -780,8 +844,28 @@ class LLMClient(StreamingMixin, GenerationMixin):
         chain_retry_max = getattr(config.llm, "chain_retry_max", 2)
         chain_retry_base_delay = getattr(config.llm, "chain_retry_base_delay", 30.0)
 
+        # Absolute ceiling for this call across the whole chain, its per-entry
+        # retries and its backoff sleeps. Without one, three retries against a
+        # long chain over three chain passes at a 900s timeout has no bound a
+        # caller could reason about.
+        call_deadline: float | None = None
+        _budget_s = float(getattr(config.llm, "max_total_call_seconds", 0) or 0)
+        if _budget_s > 0:
+            call_deadline = time.monotonic() + _budget_s
+
+        def _out_of_time() -> bool:
+            return call_deadline is not None and time.monotonic() >= call_deadline
+
         last_chain_error = None
         for chain_attempt in range(chain_retry_max + 1):
+            if _out_of_time():
+                logger.error(
+                    "LLM call exceeded max_total_call_seconds (%.0fs); giving up "
+                    "before chain attempt %d",
+                    _budget_s,
+                    chain_attempt + 1,
+                )
+                break
             if chain_attempt > 0:
                 delay = chain_retry_base_delay * (
                     2 ** (chain_attempt - 1)
@@ -790,9 +874,11 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     f"Chain exhausted, retrying entire chain in {delay:.1f}s (attempt {chain_attempt + 1}/{chain_retry_max + 1})"
                 )
                 _retry_sleep(delay)
-                # Clear rate-limit state for fresh retry
-                self._rate_limited_keys.clear()
-                self._rate_limited_models.clear()
+                # Drop only cooldowns that have actually expired. Clearing them
+                # wholesale threw away what sibling chapters had just paid 429s
+                # to learn, sending every one of them straight back at the
+                # exhausted key.
+                self._expire_rate_limits()
                 chain = self._build_fallback_chain(
                     config, model_tier, model_override=model
                 )
@@ -811,6 +897,13 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     f"Fallback chain has {len(chain)} entries (chain attempt {chain_attempt + 1})"
                 )
             for entry in chain:
+                if _out_of_time():
+                    logger.error(
+                        "LLM call exceeded max_total_call_seconds (%.0fs); "
+                        "abandoning the rest of the chain",
+                        _budget_s,
+                    )
+                    break
                 entry_key = entry.get("_api_key", "")
                 logger.debug(
                     f"Trying {entry.get('label', '?')} (key: {entry_key[:12] if entry_key else 'none'}...)"
@@ -830,9 +923,11 @@ class LLMClient(StreamingMixin, GenerationMixin):
                         and cache_params is not None
                         and result.strip()
                     ):
-                        # Cache with actual model used (may differ from primary)
-                        actual_model = entry.get("model", effective_model)
-                        cache.put(result, **{**cache_params, "model": actual_model})
+                        # Store under the key the caller will read back with.
+                        # This used to key on whichever model actually answered,
+                        # so anything served by a fallback was written to a key
+                        # no read ever computes — the entry could never hit.
+                        cache.put(result, **cache_params)
                     return result
                 except LLMBudgetExceededError:
                     # Budget cap is terminal — abort the run, no fallback chain.
@@ -983,7 +1078,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
             if now >= cooldown_until:
                 result.append(e)
         if not result:
-            self._rate_limited_keys.clear()
+            # Every key is cooling down. Try them anyway rather than failing —
+            # but do not erase the cooldowns, which other threads are still
+            # using to route around the same exhausted keys.
             result = entries
         return result
 
@@ -1033,6 +1130,22 @@ class LLMClient(StreamingMixin, GenerationMixin):
             )
 
         return {"rate_limited_keys": rl_keys, "rate_limited_models": rl_models}
+
+    def _expire_rate_limits(self) -> None:
+        """Drop cooldowns whose deadline has passed, keeping the rest.
+
+        Chapters generate in parallel against one shared client, so these dicts
+        are collective knowledge: each entry was paid for with a real 429. A
+        chain retry used to clear them outright, which sent every sibling
+        chapter straight back at the key that had just refused them.
+        """
+        now = time.time()
+        for key in [k for k, until in self._rate_limited_keys.items() if now >= until]:
+            self._rate_limited_keys.pop(key, None)
+        for key in [
+            k for k, until in self._rate_limited_models.items() if now >= until
+        ]:
+            self._rate_limited_models.pop(key, None)
 
     def _mark_rate_limited(self, api_key: str, cooldown: float = 60.0):
         """Mark an API key as rate-limited for `cooldown` seconds."""
@@ -1206,7 +1319,19 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     models = gemini_models
                 else:
                     models = openrouter_models
+                rr_cap = max(
+                    0, int(getattr(config.llm, "max_discovered_models_per_key", 3))
+                )
+                rr_added = 0
                 for model_name in models:
+                    if rr_added >= rr_cap:
+                        logger.debug(
+                            "Round-robin cap (%d) reached for %s; %d models not added",
+                            rr_cap,
+                            key_label,
+                            len(models) - rr_added,
+                        )
+                        break
                     if model_name in (primary_model, cheap_model_name):
                         continue
                     can_use, reason = self._can_use_model(model_name, api_key, fm)
@@ -1218,6 +1343,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
                             f"{key_label}:rr:{model_name}",
                             api_key,
                         )
+                        rr_added += 1
                     elif reason:
                         logger.debug(f"Skipping {model_name}: {reason}")
 
@@ -1225,6 +1351,27 @@ class LLMClient(StreamingMixin, GenerationMixin):
         if model_tier != "cheap" and config.llm.cheap_model:
             provider, model = self._get_cheap_client()
             self._add_to_chain(chain, provider, model, f"cheap:{model}")
+
+        # Cheap tier: the primary model is the last resort, not an exclusion.
+        # It goes after the cheap model and the discovered round-robin entries so
+        # cost ordering holds, but a dead cheap provider must not fail the call
+        # outright while the configured primary is healthy.
+        if cheap_model_name is not None and api_key_entries:
+            already = {c["model"] for c in chain}
+            if primary_model not in already:
+                entry = api_key_entries[0]
+                base_url, api_key = entry["base_url"], entry["api_key"]
+                if _model_matches_provider(
+                    primary_model, self._detect_provider_type(base_url)
+                ):
+                    prov = self._get_or_create_provider(base_url, api_key)
+                    self._add_to_chain(
+                        chain,
+                        prov,
+                        primary_model,
+                        f"last-resort:{primary_model}",
+                        api_key,
+                    )
 
         # Configured fallback models
         existing_combos = {(c["model"], c.get("_api_key", "")) for c in chain}
@@ -1411,10 +1558,18 @@ class LLMClient(StreamingMixin, GenerationMixin):
 
         def _call():
             start_time = time.monotonic()
+            # Fresh per call: nothing is shared between concurrent chapters.
+            usage: dict = {}
             try:
-                result = provider.complete(
-                    messages, model, temperature, max_tokens, json_mode
-                )
+                try:
+                    result = provider.complete(
+                        messages, model, temperature, max_tokens, json_mode, usage
+                    )
+                except TypeError:
+                    # A provider (or a test double) predating usage_out.
+                    result = provider.complete(
+                        messages, model, temperature, max_tokens, json_mode
+                    )
                 latency_ms = (time.monotonic() - start_time) * 1000
 
                 # Track latency for fallback decisions
@@ -1431,6 +1586,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     duration_ms=int(latency_ms),
                     success=True,
                     error="",
+                    usage=usage,
                 )
                 # Charge the global wallet (P0-7). Raises LLMBudgetExceededError
                 # if a configured cap is exceeded — propagates to abort the run.
@@ -1442,8 +1598,15 @@ class LLMClient(StreamingMixin, GenerationMixin):
                         for m in messages
                         if isinstance(m, dict)
                     )
-                    p_tokens = _estimate_tokens(prompt_text)
-                    c_tokens = _estimate_tokens(result)
+                    # Prefer the provider's own counts; estimate only when it
+                    # reports none. The old estimate (len//4) ran ~45% low on
+                    # Vietnamese prose, so every cap bounded the wrong number.
+                    p_tokens = int(
+                        usage.get("prompt_tokens") or _estimate_tokens(prompt_text)
+                    )
+                    c_tokens = int(
+                        usage.get("completion_tokens") or _estimate_tokens(result)
+                    )
                     cost = compute_cost(model, p_tokens, c_tokens)
                     LLMClient.charge_wallet(cost, p_tokens + c_tokens)
                 except LLMBudgetExceededError:

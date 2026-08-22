@@ -12,7 +12,7 @@
  */
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 import {
   storySchema,
   storyExportSchema,
@@ -39,10 +39,89 @@ function fixLegacyMediaUrl(url: string): string {
     : url;
 }
 
+/**
+ * Why a custom storage adapter.
+ *
+ * zustand's persist middleware writes synchronously right after the in-memory
+ * state has already changed. localStorage throws QuotaExceededError once the
+ * blob passes the browser's ~5 MB budget — a 50-story shelf of Vietnamese prose
+ * reaches that well before the 50-story cap. The throw propagated out of
+ * `addStory` into the SSE `onmessage` handler that calls it, so the stream died
+ * mid-`done`: no success toast, no error, a frozen panel — and because the
+ * in-memory state had already been updated, the UI claimed the story was saved
+ * right up until the next reload, when the whole library was gone.
+ *
+ * So: never throw out of a write. Record what went wrong and let the UI say so.
+ */
+export type LibraryPersistError = "quota" | "unavailable" | null;
+
+function isQuotaError(err: unknown): boolean {
+  if (typeof DOMException !== "undefined" && err instanceof DOMException) {
+    return (
+      err.name === "QuotaExceededError" ||
+      err.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+      err.code === 22 ||
+      err.code === 1014
+    );
+  }
+  return false;
+}
+
+let lastPersistError: LibraryPersistError = null;
+
+/**
+ * Outcome of the most recent write, readable synchronously.
+ *
+ * Callers need the answer immediately after `addStory` returns — the store copy
+ * below is published on a microtask (writing to the store from inside a persist
+ * write would re-enter `set()`), which is one tick too late to decide whether
+ * to show a success toast.
+ */
+export function getLibraryPersistError(): LibraryPersistError {
+  return lastPersistError;
+}
+
+function reportPersistError(kind: LibraryPersistError): void {
+  lastPersistError = kind;
+  queueMicrotask(() => {
+    if (useLibraryStore.getState().persistError !== kind) {
+      useLibraryStore.setState({ persistError: kind });
+    }
+  });
+}
+
+const quotaSafeStorage: StateStorage = {
+  getItem: (name) => {
+    try {
+      return globalThis.localStorage?.getItem(name) ?? null;
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name, value) => {
+    try {
+      globalThis.localStorage.setItem(name, value);
+      reportPersistError(null);
+    } catch (err) {
+      reportPersistError(isQuotaError(err) ? "quota" : "unavailable");
+      console.error("[library-store] could not persist library", err);
+    }
+  },
+  removeItem: (name) => {
+    try {
+      globalThis.localStorage?.removeItem(name);
+    } catch {
+      /* nothing useful to do */
+    }
+  },
+};
+
 interface LibraryState {
   stories: Story[];
   selectedId: string | null;
   hydrated: boolean;
+  /** Set when the last write to localStorage failed; null once one succeeds. */
+  persistError: LibraryPersistError;
 
   addStory: (story: Story) => boolean;
   removeStory: (id: string) => void;
@@ -77,6 +156,7 @@ export const useLibraryStore = create<LibraryState>()(
       stories: [],
       selectedId: null,
       hydrated: false,
+      persistError: null,
 
       addStory: (story) => {
         const parsed = storySchema.parse(story);
@@ -202,6 +282,7 @@ export const useLibraryStore = create<LibraryState>()(
       name: STORAGE_KEY,
       version: 2,
       skipHydration: true,
+      storage: createJSONStorage(() => quotaSafeStorage),
       partialize: (s) => ({ stories: s.stories, selectedId: s.selectedId }),
       migrate: (persistedState, version) => {
         if (version < 1) {

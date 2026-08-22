@@ -45,6 +45,12 @@ class LLMConfig:
     temperature: float = 0.8
     max_tokens: int = 4096
     # Model routing: cheap model for summaries/analysis
+    # How long one request may take before the client gives up. Long-form
+    # chapter writing through a local browser bridge measured ~4 minutes for a
+    # 2000-word chapter (~13 tok/s), and the old hard-coded 300s ceiling
+    # abandoned exactly those calls — while the upstream kept generating,
+    # holding its slot, and the pipeline walked the fallback chain for nothing.
+    request_timeout: float = 900.0
     cheap_model: str = ""  # empty = use primary model
     cheap_base_url: str = ""  # empty = use primary base_url
     # Multiple API keys for the same provider — auto-rotate on rate limit (429)
@@ -56,11 +62,26 @@ class LLMConfig:
     fallback_models: list = field(default_factory=list)
     # Each entry: {"base_url": "...", "model": "...", "api_key": "..."}
     # Fallback thresholds — used by ModelFallbackManager
-    fallback_max_latency_ms: int = 120000  # Switch model if avg latency exceeds 2min
+    # Switch model if average latency exceeds this. Kept above request_timeout
+    # (900s) on purpose: a long-form chapter through a slow local bridge
+    # legitimately takes minutes, and the old 2-minute ceiling would blacklist
+    # exactly the models request_timeout was raised to accommodate.
+    fallback_max_latency_ms: int = 960_000
     fallback_max_cost_per_1k: float = (
         0.01  # Skip fallback models above this cost/1k tokens
     )
     # Chain-level retry when all providers fail (rate-limit storms, outages)
+    # Discovered (round-robin) models tried per key before moving on. Providers
+    # like OpenRouter expose dozens of free models; adding all of them per key
+    # built chains of 50-300 entries, and every one is retried up to MAX_RETRIES
+    # times, for every chain pass. Explicitly configured fallback_models are
+    # never capped by this — only auto-discovered ones.
+    max_discovered_models_per_key: int = 3
+    # Hard ceiling on the wall-clock one generate() may spend across its whole
+    # fallback chain, including retries and backoff. 0 disables it. Without a
+    # ceiling, 3 retries x a long chain x 3 chain passes x a 900s timeout has no
+    # finite bound worth the name.
+    max_total_call_seconds: float = 1800.0
     chain_retry_max: int = 2  # Max times to retry entire fallback chain
     chain_retry_base_delay: float = 30.0  # Initial delay (seconds) before chain retry
     # Global LLM budget wallet — abort runs that exceed the cap (P0-7).
@@ -117,7 +138,9 @@ class PipelineConfig:
 
     # Image generation provider
     image_provider: str = (
-        "none"  # none / dalle / sd-api / seedream / huggingface / flowkit / codex
+        # none / dalle / sd-api / seedream / huggingface / flowkit / codex /
+        # qwen-local
+        "none"
     )
     image_api_key: str = ""
     image_api_url: str = ""
@@ -127,6 +150,21 @@ class PipelineConfig:
     # ~/.codex/config.toml (falls back to gpt-5.5). No API key needed — it reuses
     # the Codex login and supports reference images for character consistency.
     codex_model: str = ""
+    # Qwen local proxy: an OpenAI-compatible server (run separately) that drives
+    # chat.qwen.ai. Unlike the other providers it takes an ASPECT RATIO rather
+    # than a pixel size, and it can edit an existing image — which is what gives
+    # reference-conditioned panels real character consistency instead of the
+    # text-only fallback. Leave qwen_local_model empty to use whatever the proxy
+    # has as QWEN_IMAGE_MODEL, and qwen_local_size empty for its default (1:1).
+    qwen_local_base_url: str = "http://localhost:8000/v1"
+    qwen_local_api_key: str = ""
+    qwen_local_model: str = ""
+    qwen_local_size: str = ""
+    # When a panel has character reference images, send the first one to the
+    # proxy's edit endpoint. Off = always text-only, which is faster but loses
+    # the character likeness the references exist for.
+    qwen_local_use_edit_for_refs: bool = True
+    qwen_local_timeout: float = 300.0
     # Comic panels generated per chapter (truyện tranh). Each chapter gets this
     # many distinct scene images. Used by both the pipeline media stage and the
     # on-demand reader regen. Acts as the FIXED count when panels_auto is False,
@@ -144,14 +182,33 @@ class PipelineConfig:
     # occasionally drops one) is retried up to this many extra times before it is
     # given up and skipped. 0 = no retry (legacy behavior).
     panel_retry_attempts: int = 2
+    # How many panels of one chapter are generated at a time. Panels are fully
+    # independent — each is one provider call producing one file — but they used
+    # to run strictly one after another, so a 20-panel chapter cost 20 serial
+    # image round-trips. Kept modest: image endpoints rate-limit far harder than
+    # text ones, and the retry above already absorbs the odd transient failure.
+    # 1 = fully serial (previous behaviour).
+    comic_panel_workers: int = 3
+    # How many chapters of one story are turned into comics at a time, on the
+    # Reader's "generate images" path. The pipeline media stage already fanned
+    # out across chapters; the Reader looped them one at a time, so asking for a
+    # whole story there was as slow as the sum of its chapters.
+    comic_chapter_workers: int = 4
+    # The ceiling that actually protects the provider: the maximum number of
+    # image requests in flight across the WHOLE process, whatever combination of
+    # chapter-level and panel-level fan-out produced them. Without it the two
+    # multiply — 4 chapters x 3 panels is 12 concurrent calls, not 4 — and no
+    # single worker-count setting bounds the total. 0 disables the ceiling.
+    image_max_concurrent_requests: int = 4
 
     # Comic Beat→Shot-list stage (Phase 2). When enabled, an LLM beat extractor
     # runs between chapter prose and image generation, splitting each chapter
     # into ordered beats/panels with shot_type, layout/page, dialogue+speaker and
     # screen_side — the foundation Phase 3's page compositor consumes. Image
-    # prompts still carry NO dialogue text. Ships dark (False) so it can be A/B'd
-    # and rolled back safely; image generation is unchanged when off.
-    comic_shot_list_enabled: bool = False
+    # prompts still carry NO dialogue text. Now ON by default — with it off the
+    # product generates loose illustrations, not a comic; turn it off to A/B or
+    # roll back, image generation is unchanged when off.
+    comic_shot_list_enabled: bool = True
     # Coverage verification for the shot-list stage. When on (and the shot-list
     # stage itself is on), a second cheap-tier LLM pass re-reads the full chapter
     # against the extracted beats and inserts panels for important details the
@@ -167,10 +224,10 @@ class PipelineConfig:
     # borders + gutters, vector speech bubbles with tails pointing at the speaker's
     # screen_side, Vietnamese lettering, and caption boxes. Composed pages replace
     # the loose panels in what the chapter exposes to the frontend (chapter.images),
-    # while the loose panels are kept on disk alongside. Ships dark (False) so it
-    # can be A/B'd against loose-panel output and rolled back safely; any failure
-    # degrades gracefully to loose panels.
-    comic_compositor_enabled: bool = False
+    # while the loose panels are kept on disk alongside. ON by default — this is
+    # what turns generated panels into an actual comic page; any failure degrades
+    # gracefully to loose panels, and turning it off restores that behaviour.
+    comic_compositor_enabled: bool = True
     # Page canvas geometry (spec §2.1): "<width>x<height>" in px. ISO 1:√2 by
     # default (1600×2263), suitable for both webtoon scroll and print.
     comic_page_canvas: str = "1600x2263"
@@ -218,7 +275,13 @@ class PipelineConfig:
     flowkit_image_input_type_split: bool = (
         False  # split REFERENCE → CHARACTER/STYLE (requires live enum sniff)
     )
-    flowkit_callback_hmac_required: bool = False  # verify X-Callback-Signature (HMAC-SHA256 of body) on the HTTP /api/ext/callback fallback; the live WS path relies on 127.0.0.1 trust
+    # Verify X-Callback-Signature (HMAC-SHA256 of body) on the HTTP
+    # /api/ext/callback fallback; the live WS path relies on 127.0.0.1 trust.
+    # On by default: that route is exempt from CSRF (the extension holds no
+    # cookie), so the signature is the only thing authenticating it. The shipped
+    # extension talks over the WebSocket and never posts here, so requiring a
+    # signature costs nothing today.
+    flowkit_callback_hmac_required: bool = True
     flowkit_use_refiner: bool = True  # ACTIVE: ImageGenerator._flowkit_refine runs the comic-panel refiner on every prompt before flowMedia:batchGenerateImages
     flowkit_request_timeout: float = 180.0  # seconds; sync-bridge wait when ImageGenerator dispatches to FlowService loop
     flowkit_aspect_ratio: str = (
@@ -264,6 +327,11 @@ class PipelineConfig:
     # Multi-agent debate
     enable_agent_debate: bool = True
     max_debate_rounds: int = 3
+    # "full" = every active agent debates; "lite" = editor/drama/continuity only,
+    # and round 3 is skipped. agent_registry reads this on every layer-2 review
+    # cycle; without the field the read raised AttributeError and the whole
+    # craft-critique lane was discarded.
+    debate_mode: str = "full"
 
     # Smart chapter revision (auto-fix weak chapters using agent reviews)
     enable_smart_revision: bool = True
@@ -386,6 +454,26 @@ class PipelineConfig:
     )
     consistency_arc_drift_threshold: int = 2  # Rewrite if >= N arc drift warnings
 
+    # Length gate: expand a chapter that came back materially under word_count.
+    # Nothing used to compare the produced chapter against the requested length —
+    # `count_words()` only recorded it — so a 2000-word target routinely shipped
+    # at 900-1500 words. See pipeline/layer1_story/chapter_length_gate.py.
+    enable_length_gate: bool = True
+    length_gate_min_ratio: float = 0.85  # Expand below this fraction of target
+
+    # Streaming stall detection. `first_chunk` covers time-to-first-token, which
+    # a reasoning model spends thinking before it emits anything: measured
+    # median 51.6s and max 106.3s for qwen3.8-max-thinking through the local
+    # bridge, so the previous hard-coded 60s discarded a large share of calls
+    # mid-thought and retried them from scratch — burning the wait twice and
+    # silently demoting the request to the next model in the chain.
+    # `chunk` stays short: once tokens are flowing, a long gap is a real stall.
+    # Raised alongside llm.request_timeout: at 180s this killed the very case
+    # the 900s request timeout exists for — a reasoning model whose time to
+    # first token exceeds three minutes.
+    stream_first_chunk_timeout: int = 300
+    stream_chunk_timeout: int = 30
+
     # Phase 5: L1 consistency improvements
     enable_emotional_memory: bool = (
         True  # Per-character emotion tracking across chapters
@@ -479,6 +567,22 @@ class PipelineConfig:
     l2_min_rounds: int = 3  # Minimum simulation rounds
     l2_max_rounds: int = 10  # Maximum simulation rounds (hard cap)
     l2_stall_threshold: int = 3  # Rounds with no improvement before force-stop
+    # Route the simulator's low-stakes calls to the cheap model. The whole
+    # simulator ran on the premium tier — about 100 calls a run — including two
+    # whose output barely reaches the reader: drama evaluation, consumed as a
+    # single score, and reaction posts, which only ever appear truncated in the
+    # recent-posts filler. Agent turns and escalation events stay on the primary
+    # model: those are the dramatic content itself. Set False to put everything
+    # back on the primary model.
+    l2_cheap_low_stakes_calls: bool = True
+    # Route the 8-agent craft panel to the cheap model too. Off by default:
+    # unlike the simulator's filler, the panel's critique is what
+    # SmartRevisionService rewrites from, so its judgement quality reaches the
+    # reader. Its responses are capped by l2_agent_review_max_tokens either way.
+    l2_cheap_agent_panel: bool = False
+    # Panel replies are a small {score, issues[], suggestions[]} object; without
+    # a cap they were billed against the model's full output budget.
+    l2_agent_review_max_tokens: int = 1200
 
     # Batch generation config
     batch_max_workers: int = 3  # Max parallel workers for batch chapter generation

@@ -289,6 +289,16 @@ def main():
         start_job_reaper()
         logger.info("Pipeline job reaper started")
 
+        # One-shot: encrypt secrets that were written while no key was loaded.
+        try:
+            from config.persistence import CONFIG_FILE
+            from services.secret_manager import migrate_plaintext_secrets
+
+            if migrate_plaintext_secrets(CONFIG_FILE):
+                logger.info("Migrated plaintext secrets in %s to encrypted", CONFIG_FILE)
+        except Exception as e:
+            logger.warning("Secret migration skipped: %s", e)
+
         # FlowKit: init jobs.db + start Veo poll loop (gated on flowkit_enabled).
         try:
             from config import ConfigManager

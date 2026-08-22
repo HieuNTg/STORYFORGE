@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import threading
 import time
 from typing import Optional
 from models.schemas import (
@@ -144,18 +145,83 @@ Trả về JSON: {{"issues": ["issue1", "issue2"]}} hoặc {{"issues": []}} nế
         return ""
 
 
+# One engine per draft. Building it costs a cheap LLM call per character when
+# the draft carries no voice_profiles, and the five call sites below ran it
+# once per chapter and again per retry — roughly 50 identical calls on a
+# 10-chapter, 5-character story, all producing the same fingerprints.
+_VOICE_ENGINE_LOCK = threading.Lock()
+_VOICE_ENGINE_ATTR = "_voice_engine_cache"
+_VOICE_ENGINE_FAILED = object()
+
+
 def _build_voice_engine(draft):
-    """Build VoiceFingerprintEngine from draft. Returns None on failure (non-fatal)."""
+    """Build (or reuse) the VoiceFingerprintEngine for `draft`.
+
+    Returns None on failure, which stays non-fatal. The result is memoised on
+    the draft under a lock, so the chapters running concurrently in
+    `enhance_story_async` cannot each start their own build.
+    """
     if draft is None:
         return None
-    try:
-        from pipeline.layer2_enhance.voice_fingerprint import VoiceFingerprintEngine
 
-        engine = VoiceFingerprintEngine()
-        engine.build_from_draft(draft)
-        return engine
-    except Exception:
+    cached = getattr(draft, _VOICE_ENGINE_ATTR, None)
+    if cached is _VOICE_ENGINE_FAILED:
         return None
+    if cached is not None:
+        return cached
+
+    with _VOICE_ENGINE_LOCK:
+        # Re-check: another chapter may have built it while we waited.
+        cached = getattr(draft, _VOICE_ENGINE_ATTR, None)
+        if cached is _VOICE_ENGINE_FAILED:
+            return None
+        if cached is not None:
+            return cached
+        try:
+            from pipeline.layer2_enhance.voice_fingerprint import (
+                VoiceFingerprintEngine,
+            )
+
+            engine = VoiceFingerprintEngine()
+            engine.build_from_draft(draft)
+        except Exception as exc:
+            logger.warning("Voice engine build failed (non-fatal): %s", exc)
+            engine = None
+
+        try:
+            setattr(draft, _VOICE_ENGINE_ATTR, engine or _VOICE_ENGINE_FAILED)
+        except Exception:  # pragma: no cover — draft refuses the attribute
+            pass
+        return engine
+
+
+_THEME_PROFILE_LOCK = threading.Lock()
+
+
+def _get_theme_profile(draft):
+    """Extract (or reuse) the draft's theme profile.
+
+    Same shape as _build_voice_engine: chapters are enhanced concurrently, and
+    the previous read-then-assign let every one of them race into its own
+    extract_theme call before any of them stored a result.
+    """
+    if draft is None:
+        return None
+    cached = getattr(draft, "_theme_profile", None)
+    if cached is not None:
+        return cached
+    with _THEME_PROFILE_LOCK:
+        cached = getattr(draft, "_theme_profile", None)
+        if cached is not None:
+            return cached
+        from pipeline.layer2_enhance.thematic_tracker import ThematicTracker
+
+        profile = ThematicTracker().extract_theme(draft)
+        try:
+            draft._theme_profile = profile
+        except Exception:  # pragma: no cover
+            pass
+        return profile
 
 
 def _build_knowledge_constraints(sim_result, draft) -> str:
@@ -325,11 +391,7 @@ class StoryEnhancer:
             # Build thematic guidance if theme profile is attached to draft
             if draft:
                 try:
-                    _theme = getattr(draft, "_theme_profile", None)
-                    if _theme is None:
-                        _tracker = ThematicTracker()
-                        _theme = _tracker.extract_theme(draft)
-                        draft._theme_profile = _theme  # cache for subsequent chapters
+                    _theme = _get_theme_profile(draft)
                     if _theme and _theme.central_theme:
                         _tracker = ThematicTracker()
                         _ch_score = _tracker.score_chapter_theme(chapter, _theme)
@@ -533,7 +595,15 @@ class StoryEnhancer:
                 contract.drama_target,
             )
 
-            if not validation.passed and retry_enabled and retry_max > 0:
+            if getattr(validation, "error", False):
+                # The judge call failed, the chapter did not. Re-enhancing here
+                # would spend ~12-15 LLM calls answering a transient 429.
+                logger.warning(
+                    "[CONTRACT] ch%d validation errored (%s) — skipping remediation",
+                    ch_num,
+                    validation.reason,
+                )
+            elif not validation.passed and retry_enabled and retry_max > 0:
                 hint = build_retry_hint(validation)
                 logger.info(
                     "[CONTRACT] ch%d retry with hint: %s",
@@ -654,7 +724,17 @@ class StoryEnhancer:
                 validation.drifted_characters,
             )
 
-            if not validation.passed and retry_enabled and retry_max > 0:
+            if getattr(validation, "error", False):
+                # Judge-call failure, not voice drift. Neither the refine pass
+                # nor the binary revert below may fire on this: a compliance of
+                # 0.0 from an errored call sits under every revert floor and
+                # would discard the enhanced dialogue wholesale.
+                logger.warning(
+                    "[VOICE] ch%d validation errored (%s) — skipping remediation",
+                    ch_num,
+                    validation.reason,
+                )
+            elif not validation.passed and retry_enabled and retry_max > 0:
                 hint = build_voice_retry_hint(validation)
                 logger.info(
                     "[VOICE] ch%d refine with hint: %s",
@@ -695,8 +775,13 @@ class StoryEnhancer:
                 except Exception as _re:
                     logger.warning(f"Voice refine ch{ch_num} failed: {_re}")
 
-            # Last-resort binary revert — only catastrophic drift
-            if not validation.passed and validation.overall_compliance < revert_floor:
+            # Last-resort binary revert — only catastrophic drift, and never on
+            # an errored validation (see above).
+            if (
+                not validation.passed
+                and not getattr(validation, "error", False)
+                and validation.overall_compliance < revert_floor
+            ):
                 try:
                     from pipeline.layer2_enhance.voice_fingerprint import (
                         VoiceFingerprintEngine,
@@ -850,19 +935,27 @@ class StoryEnhancer:
         loop = asyncio.get_running_loop()
         chapters_list = list(draft.chapters)
 
+        # max_workers was read only to print the line above: the gather below
+        # dispatched every chapter at once. A 50-chapter continuation therefore
+        # ran 50 chapter pipelines concurrently, each spawning its own nested
+        # pool inside scene enhancement — far past what the provider or the
+        # default executor can serve, and the opposite of what the setting says.
+        semaphore = asyncio.Semaphore(max(1, int(max_workers or 1)))
+
         async def _one(chapter: Chapter) -> tuple[int, Chapter]:
             ch_num = chapter.chapter_number
             try:
-                result = await loop.run_in_executor(
-                    None,
-                    self.enhance_chapter,
-                    chapter,
-                    sim_result,
-                    word_count,
-                    total_chapters,
-                    draft.genre,
-                    draft,
-                )
+                async with semaphore:
+                    result = await loop.run_in_executor(
+                        None,
+                        self.enhance_chapter,
+                        chapter,
+                        sim_result,
+                        word_count,
+                        total_chapters,
+                        draft.genre,
+                        draft,
+                    )
                 _log(f"✨ Chương {ch_num} đã tăng cường xong")
                 # P-C: Incremental publish — notify when chapter is done
                 if chapter_done_callback:
@@ -1396,12 +1489,11 @@ class StoryEnhancer:
                             max_tokens=8192,
                             model=self._layer_model,
                         )
-                        return ch_num, Chapter(
-                            chapter_number=ch_num,
-                            title=enhanced.chapters[idx].title,
-                            content=rewritten,
-                            word_count=count_words(rewritten),
-                            summary=enhanced.chapters[idx].summary,
+                        return ch_num, enhanced.chapters[idx].model_copy(
+                            update={
+                                "content": rewritten,
+                                "word_count": count_words(rewritten),
+                            }
                         )
                     except Exception as e:
                         if attempt < _retry_max:
@@ -1612,17 +1704,32 @@ class StoryEnhancer:
                 _draft_threads = _env.threads(draft)
                 _log("📋 Đang kiểm tra hợp đồng chương...")
                 stats = apply_contract_gate(
-                    self.llm, enhanced, _draft_threads, enabled=True, draft=draft
+                    self.llm,
+                    enhanced,
+                    _draft_threads,
+                    enabled=True,
+                    draft=draft,
+                    voice_contracts=getattr(sim_result, "voice_contracts", None),
                 )
+                _skipped = stats.get("chapters_skipped_no_contract", 0)
                 if stats.get("rewrites", 0) > 0:
                     _log(
                         f"🔧 Contract gate: {stats['rewrites']} chương viết lại "
                         f"(tổng {stats.get('total_failures', 0)} vi phạm)"
                     )
+                elif stats.get("chapters_checked", 0) == 0:
+                    # Never say "pass" when nothing was inspected.
+                    _log(
+                        f"⚠️ Contract gate: không chương nào có hợp đồng để kiểm "
+                        f"({_skipped} chương bị bỏ qua)"
+                    )
                 else:
                     _log(
-                        f"✅ Contract gate: {stats.get('total_failures', 0)} vi phạm, không cần viết lại"
+                        f"✅ Contract gate: {stats.get('total_failures', 0)} vi phạm "
+                        f"trên {stats['chapters_checked']} chương, không cần viết lại"
                     )
+                if _skipped and stats.get("chapters_checked", 0):
+                    _log(f"⚠️ Contract gate: {_skipped} chương thiếu hợp đồng")
             except Exception as e:
                 logger.warning(f"Contract gate failed (non-fatal): {e}")
 

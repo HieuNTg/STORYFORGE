@@ -4,7 +4,10 @@ import asyncio
 import os
 import logging
 import base64
+import contextlib
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
 import requests
@@ -12,6 +15,49 @@ import requests
 from config import ConfigManager
 
 logger = logging.getLogger(__name__)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Process-wide ceiling on image requests in flight
+#
+# Image work fans out at two independent levels: across chapters (the pipeline
+# media stage, and now the Reader path) and across the panels within a chapter.
+# Neither worker count bounds the other, so they multiply — 4 chapters x 3
+# panels is 12 concurrent provider calls, not 4 — and no single setting says
+# how many requests the provider is actually being asked to serve.
+#
+# One semaphore, held only around the provider call itself, is that number.
+# Workers above it may queue; the provider sees at most this many at once.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_REQUEST_SEMAPHORE: Optional[threading.BoundedSemaphore] = None
+_REQUEST_SEMAPHORE_SIZE: int = -1
+_REQUEST_SEMAPHORE_LOCK = threading.Lock()
+
+
+def _request_slot():
+    """Context manager for one provider call's slot; a no-op when disabled."""
+    global _REQUEST_SEMAPHORE, _REQUEST_SEMAPHORE_SIZE
+    try:
+        size = int(ConfigManager().pipeline.image_max_concurrent_requests)
+    except Exception:
+        size = 0
+    if size <= 0:
+        return contextlib.nullcontext()
+    with _REQUEST_SEMAPHORE_LOCK:
+        # Rebuild on a size change so the setting is live, not boot-time only.
+        if _REQUEST_SEMAPHORE is None or _REQUEST_SEMAPHORE_SIZE != size:
+            _REQUEST_SEMAPHORE = threading.BoundedSemaphore(size)
+            _REQUEST_SEMAPHORE_SIZE = size
+        return _REQUEST_SEMAPHORE
+
+
+def reset_image_request_semaphore() -> None:
+    """Drop the shared semaphore. For tests, and for a config reload."""
+    global _REQUEST_SEMAPHORE, _REQUEST_SEMAPHORE_SIZE
+    with _REQUEST_SEMAPHORE_LOCK:
+        _REQUEST_SEMAPHORE = None
+        _REQUEST_SEMAPHORE_SIZE = -1
 
 
 class ImageGenerator:
@@ -25,6 +71,7 @@ class ImageGenerator:
         "huggingface",
         "flowkit",
         "codex",
+        "qwen-local",
         "none",
     ]
 
@@ -105,6 +152,8 @@ class ImageGenerator:
             return self._generate_flowkit(prompt, filename, size)
         if self.provider == "codex":
             return self._generate_codex(prompt, filename, size)
+        if self.provider == "qwen-local":
+            return self._generate_qwen_local(prompt, filename, size)
 
         logger.warning("Unknown image provider: %s", self.provider)
         return None
@@ -128,6 +177,8 @@ class ImageGenerator:
             return self._flowkit_with_ref(prompt, reference_paths, filename)
         if self.provider == "codex":
             return self._codex_with_ref(prompt, reference_paths, filename, size)
+        if self.provider == "qwen-local":
+            return self._qwen_local_with_ref(prompt, reference_paths, filename, size)
         if self.provider == "seedream":
             return self._seedream_with_ref(prompt, reference_paths, filename)
         if self.provider == "replicate":
@@ -146,7 +197,8 @@ class ImageGenerator:
         image_prompts: list,
         chapter_number: int = 0,
         character_references: dict | None = None,
-    ) -> list[str]:
+        keep_positions: bool = False,
+    ) -> list:
         """Generate images for a list of ImagePrompt objects. Returns saved paths.
 
         ``character_references`` maps character name → reference image path. When
@@ -154,67 +206,151 @@ class ImageGenerator:
         ``generate_with_reference`` so img2img-capable providers (seedream,
         replicate) condition on the uploaded reference. Providers without native
         reference support fall through to text-only generation transparently.
+
+        ``keep_positions`` makes a failed panel yield ``None`` instead of being
+        dropped, so index N of the result is still panel N. The page compositor
+        needs that: it slices this list positionally per page, so a dropped panel
+        used to shift every later one into the wrong cell. Callers that just want
+        a list of URLs leave it False and keep the old contract.
         """
-        paths: list[str] = []
         refs = character_references or {}
+        _pipeline_cfg = ConfigManager().pipeline
         # A panel sometimes comes back empty (Codex occasionally drops one, a
         # transient provider hiccup, etc.). Retry it a few times rather than
         # silently shipping a chapter with a hole in it.
-        _retries = max(
-            0, int(getattr(ConfigManager().pipeline, "panel_retry_attempts", 2))
-        )
-        for i, ip in enumerate(image_prompts):
-            prompt = ip.dalle_prompt if self.provider == "dalle" else ip.sd_prompt
-            if not prompt:
-                prompt = ip.scene_description
-            filename = f"ch{chapter_number:02d}_panel{i + 1:02d}.png"
+        _retries = max(0, int(_pipeline_cfg.panel_retry_attempts))
+        prompts = list(image_prompts)
+        if not prompts:
+            return []
 
-            scene_refs: list[str] = []
-            for name in getattr(ip, "characters_in_scene", []) or []:
-                ref = refs.get(name)
-                if ref and os.path.exists(ref) and ref not in scene_refs:
-                    scene_refs.append(ref)
+        # Panels are independent provider calls, so they run concurrently rather
+        # than in a queue. Results are written by index and only then flattened:
+        # completion order is not panel order, and the compositor slices this
+        # list positionally.
+        slots: list = [None] * len(prompts)
+        workers = max(1, min(len(prompts), int(_pipeline_cfg.comic_panel_workers)))
+        if workers == 1:
+            for i, ip in enumerate(prompts):
+                slots[i] = self._generate_one_panel(i, ip, chapter_number, refs, _retries)
+        else:
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = {
+                    executor.submit(
+                        self._generate_one_panel, i, ip, chapter_number, refs, _retries
+                    ): i
+                    for i, ip in enumerate(prompts)
+                }
+                for future in as_completed(futures):
+                    i = futures[future]
+                    try:
+                        slots[i] = future.result()
+                    except Exception as e:
+                        # One panel blowing up must not cost the chapter its
+                        # other nineteen.
+                        logger.error(
+                            "Panel %d (ch%02d) raised: %s (type=%s)",
+                            i + 1,
+                            chapter_number,
+                            e,
+                            type(e).__name__,
+                        )
 
-            if not scene_refs:
-                # Comic consistency fallback: when no character in this panel
-                # name-matches a stored reference, still attach the chapter's
-                # main-character reference (first existing ref in the map) so the
-                # protagonist's face doesn't drift across panels. Only kicks in
-                # when at least one usable reference image actually exists on disk
-                # — with no refs at all we keep the text-only path.
-                for ref in refs.values():
-                    if ref and os.path.exists(ref):
-                        scene_refs.append(ref)
-                        break
-
-            path = None
-            for attempt in range(_retries + 1):
-                if scene_refs:
-                    path = self.generate_with_reference(prompt, scene_refs, filename)
-                else:
-                    path = self.generate(prompt, filename)
-                if path:
-                    break
-                if attempt < _retries:
-                    logger.warning(
-                        "Panel %d (ch%02d) returned no image; retry %d/%d",
-                        i + 1,
-                        chapter_number,
-                        attempt + 1,
-                        _retries,
-                    )
+        for i, path in enumerate(slots):
             if path:
-                paths.append(path)
-            else:
-                logger.error(
-                    "Panel %d (ch%02d) failed after %d attempt(s); skipped",
+                continue
+            logger.error(
+                "Panel %d (ch%02d) failed after %d attempt(s); %s",
+                i + 1,
+                chapter_number,
+                _retries + 1,
+                "placeholder kept" if keep_positions else "skipped",
+            )
+        if keep_positions:
+            # Hold the slot. The page compositor slices this list positionally,
+            # so dropping a failed panel shifted every later panel into the wrong
+            # cell — speech balloons landing on the wrong art for the rest of the
+            # chapter, silently.
+            return slots
+        return [p for p in slots if p]
+
+    def _generate_one_panel(self, i, ip, chapter_number: int, refs: dict, retries: int):
+        """Generate a single panel with its retries. Returns a path or None."""
+        prompt = ip.dalle_prompt if self.provider == "dalle" else ip.sd_prompt
+        if not prompt:
+            prompt = ip.scene_description
+        filename = f"ch{chapter_number:02d}_panel{i + 1:02d}.png"
+        # Generate at the aspect of the compositor cell this panel lands in.
+        # Everything used to be square, so a panel dropped into a 2.1:1 tier
+        # cell lost more than half its height to the center crop.
+        size = getattr(ip, "target_size", "") or "1024x1024"
+
+        scene_refs: list[str] = []
+        for name in getattr(ip, "characters_in_scene", []) or []:
+            ref = refs.get(name)
+            if ref and os.path.exists(ref) and ref not in scene_refs:
+                scene_refs.append(ref)
+
+        if not scene_refs:
+            # Comic consistency fallback: when no character in this panel
+            # name-matches a stored reference, still attach the chapter's
+            # main-character reference (first existing ref in the map) so the
+            # protagonist's face doesn't drift across panels. Only kicks in
+            # when at least one usable reference image actually exists on disk
+            # — with no refs at all we keep the text-only path.
+            for ref in refs.values():
+                if ref and os.path.exists(ref):
+                    scene_refs.append(ref)
+                    break
+
+        path = None
+        for attempt in range(retries + 1):
+            # The slot is held around the provider call only — never across the
+            # retry backoff — so a retrying panel does not sit on capacity its
+            # siblings could use.
+            with _request_slot():
+                if scene_refs:
+                    path = self.generate_with_reference(
+                        prompt, scene_refs, filename, size
+                    )
+                else:
+                    path = self.generate(prompt, filename, size)
+            if path:
+                break
+            if attempt < retries:
+                logger.warning(
+                    "Panel %d (ch%02d) returned no image; retry %d/%d",
                     i + 1,
                     chapter_number,
-                    _retries + 1,
+                    attempt + 1,
+                    retries,
                 )
-        return paths
+        return path
 
     # ── Private providers ─────────────────────────────────────────────────────
+
+    # Sizes each hosted backend will actually accept. A cell-matched size like
+    # "1024x480" is legal for local backends but a 400 from DALL-E, so it is
+    # snapped to the closest aspect the provider does support instead of being
+    # dropped (dropping it would put us back to square panels in tier cells).
+    _DALLE_SIZES = ("1024x1024", "1792x1024", "1024x1792")
+    _CODEX_SIZES = ("1024x1024", "1536x1024", "1024x1536")
+
+    @staticmethod
+    def _snap_size(size: str, allowed: tuple) -> str:
+        """Closest allowed WxH by aspect ratio; falls back to the first entry."""
+        try:
+            w, h = (int(v) for v in str(size).lower().split("x"))
+            if w <= 0 or h <= 0:
+                raise ValueError(size)
+        except (ValueError, TypeError):
+            return allowed[0]
+        target = w / h
+
+        def _ar(spec: str) -> float:
+            aw, ah = (int(v) for v in spec.split("x"))
+            return aw / ah
+
+        return min(allowed, key=lambda spec: abs(_ar(spec) - target))
 
     def _generate_dalle(self, prompt: str, filename: str, size: str) -> Optional[str]:
         """Generate via OpenAI DALL-E 3 API."""
@@ -230,7 +366,7 @@ class ImageGenerator:
                 "model": "dall-e-3",
                 "prompt": prompt,
                 "n": 1,
-                "size": size,
+                "size": self._snap_size(size, self._DALLE_SIZES),
                 "response_format": "b64_json",
             }
             resp = requests.post(
@@ -385,7 +521,7 @@ class ImageGenerator:
             logger.error("Codex generation skipped: no ~/.codex login found.")
             return None
         filepath = os.path.join(self.output_dir, filename)
-        return client.text_to_image(prompt, filepath, size)
+        return client.text_to_image(prompt, filepath, self._snap_size(size, self._CODEX_SIZES))
 
     def _codex_with_ref(
         self, prompt: str, reference_paths: list, filename: str, size: str
@@ -396,6 +532,53 @@ class ImageGenerator:
             logger.warning("Codex not configured for reference generation")
             return self.generate(prompt, filename, size)
         filepath = os.path.join(self.output_dir, filename)
+        return client.image_with_refs(
+            prompt, reference_paths, filepath, self._snap_size(size, self._CODEX_SIZES)
+        )
+
+    # ── Qwen local proxy (OpenAI-compatible server driving chat.qwen.ai) ──────
+
+    def _qwen_local_client(self):
+        from services.media.qwen_local_client import QwenLocalClient
+
+        cfg = ConfigManager().pipeline
+        return QwenLocalClient(
+            base_url=getattr(cfg, "qwen_local_base_url", ""),
+            api_key=getattr(cfg, "qwen_local_api_key", ""),
+            model=getattr(cfg, "qwen_local_model", ""),
+            size=getattr(cfg, "qwen_local_size", ""),
+            timeout=getattr(cfg, "qwen_local_timeout", 300.0),
+        )
+
+    def _generate_qwen_local(
+        self, prompt: str, filename: str, size: str
+    ) -> Optional[str]:
+        """Text-to-image via the local Qwen proxy."""
+        client = self._qwen_local_client()
+        if not client.is_configured():
+            logger.error("Qwen local generation skipped: no base URL configured.")
+            return None
+        filepath = os.path.join(self.output_dir, filename)
+        return client.text_to_image(prompt, filepath, size)
+
+    def _qwen_local_with_ref(
+        self, prompt: str, reference_paths: list, filename: str, size: str
+    ) -> Optional[str]:
+        """Reference-conditioned generation via the proxy's edit endpoint.
+
+        Qwen's edit mode rewrites the reference image itself, which keeps a
+        character's likeness far better than re-describing them in text. Users
+        who would rather have a fresh composition can turn it off with
+        ``qwen_local_use_edit_for_refs``.
+        """
+        client = self._qwen_local_client()
+        if not client.is_configured():
+            logger.warning("Qwen local not configured for reference generation")
+            return None
+        filepath = os.path.join(self.output_dir, filename)
+        cfg = ConfigManager().pipeline
+        if not getattr(cfg, "qwen_local_use_edit_for_refs", True):
+            return client.text_to_image(prompt, filepath, size)
         return client.image_with_refs(prompt, reference_paths, filepath, size)
 
     # ── FlowKit (Google Labs proxy via Chrome extension WS) ───────────────────

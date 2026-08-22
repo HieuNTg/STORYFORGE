@@ -7,7 +7,9 @@ Phase 7 improvements:
 """
 
 import asyncio
+import hashlib
 import logging
+import threading
 from typing import Optional
 from pydantic import BaseModel, Field
 from models.schemas import Chapter, SimulationResult, count_words
@@ -22,6 +24,49 @@ except ImportError:
     _VOICE_ENFORCEMENT_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Scene preparation cache
+#
+# Splitting a chapter into scenes and scoring each one is deterministic work on
+# a fixed input: one decompose call plus one cheap call per scene. A single
+# chapter pipeline runs it up to four times — the first enhancement, the
+# contract retry, the voice retry, and the structural re-enhance — and each
+# retry constructs a *fresh* SceneEnhancer, so nothing on the instance could
+# remember it. Retries also re-run it against the same original text, so every
+# call after the first is a re-derivation of a result already known.
+#
+# Keyed on the content itself, so a chapter whose text changed is prepared
+# again, as it must be. Per-key locks let concurrent callers for one chapter
+# collapse into a single preparation while different chapters still run in
+# parallel — the same shape as the L1 outline decomposition cache.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_PREP_CACHE: dict[str, tuple] = {}
+_PREP_LOCKS: dict[str, threading.Lock] = {}
+_PREP_REGISTRY_LOCK = threading.Lock()
+_PREP_CACHE_MAX = 256
+
+
+def _prep_key(content: str, genre: str, min_drama: float, has_summary: bool) -> str:
+    digest = hashlib.sha256(content.encode("utf-8", "replace")).hexdigest()[:32]
+    return f"{digest}:{genre}:{min_drama:.3f}:{int(has_summary)}"
+
+
+def _prep_lock(key: str) -> threading.Lock:
+    with _PREP_REGISTRY_LOCK:
+        lock = _PREP_LOCKS.get(key)
+        if lock is None:
+            lock = _PREP_LOCKS[key] = threading.Lock()
+        return lock
+
+
+def reset_scene_prep_cache() -> None:
+    """Drop everything. For tests and for the start of a fresh run."""
+    with _PREP_REGISTRY_LOCK:
+        _PREP_CACHE.clear()
+        _PREP_LOCKS.clear()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -341,12 +386,21 @@ class SceneEnhancer:
         preserve_facts: str = "Không có",
         min_drama_override: float | None = None,
     ) -> list[SceneScore]:
-        """Chấm điểm kịch tính từng cảnh, đánh dấu cảnh yếu."""
-        scores: list[SceneScore] = []
+        """Chấm điểm kịch tính từng cảnh, đánh dấu cảnh yếu.
+
+        One cheap call per scene. The scenes are independent — each is judged on
+        its own text — so they are judged concurrently and written back by index:
+        the caller pairs `scores[i]` with `scenes[i]`, and completion order is
+        not scene order.
+        """
         threshold = (
             min_drama_override if min_drama_override is not None else self.MIN_DRAMA
         )
-        for scene in scenes:
+        scenes = list(scenes)
+        if not scenes:
+            return []
+
+        def _score_one(scene: dict) -> SceneScore:
             try:
                 result = self.llm.generate_json(
                     system_prompt="Đánh giá kịch tính. Trả về JSON.",
@@ -367,11 +421,30 @@ class SceneEnhancer:
                     strong_points=result.get("strong_points", []),
                 )
                 score.needs_enhancement = score.drama_score < threshold
-                scores.append(score)
+                return score
             except Exception as e:
                 logger.debug(f"Score scene {scene.get('scene_number')} failed: {e}")
-                scores.append(SceneScore(scene_number=scene.get("scene_number", 1)))
-        return scores
+                # A neutral SceneScore leaves needs_enhancement False, i.e. the
+                # scene is left alone — the same outcome as before.
+                return SceneScore(scene_number=scene.get("scene_number", 1))
+
+        workers = max(1, min(len(scenes), self._scene_score_workers()))
+        if workers == 1 or len(scenes) == 1:
+            return [_score_one(scene) for scene in scenes]
+
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            return list(executor.map(_score_one, scenes))
+
+    @staticmethod
+    def _scene_score_workers() -> int:
+        try:
+            from config import ConfigManager
+
+            return max(1, int(ConfigManager().llm.max_parallel_workers))
+        except Exception:
+            return 3
 
     def enhance_weak_scenes(
         self,
@@ -408,13 +481,14 @@ class SceneEnhancer:
             stitched = "\n\n".join(
                 strip_llm_scaffolding(s.get("content", "")) for s in scenes
             )
-            return Chapter(
-                chapter_number=chapter.chapter_number,
-                title=chapter.title,
-                content=stitched,
-                word_count=count_words(stitched),
-                summary=chapter.summary,
-                enhancement_changelog=chapter.enhancement_changelog,
+            # model_copy, not a fresh Chapter(): listing fields by hand silently
+            # dropped `contract`, which left the post-L2 contract gate with
+            # nothing to check on any chapter while it reported zero violations.
+            return chapter.model_copy(
+                update={
+                    "content": stitched,
+                    "word_count": count_words(stitched),
+                }
             )
 
         # Build voice enforcement block (prepend + append for recency-bias compliance)
@@ -467,13 +541,13 @@ class SceneEnhancer:
                 enhanced_parts.append(strip_llm_scaffolding(scene.get("content", "")))
 
         stitched = "\n\n".join(p for p in enhanced_parts if p)
-        return Chapter(
-            chapter_number=chapter.chapter_number,
-            title=chapter.title,
-            content=stitched,
-            word_count=count_words(stitched),
-            summary=chapter.summary,
-            enhancement_changelog=chapter.enhancement_changelog,
+        # See the note above: preserve every field the caller set, not just the
+        # six that used to be listed here.
+        return chapter.model_copy(
+            update={
+                "content": stitched,
+                "word_count": count_words(stitched),
+            }
         )
 
     def _enhance_scenes_parallel(
@@ -727,16 +801,8 @@ class SceneEnhancer:
                 )
                 min_drama = curve_min
 
-        scenes = self._scenes_from_summary(chapter, summary)
-        if not scenes:
-            scenes = self.decompose_chapter_content(chapter)
-        else:
-            logger.info(
-                f"[L2] Chapter {chapter.chapter_number}: structured_summary reused, decompose skipped"
-            )
-
-        scores = self.score_scenes(
-            scenes, genre, preserve_facts=preserve_facts, min_drama_override=min_drama
+        scenes, scores = self._prepare_scenes(
+            chapter, summary, genre, preserve_facts, min_drama
         )
 
         weak_count = sum(1 for s in scores if s.needs_enhancement)
@@ -782,6 +848,59 @@ class SceneEnhancer:
             user_story_idea_header=_idea_header,
             characters=_characters,
         )
+
+    def _prepare_scenes(
+        self,
+        chapter: Chapter,
+        summary,
+        genre: str,
+        preserve_facts: str,
+        min_drama: float,
+    ) -> tuple[list[dict], list]:
+        """Split the chapter into scenes and score them, once per text.
+
+        See the cache notes at the top of this module: the retries re-run this
+        against text they have not changed, and each builds its own enhancer, so
+        the memo has to outlive the instance.
+        """
+        key = _prep_key(chapter.content or "", genre or "", min_drama, bool(summary))
+        cached = _PREP_CACHE.get(key)
+        if cached is not None:
+            logger.info(
+                "[L2] Chapter %s: scene preparation reused (no decompose, no re-scoring)",
+                chapter.chapter_number,
+            )
+            return list(cached[0]), list(cached[1])
+
+        with _prep_lock(key):
+            # Another caller for this same text may have finished while we
+            # waited; without this second read they would both pay for it.
+            cached = _PREP_CACHE.get(key)
+            if cached is not None:
+                return list(cached[0]), list(cached[1])
+
+            scenes = self._scenes_from_summary(chapter, summary)
+            if not scenes:
+                scenes = self.decompose_chapter_content(chapter)
+            else:
+                logger.info(
+                    f"[L2] Chapter {chapter.chapter_number}: structured_summary reused, decompose skipped"
+                )
+            scores = self.score_scenes(
+                scenes,
+                genre,
+                preserve_facts=preserve_facts,
+                min_drama_override=min_drama,
+            )
+            if len(_PREP_CACHE) >= _PREP_CACHE_MAX:
+                # A run is bounded by its chapter count; this only guards a
+                # long-lived process, and dropping the oldest is enough.
+                with _PREP_REGISTRY_LOCK:
+                    for stale in list(_PREP_CACHE)[: _PREP_CACHE_MAX // 4]:
+                        _PREP_CACHE.pop(stale, None)
+                        _PREP_LOCKS.pop(stale, None)
+            _PREP_CACHE[key] = (list(scenes), list(scores))
+            return scenes, scores
 
     @staticmethod
     def _scenes_from_summary(chapter: Chapter, summary) -> list[dict]:

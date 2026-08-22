@@ -135,17 +135,26 @@ def test_long_speaker_splits_into_new_panel():
     )
     out = enforce_rules(sl)
     panels = out.all_panels()
-    # The short and long lines now live in separate panels.
+    # The short line and the long speech live in separate panels, AND the long
+    # speech is broken into balloon-sized bubbles (a 30-word balloon renders
+    # taller than its own panel, so lettering it as one bubble is never right).
     assert len(panels) >= 2
     texts = [b.text for p in panels for b in p.bubbles]
     assert "ngắn" in texts
-    assert long_line in texts
-    # No panel holds both.
+    assert long_line not in texts, "an over-long line must be split, not kept whole"
+
+    from services.media.shot_list import MAX_WORDS_PER_BUBBLE
+
+    chunks = [t for t in texts if t != "ngắn"]
+    assert len(chunks) >= 2
+    for chunk in chunks:
+        assert len(chunk.split()) <= MAX_WORDS_PER_BUBBLE
+    # Nothing is lost or reordered: the chunks rebuild the original line.
+    assert " ".join(chunks) == long_line
+    # No panel holds both the short line and any part of the speech.
     for p in panels:
-        assert not (
-            "ngắn" in [b.text for b in p.bubbles]
-            and long_line in [b.text for b in p.bubbles]
-        )
+        panel_texts = [b.text for b in p.bubbles]
+        assert not ("ngắn" in panel_texts and any(c in panel_texts for c in chunks))
 
 
 def test_new_scene_opens_with_establishing_shot():
@@ -615,3 +624,157 @@ def test_apply_shot_list_to_prompts_threads_captions():
     assert prompts[0].captions == [
         {"type": "narration", "text": "Ba ngày sau, tại Thanh Vân Tông."}
     ]
+
+
+
+def test_over_long_first_bubble_is_split():
+    """The common case: one speaker, one long line, nothing before it.
+
+    The old rule only fired when the long bubble was NOT the first one, so a
+    single 40-word speech reached the compositor whole and overflowed its frame.
+    """
+    from services.media.shot_list import MAX_WORDS_PER_BUBBLE
+
+    long_line = (
+        "Ta đã đi qua ba mươi sáu tầng trời, nếm đủ mọi loại đau khổ, chỉ để "
+        "hôm nay đứng đây nói với ngươi một câu duy nhất mà thôi."
+    )
+    sl = ShotList(
+        chapter_number=1,
+        pages=[
+            Page(
+                panels=[
+                    Panel(
+                        n=1,
+                        shot="CU",
+                        setting="phòng",
+                        beat="talk",
+                        bubbles=[Bubble(speaker="Kiên", text=long_line)],
+                    )
+                ]
+            )
+        ],
+    )
+    bubbles = [b for p in enforce_rules(sl).all_panels() for b in p.bubbles]
+    assert len(bubbles) >= 2
+    for b in bubbles:
+        assert len(b.text.split()) <= MAX_WORDS_PER_BUBBLE
+        assert b.speaker == "Kiên"
+    assert " ".join(b.text for b in bubbles) == long_line
+
+
+def test_lone_leftover_panel_uses_solo_layout():
+    """A page with one panel must claim the whole page, not half a TWO_TIER."""
+    sl = ShotList(
+        chapter_number=1,
+        pages=[
+            Page(
+                panels=[
+                    Panel(n=i + 1, shot="MS", setting="a", beat=f"beat {i}")
+                    for i in range(5)
+                ]
+            )
+        ],
+    )
+    out = enforce_rules(sl)
+    for page in out.pages:
+        if len(page.panels) == 1:
+            assert page.layout in ("SPLASH", "SOLO")
+        assert page.layout != "TWO_TIER" or len(page.panels) == 2
+
+
+def test_panels_for_chapter_scales_with_length():
+    """Both the pipeline and the reader path size panels from chapter length."""
+    from types import SimpleNamespace
+    from services.media.shot_list import panels_for_chapter
+
+    cfg = SimpleNamespace(
+        panels_per_chapter=8,
+        panels_auto=True,
+        panels_min=4,
+        panels_max=24,
+        words_per_panel=200,
+    )
+    short = SimpleNamespace(content="từ " * 100)
+    long = SimpleNamespace(content="từ " * 4000)
+    assert panels_for_chapter(short, cfg) == 4  # clamped to panels_min
+    assert panels_for_chapter(long, cfg) == 20
+    cfg.panels_auto = False
+    assert panels_for_chapter(long, cfg) == 8  # fixed count wins when auto is off
+
+
+# ---------------------------------------------------------------------------
+# panels_max is a hard ceiling: the coverage verifier inserts panels and the
+# bubble rules split more, so without this nothing bounded the panel count —
+# and every extra panel is an image the user pays for.
+# ---------------------------------------------------------------------------
+
+
+def _panel(n, beat, subject, shot, texts):
+    return Panel(
+        n=n,
+        shot=shot,
+        setting="a",
+        beat=beat,
+        subject=subject,
+        bubbles=[Bubble(speaker=subject, text=t) for t in texts],
+    )
+
+
+def test_panels_over_the_ceiling_are_merged_not_dropped():
+    from services.media.shot_list import _merge_to_budget
+
+    panels = [
+        _panel(1, "b1", "Kiên", "MS", ["một"]),
+        _panel(2, "b1", "Kiên", "MS", ["hai"]),
+        _panel(3, "b2", "Lan", "CU", ["ba"]),
+    ]
+    merged = _merge_to_budget(panels, 2)
+    assert len(merged) == 2
+    # Every line survives, in order.
+    texts = [b.text for p in merged for b in p.bubbles]
+    assert texts == ["một", "hai", "ba"]
+
+
+def test_merge_never_exceeds_the_bubble_limit():
+    from services.media.shot_list import _merge_to_budget, MAX_BUBBLES_PER_PANEL
+
+    panels = [
+        _panel(1, "b1", "Kiên", "MS", ["một", "hai"]),
+        _panel(2, "b1", "Kiên", "MS", ["ba", "bốn"]),
+    ]
+    merged = _merge_to_budget(panels, 1)
+    # No legal merge (4 bubbles > limit) — the beat is kept, not squeezed.
+    assert len(merged) == 2
+    for p in merged:
+        assert len(p.bubbles) <= MAX_BUBBLES_PER_PANEL
+
+
+def test_different_beats_are_never_merged():
+    """Merging distinct beats would silently collapse story content."""
+    from services.media.shot_list import _merge_to_budget
+
+    panels = [
+        _panel(1, "b1", "Kiên", "MS", ["một"]),
+        _panel(2, "b2", "Kiên", "MS", ["hai"]),
+    ]
+    assert len(_merge_to_budget(panels, 1)) == 2
+
+
+def test_enforce_rules_applies_the_ceiling():
+    long_line = " ".join(f"từ{i}" for i in range(60))  # splits into 3 bubbles
+    sl = ShotList(
+        chapter_number=1,
+        pages=[
+            Page(
+                panels=[
+                    _panel(1, "b1", "Kiên", "MS", [long_line]),
+                    _panel(2, "b2", "Lan", "CU", ["ngắn"]),
+                ]
+            )
+        ],
+    )
+    unbounded = len(enforce_rules(sl).all_panels())
+    bounded = len(enforce_rules(sl, max_panels=2).all_panels())
+    assert unbounded > 2, "splitting should have produced extra panels"
+    assert bounded <= unbounded

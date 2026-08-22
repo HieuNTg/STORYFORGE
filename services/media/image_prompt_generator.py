@@ -5,6 +5,8 @@ import logging
 import re
 from models.schemas import ImagePrompt, Chapter
 from services.llm_client import LLMClient
+from services.media._util import COLOR_CLAUSE, MONOCHROME_NEGATIVES
+from services.media.shot_list import CONTENT_WINDOW
 from config import ConfigManager
 
 logger = logging.getLogger(__name__)
@@ -17,6 +19,7 @@ LUẬT KHUNG TRUYỆN TRANH:
 - Each panel MUST specify a distinct shot type (establishing/wide/medium/close-up/over-the-shoulder/reaction) and vary across the sequence — no two adjacent panels share the same shot type.
 - Render NO text inside the image: no speech bubbles, no captions, no signs, no letters, no watermark.
 - Style: comic panel, cel shading, bold ink lines (per STYLE below).
+- Every prompt MUST be FULL COLOUR: end each prompt with "full color, rich vibrant color palette". Never ask for monochrome, grayscale, black-and-white or uncolored lineart.
 
 NỘI DUNG:
 {content}
@@ -27,7 +30,7 @@ NHÂN VẬT:
 STYLE: {style}
 
 Trả về JSON:
-{{"scenes": [{{"scene_description": "mô tả cảnh", "shot_type": "establishing|wide|medium|close-up|over-the-shoulder|reaction", "dalle_prompt": "English comic-panel prompt for DALL-E, NO TEXT in image", "sd_prompt": "English comic-panel prompt for Stable Diffusion, NO TEXT in image", "negative_prompt": "things to avoid (always include: text, letters, watermark, caption, speech bubble)", "characters_in_scene": ["char names"]}}]}}"""
+{{"scenes": [{{"scene_description": "mô tả cảnh", "shot_type": "establishing|wide|medium|close-up|over-the-shoulder|reaction", "dalle_prompt": "English comic-panel prompt for DALL-E, NO TEXT in image", "sd_prompt": "English comic-panel prompt for Stable Diffusion, NO TEXT in image", "negative_prompt": "things to avoid (always include: text, letters, watermark, caption, speech bubble, monochrome, grayscale, black and white)", "characters_in_scene": ["char names"]}}]}}"""
 
 
 # Shot-list panel → polished English image prompt (one per panel, 1:1 aligned).
@@ -37,7 +40,8 @@ Trả về JSON:
 _PANEL_PROMPT_GEN = """Bạn là đạo diễn hình ảnh truyện tranh. Viết prompt tạo ảnh TIẾNG ANH cho TỪNG panel trong danh sách dưới đây — một prompt mỗi panel, đúng thứ tự, đủ {num_panels} prompt.
 
 LUẬT:
-- Cấu trúc mỗi prompt: [shot type + góc máy] + [nhân vật: lặp lại NGUYÊN VĂN mô tả ngoại hình trong mục NHÂN VẬT, không diễn đạt lại] + [MỘT hành động cụ thể, thì hiện tại] + [bối cảnh] + [ánh sáng / mood] + [STYLE].
+- Cấu trúc mỗi prompt: [shot type + góc máy] + [nhân vật: lặp lại NGUYÊN VĂN mô tả ngoại hình trong mục NHÂN VẬT, không diễn đạt lại] + [MỘT hành động cụ thể, thì hiện tại] + [bối cảnh] + [ánh sáng / mood] + [STYLE] + [màu sắc].
+- Ảnh phải CÓ MÀU: mỗi prompt nêu rõ bảng màu của cảnh (ví dụ "warm amber lantern light against deep blue night") và kết thúc bằng "full color, rich vibrant color palette". Không bao giờ yêu cầu monochrome / grayscale / black-and-white / uncolored lineart.
 - Khái niệm trừu tượng trong beat (khế ước, sợi chỉ sinh mệnh, thiên đạo, linh hồn...) phải hiện ra như hình ảnh cụ thể đúng theo mô tả trong action/setting của panel — dùng lại cùng một ẩn dụ thị giác ở mọi panel có cùng khái niệm.
 - Composition: single focal point; leave empty space near the top of the frame for speech balloons.
 - Diễn đạt mọi ràng buộc theo hướng KHẲNG ĐỊNH (positive phrasing); prompt đủ chi tiết để AI vẽ được ngay.
@@ -103,7 +107,10 @@ class ImagePromptGenerator:
             "and never ask questions. "
             "Structure: [shot type: establishing/wide/medium/close-up/"
             "over-the-shoulder/reaction] + [character action/expression] + "
-            "[comic art style: cel shading, bold ink lines]. "
+            "[comic art style: cel shading, bold ink lines] + [colour palette]. "
+            "The image MUST be in colour — always end with 'full color, rich "
+            "vibrant color palette' and never ask for monochrome, grayscale or "
+            "black-and-white. "
             "The image MUST contain NO text — explicitly add 'no text in image, "
             "no speech bubbles, no captions, no watermark'. Under 60 words. "
             "Output ONLY the rewritten prompt as plain text: no JSON, no quotes, no "
@@ -207,7 +214,10 @@ class ImagePromptGenerator:
                 system_prompt="Bạn là họa sĩ concept art. Trả về JSON.",
                 user_prompt=_SCENE_EXTRACT_PROMPT.format(
                     num_images=num_images,
-                    content=chapter.content[:3000],
+                    # Same window as the shot-list extractor: the old 3000-char
+                    # cut truncated a typical chapter in half, so half its
+                    # scenes could never be picked.
+                    content=(chapter.content or "")[:CONTENT_WINDOW],
                     characters=chars_text or "Không có thông tin",
                     style=self.style,
                 ),
@@ -324,7 +334,10 @@ class ImagePromptGenerator:
                     style=self.style,
                     dalle_prompt=dalle or sd,
                     sd_prompt=sd or dalle,
-                    negative_prompt="text, letters, watermark, caption, speech bubble",
+                    negative_prompt=(
+                        "text, letters, watermark, caption, speech bubble, "
+                        + MONOCHROME_NEGATIVES
+                    ),
                     characters_in_scene=[p.subject] if p.subject else [],
                 )
             )
@@ -346,8 +359,8 @@ class ImagePromptGenerator:
             bits.append(self.style)
         bits.append(
             "comic panel, single focal point, empty space near the top for "
-            "speech balloons, no text in image, no speech bubbles, no captions, "
-            "no watermark"
+            "speech balloons, " + COLOR_CLAUSE + ", no text in image, "
+            "no speech bubbles, no captions, no watermark"
         )
         return ", ".join(b for b in bits if b)
 

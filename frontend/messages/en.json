@@ -448,6 +448,8 @@
         "temperature": "Temperature",
         "temperature_hint": "Higher = more creative but less stable.",
         "max_tokens": "Max tokens",
+        "request_timeout": "Request timeout (s)",
+        "request_timeout_hint": "How long one LLM call may run. Raise for slow local models/bridges.",
         "cheap_model": "Cheap model (cheap_model)",
         "cheap_model_placeholder": "Select configured model",
         "cheap_model_default": "Use default model",
@@ -459,7 +461,11 @@
         "self_review_threshold": "Self-review threshold",
         "self_review_threshold_hint": "Chapters scoring below the threshold will be rewritten.",
         "current_model": "Current · {model}",
-        "save_success": "Layer 1 settings saved"
+        "save_success": "Layer 1 settings saved",
+        "length_gate": "Expand short chapters",
+        "length_gate_desc": "A chapter that comes back under target gets one expansion pass built from real material (scenes, dialogue, interiority) rather than padding.",
+        "length_gate_ratio": "Short-chapter threshold",
+        "length_gate_ratio_hint": "Only chapters below this fraction of the requested word count are expanded. 85% is the default; lower it to tolerate shorter chapters."
       },
       "l2": {
         "banner": "Advanced Options — only change if you understand the impact.",
@@ -516,6 +522,30 @@
         "undo": "Undo",
         "save_flowkit": "Save FlowKit Settings",
         "save_success": "FlowKit settings saved successfully"
+      },
+      "qwen_local": {
+        "title": "Qwen (local proxy)",
+        "desc": "Generate images through a local OpenAI-compatible server driving chat.qwen.ai. Start that server first (port 8000 by default).",
+        "status_checking": "Checking…",
+        "status_ready": "Ready",
+        "status_no_qwen": "Proxy up, Qwen not started",
+        "status_offline": "Unreachable",
+        "recheck": "Re-check",
+        "base_url_label": "Base URL",
+        "base_url_hint": "Defaults to http://localhost:8000/v1",
+        "api_key_label": "API key",
+        "api_key_hint": "Must match the proxy's GEMINI_API_KEYS. Leave empty if the proxy sets none.",
+        "api_key_hint_set": "Stored: {masked}. Leave empty to keep it.",
+        "model_label": "Image model",
+        "model_hint": "Empty = use the proxy's QWEN_IMAGE_MODEL",
+        "size_label": "Aspect ratio",
+        "size_hint": "Qwen takes a ratio, not a pixel size",
+        "size_auto": "Proxy default (1:1)",
+        "timeout_label": "Timeout (seconds)",
+        "timeout_hint": "Each image takes roughly 25–40 seconds",
+        "edit_refs_label": "Use edit mode for reference images",
+        "edit_refs_desc": "When a panel has character reference images, send the reference to Qwen's edit endpoint — it holds a character's likeness far better than re-describing them in text.",
+        "save_success": "Qwen local settings saved"
       }
     }
   },
@@ -624,6 +654,8 @@
     "save_success": "Saved to library",
     "save_failed_empty": "No story to save yet",
     "save_failed_full": "Library cap reached ({max})",
+    "save_failed_quota": "Browser storage is full — nothing was saved. Delete some older stories and try again.",
+    "save_failed_storage": "Could not write to browser storage — this story was not saved.",
     "stage": {
       "planning": "Sketching setting…",
       "characters": "Building characters…",

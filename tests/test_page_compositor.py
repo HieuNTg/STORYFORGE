@@ -19,6 +19,7 @@ layout regression (a moved/missing panel changes the hash decisively).
 
 import os
 import tempfile
+from types import SimpleNamespace
 
 import pytest
 from PIL import Image, ImageDraw, ImageFont
@@ -111,6 +112,8 @@ def _hamming(a, b):
         ("THREE_TIER", 3),
         ("GRID_2x2", 4),
         ("BIG_PLUS_TWO", 3),
+        ("BIG_PLUS_FOUR", 5),
+        ("SOLO", 1),
         ("SIX_GRID", 6),
     ],
 )
@@ -127,15 +130,108 @@ def test_layout_library_cell_counts(name, count):
 
 
 def test_layout_library_covers_spec():
-    # All six spec §2.2 layouts present.
-    assert set(LAYOUT_LIBRARY) == {
+    # All six spec §2.2 layouts present. SOLO (a non-dramatic single cell for a
+    # leftover panel) and BIG_PLUS_FOUR (five beats) were added afterwards, so
+    # the spec set is a subset rather than an equality.
+    assert {
         "SPLASH",
         "TWO_TIER",
         "THREE_TIER",
         "GRID_2x2",
         "BIG_PLUS_TWO",
         "SIX_GRID",
-    }
+    } <= set(LAYOUT_LIBRARY)
+
+
+def test_no_page_silently_drops_panels():
+    """A page carrying more panels than its layout declares must widen, not drop.
+
+    Five panels used to be routed to the three-cell BIG_PLUS_TWO, which lost the
+    last two beats of the page with no error.
+    """
+    geom = PageGeometry()
+    page = Page(page=1, layout="BIG_PLUS_TWO", panels=[Panel(n=i) for i in range(5)])
+    assert len(layout_cells(page, geom, "shot_list")) >= 5
+    auto = Page(page=1, layout="", panels=[Panel(n=i) for i in range(5)])
+    assert len(layout_cells(auto, geom, "auto")) >= 5
+
+
+def test_solo_layout_fills_the_page():
+    """A lone leftover panel gets the whole page, not half of a TWO_TIER."""
+    geom = PageGeometry()
+    cells = layout_cells(Page(page=1, layout="SOLO", panels=[Panel(n=1)]), geom, "shot_list")
+    assert len(cells) == 1
+    left, top, right, bottom = cells[0]
+    cl, ct, cr, cb = geom.content_box
+    assert (right - left) == (cr - cl)
+    assert (bottom - top) == (cb - ct)
+
+
+def test_panel_target_sizes_match_cell_aspect():
+    """Panels are generated at their cell's aspect, not always square."""
+    from services.media.page_compositor import panel_target_sizes
+
+    sl = SimpleNamespace(
+        pages=[
+            Page(page=1, layout="THREE_TIER", panels=[Panel(n=i) for i in range(3)]),
+            Page(page=2, layout="SPLASH", panels=[Panel(n=4)]),
+        ]
+    )
+    sizes = panel_target_sizes(sl)
+    assert len(sizes) == 4
+    tier_w, tier_h = (int(v) for v in sizes[0].split("x"))
+    splash_w, splash_h = (int(v) for v in sizes[3].split("x"))
+    assert tier_w > tier_h  # tier cells are wide
+    assert splash_h > splash_w  # a splash page is portrait
+    for spec in sizes:
+        w, h = (int(v) for v in spec.split("x"))
+        assert w % 8 == 0 and h % 8 == 0
+
+
+def test_bubble_stays_inside_its_frame():
+    """An over-long line must not grow the balloon past the panel it belongs to.
+
+    Regression: a 40-word bubble on a THREE_TIER page rendered ~3x taller than
+    its own cell and covered the panel below.
+    """
+    from services.media.page_compositor import compose_page
+
+    long_line = (
+        "Ta đã đi qua ba mươi sáu tầng trời, nếm đủ mọi loại đau khổ, chỉ để "
+        "hôm nay đứng đây nói với ngươi một câu duy nhất mà thôi, không hơn."
+    )
+    with tempfile.TemporaryDirectory() as td:
+        panels = [
+            _solid_panel(td, f"p{i}.png", (40, 60, 120), (1024, 480))
+            for i in range(3)
+        ]
+        page = Page(
+            page=1,
+            layout="THREE_TIER",
+            panels=[
+                Panel(
+                    n=1,
+                    shot="CU",
+                    bubbles=[Bubble(speaker="Kiên", type="speech", text=long_line)],
+                ),
+                Panel(n=2, shot="MS"),
+                Panel(n=3, shot="WS"),
+            ],
+        )
+        out = compose_page(page, panels, os.path.join(td, "page.png"))
+        img = Image.open(out).convert("RGB")
+        geom = PageGeometry()
+        cells = layout_cells(page, geom, "shot_list")
+        first_bottom = cells[0][3]
+        second_top, second_bottom = cells[1][1], cells[1][3]
+        # The second cell must still be its own panel: no balloon white spilling
+        # into the top band of it.
+        band = img.crop((cells[1][0], second_top, cells[1][2], second_top + 60))
+        white = sum(
+            1 for (r, g, b) in band.getdata() if r > 230 and g > 230 and b > 230
+        )
+        assert white < band.width * 60 * 0.05, "balloon spilled into the next panel"
+        assert first_bottom < second_bottom
 
 
 def test_unknown_layout_falls_back_by_count():

@@ -69,6 +69,11 @@ BUBBLE_PAD_Y = 20
 BUBBLE_OUTLINE = 4  # black outline 3–4 px (§4)
 TEXT_HALO = 3  # white halo radius so text reads on dark art
 MAX_BUBBLES_PER_FRAME = 2  # §4
+# A balloon (body + tail) may not claim more than this share of its frame's
+# height. Without the cap the body simply grew downward: a 40-word line on a
+# THREE_TIER page rendered three times taller than the panel it belonged to and
+# covered the panel below it.
+MAX_BUBBLE_HEIGHT_FRAC = 0.66
 MAX_CHARS_PER_LINE = 20  # ≤18–22 VN chars/line (§4 step 3)
 
 # Bubble fills/strokes
@@ -200,6 +205,14 @@ def _layout_big_plus_two(box: Cell, g: int) -> list[Cell]:
     return [big] + _split_cols(small_row, g, 2)
 
 
+def _layout_big_plus_four(box: Cell, g: int) -> list[Cell]:
+    # A wide establishing panel over two rows of two — the standard manhwa page
+    # for five beats. Exists because five panels used to be routed to the
+    # three-cell BIG_PLUS_TWO, which silently dropped the last two.
+    big, mid, bottom = _rows(box, g, [1.4, 1, 1])
+    return [big] + _split_cols(mid, g, 2) + _split_cols(bottom, g, 2)
+
+
 def _layout_six_grid(box: Cell, g: int) -> list[Cell]:
     cells: list[Cell] = []
     for row in _rows(box, g, [1, 1, 1]):
@@ -210,10 +223,15 @@ def _layout_six_grid(box: Cell, g: int) -> list[Cell]:
 # name -> (builder, declared panel count)
 LAYOUT_LIBRARY: dict[str, tuple] = {
     "SPLASH": (_layout_splash, 1),
+    # Same single full-bleed cell as SPLASH, but semantically "a page that
+    # happens to hold one panel" — SPLASH is reserved for the chapter's biggest
+    # beat, so a leftover panel uses this instead of claiming dramatic weight.
+    "SOLO": (_layout_splash, 1),
     "TWO_TIER": (_layout_two_tier, 2),
     "THREE_TIER": (_layout_three_tier, 3),
     "GRID_2x2": (_layout_grid_2x2, 4),
     "BIG_PLUS_TWO": (_layout_big_plus_two, 3),
+    "BIG_PLUS_FOUR": (_layout_big_plus_four, 5),
     "SIX_GRID": (_layout_six_grid, 6),
 }
 
@@ -223,7 +241,7 @@ _AUTO_BY_COUNT: dict[int, str] = {
     2: "TWO_TIER",
     3: "THREE_TIER",
     4: "GRID_2x2",
-    5: "BIG_PLUS_TWO",  # 3 cells; extra panels overflow into the last cell
+    5: "BIG_PLUS_FOUR",
     6: "SIX_GRID",
 }
 
@@ -247,13 +265,29 @@ def _resolve_layout_name(page: Page, mode: str) -> str:
 def layout_cells(page: Page, geom: PageGeometry, mode: str = "shot_list") -> list[Cell]:
     """Return grid cells (absolute page px) for ``page`` in Z/LTR reading order.
 
-    The cell count matches the layout's declared count. If the page carries MORE
-    panels than the layout has cells, the surplus panels are dropped from this page
-    (the shot-list extractor is responsible for not over-filling a layout); if it
-    carries FEWER, the trailing cells stay empty.
+    The cell count matches the layout's declared count, EXCEPT when the page
+    carries more panels than that layout has cells — then a wider layout is
+    substituted so no panel is silently dropped. If the page carries fewer
+    panels than cells, the trailing cells stay empty.
     """
     name = _resolve_layout_name(page, mode)
-    builder, _count = LAYOUT_LIBRARY[name]
+    builder, count = LAYOUT_LIBRARY[name]
+    n = len(page.panels)
+    if n > count:
+        # Dropping panels loses story beats silently. Fall back to the smallest
+        # layout that actually holds them (the shot list can disagree with the
+        # layout label it emitted, and "auto" mode guesses from the count).
+        wider = _AUTO_BY_COUNT.get(min(n, 6), "SIX_GRID")
+        logger.warning(
+            "Page %s: layout %r holds %d cells but the page carries %d panels; "
+            "using %r instead.",
+            page.page,
+            name,
+            count,
+            n,
+            wider,
+        )
+        builder, _ = LAYOUT_LIBRARY[wider]
     return builder(geom.content_box, geom.gutter)
 
 
@@ -440,15 +474,23 @@ def _place_panel(
     border: int,
 ) -> None:
     """Composite one panel image into ``cell`` with a black border."""
-    try:
-        with Image.open(panel_path) as im:
-            im = im.convert("RGB")
-            fitted = _fit_cover(im, cell)
-    except Exception as e:
-        logger.warning(
-            "Panel image unreadable (%s): %s — drawing placeholder", panel_path, e
-        )
+    if not panel_path:
+        # A None slot: the panel failed to generate. Its cell is held open so the
+        # rest of the page stays aligned with the shot list.
+        logger.warning("Panel missing — drawing placeholder")
         fitted = Image.new("RGB", (cell[2] - cell[0], cell[3] - cell[1]), (40, 40, 48))
+    else:
+        try:
+            with Image.open(panel_path) as im:
+                im = im.convert("RGB")
+                fitted = _fit_cover(im, cell)
+        except Exception as e:
+            logger.warning(
+                "Panel image unreadable (%s): %s — drawing placeholder", panel_path, e
+            )
+            fitted = Image.new(
+                "RGB", (cell[2] - cell[0], cell[3] - cell[1]), (40, 40, 48)
+            )
     canvas.paste(fitted, (cell[0], cell[1]))
     draw.rectangle(cell, outline=INK, width=border)
 
@@ -716,34 +758,19 @@ def _render_bubble(
     max_text_w = int(slot_w * 0.82) - 2 * pad_x
     max_text_w = max(80 * scale, max_text_w)
 
-    # Auto-shrink font to fit width.
-    size = size_max
-    lines: list[str] = []
-    while size >= size_min:
-        font = fonts.at(size * scale)
-        # char cap scales slightly with font so smaller text packs more.
-        cap = MAX_CHARS_PER_LINE if size <= 38 else 18
-        lines = _shape_lines(bubble.text, cap)
-        tw, _th = _measure_lines(draw, lines, font, spacing)
-        if tw <= max_text_w:
-            break
-        size -= 2
-    font = fonts.at(max(size, size_min) * scale)
-    tw, th = _measure_lines(draw, lines, font, spacing)
-
-    # Bubble box. Round/irregular shapes inscribe the text rectangle, so their
-    # bbox must be inflated beyond the text+padding or the lettering spills past the
-    # visible outline (ellipse/cloud ≈ √2; spiky shapes a touch more). Rectangles
-    # (narration) need no inflation.
+    # Round/irregular shapes inscribe the text rectangle, so their bbox must be
+    # inflated beyond the text+padding or the lettering spills past the visible
+    # outline (ellipse/cloud ≈ √2; spiky shapes a touch more). Rectangles
+    # (narration) need no inflation. Known before the fit loop because the
+    # height budget below depends on it.
     if btype == "narration":
         infl_x = infl_y = 1.0
     elif btype == "shout":
         infl_x, infl_y = 1.7, 1.7
     else:  # speech / thought / whisper / offscreen — oval/cloud bodies
         infl_x, infl_y = 1.45, 1.5
-    bw = min(int((tw + 2 * pad_x) * infl_x), slot_w - 8 * scale)
-    bh = int((th + 2 * pad_y) * infl_y)
-    bcx = max(cl + bw // 2 + 4 * scale, min(slot_cx, cr - bw // 2 - 4 * scale))
+
+    # Where the balloon starts, and therefore how much room it has left.
     btop = ct + max(10 * scale, int(ch * 0.04))
     if top_floor:
         # Don't overlap the caption box above us.
@@ -752,13 +779,57 @@ def _render_bubble(
         # Stagger later bubbles slightly lower — proximity + diagonal flow makes
         # the reading order unambiguous.
         btop += int(ch * 0.05) * slot
+    has_tail = btype in ("speech", "shout", "offscreen", "whisper")
+    # The tail drops below the body (see _tail_polygon) and must stay inside the
+    # frame too, so the budget covers body + tail.
+    height_budget = int(min(cb - btop - 6 * scale, ch * MAX_BUBBLE_HEIGHT_FRAC))
+    height_budget = max(height_budget, int(ch * 0.25))
+
+    def _body_height(text_h: int) -> int:
+        body = int((text_h + 2 * pad_y) * infl_y)
+        tail = max(28 * scale, body // 3) if has_tail else 0
+        return body + tail
+
+    # Auto-shrink font to fit BOTH the slot width and the height budget. Width
+    # alone was the old rule; height was unbounded, which is what let balloons
+    # run past the bottom of their own panel.
+    size = size_max
+    lines: list[str] = []
+    th = 0
+    while size >= size_min:
+        font = fonts.at(size * scale)
+        # char cap scales slightly with font so smaller text packs more.
+        cap = MAX_CHARS_PER_LINE if size <= 38 else 18
+        lines = _shape_lines(bubble.text, cap)
+        tw, th = _measure_lines(draw, lines, font, spacing)
+        if tw <= max_text_w and _body_height(th) <= height_budget:
+            break
+        size -= 2
+    font = fonts.at(max(size, size_min) * scale)
+    tw, th = _measure_lines(draw, lines, font, spacing)
+
+    bw = min(int((tw + 2 * pad_x) * infl_x), slot_w - 8 * scale)
+    bh = int((th + 2 * pad_y) * infl_y)
+    if _body_height(th) > height_budget:
+        # Still too tall at the smallest permitted lettering (an over-long line
+        # the shot list failed to split). Tighten the oval toward the text box
+        # rather than letting it escape the frame — cramped beats spilling onto
+        # the panel below.
+        tail_reserve = max(28 * scale, height_budget // 4) if has_tail else 0
+        bh = max(int((th + pad_y) * 1.05), height_budget - tail_reserve)
+        logger.debug(
+            "Bubble clamped to %dpx (budget %d) for text %r",
+            bh,
+            height_budget,
+            (bubble.text or "")[:40],
+        )
+    bcx = max(cl + bw // 2 + 4 * scale, min(slot_cx, cr - bw // 2 - 4 * scale))
     bl = int(bcx - bw / 2)
     br = int(bcx + bw / 2)
     bb_ = btop + bh
     bbox = (bl, btop, br, bb_)
 
     # Tail first (so the body outline sits over the tail base) for tailed types.
-    has_tail = btype in ("speech", "shout", "offscreen", "whisper")
     if btype == "offscreen":
         # Tail points to the frame edge on the speaker's side rather than a point
         # inside the frame.
@@ -837,6 +908,51 @@ def _render_caption(
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+
+def panel_target_sizes(
+    shot_list,
+    *,
+    geometry: Optional[PageGeometry] = None,
+    layout_mode: str = "shot_list",
+    long_edge: int = 1024,
+) -> list[str]:
+    """``WxH`` per panel, in flat reading order, matching each layout cell.
+
+    Panels used to be generated square and then center-cropped into whatever
+    cell they landed in — on a THREE_TIER page (2.1:1 cells, the layout the
+    shot list emits most) that threw away more than half of every panel, which
+    is why composed pages so often cut off heads and feet. Generating at the
+    cell's own aspect means the crop is a trim, not an amputation.
+
+    ``long_edge`` sets the resolution of the longer side; the shorter side
+    follows the cell aspect (both rounded to a multiple of 8, which is what
+    diffusion backends expect).
+    """
+    geom = geometry or PageGeometry.from_canvas_spec(
+        f"{DEFAULT_CANVAS[0]}x{DEFAULT_CANVAS[1]}"
+    )
+    sizes: list[str] = []
+    for page in _coerce_pages(shot_list):
+        cells = layout_cells(page, geom, layout_mode)
+        for idx, _panel in enumerate(page.panels):
+            if idx >= len(cells):
+                # layout_cells already widens the layout to fit; this is only
+                # reachable for a page carrying more than the largest layout.
+                sizes.append(f"{long_edge}x{long_edge}")
+                continue
+            left, top, right, bottom = cells[idx]
+            cw, ch = max(1, right - left), max(1, bottom - top)
+            if cw >= ch:
+                w, h = long_edge, max(1, round(long_edge * ch / cw))
+            else:
+                h, w = long_edge, max(1, round(long_edge * cw / ch))
+            sizes.append(f"{_round8(w)}x{_round8(h)}")
+    return sizes
+
+
+def _round8(v: int) -> int:
+    return max(64, int(round(v / 8)) * 8)
 
 
 def compose_page(
@@ -964,9 +1080,10 @@ def compose_chapter(
         n = len(page.panels)
         page_imgs = panel_paths[cursor : cursor + n]
         cursor += n
-        if not page_imgs:
-            # No panels generated for this page (e.g. image gen produced fewer
-            # images than the shot-list expected) — skip rather than emit a blank.
+        if not any(page_imgs):
+            # Nothing generated for this page — skip rather than emit a blank.
+            # `any`, not truthiness of the list: with position-preserving input
+            # a page of failed panels is [None, None], which is not empty.
             continue
         fname = f"ch{chapter_number:02d}_page{page.page:02d}.png"
         out_path = os.path.join(out_dir, fname)

@@ -13,6 +13,7 @@ from typing import Optional
 
 from config import ConfigManager
 from models.schemas import ForgeCharacter
+from services.media._util import COLOR_CLAUSE
 from services.safe_name import safe_character_name
 
 logger = logging.getLogger(__name__)
@@ -105,6 +106,7 @@ def _build_avatar_prompt(char: ForgeCharacter, genre: Optional[str] = None) -> s
         (
             f"Single-figure character portrait, one person only, centered, "
             f"eye-level shot, head and upper torso visible, {style_anchor}, "
+            f"{COLOR_CLAUSE}, "
             f"soft studio lighting on a plain neutral gray background"
         ),
         f"Character: {char.name} ({char.role})",
@@ -117,6 +119,8 @@ def _build_avatar_prompt(char: ForgeCharacter, genre: Optional[str] = None) -> s
             "no split frames. "
             "Strictly NO text, NO letters, NO calligraphy, NO Chinese characters, "
             "NO Han characters, NO captions, NO watermark, NO logo, NO signs. "
+            "The portrait is in colour: NOT monochrome, NOT grayscale, "
+            "NOT black-and-white, NOT uncolored lineart. "
             "Background must be empty plain gray studio, no scenery, no buildings."
         ),
     ]

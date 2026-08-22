@@ -51,9 +51,13 @@ def test_records_call_with_tags():
     assert c.chapter_number == 3
     assert c.module == "chapter_writer"
     assert c.model == "claude-sonnet-4-6"
-    assert c.prompt_tokens == 100
-    assert c.completion_tokens == 50
-    assert c.total_tokens == 150
+    # Token counts are no longer the old len(text)//4 arithmetic: the estimator
+    # now uses tiktoken when present and a Vietnamese-aware heuristic otherwise,
+    # and a provider's own usage figures take precedence over any estimate. Pin
+    # the properties that matter rather than one formula's output.
+    assert c.prompt_tokens > 0
+    assert c.completion_tokens > 0
+    assert c.total_tokens == c.prompt_tokens + c.completion_tokens
     assert c.cost_usd > 0
     assert c.success is True
 

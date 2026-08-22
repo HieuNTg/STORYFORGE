@@ -21,9 +21,15 @@ _ENV_MAP: dict[str, tuple[str, str]] = {
     "STORYFORGE_API_KEY": ("llm", "api_key"),
     "STORYFORGE_BASE_URL": ("llm", "base_url"),
     "STORYFORGE_MODEL": ("llm", "model"),
+    "STORYFORGE_REQUEST_TIMEOUT": ("llm", "request_timeout"),
     "STORYFORGE_TEMPERATURE": ("llm", "temperature"),
     "STORYFORGE_IMAGE_PROVIDER": ("pipeline", "image_provider"),
+    "STORYFORGE_LENGTH_GATE": ("pipeline", "enable_length_gate"),
+    "STORYFORGE_LENGTH_GATE_RATIO": ("pipeline", "length_gate_min_ratio"),
     "IMAGE_API_KEY": ("pipeline", "image_api_key"),
+    "QWEN_LOCAL_BASE_URL": ("pipeline", "qwen_local_base_url"),
+    "QWEN_LOCAL_API_KEY": ("pipeline", "qwen_local_api_key"),
+    "QWEN_LOCAL_MODEL": ("pipeline", "qwen_local_model"),
     "IMAGE_API_URL": ("pipeline", "image_api_url"),
     "SEEDREAM_API_KEY": ("pipeline", "seedream_api_key"),
     "SEEDREAM_API_URL": ("pipeline", "seedream_api_url"),
@@ -43,7 +49,7 @@ _ENV_MAP: dict[str, tuple[str, str]] = {
     "STORYFORGE_BLOCK_INJECTION": ("pipeline", "block_on_injection"),
 }
 
-_FLOAT_FIELDS = {"temperature", "quality_gate_threshold"}
+_FLOAT_FIELDS = {"temperature", "quality_gate_threshold", "request_timeout"}
 _BOOL_FIELDS = {
     "rag_enabled",
     "enable_character_consistency",
@@ -125,6 +131,22 @@ def _migrate_legacy_secrets(llm: "LLMConfig", pipeline: "PipelineConfig") -> Non
         logger.info("Loaded values from legacy secrets.json into in-memory config")
 
 
+def _env_overridden_fields(section: str) -> set[str]:
+    """Fields in `section` whose value currently comes from the environment.
+
+    save_config must not write these back: an env override wins at runtime, but
+    baking it into config.json would silently overwrite the choice the user made
+    in Settings, and would outlive the env var itself. Computed from os.environ
+    on demand rather than remembered from the last load, so there is no stale
+    state to leak between calls.
+    """
+    return {
+        field
+        for env_key, (sec, field) in _ENV_MAP.items()
+        if sec == section and os.environ.get(env_key)
+    }
+
+
 def _apply_env_overrides(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
     """Apply environment variable overrides (for Docker/production)."""
     for env_key, (section, field) in _ENV_MAP.items():
@@ -142,139 +164,65 @@ def _apply_env_overrides(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
         setattr(target, field, val)
 
 
+# Fields deliberately kept out of config.json.
+#   voice — a derived nested view of the flat voice_*/l2_voice_* fields, rebuilt
+#   by PipelineConfig.__post_init__. Persisting it would let a stale copy fight
+#   the flat fields that stay authoritative.
+_NON_PERSISTED_PIPELINE_FIELDS = frozenset({"voice"})
+_NON_PERSISTED_LLM_FIELDS: frozenset[str] = frozenset()
+
+
+def _section_dict(obj, skip: frozenset) -> dict:
+    """Every dataclass field except the excluded ones."""
+    import dataclasses
+
+    return {
+        f.name: getattr(obj, f.name)
+        for f in dataclasses.fields(obj)
+        if f.name not in skip
+    }
+
+
 def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
-    """Persist config to JSON, encrypting sensitive fields when a secret key is set."""
+    """Persist config to JSON, encrypting sensitive fields when a secret key is set.
+
+    Sections are built from the dataclass fields rather than a hand-written list.
+    The list had drifted to 103 of 244 fields, so every l2_* knob, the budget
+    caps, chapter_batch_size and parallel_chapters_enabled silently reverted to
+    code defaults on restart — and because the writer replaced the file wholesale,
+    any key it did not know about was deleted on the next save.
+    """
     os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
+
+    # Keep anything already on disk that neither dataclass claims, so a key
+    # written by an older or newer build survives a save from this one.
+    existing: dict = {}
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+            if isinstance(loaded, dict):
+                existing = loaded
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning(f"Could not read existing config for merge: {e}")
+
     data = {
+        **{k: v for k, v in existing.items() if k not in ("llm", "pipeline")},
         "llm": {
-            "api_key": llm.api_key,
-            "api_keys": llm.api_keys,
-            "fallback_models": llm.fallback_models,
-            "base_url": llm.base_url,
-            "model": llm.model,
-            "temperature": llm.temperature,
-            "max_tokens": llm.max_tokens,
-            "cheap_model": llm.cheap_model,
-            "cheap_base_url": llm.cheap_base_url,
-            "cache_enabled": llm.cache_enabled,
-            "cache_ttl_days": llm.cache_ttl_days,
-            "max_parallel_workers": llm.max_parallel_workers,
-            "layer1_model": llm.layer1_model,
-            "layer2_model": llm.layer2_model,
+            **(existing.get("llm") or {}),
+            **_section_dict(
+                llm, _NON_PERSISTED_LLM_FIELDS | _env_overridden_fields("llm")
+            ),
         },
         "pipeline": {
-            "num_chapters": pipeline.num_chapters,
-            "words_per_chapter": pipeline.words_per_chapter,
-            "genre": pipeline.genre,
-            "writing_style": pipeline.writing_style,
-            "num_simulation_rounds": pipeline.num_simulation_rounds,
-            "num_agents": pipeline.num_agents,
-            "drama_intensity": pipeline.drama_intensity,
-            "context_window_chapters": pipeline.context_window_chapters,
-            "language": pipeline.language,
-            "user_storage_path": pipeline.user_storage_path,
-            "image_prompt_style": pipeline.image_prompt_style,
-            "share_base_url": pipeline.share_base_url,
-            "pdf_font": pipeline.pdf_font,
-            "image_provider": pipeline.image_provider,
-            "codex_model": getattr(pipeline, "codex_model", ""),
-            "image_api_key": pipeline.image_api_key,
-            "image_api_url": pipeline.image_api_url,
-            "panels_per_chapter": getattr(pipeline, "panels_per_chapter", 8),
-            "seedream_api_key": pipeline.seedream_api_key,
-            "seedream_api_url": pipeline.seedream_api_url,
-            "arc_size": pipeline.arc_size,
-            "story_bible_enabled": pipeline.story_bible_enabled,
-            "enable_self_review": pipeline.enable_self_review,
-            "self_review_threshold": pipeline.self_review_threshold,
-            "enable_drama_climax": getattr(pipeline, "enable_drama_climax", False),
-            "enable_pipeline_overlay": getattr(
-                pipeline, "enable_pipeline_overlay", True
+            **(existing.get("pipeline") or {}),
+            **_section_dict(
+                pipeline,
+                _NON_PERSISTED_PIPELINE_FIELDS | _env_overridden_fields("pipeline"),
             ),
-            "enable_chapter_illustration": getattr(
-                pipeline, "enable_chapter_illustration", True
-            ),
-            "enable_simulation_transcript": getattr(
-                pipeline, "enable_simulation_transcript", True
-            ),
-            "rag_enabled": pipeline.rag_enabled,
-            "rag_persist_dir": pipeline.rag_persist_dir,
-            "enable_character_consistency": pipeline.enable_character_consistency,
-            "replicate_api_key": getattr(pipeline, "replicate_api_key", ""),
-            "character_consistency_provider": pipeline.character_consistency_provider,
-            "enable_smart_revision": pipeline.enable_smart_revision,
-            "smart_revision_threshold": pipeline.smart_revision_threshold,
-            "enable_quality_gate": pipeline.enable_quality_gate,
-            "quality_gate_threshold": pipeline.quality_gate_threshold,
-            "quality_gate_chapter_threshold": pipeline.quality_gate_chapter_threshold,
-            "quality_gate_max_retries": pipeline.quality_gate_max_retries,
-            "hf_token": getattr(pipeline, "hf_token", ""),
-            "hf_image_model": getattr(pipeline, "hf_image_model", ""),
-            "long_context_api_key": getattr(pipeline, "long_context_api_key", ""),
-            "long_context_provider": getattr(pipeline, "long_context_provider", ""),
-            "long_context_model": getattr(pipeline, "long_context_model", ""),
-            "long_context_base_url": getattr(pipeline, "long_context_base_url", ""),
-            "flowkit_enabled": getattr(pipeline, "flowkit_enabled", False),
-            "flowkit_port": getattr(pipeline, "flowkit_port", 7860),
-            "flowkit_project_id": getattr(pipeline, "flowkit_project_id", ""),
-            "flowkit_aspect_ratio": getattr(pipeline, "flowkit_aspect_ratio", "9:16"),
-            "flowkit_style_reference_path": getattr(
-                pipeline, "flowkit_style_reference_path", ""
-            ),
-            "flowkit_concurrent_workers_max": getattr(
-                pipeline, "flowkit_concurrent_workers_max", 4
-            ),
-            "flowkit_workers_ramp_threshold": getattr(
-                pipeline, "flowkit_workers_ramp_threshold", 5
-            ),
-            "flowkit_veo_poll_interval": getattr(
-                pipeline, "flowkit_veo_poll_interval", 8.0
-            ),
-            "flowkit_account_warning_shown": getattr(
-                pipeline, "flowkit_account_warning_shown", False
-            ),
-            "flowkit_risk_acknowledged": getattr(
-                pipeline, "flowkit_risk_acknowledged", False
-            ),
-            "flowkit_image_input_type_split": getattr(
-                pipeline, "flowkit_image_input_type_split", False
-            ),
-            "flowkit_callback_hmac_required": getattr(
-                pipeline, "flowkit_callback_hmac_required", True
-            ),
-            "flowkit_use_refiner": getattr(pipeline, "flowkit_use_refiner", True),
-            "flowkit_request_timeout": getattr(
-                pipeline, "flowkit_request_timeout", 180.0
-            ),
-            "panels_auto": getattr(pipeline, "panels_auto", True),
-            "panels_min": getattr(pipeline, "panels_min", 4),
-            "panels_max": getattr(pipeline, "panels_max", 12),
-            "words_per_panel": getattr(pipeline, "words_per_panel", 200),
-            "panel_retry_attempts": getattr(pipeline, "panel_retry_attempts", 2),
-            "comic_shot_list_enabled": getattr(
-                pipeline, "comic_shot_list_enabled", False
-            ),
-            "comic_coverage_check_enabled": getattr(
-                pipeline, "comic_coverage_check_enabled", True
-            ),
-            "comic_compositor_enabled": getattr(
-                pipeline, "comic_compositor_enabled", False
-            ),
-            "comic_page_canvas": getattr(pipeline, "comic_page_canvas", "1600x2263"),
-            "comic_font": getattr(
-                pipeline, "comic_font", "assets/fonts/BeVietnamPro-Bold.ttf"
-            ),
-            "comic_layout_mode": getattr(pipeline, "comic_layout_mode", "shot_list"),
-            "cover_image_enabled": getattr(pipeline, "cover_image_enabled", True),
-            "rag_index_chapters": getattr(pipeline, "rag_index_chapters", True),
-            "rag_multi_query": getattr(pipeline, "rag_multi_query", True),
-            "rag_per_char_queries": getattr(pipeline, "rag_per_char_queries", 3),
-            "rag_per_thread_queries": getattr(pipeline, "rag_per_thread_queries", 3),
-            "rag_n_results_per_query": getattr(pipeline, "rag_n_results_per_query", 2),
-            "rag_merge_cap": getattr(pipeline, "rag_merge_cap", 8),
-            "rag_max_tokens": getattr(pipeline, "rag_max_tokens", 1000),
         },
     }
+
     from services.secret_manager import encrypt_sensitive_fields
 
     data = encrypt_sensitive_fields(data)

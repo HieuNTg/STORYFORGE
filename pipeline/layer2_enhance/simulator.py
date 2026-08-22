@@ -705,6 +705,7 @@ class DramaSimulator:
                 ),
                 temperature=0.9,
                 expect="dict",
+                model_tier=self._low_stakes_tier(),
             )
             # Log reaction reasoning (L2-D)
             reasoning = result.get("reasoning", "")
@@ -956,7 +957,20 @@ class DramaSimulator:
                 relationships=rel_text,
             ),
             expect="dict",
+            model_tier=self._low_stakes_tier(),
         )
+
+    def _low_stakes_tier(self) -> str:
+        """"cheap" when low-stakes simulator calls may use the cheap model."""
+        try:
+            from config import ConfigManager
+
+            cfg = ConfigManager().pipeline
+            if getattr(cfg, "l2_cheap_low_stakes_calls", True):
+                return "cheap"
+        except Exception:  # pragma: no cover - defensive
+            pass
+        return "default"
 
     def _check_escalation(
         self, round_num: int, total_rounds: int = 5, genre: str = ""
@@ -1167,9 +1181,32 @@ class DramaSimulator:
             )
 
             # Đánh giá kịch tính — sync LLM call, offload so the event loop
-            # (uvicorn /api/health) stays responsive during the simulator phase
-            evaluation = await asyncio.to_thread(self.evaluate_drama, round_posts)
-            round_drama = evaluation.get("overall_drama_score", 0.5)
+            # (uvicorn /api/health) stays responsive during the simulator phase.
+            # Unguarded, a provider error here propagated all the way out of L2
+            # and the layer handler threw away every successful round before it,
+            # shipping the raw L1 draft with drama_score=0.
+            try:
+                evaluation = await asyncio.to_thread(self.evaluate_drama, round_posts)
+            except Exception as e:
+                logger.warning(
+                    "Drama evaluation failed at round %s: %s — keeping prior rounds",
+                    round_num,
+                    e,
+                )
+                _log(f"[SIM] WARN Không chấm được kịch tính vòng {round_num}: {e}")
+                evaluation = {}
+            if not isinstance(evaluation, dict):
+                logger.warning(
+                    "Drama evaluation returned %s, expected dict",
+                    type(evaluation).__name__,
+                )
+                evaluation = {}
+            # Carry the previous round's score forward rather than inventing 0.5,
+            # which would look like a real drop in the adaptive controller.
+            round_drama = evaluation.get(
+                "overall_drama_score",
+                all_drama_scores[-1] if all_drama_scores else 0.5,
+            )
 
             # Trích xuất sự kiện + liên kết nhân quả
             for ev in evaluation.get("events", []):
@@ -1248,8 +1285,22 @@ class DramaSimulator:
 
         # Tạo gợi ý kịch tính
         _log("Dang tao goi y tang cuong kich tinh...")
-        # Sync LLM call — offload off the event loop
-        suggestions_result = await asyncio.to_thread(self._generate_suggestions, genre)
+        # Sync LLM call — offload off the event loop. Suggestions are advisory:
+        # losing them must not cost the caller every simulated round.
+        try:
+            suggestions_result = await asyncio.to_thread(
+                self._generate_suggestions, genre
+            )
+        except Exception as e:
+            logger.warning("Drama suggestion generation failed: %s", e)
+            _log(f"[SIM] WARN Không tạo được gợi ý kịch tính: {e}")
+            suggestions_result = {}
+        if not isinstance(suggestions_result, dict):
+            logger.warning(
+                "Suggestions returned %s, expected dict",
+                type(suggestions_result).__name__,
+            )
+            suggestions_result = {}
 
         # Xây dựng dữ liệu quỹ đạo cảm xúc
         emotional_trajectories = {
