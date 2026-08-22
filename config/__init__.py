@@ -27,10 +27,20 @@ def _load_dotenv_once() -> None:
     if os.environ.get("STORYFORGE_SKIP_DOTENV"):
         return
     try:
-        from dotenv import load_dotenv
+        from dotenv import dotenv_values
     except ImportError:  # optional dependency; env vars still work
         return
-    load_dotenv()
+
+    for key, value in dotenv_values().items():
+        # Skip blanks. A .env line like `WEB_CONCURRENCY=` would otherwise
+        # export an empty string, which is not the same as unset: uvicorn does
+        # int(os.environ["WEB_CONCURRENCY"]) and crashed the server on boot,
+        # and every os.environ.get(k, default) elsewhere silently returns ""
+        # instead of its default.
+        if value is None or value == "":
+            continue
+        # An explicitly exported variable still wins over the file.
+        os.environ.setdefault(key, value)
 
 
 _load_dotenv_once()

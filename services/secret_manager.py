@@ -20,6 +20,23 @@ logger = logging.getLogger(__name__)
 STORYFORGE_SECRET_KEY_ENV = "STORYFORGE_SECRET_KEY"
 _ENC_PREFIX = "ENC:"
 
+# Placeholder values shipped in .env templates. Encrypting with one of these is
+# worse than storing plaintext: anyone with the file can decrypt it, while the
+# ENC: prefix makes the values look protected. Treat them as "no key set".
+_PLACEHOLDER_KEYS = frozenset(
+    {
+        "change-me-in-production",
+        "change-me",
+        "changeme",
+        "your-secret-key-here",
+        "secret",
+    }
+)
+
+
+def is_placeholder_key(raw_key: str) -> bool:
+    return raw_key.strip().lower() in _PLACEHOLDER_KEYS
+
 # Field names that contain secrets — matched by substring (case-insensitive)
 _SENSITIVE_SUBSTRINGS = ("key", "secret", "token", "password")
 
@@ -31,9 +48,16 @@ def _is_sensitive(field_name: str) -> bool:
 
 
 def _get_fernet():
-    """Get Fernet instance from env var. Returns None if key not set."""
+    """Get Fernet instance from env var. Returns None if no usable key is set."""
     raw_key = os.environ.get(STORYFORGE_SECRET_KEY_ENV, "")
     if not raw_key:
+        return None
+    if is_placeholder_key(raw_key):
+        logger.warning(
+            "%s is still a template placeholder — refusing to encrypt with a "
+            "publicly known key. Set a real key to enable secrets at rest.",
+            STORYFORGE_SECRET_KEY_ENV,
+        )
         return None
     # Derive a valid Fernet key from arbitrary string
     key = base64.urlsafe_b64encode(hashlib.sha256(raw_key.encode()).digest())

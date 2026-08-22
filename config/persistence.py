@@ -131,6 +131,22 @@ def _migrate_legacy_secrets(llm: "LLMConfig", pipeline: "PipelineConfig") -> Non
         logger.info("Loaded values from legacy secrets.json into in-memory config")
 
 
+def _env_overridden_fields(section: str) -> set[str]:
+    """Fields in `section` whose value currently comes from the environment.
+
+    save_config must not write these back: an env override wins at runtime, but
+    baking it into config.json would silently overwrite the choice the user made
+    in Settings, and would outlive the env var itself. Computed from os.environ
+    on demand rather than remembered from the last load, so there is no stale
+    state to leak between calls.
+    """
+    return {
+        field
+        for env_key, (sec, field) in _ENV_MAP.items()
+        if sec == section and os.environ.get(env_key)
+    }
+
+
 def _apply_env_overrides(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
     """Apply environment variable overrides (for Docker/production)."""
     for env_key, (section, field) in _ENV_MAP.items():
@@ -194,11 +210,16 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
         **{k: v for k, v in existing.items() if k not in ("llm", "pipeline")},
         "llm": {
             **(existing.get("llm") or {}),
-            **_section_dict(llm, _NON_PERSISTED_LLM_FIELDS),
+            **_section_dict(
+                llm, _NON_PERSISTED_LLM_FIELDS | _env_overridden_fields("llm")
+            ),
         },
         "pipeline": {
             **(existing.get("pipeline") or {}),
-            **_section_dict(pipeline, _NON_PERSISTED_PIPELINE_FIELDS),
+            **_section_dict(
+                pipeline,
+                _NON_PERSISTED_PIPELINE_FIELDS | _env_overridden_fields("pipeline"),
+            ),
         },
     }
 

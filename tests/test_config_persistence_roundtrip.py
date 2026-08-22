@@ -100,6 +100,66 @@ class TestUnknownKeysAreNotDestroyed:
         assert "llm" in saved and "pipeline" in saved
 
 
+class TestEnvOverridesDoNotOverwriteStoredChoices:
+    """An env override wins at runtime but must never be written to disk.
+
+    Found while running the Sprint 1 test plan: `.env` carried
+    STORYFORGE_MODEL=gemini-… from the era when env overrides were inert, while
+    the user had chosen `model: "auto"` (rotate Gemini/Qwen) in Settings. With
+    overrides live and save_config writing every field, saving any unrelated
+    setting would have baked the env value into config.json permanently —
+    outliving the env var itself.
+    """
+
+    def test_env_value_is_active_in_memory(self, sandbox, monkeypatch):
+        sandbox.write_text(json.dumps({"llm": {"model": "auto"}}), encoding="utf-8")
+        monkeypatch.setenv("STORYFORGE_MODEL", "gemini-forced")
+
+        llm, pipeline = LLMConfig(), PipelineConfig()
+        persistence.load_config(llm, pipeline)
+
+        assert llm.model == "gemini-forced"
+
+    def test_env_value_is_not_written_back(self, sandbox, monkeypatch):
+        sandbox.write_text(json.dumps({"llm": {"model": "auto"}}), encoding="utf-8")
+        monkeypatch.setenv("STORYFORGE_MODEL", "gemini-forced")
+
+        llm, pipeline = LLMConfig(), PipelineConfig()
+        persistence.load_config(llm, pipeline)
+        persistence.save_config(llm, pipeline)
+
+        saved = json.loads(sandbox.read_text(encoding="utf-8"))
+        assert saved["llm"]["model"] == "auto", "env value leaked into the file"
+
+    def test_non_overridden_fields_still_persist(self, sandbox, monkeypatch):
+        """The exclusion must be surgical, not a blanket skip."""
+        sandbox.write_text(json.dumps({"llm": {"model": "auto"}}), encoding="utf-8")
+        monkeypatch.setenv("STORYFORGE_MODEL", "gemini-forced")
+
+        llm, pipeline = LLMConfig(), PipelineConfig()
+        persistence.load_config(llm, pipeline)
+        llm.max_tokens = 12345
+        persistence.save_config(llm, pipeline)
+
+        saved = json.loads(sandbox.read_text(encoding="utf-8"))
+        assert saved["llm"]["max_tokens"] == 12345
+
+    def test_clearing_the_env_var_restores_the_stored_choice(
+        self, sandbox, monkeypatch
+    ):
+        sandbox.write_text(json.dumps({"llm": {"model": "auto"}}), encoding="utf-8")
+        monkeypatch.setenv("STORYFORGE_MODEL", "gemini-forced")
+        llm, pipeline = LLMConfig(), PipelineConfig()
+        persistence.load_config(llm, pipeline)
+        persistence.save_config(llm, pipeline)
+
+        monkeypatch.delenv("STORYFORGE_MODEL")
+        llm2, pipeline2 = LLMConfig(), PipelineConfig()
+        persistence.load_config(llm2, pipeline2)
+
+        assert llm2.model == "auto"
+
+
 class TestDefaultsHaveOneSourceOfTruth:
     """The GET surface used to restate defaults via getattr and contradict them."""
 
