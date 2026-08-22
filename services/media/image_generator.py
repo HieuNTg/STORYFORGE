@@ -4,6 +4,8 @@ import asyncio
 import os
 import logging
 import base64
+import contextlib
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
@@ -13,6 +15,49 @@ import requests
 from config import ConfigManager
 
 logger = logging.getLogger(__name__)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Process-wide ceiling on image requests in flight
+#
+# Image work fans out at two independent levels: across chapters (the pipeline
+# media stage, and now the Reader path) and across the panels within a chapter.
+# Neither worker count bounds the other, so they multiply — 4 chapters x 3
+# panels is 12 concurrent provider calls, not 4 — and no single setting says
+# how many requests the provider is actually being asked to serve.
+#
+# One semaphore, held only around the provider call itself, is that number.
+# Workers above it may queue; the provider sees at most this many at once.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_REQUEST_SEMAPHORE: Optional[threading.BoundedSemaphore] = None
+_REQUEST_SEMAPHORE_SIZE: int = -1
+_REQUEST_SEMAPHORE_LOCK = threading.Lock()
+
+
+def _request_slot():
+    """Context manager for one provider call's slot; a no-op when disabled."""
+    global _REQUEST_SEMAPHORE, _REQUEST_SEMAPHORE_SIZE
+    try:
+        size = int(ConfigManager().pipeline.image_max_concurrent_requests)
+    except Exception:
+        size = 0
+    if size <= 0:
+        return contextlib.nullcontext()
+    with _REQUEST_SEMAPHORE_LOCK:
+        # Rebuild on a size change so the setting is live, not boot-time only.
+        if _REQUEST_SEMAPHORE is None or _REQUEST_SEMAPHORE_SIZE != size:
+            _REQUEST_SEMAPHORE = threading.BoundedSemaphore(size)
+            _REQUEST_SEMAPHORE_SIZE = size
+        return _REQUEST_SEMAPHORE
+
+
+def reset_image_request_semaphore() -> None:
+    """Drop the shared semaphore. For tests, and for a config reload."""
+    global _REQUEST_SEMAPHORE, _REQUEST_SEMAPHORE_SIZE
+    with _REQUEST_SEMAPHORE_LOCK:
+        _REQUEST_SEMAPHORE = None
+        _REQUEST_SEMAPHORE_SIZE = -1
 
 
 class ImageGenerator:
@@ -259,10 +304,16 @@ class ImageGenerator:
 
         path = None
         for attempt in range(retries + 1):
-            if scene_refs:
-                path = self.generate_with_reference(prompt, scene_refs, filename, size)
-            else:
-                path = self.generate(prompt, filename, size)
+            # The slot is held around the provider call only — never across the
+            # retry backoff — so a retrying panel does not sit on capacity its
+            # siblings could use.
+            with _request_slot():
+                if scene_refs:
+                    path = self.generate_with_reference(
+                        prompt, scene_refs, filename, size
+                    )
+                else:
+                    path = self.generate(prompt, filename, size)
             if path:
                 break
             if attempt < retries:

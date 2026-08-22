@@ -144,11 +144,37 @@ Nothing else in this sprint can be judged until spend is counted correctly.
 - [x] Parallelise the 6 independent L1 preamble calls (60-90 s of dead time at the start of every run). — they are not 6 mutually independent calls: the real shape is two waves. Wave 1 {idea summary, premise, characters} reads only the raw request; wave 2 {voice profiles, world, arc waypoints} reads only the cast. Everything after (macro arcs -> outline -> critique) is a genuine dependency chain. Five sequential round-trips collapse to two barriers via `StoryGenerator._run_preamble_wave`.
   - Both wave-2 steps mutate the shared `characters` list, so the writes are applied on the calling thread after the wave joins, not inside the workers.
   - Each task runs under `contextvars.copy_context()`; without it, siblings sharing one context corrupt per-call token/cost attribution instead of failing.
-- [ ] `services/thread_pool_manager.py` has zero production call sites — three named pools with worker caps and a `utilisation_summary`, referenced only by its own test. Every real parallel site builds an ad-hoc `ThreadPoolExecutor`, so none of those caps bound anything. Decide: adopt it at the parallel sites, or delete it.
+- [x] `services/thread_pool_manager.py` has zero production call sites. **Decision: deleted** (with `_thread_pool_impl.py` and its test). Adopting it would not have helped: its `submit(pool_name, fn)` API cannot bound the total across several executors, which is exactly the image case, and LLM/CPU sites are already bounded by `max_parallel_workers`. A module nobody calls, whose caps bound nothing, only creates the appearance of control.
 - [x] Parallelise comic panels **within a chapter**, so the FlowKit ramp can actually ramp. — `generate_story_images` now fans out over panels bounded by the new `pipeline.comic_panel_workers` (default 3; image endpoints rate-limit far harder than text ones). Results are written by index, never appended: completion order is not panel order and the compositor slices the list positionally.
-- [ ] Parallelise **chapters** on the Reader path (the other half of the original item; untouched so far).
+- [x] Parallelise **chapters** on the Reader path. — `handle_generate_images` looped chapters one at a time while the pipeline media stage had been fanning the same shared `generate_chapter_comic` out all along. Paths are applied in chapter order, not completion order. Also fixed a real defect the tests exposed: one chapter raising used to hit the handler's outer `except` and return `[], "Error: ..."`, losing every other chapter's art.
+- [x] **One ceiling for image work.** Chapter-level and panel-level fan-out multiply (4 x 3 = 12 requests in flight, not 4) and neither worker count bounds the other. New `pipeline.image_max_concurrent_requests` (default 4, 0 disables) is a process-wide semaphore held around the provider call itself — released across retry backoff, so a retrying panel does not sit on capacity. `pipeline.comic_chapter_workers` (default 4) now drives both entry points.
 - [x] Collapse the agent DAG from 4 tiers to 2. Six of eight agents declared `depends_on` while ignoring the `prior_reviews` argument, so the panel ran in four sequential passes with nobody using the previous pass's data. Only the editor consumes it, so only the editor gets its own tier. A test now rejects a declared dependency that the agent does not actually read.
 - [x] Honour `max_parallel_workers`. It was read only to print "parallel, N workers" while the gather dispatched every chapter at once — a 50-chapter continuation ran 50 chapter pipelines concurrently, each with its own nested pool.
+### Batch J — Found by a real run, not by the suite
+
+The CEO pointed out the local Gemini/Qwen proxy could be started and a real
+story generated. It found a P0 in the first attempt that 5,000 tests did not.
+
+- [x] **Layer 1 died outright whenever scene beats were produced.**
+  `parallel_write_context.py:165` did `per_chapter_enhancement += scene_beats`,
+  but `generate_scene_beats` returns `list[SceneBeat]` — `TypeError: can only
+  concatenate str (not "list") to str`. The exception left `asyncio.gather` via
+  `_run_batch_async`, so it was not one lost chapter: the whole layer failed
+  with `status="error"` and zero chapters, *after* the entire preamble had been
+  paid for (315 s, 41 calls on a 3-chapter run).
+  - The module already ships `format_beats_for_prompt`, and the **sequential**
+    write path has always used it. Only the parallel path — the default — did
+    not. Same recurring shape as the rest of this sprint: two paths doing one
+    job, one of them wired correctly.
+  - Invisible to the suite because beats are gated on `pacing_type` and the
+    generator returns `[]` on failure, so the `if scene_beats:` guard usually
+    skipped the broken line. It only fires when beat generation *succeeds*.
+  - Beat generation is now non-fatal like every other prompt enrichment beside
+    it; a flaky cheap call must not cost the whole story.
+- [ ] **Follow-up:** the real run is the only thing that caught this. Add a
+  smoke run against the local proxy to the release checklist — the gate cannot
+  substitute for it.
+
 ### Batch I — Retry discipline (done)
 
 - [x] Cap auto-discovered round-robin models at `max_discovered_models_per_key` (3). Explicitly configured `fallback_models` are untouched — capping the whole chain would have dropped exactly the fallbacks the operator chose on purpose.

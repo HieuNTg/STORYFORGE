@@ -189,6 +189,17 @@ class PipelineConfig:
     # text ones, and the retry above already absorbs the odd transient failure.
     # 1 = fully serial (previous behaviour).
     comic_panel_workers: int = 3
+    # How many chapters of one story are turned into comics at a time, on the
+    # Reader's "generate images" path. The pipeline media stage already fanned
+    # out across chapters; the Reader looped them one at a time, so asking for a
+    # whole story there was as slow as the sum of its chapters.
+    comic_chapter_workers: int = 4
+    # The ceiling that actually protects the provider: the maximum number of
+    # image requests in flight across the WHOLE process, whatever combination of
+    # chapter-level and panel-level fan-out produced them. Without it the two
+    # multiply — 4 chapters x 3 panels is 12 concurrent calls, not 4 — and no
+    # single worker-count setting bounds the total. 0 disables the ceiling.
+    image_max_concurrent_requests: int = 4
 
     # Comic Beat→Shot-list stage (Phase 2). When enabled, an LLM beat extractor
     # runs between chapter prose and image generation, splitting each chapter

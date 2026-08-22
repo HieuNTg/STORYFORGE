@@ -461,11 +461,12 @@ def handle_generate_images(
         all_paths: list[str] = []
         _comic_settings = _ComicSettings(_pipeline_cfg, provider)
         _shot_extractor = _make_shot_extractor(_comic_settings)
-        for ch in target_chapters:
+
+        def _comic_for_chapter(ch):
             # One shared implementation for both entry points — see
             # services/media/comic_chapter.py. The pipeline media stage calls the
             # same function, so a chapter looks identical however it was made.
-            ch_paths = _generate_chapter_comic(
+            return _generate_chapter_comic(
                 ch,
                 prompt_gen=prompt_gen,
                 image_gen=image_gen,
@@ -475,14 +476,52 @@ def handle_generate_images(
                 character_references=character_references or None,
                 visual_profiles=visual_profiles or None,
             )
+
+        # Chapters run concurrently here, as they already did in the pipeline
+        # media stage — this path looped them one at a time, so asking the
+        # Reader for a whole story's comic cost the sum of its chapters. The
+        # provider is protected by the process-wide ceiling inside
+        # ImageGenerator, not by this worker count, which is why fanning out at
+        # two levels is safe.
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from services.output_paths import rel_to_output_root
+
+        _workers = max(
+            1, min(len(target_chapters), int(_pipeline_cfg.comic_chapter_workers))
+        )
+        _results: dict[int, list[str]] = {}
+        if _workers == 1 or len(target_chapters) == 1:
+            for ch in target_chapters:
+                _results[id(ch)] = _comic_for_chapter(ch) or []
+        else:
+            with ThreadPoolExecutor(max_workers=_workers) as _executor:
+                _futures = {
+                    _executor.submit(_comic_for_chapter, ch): ch
+                    for ch in target_chapters
+                }
+                for _future in as_completed(_futures):
+                    _ch = _futures[_future]
+                    try:
+                        _results[id(_ch)] = _future.result() or []
+                    except Exception as _ce:
+                        # One chapter failing must not cost the others their art.
+                        logger.warning(
+                            "Comic generation failed for chapter %s: %s",
+                            getattr(_ch, "chapter_number", "?"),
+                            _ce,
+                        )
+                        _results[id(_ch)] = []
+
+        # Applied in chapter order, not completion order: `all_paths` is what
+        # the caller shows, and a shuffled gallery would be a regression.
+        for ch in target_chapters:
+            ch_paths = _results.get(id(ch)) or []
             if not ch_paths:
                 continue
             # Store paths relative to the output root so the ``/media`` mount
             # (which serves OUTPUT_ROOT) resolves them as ``/media/<rel>``.
             # Panels live at ``output/<story-slug>/images/...`` under the
             # per-story layout.
-            from services.output_paths import rel_to_output_root
-
             ch.images = [rel_to_output_root(p) for p in ch_paths]
             all_paths.extend(ch_paths)
 

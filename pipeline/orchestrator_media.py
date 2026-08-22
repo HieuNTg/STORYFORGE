@@ -227,11 +227,16 @@ class MediaProducer:
                     return ch, []
                 return ch, [rel_to_output_root(p) for p in paths]
 
-            # Parallelize across chapters (panels within a chapter run
-            # sequentially inside generate_story_images). Cap workers so we
-            # don't hammer the image provider with total*num_panels at once.
+            # Parallelize across chapters. Panels within a chapter now fan out
+            # too, so this worker count no longer bounds what the provider sees
+            # — the two multiply. The real ceiling is
+            # pipeline.image_max_concurrent_requests, enforced by a process-wide
+            # semaphore inside ImageGenerator around the provider call itself.
             completed = 0
-            with ThreadPoolExecutor(max_workers=min(4, total)) as executor:
+            _chapter_workers = max(
+                1, min(total, int(cfg.comic_chapter_workers))
+            )
+            with ThreadPoolExecutor(max_workers=_chapter_workers) as executor:
                 futures = {
                     executor.submit(_panels_for_chapter, ch): ch for ch in chapters
                 }
