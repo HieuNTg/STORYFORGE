@@ -9,11 +9,20 @@ logger = logging.getLogger(__name__)
 class GeminiProvider:
     _is_llm_provider = True
 
-    def __init__(self, api_key: str, base_url: str = ""):
+    def __init__(self, api_key: str, base_url: str = "", timeout: float | None = None):
         try:
             from google import genai
 
-            self.client = genai.Client(api_key=api_key)
+            from services.llm.providers.openai_provider import _config_timeout
+
+            # Honour llm.request_timeout here too — this provider used to accept
+            # the SDK default, so raising the timeout for slow local bridges had
+            # no effect on Gemini traffic. HttpOptions.timeout is milliseconds.
+            seconds = timeout if timeout and timeout > 0 else _config_timeout()
+            self.client = genai.Client(
+                api_key=api_key,
+                http_options={"timeout": int(seconds * 1000)},
+            )
             self._base_url = base_url
             self._api_key = api_key
         except ImportError:

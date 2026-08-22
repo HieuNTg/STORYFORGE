@@ -18,7 +18,9 @@ def test_config_flowkit_defaults():
     assert cfg.flowkit_account_warning_shown is False
     assert cfg.flowkit_risk_acknowledged is True
     assert cfg.flowkit_image_input_type_split is False
-    assert cfg.flowkit_callback_hmac_required is False
+    # On by default: /api/ext/callback is exempt from CSRF (the extension holds
+    # no cookie), so the body signature is the only thing authenticating it.
+    assert cfg.flowkit_callback_hmac_required is True
     assert cfg.flowkit_use_refiner is True
 
 

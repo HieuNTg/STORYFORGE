@@ -474,15 +474,23 @@ def _place_panel(
     border: int,
 ) -> None:
     """Composite one panel image into ``cell`` with a black border."""
-    try:
-        with Image.open(panel_path) as im:
-            im = im.convert("RGB")
-            fitted = _fit_cover(im, cell)
-    except Exception as e:
-        logger.warning(
-            "Panel image unreadable (%s): %s — drawing placeholder", panel_path, e
-        )
+    if not panel_path:
+        # A None slot: the panel failed to generate. Its cell is held open so the
+        # rest of the page stays aligned with the shot list.
+        logger.warning("Panel missing — drawing placeholder")
         fitted = Image.new("RGB", (cell[2] - cell[0], cell[3] - cell[1]), (40, 40, 48))
+    else:
+        try:
+            with Image.open(panel_path) as im:
+                im = im.convert("RGB")
+                fitted = _fit_cover(im, cell)
+        except Exception as e:
+            logger.warning(
+                "Panel image unreadable (%s): %s — drawing placeholder", panel_path, e
+            )
+            fitted = Image.new(
+                "RGB", (cell[2] - cell[0], cell[3] - cell[1]), (40, 40, 48)
+            )
     canvas.paste(fitted, (cell[0], cell[1]))
     draw.rectangle(cell, outline=INK, width=border)
 
@@ -1072,9 +1080,10 @@ def compose_chapter(
         n = len(page.panels)
         page_imgs = panel_paths[cursor : cursor + n]
         cursor += n
-        if not page_imgs:
-            # No panels generated for this page (e.g. image gen produced fewer
-            # images than the shot-list expected) — skip rather than emit a blank.
+        if not any(page_imgs):
+            # Nothing generated for this page — skip rather than emit a blank.
+            # `any`, not truthiness of the list: with position-preserving input
+            # a page of failed panels is [None, None], which is not empty.
             continue
         fname = f"ch{chapter_number:02d}_page{page.page:02d}.png"
         out_path = os.path.join(out_dir, fname)

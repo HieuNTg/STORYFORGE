@@ -744,7 +744,13 @@ class LLMClient(StreamingMixin, GenerationMixin):
             {"role": "user", "content": user_prompt},
         ]
 
-        effective_model = config.llm.model
+        # The requested model, not the configured primary. Reading under
+        # config.llm.model regardless of the `model` override meant every layer
+        # shared one cache namespace: generate_for_layer delegates here with
+        # model=layer2_model, so a layer-2 call could be served a cached layer-1
+        # body. It also meant the read key never matched the write key below
+        # once anything but the primary answered, so the cache barely ever hit.
+        effective_model = model or config.llm.model
         use_cache = config.llm.cache_enabled and effective_temp <= 1.0
         cache = None
         cache_params = None
@@ -761,6 +767,10 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 model=effective_model,
                 temperature=effective_temp,
                 json_mode=json_mode,
+                # A 512-token answer must not be served to an 8192-token
+                # request: the shorter body is truncated mid-sentence.
+                max_tokens=max_tokens or config.llm.max_tokens,
+                model_tier=model_tier,
             )
             cached = cache.get(**cache_params)
             if cached is not None and cached.strip():
@@ -830,9 +840,11 @@ class LLMClient(StreamingMixin, GenerationMixin):
                         and cache_params is not None
                         and result.strip()
                     ):
-                        # Cache with actual model used (may differ from primary)
-                        actual_model = entry.get("model", effective_model)
-                        cache.put(result, **{**cache_params, "model": actual_model})
+                        # Store under the key the caller will read back with.
+                        # This used to key on whichever model actually answered,
+                        # so anything served by a fallback was written to a key
+                        # no read ever computes — the entry could never hit.
+                        cache.put(result, **cache_params)
                     return result
                 except LLMBudgetExceededError:
                     # Budget cap is terminal — abort the run, no fallback chain.

@@ -77,30 +77,30 @@ The headline finding: the craft-critique lane advertised as "13 specialized agen
 
 ### Batch D — Durability and correctness (5 defects)
 
-- [ ] **D1. Make resume actually resume.** Per-chapter checkpoints are written but never read: `resume_from_chapter` (`orchestrator_checkpoint.py:278`) has no production call site and `resume_from_batch` (`batch_generator.py:112,163`) is never passed a non-zero value. `CheckpointManager.resume` (`:368-405`) sees a partial draft and runs L2 on it, so a crash at chapter 7 of 20 ships a 7-chapter story as complete. Checkpoint saves are fire-and-forget daemon threads (`:187-188`), so `await asyncio.to_thread(self.checkpoint.save, 1)` awaits only the thread spawn, not the write.
-  - [ ] Wire `resume_from_batch` into the resume path.
-  - [ ] Compare `len(chapters)` against `len(outlines)` before advancing to L2; resume L1 when short.
-  - [ ] Await the real write at layer boundaries so a SIGTERM cannot truncate it.
-  - [ ] Regression test: kill mid-run, resume, assert all chapters are generated.
+- [x] **D1. Make resume actually resume.** Per-chapter checkpoints are written but never read: `resume_from_chapter` (`orchestrator_checkpoint.py:278`) has no production call site and `resume_from_batch` (`batch_generator.py:112,163`) is never passed a non-zero value. `CheckpointManager.resume` (`:368-405`) sees a partial draft and runs L2 on it, so a crash at chapter 7 of 20 ships a 7-chapter story as complete. Checkpoint saves are fire-and-forget daemon threads (`:187-188`), so `await asyncio.to_thread(self.checkpoint.save, 1)` awaits only the thread spawn, not the write.
+  - [ ] **Deferred to Phase 1** — wire `resume_from_batch` so a partial L1 continues from the last completed batch. Resume now refuses to advance an incomplete draft into L2 (the data-loss half); restarting L1 from the last batch is a larger change to the batch generator's entry contract.
+  - [x] Compare `len(chapters)` against `len(outlines)` before advancing to L2; resume L1 when short.
+  - [x] Await the real write at layer boundaries so a SIGTERM cannot truncate it.
+  - [x] Regression test: kill mid-run, resume, assert all chapters are generated.
 
-- [ ] **D2. Fix the LLM cache key.** `services/llm/client.py:747` reads with the *configured* model while `:834-835` writes with the model that actually answered, so the cache almost never hits after any fallback — and because `generate_for_layer` delegates to `generate(model=...)`, layer 2 can be served a cached layer 1 answer. `max_tokens` is absent from the key, so a truncated 512-token answer is replayed for an 8192-token request.
-  - [ ] Key on the resolved model plus `max_tokens`; namespace by layer.
-  - [ ] Regression test: a layer-2 call must never receive a layer-1 cached body.
-  - [ ] Note for Phase 1: caching is currently on up to `temperature <= 1.0`, which replays identical text into quality-gate retries so they cannot converge. Fix belongs with the cost work.
+- [x] **D2. Fix the LLM cache key.** `services/llm/client.py:747` reads with the *configured* model while `:834-835` writes with the model that actually answered, so the cache almost never hits after any fallback — and because `generate_for_layer` delegates to `generate(model=...)`, layer 2 can be served a cached layer 1 answer. `max_tokens` is absent from the key, so a truncated 512-token answer is replayed for an 8192-token request.
+  - [x] Key on the resolved model plus `max_tokens`; namespace by layer.
+  - [x] Regression test: a layer-2 call must never receive a layer-1 cached body.
+  - [x] Note for Phase 1: caching is currently on up to `temperature <= 1.0`, which replays identical text into quality-gate retries so they cannot converge. Fix belongs with the cost work.
 
-- [ ] **D3. Finish the request-timeout rollout.** `providers/anthropic_provider.py:19` and `providers/gemini_provider.py:16` ignore `llm.request_timeout` and keep their SDKs' internal retries, re-creating the retry multiplication the OpenAI provider's comment says it avoids. The stream wrapper kills at `stream_first_chunk_timeout=180` — exactly the slow case the 900 s default was raised for — and `fallback_max_latency_ms=120000` will blacklist legitimately slow models.
-  - [ ] Pass `timeout` and `max_retries=0` to both providers.
-  - [ ] Derive the stream and latency thresholds from `request_timeout` instead of fixing them independently.
-  - [ ] Regression test: all provider paths honour a configured timeout.
+- [x] **D3. Finish the request-timeout rollout.** `providers/anthropic_provider.py:19` and `providers/gemini_provider.py:16` ignore `llm.request_timeout` and keep their SDKs' internal retries, re-creating the retry multiplication the OpenAI provider's comment says it avoids. The stream wrapper kills at `stream_first_chunk_timeout=180` — exactly the slow case the 900 s default was raised for — and `fallback_max_latency_ms=120000` will blacklist legitimately slow models.
+  - [x] Pass `timeout` and `max_retries=0` to both providers.
+  - [x] Derive the stream and latency thresholds from `request_timeout` instead of fixing them independently.
+  - [x] Regression test: all provider paths honour a configured timeout.
 
-- [ ] **D4. Stop one failed panel from corrupting every later comic page.** `services/media/image_generator.py:217-225` appends only successful paths, shortening the list, while `page_compositor.py:1070-1078` slices it positionally per page — so one failure shifts every subsequent panel into the wrong cell and speech balloons land on the wrong art.
-  - [ ] Append a `None` sentinel on failure; `_place_panel` (`page_compositor.py:469-487`) already draws a placeholder.
-  - [ ] Report partial chapters instead of silently returning `[]` (`comic_chapter.py:148-149`).
-  - [ ] Regression test: fail panel 3 of 8, assert panels 4-8 stay in their correct cells.
+- [x] **D4. Stop one failed panel from corrupting every later comic page.** `services/media/image_generator.py:217-225` appends only successful paths, shortening the list, while `page_compositor.py:1070-1078` slices it positionally per page — so one failure shifts every subsequent panel into the wrong cell and speech balloons land on the wrong art.
+  - [x] Append a `None` sentinel on failure; `_place_panel` (`page_compositor.py:469-487`) already draws a placeholder.
+  - [x] Report partial chapters instead of silently returning `[]` (`comic_chapter.py:148-149`).
+  - [x] Regression test: fail panel 3 of 8, assert panels 4-8 stay in their correct cells.
 
-- [ ] **D5. Let the FlowKit extension call back.** `POST /api/ext/callback` (`api/flowkit.py:109`) is not in the CSRF exemption list (`middleware/csrf.py:18-24`), so the extension — which has no CSRF cookie — gets 403 before its HMAC is ever checked.
-  - [ ] Exempt the route; it is already authenticated by HMAC.
-  - [ ] Regression test: a valid HMAC callback succeeds; an invalid one is still rejected.
+- [x] **D5. Let the FlowKit extension call back.** `POST /api/ext/callback` (`api/flowkit.py:109`) is not in the CSRF exemption list (`middleware/csrf.py:18-24`), so the extension — which has no CSRF cookie — gets 403 before its HMAC is ever checked.
+  - [x] Exempt the route; it is already authenticated by HMAC.
+  - [x] Regression test: a valid HMAC callback succeeds; an invalid one is still rejected.
 
 ### Sprint 1 exit criteria
 
@@ -176,6 +176,7 @@ Every item verified to have no caller. Runs alongside the tail of Phase 1.
 
 | Date | Phase | Status | Notes |
 | --- | --- | --- | --- |
+| 2026-08-22 | Batch D | Done | 5 defects fixed; 29 new tests; full gate pending |
 | 2026-08-22 | Batch C | Done | 2 defects fixed; quota no longer loses the library; dropped streams reattach; 9 new FE tests |
 | 2026-08-22 | Batch B | Done | 3 defects fixed; config persistence 103 -> 244 of 245 fields; 41 new tests |
 | 2026-08-22 | Batch A | Done | 4 defects fixed, 25 new regression tests, 367 L2/agent tests green |

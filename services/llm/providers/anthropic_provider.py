@@ -9,13 +9,23 @@ logger = logging.getLogger(__name__)
 class AnthropicProvider:
     _is_llm_provider = True
 
-    def __init__(self, api_key: str, base_url: str = ""):
+    def __init__(self, api_key: str, base_url: str = "", timeout: float | None = None):
         try:
             from anthropic import Anthropic
+
+            from services.llm.providers.openai_provider import _config_timeout
 
             kwargs: dict = {"api_key": api_key}
             if base_url:
                 kwargs["base_url"] = base_url
+            # Same policy as OpenAIProvider: honour llm.request_timeout, and
+            # disable the SDK's own retries. The Anthropic SDK defaults to two
+            # internal retries, which multiplied against our retry loop and the
+            # fallback chain — the exact stacking the OpenAI provider avoids.
+            kwargs["timeout"] = (
+                timeout if timeout and timeout > 0 else _config_timeout()
+            )
+            kwargs["max_retries"] = 0
             self.client = Anthropic(**kwargs)
             self._base_url = base_url
             self._api_key = api_key

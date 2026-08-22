@@ -31,6 +31,22 @@ CHECKPOINT_DIR = f"{OUTPUT_ROOT}/checkpoints"
 CHAPTER_CHECKPOINT_SUBDIR = "per_chapter"
 
 
+def _draft_is_incomplete(draft) -> bool:
+    """True when the draft has fewer chapters written than its outline plans.
+
+    Resume used to check only that a draft existed, so a run that crashed at
+    chapter 7 of 20 was handed straight to Layer 2 and shipped as a finished
+    7-chapter story. The outline is the source of truth for how many chapters
+    the story is supposed to have.
+    """
+    outlines = getattr(draft, "outlines", None) or []
+    if not outlines:
+        # No outline to compare against — fall back to the old behaviour rather
+        # than blocking a resume we cannot judge.
+        return False
+    return len(getattr(draft, "chapters", None) or []) < len(outlines)
+
+
 def _checkpoint_dir_for_title(title: str) -> str:
     """Per-story checkpoint dir for a story title (the new write location)."""
     return _story_checkpoints_dir(title)
@@ -401,6 +417,22 @@ class CheckpointManager:
 
         draft = self.output.story_draft
         enhanced = self.output.enhanced_story
+
+        if last_layer <= 1 and draft and _draft_is_incomplete(draft):
+            written = len(draft.chapters or [])
+            planned = len(draft.outlines or [])
+            _log(
+                f"[RESUME] Bản thảo mới có {written}/{planned} chương — "
+                "chưa thể sang Layer 2."
+            )
+            logger.warning(
+                "Refusing to resume into L2: draft has %d of %d chapters",
+                written,
+                planned,
+            )
+            self.output.status = "incomplete"
+            self.output.current_layer = 1
+            return self.output
 
         if last_layer <= 1 and draft:
             _log("══════ RESUMING LAYER 2 ══════")

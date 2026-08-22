@@ -151,7 +151,8 @@ class ImageGenerator:
         image_prompts: list,
         chapter_number: int = 0,
         character_references: dict | None = None,
-    ) -> list[str]:
+        keep_positions: bool = False,
+    ) -> list:
         """Generate images for a list of ImagePrompt objects. Returns saved paths.
 
         ``character_references`` maps character name → reference image path. When
@@ -159,8 +160,14 @@ class ImageGenerator:
         ``generate_with_reference`` so img2img-capable providers (seedream,
         replicate) condition on the uploaded reference. Providers without native
         reference support fall through to text-only generation transparently.
+
+        ``keep_positions`` makes a failed panel yield ``None`` instead of being
+        dropped, so index N of the result is still panel N. The page compositor
+        needs that: it slices this list positionally per page, so a dropped panel
+        used to shift every later one into the wrong cell. Callers that just want
+        a list of URLs leave it False and keep the old contract.
         """
-        paths: list[str] = []
+        paths: list = []
         refs = character_references or {}
         # A panel sometimes comes back empty (Codex occasionally drops one, a
         # transient provider hiccup, etc.). Retry it a few times rather than
@@ -216,6 +223,18 @@ class ImageGenerator:
                     )
             if path:
                 paths.append(path)
+            elif keep_positions:
+                # Hold the slot. The page compositor slices this list
+                # positionally, so dropping a failed panel shifted every later
+                # panel into the wrong cell — speech balloons landing on the
+                # wrong art for the rest of the chapter, silently.
+                paths.append(None)
+                logger.error(
+                    "Panel %d (ch%02d) failed after %d attempt(s); placeholder kept",
+                    i + 1,
+                    chapter_number,
+                    _retries + 1,
+                )
             else:
                 logger.error(
                     "Panel %d (ch%02d) failed after %d attempt(s); skipped",

@@ -652,7 +652,7 @@ async def run_full_pipeline(
         except Exception as _h_err:
             logger.warning(f"Context health surface failed (non-fatal): {_h_err}")
 
-        await asyncio.to_thread(self.checkpoint.save, 1)
+        await asyncio.to_thread(self.checkpoint.save, 1, background=False)
 
         # Optional quality scoring
         l1_score = None
@@ -1163,7 +1163,7 @@ async def run_full_pipeline(
             self.output.enhanced_story = enhanced
             self.output.progress = 0.66
         _log(f"Layer 2 hoàn tất trong {time.time() - layer_start:.1f}s")
-        await asyncio.to_thread(self.checkpoint.save, 2)
+        await asyncio.to_thread(self.checkpoint.save, 2, background=False)
 
         # Optional quality scoring for Layer 2
         l2_score = None
@@ -1536,7 +1536,7 @@ async def run_full_pipeline(
             )
             with self._lock:
                 self.output.enhanced_story = enhanced
-            await asyncio.to_thread(self.checkpoint.save, 2)
+            await asyncio.to_thread(self.checkpoint.save, 2, background=False)
             _log("[L3] Đánh bóng giác quan hoàn tất")
         except Exception as _sp_e:
             logger.warning(f"Sensory polish (L3) failed (non-fatal): {_sp_e}")

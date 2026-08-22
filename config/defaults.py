@@ -62,7 +62,11 @@ class LLMConfig:
     fallback_models: list = field(default_factory=list)
     # Each entry: {"base_url": "...", "model": "...", "api_key": "..."}
     # Fallback thresholds — used by ModelFallbackManager
-    fallback_max_latency_ms: int = 120000  # Switch model if avg latency exceeds 2min
+    # Switch model if average latency exceeds this. Kept above request_timeout
+    # (900s) on purpose: a long-form chapter through a slow local bridge
+    # legitimately takes minutes, and the old 2-minute ceiling would blacklist
+    # exactly the models request_timeout was raised to accommodate.
+    fallback_max_latency_ms: int = 960_000
     fallback_max_cost_per_1k: float = (
         0.01  # Skip fallback models above this cost/1k tokens
     )
@@ -242,7 +246,13 @@ class PipelineConfig:
     flowkit_image_input_type_split: bool = (
         False  # split REFERENCE → CHARACTER/STYLE (requires live enum sniff)
     )
-    flowkit_callback_hmac_required: bool = False  # verify X-Callback-Signature (HMAC-SHA256 of body) on the HTTP /api/ext/callback fallback; the live WS path relies on 127.0.0.1 trust
+    # Verify X-Callback-Signature (HMAC-SHA256 of body) on the HTTP
+    # /api/ext/callback fallback; the live WS path relies on 127.0.0.1 trust.
+    # On by default: that route is exempt from CSRF (the extension holds no
+    # cookie), so the signature is the only thing authenticating it. The shipped
+    # extension talks over the WebSocket and never posts here, so requiring a
+    # signature costs nothing today.
+    flowkit_callback_hmac_required: bool = True
     flowkit_use_refiner: bool = True  # ACTIVE: ImageGenerator._flowkit_refine runs the comic-panel refiner on every prompt before flowMedia:batchGenerateImages
     flowkit_request_timeout: float = 180.0  # seconds; sync-bridge wait when ImageGenerator dispatches to FlowService loop
     flowkit_aspect_ratio: str = (
@@ -429,7 +439,10 @@ class PipelineConfig:
     # mid-thought and retried them from scratch — burning the wait twice and
     # silently demoting the request to the next model in the chain.
     # `chunk` stays short: once tokens are flowing, a long gap is a real stall.
-    stream_first_chunk_timeout: int = 180
+    # Raised alongside llm.request_timeout: at 180s this killed the very case
+    # the 900s request timeout exists for — a reasoning model whose time to
+    # first token exceeds three minutes.
+    stream_first_chunk_timeout: int = 300
     stream_chunk_timeout: int = 30
 
     # Phase 5: L1 consistency improvements

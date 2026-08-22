@@ -21,6 +21,11 @@ _EXEMPT_PREFIXES = (
     "/openapi.json",
     "/api/health",
     "/mcp/",
+    # The Chrome extension has no session and therefore no csrf_token cookie,
+    # so every HTTP-fallback callback was rejected here before its signature was
+    # ever checked. Exempt — the route authenticates with an HMAC over the body
+    # instead (flowkit_callback_hmac_required, on by default).
+    "/api/ext/callback",
 )
 
 

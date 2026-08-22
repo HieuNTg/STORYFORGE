@@ -140,16 +140,32 @@ def generate_chapter_comic(
     if shot_list is not None:
         _thread_shot_list(prompts, shot_list, settings, chapter)
 
+    # Composing pages means the compositor slices these positionally, so a
+    # failed panel has to leave a hole rather than shift its successors.
+    _composing = bool(settings.compose_pages and shot_list is not None)
     paths = image_gen.generate_story_images(
         prompts,
         chapter_number=getattr(chapter, "chapter_number", 0),
         character_references=character_references or None,
+        keep_positions=_composing,
     )
-    if not paths:
+    if not any(paths):
         return []
 
-    if settings.compose_pages and shot_list is not None:
-        paths = _compose(paths, shot_list, settings, image_gen, chapter) or paths
+    if _composing:
+        composed = _compose(paths, shot_list, settings, image_gen, chapter)
+        if composed:
+            return composed
+        # Composition failed — hand back the loose panels, minus the holes.
+        _generated = [p for p in paths if p]
+        if len(_generated) != len(paths):
+            logger.warning(
+                "Chapter %s: %d of %d panels failed to generate",
+                getattr(chapter, "chapter_number", "?"),
+                len(paths) - len(_generated),
+                len(paths),
+            )
+        return _generated
     return paths
 
 
