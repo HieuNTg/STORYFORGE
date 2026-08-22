@@ -420,6 +420,63 @@ class StoryGenerator:
             total_chapters=total_chapters or getattr(self, "_total_chapters", 0),
         )
 
+    def _run_preamble_wave(self, tasks, critical=frozenset()):
+        """Run independent preamble steps concurrently; return their results.
+
+        ``tasks`` is a sequence of ``(name, zero_arg_callable)``. Returns a list
+        of ``(name, value)`` in completion order.
+
+        Failure handling mirrors what these steps had when they ran inline: a
+        name listed in ``critical`` yields its exception object as the value, so
+        the caller can re-raise it on the calling thread; every other failure is
+        logged non-fatally and simply omitted, leaving the caller's default in
+        place.
+
+        Two rules the callers depend on:
+
+        - Each task runs in a copy of the current context. The trace layer keeps
+          per-call attribution (module, chapter) in contextvars, and siblings
+          writing the same var in one shared context cross-contaminate token and
+          cost accounting — the same bug the batch generator documents.
+        - Results are handed back, never applied. Several preamble steps mutate
+          the shared ``characters`` list; doing that inside a worker would be a
+          data race on objects its siblings are reading.
+        """
+        import contextvars
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        tasks = list(tasks)
+        if not tasks:
+            return []
+        max_workers = max(
+            1,
+            min(
+                len(tasks),
+                int(getattr(self.config.llm, "max_parallel_workers", len(tasks)) or 1),
+            ),
+        )
+        results = []
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(contextvars.copy_context().run, fn): name
+                for name, fn in tasks
+            }
+            for future in as_completed(futures):
+                name = futures[future]
+                try:
+                    results.append((name, future.result()))
+                except Exception as e:
+                    if name in critical:
+                        results.append((name, e))
+                    else:
+                        logger.warning(
+                            "%s generation failed (non-fatal): %s (type=%s)",
+                            name,
+                            e,
+                            type(e).__name__,
+                        )
+        return results
+
     def generate_full_story(
         self,
         title,
@@ -455,85 +512,153 @@ class StoryGenerator:
 
                 raise InputSanitizationError(_san.threats_found)
 
-        # --- Idea fidelity: build LLM summary only when idea exceeds verbatim threshold ---
+        # --- Preamble wave 1: the three calls that read only the raw request ---
+        #
+        # Idea summary, theme/premise and characters share no inputs with each
+        # other, yet each used to wait for the one before it. Only characters is
+        # critical; the other two keep the non-fatal handling they had inline.
         idea_summary_for_chapters = ""
-        if idea and len(idea) > 3000:
-            try:
-                _log("Đang tóm tắt ý tưởng dài (giữ tên riêng)...")
-                from pipeline.layer1_story.theme_premise_generator import (
-                    build_idea_summary_for_chapters,
-                )
-
-                idea_summary_for_chapters = (
-                    build_idea_summary_for_chapters(idea, self.llm) or ""
-                )
-            except Exception as e:
-                logger.warning("Idea summary build failed (non-fatal): %s", e)
-
-        # --- Enhancement 1: Theme/Premise anchor ---
         premise = {}
-        if self.config.pipeline.enable_theme_premise:
-            try:
-                _log("Đang xác định chủ đề cốt lõi...")
-                from pipeline.layer1_story.theme_premise_generator import (
-                    generate_premise,
-                )
 
-                premise = generate_premise(
-                    self.llm, title, genre, idea, model=self._layer_model
-                )
+        def _gen_idea_summary():
+            # Long ideas only: short ones are passed to chapters verbatim.
+            if not (idea and len(idea) > 3000):
+                return ""
+            from pipeline.layer1_story.theme_premise_generator import (
+                build_idea_summary_for_chapters,
+            )
+
+            return build_idea_summary_for_chapters(idea, self.llm) or ""
+
+        def _gen_premise():
+            if not self.config.pipeline.enable_theme_premise:
+                return {}
+            from pipeline.layer1_story.theme_premise_generator import (
+                generate_premise,
+            )
+
+            return generate_premise(
+                self.llm, title, genre, idea, model=self._layer_model
+            )
+
+        def _gen_characters():
+            return llm_call_with_retry(
+                lambda: self.generate_characters(title, genre, idea, num_characters),
+                max_retries=2,
+                critical=True,
+                operation_name="generate_characters",
+            )
+
+        _log(f"Đang chuẩn bị ý tưởng, chủ đề và nhân vật cho '{title}' (song song)...")
+        characters = None
+        _characters_exc = None
+        for _name, _value in self._run_preamble_wave(
+            (
+                ("idea_summary", _gen_idea_summary),
+                ("premise", _gen_premise),
+                ("characters", _gen_characters),
+            ),
+            critical={"characters"},
+        ):
+            if _name == "idea_summary":
+                idea_summary_for_chapters = _value or ""
+            elif _name == "premise":
+                premise = _value or {}
                 if premise:
                     _log(f"Chủ đề: {premise.get('premise_statement', '')[:80]}...")
-            except Exception as e:
-                logger.warning("Theme premise generation failed (non-fatal): %s", e)
+            elif isinstance(_value, BaseException):
+                _characters_exc = _value
+            else:
+                characters = _value
+        if _characters_exc is not None:
+            raise _characters_exc
 
-        _log(f"Đang tạo nhân vật cho '{title}'...")
-        # Bug #1: Critical call with retry
-        characters = llm_call_with_retry(
-            lambda: self.generate_characters(title, genre, idea, num_characters),
-            max_retries=2,
-            critical=True,
-            operation_name="generate_characters",
-        )
-
-        # --- Enhancement 2: Character voice profiles ---
+        # --- Preamble wave 2: the three calls that need only `characters` ---
+        #
+        # Voice profiles, world building and arc waypoints all read the cast and
+        # nothing else from each other. Both voice profiles and waypoints then
+        # write back into the shared `characters` list, so the writes are pulled
+        # out of the workers and applied below, on this thread.
         voice_profiles = []
+        waypoints_map: dict = {}
+        world = None
+        _world_exc = None
+
+        def _gen_voice_profiles():
+            if not self.config.pipeline.enable_voice_profiles:
+                return []
+            from pipeline.layer1_story.character_voice_profiler import (
+                generate_voice_profiles,
+            )
+
+            return generate_voice_profiles(
+                self.llm, characters, genre, model=self._layer_model
+            )
+
+        def _gen_world():
+            return llm_call_with_retry(
+                lambda: self.generate_world(title, genre, characters),
+                max_retries=2,
+                critical=True,
+                operation_name="generate_world",
+            )
+
+        def _gen_waypoints():
+            if not self.config.pipeline.enable_arc_waypoints:
+                return {}
+            from pipeline.layer1_story.arc_waypoint_generator import (
+                generate_arc_waypoints,
+            )
+
+            return (
+                generate_arc_waypoints(
+                    self.llm,
+                    characters,
+                    num_chapters,
+                    genre,
+                    model=self._layer_model,
+                )
+                or {}
+            )
+
+        _log("Đang tạo giọng nói, bối cảnh và arc waypoints (song song)...")
+        for _name, _value in self._run_preamble_wave(
+            (
+                ("voice_profiles", _gen_voice_profiles),
+                ("world", _gen_world),
+                ("arc_waypoints", _gen_waypoints),
+            ),
+            critical={"world"},
+        ):
+            if _name == "voice_profiles":
+                voice_profiles = _value or []
+            elif _name == "arc_waypoints":
+                waypoints_map = _value or {}
+            elif isinstance(_value, BaseException):
+                _world_exc = _value
+            else:
+                world = _value
+        if _world_exc is not None:
+            raise _world_exc
+        _log(f"Đã xây dựng bối cảnh thế giới: {getattr(world, 'name', '?')}")
+
+        # Character mutations apply here, serially, now that every reader is done.
         if self.config.pipeline.enable_voice_profiles:
-            try:
-                _log("Đang tạo hồ sơ giọng nói nhân vật...")
+            if voice_profiles:
                 from pipeline.layer1_story.character_voice_profiler import (
-                    generate_voice_profiles,
                     update_character_speech_patterns,
                 )
 
-                voice_profiles = generate_voice_profiles(
-                    self.llm, characters, genre, model=self._layer_model
-                )
-                if voice_profiles:
-                    update_character_speech_patterns(characters, voice_profiles)
-                    _log(f"Đã tạo voice profile cho {len(voice_profiles)} nhân vật")
-                else:
-                    logger.warning(
-                        "voice_profiles returned empty — LLM parse failure or empty payload? "
-                        "Handoff will report voice_fingerprints as BLOCKER downstream."
-                    )
-            except Exception as e:
+                update_character_speech_patterns(characters, voice_profiles)
+                _log(f"Đã tạo voice profile cho {len(voice_profiles)} nhân vật")
+            else:
                 logger.warning(
-                    "Voice profile generation failed (non-fatal): %s (type=%s)",
-                    e,
-                    type(e).__name__,
+                    "voice_profiles returned empty — LLM parse failure or empty payload? "
+                    "Handoff will report voice_fingerprints as BLOCKER downstream."
                 )
         # voice_profiles already canonicalised at character_voice_profiler boundary
         _voice_fingerprints_top = list(voice_profiles or [])
-        _log("Đang xây dựng bối cảnh thế giới...")
-        # Bug #1: Critical call with retry
-        world = llm_call_with_retry(
-            lambda: self.generate_world(title, genre, characters),
-            max_retries=2,
-            critical=True,
-            operation_name="generate_world",
-        )
-        _log(f"Đã xây dựng bối cảnh thế giới: {getattr(world, 'name', '?')}")
+
         # Step 4a: Generate macro arcs (structural backbone)
         macro_arcs = []
         try:
@@ -555,36 +680,22 @@ class StoryGenerator:
         except Exception as e:
             logger.warning("Macro arc generation failed (non-fatal): %s", e)
 
-        # --- Arc waypoints: structured character arc tracking ---
-        waypoints_map: dict = {}
+        # --- Arc waypoints: generated in wave 2, applied here ---
+        # Kept at this point in the sequence, after macro arcs, exactly where the
+        # in-place character update used to land.
         if self.config.pipeline.enable_arc_waypoints:
-            try:
-                _log("Đang tạo arc waypoints cho nhân vật...")
+            if waypoints_map:
                 from pipeline.layer1_story.arc_waypoint_generator import (
-                    generate_arc_waypoints,
                     apply_waypoints_to_characters,
                 )
 
-                waypoints_map = (
-                    generate_arc_waypoints(
-                        self.llm,
-                        characters,
-                        num_chapters,
-                        genre,
-                        model=self._layer_model,
-                    )
-                    or {}
+                apply_waypoints_to_characters(characters, waypoints_map)
+                _log(f"Đã tạo arc waypoints cho {len(waypoints_map)} nhân vật")
+            else:
+                logger.warning(
+                    "arc_waypoints returned empty dict — LLM parse failure or empty payload? "
+                    "This will cause arc_trajectory_variance=0.0 downstream."
                 )
-                if waypoints_map:
-                    apply_waypoints_to_characters(characters, waypoints_map)
-                    _log(f"Đã tạo arc waypoints cho {len(waypoints_map)} nhân vật")
-                else:
-                    logger.warning(
-                        "arc_waypoints returned empty dict — LLM parse failure or empty payload? "
-                        "This will cause arc_trajectory_variance=0.0 downstream."
-                    )
-            except Exception as e:
-                logger.warning("Arc waypoint generation failed (non-fatal): %s", e)
         # Top-level arc_waypoints list (parallel to per-character storage during migration)
         _waypoints_top: list[dict] = []
         for _name, _wps in (waypoints_map or {}).items():
