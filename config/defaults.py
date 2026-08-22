@@ -538,6 +538,22 @@ class PipelineConfig:
     l2_min_rounds: int = 3  # Minimum simulation rounds
     l2_max_rounds: int = 10  # Maximum simulation rounds (hard cap)
     l2_stall_threshold: int = 3  # Rounds with no improvement before force-stop
+    # Route the simulator's low-stakes calls to the cheap model. The whole
+    # simulator ran on the premium tier — about 100 calls a run — including two
+    # whose output barely reaches the reader: drama evaluation, consumed as a
+    # single score, and reaction posts, which only ever appear truncated in the
+    # recent-posts filler. Agent turns and escalation events stay on the primary
+    # model: those are the dramatic content itself. Set False to put everything
+    # back on the primary model.
+    l2_cheap_low_stakes_calls: bool = True
+    # Route the 8-agent craft panel to the cheap model too. Off by default:
+    # unlike the simulator's filler, the panel's critique is what
+    # SmartRevisionService rewrites from, so its judgement quality reaches the
+    # reader. Its responses are capped by l2_agent_review_max_tokens either way.
+    l2_cheap_agent_panel: bool = False
+    # Panel replies are a small {score, issues[], suggestions[]} object; without
+    # a cap they were billed against the model's full output budget.
+    l2_agent_review_max_tokens: int = 1200
 
     # Batch generation config
     batch_max_workers: int = 3  # Max parallel workers for batch chapter generation

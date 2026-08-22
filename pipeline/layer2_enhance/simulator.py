@@ -705,6 +705,7 @@ class DramaSimulator:
                 ),
                 temperature=0.9,
                 expect="dict",
+                model_tier=self._low_stakes_tier(),
             )
             # Log reaction reasoning (L2-D)
             reasoning = result.get("reasoning", "")
@@ -956,7 +957,20 @@ class DramaSimulator:
                 relationships=rel_text,
             ),
             expect="dict",
+            model_tier=self._low_stakes_tier(),
         )
+
+    def _low_stakes_tier(self) -> str:
+        """"cheap" when low-stakes simulator calls may use the cheap model."""
+        try:
+            from config import ConfigManager
+
+            cfg = ConfigManager().pipeline
+            if getattr(cfg, "l2_cheap_low_stakes_calls", True):
+                return "cheap"
+        except Exception:  # pragma: no cover - defensive
+            pass
+        return "default"
 
     def _check_escalation(
         self, round_num: int, total_rounds: int = 5, genre: str = ""

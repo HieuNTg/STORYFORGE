@@ -31,6 +31,8 @@ class StyleConsistencyAgent(BaseAgent):
             user_prompt=prompt,
             temperature=0.4,
             expect="dict",
+            max_tokens=self.review_max_tokens,
+            model_tier=self.review_model_tier,
         )
         return self._parse_review_json(result, layer, iteration)
 

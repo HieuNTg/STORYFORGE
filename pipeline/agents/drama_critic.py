@@ -36,6 +36,8 @@ class DramaCriticAgent(BaseAgent):
             user_prompt=prompt,
             temperature=0.4,
             expect="dict",
+            max_tokens=self.review_max_tokens,
+            model_tier=self.review_model_tier,
         )
         return self._parse_review_json(result, layer, iteration)
 
@@ -89,6 +91,7 @@ class DramaCriticAgent(BaseAgent):
             max_tokens=500,
             expect="dict",
             list_key="entries",
+            model_tier=self.review_model_tier,
         )
         return self._parse_debate_llm_response(result, all_reviews)
 

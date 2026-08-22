@@ -129,7 +129,11 @@ Nothing else in this sprint can be judged until spend is counted correctly.
 - [ ] Re-enhance only the failing scene on contract/voice retry, not the whole chapter pipeline.
 - [ ] Replace whole-story regeneration on quality-gate failure with the existing targeted `SmartRevisionService`.
 - [ ] Cap `generate_json` repair at one pass on the cheap tier (it stacks up to 4 full chain traversals today).
-- [ ] Move the simulator's ~100 calls to the cheap tier where output is a scalar or filler; same for the 8-agent panel returning small JSON.
+### Batch G — Model routing (done)
+
+- [x] Route the simulator's low-stakes calls to the cheap tier: drama evaluation (read as a single score) and reaction posts (only ever seen truncated as recent-posts filler). Agent turns and escalation events stay on the primary model — those are the dramatic content itself. Reversible via `l2_cheap_low_stakes_calls`.
+- [x] Cap the 8-agent panel's replies at `l2_agent_review_max_tokens` (1200). Each returns a small `{score, issues[], suggestions[]}` object and had no output cap, so it was billed against the model's full output budget. A source-level test keeps any new panel call from shipping uncapped.
+- [x] Expose `l2_cheap_agent_panel`, **defaulted off**. Unlike the simulator's filler, the panel's critique is what SmartRevisionService rewrites from, so moving it to a weaker model is a quality decision for the CEO rather than an automatic saving.
 - [ ] Reorder the fallback chain: cheap model first in the cheap tier, primary model always present as last resort.
 - [ ] Batch and parallelise the consistency engine (~100 strictly sequential cheap calls, one per character per chapter).
 - [ ] Group the ~10 sequential validators in `finalize_chapter` into 2-3 gather groups.
