@@ -82,6 +82,61 @@ def _report_agent_panel_failure(layer: int, exc: Exception, log) -> None:
         logger.warning("Agent review Layer %s lỗi: %s", layer, exc)
 
 
+async def _targeted_gate_revision(
+    *,
+    story,
+    quality_scores: list,
+    reviews: list,
+    genre: str,
+    chapter_threshold: float,
+    idea: str,
+    idea_summary: str,
+    log,
+) -> int:
+    """Revise the chapters a quality gate objected to. Returns how many changed.
+
+    The gate's retry used to throw the whole layer away and run it again — a
+    second full L1 (every preamble call, every chapter) or a second full L2,
+    at the price of the first, to fix what is usually two weak chapters out of
+    ten. Worse, the replacement was accepted unseen: nothing compared the retry
+    against what it replaced, so a worse second attempt shipped.
+
+    SmartRevisionService already does the targeted version of this and has been
+    running later in the same pipeline all along: it rewrites only chapters
+    below the threshold, re-scores each one, and keeps the rewrite only when it
+    measurably improves. Pointed at the gate's own ``chapter_threshold``, it
+    revises exactly the chapters the gate named.
+
+    Returning 0 is meaningful, not a failure: it means the gate's complaint is
+    not localised to any chapter (every chapter clears the bar but the story
+    scores low overall), and the caller falls back to regenerating the layer —
+    the only thing that can move a whole-story score.
+    """
+    if not quality_scores:
+        return 0
+    latest = quality_scores[-1]
+    if not getattr(latest, "chapter_scores", None):
+        return 0
+    try:
+        from services.smart_revision import SmartRevisionService
+
+        revisor = SmartRevisionService(threshold=chapter_threshold)
+        result = await asyncio.to_thread(
+            revisor.revise_weak_chapters,
+            enhanced_story=story,
+            quality_scores=quality_scores,
+            reviews=reviews or [],
+            genre=genre,
+            progress_callback=log,
+            idea=idea or "",
+            idea_summary=idea_summary or "",
+        )
+        return int(result.get("revised_count", 0))
+    except Exception as e:
+        logger.warning("Targeted gate revision failed: %s", e)
+        return 0
+
+
 def _persist_handoff_to_db(
     story_id: str,
     envelope_dict: dict,
@@ -728,19 +783,38 @@ async def run_full_pipeline(
                     tracker.gate_retry(
                         1, l1_score.overall if l1_score else 0.0, attempt=1
                     )
-                    _log("[GATE] Đang thử tạo lại Layer 1...")
-                    draft = await asyncio.to_thread(
-                        self.story_gen.generate_full_story,
-                        title=title,
+                    # Targeted first: rewrite only the chapters the gate named.
+                    # A full regeneration is the fallback for a complaint that
+                    # is not localised to any chapter, not the first resort.
+                    _revised = await _targeted_gate_revision(
+                        story=draft,
+                        quality_scores=self.output.quality_scores,
+                        reviews=self.output.reviews,
                         genre=genre,
+                        chapter_threshold=self.config.pipeline.quality_gate_chapter_threshold,
                         idea=idea,
-                        style=style,
-                        num_chapters=num_chapters,
-                        num_characters=num_characters,
-                        word_count=word_count,
-                        progress_callback=lambda m: _log(f"[L1-RETRY] {m}"),
-                        stream_callback=stream_callback,
+                        idea_summary=getattr(draft, "idea_summary_for_chapters", "")
+                        or "",
+                        log=lambda m: _log(f"[GATE-REVISE] {m}"),
                     )
+                    if _revised:
+                        _log(
+                            f"[GATE] Đã sửa {_revised} chương yếu thay vì tạo lại Layer 1"
+                        )
+                    else:
+                        _log("[GATE] Đang thử tạo lại Layer 1...")
+                        draft = await asyncio.to_thread(
+                            self.story_gen.generate_full_story,
+                            title=title,
+                            genre=genre,
+                            idea=idea,
+                            style=style,
+                            num_chapters=num_chapters,
+                            num_characters=num_characters,
+                            word_count=word_count,
+                            progress_callback=lambda m: _log(f"[L1-RETRY] {m}"),
+                            stream_callback=stream_callback,
+                        )
                     self.output.story_draft = draft
                     # Re-score after retry
                     try:
@@ -1249,13 +1323,31 @@ async def run_full_pipeline(
                     tracker.gate_retry(
                         2, l2_check_score.overall if l2_check_score else 0.0, attempt=1
                     )
-                    _log("[GATE] Đang thử tạo lại Layer 2...")
-                    enhanced = await self.enhancer.enhance_with_feedback_async(
-                        draft=draft,
-                        sim_result=sim_result,
-                        word_count=word_count,
-                        progress_callback=lambda m: _log(f"[L2-RETRY] {m}"),
+                    # Same shape as the Layer 1 gate: revise the named chapters
+                    # before paying for a second full enhancement pass.
+                    _revised = await _targeted_gate_revision(
+                        story=enhanced,
+                        quality_scores=self.output.quality_scores,
+                        reviews=self.output.reviews,
+                        genre=genre,
+                        chapter_threshold=self.config.pipeline.quality_gate_chapter_threshold,
+                        idea=getattr(draft, "original_idea", "") or "",
+                        idea_summary=getattr(draft, "idea_summary_for_chapters", "")
+                        or "",
+                        log=lambda m: _log(f"[GATE-REVISE] {m}"),
                     )
+                    if _revised:
+                        _log(
+                            f"[GATE] Đã sửa {_revised} chương yếu thay vì tạo lại Layer 2"
+                        )
+                    else:
+                        _log("[GATE] Đang thử tạo lại Layer 2...")
+                        enhanced = await self.enhancer.enhance_with_feedback_async(
+                            draft=draft,
+                            sim_result=sim_result,
+                            word_count=word_count,
+                            progress_callback=lambda m: _log(f"[L2-RETRY] {m}"),
+                        )
                     self.output.enhanced_story = enhanced
                     # Re-score after retry
                     try:
