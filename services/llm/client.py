@@ -811,8 +811,28 @@ class LLMClient(StreamingMixin, GenerationMixin):
         chain_retry_max = getattr(config.llm, "chain_retry_max", 2)
         chain_retry_base_delay = getattr(config.llm, "chain_retry_base_delay", 30.0)
 
+        # Absolute ceiling for this call across the whole chain, its per-entry
+        # retries and its backoff sleeps. Without one, three retries against a
+        # long chain over three chain passes at a 900s timeout has no bound a
+        # caller could reason about.
+        call_deadline: float | None = None
+        _budget_s = float(getattr(config.llm, "max_total_call_seconds", 0) or 0)
+        if _budget_s > 0:
+            call_deadline = time.monotonic() + _budget_s
+
+        def _out_of_time() -> bool:
+            return call_deadline is not None and time.monotonic() >= call_deadline
+
         last_chain_error = None
         for chain_attempt in range(chain_retry_max + 1):
+            if _out_of_time():
+                logger.error(
+                    "LLM call exceeded max_total_call_seconds (%.0fs); giving up "
+                    "before chain attempt %d",
+                    _budget_s,
+                    chain_attempt + 1,
+                )
+                break
             if chain_attempt > 0:
                 delay = chain_retry_base_delay * (
                     2 ** (chain_attempt - 1)
@@ -821,9 +841,11 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     f"Chain exhausted, retrying entire chain in {delay:.1f}s (attempt {chain_attempt + 1}/{chain_retry_max + 1})"
                 )
                 _retry_sleep(delay)
-                # Clear rate-limit state for fresh retry
-                self._rate_limited_keys.clear()
-                self._rate_limited_models.clear()
+                # Drop only cooldowns that have actually expired. Clearing them
+                # wholesale threw away what sibling chapters had just paid 429s
+                # to learn, sending every one of them straight back at the
+                # exhausted key.
+                self._expire_rate_limits()
                 chain = self._build_fallback_chain(
                     config, model_tier, model_override=model
                 )
@@ -842,6 +864,13 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     f"Fallback chain has {len(chain)} entries (chain attempt {chain_attempt + 1})"
                 )
             for entry in chain:
+                if _out_of_time():
+                    logger.error(
+                        "LLM call exceeded max_total_call_seconds (%.0fs); "
+                        "abandoning the rest of the chain",
+                        _budget_s,
+                    )
+                    break
                 entry_key = entry.get("_api_key", "")
                 logger.debug(
                     f"Trying {entry.get('label', '?')} (key: {entry_key[:12] if entry_key else 'none'}...)"
@@ -1016,7 +1045,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
             if now >= cooldown_until:
                 result.append(e)
         if not result:
-            self._rate_limited_keys.clear()
+            # Every key is cooling down. Try them anyway rather than failing —
+            # but do not erase the cooldowns, which other threads are still
+            # using to route around the same exhausted keys.
             result = entries
         return result
 
@@ -1066,6 +1097,22 @@ class LLMClient(StreamingMixin, GenerationMixin):
             )
 
         return {"rate_limited_keys": rl_keys, "rate_limited_models": rl_models}
+
+    def _expire_rate_limits(self) -> None:
+        """Drop cooldowns whose deadline has passed, keeping the rest.
+
+        Chapters generate in parallel against one shared client, so these dicts
+        are collective knowledge: each entry was paid for with a real 429. A
+        chain retry used to clear them outright, which sent every sibling
+        chapter straight back at the key that had just refused them.
+        """
+        now = time.time()
+        for key in [k for k, until in self._rate_limited_keys.items() if now >= until]:
+            self._rate_limited_keys.pop(key, None)
+        for key in [
+            k for k, until in self._rate_limited_models.items() if now >= until
+        ]:
+            self._rate_limited_models.pop(key, None)
 
     def _mark_rate_limited(self, api_key: str, cooldown: float = 60.0):
         """Mark an API key as rate-limited for `cooldown` seconds."""
@@ -1239,7 +1286,19 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     models = gemini_models
                 else:
                     models = openrouter_models
+                rr_cap = max(
+                    0, int(getattr(config.llm, "max_discovered_models_per_key", 3))
+                )
+                rr_added = 0
                 for model_name in models:
+                    if rr_added >= rr_cap:
+                        logger.debug(
+                            "Round-robin cap (%d) reached for %s; %d models not added",
+                            rr_cap,
+                            key_label,
+                            len(models) - rr_added,
+                        )
+                        break
                     if model_name in (primary_model, cheap_model_name):
                         continue
                     can_use, reason = self._can_use_model(model_name, api_key, fm)
@@ -1251,6 +1310,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
                             f"{key_label}:rr:{model_name}",
                             api_key,
                         )
+                        rr_added += 1
                     elif reason:
                         logger.debug(f"Skipping {model_name}: {reason}")
 

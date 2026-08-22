@@ -71,6 +71,17 @@ class LLMConfig:
         0.01  # Skip fallback models above this cost/1k tokens
     )
     # Chain-level retry when all providers fail (rate-limit storms, outages)
+    # Discovered (round-robin) models tried per key before moving on. Providers
+    # like OpenRouter expose dozens of free models; adding all of them per key
+    # built chains of 50-300 entries, and every one is retried up to MAX_RETRIES
+    # times, for every chain pass. Explicitly configured fallback_models are
+    # never capped by this — only auto-discovered ones.
+    max_discovered_models_per_key: int = 3
+    # Hard ceiling on the wall-clock one generate() may spend across its whole
+    # fallback chain, including retries and backoff. 0 disables it. Without a
+    # ceiling, 3 retries x a long chain x 3 chain passes x a 900s timeout has no
+    # finite bound worth the name.
+    max_total_call_seconds: float = 1800.0
     chain_retry_max: int = 2  # Max times to retry entire fallback chain
     chain_retry_base_delay: float = 30.0  # Initial delay (seconds) before chain retry
     # Global LLM budget wallet — abort runs that exceed the cap (P0-7).

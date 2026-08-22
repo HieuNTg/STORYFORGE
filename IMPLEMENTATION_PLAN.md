@@ -144,8 +144,11 @@ Nothing else in this sprint can be judged until spend is counted correctly.
 - [ ] Parallelise comic panels within a chapter and chapters on the Reader path, so the FlowKit ramp can actually ramp.
 - [ ] Collapse the 4-tier agent DAG to 2 tiers — only the editor consumes `prior_reviews`.
 - [ ] Honour `max_parallel_workers`, which is currently read only to print a log line while the gather runs unbounded.
-- [ ] Add a per-call deadline and bound the fallback chain length (3 retries × 50-300 entries × 3 passes today).
-- [ ] Stop clearing the global 429 cooldowns between chain passes; parallel chapters currently destroy each other's rotation state.
+### Batch I — Retry discipline (done)
+
+- [x] Cap auto-discovered round-robin models at `max_discovered_models_per_key` (3). Explicitly configured `fallback_models` are untouched — capping the whole chain would have dropped exactly the fallbacks the operator chose on purpose.
+- [x] Add `max_total_call_seconds` (1800, 0 disables): an absolute ceiling on one `generate()` across its chain, per-entry retries and backoff sleeps.
+- [x] Stop clearing the global 429 cooldowns between chain passes. Only expired entries are dropped now, and the all-keys-cooling release valve retries without erasing state other threads are still routing by.
 - [ ] Disable cache reads on quality-retry paths so retries can converge.
 
 ---
