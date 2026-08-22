@@ -45,6 +45,12 @@ class LLMConfig:
     temperature: float = 0.8
     max_tokens: int = 4096
     # Model routing: cheap model for summaries/analysis
+    # How long one request may take before the client gives up. Long-form
+    # chapter writing through a local browser bridge measured ~4 minutes for a
+    # 2000-word chapter (~13 tok/s), and the old hard-coded 300s ceiling
+    # abandoned exactly those calls — while the upstream kept generating,
+    # holding its slot, and the pipeline walked the fallback chain for nothing.
+    request_timeout: float = 900.0
     cheap_model: str = ""  # empty = use primary model
     cheap_base_url: str = ""  # empty = use primary base_url
     # Multiple API keys for the same provider — auto-rotate on rate limit (429)

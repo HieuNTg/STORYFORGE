@@ -172,6 +172,7 @@ class ConfigUpdate(BaseModel):
     model: Optional[str] = None
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
+    request_timeout: Optional[float] = None
     cheap_model: Optional[str] = None
     cheap_base_url: Optional[str] = None
     language: Optional[str] = None
@@ -275,6 +276,7 @@ def get_config(response: Response):
             "model": cfg.llm.model,
             "temperature": cfg.llm.temperature,
             "max_tokens": cfg.llm.max_tokens,
+            "request_timeout": getattr(cfg.llm, "request_timeout", 900.0),
             "cheap_model": cfg.llm.cheap_model,
             "cheap_base_url": cfg.llm.cheap_base_url,
             "api_keys_masked": [
@@ -425,6 +427,9 @@ def save_config(body: ConfigUpdate):
         cfg.llm.temperature = body.temperature
     if body.max_tokens is not None:
         cfg.llm.max_tokens = int(body.max_tokens)
+    if body.request_timeout is not None:
+        # Floor 30s — below that even healthy providers get abandoned mid-call.
+        cfg.llm.request_timeout = max(30.0, float(body.request_timeout))
     if body.cheap_model is not None:
         cfg.llm.cheap_model = body.cheap_model
     if body.cheap_base_url is not None:

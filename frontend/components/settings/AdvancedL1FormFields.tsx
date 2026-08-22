@@ -58,6 +58,7 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
     () => ({
       temperature: config.llm.temperature ?? 0.8,
       max_tokens: config.llm.max_tokens ?? 4096,
+      request_timeout: config.llm.request_timeout ?? 900,
       cheap_model: config.llm.cheap_model ?? "",
       layer1_model: config.llm.layer1_model ?? "",
       enable_self_review: config.pipeline.enable_self_review ?? true,
@@ -192,6 +193,33 @@ export function AdvancedL1FormFields({ config }: AdvancedL1FormFieldsProps) {
                   {errors.max_tokens.message}
                 </p>
               ) : null}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label
+                htmlFor="adv-request-timeout"
+                className="text-sm font-medium text-foreground"
+              >
+                {t("form.l1.request_timeout")}
+              </label>
+              <Input
+                id="adv-request-timeout"
+                type="number"
+                min={30}
+                max={3600}
+                step={30}
+                inputMode="numeric"
+                {...form.register("request_timeout", { valueAsNumber: true })}
+              />
+              {errors.request_timeout ? (
+                <p className="text-xs text-destructive">
+                  {errors.request_timeout.message}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {t("form.l1.request_timeout_hint")}
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col gap-1.5">

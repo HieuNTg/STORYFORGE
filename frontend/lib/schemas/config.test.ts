@@ -154,6 +154,7 @@ describe("advancedL1FormSchema", () => {
       advancedL1FormSchema.parse({
         temperature: 0.8,
         max_tokens: 4096,
+        request_timeout: 900,
         cheap_model: "",
         layer1_model: "",
         enable_self_review: true,

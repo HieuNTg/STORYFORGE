@@ -448,6 +448,8 @@
         "temperature": "Temperature",
         "temperature_hint": "Higher = more creative but less stable.",
         "max_tokens": "Max tokens",
+        "request_timeout": "Request timeout (s)",
+        "request_timeout_hint": "How long one LLM call may run. Raise for slow local models/bridges.",
         "cheap_model": "Cheap model (cheap_model)",
         "cheap_model_placeholder": "Select configured model",
         "cheap_model_default": "Use default model",

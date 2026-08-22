@@ -21,6 +21,7 @@ _ENV_MAP: dict[str, tuple[str, str]] = {
     "STORYFORGE_API_KEY": ("llm", "api_key"),
     "STORYFORGE_BASE_URL": ("llm", "base_url"),
     "STORYFORGE_MODEL": ("llm", "model"),
+    "STORYFORGE_REQUEST_TIMEOUT": ("llm", "request_timeout"),
     "STORYFORGE_TEMPERATURE": ("llm", "temperature"),
     "STORYFORGE_IMAGE_PROVIDER": ("pipeline", "image_provider"),
     "STORYFORGE_LENGTH_GATE": ("pipeline", "enable_length_gate"),
@@ -48,7 +49,7 @@ _ENV_MAP: dict[str, tuple[str, str]] = {
     "STORYFORGE_BLOCK_INJECTION": ("pipeline", "block_on_injection"),
 }
 
-_FLOAT_FIELDS = {"temperature", "quality_gate_threshold"}
+_FLOAT_FIELDS = {"temperature", "quality_gate_threshold", "request_timeout"}
 _BOOL_FIELDS = {
     "rag_enabled",
     "enable_character_consistency",
@@ -160,6 +161,7 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
             "temperature": llm.temperature,
             "max_tokens": llm.max_tokens,
             "cheap_model": llm.cheap_model,
+            "request_timeout": getattr(llm, "request_timeout", 900.0),
             "cheap_base_url": llm.cheap_base_url,
             "cache_enabled": llm.cache_enabled,
             "cache_ttl_days": llm.cache_ttl_days,

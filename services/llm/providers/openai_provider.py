@@ -22,21 +22,35 @@ def _detect_provider_type(base_url: str) -> str:
     return "generic"
 
 
+def _config_timeout(default: float = 900.0) -> float:
+    """`llm.request_timeout`, or the default when config is unavailable."""
+    try:
+        from config import ConfigManager
+
+        value = float(getattr(ConfigManager().llm, "request_timeout", default))
+        return value if value > 0 else default
+    except Exception:
+        return default
+
+
 class OpenAIProvider:
     _is_llm_provider = True
 
-    def __init__(self, api_key: str, base_url: str):
+    def __init__(self, api_key: str, base_url: str, timeout: float | None = None):
         from openai import OpenAI
 
         # max_retries=0: retry policy lives in services.llm.client
         # (_retry_with_backoff + fallback chain); the SDK's internal retry
         # layer would multiply attempts (SDK 3 x ours 3 x chain 3 per call).
-        # timeout=300: bounded, instead of the SDK's 600s default.
+        # The timeout comes from config (llm.request_timeout): it was hard-coded
+        # at 300s, which is under what a 2000-word chapter takes through a local
+        # browser bridge — so the client abandoned calls the upstream was still
+        # answering.
         self.client = OpenAI(
             api_key=api_key,
             base_url=base_url,
             max_retries=0,
-            timeout=300.0,
+            timeout=timeout if timeout and timeout > 0 else _config_timeout(),
         )
         self._base_url = base_url
         self._api_key = api_key

@@ -46,9 +46,14 @@ class LongContextClient:
 
     def _get_client(self) -> OpenAI:
         if self._client is None:
+            # Same configurable ceiling as the main client — long-context
+            # calls are the ones most likely to outlive the SDK's default.
+            from services.llm.providers.openai_provider import _config_timeout
+
             self._client = OpenAI(
                 api_key=self.api_key,
                 base_url=self.base_url or None,
+                timeout=_config_timeout(),
             )
         return self._client
 

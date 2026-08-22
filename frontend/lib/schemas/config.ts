@@ -30,6 +30,7 @@ export const configLlmSchema = z
     model: z.string(),
     temperature: z.number(),
     max_tokens: z.number(),
+    request_timeout: z.number().default(900),
     cheap_model: z.string(),
     cheap_base_url: z.string(),
     api_keys_masked: z.array(z.string()).default([]),
@@ -117,6 +118,8 @@ export const configUpdateSchema = z
     model: z.string().optional(),
     temperature: z.number().min(0).max(2).optional(),
     max_tokens: z.number().int().min(1).max(200_000).optional(),
+    // 30s floor mirrors the backend clamp; 3600s is a sanity ceiling.
+    request_timeout: z.number().min(30).max(3600).optional(),
     cheap_model: z.string().optional(),
     cheap_base_url: z.string().optional(),
     language: z.string().optional(),
@@ -208,6 +211,7 @@ export type ApiKeysFormValues = z.infer<typeof apiKeysFormSchema>;
 export const advancedL1FormSchema = z.object({
   temperature: z.number().min(0).max(2),
   max_tokens: z.number().int().min(256).max(65_536),
+  request_timeout: z.number().min(30).max(3600),
   cheap_model: z.string(),
   layer1_model: z.string(),
   enable_self_review: z.boolean(),

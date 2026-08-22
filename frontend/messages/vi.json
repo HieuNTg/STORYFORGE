@@ -448,6 +448,8 @@
         "temperature": "Temperature",
         "temperature_hint": "Cao hơn = sáng tạo hơn nhưng kém ổn định.",
         "max_tokens": "Max tokens",
+        "request_timeout": "Timeout mỗi request (giây)",
+        "request_timeout_hint": "Thời gian tối đa cho một lần gọi LLM. Tăng lên nếu dùng model local/bridge chậm.",
         "cheap_model": "Mô hình rẻ (cheap_model)",
         "cheap_model_placeholder": "Chọn model đã cấu hình",
         "cheap_model_default": "Dùng model mặc định",
