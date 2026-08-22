@@ -144,7 +144,8 @@ Nothing else in this sprint can be judged until spend is counted correctly.
   - Both wave-2 steps mutate the shared `characters` list, so the writes are applied on the calling thread after the wave joins, not inside the workers.
   - Each task runs under `contextvars.copy_context()`; without it, siblings sharing one context corrupt per-call token/cost attribution instead of failing.
 - [ ] `services/thread_pool_manager.py` has zero production call sites — three named pools with worker caps and a `utilisation_summary`, referenced only by its own test. Every real parallel site builds an ad-hoc `ThreadPoolExecutor`, so none of those caps bound anything. Decide: adopt it at the parallel sites, or delete it.
-- [ ] Parallelise comic panels within a chapter and chapters on the Reader path, so the FlowKit ramp can actually ramp.
+- [x] Parallelise comic panels **within a chapter**, so the FlowKit ramp can actually ramp. — `generate_story_images` now fans out over panels bounded by the new `pipeline.comic_panel_workers` (default 3; image endpoints rate-limit far harder than text ones). Results are written by index, never appended: completion order is not panel order and the compositor slices the list positionally.
+- [ ] Parallelise **chapters** on the Reader path (the other half of the original item; untouched so far).
 - [x] Collapse the agent DAG from 4 tiers to 2. Six of eight agents declared `depends_on` while ignoring the `prior_reviews` argument, so the panel ran in four sequential passes with nobody using the previous pass's data. Only the editor consumes it, so only the editor gets its own tier. A test now rejects a declared dependency that the agent does not actually read.
 - [x] Honour `max_parallel_workers`. It was read only to print "parallel, N workers" while the gather dispatched every chapter at once — a 50-chapter continuation ran 50 chapter pipelines concurrently, each with its own nested pool.
 ### Batch I — Retry discipline (done)

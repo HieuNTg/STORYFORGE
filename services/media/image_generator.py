@@ -5,6 +5,7 @@ import os
 import logging
 import base64
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
 import requests
@@ -167,82 +168,112 @@ class ImageGenerator:
         used to shift every later one into the wrong cell. Callers that just want
         a list of URLs leave it False and keep the old contract.
         """
-        paths: list = []
         refs = character_references or {}
+        _pipeline_cfg = ConfigManager().pipeline
         # A panel sometimes comes back empty (Codex occasionally drops one, a
         # transient provider hiccup, etc.). Retry it a few times rather than
         # silently shipping a chapter with a hole in it.
-        _retries = max(
-            0, int(getattr(ConfigManager().pipeline, "panel_retry_attempts", 2))
-        )
-        for i, ip in enumerate(image_prompts):
-            prompt = ip.dalle_prompt if self.provider == "dalle" else ip.sd_prompt
-            if not prompt:
-                prompt = ip.scene_description
-            filename = f"ch{chapter_number:02d}_panel{i + 1:02d}.png"
-            # Generate at the aspect of the compositor cell this panel lands in.
-            # Everything used to be square, so a panel dropped into a 2.1:1 tier
-            # cell lost more than half its height to the center crop.
-            size = getattr(ip, "target_size", "") or "1024x1024"
+        _retries = max(0, int(_pipeline_cfg.panel_retry_attempts))
+        prompts = list(image_prompts)
+        if not prompts:
+            return []
 
-            scene_refs: list[str] = []
-            for name in getattr(ip, "characters_in_scene", []) or []:
-                ref = refs.get(name)
-                if ref and os.path.exists(ref) and ref not in scene_refs:
-                    scene_refs.append(ref)
+        # Panels are independent provider calls, so they run concurrently rather
+        # than in a queue. Results are written by index and only then flattened:
+        # completion order is not panel order, and the compositor slices this
+        # list positionally.
+        slots: list = [None] * len(prompts)
+        workers = max(1, min(len(prompts), int(_pipeline_cfg.comic_panel_workers)))
+        if workers == 1:
+            for i, ip in enumerate(prompts):
+                slots[i] = self._generate_one_panel(i, ip, chapter_number, refs, _retries)
+        else:
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = {
+                    executor.submit(
+                        self._generate_one_panel, i, ip, chapter_number, refs, _retries
+                    ): i
+                    for i, ip in enumerate(prompts)
+                }
+                for future in as_completed(futures):
+                    i = futures[future]
+                    try:
+                        slots[i] = future.result()
+                    except Exception as e:
+                        # One panel blowing up must not cost the chapter its
+                        # other nineteen.
+                        logger.error(
+                            "Panel %d (ch%02d) raised: %s (type=%s)",
+                            i + 1,
+                            chapter_number,
+                            e,
+                            type(e).__name__,
+                        )
 
-            if not scene_refs:
-                # Comic consistency fallback: when no character in this panel
-                # name-matches a stored reference, still attach the chapter's
-                # main-character reference (first existing ref in the map) so the
-                # protagonist's face doesn't drift across panels. Only kicks in
-                # when at least one usable reference image actually exists on disk
-                # — with no refs at all we keep the text-only path.
-                for ref in refs.values():
-                    if ref and os.path.exists(ref):
-                        scene_refs.append(ref)
-                        break
-
-            path = None
-            for attempt in range(_retries + 1):
-                if scene_refs:
-                    path = self.generate_with_reference(
-                        prompt, scene_refs, filename, size
-                    )
-                else:
-                    path = self.generate(prompt, filename, size)
-                if path:
-                    break
-                if attempt < _retries:
-                    logger.warning(
-                        "Panel %d (ch%02d) returned no image; retry %d/%d",
-                        i + 1,
-                        chapter_number,
-                        attempt + 1,
-                        _retries,
-                    )
+        for i, path in enumerate(slots):
             if path:
-                paths.append(path)
-            elif keep_positions:
-                # Hold the slot. The page compositor slices this list
-                # positionally, so dropping a failed panel shifted every later
-                # panel into the wrong cell — speech balloons landing on the
-                # wrong art for the rest of the chapter, silently.
-                paths.append(None)
-                logger.error(
-                    "Panel %d (ch%02d) failed after %d attempt(s); placeholder kept",
-                    i + 1,
-                    chapter_number,
-                    _retries + 1,
-                )
+                continue
+            logger.error(
+                "Panel %d (ch%02d) failed after %d attempt(s); %s",
+                i + 1,
+                chapter_number,
+                _retries + 1,
+                "placeholder kept" if keep_positions else "skipped",
+            )
+        if keep_positions:
+            # Hold the slot. The page compositor slices this list positionally,
+            # so dropping a failed panel shifted every later panel into the wrong
+            # cell — speech balloons landing on the wrong art for the rest of the
+            # chapter, silently.
+            return slots
+        return [p for p in slots if p]
+
+    def _generate_one_panel(self, i, ip, chapter_number: int, refs: dict, retries: int):
+        """Generate a single panel with its retries. Returns a path or None."""
+        prompt = ip.dalle_prompt if self.provider == "dalle" else ip.sd_prompt
+        if not prompt:
+            prompt = ip.scene_description
+        filename = f"ch{chapter_number:02d}_panel{i + 1:02d}.png"
+        # Generate at the aspect of the compositor cell this panel lands in.
+        # Everything used to be square, so a panel dropped into a 2.1:1 tier
+        # cell lost more than half its height to the center crop.
+        size = getattr(ip, "target_size", "") or "1024x1024"
+
+        scene_refs: list[str] = []
+        for name in getattr(ip, "characters_in_scene", []) or []:
+            ref = refs.get(name)
+            if ref and os.path.exists(ref) and ref not in scene_refs:
+                scene_refs.append(ref)
+
+        if not scene_refs:
+            # Comic consistency fallback: when no character in this panel
+            # name-matches a stored reference, still attach the chapter's
+            # main-character reference (first existing ref in the map) so the
+            # protagonist's face doesn't drift across panels. Only kicks in
+            # when at least one usable reference image actually exists on disk
+            # — with no refs at all we keep the text-only path.
+            for ref in refs.values():
+                if ref and os.path.exists(ref):
+                    scene_refs.append(ref)
+                    break
+
+        path = None
+        for attempt in range(retries + 1):
+            if scene_refs:
+                path = self.generate_with_reference(prompt, scene_refs, filename, size)
             else:
-                logger.error(
-                    "Panel %d (ch%02d) failed after %d attempt(s); skipped",
+                path = self.generate(prompt, filename, size)
+            if path:
+                break
+            if attempt < retries:
+                logger.warning(
+                    "Panel %d (ch%02d) returned no image; retry %d/%d",
                     i + 1,
                     chapter_number,
-                    _retries + 1,
+                    attempt + 1,
+                    retries,
                 )
-        return paths
+        return path
 
     # ── Private providers ─────────────────────────────────────────────────────
 

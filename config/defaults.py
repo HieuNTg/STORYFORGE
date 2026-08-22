@@ -182,6 +182,13 @@ class PipelineConfig:
     # occasionally drops one) is retried up to this many extra times before it is
     # given up and skipped. 0 = no retry (legacy behavior).
     panel_retry_attempts: int = 2
+    # How many panels of one chapter are generated at a time. Panels are fully
+    # independent — each is one provider call producing one file — but they used
+    # to run strictly one after another, so a 20-panel chapter cost 20 serial
+    # image round-trips. Kept modest: image endpoints rate-limit far harder than
+    # text ones, and the retry above already absorbs the odd transient failure.
+    # 1 = fully serial (previous behaviour).
+    comic_panel_workers: int = 3
 
     # Comic Beat→Shot-list stage (Phase 2). When enabled, an LLM beat extractor
     # runs between chapter prose and image generation, splitting each chapter
