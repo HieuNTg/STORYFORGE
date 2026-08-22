@@ -143,3 +143,56 @@ def load_encrypted(filepath: str) -> dict:
     except (OSError, json.JSONDecodeError, Exception) as e:
         logger.warning(f"Failed to load {filepath}: {e}")
         return {}
+
+
+def has_plaintext_secrets(data: dict) -> bool:
+    """True if any sensitive string field is present and not yet encrypted."""
+
+    def _walk(key: str, value) -> bool:
+        if isinstance(value, dict):
+            return any(_walk(k, v) for k, v in value.items())
+        if isinstance(value, list):
+            return any(_walk(key, item) for item in value)
+        return (
+            isinstance(value, str)
+            and _is_sensitive(key)
+            and bool(value)
+            and not value.startswith(_ENC_PREFIX)
+        )
+
+    return any(_walk(k, v) for k, v in data.items())
+
+
+def migrate_plaintext_secrets(filepath: str) -> bool:
+    """Encrypt any plaintext secrets already sitting in `filepath`.
+
+    Until .env was loaded, STORYFORGE_SECRET_KEY was never set, so every save
+    wrote secrets in the clear. Once a key exists the next ordinary save would
+    encrypt new values but leave the existing file readable; this rewrites it
+    once. No key configured means no encryption is expected — return quietly.
+
+    Returns True if the file was rewritten.
+    """
+    if _get_fernet() is None:
+        return False
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return False
+
+    if not isinstance(data, dict) or not has_plaintext_secrets(data):
+        return False
+
+    tmp = filepath + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(encrypt_sensitive_fields(data), f, ensure_ascii=False, indent=2)
+    os.replace(tmp, filepath)
+    logger.warning(
+        "Encrypted the plaintext secrets stored in %s. These values can only be "
+        "read back with the current %s — keep it backed up, or the keys must be "
+        "re-entered in Settings.",
+        filepath,
+        STORYFORGE_SECRET_KEY_ENV,
+    )
+    return True

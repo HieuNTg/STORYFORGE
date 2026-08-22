@@ -9,6 +9,12 @@ from pathlib import Path
 import pytest
 from unittest.mock import MagicMock, patch
 
+# Hermetic env: the config package loads .env so every entry point picks up
+# STORYFORGE_SECRET_KEY and friends. Tests must not — a developer's .env would
+# override the dead-LLM base_url installed below and point the suite at their
+# live proxy. Set before the config import on the next line.
+os.environ.setdefault("STORYFORGE_SKIP_DOTENV", "1")
+
 # ---------------------------------------------------------------------------
 # Hermetic config: redirect CONFIG_FILE for the WHOLE test session.
 #

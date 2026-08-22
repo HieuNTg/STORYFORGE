@@ -276,7 +276,7 @@ def get_config(response: Response):
             "model": cfg.llm.model,
             "temperature": cfg.llm.temperature,
             "max_tokens": cfg.llm.max_tokens,
-            "request_timeout": getattr(cfg.llm, "request_timeout", 900.0),
+            "request_timeout": cfg.llm.request_timeout,
             "cheap_model": cfg.llm.cheap_model,
             "cheap_base_url": cfg.llm.cheap_base_url,
             "api_keys_masked": [
@@ -298,42 +298,28 @@ def get_config(response: Response):
             "language": cfg.pipeline.language,
             "enable_self_review": cfg.pipeline.enable_self_review,
             "self_review_threshold": cfg.pipeline.self_review_threshold,
-            "enable_length_gate": getattr(cfg.pipeline, "enable_length_gate", True),
-            "length_gate_min_ratio": getattr(
-                cfg.pipeline, "length_gate_min_ratio", 0.85
-            ),
-            "stream_first_chunk_timeout": getattr(
-                cfg.pipeline, "stream_first_chunk_timeout", 180
-            ),
-            "stream_chunk_timeout": getattr(cfg.pipeline, "stream_chunk_timeout", 30),
+            "enable_length_gate": cfg.pipeline.enable_length_gate,
+            "length_gate_min_ratio": cfg.pipeline.length_gate_min_ratio,
+            "stream_first_chunk_timeout": cfg.pipeline.stream_first_chunk_timeout,
+            "stream_chunk_timeout": cfg.pipeline.stream_chunk_timeout,
             "image_provider": cfg.pipeline.image_provider,
-            "codex_model": getattr(cfg.pipeline, "codex_model", ""),
-            "qwen_local_base_url": getattr(
-                cfg.pipeline, "qwen_local_base_url", "http://localhost:8000/v1"
-            ),
+            "codex_model": cfg.pipeline.codex_model,
+            "qwen_local_base_url": cfg.pipeline.qwen_local_base_url,
             # Masked like every other secret the GET surface returns.
             "qwen_local_api_key_masked": _mask_key(
-                getattr(cfg.pipeline, "qwen_local_api_key", "")
+                cfg.pipeline.qwen_local_api_key
             ),
-            "qwen_local_model": getattr(cfg.pipeline, "qwen_local_model", ""),
-            "qwen_local_size": getattr(cfg.pipeline, "qwen_local_size", ""),
-            "qwen_local_use_edit_for_refs": getattr(
-                cfg.pipeline, "qwen_local_use_edit_for_refs", True
-            ),
-            "qwen_local_timeout": getattr(cfg.pipeline, "qwen_local_timeout", 300.0),
+            "qwen_local_model": cfg.pipeline.qwen_local_model,
+            "qwen_local_size": cfg.pipeline.qwen_local_size,
+            "qwen_local_use_edit_for_refs": cfg.pipeline.qwen_local_use_edit_for_refs,
+            "qwen_local_timeout": cfg.pipeline.qwen_local_timeout,
             "hf_token_masked": masked_hf_token,
             "hf_image_model": cfg.pipeline.hf_image_model,
             "image_prompt_style": cfg.pipeline.image_prompt_style,
-            "enable_simulation_transcript": getattr(
-                cfg.pipeline, "enable_simulation_transcript", False
-            ),
-            "enable_drama_climax": getattr(cfg.pipeline, "enable_drama_climax", False),
-            "enable_pipeline_overlay": getattr(
-                cfg.pipeline, "enable_pipeline_overlay", False
-            ),
-            "enable_chapter_illustration": getattr(
-                cfg.pipeline, "enable_chapter_illustration", False
-            ),
+            "enable_simulation_transcript": cfg.pipeline.enable_simulation_transcript,
+            "enable_drama_climax": cfg.pipeline.enable_drama_climax,
+            "enable_pipeline_overlay": cfg.pipeline.enable_pipeline_overlay,
+            "enable_chapter_illustration": cfg.pipeline.enable_chapter_illustration,
             "flowkit_enabled": cfg.pipeline.flowkit_enabled,
             "flowkit_port": cfg.pipeline.flowkit_port,
             "flowkit_style_reference_path": cfg.pipeline.flowkit_style_reference_path,
@@ -531,9 +517,9 @@ def qwen_local_status():
 
     cfg = ConfigManager().pipeline
     client = QwenLocalClient(
-        base_url=getattr(cfg, "qwen_local_base_url", ""),
-        api_key=getattr(cfg, "qwen_local_api_key", ""),
-        model=getattr(cfg, "qwen_local_model", ""),
+        base_url=cfg.qwen_local_base_url,
+        api_key=cfg.qwen_local_api_key,
+        model=cfg.qwen_local_model,
     )
     return client.status()
 

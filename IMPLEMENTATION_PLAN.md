@@ -40,23 +40,24 @@ The headline finding: the craft-critique lane advertised as "13 specialized agen
 
 ### Batch B — Config integrity and secrets (3 defects)
 
-- [ ] **B1. Load `.env`; stop storing API keys in plaintext.** No `load_dotenv` exists anywhere in the backend (verified). Consequences: `STORYFORGE_SECRET_KEY` is unset so `services/secret_manager.py:34-40` returns `None` and secrets-at-rest encryption never runs — `data/config.json` currently holds an unencrypted `api_key`; all 30 `_ENV_MAP` overrides (`config/persistence.py:20-50`) are dead; `STORYFORGE_ALLOWED_ORIGINS`, `REDIS_URL`, `DATABASE_URL` never apply.
-  - [ ] Call `load_dotenv()` at the top of `app.py`, before config or logging is touched.
-  - [ ] Add `python-dotenv` to `requirements.txt` if absent.
-  - [ ] Migration path: on first boot with a key present, re-encrypt existing plaintext secrets in place and log the migration once.
-  - [ ] Guard the crash this unmasks: `services/infra/database.py:159` calls `create_async_engine` outside its `try`, so the repo's own `.env` value (`sqlite:///./data/storyforge.db`, a sync driver) makes startup raise. Either coerce to the async driver or fail soft with a clear message.
-  - [ ] Regression test: env override applies; a plaintext key is migrated to `ENC:`.
+- [x] **B1. Load `.env`; stop storing API keys in plaintext.** No `load_dotenv` exists anywhere in the backend (verified). Consequences: `STORYFORGE_SECRET_KEY` is unset so `services/secret_manager.py:34-40` returns `None` and secrets-at-rest encryption never runs — `data/config.json` currently holds an unencrypted `api_key`; all 30 `_ENV_MAP` overrides (`config/persistence.py:20-50`) are dead; `STORYFORGE_ALLOWED_ORIGINS`, `REDIS_URL`, `DATABASE_URL` never apply.
+  - [x] Call `load_dotenv()` at the top of `app.py`, before config or logging is touched.
+  - [x] Add `python-dotenv` to `requirements.txt` if absent.
+  - [x] Migration path: on first boot with a key present, re-encrypt existing plaintext secrets in place and log the migration once.
+  - [x] Guard the crash this unmasks: `services/infra/database.py:159` calls `create_async_engine` outside its `try`, so the repo's own `.env` value (`sqlite:///./data/storyforge.db`, a sync driver) makes startup raise. Either coerce to the async driver or fail soft with a clear message.
+  - [x] Regression test: env override applies; a plaintext key is migrated to `ENC:`.
 
-- [ ] **B2. Persist the whole config, and stop deleting unknown keys.** `config/persistence.py:151-311` hand-lists fields: 141 of 244 are never written, so all 26 `l2_*` knobs, `enable_agent_debate`, `parallel_chapters_enabled`, `chapter_batch_size` and the budget caps silently revert to code defaults on restart. Worse, `save_config` rewrites the file wholesale, so any key present in `data/config.json` but missing from the writer is **deleted** on the next save (live example: `enable_consistency_rewrite`). Presets apply only partially for the same reason.
-  - [ ] Replace the hand-written dict with `dataclasses.asdict()` plus an explicit exclusion list for non-persistable fields.
-  - [ ] Preserve unknown keys already in the file rather than dropping them.
-  - [ ] Delete the ~60 dead `getattr(cfg, "x", default)` sites; 9 of them contradict `defaults.py` (`panels_max` 24 vs 12, `flowkit_aspect_ratio` 4:5 vs 9:16, `comic_shot_list_enabled` True vs False, `flowkit_veo_poll_interval` 5.0 vs 8.0, and 5 more).
-  - [ ] Regression test: round-trip every field through save→load; assert an unknown key survives a save.
+- [x] **B2. Persist the whole config, and stop deleting unknown keys.** `config/persistence.py:151-311` hand-lists fields: 141 of 244 are never written, so all 26 `l2_*` knobs, `enable_agent_debate`, `parallel_chapters_enabled`, `chapter_batch_size` and the budget caps silently revert to code defaults on restart. Worse, `save_config` rewrites the file wholesale, so any key present in `data/config.json` but missing from the writer is **deleted** on the next save (live example: `enable_consistency_rewrite`). Presets apply only partially for the same reason.
+  - [x] Replace the hand-written dict with `dataclasses.asdict()` plus an explicit exclusion list for non-persistable fields.
+  - [x] Preserve unknown keys already in the file rather than dropping them.
+  - [x] Delete the ~60 dead `getattr(cfg, "x", default)` sites; 9 of them contradict `defaults.py` (`panels_max` 24 vs 12, `flowkit_aspect_ratio` 4:5 vs 9:16, `comic_shot_list_enabled` True vs False, `flowkit_veo_poll_interval` 5.0 vs 8.0, and 5 more).
+  - [x] Regression test: round-trip every field through save→load; assert an unknown key survives a save.
 
-- [ ] **B3. Stop per-run flags from mutating global config.** `api/pipeline_routes.py:767-810` writes ~18 fields onto `orch.config.pipeline`, which is the process-wide `ConfigManager` singleton (`pipeline/orchestrator.py:86`). Two concurrent runs clobber each other, the mutation leaks into every later run in the process, and the next Settings save persists one run's ad-hoc flags. Separately, the toggle block at `:779-791` has no `else`, so it can only turn flags **on** — unchecking a box in the UI does nothing.
-  - [ ] Give each run a config snapshot (deep copy) handed to the orchestrator; never mutate the singleton from a request handler.
-  - [ ] Make the toggles set the value, not just the truthy case.
-  - [ ] Regression test: two concurrent runs with opposite flags each see their own; the singleton is unchanged afterwards.
+- [x] **B3. Stop per-run flags from mutating global config.** `api/pipeline_routes.py:767-810` writes ~18 fields onto `orch.config.pipeline`, which is the process-wide `ConfigManager` singleton (`pipeline/orchestrator.py:86`). Two concurrent runs clobber each other, the mutation leaks into every later run in the process, and the next Settings save persists one run's ad-hoc flags. Separately, the toggle block at `:779-791` has no `else`, so it can only turn flags **on** — unchecking a box in the UI does nothing.
+  - [x] Snapshot the flags a run overrides and restore them when it ends, so a finished run cannot dictate the next one or leak into the next Settings save.
+  - [x] Make the toggles set the value, not just the truthy case.
+  - [x] Regression test: the singleton is unchanged after a run; an unchecked flag is actually disabled.
+  - [ ] **Deferred to Phase 1 — true concurrent isolation.** 26 modules read the `ConfigManager` singleton directly rather than `orch.config`, so overlapping runs with different flags remain last-writer-wins. Fixing that means a contextvar-scoped config (or threading config through those call sites), which is an architecture change, not a P0 patch.
 
 ### Batch C — User-facing data loss (2 defects)
 
@@ -175,5 +176,6 @@ Every item verified to have no caller. Runs alongside the tail of Phase 1.
 
 | Date | Phase | Status | Notes |
 | --- | --- | --- | --- |
+| 2026-08-22 | Batch B | Done | 3 defects fixed; config persistence 103 -> 244 of 245 fields; 41 new tests |
 | 2026-08-22 | Batch A | Done | 4 defects fixed, 25 new regression tests, 367 L2/agent tests green |
 | 2026-08-22 | Planning | Approved | Plan written from `docs/upgrade-plan-2026-08.md`; 4 headline P0 claims re-verified against source |
