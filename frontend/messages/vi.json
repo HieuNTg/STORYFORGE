@@ -654,6 +654,8 @@
     "save_success": "Đã lưu vào thư viện",
     "save_failed_empty": "Chưa có truyện để lưu",
     "save_failed_full": "Đã đạt giới hạn {max} truyện",
+    "save_failed_quota": "Bộ nhớ trình duyệt đã đầy — chưa lưu được. Hãy xoá bớt truyện cũ rồi lưu lại.",
+    "save_failed_storage": "Không ghi được vào bộ nhớ trình duyệt — chưa lưu được truyện này.",
     "stage": {
       "planning": "Đang phác thảo bối cảnh…",
       "characters": "Đang tạo nhân vật…",

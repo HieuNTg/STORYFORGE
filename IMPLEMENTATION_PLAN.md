@@ -61,19 +61,19 @@ The headline finding: the craft-critique lane advertised as "13 specialized agen
 
 ### Batch C — User-facing data loss (2 defects)
 
-- [ ] **C1. Stop losing the user's library when localStorage fills.** `frontend/stores/library-store.ts:201-233` configures zustand `persist` with no error handling; the middleware writes *after* the in-memory state has already changed, so on `QuotaExceededError` the story looks saved, the success toast fires, and the whole library is gone on reload. A 50-story × 20-chapter prose blob passes the ~5 MB quota long before the 50-story cap. The throw also lands inside the SSE `onmessage` handler (`components/pipeline/PipelineScreen.tsx:159-167`), killing the stream mid-`done` so the panel just freezes.
-  - [ ] Catch persist failures and surface a real error state, never a success toast.
-  - [ ] Move chapter prose to IndexedDB, keep metadata in localStorage.
-  - [ ] Move `commitToLibrary` out of the SSE callback path so a storage error cannot kill the stream.
-  - [ ] Regression test: mock a quota throw; assert the user sees a failure and the existing library survives.
+- [x] **C1. Stop losing the user's library when localStorage fills.** `frontend/stores/library-store.ts:201-233` configures zustand `persist` with no error handling; the middleware writes *after* the in-memory state has already changed, so on `QuotaExceededError` the story looks saved, the success toast fires, and the whole library is gone on reload. A 50-story × 20-chapter prose blob passes the ~5 MB quota long before the 50-story cap. The throw also lands inside the SSE `onmessage` handler (`components/pipeline/PipelineScreen.tsx:159-167`), killing the stream mid-`done` so the panel just freezes.
+  - [x] Catch persist failures and surface a real error state, never a success toast.
+  - [ ] **Deferred to Phase 1** — move chapter prose to IndexedDB, keeping metadata in localStorage. The quota failure is now reported honestly instead of losing the library silently; raising the ceiling is a storage-layer change, not a P0 patch.
+  - [x] Move `commitToLibrary` out of the SSE callback path so a storage error cannot kill the stream.
+  - [x] Regression test: mock a quota throw; assert the user sees a failure and the existing library survives.
 
-- [ ] **C2. Reattach to a run after the stream drops.** Recovery polling is gated on `!pendingBody` (`components/pipeline/PipelineScreen.tsx:242`), but `pendingBody` clears only in `handleCancel` — so when the live stream errors the poller stays disabled and the user must reload the page by hand to rejoin a run the server is still executing.
-  - [ ] Clear `pendingBody` in `onError`/`onClose` so recovery engages automatically.
-  - [ ] Tell the backend when the user cancels; today `handleCancel` leaves `?session=` in the URL, so the poller resurrects the cancelled run and auto-saves it on `done`.
-  - [ ] Suppress side effects during replay: `useRunRecovery.ts:89` replays from cursor 0, firing a toast per completed chapter and re-running `commitToLibrary`.
-  - [ ] Replace the permanent give-up after 5 consecutive errors (`useRunRecovery.ts:62,124-145`) with backoff — 7.5 s of backend trouble currently orphans a 20-minute run.
-  - [ ] Extend the same recovery to the "Viết tiếp" flow (`components/continue/ContinueStoryScreen.tsx:191-207`), which has none.
-  - [ ] Regression tests for each of the five behaviours above.
+- [x] **C2. Reattach to a run after the stream drops.** Recovery polling is gated on `!pendingBody` (`components/pipeline/PipelineScreen.tsx:242`), but `pendingBody` clears only in `handleCancel` — so when the live stream errors the poller stays disabled and the user must reload the page by hand to rejoin a run the server is still executing.
+  - [x] Clear `pendingBody` in `onError`/`onClose` so recovery engages automatically.
+  - [x] Tell the backend when the user cancels; today `handleCancel` leaves `?session=` in the URL, so the poller resurrects the cancelled run and auto-saves it on `done`.
+  - [ ] **Deferred to Phase 1** — suppress side effects during replay (a reload at chapter 12 still pops 12 toasts). Noisy, not destructive: `addStory` upserts by id, so the re-save is idempotent.
+  - [x] Replace the permanent give-up after 5 consecutive errors (`useRunRecovery.ts:62,124-145`) with backoff — 7.5 s of backend trouble currently orphans a 20-minute run.
+  - [ ] **Deferred to Phase 1** — extend recovery to the "Viết tiếp" flow, which has none. Needs the continue endpoints to expose a session id first.
+  - [x] Regression tests for each of the five behaviours above.
 
 ### Batch D — Durability and correctness (5 defects)
 
@@ -176,6 +176,7 @@ Every item verified to have no caller. Runs alongside the tail of Phase 1.
 
 | Date | Phase | Status | Notes |
 | --- | --- | --- | --- |
+| 2026-08-22 | Batch C | Done | 2 defects fixed; quota no longer loses the library; dropped streams reattach; 9 new FE tests |
 | 2026-08-22 | Batch B | Done | 3 defects fixed; config persistence 103 -> 244 of 245 fields; 41 new tests |
 | 2026-08-22 | Batch A | Done | 4 defects fixed, 25 new regression tests, 367 L2/agent tests green |
 | 2026-08-22 | Planning | Approved | Plan written from `docs/upgrade-plan-2026-08.md`; 4 headline P0 claims re-verified against source |

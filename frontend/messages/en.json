@@ -654,6 +654,8 @@
     "save_success": "Saved to library",
     "save_failed_empty": "No story to save yet",
     "save_failed_full": "Library cap reached ({max})",
+    "save_failed_quota": "Browser storage is full — nothing was saved. Delete some older stories and try again.",
+    "save_failed_storage": "Could not write to browser storage — this story was not saved.",
     "stage": {
       "planning": "Sketching setting…",
       "characters": "Building characters…",
