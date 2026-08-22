@@ -48,6 +48,12 @@ class GenerationMixin:
 
         ``list_key`` is only meaningful when ``expect="dict"``.
         """
+        # One LLM-driven repair pass per generate_json call, not per parse
+        # attempt. Without this the shape-mismatch retry below got its own
+        # repair budget, so a single generate_json could traverse the whole
+        # fallback chain four times before raising.
+        repair_budget = {"remaining": 1}
+
         result = self._parse_json_with_repair(
             system_prompt,
             user_prompt,
@@ -55,6 +61,7 @@ class GenerationMixin:
             max_tokens,
             model_tier,
             model,
+            repair_budget,
         )
 
         if expect is None:
@@ -83,6 +90,7 @@ class GenerationMixin:
             max_tokens,
             model_tier,
             model,
+            repair_budget,
         )
         coerced, ok = _coerce_to_shape(retry_result, expect, list_key)
         if ok:
@@ -102,8 +110,16 @@ class GenerationMixin:
         max_tokens: Optional[int],
         model_tier: str,
         model: Optional[str],
+        repair_budget: Optional[dict] = None,
     ):
-        """Run the LLM and parse JSON with the existing 3-attempt repair flow."""
+        """Run the LLM and parse JSON with the existing 3-attempt repair flow.
+
+        ``repair_budget`` is a shared ``{"remaining": n}`` counter that bounds
+        how many LLM-driven repair calls the whole ``generate_json`` may spend.
+        Omitting it keeps the historical one-shot budget for direct callers.
+        """
+        if repair_budget is None:
+            repair_budget = {"remaining": 1}
         text = self._generate_json_text(
             system_prompt,
             user_prompt,
@@ -132,6 +148,13 @@ class GenerationMixin:
                 f"JSON parse failed: LLM returned near-empty response "
                 f"({len(text)} chars): {text!r}"
             )
+        if repair_budget["remaining"] <= 0:
+            preview = text[:800]
+            raise ValueError(
+                f"JSON parse failed and the LLM repair budget is spent. "
+                f"Last text ({len(text)} chars, showing first 800): {preview!r}"
+            )
+        repair_budget["remaining"] -= 1
         logger.warning("JSON repair failed, asking LLM to fix")
         fixed = self.generate(
             system_prompt="Fix this malformed JSON. Return ONLY valid JSON, no explanation.",

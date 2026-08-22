@@ -128,13 +128,13 @@ Nothing else in this sprint can be judged until spend is counted correctly.
 - [x] Memoise scene decomposition per outline. Both the sequential write path and the enhancement-context builder decomposed the same chapter under the same flag. Uses a per-outline lock so callers for one chapter collapse into a single call while different chapters still decompose in parallel (measured: 4 chapters in 0.27s, not 1.0s).
 - [ ] Re-enhance only the failing scene on contract/voice retry, not the whole chapter pipeline.
 - [ ] Replace whole-story regeneration on quality-gate failure with the existing targeted `SmartRevisionService`.
-- [ ] Cap `generate_json` repair at one pass on the cheap tier (it stacks up to 4 full chain traversals today).
+- [x] Cap `generate_json` repair at one pass on the cheap tier (it stacks up to 4 full chain traversals today). — one shared repair budget per `generate_json`, so the shape-mismatch retry no longer gets its own.
 ### Batch G — Model routing (done)
 
 - [x] Route the simulator's low-stakes calls to the cheap tier: drama evaluation (read as a single score) and reaction posts (only ever seen truncated as recent-posts filler). Agent turns and escalation events stay on the primary model — those are the dramatic content itself. Reversible via `l2_cheap_low_stakes_calls`.
 - [x] Cap the 8-agent panel's replies at `l2_agent_review_max_tokens` (1200). Each returns a small `{score, issues[], suggestions[]}` object and had no output cap, so it was billed against the model's full output budget. A source-level test keeps any new panel call from shipping uncapped.
 - [x] Expose `l2_cheap_agent_panel`, **defaulted off**. Unlike the simulator's filler, the panel's critique is what SmartRevisionService rewrites from, so moving it to a weaker model is a quality decision for the CEO rather than an automatic saving.
-- [ ] Reorder the fallback chain: cheap model first in the cheap tier, primary model always present as last resort.
+- [x] Reorder the fallback chain: cheap model first in the cheap tier, primary model always present as last resort. — the `cheap_model_name is None` guard had excluded the primary from cheap-tier chains entirely.
 ### Batch H — Parallelism (in progress)
 
 - [x] Parallelise character-state extraction: one cheap call per character per chapter, previously issued strictly one after another against the same excerpt. Prompt unchanged — this is a scheduling fix, so there is no quality risk. Results are merged on the calling thread and returned in a deterministic order rather than completion order.
@@ -149,7 +149,7 @@ Nothing else in this sprint can be judged until spend is counted correctly.
 - [x] Cap auto-discovered round-robin models at `max_discovered_models_per_key` (3). Explicitly configured `fallback_models` are untouched — capping the whole chain would have dropped exactly the fallbacks the operator chose on purpose.
 - [x] Add `max_total_call_seconds` (1800, 0 disables): an absolute ceiling on one `generate()` across its chain, per-entry retries and backoff sleeps.
 - [x] Stop clearing the global 429 cooldowns between chain passes. Only expired entries are dropped now, and the all-keys-cooling release valve retries without erasing state other threads are still routing by.
-- [ ] Disable cache reads on quality-retry paths so retries can converge.
+- [x] Disable cache reads on quality-retry paths so retries can converge. — `no_cache_reads()` ContextVar, applied to both L1 contract-retry rewrites. Writes stay on.
 
 ---
 

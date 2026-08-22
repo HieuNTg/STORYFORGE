@@ -1,5 +1,6 @@
 """LLMClient — singleton LLM caller with retry and cache."""
 
+import contextlib
 import contextvars
 import logging
 import random
@@ -340,6 +341,35 @@ def _record_trace_call(
                 logger.debug("Usage sidecar hook failed: %s", ue)
     except Exception as e:
         logger.debug("Trace record failed: %s", e)
+
+
+_cache_reads_enabled: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "storyforge_llm_cache_reads", default=True
+)
+
+
+@contextlib.contextmanager
+def no_cache_reads():
+    """Suppress LLM cache *reads* for the duration of the block.
+
+    Quality-gate retries re-issue a call whose prompt may be byte-identical to
+    the one that just failed — a rebuilt contract that failed to rebuild, or a
+    revision hint that lands outside the prompt. The cache then serves the
+    rejected body straight back, so every retry is a guaranteed no-op that
+    still burns the retry budget. Writes stay on: the fresh result is worth
+    caching, only reading the stale one is wrong.
+
+    Scoped through a ContextVar, so concurrent chapters and async tasks are
+    unaffected by one chapter entering a retry. The flip side is that a plain
+    ThreadPoolExecutor does not copy the context, so calls a retry hands to a
+    nested pool still read the cache — that covers validators and sub-calls,
+    where a hit is harmless, not the chapter body being rewritten.
+    """
+    token = _cache_reads_enabled.set(False)
+    try:
+        yield
+    finally:
+        _cache_reads_enabled.reset(token)
 
 
 @dataclass
@@ -793,9 +823,12 @@ class LLMClient(StreamingMixin, GenerationMixin):
                 max_tokens=max_tokens or config.llm.max_tokens,
                 model_tier=model_tier,
             )
-            cached = cache.get(**cache_params)
-            if cached is not None and cached.strip():
-                return cached
+            if _cache_reads_enabled.get():
+                cached = cache.get(**cache_params)
+                if cached is not None and cached.strip():
+                    return cached
+            else:
+                logger.debug("Cache read suppressed (retry path): %s", effective_model)
 
         chain = self._build_fallback_chain(config, model_tier, model_override=model)
         eff_max_tokens = max_tokens or config.llm.max_tokens
@@ -1318,6 +1351,27 @@ class LLMClient(StreamingMixin, GenerationMixin):
         if model_tier != "cheap" and config.llm.cheap_model:
             provider, model = self._get_cheap_client()
             self._add_to_chain(chain, provider, model, f"cheap:{model}")
+
+        # Cheap tier: the primary model is the last resort, not an exclusion.
+        # It goes after the cheap model and the discovered round-robin entries so
+        # cost ordering holds, but a dead cheap provider must not fail the call
+        # outright while the configured primary is healthy.
+        if cheap_model_name is not None and api_key_entries:
+            already = {c["model"] for c in chain}
+            if primary_model not in already:
+                entry = api_key_entries[0]
+                base_url, api_key = entry["base_url"], entry["api_key"]
+                if _model_matches_provider(
+                    primary_model, self._detect_provider_type(base_url)
+                ):
+                    prov = self._get_or_create_provider(base_url, api_key)
+                    self._add_to_chain(
+                        chain,
+                        prov,
+                        primary_model,
+                        f"last-resort:{primary_model}",
+                        api_key,
+                    )
 
         # Configured fallback models
         existing_combos = {(c["model"], c.get("_api_key", "")) for c in chain}
