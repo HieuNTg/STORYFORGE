@@ -121,9 +121,12 @@ Nothing else in this sprint can be judged until spend is counted correctly.
 
 - [x] Count tokens from provider responses instead of `len(text)//4`. Each provider now fills a per-call `usage_out` dict (no shared state between concurrent chapters); the estimator is used only as a fallback and now delegates to the Vietnamese-aware `token_counter` — measured 481 tokens where the old heuristic said 210 on the same sample, i.e. it ran 56% low.
 - [x] Bring the streaming path — the chapter body, the single largest consumer — into cost tracking and the wallet. Streams accumulate their output and are costed on completion; a budget breach propagates, while a telemetry failure never costs the user their story.
-- [ ] Cache the voice engine process-wide (rebuilt per chapter and per retry today, ~50 redundant calls for identical output).
+### Batch F — Remove repeated work (in progress)
+
+- [x] Memoise the voice engine per draft, under a lock. Five call sites rebuilt it once per chapter and again per retry — roughly 50 identical cheap calls on a 10-chapter, 5-character story. A failed build is remembered too, so it is not retried per call site.
+- [x] Fix the same shape in `_theme_profile`: read-then-assign let concurrently enhanced chapters each start their own `extract_theme`.
+- [x] Memoise scene decomposition per outline. Both the sequential write path and the enhancement-context builder decomposed the same chapter under the same flag. Uses a per-outline lock so callers for one chapter collapse into a single call while different chapters still decompose in parallel (measured: 4 chapters in 0.27s, not 1.0s).
 - [ ] Re-enhance only the failing scene on contract/voice retry, not the whole chapter pipeline.
-- [ ] Remove the duplicate per-chapter scene decomposition on the sequential path.
 - [ ] Replace whole-story regeneration on quality-gate failure with the existing targeted `SmartRevisionService`.
 - [ ] Cap `generate_json` repair at one pass on the cheap tier (it stacks up to 4 full chain traversals today).
 - [ ] Move the simulator's ~100 calls to the cheap tier where output is a scalar or filler; same for the 8-agent panel returning small JSON.

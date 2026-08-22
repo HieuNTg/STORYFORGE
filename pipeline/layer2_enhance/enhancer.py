@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import threading
 import time
 from typing import Optional
 from models.schemas import (
@@ -144,18 +145,83 @@ Trả về JSON: {{"issues": ["issue1", "issue2"]}} hoặc {{"issues": []}} nế
         return ""
 
 
+# One engine per draft. Building it costs a cheap LLM call per character when
+# the draft carries no voice_profiles, and the five call sites below ran it
+# once per chapter and again per retry — roughly 50 identical calls on a
+# 10-chapter, 5-character story, all producing the same fingerprints.
+_VOICE_ENGINE_LOCK = threading.Lock()
+_VOICE_ENGINE_ATTR = "_voice_engine_cache"
+_VOICE_ENGINE_FAILED = object()
+
+
 def _build_voice_engine(draft):
-    """Build VoiceFingerprintEngine from draft. Returns None on failure (non-fatal)."""
+    """Build (or reuse) the VoiceFingerprintEngine for `draft`.
+
+    Returns None on failure, which stays non-fatal. The result is memoised on
+    the draft under a lock, so the chapters running concurrently in
+    `enhance_story_async` cannot each start their own build.
+    """
     if draft is None:
         return None
-    try:
-        from pipeline.layer2_enhance.voice_fingerprint import VoiceFingerprintEngine
 
-        engine = VoiceFingerprintEngine()
-        engine.build_from_draft(draft)
-        return engine
-    except Exception:
+    cached = getattr(draft, _VOICE_ENGINE_ATTR, None)
+    if cached is _VOICE_ENGINE_FAILED:
         return None
+    if cached is not None:
+        return cached
+
+    with _VOICE_ENGINE_LOCK:
+        # Re-check: another chapter may have built it while we waited.
+        cached = getattr(draft, _VOICE_ENGINE_ATTR, None)
+        if cached is _VOICE_ENGINE_FAILED:
+            return None
+        if cached is not None:
+            return cached
+        try:
+            from pipeline.layer2_enhance.voice_fingerprint import (
+                VoiceFingerprintEngine,
+            )
+
+            engine = VoiceFingerprintEngine()
+            engine.build_from_draft(draft)
+        except Exception as exc:
+            logger.warning("Voice engine build failed (non-fatal): %s", exc)
+            engine = None
+
+        try:
+            setattr(draft, _VOICE_ENGINE_ATTR, engine or _VOICE_ENGINE_FAILED)
+        except Exception:  # pragma: no cover — draft refuses the attribute
+            pass
+        return engine
+
+
+_THEME_PROFILE_LOCK = threading.Lock()
+
+
+def _get_theme_profile(draft):
+    """Extract (or reuse) the draft's theme profile.
+
+    Same shape as _build_voice_engine: chapters are enhanced concurrently, and
+    the previous read-then-assign let every one of them race into its own
+    extract_theme call before any of them stored a result.
+    """
+    if draft is None:
+        return None
+    cached = getattr(draft, "_theme_profile", None)
+    if cached is not None:
+        return cached
+    with _THEME_PROFILE_LOCK:
+        cached = getattr(draft, "_theme_profile", None)
+        if cached is not None:
+            return cached
+        from pipeline.layer2_enhance.thematic_tracker import ThematicTracker
+
+        profile = ThematicTracker().extract_theme(draft)
+        try:
+            draft._theme_profile = profile
+        except Exception:  # pragma: no cover
+            pass
+        return profile
 
 
 def _build_knowledge_constraints(sim_result, draft) -> str:
@@ -325,11 +391,7 @@ class StoryEnhancer:
             # Build thematic guidance if theme profile is attached to draft
             if draft:
                 try:
-                    _theme = getattr(draft, "_theme_profile", None)
-                    if _theme is None:
-                        _tracker = ThematicTracker()
-                        _theme = _tracker.extract_theme(draft)
-                        draft._theme_profile = _theme  # cache for subsequent chapters
+                    _theme = _get_theme_profile(draft)
                     if _theme and _theme.central_theme:
                         _tracker = ThematicTracker()
                         _ch_score = _tracker.score_chapter_theme(chapter, _theme)
