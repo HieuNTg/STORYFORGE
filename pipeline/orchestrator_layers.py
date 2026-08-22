@@ -65,6 +65,23 @@ def _get_sync_engine():
     return _sync_engine
 
 
+# Errors that mean the code is wrong, not that a provider misbehaved. A missing
+# config field (AttributeError) once disabled the entire craft-critique lane for
+# every default run while logging one indistinguishable WARN line, so these are
+# reported separately and with a traceback.
+_PROGRAMMING_ERRORS = (AttributeError, TypeError, NameError, ImportError, KeyError)
+
+
+def _report_agent_panel_failure(layer: int, exc: Exception, log) -> None:
+    """Log an agent-panel failure, loudly when it looks like a code defect."""
+    if isinstance(exc, _PROGRAMMING_ERRORS):
+        log(f"[AGENTS] ERROR Phòng ban Layer {layer} lỗi mã nguồn: {exc!r}")
+        logger.exception("Agent review Layer %s failed with a code defect", layer)
+    else:
+        log(f"[AGENTS] WARN Phòng ban gặp lỗi: {exc}")
+        logger.warning("Agent review Layer %s lỗi: %s", layer, exc)
+
+
 def _persist_handoff_to_db(
     story_id: str,
     envelope_dict: dict,
@@ -802,8 +819,7 @@ async def run_full_pipeline(
                 )
                 self.output.reviews.extend(reviews)
             except Exception as e:
-                _log(f"[AGENTS] WARN Phòng ban gặp lỗi: {e}")
-                logger.warning(f"Agent review Layer 1 lỗi: {e}")
+                _report_agent_panel_failure(1, e, _log)
     except Exception as e:
         self.output.status = "error"
         _log(f"Layer 1 thất bại: {str(e)}")
@@ -1431,8 +1447,7 @@ async def run_full_pipeline(
                 )
                 self.output.reviews.extend(reviews)
             except Exception as e:
-                _log(f"[AGENTS] WARN Phòng ban gặp lỗi: {e}")
-                logger.warning(f"Agent review Layer 2 lỗi: {e}")
+                _report_agent_panel_failure(2, e, _log)
 
         # Smart chapter revision: auto-fix weak chapters using agent reviews
         if enable_scoring and self.config.pipeline.enable_smart_revision:
@@ -1467,9 +1482,15 @@ async def run_full_pipeline(
             except Exception as e:
                 logger.warning(f"Smart revision failed: {e}")
     except Exception as e:
-        # Layer 2 failure is non-fatal: fall back to the original draft
-        logger.warning(f"Layer 2 thất bại, dùng bản thảo gốc: {e}")
-        _log(f"Layer 2 lỗi ({str(e)}), tiếp tục với bản thảo gốc.")
+        # Layer 2 failure is non-fatal: fall back to the original draft.
+        # L2 is the product's differentiator, so this degradation is reported
+        # as an error the reader can see, not a line lost in the log stream —
+        # a systematic L2 outage would otherwise ship unenhanced prose forever.
+        logger.exception("Layer 2 thất bại, dùng bản thảo gốc")
+        _log(
+            "[L2] ERROR Layer 2 không hoàn tất — truyện giữ nguyên bản thảo gốc, "
+            f"chưa được tăng cường kịch tính. Lý do: {e}"
+        )
         enhanced = EnhancedStory(
             title=draft.title,
             genre=draft.genre,

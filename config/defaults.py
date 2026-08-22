@@ -288,6 +288,11 @@ class PipelineConfig:
     # Multi-agent debate
     enable_agent_debate: bool = True
     max_debate_rounds: int = 3
+    # "full" = every active agent debates; "lite" = editor/drama/continuity only,
+    # and round 3 is skipped. agent_registry reads this on every layer-2 review
+    # cycle; without the field the read raised AttributeError and the whole
+    # craft-critique lane was discarded.
+    debate_mode: str = "full"
 
     # Smart chapter revision (auto-fix weak chapters using agent reviews)
     enable_smart_revision: bool = True

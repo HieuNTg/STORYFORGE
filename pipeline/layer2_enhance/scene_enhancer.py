@@ -408,13 +408,14 @@ class SceneEnhancer:
             stitched = "\n\n".join(
                 strip_llm_scaffolding(s.get("content", "")) for s in scenes
             )
-            return Chapter(
-                chapter_number=chapter.chapter_number,
-                title=chapter.title,
-                content=stitched,
-                word_count=count_words(stitched),
-                summary=chapter.summary,
-                enhancement_changelog=chapter.enhancement_changelog,
+            # model_copy, not a fresh Chapter(): listing fields by hand silently
+            # dropped `contract`, which left the post-L2 contract gate with
+            # nothing to check on any chapter while it reported zero violations.
+            return chapter.model_copy(
+                update={
+                    "content": stitched,
+                    "word_count": count_words(stitched),
+                }
             )
 
         # Build voice enforcement block (prepend + append for recency-bias compliance)
@@ -467,13 +468,13 @@ class SceneEnhancer:
                 enhanced_parts.append(strip_llm_scaffolding(scene.get("content", "")))
 
         stitched = "\n\n".join(p for p in enhanced_parts if p)
-        return Chapter(
-            chapter_number=chapter.chapter_number,
-            title=chapter.title,
-            content=stitched,
-            word_count=count_words(stitched),
-            summary=chapter.summary,
-            enhancement_changelog=chapter.enhancement_changelog,
+        # See the note above: preserve every field the caller set, not just the
+        # six that used to be listed here.
+        return chapter.model_copy(
+            update={
+                "content": stitched,
+                "word_count": count_words(stitched),
+            }
         )
 
     def _enhance_scenes_parallel(

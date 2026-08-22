@@ -227,7 +227,12 @@ def test_apply_contract_gate_skips_chapters_without_contract():
     enhanced = MagicMock()
     enhanced.chapters = [_ch(num=1, content="x")]  # no contract
     stats = apply_contract_gate(llm, enhanced, None, enabled=True)
-    assert stats["chapters_checked"] == 1
+    # chapters_checked counts chapters actually verified. It used to count every
+    # chapter including the skipped ones, so a gate that inspected nothing still
+    # reported a full pass.
+    assert stats["chapters_checked"] == 0
+    assert stats["chapters_skipped_no_contract"] == 1
+    assert stats["chapters_total"] == 1
     assert stats["rewrites"] == 0
     llm.generate.assert_not_called()
 

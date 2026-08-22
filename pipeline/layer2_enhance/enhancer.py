@@ -533,7 +533,15 @@ class StoryEnhancer:
                 contract.drama_target,
             )
 
-            if not validation.passed and retry_enabled and retry_max > 0:
+            if getattr(validation, "error", False):
+                # The judge call failed, the chapter did not. Re-enhancing here
+                # would spend ~12-15 LLM calls answering a transient 429.
+                logger.warning(
+                    "[CONTRACT] ch%d validation errored (%s) — skipping remediation",
+                    ch_num,
+                    validation.reason,
+                )
+            elif not validation.passed and retry_enabled and retry_max > 0:
                 hint = build_retry_hint(validation)
                 logger.info(
                     "[CONTRACT] ch%d retry with hint: %s",
@@ -654,7 +662,17 @@ class StoryEnhancer:
                 validation.drifted_characters,
             )
 
-            if not validation.passed and retry_enabled and retry_max > 0:
+            if getattr(validation, "error", False):
+                # Judge-call failure, not voice drift. Neither the refine pass
+                # nor the binary revert below may fire on this: a compliance of
+                # 0.0 from an errored call sits under every revert floor and
+                # would discard the enhanced dialogue wholesale.
+                logger.warning(
+                    "[VOICE] ch%d validation errored (%s) — skipping remediation",
+                    ch_num,
+                    validation.reason,
+                )
+            elif not validation.passed and retry_enabled and retry_max > 0:
                 hint = build_voice_retry_hint(validation)
                 logger.info(
                     "[VOICE] ch%d refine with hint: %s",
@@ -695,8 +713,13 @@ class StoryEnhancer:
                 except Exception as _re:
                     logger.warning(f"Voice refine ch{ch_num} failed: {_re}")
 
-            # Last-resort binary revert — only catastrophic drift
-            if not validation.passed and validation.overall_compliance < revert_floor:
+            # Last-resort binary revert — only catastrophic drift, and never on
+            # an errored validation (see above).
+            if (
+                not validation.passed
+                and not getattr(validation, "error", False)
+                and validation.overall_compliance < revert_floor
+            ):
                 try:
                     from pipeline.layer2_enhance.voice_fingerprint import (
                         VoiceFingerprintEngine,
@@ -1396,12 +1419,11 @@ class StoryEnhancer:
                             max_tokens=8192,
                             model=self._layer_model,
                         )
-                        return ch_num, Chapter(
-                            chapter_number=ch_num,
-                            title=enhanced.chapters[idx].title,
-                            content=rewritten,
-                            word_count=count_words(rewritten),
-                            summary=enhanced.chapters[idx].summary,
+                        return ch_num, enhanced.chapters[idx].model_copy(
+                            update={
+                                "content": rewritten,
+                                "word_count": count_words(rewritten),
+                            }
                         )
                     except Exception as e:
                         if attempt < _retry_max:
@@ -1612,17 +1634,32 @@ class StoryEnhancer:
                 _draft_threads = _env.threads(draft)
                 _log("📋 Đang kiểm tra hợp đồng chương...")
                 stats = apply_contract_gate(
-                    self.llm, enhanced, _draft_threads, enabled=True, draft=draft
+                    self.llm,
+                    enhanced,
+                    _draft_threads,
+                    enabled=True,
+                    draft=draft,
+                    voice_contracts=getattr(sim_result, "voice_contracts", None),
                 )
+                _skipped = stats.get("chapters_skipped_no_contract", 0)
                 if stats.get("rewrites", 0) > 0:
                     _log(
                         f"🔧 Contract gate: {stats['rewrites']} chương viết lại "
                         f"(tổng {stats.get('total_failures', 0)} vi phạm)"
                     )
+                elif stats.get("chapters_checked", 0) == 0:
+                    # Never say "pass" when nothing was inspected.
+                    _log(
+                        f"⚠️ Contract gate: không chương nào có hợp đồng để kiểm "
+                        f"({_skipped} chương bị bỏ qua)"
+                    )
                 else:
                     _log(
-                        f"✅ Contract gate: {stats.get('total_failures', 0)} vi phạm, không cần viết lại"
+                        f"✅ Contract gate: {stats.get('total_failures', 0)} vi phạm "
+                        f"trên {stats['chapters_checked']} chương, không cần viết lại"
                     )
+                if _skipped and stats.get("chapters_checked", 0):
+                    _log(f"⚠️ Contract gate: {_skipped} chương thiếu hợp đồng")
             except Exception as e:
                 logger.warning(f"Contract gate failed (non-fatal): {e}")
 
