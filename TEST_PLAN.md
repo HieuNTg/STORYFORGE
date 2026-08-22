@@ -114,24 +114,41 @@ mocking only at the `LLMClient` boundary — no provider calls, no tokens spent.
       report `false` from a stale getattr default that contradicted
       `defaults.py`.
 
-### 3.5 Library quota failure is honest (C1)
-- [ ] In DevTools, fill localStorage close to quota, then finish a run.
-- [ ] Confirm an error toast appears (not a success toast) and the existing
-      library survives a reload.
+### 3.5 Library quota failure is honest (C1) — **VERIFIED IN REAL CHROME**
+The browser-specific unknown was what Chrome actually throws, since jsdom's
+localStorage is a stand-in that cannot reach a real quota.
+- [x] Filled a real origin's localStorage to the ceiling (~4.9MB).
+- [x] The next write threw a genuine `DOMException`, `name:
+      "QuotaExceededError"`, `code: 22`.
+- [x] The shipped `isQuotaError()` predicate classifies it correctly.
+- [x] The six jsdom tests then cover the consequences: no throw escapes
+      `addStory`, the failure is reported synchronously, and it clears once a
+      write succeeds.
 
-### 3.6 A dropped stream reattaches (C2)
-- [ ] Start a run, kill the network briefly (DevTools offline), restore it.
-- [ ] Confirm the UI reattaches without a manual page reload.
-- [ ] Press Cancel on another run and confirm it does **not** come back and
-      auto-save itself.
+### 3.6 A dropped stream reattaches (C2) — **NOT VERIFIED LIVE**
+Covered by unit tests (`useRunRecovery.backoff.test.ts`: keeps polling past the
+old give-up threshold, recovers when the backend returns, still stops on 404),
+and the handler change is a two-line gate release. What is *not* proven is the
+end-to-end reattach in a browser, because it needs a real generation run to drop
+mid-flight.
+- **Blocked by:** this Chrome profile consistently reached a different Next.js
+  app (a Supabase Studio 404) on port 3001, while `curl` to the same URL served
+  StoryForge correctly. Diagnosed as environmental — not a StoryForge defect and
+  not reproducible outside the browser. Worth one manual pass on the CEO's own
+  browser session.
 
-### 3.7 Comic pages stay aligned when a panel fails (D4)
-- [ ] Generate a comic chapter with a provider that occasionally drops a panel
-      (or force one failure).
-- [ ] Confirm the failed panel renders as a placeholder in its own cell and every
-      later panel is still in the right cell, with dialogue on the right art.
-- **Why manual:** this is a visual defect. The unit test proves list alignment;
-  only looking at the page proves the balloons land correctly.
+### 3.7 Comic pages stay aligned when a panel fails (D4) — **VERIFIED VISUALLY**
+Done locally with synthetic panels, so no image provider was needed. Six
+numbered panels across two pages, panel 3 forced to fail, composed twice — once
+through the old drop-the-failure path and once through the fix — and both pages
+inspected.
+- [x] **Old behaviour reproduced:** page 2 cell 1 shows panel 5's art under the
+      balloon "panel BỐN", cell 2 shows panel 6's art under "panel NĂM", cell 3
+      is empty under "panel SÁU". Every panel from the failure onward carries
+      the wrong dialogue.
+- [x] **Fixed behaviour:** page 1 keeps panels 1 and 2 correct and renders the
+      failed panel 3 as a placeholder *in its own cell*; page 2 shows panels 4,
+      5 and 6 each under their own line. The failure is contained to one cell.
 
 ### 3.8 Resume refuses a half-written story (D1)
 - [x] Unit-covered by `tests/test_resume_completeness.py` (7/20 chapters →
@@ -186,4 +203,6 @@ Recorded so review does not mistake them for oversights. Each is tracked in
 | §3.3 env overrides | PASS | leak-into-file hazard found and fixed |
 | §3.4 settings persistence | PASS | verified live: 243 fields on disk, was 95 |
 | §3.9 server boot | PASS | after fixing two defects found during the run |
-| §3.5-3.7 browser/visual | NOT RUN | need a browser session and a real image provider |
+| §3.5 quota (real Chrome) | PASS | QuotaExceededError code 22, detector correct |
+| §3.6 dropped stream | UNIT ONLY | live reattach blocked by a browser/environment issue |
+| §3.7 comic alignment | PASS | verified visually, bug reproduced then fixed |
