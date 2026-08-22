@@ -236,9 +236,21 @@ def _get_provider(base_url: str, api_key: str):
 
 
 def _estimate_tokens(text: str) -> int:
+    """Token estimate, used only when a provider reports no usage of its own.
+
+    Delegates to services.token_counter, which uses tiktoken when available and
+    otherwise accounts for Vietnamese character density. The previous
+    len(text)//4 ran roughly 45% low on Vietnamese prose, so every cost cap and
+    usage figure derived from it was correspondingly wrong.
+    """
     if not text:
         return 0
-    return max(1, len(text) // 4)
+    try:
+        from services.token_counter import estimate_tokens
+
+        return max(1, int(estimate_tokens(text)))
+    except Exception:  # pragma: no cover - defensive
+        return max(1, len(text) // 4)
 
 
 def _record_trace_call(
@@ -250,8 +262,13 @@ def _record_trace_call(
     duration_ms: int,
     success: bool,
     error: str = "",
+    usage: dict | None = None,
 ) -> None:
-    """Append LLMCall into active PipelineTrace. No-op if no trace is active."""
+    """Append LLMCall into active PipelineTrace. No-op if no trace is active.
+
+    `usage` carries the provider's own token counts when it reported them;
+    otherwise the counts fall back to an estimate.
+    """
     try:
         from services.trace_context import get_trace, get_chapter, get_module, LLMCall
         from services.llm_pricing import compute_cost
@@ -266,8 +283,12 @@ def _record_trace_call(
         prompt_text = "".join(
             (m.get("content") or "") for m in messages if isinstance(m, dict)
         )
-        prompt_tokens = _estimate_tokens(prompt_text)
-        completion_tokens = _estimate_tokens(result) if success else 0
+        usage = usage or {}
+        prompt_tokens = int(usage.get("prompt_tokens") or _estimate_tokens(prompt_text))
+        completion_tokens = int(
+            usage.get("completion_tokens")
+            or (_estimate_tokens(result) if success else 0)
+        )
         total = prompt_tokens + completion_tokens
         cost = compute_cost(model, prompt_tokens, completion_tokens)
         call = LLMCall(
@@ -1423,10 +1444,18 @@ class LLMClient(StreamingMixin, GenerationMixin):
 
         def _call():
             start_time = time.monotonic()
+            # Fresh per call: nothing is shared between concurrent chapters.
+            usage: dict = {}
             try:
-                result = provider.complete(
-                    messages, model, temperature, max_tokens, json_mode
-                )
+                try:
+                    result = provider.complete(
+                        messages, model, temperature, max_tokens, json_mode, usage
+                    )
+                except TypeError:
+                    # A provider (or a test double) predating usage_out.
+                    result = provider.complete(
+                        messages, model, temperature, max_tokens, json_mode
+                    )
                 latency_ms = (time.monotonic() - start_time) * 1000
 
                 # Track latency for fallback decisions
@@ -1443,6 +1472,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
                     duration_ms=int(latency_ms),
                     success=True,
                     error="",
+                    usage=usage,
                 )
                 # Charge the global wallet (P0-7). Raises LLMBudgetExceededError
                 # if a configured cap is exceeded — propagates to abort the run.
@@ -1454,8 +1484,15 @@ class LLMClient(StreamingMixin, GenerationMixin):
                         for m in messages
                         if isinstance(m, dict)
                     )
-                    p_tokens = _estimate_tokens(prompt_text)
-                    c_tokens = _estimate_tokens(result)
+                    # Prefer the provider's own counts; estimate only when it
+                    # reports none. The old estimate (len//4) ran ~45% low on
+                    # Vietnamese prose, so every cap bounded the wrong number.
+                    p_tokens = int(
+                        usage.get("prompt_tokens") or _estimate_tokens(prompt_text)
+                    )
+                    c_tokens = int(
+                        usage.get("completion_tokens") or _estimate_tokens(result)
+                    )
                     cost = compute_cost(model, p_tokens, c_tokens)
                     LLMClient.charge_wallet(cost, p_tokens + c_tokens)
                 except LLMBudgetExceededError:

@@ -86,6 +86,7 @@ class OpenAIProvider:
         temperature: float,
         max_tokens: int,
         json_mode: bool = False,
+        usage_out: dict | None = None,
     ) -> str:
         kwargs = {
             "model": model,
@@ -97,6 +98,9 @@ class OpenAIProvider:
             kwargs["response_format"] = {"type": "json_object"}
         response = self.client.chat.completions.create(**kwargs)
         self._extract_rate_limits(response)
+        from services.llm.providers.base import capture_usage
+
+        capture_usage(usage_out, getattr(response, "usage", None))
         if not response.choices:
             raise RuntimeError(
                 f"LLM returned empty choices (model={model}, finish_reason=unknown)"

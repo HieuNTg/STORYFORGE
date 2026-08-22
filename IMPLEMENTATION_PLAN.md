@@ -113,10 +113,14 @@ The headline finding: the craft-critique lane advertised as "13 specialized agen
 
 ## Sprint 2-3 — Phase 1: LLM cost and wall-clock
 
-Target: **−50% cost, −40% wall-clock** on a 10-chapter run (currently 450-700 calls, 1200+ when the quality gate retries). Measured before and after with real provider usage counts, which requires the token-accounting fix below to land first.
+Target: **−50% cost, −40% wall-clock** on a 10-chapter run (currently 450-700 calls, 1200+ when the quality gate retries).
 
-- [ ] Count tokens from provider responses instead of `len(text)//4`, which under-counts Vietnamese by ~45% and makes every budget cap meaningless.
-- [ ] Bring the streaming path — the chapter body, the single largest consumer — into cost tracking and the wallet.
+### Batch E — Measurement (done)
+
+Nothing else in this sprint can be judged until spend is counted correctly.
+
+- [x] Count tokens from provider responses instead of `len(text)//4`. Each provider now fills a per-call `usage_out` dict (no shared state between concurrent chapters); the estimator is used only as a fallback and now delegates to the Vietnamese-aware `token_counter` — measured 481 tokens where the old heuristic said 210 on the same sample, i.e. it ran 56% low.
+- [x] Bring the streaming path — the chapter body, the single largest consumer — into cost tracking and the wallet. Streams accumulate their output and are costed on completion; a budget breach propagates, while a telemetry failure never costs the user their story.
 - [ ] Cache the voice engine process-wide (rebuilt per chapter and per retry today, ~50 redundant calls for identical output).
 - [ ] Re-enhance only the failing scene on contract/voice retry, not the whole chapter pipeline.
 - [ ] Remove the duplicate per-chapter scene decomposition on the sequential path.

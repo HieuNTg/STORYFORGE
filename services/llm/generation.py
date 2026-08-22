@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+import time
 from typing import Optional
 
 
@@ -265,6 +266,12 @@ class GenerationMixin:
                 yield from p.stream(messages, m, effective_temp, eff_max_tokens)
 
             entry_yielded = 0
+            # Accumulate what we yield so the call can be costed on success.
+            # The streamed chapter body is the single largest token consumer in
+            # a run and was invisible to the wallet, the per-story usage sidecar
+            # and the trace — so budget caps could never fire on it.
+            streamed_parts: list[str] = []
+            stream_started = time.monotonic()
             try:
                 # Read from config: a reasoning model's time-to-first-token can
                 # exceed any fixed default, and a too-short ceiling throws away
@@ -283,9 +290,17 @@ class GenerationMixin:
                 ):
                     entry_yielded += 1
                     total_yielded += 1
+                    streamed_parts.append(chunk)
                     yield chunk
                 logger.info(
                     f"Stream success via {entry['label']} ({entry_yielded} chunks)"
+                )
+                self._account_for_stream(
+                    model=entry_model,
+                    label=entry.get("label", ""),
+                    messages=messages,
+                    text="".join(streamed_parts),
+                    duration_ms=int((time.monotonic() - stream_started) * 1000),
                 )
                 return
             except Exception as e:
@@ -328,6 +343,59 @@ class GenerationMixin:
         raise RuntimeError(
             f"All LLM providers failed (streaming). Errors: {'; '.join(all_errors)}"
         )
+
+
+    def _account_for_stream(
+        self, *, model: str, label: str, messages: list, text: str, duration_ms: int
+    ) -> None:
+        """Cost a completed stream: trace entry plus wallet charge.
+
+        Streaming responses rarely carry usage counts, so tokens are estimated —
+        but with the Vietnamese-aware estimator rather than len//4. Never raises
+        except for a budget cap, which must propagate so the run aborts.
+        """
+        from services.llm.client import (
+            LLMBudgetExceededError,
+            LLMClient,
+            _estimate_tokens,
+            _record_trace_call,
+        )
+
+        try:
+            prompt_text = "".join(
+                (m.get("content") or "") for m in messages if isinstance(m, dict)
+            )
+            prompt_tokens = _estimate_tokens(prompt_text)
+            completion_tokens = _estimate_tokens(text)
+        except Exception:  # pragma: no cover - defensive
+            return
+
+        try:
+            _record_trace_call(
+                model=model,
+                model_tier=(label or "").split(":", 1)[0] or "primary",
+                messages=messages,
+                result=text,
+                duration_ms=duration_ms,
+                success=True,
+                error="",
+                usage={
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                },
+            )
+        except Exception as exc:  # pragma: no cover - telemetry must not break output
+            logger.debug("Stream trace record failed: %s", exc)
+
+        try:
+            from services.llm_pricing import compute_cost
+
+            cost = compute_cost(model, prompt_tokens, completion_tokens)
+            LLMClient.charge_wallet(cost, prompt_tokens + completion_tokens)
+        except LLMBudgetExceededError:
+            raise
+        except Exception as exc:  # pragma: no cover
+            logger.debug("Stream wallet charge failed: %s", exc)
 
     def check_connection(self) -> tuple[bool, str]:
         """Check API backend connection using full fallback chain."""

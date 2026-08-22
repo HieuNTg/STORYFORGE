@@ -73,6 +73,7 @@ class AnthropicProvider:
         temperature: float,
         max_tokens: int,
         json_mode: bool = False,
+        usage_out: dict | None = None,
     ) -> str:
         system_msg, user_messages = self._split_messages(messages)
         kwargs: dict = {
@@ -85,6 +86,15 @@ class AnthropicProvider:
             kwargs["system"] = system_msg
         response = self.client.messages.create(**kwargs)
         self._extract_rate_limits(response)
+        from services.llm.providers.base import capture_usage
+
+        # Anthropic names them input_tokens / output_tokens.
+        capture_usage(
+            usage_out,
+            getattr(response, "usage", None),
+            prompt_attr="input_tokens",
+            completion_attr="output_tokens",
+        )
         content = response.content[0].text
         if not content or not content.strip():
             raise RuntimeError(f"LLM returned empty content (model={model})")

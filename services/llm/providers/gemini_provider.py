@@ -66,6 +66,7 @@ class GeminiProvider:
         temperature: float,
         max_tokens: int,
         json_mode: bool = False,
+        usage_out: dict | None = None,
     ) -> str:
         from google.genai import types
 
@@ -81,6 +82,15 @@ class GeminiProvider:
             model=model, contents=contents, config=config
         )
         self._extract_rate_limits(response)
+        from services.llm.providers.base import capture_usage
+
+        # Gemini reports counts on usage_metadata, with its own field names.
+        capture_usage(
+            usage_out,
+            getattr(response, "usage_metadata", None),
+            prompt_attr="prompt_token_count",
+            completion_attr="candidates_token_count",
+        )
         content = response.text
         if not content or not content.strip():
             raise RuntimeError(f"LLM returned empty content (model={model})")
