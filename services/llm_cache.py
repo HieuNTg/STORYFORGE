@@ -9,6 +9,19 @@ import time
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_DB_PATH = "data/llm_cache.db"
+
+
+def default_db_path() -> str:
+    """Where the SQLite cache lives, overridable via STORYFORGE_LLM_CACHE_DB.
+
+    Read per call rather than at import so the test suite can redirect it
+    regardless of import order. Without a redirect, tests share the developer's
+    real cache: they always wrote to it, and once the cache key was fixed so
+    reads actually hit, one test could be served another's response.
+    """
+    return os.environ.get("STORYFORGE_LLM_CACHE_DB") or _DEFAULT_DB_PATH
+
 # ---------------------------------------------------------------------------
 # Graceful redis import
 # ---------------------------------------------------------------------------
@@ -78,7 +91,7 @@ class LLMCache:
     deployments use RedisCache (or create_cache() factory which auto-selects).
     """
 
-    def __init__(self, db_path: str = "data/llm_cache.db", ttl_days: int = 7):
+    def __init__(self, db_path: str | None = None, ttl_days: int = 7):
         import sqlite3
 
         self._sqlite3 = sqlite3
@@ -86,6 +99,7 @@ class LLMCache:
             logger.warning(f"Cache TTL {ttl_days} days invalid, defaulting to 7")
             ttl_days = 7
         self._local = threading.local()
+        db_path = db_path or default_db_path()
         self.db_path = db_path
         self.ttl = ttl_days * 86400
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
@@ -302,7 +316,7 @@ class RedisCache:
 
 def create_cache(
     redis_url: str = "",
-    db_path: str = "data/llm_cache.db",
+    db_path: str | None = None,
     ttl_days: int = 7,
 ) -> "LLMCache | RedisCache":
     """Return a RedisCache if redis_url is set, otherwise an LLMCache (SQLite).
@@ -318,7 +332,7 @@ def create_cache(
         # Let RedisCache.__init__ raise on connectivity failure — no silent SQLite fallback
         # when Redis was explicitly configured.
         return RedisCache(redis_url=url, ttl_days=ttl_days)
-    return LLMCache(db_path=db_path, ttl_days=ttl_days)
+    return LLMCache(db_path=db_path or default_db_path(), ttl_days=ttl_days)
 
 
 # ---------------------------------------------------------------------------

@@ -15,6 +15,15 @@ from unittest.mock import MagicMock, patch
 # live proxy. Set before the config import on the next line.
 os.environ.setdefault("STORYFORGE_SKIP_DOTENV", "1")
 
+# Hermetic LLM cache: point it at a throwaway file. Tests have always written to
+# the developer's real data/llm_cache.db; now that the cache key is fixed and
+# reads actually hit, sharing it would let one test be served another's cached
+# response — order-dependent failures that look like real regressions.
+os.environ.setdefault(
+    "STORYFORGE_LLM_CACHE_DB",
+    os.path.join(tempfile.mkdtemp(prefix="storyforge-test-cache-"), "llm_cache.db"),
+)
+
 # ---------------------------------------------------------------------------
 # Hermetic config: redirect CONFIG_FILE for the WHOLE test session.
 #
