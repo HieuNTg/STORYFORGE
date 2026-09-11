@@ -129,15 +129,12 @@ class PipelineOrchestrator:
         self.output = self._load_output() or PipelineOutput()
 
         # Initialize Phase 1 & 2 optimization modules
-        self.context_manager = StoryContextManager(max_size=1000, ttl_seconds=3600)
+        self.context_manager = StoryContextManager(max_history_size=1000)
         self.batch_checkpoint = BatchCheckpointManager(
-            batch_size=5, 
-            max_retries=3, 
+            max_batch_size=5, 
             auto_prune=True
         )
         self.media_queue = MediaJobQueue(
-            redis_client=self._redis,
-            session_id=self.session_id,
             max_workers=4
         )
 
@@ -147,12 +144,7 @@ class PipelineOrchestrator:
             similarity_threshold=0.85,
             ttl_seconds=7200  # 2 hours
         )
-        self.quality_gate = AdaptiveQualityGate(
-            default_complexity="medium",
-            enable_auto_adjustment=True,
-            min_agents=1,
-            max_agents=4
-        )
+        self.quality_gate = AdaptiveQualityGate()
         self.db_optimizer = DatabaseOptimizer()
         self.virtualizer = ChapterVirtualizer()
         
