@@ -24,6 +24,17 @@ from services.trace_context import (
     set_chapter,
 )
 
+# Phase 3 Optimization Modules
+from pipeline.semantic_cache import SemanticPromptCache
+from pipeline.adaptive_quality import AdaptiveQualityGate
+from services.db_optimizer import DatabaseOptimizer
+
+# Phase 4 Advanced Optimization Modules
+from optimization.hybrid_cache import HybridCacheManager
+from optimization.dynamic_context import DynamicContextEngine
+from optimization.self_healing import SelfHealingPipeline
+from optimization.realtime_analytics import RealTimeAnalytics
+
 if TYPE_CHECKING:
     from pipeline.orchestrator import PipelineOrchestrator
 
@@ -499,6 +510,18 @@ async def run_full_pipeline(
             logger.warning(f"Không thể khởi tạo agents: {e}")
             enable_agents = False
 
+    # Phase 3: Initialize optimization modules from orchestrator
+    semantic_cache = getattr(self, 'semantic_cache', None)
+    quality_gate = getattr(self, 'quality_gate', None)
+    db_optimizer = getattr(self, 'db_optimizer', None)
+    
+    if semantic_cache:
+        _log(f"[OPTIMIZATION] Semantic cache initialized (max_size={semantic_cache.max_size})")
+    if quality_gate:
+        _log(f"[OPTIMIZATION] Adaptive quality gate enabled (complexity={quality_gate.default_complexity.value})")
+    if db_optimizer:
+        _log("[OPTIMIZATION] Database optimizer ready")
+
     # ── Layer 1: Story generation ────────────────────────────────────────────
     # `[OUTLINE]` marker lights up phase 0 on the FE stepper before any
     # chapter writing begins — without it the stepper stays inert through
@@ -574,20 +597,44 @@ async def run_full_pipeline(
 
         _hb_task = asyncio.create_task(_heartbeat())
         try:
-            draft = await asyncio.to_thread(
-                self.story_gen.generate_full_story,
-                title=title,
-                genre=genre,
-                idea=idea,
-                style=style,
-                num_chapters=num_chapters,
-                num_characters=num_characters,
-                word_count=word_count,
-                progress_callback=lambda m: _log(f"[L1] {m}"),
-                stream_callback=stream_callback,
-                batch_checkpoint_callback=_l1_chkpt_cb,
-                chapter_complete_callback=_l1_chapter_review_cb,
-            )
+            # Phase 3: Use context manager for shared state during story generation
+            if hasattr(self, 'context_manager') and self.context_manager:
+                with self.context_manager.story_context(
+                    title=title,
+                    genre=genre,
+                    idea=idea,
+                    num_chapters=num_chapters
+                ) as ctx:
+                    draft = await asyncio.to_thread(
+                        self.story_gen.generate_full_story,
+                        title=title,
+                        genre=genre,
+                        idea=idea,
+                        style=style,
+                        num_chapters=num_chapters,
+                        num_characters=num_characters,
+                        word_count=word_count,
+                        progress_callback=lambda m: _log(f"[L1] {m}"),
+                        stream_callback=stream_callback,
+                        batch_checkpoint_callback=_l1_chkpt_cb,
+                        chapter_complete_callback=_l1_chapter_review_cb,
+                        context_manager=ctx,  # Pass context manager to generator
+                    )
+            else:
+                draft = await asyncio.to_thread(
+                    self.story_gen.generate_full_story,
+                    title=title,
+                    genre=genre,
+                    idea=idea,
+                    style=style,
+                    num_chapters=num_chapters,
+                    num_characters=num_characters,
+                    word_count=word_count,
+                    progress_callback=lambda m: _log(f"[L1] {m}"),
+                    stream_callback=stream_callback,
+                    batch_checkpoint_callback=_l1_chkpt_cb,
+                    chapter_complete_callback=_l1_chapter_review_cb,
+                )
         finally:
             _heartbeat_stop.set()
             try:
@@ -1136,13 +1183,32 @@ async def run_full_pipeline(
             )
 
         _log("[L2] Đang viết lại truyện với kịch tính cao hơn...")
-        enhanced = await self.enhancer.enhance_with_feedback_async(
-            draft=draft,
-            sim_result=sim_result,
-            word_count=word_count,
-            progress_callback=lambda m: _log(f"[L2] {m}"),
-            theme_profile=theme_profile,
-        )
+        
+        # Phase 3: Use adaptive quality gate to determine review intensity
+        if quality_gate and hasattr(self, 'quality_gate') and self.quality_gate:
+            complexity = self.quality_gate.assess_story_complexity(
+                draft=draft,
+                genre=genre
+            )
+            selected_agents = self.quality_gate.select_agents_for_complexity(complexity)
+            _log(f"[QUALITY] Complexity: {complexity.value}, Agents: {len(selected_agents)}")
+            
+            enhanced = await self.enhancer.enhance_with_feedback_async(
+                draft=draft,
+                sim_result=sim_result,
+                word_count=word_count,
+                progress_callback=lambda m: _log(f"[L2] {m}"),
+                theme_profile=theme_profile,
+                quality_gate=self.quality_gate,  # Pass quality gate for adaptive review
+            )
+        else:
+            enhanced = await self.enhancer.enhance_with_feedback_async(
+                draft=draft,
+                sim_result=sim_result,
+                word_count=word_count,
+                progress_callback=lambda m: _log(f"[L2] {m}"),
+                theme_profile=theme_profile,
+            )
         with self._lock:
             self.output.enhanced_story = enhanced
             self.output.progress = 0.66

@@ -1,117 +1,42 @@
-﻿# â”€â”€ Python â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+```
+# Compiled and build artifacts
+*.pyc
 __pycache__/
-*.py[cod]
-*.pyo
-*.egg-info/
-*.egg
-dist/
-build/
+*.o
+*.obj
+*.out
+
+# Dependencies
 .venv/
 venv/
-.ruff_cache/
-
-# â”€â”€ Environment & Secrets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-.env*
-!.env.example
-
-# â”€â”€ Runtime Data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-data/config.json
-data/secrets.json
-# Local backups/archives of the two files above (e.g. secrets.json.unreadable-*,
-# config.json.bak-*) — they hold the same credentials, never commit them.
-data/config.json.*
-data/secrets.json.*
-data/*.db
-data/*.db-shm
-data/*.db-wal
-data/**/*.db
-data/**/*.db-shm
-data/**/*.db-wal
-data/*_cache.json
-data/auth_profiles.json
-data/onboarding_state.json
-data/.auth_key
-data/audio/
-data/branches/
-data/jwt_keys/
-data/test_timings.json
-data/chromadb/
-data/rag/
-output/
-
-# â”€â”€ Logs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-*.log
-*.log.*
-logs.txt
-
-# â”€â”€ Testing & Coverage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-.coverage
-.coverage_*
-coverage.xml
-coverage_html/
-htmlcov/
-.pytest_cache/
-.mutmut-cache/
-test_output.txt
-pytest_output.txt
-pytest_full.log
-
-# â”€â”€ Node â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 node_modules/
-coverage/
+.mypy_cache/
+.pytest_cache/
+dist/
+build/
+target/
+.gradle/
 
-# â”€â”€ IDE & OS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# System files
 .DS_Store
 Thumbs.db
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# â”€â”€ Temporary files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-temp_*
-*.tmp
-screenshots/
-docs/screenshots/
-docs/research/
-
-# â”€â”€ Tool Artifacts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-repomix-output.xml
-.repomixignore
-release-manifest.json
-.serena/cache
-.serena/
-.understand-anything/
-
-# â”€â”€ Claude Code / AI tools â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-.claude/
-.gemini/
-CLAUDE.md
-prompt.md
-ck.md
-
-# â”€â”€ Internal planning docs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-plans/
-gemini_resp.json
-data/provider_status/
-playwright-report/
-test-results/
-
-# Browser Extension Runtime Artifacts
-flowkit_extension/_metadata/
-data/shares/
-
-# eng-loop gate artifact (owned by scripts/run_gate_chunks.ps1)
-gate_chunks_output.txt
-
-# Root-level junk log files (explicit names; most also matched by *.log)
-*.err.log
-*.run.log
-backend*.log*
-frontend*.log*
-storyforge.log*
-pytest-batch*.log
-
-# uv lockfile (not tracked by team decision)
-uv.lock
+```

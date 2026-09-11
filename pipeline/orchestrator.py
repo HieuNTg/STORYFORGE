@@ -26,6 +26,9 @@ from pipeline.orchestrator_media import MediaProducer
 from pipeline.orchestrator_export import PipelineExporter
 from pipeline.orchestrator_checkpoint import CheckpointManager, CHECKPOINT_DIR
 from pipeline.orchestrator_continuation import StoryContinuation
+from pipeline.context_manager import StoryContextManager
+from pipeline.batch_checkpoint import BatchCheckpointManager
+from pipeline.media_queue import MediaJobQueue
 
 # Import layer-execution functions (bound as methods below)
 from pipeline.orchestrator_layers import (
@@ -33,6 +36,18 @@ from pipeline.orchestrator_layers import (
     run_layer1_only as _run_layer1_only,
     run_layer2_only as _run_layer2_only,
 )
+
+# Phase 3 Optimization Modules
+from pipeline.semantic_cache import SemanticPromptCache
+from pipeline.adaptive_quality import AdaptiveQualityGate
+from services.db_optimizer import DatabaseOptimizer
+from frontend_virtualization import ChapterVirtualizer
+
+# Phase 4 Advanced Optimization Modules
+from optimization.hybrid_cache import HybridCacheManager
+from optimization.dynamic_context import DynamicContextEngine
+from optimization.self_healing import SelfHealingPipeline
+from optimization.realtime_analytics import RealTimeAnalytics
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +127,52 @@ class PipelineOrchestrator:
 
         # Load persisted output or start fresh
         self.output = self._load_output() or PipelineOutput()
+
+        # Initialize Phase 1 & 2 optimization modules
+        self.context_manager = StoryContextManager(max_size=1000, ttl_seconds=3600)
+        self.batch_checkpoint = BatchCheckpointManager(
+            batch_size=5, 
+            max_retries=3, 
+            auto_prune=True
+        )
+        self.media_queue = MediaJobQueue(
+            redis_client=self._redis,
+            session_id=self.session_id,
+            max_workers=4
+        )
+
+        # Initialize Phase 3 optimization modules
+        self.semantic_cache = SemanticPromptCache(
+            max_size=5000,
+            similarity_threshold=0.85,
+            ttl_seconds=7200  # 2 hours
+        )
+        self.quality_gate = AdaptiveQualityGate(
+            default_complexity="medium",
+            enable_auto_adjustment=True,
+            min_agents=1,
+            max_agents=4
+        )
+        self.db_optimizer = DatabaseOptimizer()
+        self.virtualizer = ChapterVirtualizer()
+        
+        # Initialize Phase 4 advanced optimization modules
+        self.hybrid_cache = HybridCacheManager(
+            redis_client=self._redis,
+            embedding_model=None  # Will use fallback similarity
+        )
+        self.context_engine = DynamicContextEngine(
+            vector_db=None,  # Will be set if available
+            embedding_model=None,
+            max_sliding_window=3
+        )
+        self.self_healing = SelfHealingPipeline(
+            llm_client=None,  # Will be set to story_gen.llm_client
+            validation_rules=[]
+        )
+        self.analytics = RealTimeAnalytics(
+            alerting_enabled=True
+        )
 
         self.media_producer = MediaProducer(self.config)
         self.exporter = PipelineExporter(self.output)
