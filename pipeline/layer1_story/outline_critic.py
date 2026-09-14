@@ -559,6 +559,18 @@ def revise_outline_from_critique(
                 "revise_outline_from_critique returned empty list, keeping originals."
             )
             return outlines
+        # The chapter count is the user's request, not the critic's to change. A
+        # revision with a different count is a damaged response — the smoke run's
+        # 5-chapter outline came back as 2 after a lossy JSON repair and was
+        # accepted, so the story silently shipped 3 chapters short.
+        if len(revised) != len(outlines):
+            logger.warning(
+                "revise_outline_from_critique returned %d chapters for a "
+                "%d-chapter outline, keeping originals.",
+                len(revised),
+                len(outlines),
+            )
+            return outlines
         logger.info("Outline revised: %d chapters (score was %s).", len(revised), score)
         return revised
     except Exception as e:

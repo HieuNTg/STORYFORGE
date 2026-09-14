@@ -1393,7 +1393,7 @@ class DramaSimulator:
         avg_drama = (
             sum(all_drama_scores) / len(all_drama_scores) if all_drama_scores else 0
         )
-        _log(f"Mo phong hoan tat! Diem kich tinh trung binh: {avg_drama:.2f}")
+        _log(f"Mô phỏng hoàn tất! Điểm kịch tính trung bình: {avg_drama:.2f}")
         return result
 
     def run_simulation(

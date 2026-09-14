@@ -28,12 +28,14 @@ the post-processing mutates bubble/caption text.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 
 from pydantic import BaseModel, Field
 
 from models.schemas import Chapter, ImagePrompt
+from services.llm.generation import JSONTooLongToRepairError
 from services.llm_client import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -572,6 +574,86 @@ def _parse_pages(raw: dict, chapter_number: int) -> ShotList:
     return ShotList(chapter_number=chapter_number, pages=pages)
 
 
+# ---------------------------------------------------------------------------
+# Chunking (Batch L, L2): the storyboard must see the whole chapter
+# ---------------------------------------------------------------------------
+
+# A chunk whose response is too long to repair is split in half and retried, but
+# never below this size or past this depth — past that the failure is not the
+# chunk's length, and the chapter degrades to the legacy image path instead.
+MIN_SPLIT_CHARS = 800
+MAX_SPLIT_DEPTH = 3
+
+_SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
+_PARAGRAPH_BREAK = re.compile(r"\n\s*\n")
+
+
+def _chunk_by_paragraph(text: str, budget: int = CONTENT_WINDOW) -> list[str]:
+    """Cut prose into pieces of at most ``budget`` chars, at the widest boundary that fits.
+
+    Paragraphs are packed together while they fit. A paragraph longer than the
+    budget is cut at sentence ends, and a sentence longer than the budget at the
+    budget itself. No text is dropped — only whitespace between pieces changes.
+    """
+    pieces: list[str] = []
+    for para in _PARAGRAPH_BREAK.split(text or ""):
+        para = para.strip()
+        if not para:
+            continue
+        if len(para) <= budget:
+            pieces.append(para)
+            continue
+        for sentence in _SENTENCE_END.split(para):
+            while len(sentence) > budget:
+                pieces.append(sentence[:budget])
+                sentence = sentence[budget:]
+            if sentence:
+                pieces.append(sentence)
+
+    chunks: list[str] = []
+    current = ""
+    for piece in pieces:
+        joined = f"{current}\n\n{piece}" if current else piece
+        if len(joined) <= budget:
+            current = joined
+        else:
+            chunks.append(current)
+            current = piece
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _split_in_half(text: str) -> tuple[str, str] | None:
+    """Split at the paragraph (else sentence) boundary nearest the middle."""
+    if len(text) < MIN_SPLIT_CHARS:
+        return None
+    middle = len(text) // 2
+    cuts = [m.start() for m in _PARAGRAPH_BREAK.finditer(text)] or [
+        m.start() for m in _SENTENCE_END.finditer(text)
+    ]
+    if not cuts:
+        return None
+    cut = min(cuts, key=lambda i: abs(i - middle))
+    left, right = text[:cut].strip(), text[cut:].strip()
+    return (left, right) if left and right else None
+
+
+def _continuity_note(prev: "Panel", start_n: int) -> str:
+    """Tell a chunk what the storyboard looked like where the previous chunk ended."""
+    carried = {
+        field: getattr(prev, field, "")
+        for field in ("shot", "subject", "setting", "action", "mood", "screen_side")
+    }
+    return (
+        "\n\nTIẾP NỐI: đoạn văn trên nối tiếp phần đã được chuyển thành panel. "
+        "Panel cuối của phần trước:\n"
+        f"{json.dumps(carried, ensure_ascii=False)}\n"
+        "Giữ nhất quán vị trí nhân vật (screen_side), trang phục và hướng nhìn với panel đó; "
+        f"KHÔNG vẽ lại panel đó. Đánh số panel bắt đầu từ n={start_n}."
+    )
+
+
 class ShotListExtractor:
     """LLM beat extractor → shot-list (spec §4.2).
 
@@ -621,40 +703,54 @@ class ShotListExtractor:
             chars_text = "\n".join(parts)
 
         try:
-            raw = self.llm.generate_json(
-                system_prompt="Bạn là biên kịch truyện tranh. Trả về JSON.",
-                user_prompt=_SHOT_LIST_PROMPT.format(
-                    num_panels=num_panels,
-                    content=chapter.content[:CONTENT_WINDOW],
-                    characters=chars_text or "Không có thông tin",
-                ),
-                temperature=0.5,
-                # Scales with the panel target so a high panels_max doesn't
-                # truncate the JSON (8 panels → 3500, capped at 8000).
-                max_tokens=min(8000, 300 * num_panels + 1100),
-                model_tier="cheap",
-                expect="dict",
-                list_key="pages",
-            )
-            shot_list = _parse_pages(raw or {}, chapter.chapter_number)
-            if coverage_check and shot_list.pages:
-                try:
-                    shot_list = self._repair_coverage(chapter, shot_list)
-                except Exception as cov_e:
-                    logger.warning(
-                        "Coverage check failed for ch %s, using unverified shot-list: %s",
-                        chapter.chapter_number,
-                        cov_e,
-                    )
+            # The whole chapter, in window-sized chunks. It used to be
+            # `content[:CONTENT_WINDOW]`, and the coverage verifier read the same
+            # window — so on the 2026-09-14 smoke run 4 of 7 chapters had prose
+            # no panel could ever come from, and nothing could notice.
+            chunks = _chunk_by_paragraph(chapter.content, CONTENT_WINDOW) or [""]
+            total = sum(len(c) for c in chunks) or 1
+            panels: list[Panel] = []
+            single_chunk_pages: list[Page] | None = None
+            for chunk in chunks:
+                share = max(1, round(num_panels * len(chunk) / total))
+                part = self._extract_chunk(
+                    chapter,
+                    chunk,
+                    chars_text,
+                    share,
+                    prev=panels[-1] if panels else None,
+                    start_n=len(panels) + 1,
+                )
+                if coverage_check and part.pages:
+                    try:
+                        part = self._repair_coverage(chapter, part, content=chunk)
+                    except Exception as cov_e:
+                        logger.warning(
+                            "Coverage check failed for ch %s, using unverified shot-list: %s",
+                            chapter.chapter_number,
+                            cov_e,
+                        )
+                if len(chunks) == 1:
+                    single_chunk_pages = part.pages
+                panels.extend(part.all_panels())
+
+            # One chunk keeps the model's own pages; several are flattened, and
+            # enforce_rules re-pages the whole chapter either way.
+            if single_chunk_pages is not None:
+                pages = single_chunk_pages
+            else:
+                pages = [Page(page=1, layout="THREE_TIER", panels=panels)] if panels else []
             return enforce_rules(
-                shot_list,
+                ShotList(chapter_number=chapter.chapter_number, pages=pages),
                 character_references=character_references,
                 max_panels=self._panel_ceiling(num_panels),
             )
         except Exception as e:
+            # Still degrades to the legacy image path, but says why.
             logger.warning(
-                "Shot-list extraction failed for ch %s: %s",
+                "Shot-list extraction failed for ch %s (%s): %s",
                 chapter.chapter_number,
+                type(e).__name__,
                 e,
             )
             return ShotList(chapter_number=chapter.chapter_number, pages=[])
@@ -676,7 +772,73 @@ class ShotListExtractor:
             ceiling = 24
         return max(int(num_panels or 0), ceiling)
 
-    def _repair_coverage(self, chapter: Chapter, shot_list: ShotList) -> ShotList:
+    def _extract_chunk(
+        self,
+        chapter: Chapter,
+        chunk: str,
+        chars_text: str,
+        num_panels: int,
+        prev: Panel | None = None,
+        start_n: int = 1,
+        depth: int = 0,
+    ) -> ShotList:
+        """One LLM call for one chunk of prose.
+
+        A response too long to repair (``JSONTooLongToRepairError``) means the
+        chunk asked for more output than the model delivered in one piece: split
+        the chunk in half and storyboard each half, the second carrying the last
+        panel of the first. Any other failure propagates to ``extract``.
+        """
+        user_prompt = _SHOT_LIST_PROMPT.format(
+            num_panels=num_panels,
+            content=chunk,
+            characters=chars_text or "Không có thông tin",
+        )
+        if prev is not None:
+            user_prompt += _continuity_note(prev, start_n)
+        try:
+            raw = self.llm.generate_json(
+                system_prompt="Bạn là biên kịch truyện tranh. Trả về JSON.",
+                user_prompt=user_prompt,
+                temperature=0.5,
+                # Scales with the panel target so a high panels_max doesn't
+                # truncate the JSON (8 panels → 3500, capped at 8000).
+                max_tokens=min(8000, 300 * num_panels + 1100),
+                model_tier="cheap",
+                expect="dict",
+                list_key="pages",
+            )
+        except JSONTooLongToRepairError:
+            halves = _split_in_half(chunk) if depth < MAX_SPLIT_DEPTH else None
+            if halves is None:
+                raise
+            logger.warning(
+                "Shot-list ch %s: response too long to repair, splitting a %d-char chunk (depth %d)",
+                chapter.chapter_number,
+                len(chunk),
+                depth + 1,
+            )
+            left = self._extract_chunk(
+                chapter, halves[0], chars_text, max(1, num_panels // 2), prev, start_n, depth + 1
+            ).all_panels()
+            right = self._extract_chunk(
+                chapter,
+                halves[1],
+                chars_text,
+                max(1, num_panels - num_panels // 2),
+                left[-1] if left else prev,
+                start_n + len(left),
+                depth + 1,
+            ).all_panels()
+            return ShotList(
+                chapter_number=chapter.chapter_number,
+                pages=[Page(page=1, layout="THREE_TIER", panels=left + right)],
+            )
+        return _parse_pages(raw or {}, chapter.chapter_number)
+
+    def _repair_coverage(
+        self, chapter: Chapter, shot_list: ShotList, content: str | None = None
+    ) -> ShotList:
         """Verifier pass: find chapter details no beat covers, insert panels.
 
         The verifier sees the FULL chapter window (not just the beat list) so it
@@ -710,7 +872,9 @@ class ShotListExtractor:
             system_prompt="Bạn là biên tập viên kiểm tra độ phủ nội dung. Trả về JSON.",
             user_prompt=_COVERAGE_CHECK_PROMPT.format(
                 max_inserts=MAX_COVERAGE_INSERTS,
-                content=chapter.content[:CONTENT_WINDOW],
+                # The chunk these beats came from; the old default kept for
+                # direct callers.
+                content=content if content is not None else chapter.content[:CONTENT_WINDOW],
                 beats="\n".join(beat_lines),
             ),
             temperature=0.3,
