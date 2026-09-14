@@ -31,6 +31,15 @@ _PING_MAX_TOKENS = 256
 _FIXER_MAX_CHARS = 4000
 
 
+class JSONTooLongToRepairError(ValueError):
+    """An unparseable response longer than the fixer may read.
+
+    A ValueError, so every existing caller still handles it. Callers that can do
+    better — the shot-list extractor splits its chunk in half and retries — catch
+    this type specifically.
+    """
+
+
 def _config_manager():
     """Lazy-resolve ConfigManager through compat hub for test mock support."""
     import services.llm_client as m
@@ -173,7 +182,7 @@ class GenerationMixin:
                 f"({len(text)} chars): {text!r}"
             )
         if len(text) > _FIXER_MAX_CHARS:
-            raise ValueError(
+            raise JSONTooLongToRepairError(
                 f"JSON parse failed on a {len(text)}-chars response; not sending it "
                 f"to the fixer, which reads at most {_FIXER_MAX_CHARS} chars and "
                 f"would return a shorter document as if it were complete. "
