@@ -267,7 +267,6 @@ class PipelineConfig:
     flowkit_workers_ramp_threshold: int = (
         10  # consecutive successes before incrementing
     )
-    flowkit_veo_poll_interval: float = 5.0
     flowkit_account_warning_shown: bool = False
     flowkit_risk_acknowledged: bool = (
         True  # hard gate; backend rejects flowkit_enabled=True without this

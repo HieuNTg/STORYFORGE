@@ -329,7 +329,6 @@ export interface FlowkitStatus {
   connected: boolean;
   last_token_age_s: number;
   pending_ws_requests: number;
-  poll_running: boolean;
   workers_current: number;
   workers_max: number;
 }

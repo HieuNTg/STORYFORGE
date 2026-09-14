@@ -632,40 +632,20 @@ async def run_full_pipeline(
         logger.info(
             "[PROBE-O1] orchestrator: about to await to_thread(generate_full_story)"
         )
-        _heartbeat_stop = asyncio.Event()
-
-        async def _heartbeat():
-            n = 0
-            while not _heartbeat_stop.is_set():
-                logger.info("[PROBE-HB] main loop alive tick=%d", n)
-                n += 1
-                try:
-                    await asyncio.wait_for(_heartbeat_stop.wait(), timeout=0.5)
-                except asyncio.TimeoutError:
-                    pass
-
-        _hb_task = asyncio.create_task(_heartbeat())
-        try:
-            draft = await asyncio.to_thread(
-                self.story_gen.generate_full_story,
-                title=title,
-                genre=genre,
-                idea=idea,
-                style=style,
-                num_chapters=num_chapters,
-                num_characters=num_characters,
-                word_count=word_count,
-                progress_callback=lambda m: _log(f"[L1] {m}"),
-                stream_callback=stream_callback,
-                batch_checkpoint_callback=_l1_chkpt_cb,
-                chapter_complete_callback=_l1_chapter_review_cb,
-            )
-        finally:
-            _heartbeat_stop.set()
-            try:
-                await _hb_task
-            except Exception:
-                pass
+        draft = await asyncio.to_thread(
+            self.story_gen.generate_full_story,
+            title=title,
+            genre=genre,
+            idea=idea,
+            style=style,
+            num_chapters=num_chapters,
+            num_characters=num_characters,
+            word_count=word_count,
+            progress_callback=lambda m: _log(f"[L1] {m}"),
+            stream_callback=stream_callback,
+            batch_checkpoint_callback=_l1_chkpt_cb,
+            chapter_complete_callback=_l1_chapter_review_cb,
+        )
         logger.info(
             "[PROBE-O2] orchestrator: to_thread returned, draft type=%s chapters=%d",
             type(draft).__name__,

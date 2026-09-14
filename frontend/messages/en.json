@@ -508,8 +508,6 @@
         "workers_hint": "Increases from 1 to max",
         "ramp_label": "Ramp threshold",
         "ramp_hint": "Successful requests before increasing workers",
-        "veo_label": "Veo poll interval (s)",
-        "veo_hint": "Interval between polling video progress",
         "ref_label": "Style reference (path)",
         "ref_placeholder": "C:\\refs\\style.png",
         "ref_hint": "Style reference image — absolute path",

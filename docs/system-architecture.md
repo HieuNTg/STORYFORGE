@@ -701,9 +701,9 @@ See [deployment-production.md](./deployment-production.md) for detailed setup.
 
 ## FlowKit Integration (Phase 6)
 
-**Optional image/video generation via Google Labs (Imagen 3 + Veo).**
+**Optional image generation via Google Labs (Imagen 3).**
 
-FlowKit is a Chrome MV3 extension + WebSocket proxy that lets StoryForge generate Imagen/Veo assets locally (not hosted). Architecture:
+FlowKit is a Chrome MV3 extension + WebSocket proxy that lets StoryForge generate Imagen assets locally (not hosted). Architecture:
 
 ```
 Chrome Extension (flowkit_extension/)
@@ -713,14 +713,12 @@ Chrome Extension (flowkit_extension/)
 
 FastAPI Backend (api/flowkit.py + services/media/)
     ├─ /api/ws/flowkit — WebSocket server (FlowService)
-    ├─ /api/ext/callback — Extension posts Imagen/Veo job results
+    ├─ /api/ext/callback — Extension posts Imagen job results
     ├─ /api/flowkit/status — Polling endpoint (5s cadence frontend)
     └─ Adaptive worker ramp: initial=1, ceil=4, ramp after 10 successes
 
-Job Queue
-    ├─ data/flowkit/jobs.db — SQLite queue
-    ├─ output/images/{slug}_{sid}/ — Downloaded asset cache
-    └─ output/videos/{slug}_{sid}/ — Video output cache
+Output
+    └─ output/images/{slug}_{sid}/ — Downloaded asset cache
 ```
 
 **Account-Ban Risk**: Google Labs rate-limits/bans accounts detected doing automated traffic. Use a secondary Google account. Backend enforces `flowkit_risk_acknowledged=true` before enabling; frontend surfaces risk-ack checkbox in Settings.
@@ -730,6 +728,5 @@ Job Queue
 - `flowkit_request_timeout` — Sync-bridge timeout (floor 30s)
 - `flowkit_use_refiner` — Gemini prompt-refiner (doubles token cost)
 - `flowkit_concurrent_workers_max` — Adaptive ramp ceiling (4)
-- `flowkit_veo_poll_interval` — Veo async job poll cadence (5s)
 
 See [flowkit-integration.md](./flowkit-integration.md) for install, troubleshooting, and account policy.

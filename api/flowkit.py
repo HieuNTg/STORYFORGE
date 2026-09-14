@@ -134,12 +134,13 @@ async def flowkit_status() -> Dict[str, Any]:
     svc = _svc()
     captured_at = getattr(svc, "flow_key_captured_at", None)
     age = int(time.time() - captured_at) if captured_at else -1
-    poll_task = getattr(svc, "_poll_task", None)
+    # `poll_running` is gone with the Veo poll loop it reported on. Nothing
+    # asynchronous is left in FlowKit: image generation is request/response over
+    # the extension WebSocket, so `connected` is the field that matters.
     return {
         "connected": svc.active_ws is not None,
         "last_token_age_s": age,
         "pending_ws_requests": len(svc.pending_requests),
-        "poll_running": bool(poll_task and not poll_task.done()),
         "workers_current": svc._ramp.current,
         "workers_max": svc._ramp.max_workers,
     }

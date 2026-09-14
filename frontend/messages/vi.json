@@ -508,8 +508,6 @@
         "workers_hint": "Tăng dần từ 1 → tối đa",
         "ramp_label": "Ngưỡng ramp",
         "ramp_hint": "Số request thành công liên tiếp trước khi tăng worker",
-        "veo_label": "Veo poll interval (s)",
-        "veo_hint": "Khoảng cách polling video",
         "ref_label": "Style reference (path)",
         "ref_placeholder": "C:\\refs\\style.png",
         "ref_hint": "Ảnh tham chiếu phong cách — đường dẫn tuyệt đối",

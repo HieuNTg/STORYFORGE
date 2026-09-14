@@ -14,7 +14,6 @@ def test_config_flowkit_defaults():
     assert cfg.flowkit_concurrent_workers == 1
     assert cfg.flowkit_concurrent_workers_max == 4
     assert cfg.flowkit_workers_ramp_threshold == 10
-    assert cfg.flowkit_veo_poll_interval == 5.0
     assert cfg.flowkit_account_warning_shown is False
     assert cfg.flowkit_risk_acknowledged is True
     assert cfg.flowkit_image_input_type_split is False
@@ -41,14 +40,14 @@ import pytest
 
 @pytest.fixture
 def isolated_flow_service(tmp_path, monkeypatch):
-    """Fresh FlowService bound to a tmp jobs.db (singleton reset)."""
+    """Fresh FlowService rooted at a tmp cwd (singleton reset).
+
+    It used to bind a temporary jobs.db too. That database only ever held Veo
+    video jobs and went with them; FlowKit is now purely request/response over
+    the extension WebSocket, with no persistent state to isolate.
+    """
     monkeypatch.chdir(tmp_path)
     import services.media.flow_service as fs_mod
-
-    monkeypatch.setattr(fs_mod, "_DB_DIR", str(tmp_path / "data" / "flowkit"))
-    monkeypatch.setattr(
-        fs_mod, "_DB_PATH", str(tmp_path / "data" / "flowkit" / "jobs.db")
-    )
 
     fs_mod.FlowService._instance = None
     svc = fs_mod.FlowService()
@@ -187,28 +186,6 @@ async def test_request_image_payload_split_enabled(
     # default test config the type map is empty so only mediaId is asserted.
     assert len(inputs) == 2
     assert all("mediaId" in i for i in inputs)
-
-
-@pytest.mark.asyncio
-async def test_video_job_lifecycle(isolated_flow_service, tmp_path, monkeypatch):
-    svc = isolated_flow_service
-    from config import ConfigManager
-
-    monkeypatch.setattr(ConfigManager().pipeline, "flowkit_project_id", "test-project")
-    svc.set_active_ws(_fake_ws([]))
-    monkeypatch.setattr(svc, "_upload_image", AsyncMock(return_value="mid-start"))
-    start = tmp_path / "start.png"
-    start.write_bytes(b"x")
-
-    task = asyncio.create_task(svc.request_video("a horse", str(start)))
-    await _resolve_after(svc, 200, {"operationName": "op-123"})
-    job_id = await task
-
-    row = await svc.get_job(job_id)
-    assert row is not None
-    assert row["status"] == "PROCESSING"
-    assert row["operation_name"] == "op-123"
-    assert row["type"] == "video"
 
 
 @pytest.mark.asyncio
@@ -443,10 +420,6 @@ def flowkit_app(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     import services.media.flow_service as fs_mod
 
-    monkeypatch.setattr(fs_mod, "_DB_DIR", str(tmp_path / "data" / "flowkit"))
-    monkeypatch.setattr(
-        fs_mod, "_DB_PATH", str(tmp_path / "data" / "flowkit" / "jobs.db")
-    )
     fs_mod.FlowService._instance = None
     svc = fs_mod.FlowService()
 
@@ -731,10 +704,6 @@ def isolated_image_gen_env(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     import services.media.flow_service as fs_mod
 
-    monkeypatch.setattr(fs_mod, "_DB_DIR", str(tmp_path / "data" / "flowkit"))
-    monkeypatch.setattr(
-        fs_mod, "_DB_PATH", str(tmp_path / "data" / "flowkit" / "jobs.db")
-    )
     fs_mod.FlowService._instance = None
     yield tmp_path
     fs_mod.FlowService._instance = None
@@ -1225,7 +1194,6 @@ def test_config_patch_persists_all_flowkit_fields(config_app, monkeypatch):
         "flowkit_style_reference_path": "C:/refs/style.png",
         "flowkit_concurrent_workers_max": 7,
         "flowkit_workers_ramp_threshold": 25,
-        "flowkit_veo_poll_interval": 12.5,
         "flowkit_account_warning_shown": True,
         "flowkit_risk_acknowledged": True,
         "flowkit_image_input_type_split": True,
@@ -1262,7 +1230,6 @@ def test_config_get_returns_all_flowkit_fields(config_app, monkeypatch):
             "flowkit_concurrent_workers",
             "flowkit_concurrent_workers_max",
             "flowkit_workers_ramp_threshold",
-            "flowkit_veo_poll_interval",
             "flowkit_account_warning_shown",
             "flowkit_risk_acknowledged",
             "flowkit_image_input_type_split",

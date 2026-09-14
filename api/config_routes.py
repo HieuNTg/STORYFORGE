@@ -208,7 +208,6 @@ class ConfigUpdate(BaseModel):
     flowkit_style_reference_path: Optional[str] = None
     flowkit_concurrent_workers_max: Optional[int] = None
     flowkit_workers_ramp_threshold: Optional[int] = None
-    flowkit_veo_poll_interval: Optional[float] = None
     flowkit_account_warning_shown: Optional[bool] = None
     flowkit_risk_acknowledged: Optional[bool] = None
     flowkit_image_input_type_split: Optional[bool] = None
@@ -326,7 +325,6 @@ def get_config(response: Response):
             "flowkit_concurrent_workers": cfg.pipeline.flowkit_concurrent_workers,
             "flowkit_concurrent_workers_max": cfg.pipeline.flowkit_concurrent_workers_max,
             "flowkit_workers_ramp_threshold": cfg.pipeline.flowkit_workers_ramp_threshold,
-            "flowkit_veo_poll_interval": cfg.pipeline.flowkit_veo_poll_interval,
             "flowkit_account_warning_shown": cfg.pipeline.flowkit_account_warning_shown,
             "flowkit_risk_acknowledged": cfg.pipeline.flowkit_risk_acknowledged,
             "flowkit_image_input_type_split": cfg.pipeline.flowkit_image_input_type_split,
@@ -481,7 +479,6 @@ def save_config(body: ConfigUpdate):
         "flowkit_style_reference_path",
         "flowkit_concurrent_workers_max",
         "flowkit_workers_ramp_threshold",
-        "flowkit_veo_poll_interval",
         "flowkit_account_warning_shown",
         "flowkit_risk_acknowledged",
         "flowkit_image_input_type_split",

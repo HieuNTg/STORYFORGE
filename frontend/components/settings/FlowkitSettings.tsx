@@ -35,7 +35,6 @@ type FlowkitDraft = {
   flowkit_request_timeout: number;
   flowkit_concurrent_workers_max: number;
   flowkit_workers_ramp_threshold: number;
-  flowkit_veo_poll_interval: number;
   flowkit_image_input_type_split: boolean;
   flowkit_callback_hmac_required: boolean;
 };
@@ -50,7 +49,6 @@ function snapshot(p: ConfigResponse["pipeline"]): FlowkitDraft {
     flowkit_request_timeout: p.flowkit_request_timeout,
     flowkit_concurrent_workers_max: p.flowkit_concurrent_workers_max,
     flowkit_workers_ramp_threshold: p.flowkit_workers_ramp_threshold,
-    flowkit_veo_poll_interval: p.flowkit_veo_poll_interval,
     flowkit_image_input_type_split: p.flowkit_image_input_type_split,
     flowkit_callback_hmac_required: p.flowkit_callback_hmac_required,
   };
@@ -205,18 +203,6 @@ export function FlowkitSettings({ config }: FlowkitSettingsProps) {
               }
             />
           </Labeled>
-          <Labeled label={t("form.flowkit.veo_label")} hint={t("form.flowkit.veo_hint")}>
-            <Input
-              type="number"
-              min={1}
-              max={60}
-              step={0.5}
-              value={draft.flowkit_veo_poll_interval}
-              onChange={(e) =>
-                set("flowkit_veo_poll_interval", Number(e.target.value))
-              }
-            />
-          </Labeled>
           <Labeled
             label={t("form.flowkit.ref_label")}
             hint={t("form.flowkit.ref_hint")}
@@ -260,8 +246,6 @@ export function FlowkitSettings({ config }: FlowkitSettingsProps) {
             </div>
             <div>
               Pending WS: <span className="font-mono">{status.data.pending_ws_requests}</span>
-              {" — Poll: "}
-              <span className="font-mono">{status.data.poll_running ? "ON" : "off"}</span>
               {" — Token age: "}
               <span className="font-mono">
                 {status.data.last_token_age_s < 0 ? "—" : `${status.data.last_token_age_s}s`}

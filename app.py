@@ -299,18 +299,13 @@ def main():
         except Exception as e:
             logger.warning("Secret migration skipped: %s", e)
 
-        # FlowKit: init jobs.db + start Veo poll loop (gated on flowkit_enabled).
-        try:
-            from config import ConfigManager
-
-            if ConfigManager().pipeline.flowkit_enabled:
-                from services.media.flow_service import flow_service
-
-                await flow_service.init_db()
-                await flow_service.start_polling()
-                logger.info("FlowKit poll loop started")
-        except Exception:
-            logger.exception("FlowKit startup failed (continuing)")
+        # FlowKit needs no startup work any more. It used to open a SQLite jobs
+        # database and start a background task that woke every
+        # flowkit_veo_poll_interval seconds, for the lifetime of the process, to
+        # poll Veo video jobs — on every install with FlowKit enabled, which is
+        # the image path everyone uses. Video is out of the product; the loop and
+        # its database went with it. Image generation is synchronous over the
+        # extension WebSocket and never used either.
 
     # Graceful shutdown: cancel and await active pipeline tasks
     @main_app.on_event("shutdown")
@@ -325,7 +320,6 @@ def main():
         try:
             from services.media.flow_service import flow_service
 
-            await flow_service.stop_polling()
             if flow_service.active_ws is not None:
                 try:
                     await flow_service.active_ws.close()
@@ -335,14 +329,27 @@ def main():
         except Exception:
             logger.exception("FlowKit shutdown failed")
 
+    # Plugins. Eleven hook call sites sit on the hot path — every score, every
+    # genre-rule lookup, every export — and load_all() was never called, so the
+    # plugin list was always empty and every one of them was a no-op. Either
+    # this runs or the hooks are decoration; it runs. Failure is non-fatal: a
+    # broken third-party plugin must not stop the server from booting.
+    try:
+        from plugins import plugin_manager
+
+        plugin_manager.load_all()
+    except Exception:
+        logger.exception("Plugin loading failed; continuing without plugins")
+
     # API routes
     main_app.include_router(api_router)
 
-    # --- API v1 versioned routes (mirrors /api/ with version header) ---
-    from api.v1 import v1_router, DeprecationMiddleware
-
-    main_app.include_router(v1_router)
-    main_app.add_middleware(DeprecationMiddleware)
+    # The /api/v1 mirror is gone. It re-mounted nine routers under a second
+    # prefix — doubling the route table — purely so a client could pin a
+    # version, and no client ever did. Worse, it installed a BaseHTTPMiddleware
+    # that ran on *every* request, wrapping each one in an extra task and
+    # stream pair, only to set a Deprecation header on the paths nobody called.
+    # (/api/v1/eval is unaffected: that prefix belongs to eval_routes itself.)
 
     # --- Body size limit (outermost — runs first, blocks oversized requests early) ---
     from starlette.middleware.base import BaseHTTPMiddleware
