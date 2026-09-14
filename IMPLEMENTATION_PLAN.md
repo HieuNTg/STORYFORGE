@@ -174,6 +174,68 @@ story generated. It found a P0 in the first attempt that 5,000 tests did not.
 - [ ] **Follow-up:** the real run is the only thing that caught this. Add a
   smoke run against the local proxy to the release checklist — the gate cannot
   substitute for it.
+- [x] **P0 — 5 chapters requested, 2 written, reported "Layer 1 hoàn tất".**
+  Found by the Batch K smoke run on 2026-09-14. The legacy run of the same idea
+  kept all 5, so this is not the repair loop. Chain, from `repair_on.log`:
+  1. `revise_outline_from_critique` got 18,871 completion tokens back (558 s).
+     The JSON contained a raw newline inside a string (`Invalid control character`).
+  2. `_repair_json` does not handle that, so `generate_json` sent the fixer
+     `text[:4000]` (`generation.py:175`) — the head of a much longer response.
+  3. `gemini-3.1-flash-lite` returned valid JSON holding **2** chapters.
+  4. `outline_critic.py:557` only rejects an *empty* revision, so the 2-chapter
+     outline replaced the 5-chapter one.
+
+  Nothing after that point noticed: batching, writing, the foreshadowing plan
+  (payoffs planned for ch4–5, completion 0%), and the "done" message.
+  - Fix at the root, two guards:
+    - `revise_outline_from_critique` keeps the originals unless
+      `len(revised) == len(outlines)`.
+    - `generate_json` tries `json.loads(text, strict=False)` before any repair,
+      and never sends the fixer a truncated text. This fix is shared with
+      Batch L L2a — one change, not two.
+  - Regression tests, each failing on `master`:
+    - `test_revised_outline_with_fewer_chapters_is_rejected`
+    - `test_raw_newline_in_string_parses_without_llm`
+    - `test_json_fixer_never_receives_truncated_text`
+  - Worth a guard at the layer boundary too: L1 should warn loudly when
+    `len(draft.chapters) < num_chapters`.
+  - **2026-09-14: both guards implemented** on `sprint/entity-and-shotlist`
+    (CEO approved). `tests/test_outline_shrink_and_json_fixer.py`: 5 of 8 tests
+    fail on `master`; the other 3 lock that a full revision and a short
+    malformed repair still work.
+    - One pre-existing test changed because it encoded the defect:
+      `test_outline_critic_fidelity.py::test_literal_mode_triggers_reroll_when_coverage_below_floor`
+      fed a 2-chapter outline and accepted a 1-chapter revision. Its payload now
+      holds 2 chapters.
+    - Full gate green: 5,135 passed, 0 failed.
+- [x] **All 10 L2 agent prompts ran without Vietnamese diacritics.** Found by
+  the CEO on 2026-09-14 ("các prompt đang mất dấu").
+  - **Cause:** `agent_prompts._get_prompt` prefers the shipped
+    `data/prompts/agent_prompts.yaml` over the built-in `_DEFAULTS`. That YAML
+    has had the stripped text since it was created:
+    - Created accent-stripped when the prompts were externalized (`59ebffa`).
+    - Only partly restored by `33348e4` ("Vietnamese diacritics").
+    - 287 accented characters, against 1,482 in the defaults.
+    - Ignoring accents, the text is identical to the defaults.
+
+    So all 8 review agents and both debate agents received
+    "Ban la Chuyen Gia Nhan Vat … Tra ve JSON theo dinh dang sau".
+  - **Scan:** every string literal in backend Python (AST) and every prompt data
+    file, 342 files. The YAML is the only affected prompt source. One
+    user-facing log line was also stripped (`simulator.py:1396`). The one
+    "mojibake" hit (`eval_pipeline.py:23`) is a diacritic-detecting regex,
+    not a defect.
+  - **Fix:**
+    - YAML regenerated from `_DEFAULTS` (verified key by key after parsing).
+      Comments kept; `_meta` bumped to 1.1.0 with a changelog entry.
+    - Log line restored.
+  - **Tests:** `tests/test_agent_prompts_diacritics.py`, 20 of 22 failing on
+    the old YAML.
+    - The shipped YAML must match the defaults, so the two copies cannot drift
+      again.
+    - The prompt each agent actually receives must carry no unaccented
+      Vietnamese word.
+  - Full gate green: 5,135 passed, 0 failed.
 
 ### Batch I — Retry discipline (done)
 
@@ -280,6 +342,56 @@ Chưa cần thêm LLM call nào: planner giả lập gộp mọi finding, `strat
   mọi field bool trong `_ENV_MAP` phải có mặt trong `_BOOL_FIELDS` — đó mới là thứ
   bắt được ca thứ ba, vì hai ca này đều lọt vào đúng theo cách đó.
 
+### Batch L — Thực thể nhân vật và cắt phân cảnh (từ novelvids) — **chờ CEO duyệt**
+
+Spec và lập luận: `docs/novelvids-adoption-plan.md`, vai trò như requirements doc
+cho batch này. Bản đánh giá gốc đã được đối chiếu với code. Có ba chỗ lệch làm
+đổi plan:
+- Báo nhầm tên gọi đang đi vào finding được chấm điểm của Batch K.
+- Đường mất panel thật là fixer nhận `text[:4000]`, không phải `_close_truncated_json`.
+- Proxy Gemini-API luôn trả `finish_reason="stop"`.
+
+#### L0. Đo nền (0 call LLM)
+- [x] `scripts/measure_entity_gaps.py`: đo tỉ lệ báo nhầm tên, % chương dài hơn `CONTENT_WINDOW`, % panel có subject mà thiếu ảnh tham chiếu.
+- [x] Ghi số liệu vào đây. Đo trên 5 truyện thật (8 văn bản, 24 chương), không tốn call LLM:
+  - **Cảnh báo tên: cả 18/18 đều báo nhầm, không ca nào là alias hay viết sai thật.**
+    - 13 ca do nhóm chữ viết hoa bị nối xuyên dấu câu (`"Ai?" Lâm Phong` → "Ai Lâm Phong").
+    - 5 ca là từ đầu câu bị so khoảng cách chỉnh sửa với tên gọi ngắn ("Thân" ~ "Chân").
+    - Mọi cảnh báo này đều là finding được chấm điểm trong repair loop Batch K.
+  - **Nhân vật chỉ được gọi bằng một phần tên** (registry coi là vắng mặt): 1 cặp trên 24 chương. Truyện smoke thể loại hiện đại cũng nhắc tên đầy đủ ít nhất một lần mỗi chương.
+  - **Chương dài hơn cửa sổ 8.000 ký tự:** 2/24 (8%), dưới ngưỡng 20%. Nhưng chương 1 của truyện smoke dài 11.892 ký tự, nên **sẽ đo lại trên truyện legacy 5 chương** trước khi quyết L2b/L2c.
+  - **Panel có subject mà thiếu ảnh tham chiếu:** không đo được, vì shot list không được lưu ra đĩa.
+
+#### L1'. Phạm vi mới theo số đo: sửa detector tên trước, alias sau
+- [x] `validate_character_names` (`consistency_validators.py`) sửa 2 chỗ:
+  - Chỉ nối chữ viết hoa qua khoảng trắng, không nối qua dấu câu hay xuống dòng.
+  - Từ đơn ở đầu câu bị bỏ qua nếu dạng viết thường của nó cũng có trong văn bản. Tên viết sai ("Minnh") không bao giờ xuất hiện ở dạng viết thường, nên vẫn bị bắt.
+  - Kết quả trên dữ liệu thật: **18 → 2**. Hai ca còn lại ("Khung cảnh…", "Ân tình…") là từ đầu câu không có dạng viết thường trong chương. Muốn loại nốt phải có từ điển, nên chấp nhận.
+  - `tests/test_name_validator_false_positives.py`: 12 test lấy nguyên văn câu thật. 9 test fail trên `master`, 3 test khóa việc vẫn bắt được tên viết sai.
+- [x] Gate xanh trên branch `sprint/entity-and-shotlist`: 5.135 test pass, 0 fail (2026-09-14).
+- [ ] Bảng alias (các mục L1 bên dưới) **hoãn**. Số đo chưa cho thấy cần: không có ca alias nào, và registry chỉ bỏ sót 1 lần trong 24 chương. Mở lại khi có truyện cụ thể bị lỗi vì tên gọi.
+
+#### L1. Alias nhân vật
+- [ ] `Character.aliases: list[str] = []`, và `services/character_names.py` (`build_name_index`, `resolve_character`, `mentions`). Chỉ khớp chính xác, alias mơ hồ trả `None`.
+- [ ] Tìm alias bằng cách ghép `aliases_used` vào prompt `EXTRACT_CHARACTER_STATE` có sẵn, không thêm call. Chỉ gộp khi chuỗi xuất hiện nguyên văn trong chương, không phải đại từ, và không trùng nhân vật khác.
+- [ ] Thay 6 chỗ so khớp: registry `:66-69/:247/:307`, dialogue checker, `shot_list.py:438` (subject và speaker), `validate_character_names`, `consistency_validators.py:225`, và danh sách tên trong prompt viết chương. Mỗi chỗ chạy `find_referencing_symbols` trước.
+- [ ] 8 regression test trong spec, kể cả `test_repair_loop_ignores_registered_alias`.
+
+#### L2. Shot list không mất phần cuối chương
+- [ ] L2a: fixer của `generate_json` không nhận bản bị cắt (`len(text) > 4000` thì ném lỗi). Có test.
+- [ ] L2b: cắt chương theo đoạn. Các chunk chạy tuần tự trong một chương và mang panel trước sang. Kiểm độ phủ theo từng chunk, `enforce_rules` chạy một lần.
+- [ ] L2c: phát hiện bị cắt cụt một cách tất định (parse lỗi và ngoặc chưa đóng) thì chia đôi và gọi lại, giới hạn độ sâu 3. Đường lùi về rỗng ở `:654` phải ghi lý do.
+- [ ] 7 regression test trong spec, kể cả test chương ngắn vẫn đúng 1 call.
+
+#### L3. Hình thái nhân vật cho ảnh — chờ quyết định A/B (spec §4)
+- [ ] `Character.forms`. Nguồn là trường `visual_change` (chỉ loại `persistent`) ghép vào cùng prompt trạng thái nhân vật, và mô tả phải có trong văn bản.
+- [ ] Chọn form theo `from_chapter` lớn nhất nhưng không vượt N, tại `handlers.py:313-329` và `get_frozen_prompt`.
+- [ ] Ảnh tham chiếu cho form theo phương án CEO chọn.
+- [ ] 4 regression test trong spec.
+
+#### L4. `appearances` (tùy chọn)
+- [ ] Chỉ làm khi L0/L1 cho thấy `tiered_context_builder` promote sai ngữ cảnh.
+
 ---
 
 ## Sprint 3 — Phase 2: remove ~15,000 lines of dead code
@@ -323,6 +435,7 @@ Every item verified to have no caller. Runs alongside the tail of Phase 1.
 
 | Date | Phase | Status | Notes |
 | --- | --- | --- | --- |
+| 2026-09-14 | Batch L | Planned — chờ CEO duyệt | Spec `docs/novelvids-adoption-plan.md`; L0 đo → L1 alias → L2 shot list (gộp mục 2+3) → L3 hình thái (chờ A/B) |
 | 2026-09-13 | Batch K + Sprint 3 (một phần) | K-A/K-B done, merge qua PR #49 | Repair loop bật mặc định, smoke run thật còn nợ; K-C chưa làm. Sprint 3: bỏ Veo/jobs DB, xóa `/api/v1` mirror, nối plugins. Gate (flag ON): 5092 passed, 0 failed; FE tsc + 145 vitest xanh |
 | 2026-08-26 | Batch K | Planned — chờ CEO duyệt | Spec `docs/agentic-repair-loop-spec.md`; 5 repair pass -> 1 vòng có ngân sách; verifier tất định (research §1.3) |
 | 2026-08-22 | Batch D | Done | 5 defects fixed; 29 new tests; full gate pending |
