@@ -23,6 +23,13 @@ logger = logging.getLogger(__name__)
 # with room to spare, and still costs a fraction of a cent per test.
 _PING_MAX_TOKENS = 256
 
+# The most the LLM JSON fixer is ever shown. It used to be sent `text[:4000]`
+# regardless of length, and a fixer handed the head of a long document returns a
+# SHORTER valid document — which then parses as if it were complete. That is how
+# a 5-chapter outline came back with 2 chapters and the story shipped short
+# (Batch K smoke run, 2026-09-14). Past this size we raise instead of "fixing".
+_FIXER_MAX_CHARS = 4000
+
 
 def _config_manager():
     """Lazy-resolve ConfigManager through compat hub for test mock support."""
@@ -143,16 +150,19 @@ class GenerationMixin:
             model,
         )
 
-        # Attempt 1: direct parse
+        # Attempt 1: direct parse. strict=False accepts raw control characters
+        # (a literal newline or tab) inside strings — models emit them in long
+        # prose fields, and strict parsing turned a complete response into a
+        # "malformed" one that then went to the lossy repair path below.
         try:
-            return json.loads(text)
+            return json.loads(text, strict=False)
         except json.JSONDecodeError as e:
             logger.warning(f"JSON parse failed, attempting repair: {e}")
 
         # Attempt 2: repair common issues (trailing commas, quotes, truncation)
         repaired = _repair_json(text)
         try:
-            return json.loads(repaired)
+            return json.loads(repaired, strict=False)
         except json.JSONDecodeError:
             pass
 
@@ -161,6 +171,13 @@ class GenerationMixin:
             raise ValueError(
                 f"JSON parse failed: LLM returned near-empty response "
                 f"({len(text)} chars): {text!r}"
+            )
+        if len(text) > _FIXER_MAX_CHARS:
+            raise ValueError(
+                f"JSON parse failed on a {len(text)}-chars response; not sending it "
+                f"to the fixer, which reads at most {_FIXER_MAX_CHARS} chars and "
+                f"would return a shorter document as if it were complete. "
+                f"First 800: {text[:800]!r}"
             )
         if repair_budget["remaining"] <= 0:
             preview = text[:800]
@@ -172,13 +189,13 @@ class GenerationMixin:
         logger.warning("JSON repair failed, asking LLM to fix")
         fixed = self.generate(
             system_prompt="Fix this malformed JSON. Return ONLY valid JSON, no explanation.",
-            user_prompt=text[:4000],
+            user_prompt=text,
             temperature=0.0,
             json_mode=True,
             model_tier="cheap",
         )
         try:
-            return json.loads(fixed)
+            return json.loads(fixed, strict=False)
         except json.JSONDecodeError:
             pass
         # The fixer model very often wraps its answer in a ```json fence, and a
@@ -188,7 +205,7 @@ class GenerationMixin:
         # _repair_json (which slices from the first '{' to the last '}', dropping
         # any fence or prose); attempt 3 skipped that step. Run it here too.
         try:
-            return json.loads(_repair_json(fixed))
+            return json.loads(_repair_json(fixed), strict=False)
         except json.JSONDecodeError as e:
             preview = fixed[:800] if fixed else "<empty>"
             raise ValueError(

@@ -100,7 +100,10 @@ def test_fidelity_check_no_idea_means_pass():
 
 def test_literal_mode_triggers_reroll_when_coverage_below_floor():
     llm = MagicMock()
-    # Make revise_outline_from_critique return outlines with all names present
+    # Make revise_outline_from_critique return outlines with all names present.
+    # One revised entry per original chapter: OUTLINES_MISSING has 2, and a
+    # revision that drops chapters is now refused (it used to return 1 here and
+    # be accepted — the same shape that shipped a 5-chapter story as 2).
     revised_payload = {
         "outlines": [
             {
@@ -114,7 +117,19 @@ def test_literal_mode_triggers_reroll_when_coverage_below_floor():
                 "arc_id": 1,
                 "foreshadowing_plants": [],
                 "payoff_references": [],
-            }
+            },
+            {
+                "chapter_number": 2,
+                "title": "Chuyến đi của Lý Phong",
+                "summary": "Lý Phong và Tô Vân rời Thiên Sơn",
+                "key_events": [],
+                "characters_involved": ["Lý Phong", "Tô Vân"],
+                "emotional_arc": "",
+                "pacing_type": "rising",
+                "arc_id": 1,
+                "foreshadowing_plants": [],
+                "payoff_references": [],
+            },
         ]
     }
     llm.generate_json.return_value = revised_payload
