@@ -502,6 +502,12 @@ def process_chapter_post_write(
         story_context.timeline_positions = new_tl
         story_context.character_locations = new_loc
 
+    # Keep both sides of the transition around: the repair loop re-runs
+    # `validate_location_transitions` against a candidate rewrite, and by then
+    # `character_locations` has already been advanced to `new_loc`.
+    story_context.repair_prev_locations = prev_locations
+    story_context.repair_new_locations = dict(new_loc or {})
+
     # Location transition validation (pure Python, zero LLM cost)
     # Store separately — world_rule_violations may be overwritten by quality validators later
     _location_warnings: list[str] = []

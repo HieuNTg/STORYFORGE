@@ -460,6 +460,26 @@ class PipelineConfig:
     enable_length_gate: bool = True
     length_gate_min_ratio: float = 0.85  # Expand below this fraction of target
 
+    # Agentic repair loop — replaces the four post-write rewrite passes above
+    # (payoff, consistency, pacing, length) with one bounded loop that carries
+    # every constraint into a single rewrite. Spec: docs/agentic-repair-loop-spec.md.
+    #
+    # Why it exists: those four passes each regenerate the whole chapter knowing
+    # only their own concern, so the payoff rewrite could shorten a chapter below
+    # target and the length expansion could then drop the payoff it just added —
+    # a worst case of 8 LLM calls per chapter, 5 of them full regenerations.
+    #
+    # The loop's verifier is always a deterministic detector (count_words,
+    # consistency_validators, verify_payoffs). Never an LLM judging its own prose:
+    # intrinsic self-correction degrades quality, which is why the one legacy pass
+    # built on it is also the only one that needed a rollback.
+    enable_agentic_repair: bool = True  # default path; legacy passes remain the fallback
+    repair_max_rounds: int = 2  # gains concentrate in round 1; plateau by ~3
+    repair_budget_calls: int = 4  # hard ceiling on LLM calls per chapter
+    repair_regression_tolerance: float = 0.0  # worse than this -> revert
+    repair_fallback_to_legacy: bool = True  # budget spent, work left -> legacy passes
+    repair_min_severity: str = "major"  # blocker | major | minor
+
     # Streaming stall detection. `first_chunk` covers time-to-first-token, which
     # a reasoning model spends thinking before it emits anything: measured
     # median 51.6s and max 106.3s for qwen3.8-max-thinking through the local

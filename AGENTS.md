@@ -30,6 +30,9 @@ For architecture-level questions (layers, pipeline flow, component relationships
   - Quality & pacing (`quality_validators.py`, `pacing_controller.py`, `pacing_enforcer.py`)
   - Batch & parallel processing (`batch_generator.py`, `batch_parallel_writer.py`)
   - Specialized (`foreshadowing_manager.py`, `timeline_validator.py`)
+  - Post-write repair (`repair/`) — bounded loop that collects findings from every
+    detector and fixes them in ONE rewrite, verified by deterministic detectors only.
+    Default on; legacy passes remain the fallback. See `docs/agentic-repair-loop-spec.md`.
 
 ### Layer 2: Enhancement (pipeline/layer2_enhance/) — ~121 files
 - Main entry: `StoryEnhancer` class in `enhancer.py`

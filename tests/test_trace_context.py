@@ -90,6 +90,7 @@ class TestPipelineTrace:
             "cost_by_module",
             "cost_by_chapter",
             "rag",
+            "repair",
         }
         assert s["total_calls"] == 1
 

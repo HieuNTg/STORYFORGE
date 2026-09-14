@@ -25,6 +25,7 @@ _ENV_MAP: dict[str, tuple[str, str]] = {
     "STORYFORGE_TEMPERATURE": ("llm", "temperature"),
     "STORYFORGE_IMAGE_PROVIDER": ("pipeline", "image_provider"),
     "STORYFORGE_LENGTH_GATE": ("pipeline", "enable_length_gate"),
+    "STORYFORGE_AGENTIC_REPAIR": ("pipeline", "enable_agentic_repair"),
     "STORYFORGE_LENGTH_GATE_RATIO": ("pipeline", "length_gate_min_ratio"),
     "IMAGE_API_KEY": ("pipeline", "image_api_key"),
     "QWEN_LOCAL_BASE_URL": ("pipeline", "qwen_local_base_url"),
@@ -50,6 +51,9 @@ _ENV_MAP: dict[str, tuple[str, str]] = {
 }
 
 _FLOAT_FIELDS = {"temperature", "quality_gate_threshold", "request_timeout"}
+# Env values arrive as strings. A bool field missing from this set gets the raw
+# string, and every non-empty string is truthy — so `FLAG=0` turns the flag ON.
+# Any bool in _ENV_MAP must be listed here or its override can only ever enable.
 _BOOL_FIELDS = {
     "rag_enabled",
     "enable_character_consistency",
@@ -58,6 +62,10 @@ _BOOL_FIELDS = {
     "enable_smart_revision",
     "enable_quality_gate",
     "block_on_injection",
+    # Both were reachable from _ENV_MAP without coercion: STORYFORGE_LENGTH_GATE=0
+    # and STORYFORGE_AGENTIC_REPAIR=0 set the string "0" and left the flag on.
+    "enable_length_gate",
+    "enable_agentic_repair",
 }
 
 

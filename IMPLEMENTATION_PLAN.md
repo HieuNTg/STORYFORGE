@@ -184,6 +184,104 @@ story generated. It found a P0 in the first attempt that 5,000 tests did not.
 
 ---
 
+
+### Batch K — Repair loop cho L1 chapter finalize
+
+Spec: `docs/agentic-repair-loop-spec.md`. Đây là khoản cost lớn nhất còn lại của
+Phase 1 và cũng là một defect chất lượng: post-write của mỗi chương chạy 5 pass
+sửa lỗi độc lập, worst-case **8 LLM call/chương trong đó 5 call sinh lại nguyên
+chương** ở `max_tokens=8192` — với truyện 40 chương là ~200 lần viết lại nội dung
+đã có. Cả 5 flag mặc định `True` (`config/defaults.py:374,388,442,447,460`).
+
+Nguyên tắc bất di bất dịch (spec §1.3): **verifier là detector tất định, không
+bao giờ là LLM-as-judge.** Vòng lặp dừng theo `count_words` /
+`consistency_validators` / `verify_payoffs`, không theo điểm model tự chấm.
+
+#### K-A. Hạ tầng — tách detect khỏi side-effect (không đổi hành vi)
+
+- [x] Dựng `pipeline/layer1_story/repair/findings.py`: `Severity`, `RepairFinding`, `RepairPlan`, `RepairOutcome`.
+- [x] Dựng `repair/collector.py`: gom finding từ 5 nguồn hiện có mà **không** mutate `story_context`. Hôm nay detector ghi thẳng vào `story_context.name_warnings` / `arc_drift_warnings` / `foreshadowing_payoff_missing` — phải tách detect khỏi commit-warning để chạy lại được trên bản candidate.
+- [x] `find_referencing_symbols` (Serena) trên mọi symbol đụng tới trước khi sửa. `finalize_chapter` có 3 đường gọi (sync executor / async gather / serial fallback) — mọi rẽ nhánh phải đặt **bên trong** `finalize_chapter`, không ở callsite.
+- [x] Regression test `test_collector_is_pure`: `collect_findings` không mutate `story_context`. Fail trước khi fix.
+- [ ] Gate xanh với flag OFF. Không một byte hành vi nào đổi ở bước này.
+
+#### K-B. Coordinator + executor, planner tất định (phần lớn giá trị nằm ở đây)
+
+Chưa cần thêm LLM call nào: planner giả lập gộp mọi finding, `strategy` luôn
+`full_rewrite`. Đủ để đóng bug ghi-đè và cắt 5 regen xuống 1.
+
+- [x] 6 field config vào `config/defaults.py` (`enable_agentic_repair` — mặc định `True` theo K-D, `repair_max_rounds=2`, `repair_budget_calls=4`, `repair_regression_tolerance=0.0`, `repair_fallback_to_legacy=True`, `repair_min_severity="major"`). Không thêm `getattr(cfg, "x", default)` mới.
+  - `repair_planner_model_tier` **chưa** thêm: planner hiện tất định, không gọi LLM. Field này thuộc K-C.
+- [x] Env override `STORYFORGE_AGENTIC_REPAIR` vào `config/persistence.py` theo mẫu dòng 27.
+- [x] `repair/executor.py`: một prompt rewrite mang **toàn bộ** `constraints` gộp từ mọi finding. Đây là fix cho bug (b) — hôm nay `EXPAND_CHAPTER` không hề biết payoff vừa được chèn.
+- [x] Verifier + `repair/coordinator.py`: vòng lặp, budget cứng, rollback về baseline chụp trước vòng đầu, fallback về 4 lời gọi legacy khi hết budget mà còn lỗi.
+  - Không có file `repair/verifier.py` riêng: verifier là `recheck_findings` trong `repair/collector.py`, dùng chung detector với bước collect.
+- [x] Rẽ nhánh trong `chapter_finalizer.py:97-127`.
+- [x] Tắt `chapter_critique_rollback` khi `enable_agentic_repair=True` (spec §10.1) — giữ `True` trên nhánh legacy.
+- [x] Trace fields: `repair.rounds_used/calls_used/findings_before/findings_after/rolled_back/fallback_used/strategy`.
+- [x] Regression tests, mỗi cái fail trước khi fix:
+  - [x] `test_length_survives_payoff_fix` — chương 1800 từ + payoff thiếu, sau repair vẫn ≥ `length_gate_min_ratio × target` **và** payoff đã trả. **Đây là bug thật, reproduce được trên code hôm nay.**
+  - [x] `test_repair_budget_hard_cap` — vượt `repair_budget_calls` thì thoát, không gọi thêm.
+  - [x] `test_repair_rollback_on_regression` — findings tăng thì content về baseline.
+  - [x] `test_repair_constraints_merged` — prompt chứa mọi `hard_constraint`.
+  - [x] `test_repair_exception_non_fatal` — planner raise thì chương giữ nguyên, pipeline chạy tiếp.
+  - [x] `test_repair_disabled_is_byte_identical` — flag OFF gọi đúng 4 hàm cũ, đúng thứ tự.
+- [ ] Bật flag trên một truyện thử, ghi số `calls_used` vs legacy.
+  - **Đổi so với spec, tìm ra nhờ test:** baseline score phải đo bằng **cùng
+    thước đo** với candidate. Bản đầu chấm baseline từ warning tiền-tính trên
+    `story_context` còn candidate thì chạy lại detector — hai thước đo khác nhau,
+    nên một bản viết lại 1800→900 từ vẫn được chấm là "tốt hơn" và được nhận.
+    `test_repair_rollback_on_regression` bắt đúng chỗ đó. Coordinator giờ chạy
+    `recheck_findings` trên chính bản gốc để lấy baseline (miễn phí — mọi detector
+    recheck được đều không dùng LLM).
+  - Chỉ 4 nguồn `payoff/name/location/length` tham gia chấm điểm. `pacing` (tốn
+    1 LLM call để đo), `arc` (`detect_arc_drift` đọc `character_states` chứ không
+    đọc văn bản) và `critique` (LLM tự chấm) được mang theo làm ràng buộc nhưng
+    **không** được chấm lại — chấm lại chúng là so đo mới với đo cũ.
+  - Trace: hiện thực là `RepairStats` trong `services/trace_context.py` (cộng dồn
+    cả run + vào `summary()`), thay vì 7 field rời — hợp style `RagEventStats` sẵn có.
+  - `post_processing.py` stash `repair_prev_locations` / `repair_new_locations`:
+    `character_locations` đã bị đẩy sang giá trị mới trước khi repair chạy, nên
+    không stash thì không recheck được chuyển cảnh.
+
+#### K-C. Planner thật (1 LLM call)
+
+- [ ] `repair/planner.py`: chọn `targeted` / `full_rewrite` / `skip`, trả JSON hẹp.
+- [ ] `test_planner_json_contract` — `strategy` ngoài 3 giá trị thì coi như `skip`, không crash.
+- [ ] A/B 10 chương: so `calls_used`, `findings_after`, điểm critique cuối.
+
+#### K-D. Quyết định default
+
+- [x] **Bật mặc định — CEO quyết ngày 2026-08-26, sớm hơn cổng mà kế hoạch này đặt ra.**
+  Kế hoạch ban đầu là chỉ bật sau khi K-C chứng minh call giảm ≥40% mà
+  `findings_after` không tăng. Đánh đổi được chấp nhận có ý thức: đường repair có
+  rollback theo detector tất định, có fallback về 4 pass legacy khi hết ngân sách,
+  và mọi đường lỗi đều non-fatal — nên rủi ro tệ nhất là chất lượng kém đi ở một
+  số chương, không phải hỏng pipeline.
+- [ ] **Điều kiện bắt buộc phát sinh từ quyết định trên: smoke run thật trước khi merge.**
+  Prompt hợp nhất (`repair/prompts.py`) tới giờ mới chỉ được kiểm bằng LLM giả.
+  Gate không thay được việc này — cùng bài học đã ghi ở Batch J ("the real run is
+  the only thing that caught this"). Cần một truyện ≥5 chương chạy thật, rồi đọc
+  `trace.summary()["repair"]`: `calls_used` phải thấp rõ so với legacy,
+  `findings_after_total` không được cao hơn `findings_before_total`, và
+  `rollbacks` cao bất thường nghĩa là prompt đang sinh bản tệ hơn.
+  - **2026-09-13: CEO quyết merge vào master qua PR #49 trước smoke run**, giữ flag bật.
+    Điều kiện còn lại chỉ là gate xanh. Smoke run vẫn là việc phải làm — giờ là
+    kiểm chứng sau merge, và nhánh dưới đây là đường lui nếu kết quả xấu.
+- [ ] Nếu smoke run xấu: hạ `enable_agentic_repair` về `False` (một dòng, hoặc
+  `STORYFORGE_AGENTIC_REPAIR=0`) — legacy vẫn nguyên vẹn và có test khoá.
+- [x] **Sửa kill switch — nó vốn không tắt được gì.** `_apply_env_overrides` chỉ ép
+  kiểu cho field nằm trong `_BOOL_FIELDS`; field bool thiếu ở đó nhận thẳng chuỗi,
+  mà chuỗi rỗng thì bị `if not val: continue` bỏ qua còn chuỗi `"0"` là **truthy** —
+  nên `FLAG=0` bật cờ lên. Dính hai cờ: `STORYFORGE_AGENTIC_REPAIR` (tôi vừa ghi
+  vào docs là kill switch) và `STORYFORGE_LENGTH_GATE` (có sẵn từ trước, xưa nay
+  chỉ bật được chứ không tắt được). Cùng họ với defect B3 "toggle chỉ bật được".
+  `tests/test_env_bool_overrides.py` khoá cả hai, và có thêm một test khoá **quy tắc**:
+  mọi field bool trong `_ENV_MAP` phải có mặt trong `_BOOL_FIELDS` — đó mới là thứ
+  bắt được ca thứ ba, vì hai ca này đều lọt vào đúng theo cách đó.
+
+---
+
 ## Sprint 3 — Phase 2: remove ~15,000 lines of dead code
 
 Every item verified to have no caller. Runs alongside the tail of Phase 1.
@@ -225,6 +323,8 @@ Every item verified to have no caller. Runs alongside the tail of Phase 1.
 
 | Date | Phase | Status | Notes |
 | --- | --- | --- | --- |
+| 2026-09-13 | Batch K + Sprint 3 (một phần) | K-A/K-B done, merge qua PR #49 | Repair loop bật mặc định, smoke run thật còn nợ; K-C chưa làm. Sprint 3: bỏ Veo/jobs DB, xóa `/api/v1` mirror, nối plugins. Gate (flag ON): 5092 passed, 0 failed; FE tsc + 145 vitest xanh |
+| 2026-08-26 | Batch K | Planned — chờ CEO duyệt | Spec `docs/agentic-repair-loop-spec.md`; 5 repair pass -> 1 vòng có ngân sách; verifier tất định (research §1.3) |
 | 2026-08-22 | Batch D | Done | 5 defects fixed; 29 new tests; full gate pending |
 | 2026-08-22 | Batch C | Done | 2 defects fixed; quota no longer loses the library; dropped streams reattach; 9 new FE tests |
 | 2026-08-22 | Batch B | Done | 3 defects fixed; config persistence 103 -> 244 of 245 fields; 41 new tests |
