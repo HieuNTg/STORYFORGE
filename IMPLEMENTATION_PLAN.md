@@ -330,6 +330,22 @@ Chưa cần thêm LLM call nào: planner giả lập gộp mọi finding, `strat
   - **2026-09-13: CEO quyết merge vào master qua PR #49 trước smoke run**, giữ flag bật.
     Điều kiện còn lại chỉ là gate xanh. Smoke run vẫn là việc phải làm — giờ là
     kiểm chứng sau merge, và nhánh dưới đây là đường lui nếu kết quả xấu.
+  - **2026-09-14: đã chạy smoke run qua proxy Gemini-API (Qwen).** Cùng một ý tưởng, 5 chương × 1.500 từ, cache tắt.
+
+    | | Repair bật | Legacy |
+    | --- | --- | --- |
+    | Chương viết ra | **2/5** (lỗi dàn ý P0 ở Batch J, đã sửa) | 5/5 |
+    | Tổng call / thời gian | 95 call / 28 phút | 169 call / 71 phút |
+    | Chi phí mỗi chương | $0,12–0,13 | $0,12–0,15 |
+    | Viết lại sau khi viết chương | 5 call cho 2 chương: 3 vòng, 1 rollback, 1 lần fallback về legacy | 7 lần viết lại toàn chương cho 5 chương: pacing ở cả 5, consistency ở ch3 và ch4 |
+    | Findings | 7 → 6 | không đo |
+
+    **Chưa kết luận được.** Hai lượt không so được với nhau vì dàn ý khác nhau: lượt repair bị cắt còn 2 chương. Legacy cũng không có bộ đếm tương đương `repair_stats`. Tiêu chí "calls_used thấp rõ so với legacy" chưa được chứng minh, nhưng cũng chưa bị bác bỏ: không có rollback hàng loạt, và findings không tăng. Vì vậy **giữ flag bật**.
+  - [ ] A/B đúng nghĩa:
+    - Chạy L1 hai lần trên **cùng một checkpoint dàn ý**, dùng `resume_from_batch` hoặc nạp outline có sẵn.
+    - Thêm bộ đếm call viết lại cho nhánh legacy, để so cùng thước đo.
+    - Lỗi dàn ý P0 đã sửa, nên lần chạy này sẽ có đủ chương.
+  - [ ] **Lỗi mới do chạy thật tìm ra:** chương 3 của lượt legacy dài 5.002 từ so với mục tiêu 1.500, gấp 3,3 lần. Length gate chỉ kéo dài chương khi `< length_gate_min_ratio × target`, không có trần trên. Cần đo tỉ lệ vượt trên nhiều truyện trước khi quyết có cần trần hay không.
 - [ ] Nếu smoke run xấu: hạ `enable_agentic_repair` về `False` (một dòng, hoặc
   `STORYFORGE_AGENTIC_REPAIR=0`) — legacy vẫn nguyên vẹn và có test khoá.
 - [x] **Sửa kill switch — nó vốn không tắt được gì.** `_apply_env_overrides` chỉ ép
@@ -360,6 +376,7 @@ cho batch này. Bản đánh giá gốc đã được đối chiếu với code.
     - Mọi cảnh báo này đều là finding được chấm điểm trong repair loop Batch K.
   - **Nhân vật chỉ được gọi bằng một phần tên** (registry coi là vắng mặt): 1 cặp trên 24 chương. Truyện smoke thể loại hiện đại cũng nhắc tên đầy đủ ít nhất một lần mỗi chương.
   - **Chương dài hơn cửa sổ 8.000 ký tự:** 2/24 (8%), dưới ngưỡng 20%. Nhưng chương 1 của truyện smoke dài 11.892 ký tự, nên **sẽ đo lại trên truyện legacy 5 chương** trước khi quyết L2b/L2c.
+    - **Đã đo lại (smoke run 2026-09-14, cấu hình hiện tại):** 4/7 chương dài hơn cửa sổ (57%, vượt ngưỡng 20%). Các chương dài 6.929–22.527 ký tự. Chương dài nhất thì hơn 14.000 ký tự không bao giờ được đưa vào shot list. Tỉ lệ 8% ở dữ liệu cũ là do chương cũ ngắn hơn. **Quyết định: làm L2b/L2c.**
   - **Panel có subject mà thiếu ảnh tham chiếu:** không đo được, vì shot list không được lưu ra đĩa.
 
 #### L1'. Phạm vi mới theo số đo: sửa detector tên trước, alias sau
