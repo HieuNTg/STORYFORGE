@@ -416,11 +416,36 @@ cho batch này. Bản đánh giá gốc đã được đối chiếu với code.
   - **Phát hiện L1, không phải lỗi L2:** panel #9–15 lặp một cảnh vì **chính văn bản chương** kể lại cảnh đó hai lần. Câu "Thôi được…" nằm ở vị trí 7.595 và 9.626; không có cửa sổ 200 ký tự nào trùng khít, tức cùng một cảnh được viết lại bằng lời khác. Khớp với việc chương dài 5.002 từ so với mục tiêu 1.500. Nghi các lượt viết lại hậu kỳ của legacy (pacing, consistency) chèn thêm thay vì thay thế. Cần kiểm trước khi quyết về trần độ dài.
 - [ ] 7 regression test trong spec, kể cả test chương ngắn vẫn đúng 1 call.
 
-#### L3. Hình thái nhân vật cho ảnh — chờ quyết định A/B (spec §4)
-- [ ] `Character.forms`. Nguồn là trường `visual_change` (chỉ loại `persistent`) ghép vào cùng prompt trạng thái nhân vật, và mô tả phải có trong văn bản.
-- [ ] Chọn form theo `from_chapter` lớn nhất nhưng không vượt N, tại `handlers.py:313-329` và `get_frozen_prompt`.
-- [ ] Ảnh tham chiếu cho form theo phương án CEO chọn.
-- [ ] 4 regression test trong spec.
+#### L3. Hình thái nhân vật cho ảnh — B có đường lui A (CEO duyệt)
+
+**Đổi thiết kế so với spec, CEO chọn ngày 2026-09-14: lưu ở profile store, không lưu trên `Character`.**
+- Lý do: đường tạo comic từ Library gửi `_LibraryCharacterPayload`, chỉ có 4 field (`name`, `role`, `description`, `backstory`), còn `_payload_to_story_draft` bỏ mọi field khác. Muốn gắn `Character.forms` thì phải sửa 5 lớp: schema, type frontend, auto-save, payload, và hàm đổi sang draft. Truyện đã lưu từ trước vẫn không có hình thái.
+- Cách làm mới: hình thái lưu trong `profile.json` của nhân vật, cạnh `frozen_prompt` và ảnh tham chiếu, rồi suy ra từ nội dung chương lúc tạo comic.
+- Chi phí: thêm 1 call rẻ cho mỗi chương ở lần tạo comic đầu tiên, có cache theo nội dung chương. Điều này trái dòng "không thêm call" trong spec; CEO đã chấp nhận.
+
+- [x] `services/media/character_forms.py`:
+  - `detect_changes`: 1 call cheap. Chỉ nhận thay đổi khi tên khớp đúng một nhân vật và `evidence` là trích dẫn **nguyên văn** có trong chương.
+  - `ensure_forms`: cache theo hash nội dung. Chương đổi nội dung thì quét lại và thay các form cũ của chương đó. Quét lỗi thì không đánh dấu, lần sau thử lại.
+  - `for_chapter`: hàm thuần, chọn form có `from_chapter` lớn nhất mà không vượt N.
+  - `prepare_form_references`: phương án B, sinh ảnh tham chiếu cho form một lần từ ảnh gốc qua provider trong `REF_CAPABLE`. Không làm được thì chỉ đổi prompt (phương án A).
+- [x] `CharacterVisualProfileStore`: thêm `get_forms`, `add_form`, `remove_forms_from_chapter`, `set_form_reference`, và chỉ mục chương đã quét. `save_enhanced_profile` giữ nguyên `forms` khi dựng lại profile.
+- [x] `handle_generate_images`: quét và chuẩn bị ảnh **tuần tự trước khi** chia chương chạy song song. Mỗi chương nhận `visual_profiles` và `character_references` của riêng mình. Hai đường comic đang dùng (theo session và Library job) đều đi qua đây. Toàn bộ bước này non-fatal.
+- [x] Cờ `comic_character_forms_enabled = True` trong `config/defaults.py`.
+- **Chạy thật qua proxy (2026-09-14)** trên checkpoint có sẵn:
+
+  | Truyện | Lượt | Thời gian | Model đề xuất | Được nhận | Ghi chú |
+  | --- | --- | --- | --- | --- | --- |
+  | Tâm lý hiện đại, 5 chương | Prompt ban đầu | 5 call, 27s | 0 | 0 | Đúng: không nhân vật nào đổi ngoại hình. Lượt quét lại tốn 0 call (cache hoạt động) |
+  | Tiên hiệp, 10 chương | Prompt ban đầu | 10 call, 47s | 5 | 5 | Cả 5 đều trích nguyên văn nhưng **không cái nào là ngoại hình để vẽ tiếp**: túi hương, áo bị gió xé rách, **"thân vỡ thành đống xương"**, **"đã chết"**, "áo tan thành hạt sáng" |
+  | Tiên hiệp, 10 chương | Prompt chặt + chốt chặn cái chết | 10 call, 48s | 2 | 2 | "Mắt trong suốt, ánh kiếm quang" sau đột phá: hợp lý. "Túi hương đeo bên hông": sai, hại nhỏ |
+
+  - Bài học: kiểm trích dẫn nguyên văn chỉ chặn được thay đổi bịa ra, **không** chặn được việc model hiểu sai "lâu dài". Nên sửa hai lớp:
+    - Prompt: loại trừ chết, hủy thân, khoảnh khắc đang biến đổi, rách do giao chiến, phụ kiện cầm theo; `description` phải là ngoại hình kết quả.
+    - Chốt tất định `_ENDS_THE_CHARACTER`: mô tả chứa dead/corpse/bones/shattered/… thì bỏ. Ca "đống xương" là ca có hại nặng nhất, vì nhân vật sẽ bị vẽ như vậy ở mọi panel sau, kể cả hồi tưởng.
+  - **Giới hạn đã biết:** phụ kiện nhỏ (túi, ngọc bội) đôi khi vẫn lọt dù prompt đã loại. Không thêm chốt tất định theo từ khóa, vì "white robe with jade pendant" là thay đổi thật sẽ bị loại nhầm. Hại nhỏ: chỉ thêm một dòng mô tả phụ kiện vào prompt ảnh.
+  - Giữ bật mặc định: truyện hiện đại không có báo nhầm, ca gây hại nặng đã bị chặn tất định, lỗi còn lại chỉ hại nhỏ.
+- [x] `tests/test_character_forms.py`: fail toàn bộ trên code cũ vì module chưa tồn tại. Có thêm 4 test chặn ca cái chết, lấy nguyên văn từ lần chạy thật; 4 test này fail trước khi thêm chốt `_ENDS_THE_CHARACTER`. Có 1 test integration qua handler: chương 1 vẽ hình thái gốc, chương 2 và 3 vẽ hình thái mới.
+- [x] Gate xanh: 5.166 test pass, 0 fail (2026-09-14).
 
 #### L4. `appearances` (tùy chọn)
 - [ ] Chỉ làm khi L0/L1 cho thấy `tiered_context_builder` promote sai ngữ cảnh.
